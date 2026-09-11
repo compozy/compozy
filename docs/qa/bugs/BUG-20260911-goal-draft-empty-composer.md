@@ -38,3 +38,5 @@ Canonical provider integration reproduced one red case, then60 tests passed incl
 Fresh Lea session sess-a451bde5b8a3c90b confirms Cursor/grok-4.6/high/fast at both effective runtime and ACP option. The final proposal prefills exactly one /goal with verification and constraint lines, survives reload byte-for-byte, and creates no Run/Goal. The authored-text retry records active_prompt true immediately after typing; the note remains after completion and reload. Public Goal is null, Run inventory empty, and stop reaches stopped. docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-draft-retake-proof.json records reviewed screenshots and timing exclusions.
 
 Focused provider/thread/store209 tests passed, including ordinary/cancelled/incomplete exclusions. Replaced unsupported Array.findLast with ES-target-compatible filtering after typecheck. Final root Turbo build/typecheck and make gate passed771files/7218tests, lint0warnings/0errors. TA104 is fixed-and-verified using existing exact-replacement evidence; GL013 still awaits its exact admission race.
+
+Fix commit before subsequent rebases: 07c5a4504.

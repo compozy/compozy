@@ -52,3 +52,22 @@ Cross-surface impact of these follow-up edits: not applicable — test fixtures 
 Final local gate passed: all affected lanes green; Web 771 test files / 7205 tests, typecheck and lint passed (`rebase-gate-retest.txt`). No CI/push was requested or performed.
 
 Pre-commit formatting/lint ran explicitly with `lint-staged --no-stash`, and commitlint passed. Automatic Husky re-execution is disabled solely because its default lint-staged invocation uses Git stash, which the user prohibits; the checks themselves were completed.
+
+
+## Second upstream integration — 2026-09-11
+
+Fetched target ace125a7e4b77b632b97bd9b633558c083641165 adds 13 commits. GitHub commit-to-PR responses are retained in rebase-20260911-pr-associations.json; all full PR bodies were read. Eleven commits have no associated PR.
+
+| Change | Reviewed intent and QA impact |
+| --- | --- |
+| PR584 / 0fe6e1651 | Release preparation and complete release notes; embedded Web assets move v0.0.242 to v0.0.259. Rebuild the local binary/Web before accepting new integrated runtime evidence. No release action authorized. |
+| PR614 / be00def6d | Stopped/unbound sessions retain read-only queues without provider startup. DELETE retries pending stop settlement before staging; Web queue observers follow lifecycle, cancel on deletion, recover after failure. Canonical deletion, queue, route and E2E fixtures retain mutation guards and isolation. Recheck stopped queue reads and preserve Goal audit history; current draft composer event changes must coexist with session query cancellation. |
+| aebf0ccfd | Finished notifications include done sessions; mixed reasoning/tool disclosure survives folding; prose joins only across hidden progress. Review local transcript fixture updates for semantic overlap. |
+| 0ea1702ae | Bell opening dismisses overlapping ephemeral attention toasts, catalog invalidation refreshes notification truth, durable roster recognizes skipped-route output references; integration cleanup waits for finalization. Goal Inspect and later fan-out walks must observe current roster truth. |
+| fe2a4a381, f1ca27092, 1b6c0e403, f94f1fc68 | Overview acknowledgement fixtures now supply valid origins, escalation metadata, canonical status and audit events. These are fixture repairs, not changes to the source-status contract. |
+| 6dca12b4d, d7ba1a263 | Story notification fixtures explicitly retain Global labels and empty unscoped workspace IDs. |
+| 9a792f51a | Eight engineering articles and blog rendering support; website scope, not daemon admission behavior. |
+| 7e45b472b | Bulk-session design prototype, search skill and site QA bookkeeping; prototype is not shipped session behavior. |
+| ace125a7e | Blog content/cover/SEO/rendering revisions plus session-context design artifacts. Site routes and structured-data tests changed; no runtime Goal contract retirement. |
+
+Rebase is pending at this checkpoint. Preserve the unrelated agent-browser skill deletion and untracked handoff directory. Use an isolated Git worktree for replay, then transfer only the reviewed tree delta and advance the branch with an expected-old-HEAD guard. No stash or destructive Git command.

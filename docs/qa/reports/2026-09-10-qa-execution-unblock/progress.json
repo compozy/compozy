@@ -2,12 +2,12 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Goal draft prefill fixed and live-replayed; gate771files/7218tests passed. Commit with no-stash checks next. TA104 fixedverified;19 dispositioned338pending. GL013 exact parse/submit race and TA095 activeGoal/internal-ingress remain pending. Ordinary agents stopped. Historyfix00890e940.",
+  "cursor": "Rebase onto fetched origin/main ace125a7e after checkpoint; inspect incoming PR584/614 and 11 direct commits. GL013 exact race still pending; fixture removed and lab restarted. 19 dispositioned,338 pending.",
   "completed_rows": 19,
   "pending_rows": 338,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
-  "daemon_pid": 2132,
+  "daemon_pid": 64998,
   "browser_session": "qa-execution-unblock",
   "prompt_handle": null,
   "build": {
@@ -152,5 +152,13 @@
   "goal_draft_session": "sess-ec096d1951e83b23",
   "goal_history_fix_commit": "00890e940",
   "goal_draft_retake_session": "sess-a451bde5b8a3c90b",
-  "goal_draft_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-draft-retake-proof.json"
+  "goal_draft_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-draft-retake-proof.json",
+  "goal_draft_fix_commit": "07c5a4504",
+  "goal_race_fixture": {
+    "path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/goal-draft-race",
+    "restore_required": false,
+    "baseline_hooks": {},
+    "restore_command": "tool invoke compozy__hooks_delete --workspace ws_fc0dcf020b8034f1 --input-file docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-race-hook-delete-input.json -o json",
+    "outcome": "No barrier dispatch; hook catalog normalizes workspace matcher to ULID, session identity uses ws_ alias. Suspected matching defect requires diagnosis after upstream rebase. Hook deleted through native tool; restarted and absence confirmed."
+  }
 }
