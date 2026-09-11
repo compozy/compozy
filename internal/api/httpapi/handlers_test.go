@@ -2938,11 +2938,14 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 				},
 				InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
 					summaryReads++
-					return session.InputQueueSummary{}, nil
+					return session.InputQueueSummary{PendingInputs: 1, Cap: 7}, nil
 				},
 				ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
 					queueReads++
-					return []session.PendingInput{}, tc.queueErr
+					return []session.PendingInput{{
+						ID: "inq-stopped", SessionID: "sess-123", Text: "persisted follow-up",
+						Status: store.SessionInputQueueStatusQueued,
+					}}, tc.queueErr
 				},
 			}
 			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
@@ -2966,6 +2969,18 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 						"storage failure response = %#v, queue reads = %d, summary reads = %d",
 						payload, queueReads, summaryReads,
 					)
+				}
+			} else {
+				var payload contract.SessionInputListResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if queueReads != 1 || summaryReads != 1 || len(payload.Inputs) != 1 ||
+					payload.Inputs[0].ID != "inq-stopped" || payload.Inputs[0].Text != "persisted follow-up" ||
+					payload.Inputs[0].Status != contract.SessionInputQueued ||
+					payload.Queue == nil || payload.Queue.Cap != 7 || payload.Queue.Entries != 1 {
+					t.Fatalf("stopped queue response = %#v, queue reads = %d, summary reads = %d",
+						payload, queueReads, summaryReads)
 				}
 			}
 		})
