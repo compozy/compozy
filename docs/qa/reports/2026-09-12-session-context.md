@@ -81,3 +81,23 @@ during context unavailability. No standalone test files or weakened expectations
 
 These checks cover the changed behavior. Final local gate and current-head CI remain recorded by the
 PR delivery workflow; this section does not replace them or claim another live-provider run.
+
+
+The second and final CodeRabbit round produced two inline findings and one outside-diff finding.
+A deterministic terminal test reproduced input reaching the PTY after a marker failed during input
+preparation; the audit check and journal reservation now share one marker lock. Focused race and
+real HTTP/WebSocket/UDS lifecycle integration passed after repair. Web classification and rendering
+tests reproduced text-only errors being hidden; both now pass with original error detail retained.
+The 34 predicate/rendering cases pass in their respective library/component suites. Moving the
+existing predicate cases created their canonical library suite without duplicating those assertions.
+React Doctor remains 100/100 with zero issues. Automatic CodeRabbit reviews are paused to honor the
+requested two-round limit; final delivery still requires the new commit's CI.
+
+
+The second CI run also exposed an invalid equality assumption in extension transport parity:
+sequential HTTP/UDS reads crossed a one-second uptime boundary. `DescribeExtension` intentionally
+computes uptime from the current clock, so freezing it in production would misreport runtime state.
+The owning parity suite now reuses its existing measured-window rule for general runtime uptime,
+checks nonnegative values and bounded monotonic drift, and compares every remaining extension field
+exactly for both list and detail responses. All `TestUDSTransportSettings` integration cases passed
+under the race detector (27.207s). No production clock or API value was changed to satisfy the test.

@@ -45,7 +45,7 @@ const NON_FAILURE_STOP_REASONS = new Set([
 export function isSessionErrorEvent(event: AgentEventPayload): boolean {
   if (event.type !== "error") return false;
   if (isProviderErrorEvent(event) || hasText(event.failure?.summary)) return true;
-  if (!hasText(event.error)) return false;
+  if (!hasText(event.error) && !hasText(event.text)) return false;
   const stopReason = event.stop_reason?.trim().toLowerCase();
   return !(stopReason && NON_FAILURE_STOP_REASONS.has(stopReason));
 }

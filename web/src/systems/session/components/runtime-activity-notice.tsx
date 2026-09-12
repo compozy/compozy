@@ -97,6 +97,7 @@ function sessionErrorDescription(event: AgentEventPayload): string {
   return (
     normalizeErrorText(event.error) ||
     normalizeErrorText(event.failure?.summary) ||
+    normalizeErrorText(event.text) ||
     "The session stopped before completing this turn."
   );
 }

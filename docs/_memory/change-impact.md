@@ -139,6 +139,11 @@ data into the Context panel. CLI TOON retains report timestamps, delivered rows,
 turn/usage/delivery/span/compaction arrays. HTTP/UDS schemas, native tool IDs, hook/config contracts,
 and persisted workspace isolation are unchanged. The official runtime-operations skill and the
 owning CLI/context-sidebar QA scenarios document these corrections.
+The final review extends the terminal marker lock through journal reservation, preserving output
+progress outside PTY writes. Text-only session errors now remain visible with their original detail;
+empty errors and attributed stops retain their existing filtering. This changes Web presentation
+only, with no new event fields, native tools, hook/config behavior, persistence, or skill contract.
+Predicate coverage follows its library owner; the transcript-grammar scenario records the change.
 
 ## Marketplace catalog — one kind, plugin marketplaces as sources
 

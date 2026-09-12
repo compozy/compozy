@@ -43,6 +43,8 @@ Walk:
 
 PR #635 CI follow-up: `TestOSCSecurityFilterShouldBlockInputWhenAuthenticatedFactsCannotBeJournaled`
 owns the concurrent marker-failure/input invariant in the existing terminal suite. The repair
-synchronizes marker admission with the input audit check and preserves the original assertion.
+synchronizes marker admission with both the input audit check and journal reservation. A concurrent
+marker failure during input preparation must be observed before reservation, with no PTY bytes sent.
+The original assertion is preserved and the same suite now deterministically covers this interleaving.
 The terminal race suites and real HTTP/WebSocket and UDS lifecycle integration checks passed;
 the existing store-failure/recovery walkthrough above retains its original evidence.

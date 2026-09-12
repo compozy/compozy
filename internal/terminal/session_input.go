@@ -74,16 +74,6 @@ func (s *session) deliverInputMode(
 	// decides which complete submission reaches the process first.
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
-	s.markerMu.Lock()
-	blocked := s.audit.Blocked()
-	s.markerMu.Unlock()
-	if blocked {
-		return inputDeliveryState{}, &Error{
-			Code:    ErrorCodeJournalUnavailable,
-			Message: "terminal input is blocked while journal delivery is unavailable",
-			Err:     ErrJournalUnavailable,
-		}
-	}
 	filtered := s.filter.FilterInput(input)
 	contentBytes := len(filtered)
 	if appendNewline &&
@@ -103,13 +93,9 @@ func (s *session) deliverInputMode(
 		}
 		auditInput = JournalInput{Redacted: true, Characters: characters}
 	}
-	reservation, admitted := s.manager.reserveJournalInput(info, auditInput)
-	if !admitted {
-		return inputDeliveryState{}, &Error{
-			Code:    ErrorCodeJournalUnavailable,
-			Message: "terminal input is blocked while the journal lane is full",
-			Err:     ErrJournalUnavailable,
-		}
+	reservation, err := s.reserveInputDelivery(info, auditInput)
+	if err != nil {
+		return inputDeliveryState{}, err
 	}
 	deliveryErr := writeAllInput(filtered, writer)
 	state, err := s.commitInputDelivery(actor, filtered, contentBytes, auditInput, reservation, deliveryErr)
@@ -117,6 +103,27 @@ func (s *session) deliverInputMode(
 		return state, err
 	}
 	return state, deliveryErr
+}
+
+func (s *session) reserveInputDelivery(info Info, input JournalInput) (JournalInputReservation, error) {
+	s.markerMu.Lock()
+	defer s.markerMu.Unlock()
+	if s.audit.Blocked() {
+		return nil, &Error{
+			Code:    ErrorCodeJournalUnavailable,
+			Message: "terminal input is blocked while journal delivery is unavailable",
+			Err:     ErrJournalUnavailable,
+		}
+	}
+	reservation, admitted := s.manager.reserveJournalInput(info, input)
+	if !admitted {
+		return nil, &Error{
+			Code:    ErrorCodeJournalUnavailable,
+			Message: "terminal input is blocked while the journal lane is full",
+			Err:     ErrJournalUnavailable,
+		}
+	}
+	return reservation, nil
 }
 
 func (s *session) commitInputDelivery(
