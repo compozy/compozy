@@ -20,6 +20,9 @@ React Doctor diagnostics, and rebase onto `origin/main` at `bfd56223b`.
 | CodeRabbit 3994749656 | Equivalent theme selector identities | Normalize the attribute condition while retaining selector specificity; paired tokens resolve together. |
 | CodeRabbit 3994749660 | Structural emoji escapes | Scan nested structural text and parse icon attributes independently of order and quoting; prose and script controls remain exempt. |
 | CodeRabbit 3994749662 | Theme tokens counted as raw colors | Reuse the global scope parser to exclude custom-property declarations; preserve visible declarations and component-local colors. |
+| CodeRabbit 3994805075 | Icon containers beyond span | Detect structural icon text in every non-void element and preserve inherited heading/button/list context. |
+| CodeRabbit 3994805080 | Iconography false positive | Match delimited icon names, preserving feature-icon and BEM-style names without matching iconography or silicon. |
+| CodeRabbit review 5184888111, outside diff | Important token declarations | Preserve declaration priority within and across scopes; priority precedes specificity and source order, while body declarations override inherited root values. |
 | React Doctor | Create/settings hook complexity | Provider selection and editor projections extracted; changed-file scan 100/100, zero findings. |
 | CodeRabbit general | Docstring coverage threshold | Not applied: generic 80% coverage conflicts with the repository's explicit comment policy (eng-code-guidelines/references/coding-style.md, Comments). Keep short comments for non-obvious invariants; do not add repetitive comments to 170 functions. |
 | CodeRabbit embedded OpenGrep | Command injection at styleRe.exec | False positive: this is RegExp.exec on HTML, not child_process execution. No shell command is constructed. |
@@ -85,3 +88,11 @@ emoji, and accepted the refined file. Every returned digest independently matche
 Evidence: `qa/round2-public-lint.json` in the same targeted lab. Teardown is clean with no survivors.
 The final local gate is repeated for this change; unchanged authored-context and React Doctor
 evidence remains applicable. No new dependency or lint exception was introduced.
+
+The review of `220de9e29` added two inline findings and one outside-diff finding. Ten canonical
+regressions failed before correction; all 159 cases now pass. The native extension race suite
+passes. Public native lint rejects insufficient important tracking and icon-class containers,
+allows iconography prose, and accepts the refined files with independently matching digests.
+Evidence: `qa/round3-public-lint.json`; teardown remains clean. The same affected gate is repeated
+for this continuation. Delimiter-aware matching retains existing feature-icon behavior, reconciling
+the two icon comments without weakening its regression.

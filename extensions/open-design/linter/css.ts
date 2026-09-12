@@ -2,9 +2,10 @@
 import { AI_DEFAULT_INDIGO } from "./rules";
 
 type CssDeclaration = { prop: string; value: string };
+type CssToken = { value: string; important: boolean };
 type CssTokenScope = {
   selectors: string[];
-  tokens: Map<string, string>;
+  tokens: Map<string, CssToken>;
   themeKeys: Set<string>;
 };
 
@@ -53,7 +54,7 @@ function isResolvedTrackingAdequate(body: string): boolean {
 // list contains a bare `:root` / `html` / `body`) apply to every theme
 // as a baseline; variant scopes apply only to the themes their
 // selector targets. Within a single theme, the most specific matching
-// selector wins; source order breaks ties.
+// selector wins among equally important declarations; source order breaks ties.
 //
 // Returned as an array — one map per theme. The lint passes only when
 // every theme map satisfies the rule, so a default-theme value below
@@ -75,7 +76,7 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
     const tokens = new Map<string, string>();
     // Body declarations override inherited root tokens regardless of root specificity.
     for (const bodyScope of [false, true]) {
-      const specificity = new Map<string, number>();
+      const priorities = new Map<string, { important: boolean; specificity: number }>();
       for (const scope of scopes) {
         const matching = scope.selectors.filter(
           s =>
@@ -87,10 +88,15 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
           (highest, s) => Math.max(highest, globalThemeSpecificity(s)),
           0
         );
-        for (const [name, value] of scope.tokens) {
-          if (rank >= (specificity.get(name) ?? -1)) {
-            tokens.set(name, value);
-            specificity.set(name, rank);
+        for (const [name, token] of scope.tokens) {
+          const current = priorities.get(name);
+          if (
+            !current ||
+            (token.important && !current.important) ||
+            (token.important === current.important && rank >= current.specificity)
+          ) {
+            tokens.set(name, token.value);
+            priorities.set(name, { important: token.important, specificity: rank });
           }
         }
       }
@@ -180,7 +186,7 @@ function resolveFontSizePx(decls: CssDeclaration[]): number | null {
 // Returns an array of per-scope records:
 //   `{ selectors, tokens, themeKeys }`
 // where `tokens` is the per-scope last-write-wins map of CSS custom
-// properties, `selectors` lists the parsed selectors from the rule,
+// properties with priority, `selectors` lists the parsed selectors from the rule,
 // `themeKeys` is the set of normalized theme-attribute conditions the rule
 // targets. Per-theme effective maps are derived downstream from these
 // records by `buildResolvedThemes`, which preserves the scope-internal
@@ -193,9 +199,9 @@ function resolveFontSizePx(decls: CssDeclaration[]): number | null {
 // Within a single rule body, CSS cascade is last-write-wins: a block
 // like `:root { --caps-tracking: 0.02em; --caps-tracking: 0.08em; }`
 // renders the second value, and the first never reaches any element.
-// Per-scope, we keep only the LAST value declared for each token
-// name; cross-scope merging happens later in `buildResolvedThemes`,
-// where specificity and then source order select the winning declaration
+// Per-scope, importance wins before source order for each token name.
+// Cross-scope merging happens later in `buildResolvedThemes`, where
+// importance, specificity, then source order select the winning declaration
 // between scopes that target the same theme.
 export function extractCssTokens(html: string): CssTokenScope[] {
   const scopes: CssTokenScope[] = [];
@@ -214,7 +220,7 @@ export function extractCssTokens(html: string): CssTokenScope[] {
         selectors.filter(s => !isBareGlobalSelector(s)).map(globalThemeIdentity)
       );
       const body = m[2] ?? "";
-      const tokens = new Map();
+      const tokens = new Map<string, CssToken>();
       for (const decl of body
         .split(";")
         .map(d => d.trim())
@@ -223,7 +229,10 @@ export function extractCssTokens(html: string): CssTokenScope[] {
         if (dm) {
           const tokenName = dm[1];
           const tokenValue = dm[2];
-          if (tokenName != null && tokenValue != null) tokens.set(tokenName, tokenValue.trim());
+          if (tokenName == null || tokenValue == null) continue;
+          const important = /!\s*important\s*$/i.test(tokenValue);
+          const token = { value: tokenValue.replace(/!\s*important\s*$/i, "").trim(), important };
+          if (important || !tokens.get(tokenName)?.important) tokens.set(tokenName, token);
         }
       }
       if (tokens.size === 0) continue;

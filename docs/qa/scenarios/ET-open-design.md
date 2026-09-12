@@ -104,3 +104,10 @@ heading/button/list/icon content must be detected regardless of icon attribute o
 body prose, attribute values, and script examples remain exempt. The rebuilt public tool passed
 these cases and the emoji refinement, with matching digests (`qa/round2-public-lint.json` in the
 remediation lab). The canonical linter suite passes 144 tests; native extension race tests pass.
+
+Further review: custom-property `!important` priority must win before specificity and source order
+within the same element, while body declarations still override inherited root values. Icon
+containers may use any non-void tag; delimited icon names such as `feature-icon` are structural,
+while `iconography` and `silicon` are not. The current native tool rejected the bad tracking/icon
+fixtures and accepted their refinements and the prose control with matching hashes. Evidence:
+`qa/round3-public-lint.json`; all 159 canonical cases and the native extension race suite pass.

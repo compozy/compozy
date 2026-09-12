@@ -38,9 +38,7 @@ export function findStructuralEmoji(html: string): { emoji: string; text: string
     }
     if (VOID_TAGS.has(tag)) continue;
     const structural =
-      stack.at(-1)?.structural ||
-      /^(?:h[1-6]|button|li)$/.test(tag) ||
-      (tag === "span" && hasIconClass(token[0]));
+      stack.at(-1)?.structural || /^(?:h[1-6]|button|li)$/.test(tag) || hasIconClass(token[0]);
     stack.push({ tag, structural });
   }
   return undefined;
@@ -52,7 +50,7 @@ function hasIconClass(startTag: string): boolean {
     if (attribute[1]?.toLowerCase() !== "class") continue;
     return (attribute[2] ?? attribute[3] ?? attribute[4] ?? "")
       .split(/\s+/)
-      .some(value => value.includes("icon"));
+      .some(value => /(?:^|[-_])icon(?:$|[-_])/.test(value));
   }
   return false;
 }

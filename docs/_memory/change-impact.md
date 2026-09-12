@@ -257,3 +257,7 @@ The post-push continuation also normalizes equivalent theme selectors, excludes 
 token declarations from raw-color counts, and scans nested structural emoji. These corrections
 remain within the same native linter contract and workspace boundary; ET-open-design records the
 public replay. No Web, hook, config, persistence, or official skill surface changes are required.
+
+The following linter-only continuation preserves custom-property importance and recognizes icon
+containers with delimiter-aware names across non-void tags. The same tool/schema/isolation audit
+and ET-open-design scenario apply; no additional surface contract is introduced.

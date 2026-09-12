@@ -1416,6 +1416,21 @@ describe("equivalent global theme selectors", () => {
 
 describe("emoji-icon", () => {
   it.each([
+    '<div class="icon">✨</div>',
+    '<i class="feature-icon">🚀</i>',
+    '<em class="ui__icon">✨</em>',
+  ])("detects an icon container in %s", html => {
+    expect(requiredFinding(lintArtifact(html), "emoji-icon").severity).toBe("P0");
+  });
+
+  it.each(['<span class="iconography">✨ A story</span>', '<div class="silicon">✨ A story</div>'])(
+    "does not treat unrelated class names as icons: %s",
+    html => {
+      expect(lintArtifact(html).find(f => f.id === "emoji-icon")).toBeUndefined();
+    }
+  );
+
+  it.each([
     '<span aria-hidden="true" class="icon">✨</span>',
     "<span aria-hidden='true' class='feature-icon'>✨</span>",
     "<span aria-hidden=true class=icon>✨</span>",
@@ -1434,5 +1449,37 @@ describe("emoji-icon", () => {
     '<script>const sample = "<button>✨</button>";</script>',
   ])("allows emoji outside structural text in %s", html => {
     expect(lintArtifact(html).find(f => f.id === "emoji-icon")).toBeUndefined();
+  });
+});
+
+describe("important tracking declarations", () => {
+  it.each([
+    { css: ":root { --tracking: .02em !important; --tracking: .08em; }", flagged: true },
+    { css: ":root { --tracking: .02em !important; } :root { --tracking: .08em; }", flagged: true },
+    { css: "html { --tracking: .02em !important; } :root { --tracking: .08em; }", flagged: true },
+    { css: ":root { --tracking: .08em !important; } :root { --tracking: .02em; }", flagged: false },
+    {
+      css: ":root { --tracking: .02em !important; } :root { --tracking: .08em !important; }",
+      flagged: false,
+    },
+    {
+      css: ":root { --tracking: .02em !important; } html { --tracking: .08em !important; }",
+      flagged: true,
+    },
+    { css: ":root { --tracking: .02em !important; } body { --tracking: .08em; }", flagged: false },
+    { css: "body { --tracking: .02em !important; } body { --tracking: .08em; }", flagged: true },
+    { css: ":root { --tracking: .02em ! IMPORTANT; --tracking: .08em; }", flagged: true },
+  ])("resolves priority before specificity and order: $css", ({ css, flagged }) => {
+    const findings = lintArtifact(
+      `<style>${css} .label { text-transform: uppercase; letter-spacing: var(--tracking); }</style>`
+    );
+    expect(findings.some(f => f.id === "all-caps-no-tracking")).toBe(flagged);
+  });
+
+  it("strips priority before resolving a custom-property alias", () => {
+    const findings =
+      lintArtifact(`<style>:root { --size: 48px; --tracking: 3px; --alias: var(--tracking) !important; }
+      .label { text-transform: uppercase; font-size: var(--size); letter-spacing: var(--alias); }</style>`);
+    expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
   });
 });
