@@ -104,7 +104,7 @@ func (m *Manager) resolvePromptRuntimeAtAdmission(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, session, *selection); err != nil {
+	if err := m.validateRuntimeModelAtAdmission(ctx, session, *selection, session.Meta()); err != nil {
 		return nil, err
 	}
 	return selection, nil

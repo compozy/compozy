@@ -50,3 +50,8 @@ continues to cover unchanged selector interactions.
 5. Change the overlay command and refresh; prior account rows must not remain live under the new
    execution identity. Remove the overlay through Settings and confirm it leaves scheduled discovery
    and catalog projections without restarting the daemon.
+
+6. Recreate the removed overlay with the same command while its discovery is unavailable. No
+   previously removed live models may reappear, including stale entries from other profiles/workspaces.
+7. For a Cursor-family overlay with an explicit discovery command, set an advertised logical runtime
+   model on active and stopped sessions. Reject raw aliases before persisting a selection revision.

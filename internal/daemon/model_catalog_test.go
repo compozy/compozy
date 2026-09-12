@@ -99,6 +99,23 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 				t.Fatal("removed overlay still scheduled")
 			}
 		}
+
+		probe.mu.Lock()
+		probe.err = errors.New("overlay discovery offline")
+		probe.mu.Unlock()
+		if err := runtime.ReconcileConfig(ctx, cfg); err != nil {
+			t.Fatal(err)
+		}
+		models, err = runtime.ListModels(
+			ctx,
+			modelcatalog.ListOptions{ProviderID: overlay, View: modelcatalog.CatalogViewAll},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("recreated offline overlay revived deleted account models: %#v", models)
+		}
 	})
 
 	t.Run("Should preserve builtin model mappings while staging a partial provider override", func(t *testing.T) {
@@ -1860,6 +1877,7 @@ func (s *catalogReadRefreshService) waitForRefresh(
 }
 
 type configReloadACPProbe struct {
+	err      error
 	mu       sync.Mutex
 	requests []modelcatalog.DiscoveryCommandRequest
 }
@@ -1991,7 +2009,11 @@ func (e *configReloadACPProbe) RunDiscoveryCommand(
 ) (modelcatalog.DiscoveryCommandResult, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
+	err := e.err
 	e.mu.Unlock()
+	if err != nil {
+		return modelcatalog.DiscoveryCommandResult{}, err
+	}
 	if req.Command == "cursor-offline" {
 		return modelcatalog.DiscoveryCommandResult{Stderr: "cursor discovery offline"},
 			errors.New("cursor discovery offline")

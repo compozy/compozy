@@ -20,11 +20,9 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	ctx context.Context,
 	session *Session,
 	selection RuntimeSelection,
+	meta store.SessionMeta,
 ) error {
 	providerID := strings.TrimSpace(selection.Provider)
-	if providerID != cursorRuntimeProvider {
-		return nil
-	}
 	if session != nil {
 		snapshot := session.runtimeBindingSnapshot()
 		if snapshot.process != nil &&
@@ -33,11 +31,20 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 			return nil
 		}
 	}
-	_, err := m.resolveCatalogTransportModel(
-		ctx,
-		providerID,
-		selection,
-		modelCatalogExecutionContextForSession(session),
+	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	if err != nil {
+		return err
+	}
+	provider, err := workspace.Config.ResolveProvider(providerID)
+	if err != nil {
+		return err
+	}
+	runtimeProvider := provider.RuntimeProviderName(providerID)
+	if runtimeProvider != cursorRuntimeProvider {
+		return nil
+	}
+	_, err = m.resolveCatalogTransportModel(
+		ctx, runtimeProvider, selection, modelCatalogExecutionContext(meta.ProfileID, meta.WorkspaceID),
 	)
 	return err
 }
@@ -417,13 +424,6 @@ func (m *Manager) validateExplicitStartModel(
 	return nil
 }
 
-func modelCatalogExecutionContextForSession(session *Session) modelcatalog.CatalogExecutionContext {
-	if session == nil {
-		return modelCatalogExecutionContext("", "")
-	}
-	return modelCatalogExecutionContext(session.ProfileID, session.WorkspaceID)
-}
-
 func modelCatalogExecutionContext(profileID string, workspaceID string) modelcatalog.CatalogExecutionContext {
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" {
@@ -441,11 +441,6 @@ func modelCatalogExecutionContext(profileID string, workspaceID string) modelcat
 		ProfileID:   profileID,
 		WorkspaceID: workspaceID,
 	}
-}
-
-func isCursorRuntimeSelection(selection RuntimeSelection) bool {
-	return strings.TrimSpace(selection.Provider) == cursorRuntimeProvider &&
-		strings.TrimSpace(selection.Model) != ""
 }
 
 func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool {

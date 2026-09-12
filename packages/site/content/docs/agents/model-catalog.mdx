@@ -56,7 +56,9 @@ the last successful rows with an empty catalog.
 A provider overlay with `runtime_provider = "claude"` uses the Claude live-discovery adapter while
 keeping its own provider ID, launch command, environment/home policy, credential bindings, and
 profile/workspace catalog scope. Creating or deleting an overlay through Settings updates live
-source registration without a daemon restart. Source health appears as `provider_live:<overlay-id>`.
+source registration without a daemon restart. Removal clears that overlay's live discovery cache
+across profiles/workspaces; recreating it requires a new successful discovery. Source health appears
+as `provider_live:<overlay-id>`.
 
 Claude's advertised aliases, such as `haiku` and `sonnet`, map to logical catalog IDs using the
 runtime family's built-in identities and the overlay's configured model identities. Session creation

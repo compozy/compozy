@@ -97,6 +97,26 @@ func (p *RefreshPlan) SetLiveSources(live []*LiveProviderSource) error {
 		return err
 	}
 	p.sources = staged
+	for _, source := range p.owner.sourcesSnapshot() {
+		if source.Kind() != SourceKindProviderLive {
+			continue
+		}
+		if _, exists := staged.sourceByID[source.ID()]; exists {
+			continue
+		}
+		owned, ok := source.(sourceProviderLister)
+		if !ok {
+			return errors.New("model catalog: live source provider ownership is required")
+		}
+		for _, providerID := range owned.ProviderIDs() {
+			key := removedSourceKey(source.ID(), providerID)
+			p.store.replacements[key] = SourceRowsReplacement{
+				SourceID:     source.ID(),
+				ProviderID:   providerID,
+				RemoveSource: true,
+			}
+		}
+	}
 	return nil
 }
 
@@ -154,11 +174,7 @@ func (s *refreshPlanStore) ReplaceSourceRowsBatch(
 	next := make(map[string]SourceRowsReplacement, len(s.replacements)+len(replacements))
 	maps.Copy(next, s.replacements)
 	for _, replacement := range replacements {
-		key, err := refreshPlanSourceProviderKey(
-			replacement.ExecutionContext,
-			replacement.SourceID,
-			replacement.ProviderID,
-		)
+		key, err := replacementKey(replacement)
 		if err != nil {
 			return err
 		}
@@ -281,12 +297,26 @@ func replacementMatchesStatus(
 	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, status.SourceID, status.ProviderID)
 }
 
+func removedSourceKey(sourceID, providerID string) string {
+	return "removed\x00" + sourceID + "\x00" + providerID
+}
+
+func replacementKey(replacement SourceRowsReplacement) (string, error) {
+	if replacement.RemoveSource {
+		return removedSourceKey(replacement.SourceID, replacement.ProviderID), nil
+	}
+	return refreshPlanSourceProviderKey(replacement.ExecutionContext, replacement.SourceID, replacement.ProviderID)
+}
+
 func replacementMatchesSourceProvider(
 	replacements map[string]SourceRowsReplacement,
 	contexts map[string]CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 ) bool {
+	if _, removed := replacements[removedSourceKey(sourceID, providerID)]; removed {
+		return true
+	}
 	executionContext, ok := contexts[sourceID]
 	if !ok {
 		return false
@@ -303,6 +333,9 @@ func replacementContextSelected(
 	replacement SourceRowsReplacement,
 	contexts map[string]CatalogExecutionContext,
 ) bool {
+	if replacement.RemoveSource {
+		return false
+	}
 	selected, ok := contexts[replacement.SourceID]
 	if !ok {
 		return false

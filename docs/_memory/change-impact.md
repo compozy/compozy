@@ -8,9 +8,13 @@
   registered adapter when the overlay ID has none. The overlay's command, auth mode, credential
   slots and home/environment policies remain authoritative. Settings reconciliation adds/removes
   live sources together with the durable catalog generation; no daemon restart is needed.
+  Removing an overlay deletes only its derived live cache across all execution contexts in that
+  transaction, so recreating it offline cannot revive the removed account observations.
 - **Workspace data isolation:** account observations keep the overlay provider/source IDs and
   profile/workspace execution contexts. Command/runtime changes invalidate discovery identity.
   Session binding reads the overlay source, never the runtime family's account observations.
+  Active and stopped runtime-selection admission resolve the configured runtime family while
+  retaining the overlay ID for catalog membership.
 - **Compatibility:** existing config, model IDs, database shapes and public DTOs remain unchanged.
   Built-in model identities are mapping hints for advertised Claude aliases only; they create no
   overlay rows and confer no account availability. Existing short curated aliases remain valid.

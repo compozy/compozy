@@ -842,8 +842,12 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 					CreateOpts{AgentName: "coder", Provider: overlay, Model: logical, Workspace: h.workspaceID},
 				)
 				if !available {
-					if err == nil {
-						t.Fatal("overlay accepted another account catalog")
+					if err == nil ||
+						!strings.Contains(
+							err.Error(),
+							"Claude model \""+logical+"\" is not advertised by the live ACP catalog",
+						) {
+						t.Fatalf("overlay accepted another account catalog or failed for another reason: %v", err)
 					}
 					if len(h.driver.startCalls) != 0 {
 						t.Fatal("unavailable model launched")

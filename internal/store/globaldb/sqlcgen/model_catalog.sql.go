@@ -78,6 +78,21 @@ func (q *Queries) DeleteModelCatalogRows(ctx context.Context, arg DeleteModelCat
 	return err
 }
 
+const deleteModelCatalogSource = `-- name: DeleteModelCatalogSource :exec
+DELETE FROM model_catalog_sources
+WHERE source_id = ?1 AND provider_id = ?2
+`
+
+type DeleteModelCatalogSourceParams struct {
+	SourceID   string `json:"source_id"`
+	ProviderID string `json:"provider_id"`
+}
+
+func (q *Queries) DeleteModelCatalogSource(ctx context.Context, arg DeleteModelCatalogSourceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogSource, arg.SourceID, arg.ProviderID)
+	return err
+}
+
 const deleteModelCatalogTransportBindingSelections = `-- name: DeleteModelCatalogTransportBindingSelections :exec
 DELETE FROM model_catalog_transport_binding_selections
 WHERE context_id = ?1
