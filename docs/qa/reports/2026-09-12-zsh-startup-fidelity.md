@@ -58,3 +58,8 @@ shim directory and clears stale metadata before top-level user startup. The exis
 daemon-environment case now includes stale bridge variables and still requires authenticated
 parent markers and native startup trace equality. This prevents an unrelated inherited variable
 from silently selecting the marker-free child path.
+
+
+The workflow also runs the canonical shell suite once with a two-minute timeout and verbose output
+before the full race suite. This provides direct real-shell evidence and a bounded diagnostic if
+startup hangs, rather than waiting for the full package shard's much longer timeout.

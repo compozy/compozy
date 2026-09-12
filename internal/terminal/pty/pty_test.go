@@ -690,7 +690,8 @@ func TestShellIntegrationContract(t *testing.T) {
 			t.Run(fmt.Sprintf("Should preserve early children with custom directory %t", custom), func(t *testing.T) {
 				t.Parallel()
 				env := zshStartupFixture(t, custom, "")
-				child := shellQuote(zshPath) + ` -i -c 'print -r -- "child|${ZDOTDIR-unset}|${__compozy_nonce-unset}"'` + "\n"
+				child := shellQuote(zshPath) +
+					` -i -c 'print -r -- "child|${ZDOTDIR-unset}|${__compozy_nonce-unset}"'` + "\n"
 				script := `setopt rcs
 source "${ZDOTDIR-$HOME}/.zshenv"
 ` + child + `source "${ZDOTDIR-$HOME}/.zprofile"
