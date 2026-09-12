@@ -36,3 +36,16 @@ Walk:
 2026-09-02 re-walk: passed after remediation. A fresh managed agent routed private input through a
 running terminal, the runtime refused ordinary visible-shell input, and a hidden foreground reader
 accepted one answer and one decline without exposing the value to chat, screen, journal, or quote.
+
+2026-09-12 issue 628: repeat the hidden-answer step for a foreground raw no-echo reader as well as
+canonical input. Explicit redaction must remain accepted in both modes and must fail if terminal
+echo is enabled before delivery. Ordinary nested-shell typing must remain readable without hidden
+markers. See `ET-terminal-redaction-boundaries` steps 9–11 for the owning verification slice.
+
+Issue 628 targeted replay passed on macOS: `TestUnixPTYHardening` exercised real nested bash and
+canonical/raw no-echo readers; `TestSessionTypingGrantAndInputRequestLifecycle` verified explicit
+raw answers, length-only journal/stream data, and echo-enabled rejection. The existing real
+`TestTerminalWireShouldCompleteRealLifecycle` HTTP/WebSocket run typed `abc` one character at a
+time in nested bash without a redaction opcode. Existing secret-output-sink tests passed with
+`-race`. This slice changes no Web layout or hostile-output filtering behavior. Linux and Windows
+runtime parity is owned by the PR CI lanes.

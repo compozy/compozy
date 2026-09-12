@@ -35,6 +35,7 @@ type inputDeliveryState struct {
 
 type inputVisibilityProc interface {
 	InputVisible() (bool, error)
+	InputEchoEnabled() (bool, error)
 	WriteRedacted([]byte) (terminalpty.RedactedWriteResult, error)
 }
 
@@ -180,29 +181,32 @@ func writeAllInput(input []byte, write func([]byte) (int, error)) error {
 func (s *session) inputWriter(
 	clientRedact bool,
 ) (func([]byte) (int, error), bool, error) {
-	redacted := clientRedact
-	writer := s.proc.Write
+	visibilityProc, ok := s.proc.(inputVisibilityProc)
 	if clientRedact {
-		visibilityProc, err := requireInputVisibilityProc(s.proc)
+		var err error
+		visibilityProc, err = requireInputVisibilityProc(s.proc)
 		if err != nil {
 			return nil, false, err
 		}
-		writer = redactedInputWriter(visibilityProc)
+		echoEnabled, err := visibilityProc.InputEchoEnabled()
+		if err != nil {
+			return nil, false, err
+		}
+		if echoEnabled {
+			return nil, false, inputRequiresHiddenError(nil)
+		}
+		return redactedInputWriter(visibilityProc), true, nil
 	}
-	if visibilityProc, ok := s.proc.(inputVisibilityProc); ok {
+	if ok {
 		inputVisible, err := visibilityProc.InputVisible()
 		if err != nil {
 			return nil, false, err
 		}
-		if clientRedact && inputVisible {
-			return nil, false, inputRequiresHiddenError(nil)
-		}
-		redacted = redacted || !inputVisible
-		if redacted && !clientRedact {
-			writer = redactedInputWriter(visibilityProc)
+		if !inputVisible {
+			return redactedInputWriter(visibilityProc), true, nil
 		}
 	}
-	return writer, redacted, nil
+	return s.proc.Write, false, nil
 }
 
 func redactedInputWriter(proc inputVisibilityProc) func([]byte) (int, error) {

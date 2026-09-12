@@ -104,7 +104,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		created := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/"+registered.ID+"/terminals", `{"cols":80,"rows":24}`)
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals", `{"shell":"sh","cols":80,"rows":24}`)
 		var createResponse struct {
 			Terminal struct {
 				ID string `json:"id"`
@@ -196,6 +196,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if !foundEcho {
 			t.Fatal("terminal stream did not echo input")
 		}
+		terminalCheckNestedRawInput(t, conn)
 		resize, err := terminalwire.EncodeClient(
 			terminalwire.Frame{Op: terminalwire.ClientOpResize, Payload: json.RawMessage(`{"cols":100,"rows":30}`)},
 		)
@@ -332,4 +333,40 @@ func terminalReadServerFrame(t *testing.T, conn *websocket.Conn) terminalwire.Fr
 		t.Fatalf("DecodeServer() error = %v, encoded=%s", err, fmt.Sprintf("%x", encoded))
 	}
 	return frame
+}
+
+func terminalCheckNestedRawInput(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	write := func(input string) {
+		t.Helper()
+		encoded, err := terminalwire.EncodeClient(
+			terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte(input)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, encoded); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readUntil := func(want string) {
+		t.Helper()
+		var output strings.Builder
+		for !strings.Contains(output.String(), want) {
+			frame := terminalReadServerFrame(t, conn)
+			if frame.Op == terminalwire.ServerOpRedactedInput {
+				t.Fatal("nested raw shell emitted a hidden-input marker")
+			}
+			if frame.Op == terminalwire.ServerOpOutput {
+				output.Write(frame.Payload)
+			}
+		}
+	}
+	write("PS1=nested-$((620+8))'> ' bash --noprofile --norc -i\n")
+	readUntil("nested-628> ")
+	for _, character := range []string{"a", "b", "c"} {
+		write(character)
+		readUntil(character)
+	}
+	write("\x15exit\n")
 }

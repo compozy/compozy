@@ -101,6 +101,47 @@ func TestUnixPTYHardening(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep nested raw shell editing visible", func(t *testing.T) {
+		t.Parallel()
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{
+				"/bin/bash",
+				"--noprofile",
+				"--norc",
+				"-c",
+				"set -m; PS1='nested-ready> ' bash --noprofile --norc -i; exit $?",
+			},
+			Env:  map[string]string{"PS1": "nested-ready> ", "TERM": "xterm"},
+			Mode: ModePTY,
+			Cols: 80,
+			Rows: 24,
+		})
+		defer stopTestProc(t, proc)
+		unixProcess := proc.(*unixProc)
+		if err := unixProcess.reader.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		reader := bufio.NewReader(unixProcess.reader)
+		if prompt, err := reader.ReadString('>'); err != nil || !strings.Contains(prompt, "nested-ready>") {
+			t.Fatalf("nested prompt = %q, error = %v", prompt, err)
+		}
+		var group int
+		if err := unixProcess.controlTerminal(func(fd int) error {
+			var err error
+			group, err = unix.IoctlGetInt(fd, unix.TIOCGPGRP)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if group == unixProcess.ProcessGroupID() {
+			t.Fatal("nested shell did not acquire a separate foreground process group")
+		}
+		visible, err := unixProcess.InputVisible()
+		if err != nil || !visible {
+			t.Fatalf("nested raw shell visible = %t, error = %v", visible, err)
+		}
+	})
+
 	t.Run("Should keep the hardened reader pollable before terminal control [UT-002]", func(t *testing.T) {
 		proc := startTestProc(t, ProcSpec{Argv: []string{"sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24})
 		defer stopTestProc(t, proc)
@@ -240,56 +281,68 @@ func TestUnixPTYHardening(t *testing.T) {
 		stopTestProc(t, proc)
 	})
 
-	t.Run("Should refuse visible redacted input and deliver only after the program hides input", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		mode      string
+		canonical bool
+	}{
+		{name: "Should refuse visible redacted input and deliver only after the program hides input", mode: "-echo icanon", canonical: true},
+		{name: "Should deliver explicitly redacted input to a raw no echo reader", mode: "-echo -icanon"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		proc := startTestProc(t, ProcSpec{
-			Argv: []string{
-				"sh",
-				"-c",
-				"printf 'visible-ready\\n'; sleep 0.1; stty -echo; printf 'hidden-ready\\n'; " +
-					"IFS= read -r secret; printf 'redacted-accepted\\n'",
-			},
-			Mode: ModePTY,
-			Cols: 80,
-			Rows: 24,
+			proc := startTestProc(t, ProcSpec{
+				Argv: []string{
+					"sh",
+					"-c",
+					"printf 'visible-ready\\n'; IFS= read -r proceed; stty " + tc.mode + "; printf 'hidden-ready\\n'; " +
+						"IFS= read -r secret; printf 'redacted-accepted\\n'",
+				},
+				Mode: ModePTY,
+				Cols: 80,
+				Rows: 24,
+			})
+			defer stopTestProc(t, proc)
+			unixProcess := proc.(*unixProc)
+			reader := bufio.NewReader(unixProcess.reader)
+			if line, err := readUntilContaining(reader, "visible-ready"); err != nil {
+				t.Fatalf("read readiness = %q error=%v", line, err)
+			}
+			secret := []byte("secret-value\n")
+			result, err := unixProcess.WriteRedacted(secret)
+			if !errors.Is(err, ErrInputVisible) || result.BytesDelivered != 0 {
+				t.Fatalf(
+					"WriteRedacted(visible) = %#v error=%v, want zero bytes and ErrInputVisible",
+					result, err,
+				)
+			}
+			if _, err := unixProcess.Write([]byte("continue\n")); err != nil {
+				t.Fatal(err)
+			}
+			if line, err := readUntilContaining(reader, "hidden-ready"); err != nil {
+				t.Fatalf("read hidden readiness = %q error=%v", line, err)
+			}
+			result, err = unixProcess.WriteRedacted(secret)
+			if err != nil || result.BytesDelivered != len(secret) {
+				t.Fatalf("WriteRedacted(hidden) = %#v error=%v, want %d bytes", result, err, len(secret))
+			}
+			state, err := unixProcess.readTermios()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Lflag&unix.ECHO != 0 || (state.Lflag&unix.ICANON != 0) != tc.canonical {
+				t.Fatal("redacted write changed the program-owned terminal mode")
+			}
+			line, err := readUntilContaining(reader, "redacted-accepted")
+			if err != nil {
+				t.Fatalf("read redacted completion = %q error=%v", line, err)
+			}
+			if bytes.Contains([]byte(line), secret) {
+				t.Fatalf("redacted output = %q", line)
+			}
 		})
-		defer stopTestProc(t, proc)
-		unixProcess := proc.(*unixProc)
-		reader := bufio.NewReader(unixProcess.reader)
-		if line, err := readUntilContaining(reader, "visible-ready"); err != nil {
-			t.Fatalf("read readiness = %q error=%v", line, err)
-		}
-		secret := []byte("secret-value\n")
-		result, err := unixProcess.WriteRedacted(secret)
-		if !errors.Is(err, ErrInputVisible) || result.BytesDelivered != 0 {
-			t.Fatalf(
-				"WriteRedacted(visible) = %#v error=%v, want zero bytes and ErrInputVisible",
-				result, err,
-			)
-		}
-		if line, err := readUntilContaining(reader, "hidden-ready"); err != nil {
-			t.Fatalf("read hidden readiness = %q error=%v", line, err)
-		}
-		result, err = unixProcess.WriteRedacted(secret)
-		if err != nil || result.BytesDelivered != len(secret) {
-			t.Fatalf("WriteRedacted(hidden) = %#v error=%v, want %d bytes", result, err, len(secret))
-		}
-		visible, err := unixProcess.InputVisible()
-		if err != nil {
-			t.Fatalf("InputVisible(after redacted write) error = %v", err)
-		}
-		if visible {
-			t.Fatal("InputVisible(after redacted write) = true, want program-owned hidden input unchanged")
-		}
-		line, err := readUntilContaining(reader, "redacted-accepted")
-		if err != nil {
-			t.Fatalf("read redacted completion = %q error=%v", line, err)
-		}
-		if bytes.Contains([]byte(line), secret) {
-			t.Fatalf("redacted output = %q", line)
-		}
-	})
+	}
 
 	t.Run("Should isolate the child process group and controlling terminal [UT-003]", func(t *testing.T) {
 		proc := startTestProc(t, ProcSpec{Argv: []string{"sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24})

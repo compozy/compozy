@@ -48,3 +48,25 @@ canaries were absent from live and durable surfaces. Hostile OSC title, OSC52, a
 removed while visible text survived consistently. The saved recording and spill artifact were
 scrubbed, mode `0600`, workspace-contained, and the artifact endpoint refused a forged external
 symbolic link.
+
+2026-09-12 issue 628 verification slice:
+
+9. Start `bash --noprofile --norc` inside the Terminal and type `abc` one character at a time.
+   Each character appears without a trusted hidden-input marker. Editors and pagers using the
+   same raw no-echo mode have the same automatic classification, regardless of foreground group.
+10. Run a canonical no-echo reader and confirm automatic length-only redaction still applies.
+11. Run a raw no-echo reader that never prints its input. Submit an explicitly redacted request;
+    confirm one delivery and length-only journal/stream metadata. Re-enable echo before answering
+    another request and confirm rejection with zero bytes delivered. Echo must remain program-owned.
+
+Raw mode alone cannot identify secrets. Ordinary typing into raw programs is retained as ordinary
+input; use explicit redaction for a trusted secret reader. Program-rendered text is output and is
+not made private by marking its input redacted.
+
+Issue 628 targeted replay passed on macOS: `TestUnixPTYHardening` exercised real nested bash and
+canonical/raw no-echo readers; `TestSessionTypingGrantAndInputRequestLifecycle` verified explicit
+raw answers, length-only journal/stream data, and echo-enabled rejection. The existing real
+`TestTerminalWireShouldCompleteRealLifecycle` HTTP/WebSocket run typed `abc` one character at a
+time in nested bash without a redaction opcode. Existing secret-output-sink tests passed with
+`-race`. This slice changes no Web layout or hostile-output filtering behavior. Linux and Windows
+runtime parity is owned by the PR CI lanes.

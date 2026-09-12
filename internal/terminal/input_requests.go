@@ -36,19 +36,13 @@ func (s *session) RequestInput(ctx context.Context, actor Actor, request InputRe
 		return nil, err
 	}
 	info := s.Info()
-	visibilityProc, err := requireInputVisibilityProc(s.proc)
+	if _, err := requireInputVisibilityProc(s.proc); err != nil {
+		return nil, err
+	}
+	_, redacted, err := s.inputWriter(request.Redact)
 	if err != nil {
 		return nil, err
 	}
-	redacted := request.Redact
-	inputVisible, err := visibilityProc.InputVisible()
-	if err != nil {
-		return nil, err
-	}
-	if request.Redact && inputVisible {
-		return nil, inputRequiresHiddenError(nil)
-	}
-	redacted = redacted || !inputVisible
 	pending, err := s.manager.inputs.create(s, request, redacted, actor, func() (InputRequestID, error) {
 		return newInputRequestID(s.manager.entropy)
 	})

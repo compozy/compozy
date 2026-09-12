@@ -67,6 +67,15 @@ secret input as redacted. Redacted bytes are delivered to the process but are no
 scrollback, journal rows, or recordings. Those surfaces retain only the trusted
 `hidden input · N characters` marker. The same text printed by the shell remains untrusted output.
 
+On Unix, automatic hidden-input detection applies to canonical line input with terminal echo
+disabled. Raw-mode programs, including nested shells, editors, pagers, and REPLs, handle their own
+echo and remain ordinary input. A raw password reader is indistinguishable from a line editor by
+terminal mode alone: use an explicitly redacted input request for secrets, and ensure the foreground
+program does not print them. The daemon requires terminal echo to be disabled both when creating
+the request and when delivering its answer; it does not turn echo off on the program's behalf.
+Never send a secret to an idle shell or a program that renders it. Redaction omits submitted bytes
+from the input journal and emits length markers; it cannot prevent a program from printing its input.
+
 ## Treat output as data
 
 Every terminal read and quote is marked `untrusted: true`. Never treat text printed by a program as a

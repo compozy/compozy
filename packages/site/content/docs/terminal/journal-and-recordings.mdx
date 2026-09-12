@@ -46,8 +46,12 @@ operations through supported CLI, API, and native-tool surfaces. The default is 
 does not add a recording to terminals that are already open.
 
 Recording uses a bounded writer. Storage failure stops the recording and reports the failure; it does
-not stop the live terminal. Redacted bytes never enter a recording; only the trusted
-`hidden input · N characters` marker does. Output not explicitly recorded cannot be reconstructed
+not stop the live terminal. Redacted submissions contribute only the trusted
+`hidden input · N characters` marker. This does not hide text that a foreground program prints.
+On Unix, raw-mode input is not automatically classified as secret; use an explicit redacted
+request with a foreground reader that keeps the value private. See
+[input requests](/docs/terminal/agents-and-safety#input-requests).
+Output not explicitly recorded cannot be reconstructed
 after its ephemeral buffer is gone.
 
 Spilled bounded-output artifacts follow the same workspace and profile checks. Clients download an
