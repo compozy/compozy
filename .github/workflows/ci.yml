@@ -640,6 +640,11 @@ jobs:
         with:
           install-playwright: "true"
 
+      - name: Install terminal scenario shell
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes zsh
+
       - name: Restore Turbo cache
         uses: actions/cache/restore@v6
         with:
@@ -670,6 +675,15 @@ jobs:
         with:
           name: session-lifecycle-evidence-shard-${{ matrix.shard }}
           path: .tmp/playwright/test-results/*session-harden*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Unicode terminal prompt QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: terminal-unicode-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*E2E-020*/compozy-artifacts
           if-no-files-found: ignore
           retention-days: 7
 

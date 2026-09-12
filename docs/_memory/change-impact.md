@@ -28,6 +28,25 @@
   source lifecycle handling. Its overlapping Claude binding code must preserve overlay ownership
   when that PR is integrated. Issue #623 owns auth classification; it is excluded here.
 
+## Issue 629 — Unicode terminal prompt redraw
+
+- **Native tools / CLI / HTTP / UDS:** existing terminal input, stream, read, wait and quote paths
+  preserve UTF-8 characters containing C1 byte values. No IDs, DTOs, routes or flags change.
+- **Extensibility / hooks / config:** marker authentication and OSC/DCS security policies remain;
+  scanning recognizes controls at character boundaries, including UTF-8 encoded C1 code points. No hook, SDK or config
+  changes. The bug also occurs with shell integration disabled.
+- **Workspace / profile isolation:** state is held by the existing per-session input/output filter.
+  No database or file format changes, migrations, ownership changes or user-state loss. Existing
+  sessions need the upgraded daemon/new terminal to use the corrected parser; previously discarded
+  output cannot be recovered. Existing size bounds and ACK backpressure remain authoritative.
+- **Official skill:** checked `skills/compozy/references/terminal.md`; existing untrusted-output,
+  terminal-read and quote contracts remain accurate, with no new operation or guidance required.
+- **Web / docs / QA:** browser rendering consumes corrected bytes without frontend production
+  changes. The canonical terminal E2E suite owns separate zsh keystrokes, quote parity and reconnect.
+  `ET-terminal-shell-config-fidelity` gains the controlled Unicode/ASCII walk; the
+  [targeted report](../qa/reports/2026-09-12-terminal-unicode-prompt.md) records evidence and limits.
+  Display-width tables, raw-mode visibility (#628), and ZDOTDIR behavior (#626) are outside this fix.
+
 ## Issue 616 — Supervised work recovery
 
 - **Native tools:** existing session stop, task inspection/recovery and Loop status IDs and schemas

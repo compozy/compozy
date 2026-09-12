@@ -35,3 +35,13 @@ Walk:
 native/integrated trace equality and authenticated command markers. See
 [Zsh startup fidelity](../reports/2026-09-12-zsh-startup-fidelity.md). Prior fish and Web evidence
 is unchanged; this replay does not claim a new rendered Web or packaged-desktop walk.
+
+9. After restarting the isolated daemon with shell integration disabled, compare fresh zsh terminals
+   with `PROMPT=$'%F{blue}%~%f\n%F{magenta}❯%f '` and the identical prompt ending in `>`.
+   Type `a`, `b`, and `c` separately; each key must appear before Enter. Compare `terminal quote`
+   with the visible screen, reconnect, erase a character, and execute a command. Confirm Unicode
+   and ANSI colors survive and input remains responsive.
+
+2026-09-12 QA impact: step 9 owns the Unicode/C1 filtering regression in #629; its targeted replay
+is tracked in [the Unicode prompt report](../reports/2026-09-12-terminal-unicode-prompt.md).
+Earlier evidence remains applicable to unchanged fish and shell-config loading behavior.

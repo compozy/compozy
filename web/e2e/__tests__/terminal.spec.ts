@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { promisify, stripVTControlCharacters } from "node:util";
 
 import type { Locator, Page } from "@playwright/test";
 
@@ -41,6 +41,121 @@ const CLI_EXIT_FAILURE = 1;
 const CLI_EXIT_DATA_ERROR = 65;
 const CLI_EXIT_UNAVAILABLE = 69;
 const CLI_EXIT_CONFIG_INVALID = 78;
+
+// Invariant: separate browser keystrokes redraw a real zsh prompt before Enter,
+// and reconnect/CLI quote retain that same screen. Owner: terminal browser stream.
+for (const glyph of [">", "❯"]) {
+  test(`E2E-020: zsh prompt ${glyph} redraws each key with shell integration disabled`, async ({
+    appPage,
+    runtime,
+    browserArtifacts,
+  }) => {
+    assertLaunchRuntime(runtime);
+    test.skip(process.platform === "win32", "zsh prompt reproduction requires a Unix PTY");
+    const { stdout: shellPath } = await execFileAsync("which", ["zsh"]);
+    const workspace = await runtimeWorkspace(runtime);
+    await writeFile(
+      path.join(runtime.paths.operatorHomeDir, ".zshrc"),
+      `bindkey -e\nPROMPT=$'%F{blue}%~%f\\n%F{magenta}${glyph}%f '\nRPROMPT=''\n`,
+      { mode: 0o600 }
+    );
+    const general = await runtime.requestJSON<{
+      config: Record<string, unknown> & { terminal: Record<string, unknown> };
+    }>("/api/settings/general");
+    await runtime.requestJSON("/api/settings/general", {
+      method: "PATCH",
+      body: JSON.stringify({
+        config: {
+          ...general.config,
+          terminal: { ...general.config.terminal, shell_integration: false },
+        },
+      }),
+    });
+    const restart = await runtime.requestJSON<SettingsRestartAction>(
+      "/api/settings/actions/restart",
+      { method: "POST", body: "{}" }
+    );
+    await expect
+      .poll(async () => await pollRestartStatus(runtime, restart.status_url), { timeout: 45_000 })
+      .toBe("ready");
+    await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "os-desktop" });
+    const opened = await runTerminalCLI<TerminalEnvelope>(runtime.paths, [
+      "open",
+      "--workspace",
+      workspace.id,
+      "--shell",
+      shellPath.trim(),
+      "--title",
+      "unicode-prompt",
+      "--detach",
+      "-o",
+      "json",
+    ]);
+    const terminalID = opened.terminal.id;
+    await ensureProjectWorkspace(appPage, runtime);
+    await openAppWindow(appPage, "Terminal", "terminal");
+    let window = focusedTerminalWindow(appPage);
+    await expect(window.getByTestId(`terminal-pane-${terminalID}`)).toBeVisible();
+    let log = await interactiveTerminalLog(window);
+    await expect
+      .poll(async () => (await terminalScreen(runtime, workspace.id, terminalID)).content)
+      .toContain(glyph);
+    await expect(log.getByText(glyph, { exact: true })).toBeVisible();
+    await log.click();
+    for (const [index, key] of [..."abc"].entries()) {
+      await appPage.keyboard.press(key);
+      await expect
+        .poll(async () => (await terminalScreen(runtime, workspace.id, terminalID)).content)
+        .toContain(`${glyph} ${"abc".slice(0, index + 1)}`);
+      await expect(
+        log.getByText(`${glyph} ${"abc".slice(0, index + 1)}`, { exact: true })
+      ).toBeVisible();
+      await browserArtifacts.captureScreenshot(
+        `prompt-${glyph === ">" ? "ascii" : "unicode"}-key-${key}`,
+        appPage
+      );
+    }
+    const quote = await runTerminalCLI<{ quote: string }>(runtime.paths, [
+      "quote",
+      terminalID,
+      "--workspace",
+      workspace.id,
+      "--lines",
+      "1-40",
+      "-o",
+      "json",
+    ]);
+    expect(stripVTControlCharacters(quote.quote)).toContain(
+      `${glyph === ">" ? "&gt;" : glyph} abc`
+    );
+    expect(quote.quote).not.toContain("�");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    window = focusedTerminalWindow(appPage);
+    log = await interactiveTerminalLog(window);
+    await expect(log.getByText(`${glyph} abc`, { exact: true })).toBeVisible();
+    await log.click();
+    await appPage.keyboard.press("Backspace");
+    await expect
+      .poll(async () =>
+        (await terminalScreen(runtime, workspace.id, terminalID)).content
+          .trimEnd()
+          .endsWith(`${glyph} ab`)
+      )
+      .toBe(true);
+    await expect(log.getByText(`${glyph} ab`, { exact: true })).toBeVisible();
+    await appPage.keyboard.press("Control+u");
+    await appPage.keyboard.type("printf 'unicode-input-%s\\n' ready", { delay: 20 });
+    await appPage.keyboard.press("Enter");
+    await expect
+      .poll(async () => (await terminalScreen(runtime, workspace.id, terminalID)).content)
+      .toContain("unicode-input-ready");
+    await expect(log.getByText("unicode-input-ready", { exact: true })).toBeVisible();
+    await browserArtifacts.captureScreenshot(
+      `prompt-${glyph === ">" ? "ascii" : "unicode"}-reconnected`,
+      appPage
+    );
+  });
+}
 
 interface TerminalRecord {
   capabilities: { interactive: boolean };

@@ -21,6 +21,11 @@ func (s *session) readOutput() {
 		select {
 		case read := <-reads:
 			filtered := s.filter.Filter(read.data)
+			if read.err != nil {
+				final := s.filter.Flush()
+				filtered.DisplayBytes = append(filtered.DisplayBytes, final.DisplayBytes...)
+				filtered.MarkerFacts = append(filtered.MarkerFacts, final.MarkerFacts...)
+			}
 			if len(filtered.MarkerFacts) > 0 {
 				if err := s.manager.journal.ConsumeMarkerFacts(
 					s.ctx, s.Info(), filtered.MarkerFacts,
