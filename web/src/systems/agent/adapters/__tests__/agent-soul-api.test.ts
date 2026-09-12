@@ -39,108 +39,135 @@ afterEach(() => {
 });
 
 describe("agent-soul-api", () => {
-  it("Should fetch soul with workspace_id query", async () => {
-    mockJsonResponse(soulPayload);
+  it.each([undefined, "open-design"])(
+    "Should fetch soul with workspace_id and profile %s",
+    async profile => {
+      mockJsonResponse(soulPayload);
 
-    const result = await fetchAgentSoul("coder", "ws_alpha");
+      const result = await fetchAgentSoul("coder", "ws_alpha", undefined, profile);
 
-    expect(result).toEqual(soulPayload);
-    await expectFetchRequest({ path: "/api/agents/coder/soul?workspace_id=ws_alpha" });
-  });
+      expect(result).toEqual(soulPayload);
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul?workspace_id=ws_alpha${profile ? `&profile=${profile}` : ""}`,
+      });
+    }
+  );
 
-  it("Should put soul and surface digest conflicts as typed errors", async () => {
-    mockJsonResponse({
-      soul: soulPayload,
-      revision: {
-        id: "r1",
-        action: "put",
-        actor: { kind: "user" },
-        agent_name: "coder",
-        created_at: "2026-01-01T00:00:00Z",
-        source_path: "coder/SOUL.md",
-      },
-    });
+  it.each([undefined, "open-design"])(
+    "Should put soul and surface digest conflicts as typed errors for profile %s",
+    async profile => {
+      mockJsonResponse({
+        soul: soulPayload,
+        revision: {
+          id: "r1",
+          action: "put",
+          actor: { kind: "user" },
+          agent_name: "coder",
+          created_at: "2026-01-01T00:00:00Z",
+          source_path: "coder/SOUL.md",
+        },
+      });
 
-    await putAgentSoul("coder", { body: "Be helpful.", expected_digest: "a".repeat(64) });
+      await putAgentSoul(
+        "coder",
+        { body: "Be helpful.", expected_digest: "a".repeat(64) },
+        undefined,
+        profile
+      );
 
-    await expectFetchRequest({
-      path: "/api/agents/coder/soul",
-      method: "PUT",
-      body: { body: "Be helpful.", expected_digest: "a".repeat(64) },
-    });
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul${profile ? `?profile=${profile}` : ""}`,
+        method: "PUT",
+        body: { body: "Be helpful.", expected_digest: "a".repeat(64) },
+      });
 
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ error: "soul digest conflict" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(JSON.stringify({ error: "soul digest conflict" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
 
-    await expect(putAgentSoul("coder", { body: "x", expected_digest: "stale" })).rejects.toSatisfy(
-      (error: unknown) => error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
-    );
-  });
+      await expect(
+        putAgentSoul("coder", { body: "x", expected_digest: "stale" })
+      ).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
+      );
+    }
+  );
 
-  it("Should delete soul with a JSON body", async () => {
-    mockJsonResponse({
-      soul: { ...soulPayload, active: false, present: false, validation_status: "missing" },
-      revision: {
-        id: "r2",
-        action: "delete",
-        actor: { kind: "user" },
-        agent_name: "coder",
-        created_at: "2026-01-01T00:00:00Z",
-        source_path: "coder/SOUL.md",
-      },
-    });
+  it.each([undefined, "open-design"])(
+    "Should delete soul with a JSON body for profile %s",
+    async profile => {
+      mockJsonResponse({
+        soul: { ...soulPayload, active: false, present: false, validation_status: "missing" },
+        revision: {
+          id: "r2",
+          action: "delete",
+          actor: { kind: "user" },
+          agent_name: "coder",
+          created_at: "2026-01-01T00:00:00Z",
+          source_path: "coder/SOUL.md",
+        },
+      });
 
-    await deleteAgentSoul("coder", { expected_digest: "a".repeat(64) });
+      await deleteAgentSoul("coder", { expected_digest: "a".repeat(64) }, undefined, profile);
 
-    await expectFetchRequest({
-      path: "/api/agents/coder/soul",
-      method: "DELETE",
-      body: { expected_digest: "a".repeat(64) },
-    });
-  });
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul${profile ? `?profile=${profile}` : ""}`,
+        method: "DELETE",
+        body: { expected_digest: "a".repeat(64) },
+      });
+    }
+  );
 
-  it("Should validate, list history, and rollback", async () => {
-    mockJsonResponse(soulPayload);
-    await validateAgentSoul("coder", { body: "Be helpful." });
-    await expectFetchRequest({
-      path: "/api/agents/coder/soul/validate",
-      method: "POST",
-      body: { body: "Be helpful." },
-    });
+  it.each([undefined, "open-design"])(
+    "Should validate, list history, and rollback for profile %s",
+    async profile => {
+      mockJsonResponse(soulPayload);
+      await validateAgentSoul("coder", { body: "Be helpful." }, undefined, profile);
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul/validate${profile ? `?profile=${profile}` : ""}`,
+        method: "POST",
+        body: { body: "Be helpful." },
+      });
 
-    mockJsonResponse({ revisions: [] });
-    await fetchAgentSoulHistory("coder", "ws_alpha");
-    await expectFetchRequest({
-      path: "/api/agents/coder/soul/history?workspace_id=ws_alpha",
-      callIndex: 1,
-    });
+      mockJsonResponse({ revisions: [] });
+      await fetchAgentSoulHistory("coder", "ws_alpha", undefined, profile);
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul/history?workspace_id=ws_alpha${profile ? `&profile=${profile}` : ""}`,
+        callIndex: 1,
+      });
 
-    mockJsonResponse({
-      soul: soulPayload,
-      revision: {
-        id: "r3",
-        action: "rollback",
-        actor: { kind: "user" },
-        agent_name: "coder",
-        created_at: "2026-01-01T00:00:00Z",
-        source_path: "coder/SOUL.md",
-      },
-    });
-    await rollbackAgentSoul("coder", {
-      revision_id: "r1",
-      expected_digest: "a".repeat(64),
-    });
-    await expectFetchRequest({
-      path: "/api/agents/coder/soul/rollback",
-      method: "POST",
-      callIndex: 2,
-      body: { revision_id: "r1", expected_digest: "a".repeat(64) },
-    });
-  });
+      mockJsonResponse({
+        soul: soulPayload,
+        revision: {
+          id: "r3",
+          action: "rollback",
+          actor: { kind: "user" },
+          agent_name: "coder",
+          created_at: "2026-01-01T00:00:00Z",
+          source_path: "coder/SOUL.md",
+        },
+      });
+      await rollbackAgentSoul(
+        "coder",
+        {
+          revision_id: "r1",
+          expected_digest: "a".repeat(64),
+        },
+        undefined,
+        profile
+      );
+      await expectFetchRequest({
+        path: `/api/agents/coder/soul/rollback${profile ? `?profile=${profile}` : ""}`,
+        method: "POST",
+        callIndex: 2,
+        body: { revision_id: "r1", expected_digest: "a".repeat(64) },
+      });
+    }
+  );
 
   it("Should throw generic errors for non-conflict failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));

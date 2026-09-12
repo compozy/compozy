@@ -50,8 +50,9 @@ own effective catalog, and returning to `open-design` must restore the extension
 
 Duplicate the extension designer into a disposable authored agent. The copied definition must be
 editable in the selected Profile and must not appear in `default`. Edit and delete the authored
-copy, checking the selected Profile's detail/cache each time. Editing or deleting the original
-managed extension definition must be rejected without changing its files. A pending mutation
+copy, checking the selected Profile's detail/cache each time. Update the original extension
+AGENT.md with its current digest and verify the customization survives an unchanged-bundle restart.
+Individual deletion must be rejected; managed SOUL.md and HEARTBEAT.md remain protected. A pending mutation
 retains its original Profile for both the HTTP request and completion cache, including when it is
 paused offline and the operator switches Profiles before reconnecting.
 
@@ -60,8 +61,21 @@ open-design isolation, and native skill loading in `sess-2dd9be79c4d1d76e`. Evid
 `/Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-20260911-223928-759363-lab/qa-artifacts/qa`
 (`profile-agents-final.png`, `profile-default-snapshot.txt`, `ui-session-history.json`). Definition
 mutation re-walk passed: UI duplicate/edit/delete and cross-profile isolation, plus 19 public HTTP
-steps protecting the managed original and independently verifying the authored copy. Receipts:
+steps independently verifying the authored copy. The original update-denial expectation was later
+identified by CI as a regression against supported extension customization and is superseded by
+the round-one re-walk below. Receipts:
 `ui-copy-edited.txt`, `ui-copy-absent-default.txt`, `ui-copy-deleted.txt`,
 `managed-agent-api-qa-summary.json`. The existing mutation suite covers in-flight and offline
 profile switches. Final gate, strict evidence audit and teardown passed; `teardown.json` records
 `clean: true`. This supplements the unchanged CLI/API precedence evidence from 2026-09-01.
+
+QA 2026-09-11 round one: existing daemon integration tests exposed the incorrect blanket
+AGENT.md update prohibition. Production now preserves package-agent customization with digest CAS;
+the unchanged customization/restart, published-session, review-and-fix, and implement-tasks
+journeys pass. The isolated public re-walk accepted customization, rejected stale CAS and individual
+deletion, and retained the exact definition digest after restart. Evidence:
+`/Users/pedronauck/dev/qa-labs/compozy-open-design-r1-20260911-234610-059353-lab/qa-artifacts/qa/bundled-agent-after-restart.json`.
+
+Round-one final strict audit passed without blockers or warnings; the local gate passed all
+affected lanes (7,277 Web tests). Lab teardown completed with `clean: true` and no surviving
+owned process.

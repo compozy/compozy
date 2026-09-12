@@ -92,7 +92,7 @@ Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp
 
 ## Fleet Reads
 
-Use `GET /api/agents/catalog?workspace=<ref>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
+Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
 When `sessions_available` is true, each result's `sessions` object covers every visible retained session for that workspace and agent. It reports `total`, currently `active`, terminal `failed`, summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for active sessions and creation to the last persisted update for stopped sessions. Failed includes stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason. `last_activity_at` follows the session catalog's canonical activity timestamp.
 
@@ -112,13 +112,30 @@ providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clea
 They also accept `--speed`, repeatable `--acp-option id=value`, and repeatable
 `--acp-toggle id=true|false` for authored runtime defaults.
 
-`update` replaces the complete effective authored definition, including an extension-local winner, and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
+`update` replaces the complete effective authored definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
 When `--provider` selects a different underlying provider, `update` clears an omitted command, model, reasoning effort, and ACP options; equivalent built-in aliases and case variants keep those settings.
 
 `duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.
 
+Extension AGENT.md definitions can be updated at their effective source using the same digest
+check. Bundled edits survive restart while the shipped bundle is unchanged; an updated bundle can
+replace them. Duplicate into an authored definition when the customization must be independent
+of package updates. Package-owned agents cannot be deleted individually; disable the extension.
+
 The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and `POST /api/agents/:name/duplicate`. No native update/delete/duplicate tool exists; use CLI or HTTP/UDS rather than inventing a `compozy__agent_*` mutation.
+
+## Authored Context and Profiles
+
+Select the intended Profile for named-agent SOUL.md and HEARTBEAT.md operations. The CLI's global
+`--profile` selector is forwarded by its common transport; the corresponding HTTP read, validate,
+write, delete, history, rollback, status, and wake routes accept the optional `profile` query.
+Omitting it retains `default`. Request bodies and CLI subcommands are unchanged.
+
+History and rollback belong to the winning authored source path, so same-named agents in different
+Profiles cannot read or restore each other's revisions. Session targets retain their persisted
+Profile; an explicit status/wake session must belong to the selected Profile and agent. Managed
+extension SOUL.md and HEARTBEAT.md sources remain protected from writes.
 
 ## Setup Workflow
 

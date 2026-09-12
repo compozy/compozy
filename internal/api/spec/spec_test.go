@@ -1160,7 +1160,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 
 				update := operationFor(t, doc, "/api/agents/{name}", "PUT")
-				assertResponseStatus(t, update, 403)
 				assertParameter(t, update, "name", openapi3.ParameterInPath, true)
 				assertResponseStatus(t, update, 409)
 				updateSchema := jsonRequestSchema(t, update)

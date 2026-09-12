@@ -13,6 +13,14 @@ export type AgentCatalogItem = AgentCatalogResponse["agents"][number];
 export type AgentCatalogFilter = OperationQuery<"listAgentCatalog">;
 export type AgentCatalogStableFilter = Omit<AgentCatalogFilter, "cursor" | "workspace">;
 
+/** The authored-file view that owns a mutation, captured when the user acts. */
+export interface AgentAuthoredMutationVariables<TParams> {
+  name: string;
+  cacheWorkspace: string | null;
+  profile: string;
+  params: TParams;
+}
+
 export type AgentSoulPayload = OperationResponse<"getAgentDefinitionSoul", 200>;
 export type PutAgentSoulParams = OperationRequestBody<"putAgentSoul">;
 export type DeleteAgentSoulParams = OperationRequestBody<"deleteAgentSoul">;

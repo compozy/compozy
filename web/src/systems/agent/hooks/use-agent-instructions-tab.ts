@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import {
   useAgentHeartbeat,
   useAgentHeartbeatHistory,
@@ -35,22 +37,24 @@ export function useAgentInstructionsTab({
   workspaceId,
   sessions,
 }: UseAgentInstructionsTabArgs) {
+  const { destination } = useProfileReadScope();
+  const mutationScope = { name: agent.name, cacheWorkspace: workspaceId, profile: destination };
   // Both reads stay active while Instructions is mounted so missing badges are truthful
   // before the operator visits either authored-file tab.
   const soulQuery = useAgentSoul(agent.name, workspaceId);
   const soulHistory = useAgentSoulHistory(agent.name, workspaceId, { enabled: file === "soul" });
-  const putSoul = usePutAgentSoul(agent.name, workspaceId);
-  const validateSoul = useValidateAgentSoul(agent.name);
-  const rollbackSoul = useRollbackAgentSoul(agent.name, workspaceId);
+  const putSoul = usePutAgentSoul();
+  const validateSoul = useValidateAgentSoul();
+  const rollbackSoul = useRollbackAgentSoul();
 
   const heartbeatQuery = useAgentHeartbeat(agent.name, workspaceId);
   const heartbeatHistory = useAgentHeartbeatHistory(agent.name, workspaceId, {
     enabled: file === "heartbeat",
   });
-  const putHeartbeat = usePutAgentHeartbeat(agent.name, workspaceId);
-  const validateHeartbeat = useValidateAgentHeartbeat(agent.name);
-  const rollbackHeartbeat = useRollbackAgentHeartbeat(agent.name, workspaceId);
-  const wakeHeartbeat = useWakeAgentHeartbeat(agent.name, workspaceId);
+  const putHeartbeat = usePutAgentHeartbeat();
+  const validateHeartbeat = useValidateAgentHeartbeat();
+  const rollbackHeartbeat = useRollbackAgentHeartbeat();
+  const wakeHeartbeat = useWakeAgentHeartbeat();
 
   const activeSessions = sessions.filter(session => session.state === "active");
   const [requestedWakeSessionId, setWakeSessionId] = useState<string | null>(null);
@@ -86,7 +90,7 @@ export function useAgentInstructionsTab({
     (heartbeatQuery.data.validation_status === "missing" || heartbeatQuery.data.present === false);
 
   const handleWake = (sessionId: string) => {
-    wakeHeartbeat.mutate({ session_id: sessionId, source: "manual" });
+    wakeHeartbeat.mutate({ ...mutationScope, params: { session_id: sessionId, source: "manual" } });
   };
 
   return {
@@ -94,29 +98,38 @@ export function useAgentInstructionsTab({
     soulMissing,
     heartbeatMissing,
     soul: {
-      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "soul"),
+      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "soul", destination),
       payload: soulQuery.data,
       isLoading: soulQuery.isLoading,
       isError: soulQuery.isError,
       history: soulHistory.data,
       onValidate: async (body: string) =>
         validateSoul.mutateAsync({
-          body,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            body,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         }),
       onSave: async (body: string, expectedDigest: string) => {
         const result = await putSoul.mutateAsync({
-          body,
-          expected_digest: expectedDigest,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            body,
+            expected_digest: expectedDigest,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         });
         return result.soul;
       },
       onRestore: async (revisionId: string, expectedDigest: string) => {
         const result = await rollbackSoul.mutateAsync({
-          revision_id: revisionId,
-          expected_digest: expectedDigest,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            revision_id: revisionId,
+            expected_digest: expectedDigest,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         });
         return result.soul;
       },
@@ -126,29 +139,38 @@ export function useAgentInstructionsTab({
       },
     },
     heartbeat: {
-      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "heartbeat"),
+      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "heartbeat", destination),
       payload: heartbeatQuery.data,
       isLoading: heartbeatQuery.isLoading,
       isError: heartbeatQuery.isError,
       history: heartbeatHistory.data,
       onValidate: async (body: string) =>
         validateHeartbeat.mutateAsync({
-          body,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            body,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         }),
       onSave: async (body: string, expectedDigest: string) => {
         const result = await putHeartbeat.mutateAsync({
-          body,
-          expected_digest: expectedDigest,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            body,
+            expected_digest: expectedDigest,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         });
         return result.heartbeat;
       },
       onRestore: async (revisionId: string, expectedDigest: string) => {
         const result = await rollbackHeartbeat.mutateAsync({
-          revision_id: revisionId,
-          expected_digest: expectedDigest,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...mutationScope,
+          params: {
+            revision_id: revisionId,
+            expected_digest: expectedDigest,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
         });
         return result.heartbeat;
       },

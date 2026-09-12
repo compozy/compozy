@@ -43,37 +43,49 @@ export function agentDetailOptions(name: string, workspace?: string | null, prof
   });
 }
 
-export function agentSoulOptions(name: string, workspace?: string | null) {
+export function agentSoulOptions(name: string, workspace?: string | null, profile = "default") {
   return queryOptions({
-    queryKey: agentKeys.soul(name, workspace),
-    queryFn: ({ signal }) => fetchAgentSoul(name, workspace, signal),
+    queryKey: agentKeys.soul(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentSoul(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
 }
 
-export function agentSoulHistoryOptions(name: string, workspace?: string | null) {
+export function agentSoulHistoryOptions(
+  name: string,
+  workspace?: string | null,
+  profile = "default"
+) {
   return queryOptions({
-    queryKey: agentKeys.soulHistory(name, workspace),
-    queryFn: ({ signal }) => fetchAgentSoulHistory(name, workspace, signal),
+    queryKey: agentKeys.soulHistory(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentSoulHistory(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
 }
 
-export function agentHeartbeatOptions(name: string, workspace?: string | null) {
+export function agentHeartbeatOptions(
+  name: string,
+  workspace?: string | null,
+  profile = "default"
+) {
   return queryOptions({
-    queryKey: agentKeys.heartbeat(name, workspace),
-    queryFn: ({ signal }) => fetchAgentHeartbeat(name, workspace, signal),
+    queryKey: agentKeys.heartbeat(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentHeartbeat(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
 }
 
-export function agentHeartbeatHistoryOptions(name: string, workspace?: string | null) {
+export function agentHeartbeatHistoryOptions(
+  name: string,
+  workspace?: string | null,
+  profile = "default"
+) {
   return queryOptions({
-    queryKey: agentKeys.heartbeatHistory(name, workspace),
-    queryFn: ({ signal }) => fetchAgentHeartbeatHistory(name, workspace, signal),
+    queryKey: agentKeys.heartbeatHistory(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentHeartbeatHistory(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
@@ -83,9 +95,10 @@ export function agentHeartbeatStatusOptions(
   name: string,
   options: FetchAgentHeartbeatStatusParams = {}
 ) {
+  const scopedOptions = { ...options, profile: options.profile ?? "default" };
   return queryOptions({
-    queryKey: agentKeys.heartbeatStatus(name, options),
-    queryFn: ({ signal }) => fetchAgentHeartbeatStatus(name, options, signal),
+    queryKey: agentKeys.heartbeatStatus(name, scopedOptions),
+    queryFn: ({ signal }) => fetchAgentHeartbeatStatus(name, scopedOptions, signal),
     staleTime: HEARTBEAT_STATUS_FRESHNESS_MS,
     refetchInterval: options.sessionId ? HEARTBEAT_STATUS_FRESHNESS_MS : false,
     enabled: !!name,

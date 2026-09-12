@@ -41,6 +41,21 @@ func (h *BaseHandlers) heartbeatActorForRequest() heartbeat.AuthoringIdentity {
 	}
 }
 
+func (h *BaseHandlers) requireAuthoredAgentSession(
+	ctx context.Context,
+	target authoredAgentTarget,
+	sessionID string,
+) error {
+	info, err := h.requireSessionInWorkspace(ctx, target.storageWorkspaceID(), sessionID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(info.ProfileID) != target.profileID || strings.TrimSpace(info.AgentName) != target.agentName {
+		return errWorkspaceScopedResourceNotFound
+	}
+	return nil
+}
+
 func (h *BaseHandlers) rejectHeartbeatIfMatch(c *gin.Context) bool {
 	return h.rejectExpectedDigestHeader(c, "heartbeat_if_match_header_unsupported", StatusForHeartbeatError)
 }
@@ -135,6 +150,7 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 		return nil, nil
 	}
 	events, err := h.HeartbeatWakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+		ProfileID:   target.profileID,
 		WorkspaceID: target.storageWorkspaceID(),
 		AgentName:   target.agentName,
 		SessionID:   strings.TrimSpace(sessionID),

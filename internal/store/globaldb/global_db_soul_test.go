@@ -318,6 +318,7 @@ func TestGlobalDBSoulRevisionStore(t *testing.T) {
 		rollback, err := globalDB.FindSoulRevisionForRollback(ctx, soul.RollbackLookup{
 			WorkspaceID: workspaceID,
 			AgentName:   "coder",
+			SourcePath:  first.SourcePath,
 			RevisionID:  "rev-first",
 		})
 		if err != nil {
@@ -329,6 +330,7 @@ func TestGlobalDBSoulRevisionStore(t *testing.T) {
 		if _, err := globalDB.FindSoulRevisionForRollback(ctx, soul.RollbackLookup{
 			WorkspaceID: workspaceID,
 			AgentName:   "coder",
+			SourcePath:  deleted.SourcePath,
 			RevisionID:  "rev-delete",
 		}); !errors.Is(err, soul.ErrRevisionNotFound) {
 			t.Fatalf("FindSoulRevisionForRollback(delete) error = %v, want ErrRevisionNotFound", err)

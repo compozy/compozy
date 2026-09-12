@@ -70,112 +70,144 @@ afterEach(() => {
 });
 
 describe("agent-heartbeat-api", () => {
-  it("Should fetch heartbeat with workspace_id", async () => {
-    mockJsonResponse(heartbeatPayload);
+  it.each([undefined, "open-design"])(
+    "Should fetch heartbeat with workspace_id and profile %s",
+    async profile => {
+      mockJsonResponse(heartbeatPayload);
 
-    const result = await fetchAgentHeartbeat("coder", "ws_alpha");
+      const result = await fetchAgentHeartbeat("coder", "ws_alpha", undefined, profile);
 
-    expect(result).toEqual(heartbeatPayload);
-    await expectFetchRequest({ path: "/api/agents/coder/heartbeat?workspace_id=ws_alpha" });
-  });
+      expect(result).toEqual(heartbeatPayload);
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat?workspace_id=ws_alpha${profile ? `&profile=${profile}` : ""}`,
+      });
+    }
+  );
 
-  it("Should put heartbeat and type 409 as digest conflict", async () => {
-    mockJsonResponse({ heartbeat: heartbeatPayload, revision });
+  it.each([undefined, "open-design"])(
+    "Should put heartbeat and type 409 as digest conflict for profile %s",
+    async profile => {
+      mockJsonResponse({ heartbeat: heartbeatPayload, revision });
 
-    await putAgentHeartbeat("coder", {
-      body: "---\nenabled: true\n---\n",
-      expected_digest: "b".repeat(64),
-    });
+      await putAgentHeartbeat(
+        "coder",
+        {
+          body: "---\nenabled: true\n---\n",
+          expected_digest: "b".repeat(64),
+        },
+        undefined,
+        profile
+      );
 
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat",
-      method: "PUT",
-      body: { body: "---\nenabled: true\n---\n", expected_digest: "b".repeat(64) },
-    });
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat${profile ? `?profile=${profile}` : ""}`,
+        method: "PUT",
+        body: { body: "---\nenabled: true\n---\n", expected_digest: "b".repeat(64) },
+      });
 
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ error: "heartbeat digest conflict" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        new Response(JSON.stringify({ error: "heartbeat digest conflict" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
 
-    await expect(
-      putAgentHeartbeat("coder", { body: "x", expected_digest: "stale" })
-    ).rejects.toSatisfy(
-      (error: unknown) => error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
-    );
-  });
+      await expect(
+        putAgentHeartbeat("coder", { body: "x", expected_digest: "stale" })
+      ).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
+      );
+    }
+  );
 
-  it("Should delete, validate, history, rollback, status, and wake", async () => {
-    mockJsonResponse({
-      heartbeat: { ...heartbeatPayload, active: false, enabled: false },
-      revision: { ...revision, operation: "delete" as const },
-    });
-    await deleteAgentHeartbeat("coder", { expected_digest: "b".repeat(64) });
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat",
-      method: "DELETE",
-      body: { expected_digest: "b".repeat(64) },
-    });
+  it.each([undefined, "open-design"])(
+    "Should delete, validate, history, rollback, status, and wake for profile %s",
+    async profile => {
+      mockJsonResponse({
+        heartbeat: { ...heartbeatPayload, active: false, enabled: false },
+        revision: { ...revision, operation: "delete" as const },
+      });
+      await deleteAgentHeartbeat("coder", { expected_digest: "b".repeat(64) }, undefined, profile);
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat${profile ? `?profile=${profile}` : ""}`,
+        method: "DELETE",
+        body: { expected_digest: "b".repeat(64) },
+      });
 
-    mockJsonResponse(heartbeatPayload);
-    await validateAgentHeartbeat("coder", { body: "---\nenabled: true\n---\n" });
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat/validate",
-      method: "POST",
-      callIndex: 1,
-      body: { body: "---\nenabled: true\n---\n" },
-    });
+      mockJsonResponse(heartbeatPayload);
+      await validateAgentHeartbeat(
+        "coder",
+        { body: "---\nenabled: true\n---\n" },
+        undefined,
+        profile
+      );
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat/validate${profile ? `?profile=${profile}` : ""}`,
+        method: "POST",
+        callIndex: 1,
+        body: { body: "---\nenabled: true\n---\n" },
+      });
 
-    mockJsonResponse({ revisions: [] });
-    await fetchAgentHeartbeatHistory("coder", "ws_alpha");
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat/history?workspace_id=ws_alpha",
-      callIndex: 2,
-    });
+      mockJsonResponse({ revisions: [] });
+      await fetchAgentHeartbeatHistory("coder", "ws_alpha", undefined, profile);
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat/history?workspace_id=ws_alpha${profile ? `&profile=${profile}` : ""}`,
+        callIndex: 2,
+      });
 
-    mockJsonResponse({
-      heartbeat: heartbeatPayload,
-      revision: { ...revision, operation: "rollback" as const },
-    });
-    await rollbackAgentHeartbeat("coder", {
-      revision_id: "hb-r1",
-      expected_digest: "b".repeat(64),
-    });
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat/rollback",
-      method: "POST",
-      callIndex: 3,
-      body: { revision_id: "hb-r1", expected_digest: "b".repeat(64) },
-    });
+      mockJsonResponse({
+        heartbeat: heartbeatPayload,
+        revision: { ...revision, operation: "rollback" as const },
+      });
+      await rollbackAgentHeartbeat(
+        "coder",
+        {
+          revision_id: "hb-r1",
+          expected_digest: "b".repeat(64),
+        },
+        undefined,
+        profile
+      );
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat/rollback${profile ? `?profile=${profile}` : ""}`,
+        method: "POST",
+        callIndex: 3,
+        body: { revision_id: "hb-r1", expected_digest: "b".repeat(64) },
+      });
 
-    mockJsonResponse({
-      agent_name: "coder",
-      active: true,
-      present: true,
-      enabled: true,
-      valid: true,
-      validation_status: "valid",
-      preferences: { min_interval: "30m", context: {} },
-    });
-    await fetchAgentHeartbeatStatus("coder", { workspaceId: "ws_alpha" });
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat/status?workspace_id=ws_alpha",
-      callIndex: 4,
-    });
+      mockJsonResponse({
+        agent_name: "coder",
+        active: true,
+        present: true,
+        enabled: true,
+        valid: true,
+        validation_status: "valid",
+        preferences: { min_interval: "30m", context: {} },
+      });
+      await fetchAgentHeartbeatStatus("coder", { workspaceId: "ws_alpha", profile });
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat/status?${profile ? `profile=${profile}&` : ""}workspace_id=ws_alpha`,
+        callIndex: 4,
+      });
 
-    mockJsonResponse({
-      decision: { result: "sent", reason: "wake_sent", wake_event_id: "wake-1" },
-    });
-    await wakeAgentHeartbeat("coder", { session_id: "sess-1", source: "manual" });
-    await expectFetchRequest({
-      path: "/api/agents/coder/heartbeat/wake",
-      method: "POST",
-      callIndex: 5,
-      body: { session_id: "sess-1", source: "manual" },
-    });
-  });
+      mockJsonResponse({
+        decision: { result: "sent", reason: "wake_sent", wake_event_id: "wake-1" },
+      });
+      await wakeAgentHeartbeat(
+        "coder",
+        { session_id: "sess-1", source: "manual" },
+        undefined,
+        profile
+      );
+      await expectFetchRequest({
+        path: `/api/agents/coder/heartbeat/wake${profile ? `?profile=${profile}` : ""}`,
+        method: "POST",
+        callIndex: 5,
+        body: { session_id: "sess-1", source: "manual" },
+      });
+    }
+  );
 
   it("Should throw generic errors for non-conflict failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));

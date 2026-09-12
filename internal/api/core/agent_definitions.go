@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	errAgentDefinitionReadOnly = errors.New(
-		"api: package-owned AGENT.md is read-only; duplicate it before editing",
+	errAgentDefinitionPackageDelete = errors.New(
+		"api: package-owned agent definitions cannot be deleted; disable the extension instead",
 	)
 	errAgentDefinitionConflict        = errors.New("api: agent definition conflict")
 	errAgentDefinitionInvalid         = errors.New("api: invalid agent definition request")
@@ -57,10 +57,6 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
-		return
-	}
-	if resolved.Entry.PackageOwned {
-		h.respondError(c, http.StatusForbidden, errAgentDefinitionReadOnly)
 		return
 	}
 	currentDigest, err := compozyconfig.AgentDefinitionDigest(resolved.Entry.Def)
@@ -142,7 +138,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	if resolved.Entry.PackageOwned {
-		h.respondError(c, http.StatusForbidden, errAgentDefinitionReadOnly)
+		h.respondError(c, http.StatusForbidden, errAgentDefinitionPackageDelete)
 		return
 	}
 	if resolved.OperationWorkspace != "" &&

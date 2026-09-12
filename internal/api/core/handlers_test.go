@@ -3134,10 +3134,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(source) error = %v", err)
 		}
-		digest, err := compozyconfig.AgentDefinitionDigest(source)
-		if err != nil {
-			t.Fatalf("AgentDefinitionDigest(source) error = %v", err)
-		}
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
@@ -3182,19 +3178,10 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			if workspaceRef != "" {
 				query += "&workspace=" + workspaceRef
 			}
-			update := performRequest(t, fixture.Engine, http.MethodPut, "/agents/designer"+query,
-				mustJSON(t, contract.UpdateAgentRequest{Workspace: workspaceRef, ExpectedDigest: digest,
-					Agent: contract.CreateAgentPayload{Name: "designer", Prompt: "Do not persist this."}}))
 			deleted := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/designer"+query, nil)
-			for _, response := range []struct {
-				code int
-				body string
-			}{
-				{update.Code, update.Body.String()}, {deleted.Code, deleted.Body.String()},
-			} {
-				if response.code != http.StatusForbidden || !strings.Contains(response.body, "package-owned") {
-					t.Fatalf("managed mutation status = %d; body=%s", response.code, response.body)
-				}
+			if deleted.Code != http.StatusForbidden ||
+				!strings.Contains(deleted.Body.String(), "disable the extension") {
+				t.Fatalf("managed delete status = %d; body=%s", deleted.Code, deleted.Body.String())
 			}
 		}
 		if syncer.calls != 0 || soulPurger.name != "" || heartbeatPurger.name != "" {
@@ -3345,7 +3332,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			agents: []compozyconfig.AgentDef{current},
+			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				return []core.AgentCatalogEntry{
+					{Def: current, Origin: contract.AgentOriginGlobal, PackageOwned: true},
+				}, nil
+			},
 		}
 
 		resp := performRequest(

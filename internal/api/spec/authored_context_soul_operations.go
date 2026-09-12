@@ -80,11 +80,16 @@ func getAgentDefinitionSoulOperationSpec() OperationSpec {
 		Summary:     "Inspect the resolved Soul read model for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
-		},
+		),
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulPayload{}},
 			{
 				Status:      403,
@@ -109,11 +114,16 @@ func validateAgentDefinitionSoulOperationSpec() OperationSpec {
 		Summary:     "Validate a proposed Soul body for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
-		},
+		),
 		RequestBody: contract.AgentSoulValidateByPathRequest{},
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulPayload{}},
 			{
 				Status:      403,
@@ -142,11 +152,16 @@ func putAgentSoulOperationSpec() OperationSpec {
 		Summary:     "Create or replace SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
-		},
+		),
 		RequestBody: contract.AgentSoulPutByPathRequest{},
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{
 				Status:      403,
@@ -176,11 +191,16 @@ func deleteAgentSoulOperationSpec() OperationSpec {
 		Summary:     "Delete SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
-		},
+		),
 		RequestBody: contract.AgentSoulDeleteByPathRequest{},
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{
 				Status:      403,
@@ -202,13 +222,18 @@ func listAgentSoulHistoryOperationSpec() OperationSpec {
 		Summary:     "List managed SOUL.md authoring revisions",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 			intQueryParam("limit", "Maximum number of revisions to return"),
 			queryParam("cursor", "Revision cursor", false),
-		},
+		),
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulHistoryResponse{}},
 			{
 				Status:      403,
@@ -233,11 +258,16 @@ func rollbackAgentSoulOperationSpec() OperationSpec {
 		Summary:     "Rollback SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
-		},
+		),
 		RequestBody: contract.AgentSoulRollbackByPathRequest{},
 		Responses: []ResponseSpec{
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{
 				Status:      403,

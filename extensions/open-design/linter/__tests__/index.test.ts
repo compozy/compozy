@@ -1223,3 +1223,89 @@ describe("trust-gradient", () => {
     expect(findings.find(f => f.id === "trust-gradient")).toBeDefined();
   });
 });
+
+describe("global theme specificity", () => {
+  it.each([
+    {
+      name: "preserves an earlier higher-specificity dark value",
+      tokens: ':root[data-theme="dark"] { --tracking: 0.02em; } :root { --tracking: 0.08em; }',
+      flagged: true,
+    },
+    {
+      name: "uses source order when theme selectors have equal specificity",
+      tokens:
+        ':root { --tracking: 0.08em; } :root[data-theme="dark"] { --tracking: 0.02em; } :root[data-theme="dark"] { --tracking: 0.10em; }',
+      flagged: false,
+    },
+    {
+      name: "uses the later root over an equally specific bare theme attribute",
+      tokens: '[data-theme="dark"] { --tracking: 0.02em; } :root { --tracking: 0.08em; }',
+      flagged: false,
+    },
+    {
+      name: "uses the most specific matching selector in a global selector list",
+      tokens:
+        ':root, :root[data-theme="dark"] { --tracking: 0.02em; } :root { --tracking: 0.08em; }',
+      flagged: true,
+    },
+  ])("$name", ({ tokens, flagged }) => {
+    const findings = lintArtifact(`<style>${tokens}</style>
+      <style>.eyebrow { text-transform: uppercase; letter-spacing: var(--tracking); }</style>`);
+    expect(findings.some(finding => finding.id === "all-caps-no-tracking")).toBe(flagged);
+  });
+});
+
+describe("raw-hex", () => {
+  it("flags raw colors in a later style block", () => {
+    const colors = ".chip { color: #123456; }".repeat(13);
+    const findings = lintArtifact(
+      `<style>:root { --bg: #ffffff; }</style><style>${colors}</style>`
+    );
+    expect(requiredFinding(findings, "raw-hex").message).toStartWith("13 raw hex values");
+  });
+
+  it("combines colors across style blocks before applying the threshold", () => {
+    const colors = ".chip { color: #123456; }".repeat(7);
+    const findings = lintArtifact(`<style>${colors}</style><style>${colors}</style>`);
+    expect(requiredFinding(findings, "raw-hex").message).toStartWith("14 raw hex values");
+  });
+
+  it("excludes root tokens from every block and preserves the twelve-color allowance", () => {
+    const colors = ".chip { color: #123456; }".repeat(6);
+    const block = `<style>:root { --bg: #ffffff; } ${colors}</style>`;
+    expect(lintArtifact(block + block).find(finding => finding.id === "raw-hex")).toBeUndefined();
+  });
+});
+
+describe("slide themes", () => {
+  it("flags a missing theme when class follows another attribute", () => {
+    const findings = lintArtifact(
+      '<SECTION id="cover" CLASS="slide" data-screen-label="Cover"></SECTION>'
+    );
+    expect(requiredFinding(findings, "slide-theme-missing").severity).toBe("P0");
+  });
+
+  it("checks theme rhythm with mixed section attribute order", () => {
+    const findings = lintArtifact(`
+      <section id="cover" class="slide dark" data-screen-label="Cover"></section>
+      <section class="slide
+        hero dark" id="details" data-screen-label="Details"></section>
+      <SECTION id="close" data-screen-label="Close" CLASS="slide dark"></SECTION>`);
+    expect(requiredFinding(findings, "slide-rhythm").severity).toBe("P1");
+    expect(findings.find(finding => finding.id === "slide-theme-missing")).toBeUndefined();
+  });
+
+  it("reads theme classes rather than other section attribute values", () => {
+    const findings = lintArtifact(
+      '<section id="dark" class="slide" data-screen-label="Cover"></section>'
+    );
+    expect(requiredFinding(findings, "slide-theme-missing").severity).toBe("P0");
+  });
+
+  it("does not treat a data-class attribute or a partial class token as a slide", () => {
+    const findings = lintArtifact(`
+      <section data-class="slide" data-screen-label="Example"></section>
+      <section class="slide-note" data-screen-label="Notes"></section>`);
+    expect(findings.find(finding => finding.id === "slide-theme-missing")).toBeUndefined();
+  });
+});

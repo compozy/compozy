@@ -368,6 +368,7 @@ func (s *ManagedSoulAuthoringService) History(
 	revisions, err := s.store.ListSoulRevisions(ctx, RevisionListQuery{
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
+		SourcePath:  target.sourcePath,
 		Limit:       req.Limit,
 	})
 	if err != nil {
@@ -398,6 +399,7 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	selected, err := s.store.FindSoulRevisionForRollback(ctx, RollbackLookup{
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
+		SourcePath:  target.sourcePath,
 		RevisionID:  strings.TrimSpace(req.RevisionID),
 	})
 	if err != nil {

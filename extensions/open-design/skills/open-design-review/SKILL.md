@@ -13,7 +13,7 @@ Inspect `open-design-review` through `compozy__loop_inspect` and read the live d
 
 Supply a concise `brief` and a workspace-relative `artifact_path` under `docs/design/`. Preserve existing or explicitly requested paths; otherwise use `docs/design/<slug>/index.html`. For related HTMLs, name the entry file and list the other boards or `_uiux.md` paths in the brief. The designer returns every HTML path for lint and review.
 
-Pass the following `config_overrides` on both calls. Compozy runtime defaults override definition values, so the definition alone does not enforce this workflow's limit. `full_body` also reruns the complete workflow after an action failure. A rejected review always starts a fresh generation.
+Pass the following `config_overrides` on both calls. CompozyOS runtime defaults override definition values, so the definition alone does not enforce this workflow's limit. `full_body` also reruns the complete workflow after an action failure. A rejected review always starts a fresh generation.
 
 Dry-run with `compozy__loop_run` using `dry: true`, verify effective `iteration_cap: 3` and `reattempt_strategy: full_body`, then execute with the same inputs and overrides without `dry`:
 
@@ -32,7 +32,7 @@ Dry-run with `compozy__loop_run` using `dry: true`, verify effective `iteration_
 }
 ```
 
-Optional `designer` and `critic` inputs select existing agent definitions. Provider and model selection follow Compozy's runtime settings. Do not create a new loop definition, specification, or registry to run this workflow.
+Optional `designer` and `critic` inputs select existing agent definitions. Provider and model selection follow CompozyOS's runtime settings. Do not create a new loop definition, specification, or registry to run this workflow.
 
 ## Honor the bounded review contract
 
@@ -40,7 +40,7 @@ Each pass runs designer → native lint → independent critic → native lint v
 
 The linter must run successfully. Its findings are heuristic: inspect each one, require applicable fixes, and document a specific source-backed exception where appropriate. A lint `passed` value only reports its P0 result; it does not establish visual quality or complete review.
 
-Completion requires an explicit approved verdict, no blocking issues, evidence for every reviewed file, and unchanged lint digests before and after review. The critic decides which lint findings apply and records source-backed exceptions with their original IDs and severities; the completion condition verifies approval and file identity. The native completion condition fails on evaluation errors; missing or invalid critic output cannot become approval.
+Completion requires an explicit approved verdict, no blocking issues, evidence for every reviewed file, and unchanged paths and lint digests before and after review. Each review identifies its file by `lint_index`, path, and digest. Its `exceptions` object must cover exactly the remaining lint IDs, with a specific source and reason for each; a clean file uses `{}`. IDs are unique within each artifact, and the lint remains the severity authority. The completion condition verifies this coverage and file identity without copying finding prose. The native completion condition fails on evaluation errors; missing or invalid critic output cannot become approval.
 
 Use `open-design-browser` for agent-browser inspection when rendered evidence is useful and available. Load the current screenshot through an image-capable harness before making visual claims; text snapshots alone are insufficient. Missing screenshots are not an automatic rejection, but required unavailable evidence remains a disclosed limitation.
 

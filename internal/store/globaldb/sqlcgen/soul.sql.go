@@ -62,18 +62,25 @@ SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_d
 FROM agent_soul_revisions
 WHERE workspace_id = ?1
   AND agent_name = ?2
-  AND id = ?3
+  AND source_path = ?3
+  AND id = ?4
   AND action IN ('put', 'rollback')
 `
 
 type GetSoulRevisionForRollbackParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
+	SourcePath  string `json:"source_path"`
 	ID          string `json:"id"`
 }
 
 func (q *Queries) GetSoulRevisionForRollback(ctx context.Context, arg GetSoulRevisionForRollbackParams) (AgentSoulRevision, error) {
-	row := q.db.QueryRowContext(ctx, getSoulRevisionForRollback, arg.WorkspaceID, arg.AgentName, arg.ID)
+	row := q.db.QueryRowContext(ctx, getSoulRevisionForRollback,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SourcePath,
+		arg.ID,
+	)
 	var i AgentSoulRevision
 	err := row.Scan(
 		&i.ID,

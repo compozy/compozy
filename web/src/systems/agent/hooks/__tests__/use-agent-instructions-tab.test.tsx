@@ -1,5 +1,9 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 import { primarySessionFixture } from "@/systems/session/testing";
@@ -50,8 +54,17 @@ vi.mock("../use-agent-heartbeat", () => ({
 
 import { useAgentInstructionsTab } from "../use-agent-instructions-tab";
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
 describe("useAgentInstructionsTab", () => {
   beforeEach(() => {
+    resetProfileViews();
     vi.clearAllMocks();
     mocks.useSoul.mockReturnValue({
       data: { present: false, validation_status: "missing" },
@@ -95,27 +108,35 @@ describe("useAgentInstructionsTab", () => {
     });
   });
 
-  it("Should fetch both authored files for truthful missing badges before either file tab is opened", () => {
-    const { result } = renderHook(() =>
-      useAgentInstructionsTab({
-        agent: primaryAgentFixture,
-        file: "agent",
-        workspaceId: "ws-test",
-        sessions: [],
-      })
-    );
+  afterEach(() => act(() => resetProfileViews()));
 
-    expect(mocks.useSoul).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
-    expect(mocks.useHeartbeat).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
-    expect(result.current.soulMissing).toBe(true);
-    expect(result.current.heartbeatMissing).toBe(true);
-    expect(result.current.soul.resourceKey).toBe(
-      JSON.stringify(["ws-test", primaryAgentFixture.name, "soul"])
-    );
-    expect(result.current.heartbeat.resourceKey).toBe(
-      JSON.stringify(["ws-test", primaryAgentFixture.name, "heartbeat"])
-    );
-  });
+  it.each(["default", "open-design"])(
+    "Should fetch both authored files for truthful missing badges before either file tab is opened in profile %s",
+    profile => {
+      setProfileView({ scope: "global" }, { kind: "profile", profile });
+      const { result } = renderHook(
+        () =>
+          useAgentInstructionsTab({
+            agent: primaryAgentFixture,
+            file: "agent",
+            workspaceId: "ws-test",
+            sessions: [],
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      expect(mocks.useSoul).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
+      expect(mocks.useHeartbeat).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
+      expect(result.current.soulMissing).toBe(true);
+      expect(result.current.heartbeatMissing).toBe(true);
+      expect(result.current.soul.resourceKey).toBe(
+        JSON.stringify(["ws-test", primaryAgentFixture.name, "soul", profile])
+      );
+      expect(result.current.heartbeat.resourceKey).toBe(
+        JSON.stringify(["ws-test", primaryAgentFixture.name, "heartbeat", profile])
+      );
+    }
+  );
 
   it("Should not treat query errors or non-success states as missing badges", () => {
     mocks.useSoul.mockReturnValue({
@@ -135,77 +156,120 @@ describe("useAgentInstructionsTab", () => {
       refetch: mocks.heartbeatRefetch,
     });
 
-    const { result } = renderHook(() =>
-      useAgentInstructionsTab({
-        agent: primaryAgentFixture,
-        file: "agent",
-        workspaceId: "ws-test",
-        sessions: [],
-      })
+    const { result } = renderHook(
+      () =>
+        useAgentInstructionsTab({
+          agent: primaryAgentFixture,
+          file: "agent",
+          workspaceId: "ws-test",
+          sessions: [],
+        }),
+      { wrapper: createWrapper() }
     );
 
     expect(result.current.soulMissing).toBe(false);
     expect(result.current.heartbeatMissing).toBe(false);
   });
 
-  it("Should round-trip workspace and CAS inputs for validate, save, restore, retry, and wake", async () => {
-    const session = { ...primarySessionFixture, id: "sess-active", state: "active" as const };
-    const { result } = renderHook(() =>
-      useAgentInstructionsTab({
-        agent: primaryAgentFixture,
-        file: "heartbeat",
-        workspaceId: "ws-test",
-        sessions: [session],
-      })
-    );
+  it.each(["default", "open-design"])(
+    "Should round-trip workspace, profile %s, and CAS inputs for validate, save, restore, retry, and wake",
+    async profile => {
+      setProfileView({ scope: "global" }, { kind: "profile", profile });
+      const session = { ...primarySessionFixture, id: "sess-active", state: "active" as const };
+      const { result } = renderHook(
+        () =>
+          useAgentInstructionsTab({
+            agent: primaryAgentFixture,
+            file: "heartbeat",
+            workspaceId: "ws-test",
+            sessions: [session],
+          }),
+        { wrapper: createWrapper() }
+      );
 
-    await act(async () => {
-      await result.current.soul.onValidate("soul-body");
-      await result.current.soul.onSave("soul-body", "soul-digest");
-      await result.current.soul.onRestore("soul-rev", "soul-digest");
-      await result.current.heartbeat.onValidate("heartbeat-body");
-      await result.current.heartbeat.onSave("heartbeat-body", "heartbeat-digest");
-      await result.current.heartbeat.onRestore("heartbeat-rev", "heartbeat-digest");
-      result.current.soul.onRetry();
-      result.current.heartbeat.onRetry();
-      result.current.heartbeat.onWake("sess-active");
-    });
+      await act(async () => {
+        await result.current.soul.onValidate("soul-body");
+        await result.current.soul.onSave("soul-body", "soul-digest");
+        await result.current.soul.onRestore("soul-rev", "soul-digest");
+        await result.current.heartbeat.onValidate("heartbeat-body");
+        await result.current.heartbeat.onSave("heartbeat-body", "heartbeat-digest");
+        await result.current.heartbeat.onRestore("heartbeat-rev", "heartbeat-digest");
+        result.current.soul.onRetry();
+        result.current.heartbeat.onRetry();
+        result.current.heartbeat.onWake("sess-active");
+      });
 
-    expect(mocks.validateSoul).toHaveBeenCalledWith({ body: "soul-body", workspace_id: "ws-test" });
-    expect(mocks.putSoul).toHaveBeenCalledWith({
-      body: "soul-body",
-      expected_digest: "soul-digest",
-      workspace_id: "ws-test",
-    });
-    expect(mocks.rollbackSoul).toHaveBeenCalledWith({
-      revision_id: "soul-rev",
-      expected_digest: "soul-digest",
-      workspace_id: "ws-test",
-    });
-    expect(mocks.validateHeartbeat).toHaveBeenCalledWith({
-      body: "heartbeat-body",
-      workspace_id: "ws-test",
-    });
-    expect(mocks.putHeartbeat).toHaveBeenCalledWith({
-      body: "heartbeat-body",
-      expected_digest: "heartbeat-digest",
-      workspace_id: "ws-test",
-    });
-    expect(mocks.rollbackHeartbeat).toHaveBeenCalledWith({
-      revision_id: "heartbeat-rev",
-      expected_digest: "heartbeat-digest",
-      workspace_id: "ws-test",
-    });
-    expect(mocks.wakeHeartbeat).toHaveBeenCalledWith({
-      session_id: "sess-active",
-      source: "manual",
-    });
-    expect(mocks.soulRefetch).toHaveBeenCalled();
-    expect(mocks.soulHistoryRefetch).toHaveBeenCalled();
-    expect(mocks.heartbeatRefetch).toHaveBeenCalled();
-    expect(mocks.heartbeatHistoryRefetch).toHaveBeenCalled();
-    expect(mocks.statusRefetch).toHaveBeenCalled();
-  });
+      expect(mocks.validateSoul).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: { body: "soul-body", workspace_id: "ws-test" },
+      });
+      expect(mocks.putSoul).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          body: "soul-body",
+          expected_digest: "soul-digest",
+          workspace_id: "ws-test",
+        },
+      });
+      expect(mocks.rollbackSoul).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          revision_id: "soul-rev",
+          expected_digest: "soul-digest",
+          workspace_id: "ws-test",
+        },
+      });
+      expect(mocks.validateHeartbeat).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          body: "heartbeat-body",
+          workspace_id: "ws-test",
+        },
+      });
+      expect(mocks.putHeartbeat).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          body: "heartbeat-body",
+          expected_digest: "heartbeat-digest",
+          workspace_id: "ws-test",
+        },
+      });
+      expect(mocks.rollbackHeartbeat).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          revision_id: "heartbeat-rev",
+          expected_digest: "heartbeat-digest",
+          workspace_id: "ws-test",
+        },
+      });
+      expect(mocks.wakeHeartbeat).toHaveBeenCalledWith({
+        name: primaryAgentFixture.name,
+        cacheWorkspace: "ws-test",
+        profile,
+        params: {
+          session_id: "sess-active",
+          source: "manual",
+        },
+      });
+      expect(mocks.soulRefetch).toHaveBeenCalled();
+      expect(mocks.soulHistoryRefetch).toHaveBeenCalled();
+      expect(mocks.heartbeatRefetch).toHaveBeenCalled();
+      expect(mocks.heartbeatHistoryRefetch).toHaveBeenCalled();
+      expect(mocks.statusRefetch).toHaveBeenCalled();
+    }
+  );
 
   it("Should derive the sole active wake target and discard a selection that leaves the active set", () => {
     const first = { ...primarySessionFixture, id: "sess-first", state: "active" as const };
@@ -219,7 +283,7 @@ describe("useAgentInstructionsTab", () => {
           workspaceId: "ws-test",
           sessions,
         }),
-      { initialProps: { sessions: [first] } }
+      { initialProps: { sessions: [first] }, wrapper: createWrapper() }
     );
 
     expect(result.current.heartbeat.wakeSessionId).toBe("sess-first");

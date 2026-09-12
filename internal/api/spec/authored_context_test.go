@@ -7,6 +7,39 @@ import (
 )
 
 func TestAuthoredContextOpenAPIContracts(t *testing.T) {
+	t.Run("Should select one optional profile on every authored agent operation", func(t *testing.T) {
+		t.Parallel()
+		doc := authoredContextDocument(t)
+		for _, sidecar := range []string{"soul", "heartbeat"} {
+			endpoints := []struct{ suffix, method string }{
+				{"", "GET"},
+				{"", "PUT"},
+				{"", "DELETE"},
+				{"/validate", "POST"},
+				{"/history", "GET"},
+				{"/rollback", "POST"},
+			}
+			if sidecar == "heartbeat" {
+				endpoints = append(
+					endpoints,
+					struct{ suffix, method string }{"/status", "GET"},
+					struct{ suffix, method string }{"/wake", "POST"},
+				)
+			}
+			for _, endpoint := range endpoints {
+				operation := operationFor(t, doc, "/api/agents/{name}/"+sidecar+endpoint.suffix, endpoint.method)
+				profile := operation.Parameters.GetByInAndName("query", "profile")
+				if profile == nil || profile.Required {
+					t.Fatalf("%s %s%s optional profile=%#v", endpoint.method, sidecar, endpoint.suffix, profile)
+				}
+				if aggregate := operation.Parameters.GetByInAndName("query", "all_profiles"); aggregate != nil {
+					t.Fatalf("%s %s%s exposes aggregate profile selection", endpoint.method, sidecar, endpoint.suffix)
+				}
+				assertResponseStatus(t, operation, 400)
+			}
+		}
+	})
+
 	t.Run("Should register shared Soul Heartbeat health and wake operations", func(t *testing.T) {
 		t.Parallel()
 

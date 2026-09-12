@@ -17934,36 +17934,6 @@ export interface operations {
           };
         };
       };
-      /** @description Package-owned agent definition is read-only */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
       /** @description Agent not found */
       404: {
         headers: {
@@ -18178,7 +18148,7 @@ export interface operations {
           };
         };
       };
-      /** @description Package-owned agent definition is read-only */
+      /** @description Package-owned agent definition cannot be deleted */
       403: {
         headers: {
           [name: string]: unknown;
@@ -18682,6 +18652,8 @@ export interface operations {
       query?: {
         /** @description Workspace id */
         workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -18835,6 +18807,36 @@ export interface operations {
             valid: boolean;
             /** @enum {string} */
             validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -19078,7 +19080,10 @@ export interface operations {
   };
   putAgentHeartbeat: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -19260,6 +19265,36 @@ export interface operations {
               previous_digest?: string;
               source_path: string;
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -19533,7 +19568,10 @@ export interface operations {
   };
   deleteAgentHeartbeat: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -19716,6 +19754,36 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Forbidden - workspace or permission mismatch */
       403: {
         headers: {
@@ -19877,6 +19945,8 @@ export interface operations {
         limit?: number;
         /** @description Revision cursor */
         cursor?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -19912,6 +19982,36 @@ export interface operations {
               previous_digest?: string;
               source_path: string;
             }[];
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -20039,7 +20139,10 @@ export interface operations {
   };
   rollbackAgentHeartbeat: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -20222,6 +20325,36 @@ export interface operations {
               previous_digest?: string;
               source_path: string;
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -20504,6 +20637,8 @@ export interface operations {
         include_session_health?: boolean;
         /** @description Include recent wake audit rows */
         include_recent_wake_events?: boolean;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -20663,6 +20798,36 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Forbidden - workspace or permission mismatch */
       403: {
         headers: {
@@ -20787,7 +20952,10 @@ export interface operations {
   };
   validateAgentHeartbeat: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -20948,6 +21116,36 @@ export interface operations {
             valid: boolean;
             /** @enum {string} */
             validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -21191,7 +21389,10 @@ export interface operations {
   };
   wakeAgentHeartbeat: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -21258,6 +21459,36 @@ export interface operations {
               synthetic_prompt_id?: string;
               wake_event_id?: string;
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -21436,6 +21667,8 @@ export interface operations {
       query?: {
         /** @description Workspace id */
         workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -21507,6 +21740,36 @@ export interface operations {
             valid: boolean;
             /** @enum {string} */
             validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -21634,7 +21897,10 @@ export interface operations {
   };
   putAgentSoul: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -21748,6 +22014,36 @@ export interface operations {
               /** @enum {string} */
               validation_status: "missing" | "inactive" | "valid" | "invalid";
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -21939,7 +22235,10 @@ export interface operations {
   };
   deleteAgentSoul: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -22051,6 +22350,36 @@ export interface operations {
               /** @enum {string} */
               validation_status: "missing" | "inactive" | "valid" | "invalid";
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -22215,6 +22544,8 @@ export interface operations {
         limit?: number;
         /** @description Revision cursor */
         cursor?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -22264,6 +22595,36 @@ export interface operations {
               previous_digest?: string;
               source_path: string;
             }[];
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -22391,7 +22752,10 @@ export interface operations {
   };
   rollbackAgentSoul: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -22505,6 +22869,36 @@ export interface operations {
               /** @enum {string} */
               validation_status: "missing" | "inactive" | "valid" | "invalid";
             };
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -22696,7 +23090,10 @@ export interface operations {
   };
   validateAgentDefinitionSoul: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -22775,6 +23172,36 @@ export interface operations {
             valid: boolean;
             /** @enum {string} */
             validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };

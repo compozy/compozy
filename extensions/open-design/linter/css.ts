@@ -5,7 +5,6 @@ type CssDeclaration = { prop: string; value: string };
 type CssTokenScope = {
   selectors: string[];
   tokens: Map<string, string>;
-  isDefault: boolean;
   themeKeys: Set<string>;
 };
 
@@ -53,9 +52,8 @@ function isResolvedTrackingAdequate(body: string): boolean {
 // selector seen across scopes. Default-applying scopes (whose selector
 // list contains a bare `:root` / `html` / `body`) apply to every theme
 // as a baseline; variant scopes apply only to the themes their
-// selector targets. Within a single theme, scopes are applied in
-// source order so the final value reflects the cascade the browser
-// would render.
+// selector targets. Within a single theme, the most specific matching
+// selector wins; source order breaks ties.
 //
 // Returned as an array — one map per theme. The lint passes only when
 // every theme map satisfies the rule, so a default-theme value below
@@ -73,23 +71,30 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
   for (const scope of scopes) {
     for (const k of scope.themeKeys) themeKeys.add(k);
   }
-  const themes = new Map<string, Map<string, string>>();
-  for (const k of themeKeys) themes.set(k, new Map());
-  for (const scope of scopes) {
-    if (scope.isDefault) {
-      for (const map of themes.values()) {
-        for (const [k, v] of scope.tokens) map.set(k, v);
-      }
-    } else {
-      for (const themeKey of scope.themeKeys) {
-        const map = themes.get(themeKey);
-        if (map) {
-          for (const [k, v] of scope.tokens) map.set(k, v);
+  return Array.from(themeKeys, themeKey => {
+    const tokens = new Map<string, string>();
+    const specificity = new Map<string, number>();
+    for (const scope of scopes) {
+      const matching = scope.selectors.filter(s => isBareGlobalSelector(s) || s === themeKey);
+      if (matching.length === 0) continue;
+      const rank = matching.reduce((highest, s) => Math.max(highest, globalThemeSpecificity(s)), 0);
+      for (const [name, value] of scope.tokens) {
+        if (rank >= (specificity.get(name) ?? -1)) {
+          tokens.set(name, value);
+          specificity.set(name, rank);
         }
       }
     }
-  }
-  return Array.from(themes.values());
+    return tokens;
+  });
+}
+
+// Only the grammar accepted by isGlobalThemeScopeSelector reaches here:
+// at most one :root pseudo-class, one theme attribute, and one type.
+// Tens therefore preserve class/attribute priority over the type column.
+function globalThemeSpecificity(selector: string): number {
+  const base = selector.startsWith(":root") ? 10 : /^(html|body)\b/.test(selector) ? 1 : 0;
+  return base + (selector.includes("[") ? 10 : 0);
 }
 
 function isBareGlobalSelector(s: string): boolean {
@@ -157,11 +162,9 @@ function resolveFontSizePx(decls: CssDeclaration[]): number | null {
 // to express design intent.
 //
 // Returns an array of per-scope records:
-//   `{ selectors, tokens, isDefault, themeKeys }`
+//   `{ selectors, tokens, themeKeys }`
 // where `tokens` is the per-scope last-write-wins map of CSS custom
 // properties, `selectors` lists the parsed selectors from the rule,
-// `isDefault` is true if any selector is a bare global
-// (`:root` / `html` / `body` without an attribute suffix), and
 // `themeKeys` is the set of theme-attribute selector strings the rule
 // targets. Per-theme effective maps are derived downstream from these
 // records by `buildResolvedThemes`, which preserves the scope-internal
@@ -176,8 +179,8 @@ function resolveFontSizePx(decls: CssDeclaration[]): number | null {
 // renders the second value, and the first never reaches any element.
 // Per-scope, we keep only the LAST value declared for each token
 // name; cross-scope merging happens later in `buildResolvedThemes`,
-// where the same source-order cascade is applied between scopes that
-// target the same theme.
+// where specificity and then source order select the winning declaration
+// between scopes that target the same theme.
 export function extractCssTokens(html: string): CssTokenScope[] {
   const scopes: CssTokenScope[] = [];
   for (const styleBlock of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
@@ -191,7 +194,6 @@ export function extractCssTokens(html: string): CssTokenScope[] {
         .split(",")
         .map(s => s.trim())
         .filter(Boolean);
-      const isDefault = selectors.some(isBareGlobalSelector);
       const themeKeys = new Set(selectors.filter(s => !isBareGlobalSelector(s)));
       const body = m[2] ?? "";
       const tokens = new Map();
@@ -207,7 +209,7 @@ export function extractCssTokens(html: string): CssTokenScope[] {
         }
       }
       if (tokens.size === 0) continue;
-      scopes.push({ selectors, tokens, isDefault, themeKeys });
+      scopes.push({ selectors, tokens, themeKeys });
     }
   }
   return scopes;

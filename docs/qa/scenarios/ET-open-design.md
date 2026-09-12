@@ -46,7 +46,9 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
 ## Current evidence — 2026-09-11
 
 - Curated package and bundled lifecycle race suites pass with the existing installer. The local
-  bundle passes all 97 original tests, and findings match on 106 original HTML examples.
+  bundle retains all 97 original tests. After external-review corrections, 108 cases pass;
+  92 of 106 original examples remain identical, while 14 change only for corrected raw-color
+  scanning across every style block.
 - A real isolated daemon exposes the expected seven live resources. Public lint returns original
   findings and the exact file digest. Managed session `sess-07b905eb3b6fe45e` created a compact
   bulk-actions HTML and inspected interaction screenshots; desktop/mobile and confirmation were
@@ -68,8 +70,22 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
   All four nodes succeeded; native verification and the on-disk file had the same SHA-256.
   Evidence: `review-final-receipt.json` and the final critic history.
 - Selected-profile Web catalog/detail/picker/reload and authored-agent duplicate/edit/delete
-  passed. The public HTTP walk passed all 19 steps, protecting the original managed source.
+  passed. The initial HTTP walk covered 19 steps; its AGENT.md update-denial premise was corrected in round one to preserve supported extension customization.
   The final canonical gate passed, including 7,245 Web tests; production Web and Site builds passed.
   The continuation lab's strict evidence audit and exact teardown passed with `clean: true`.
 - Original lab teardown recorded `clean: true`. Continuation evidence is under
   `/Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-20260911-223928-759363-lab/qa-artifacts/qa`.
+
+Round-one external-review verification (2026-09-11): the final native linter reports zero findings
+for all four unchanged generated HTMLs. The shipped Loop dry-run compiles with exact sourced
+exception coverage, path/SHA association and the explicit three-generation/full-body limits. Its
+real compile/hydration/schema/CEL suite rejects missing/unrelated exceptions and stays within the
+existing cost budget at 7,810/10,000 for 32 files and 512 findings. The earlier provider-backed
+Loop run remains evidence for unchanged design/critique interaction, not a replay of this new
+exception schema. Profile-specific authored-context and editable bundled-agent re-walks are
+recorded in RT-077 and ET-profile-extension-agent-skill-isolation. Current lab evidence:
+`/Users/pedronauck/dev/qa-labs/compozy-open-design-r1-20260911-234610-059353-lab/qa-artifacts/qa`.
+
+Round-one final strict audit passed without blockers or warnings; the local gate passed all
+affected lanes (7,277 Web tests). Lab teardown completed with `clean: true` and no surviving
+owned process.

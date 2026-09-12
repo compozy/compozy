@@ -27,10 +27,14 @@ function workspaceIdQuery(workspaceId?: string | null): { workspace_id: string }
 export async function fetchAgentSoul(
   name: string,
   workspaceId?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentSoulPayload> {
   const { data, error, response } = await apiClient.GET("/api/agents/{name}/soul", {
-    params: { path: { name }, query: workspaceIdQuery(workspaceId) },
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -45,10 +49,11 @@ export async function fetchAgentSoul(
 export async function validateAgentSoul(
   name: string,
   params: ValidateAgentSoulParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<ValidateAgentSoulResponse> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/soul/validate", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -64,10 +69,11 @@ export async function validateAgentSoul(
 export async function putAgentSoul(
   name: string,
   params: PutAgentSoulParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<PutAgentSoulResponse> {
   const { data, error, response } = await apiClient.PUT("/api/agents/{name}/soul", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -88,10 +94,11 @@ export async function putAgentSoul(
 export async function deleteAgentSoul(
   name: string,
   params: DeleteAgentSoulParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<DeleteAgentSoulResponse> {
   const { data, error, response } = await apiClient.DELETE("/api/agents/{name}/soul", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -112,10 +119,14 @@ export async function deleteAgentSoul(
 export async function fetchAgentSoulHistory(
   name: string,
   workspaceId?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentSoulHistoryResponse> {
   const { data, error, response } = await apiClient.GET("/api/agents/{name}/soul/history", {
-    params: { path: { name }, query: workspaceIdQuery(workspaceId) },
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -130,10 +141,11 @@ export async function fetchAgentSoulHistory(
 export async function rollbackAgentSoul(
   name: string,
   params: RollbackAgentSoulParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<RollbackAgentSoulResponse> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/soul/rollback", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });

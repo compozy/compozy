@@ -105,6 +105,7 @@ type Revision struct {
 type RevisionListQuery struct {
 	WorkspaceID string
 	AgentName   string
+	SourcePath  string
 	Action      RevisionAction
 	Limit       int
 }
@@ -113,6 +114,7 @@ type RevisionListQuery struct {
 type RollbackLookup struct {
 	WorkspaceID string
 	AgentName   string
+	SourcePath  string
 	RevisionID  string
 }
 
@@ -338,6 +340,8 @@ func (q RollbackLookup) Validate() error {
 		return fmt.Errorf("soul: rollback workspace id is required")
 	case strings.TrimSpace(q.AgentName) == "":
 		return fmt.Errorf("soul: rollback agent name is required")
+	case strings.TrimSpace(q.SourcePath) == "":
+		return fmt.Errorf("soul: rollback source path is required")
 	case strings.TrimSpace(q.RevisionID) == "":
 		return fmt.Errorf("soul: rollback revision id is required")
 	default:

@@ -19,7 +19,6 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentResponse{}},
 			{Status: 400, Description: "Invalid agent definition request", Body: contract.ErrorPayload{}},
-			{Status: 403, Description: "Package-owned agent definition is read-only", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Agent definition digest conflict", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
@@ -45,7 +44,11 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.DeleteAgentResponse{}},
-			{Status: 403, Description: "Package-owned agent definition is read-only", Body: contract.ErrorPayload{}},
+			{
+				Status:      403,
+				Description: "Package-owned agent definition cannot be deleted",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

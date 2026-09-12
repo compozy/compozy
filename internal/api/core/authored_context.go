@@ -30,11 +30,11 @@ var (
 )
 
 type authoredAgentTarget struct {
+	profileID           string
+	profileName         string
 	workspaceID         string
 	sessionWorkspaceID  string
 	workspaceRoot       string
-	profileID           string
-	profileName         string
 	agentName           string
 	agentPath           string
 	soulConfig          compozyconfig.SoulConfig

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -152,6 +153,7 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 		gotRevision, err = second.FindHeartbeatRevisionForRollback(ctx, heartbeat.RollbackLookup{
 			WorkspaceID: workspaceID,
 			AgentName:   "coder",
+			SourcePath:  revision.SourcePath,
 			RevisionID:  "hb-rev-reopen",
 		})
 		if err != nil {
@@ -620,6 +622,109 @@ func TestGlobalDBSessionHealthStore(t *testing.T) {
 
 func TestGlobalDBHeartbeatWakeAuditStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should select profile wake status and events before applying limits", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID, defaultSessionID := registerHeartbeatWorkspaceAndSession(
+			t,
+			globalDB,
+			"profile-wake",
+			"sess-default",
+		)
+		const profileID = "01K34DESIGNPROFILE00000000"
+		baseAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'design', '#E8572A', 'briefcase', 'active', ?)`, profileID, store.FormatTimestamp(baseAt)); err != nil {
+			t.Fatalf("Insert profile error = %v", err)
+		}
+		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ID: "sess-design", ProfileID: profileID, AgentName: "coder", Provider: "claude",
+			WorkspaceID: workspaceID, RuntimeStatus: store.SessionRuntimeUnbound,
+			State: "active", CreatedAt: baseAt, UpdatedAt: baseAt,
+		}); err != nil {
+			t.Fatalf("RegisterSession(design) error = %v", err)
+		}
+		for index, sessionID := range []string{defaultSessionID, "sess-design"} {
+			at := baseAt.Add(time.Duration(index) * time.Minute)
+			if _, err := globalDB.UpsertHeartbeatWakeState(ctx,
+				heartbeatWakeStateForTest(sessionID, workspaceID, "coder", "", at),
+			); err != nil {
+				t.Fatalf("UpsertHeartbeatWakeState(%s) error = %v", sessionID, err)
+			}
+			if _, err := globalDB.AppendHeartbeatWakeEvent(ctx,
+				heartbeatWakeEventForTest("event-"+sessionID, sessionID, workspaceID, "coder", "", at),
+			); err != nil {
+				t.Fatalf("AppendHeartbeatWakeEvent(%s) error = %v", sessionID, err)
+			}
+		}
+		root := t.TempDir()
+		agentPath := filepath.Join(root, ".compozy", "agents", "coder", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+			t.Fatalf("MkdirAll(agent) error = %v", err)
+		}
+		if err := os.WriteFile(
+			agentPath,
+			[]byte("---\nname: coder\nprovider: claude\n---\nYou are coder.\n"),
+			0o644,
+		); err != nil {
+			t.Fatalf("WriteFile(agent) error = %v", err)
+		}
+		service, err := heartbeat.NewManagedHeartbeatStatusService(globalDB)
+		if err != nil {
+			t.Fatalf("NewManagedHeartbeatStatusService() error = %v", err)
+		}
+		for _, selected := range []struct {
+			profile string
+			session string
+		}{
+			{store.DefaultProfileID, defaultSessionID},
+			{profileID, "sess-design"},
+			{"", "sess-design"},
+			{"missing-profile", ""},
+		} {
+			status, err := service.Status(ctx, heartbeat.StatusRequest{
+				Target: heartbeat.AuthoringTarget{
+					WorkspaceID: workspaceID, WorkspaceRoot: root, AgentName: "coder",
+					ProfileID: selected.profile,
+					AgentPath: agentPath, Config: compozyconfig.DefaultHeartbeatConfig(),
+				},
+			})
+			if err != nil {
+				t.Fatalf("Status(%s) error = %v", selected.profile, err)
+			}
+			events, err := globalDB.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+				WorkspaceID: workspaceID, AgentName: "coder", ProfileID: selected.profile, Limit: 1,
+			})
+			if err != nil {
+				t.Fatalf("ListHeartbeatWakeEvents(%s) error = %v", selected.profile, err)
+			}
+			if selected.session == "" {
+				if status.WakeState != nil || len(events) != 0 {
+					t.Errorf("unknown profile status = %#v, events = %#v; want empty", status.WakeState, events)
+				}
+				continue
+			}
+			if status.WakeState == nil || status.WakeState.SessionID != selected.session {
+				t.Errorf(
+					"Status(%s).WakeState = %#v, want session %s",
+					selected.profile,
+					status.WakeState,
+					selected.session,
+				)
+			}
+			if len(events) != 1 || events[0].SessionID != selected.session {
+				t.Errorf(
+					"ListHeartbeatWakeEvents(%s) = %#v, want session %s",
+					selected.profile,
+					events,
+					selected.session,
+				)
+			}
+		}
+	})
 
 	t.Run("Should persist wake state and events with closed reason constraints", func(t *testing.T) {
 		t.Parallel()

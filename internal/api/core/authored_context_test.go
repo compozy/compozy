@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +21,8 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -111,34 +114,38 @@ func (h *packageOwnedHeartbeatAuthoring) Rollback(
 }
 
 type packageOwnedAgentCatalog struct {
-	artifacts session.AgentArtifacts
+	artifacts   session.AgentArtifacts
+	profileName string
 }
 
-func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+func (c *packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
 	return []core.AgentCatalogEntry{{
 		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}}, nil
 }
 
-func (c packageOwnedAgentCatalog) ListAgentsForWorkspace(
+func (c *packageOwnedAgentCatalog) ListAgentsForWorkspace(
 	ctx context.Context,
 	_ *workspacepkg.ResolvedWorkspace,
 ) ([]core.AgentCatalogEntry, error) {
 	return c.ListAgents(ctx)
 }
 
-func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
+func (c *packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
 	return core.AgentCatalogEntry{
 		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}, nil
 }
 
-func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
-	string,
-	*workspacepkg.ResolvedWorkspace,
+func (c *packageOwnedAgentCatalog) ResolveAgentArtifacts(
+	_ string,
+	workspace *workspacepkg.ResolvedWorkspace,
 ) (session.AgentArtifacts, error) {
+	if c.profileName != "" && workspace.ProfileName != c.profileName {
+		return session.AgentArtifacts{}, fmt.Errorf("catalog profile %q, want %q", workspace.ProfileName, c.profileName)
+	}
 	return c.artifacts, nil
 }
 
@@ -342,7 +349,12 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				if id != "sess-owned" {
 					t.Fatalf("Status() session id = %q, want sess-owned", id)
 				}
-				return &session.Info{ID: id, WorkspaceID: "ws-stable", AgentName: "coder"}, nil
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-stable",
+					ProfileID:   store.DefaultProfileID,
+					AgentName:   "coder",
+				}, nil
 			},
 		}
 		workspacesWithStableOnly := testutil.StubWorkspaceService{
@@ -548,6 +560,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 					return &session.Info{
 						ID:                     id,
 						WorkspaceID:            "ws-registry",
+						ProfileID:              store.DefaultProfileID,
 						AgentName:              "deleted-agent",
 						State:                  session.StateActive,
 						PendingClarifyCount:    1,
@@ -620,7 +633,12 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-owned", AgentName: "coder"}, nil
+			return &session.Info{
+				ID:          strings.TrimSpace(id),
+				WorkspaceID: "ws-owned",
+				ProfileID:   store.DefaultProfileID,
+				AgentName:   "coder",
+			}, nil
 		},
 	}
 	workspaces := testutil.StubWorkspaceService{
@@ -708,6 +726,20 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 		assertCalls   func(*testing.T, *soulIfMatchTestAuthoring, *packageOwnedHeartbeatAuthoring)
 	}{
 		{
+			name:          "Should read package-owned Soul in the selected profile",
+			method:        http.MethodGet,
+			path:          "/agents/marketer/soul",
+			registerRoute: func(fixture handlerFixture) { fixture.Engine.GET("/agents/:name/soul", fixture.Handlers.GetAgentSoul) },
+		},
+		{
+			name:   "Should read package-owned Heartbeat in the selected profile",
+			method: http.MethodGet,
+			path:   "/agents/marketer/heartbeat",
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET("/agents/:name/heartbeat", fixture.Handlers.GetAgentHeartbeat)
+			},
+		},
+		{
 			name:   "Should reject package-owned Soul writes",
 			method: http.MethodPut,
 			path:   "/agents/marketer/soul",
@@ -781,12 +813,16 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{
-					ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+						if profile != "marketing" {
+							t.Fatalf("workspace profile=%q, want marketing", profile)
+						}
 						if ref != "ws-1" {
 							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 						}
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+							Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+							ProfileName: profile,
 							Config: compozyconfig.Config{
 								Agents: compozyconfig.AgentsConfig{
 									Soul:      compozyconfig.DefaultSoulConfig(),
@@ -799,25 +835,39 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 				nil,
 				nil,
 			)
+			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			fixture.Handlers.SoulAuthoring = soulAuthoring
 			fixture.Handlers.HeartbeatAuthoring = heartbeatAuthoring
-			fixture.Handlers.AgentCatalog = packageOwnedAgentCatalog{
+			fixture.Handlers.AgentCatalog = &packageOwnedAgentCatalog{
+				profileName: "marketing",
 				artifacts: session.AgentArtifacts{
 					Agent:               compozyconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
 					PackageOwned:        true,
 					SoulSourcePath:      ".compozy/bundles/act/agents/marketer/SOUL.md",
-					SoulBody:            "Lead with campaign context.",
+					SoulBody:            "---\nversion: \"1\"\nrole: marketer\n---\nLead with campaign context.",
 					HeartbeatSourcePath: ".compozy/bundles/act/agents/marketer/HEARTBEAT.md",
-					HeartbeatBody:       "Inspect campaigns and use Compozy task APIs.",
+					HeartbeatBody:       "---\nversion: \"1\"\nenabled: true\nsummary: Campaign context\n---\nInspect campaigns and use Compozy task APIs.",
 				},
 			}
 			tc.registerRoute(fixture)
 
-			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, bytes.NewReader(tc.body))
+			req := httptest.NewRequestWithContext(
+				context.Background(),
+				tc.method,
+				tc.path+"?workspace_id=ws-1&profile=marketing",
+				bytes.NewReader(tc.body),
+			)
 			req.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
 			fixture.Engine.ServeHTTP(recorder, req)
 
+			if tc.method == http.MethodGet {
+				if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"present":true`) ||
+					!strings.Contains(recorder.Body.String(), "campaign") {
+					t.Fatalf("package read: status=%d body=%s", recorder.Code, recorder.Body.String())
+				}
+				return
+			}
 			if got, want := recorder.Code, http.StatusConflict; got != want {
 				t.Fatalf(
 					"%s %s status = %d, want %d body=%s",
@@ -1101,5 +1151,351 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestAuthoredContextProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, sidecar := range []string{"soul", "heartbeat"} {
+		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home"} {
+			t.Run(
+				"Should isolate "+sidecar+" reads writes and history by selected profile in "+sourceKind,
+				func(t *testing.T) {
+					t.Parallel()
+					root := t.TempDir()
+					agentRoot := filepath.Join(root, ".compozy")
+					prefix := ".compozy/"
+					if sourceKind == "personal" {
+						agentRoot = filepath.Join(t.TempDir(), "compozy-home")
+						prefix = ""
+					}
+					if sourceKind == "dot-compozy-home" {
+						agentRoot = filepath.Join(t.TempDir(), ".compozy")
+					}
+					paths := map[string]string{}
+					for _, profile := range []string{"default", "marketing"} {
+						dir := filepath.Join(agentRoot, "agents", "coder")
+						if profile != "default" {
+							dir = filepath.Join(agentRoot, "profiles", profile, "agents", "coder")
+						}
+						if err := os.MkdirAll(dir, 0o755); err != nil {
+							t.Fatal(err)
+						}
+						paths[profile] = filepath.Join(dir, "AGENT.md")
+						if err := os.WriteFile(
+							paths[profile],
+							[]byte("---\nname: coder\nprovider: codex\n---\nCode carefully.\n"),
+							0o600,
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+					db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := db.Close(context.Background()); err != nil {
+							t.Error(err)
+						}
+					})
+					ws := workspacepkg.Workspace{ID: "ws-profile-authoring", RootDir: root, Name: "profile-authoring"}
+					if err := db.InsertWorkspace(t.Context(), ws); err != nil {
+						t.Fatal(err)
+					}
+					workspaces := testutil.StubWorkspaceService{
+						ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+							if ref != ws.ID {
+								return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+							}
+							return workspacepkg.ResolvedWorkspace{
+								Workspace:   ws,
+								WorkspaceID: ws.ID,
+								ProfileName: profile,
+								Agents:      []compozyconfig.AgentDef{{Name: "coder", SourcePath: paths[profile]}},
+								Config: compozyconfig.Config{
+									Agents: compozyconfig.AgentsConfig{
+										Soul:      compozyconfig.DefaultSoulConfig(),
+										Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
+									},
+								},
+							}, nil
+						},
+					}
+					fixture := newHandlerFixture(
+						t,
+						testutil.StubSessionManager{},
+						testutil.StubObserver{},
+						workspaces,
+						nil,
+						nil,
+					)
+					fixture.Handlers.Profiles = sessionProfileServiceStub{}
+					fixture.Handlers.SoulAuthoring, err = soul.NewManagedSoulAuthoringService(db)
+					if err != nil {
+						t.Fatal(err)
+					}
+					fixture.Handlers.HeartbeatAuthoring, err = heartbeat.NewManagedHeartbeatAuthoringService(db)
+					if err != nil {
+						t.Fatal(err)
+					}
+					fixture.Handlers.HeartbeatStatus, err = heartbeat.NewManagedHeartbeatStatusService(db)
+					if err != nil {
+						t.Fatal(err)
+					}
+					fixture.Engine.GET("/agents/:name/soul", fixture.Handlers.GetAgentSoul)
+					fixture.Engine.POST("/agents/:name/soul/validate", fixture.Handlers.ValidateAgentSoulDefinition)
+					fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
+					fixture.Engine.DELETE("/agents/:name/soul", fixture.Handlers.DeleteAgentSoul)
+					fixture.Engine.GET("/agents/:name/soul/history", fixture.Handlers.ListAgentSoulHistory)
+					fixture.Engine.POST("/agents/:name/soul/rollback", fixture.Handlers.RollbackAgentSoul)
+					fixture.Engine.GET("/agents/:name/heartbeat", fixture.Handlers.GetAgentHeartbeat)
+					fixture.Engine.POST("/agents/:name/heartbeat/validate", fixture.Handlers.ValidateAgentHeartbeat)
+					fixture.Engine.PUT("/agents/:name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
+					fixture.Engine.DELETE("/agents/:name/heartbeat", fixture.Handlers.DeleteAgentHeartbeat)
+					fixture.Engine.GET("/agents/:name/heartbeat/history", fixture.Handlers.ListAgentHeartbeatHistory)
+					fixture.Engine.POST("/agents/:name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
+					request := func(method, suffix, profile string, payload any, status int) *httptest.ResponseRecorder {
+						t.Helper()
+						query := "?workspace_id=" + ws.ID
+						if profile != "default" {
+							query += "&profile=" + profile
+						}
+						var body []byte
+						if payload != nil {
+							body = mustJSON(t, payload)
+						}
+						response := performRequest(
+							t,
+							fixture.Engine,
+							method,
+							"/agents/coder/"+sidecar+suffix+query,
+							body,
+						)
+						if response.Code != status {
+							t.Fatalf(
+								"%s %s profile=%s: %d, want %d; body=%s",
+								method,
+								suffix,
+								profile,
+								response.Code,
+								status,
+								response.Body.String(),
+							)
+						}
+						return response
+					}
+					digests, revisions, bodies := map[string]string{}, map[string]string{}, map[string]string{}
+					for _, profile := range []string{"default", "marketing"} {
+						body := "---\nversion: \"1\"\nrole: coder\n---\n" + profile + " guidance.\n"
+						if sidecar == "heartbeat" {
+							body = "---\nversion: \"1\"\nenabled: true\nsummary: Profile guidance\n---\n" + profile + " guidance.\n"
+						}
+						bodies[profile] = body
+						response := request(
+							http.MethodPut,
+							"",
+							profile,
+							map[string]string{"body": body, "expected_digest": ""},
+							http.StatusOK,
+						)
+						var created struct {
+							Soul      contract.AgentSoulPayload
+							Heartbeat contract.HeartbeatPolicyPayload
+							Revision  struct {
+								ID         string `json:"id"`
+								SourcePath string `json:"source_path"`
+							}
+						}
+						if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
+							t.Fatal(err)
+						}
+						digests[profile] = created.Soul.Digest
+						if sidecar == "heartbeat" {
+							digests[profile] = created.Heartbeat.Digest
+						}
+						revisions[profile] = created.Revision.ID
+						wantSource := prefix + "agents/coder/" + strings.ToUpper(sidecar) + ".md"
+						if profile != "default" {
+							wantSource = prefix + "profiles/" + profile + "/agents/coder/" + strings.ToUpper(
+								sidecar,
+							) + ".md"
+						}
+						if created.Revision.SourcePath != wantSource {
+							t.Fatalf(
+								"profile %s revision source=%q want historical representation %q",
+								profile,
+								created.Revision.SourcePath,
+								wantSource,
+							)
+						}
+					}
+					for _, profile := range []string{"default", "marketing"} {
+						for _, method := range []string{http.MethodGet, http.MethodPost} {
+							suffix := ""
+							var body any
+							if method == http.MethodPost {
+								suffix = "/validate"
+								body = map[string]string{"body": bodies[profile]}
+							}
+							response := request(method, suffix, profile, body, http.StatusOK)
+							if !strings.Contains(response.Body.String(), profile+" guidance.") {
+								t.Fatalf("read/validate profile %s body=%s", profile, response.Body.String())
+							}
+						}
+						response := request(http.MethodGet, "/history", profile, nil, http.StatusOK)
+						var history struct{ Revisions []struct{ ID string } }
+						if err := json.Unmarshal(response.Body.Bytes(), &history); err != nil {
+							t.Fatal(err)
+						}
+						if len(history.Revisions) != 1 || history.Revisions[0].ID != revisions[profile] {
+							t.Fatalf("profile %s history=%s", profile, response.Body.String())
+						}
+					}
+					foreign := request(
+						http.MethodPost,
+						"/rollback",
+						"marketing",
+						map[string]string{"revision_id": revisions["default"], "expected_digest": digests["marketing"]},
+						http.StatusNotFound,
+					)
+					if !strings.Contains(foreign.Body.String(), "revision") {
+						t.Fatalf("foreign rollback error=%s", foreign.Body.String())
+					}
+					request(
+						http.MethodPost,
+						"/rollback",
+						"marketing",
+						map[string]string{
+							"revision_id":     revisions["marketing"],
+							"expected_digest": digests["marketing"],
+						},
+						http.StatusOK,
+					)
+					request(
+						http.MethodDelete,
+						"",
+						"marketing",
+						map[string]string{"expected_digest": digests["marketing"]},
+						http.StatusOK,
+					)
+					defaultBody, err := os.ReadFile(
+						filepath.Join(filepath.Dir(paths["default"]), strings.ToUpper(sidecar)+".md"),
+					)
+					if err != nil || string(defaultBody) != bodies["default"] {
+						t.Fatalf("default sidecar changed: body=%s err=%v", defaultBody, err)
+					}
+					if _, err := os.Stat(
+						filepath.Join(filepath.Dir(paths["marketing"]), strings.ToUpper(sidecar)+".md"),
+					); !errors.Is(
+						err,
+						os.ErrNotExist,
+					) {
+						t.Fatalf("selected sidecar deletion: %v", err)
+					}
+					response := request(http.MethodGet, "", "marketing&all_profiles=true", nil, http.StatusBadRequest)
+					if !strings.Contains(response.Body.String(), "profile") {
+						t.Fatalf("aggregate error=%s", response.Body.String())
+					}
+				},
+			)
+		}
+	}
+}
+
+func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		for _, sessionScope := range []string{"foreign-profile", "foreign-agent", "selected"} {
+			t.Run(
+				fmt.Sprintf("Should bind %s heartbeat session to profile and agent %s", method, sessionScope),
+				func(t *testing.T) {
+					t.Parallel()
+					root := t.TempDir()
+					manager := testutil.StubSessionManager{
+						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+							info := &session.Info{
+								ID:          id,
+								WorkspaceID: "ws-1",
+								ProfileID:   "profile-marketing",
+								AgentName:   "coder",
+							}
+							if sessionScope == "foreign-profile" {
+								info.ProfileID = store.DefaultProfileID
+							}
+							if sessionScope == "foreign-agent" {
+								info.AgentName = "other"
+							}
+							return info, nil
+						},
+					}
+					workspaces := testutil.StubWorkspaceService{
+						ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+							if profile != "marketing" {
+								t.Fatalf("workspace profile=%q, want marketing", profile)
+							}
+							return workspacepkg.ResolvedWorkspace{
+								Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+								Config: compozyconfig.Config{
+									Agents: compozyconfig.AgentsConfig{
+										Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
+									},
+								},
+							}, nil
+						},
+					}
+					fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+					fixture.Handlers.Profiles = sessionProfileServiceStub{}
+					status, wake := &heartbeatStatusSpy{}, &heartbeatWakeSpy{}
+					fixture.Handlers.HeartbeatStatus, fixture.Handlers.HeartbeatWake = status, wake
+					fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
+					fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
+					path := "/agents/coder/heartbeat/status?workspace_id=ws-1&profile=marketing&session_id=sess-owned"
+					var body []byte
+					if method == http.MethodPost {
+						path = "/agents/coder/heartbeat/wake?profile=marketing"
+						body = []byte(
+							`{"workspace_id":"ws-1","session_id":"sess-owned","source":"manual","dry_run":true}`,
+						)
+					}
+					response := performRequest(t, fixture.Engine, method, path, body)
+					expected := http.StatusNotFound
+					if sessionScope == "selected" {
+						expected = http.StatusOK
+						if method == http.MethodPost {
+							expected = http.StatusConflict
+						}
+					}
+					if response.Code != expected {
+						t.Fatalf("status=%d want=%d body=%s", response.Code, expected, response.Body.String())
+					}
+					if sessionScope != "selected" {
+						if !strings.Contains(response.Body.String(), "workspace-scoped resource not found") ||
+							status.calls != 0 ||
+							wake.calls != 0 {
+							t.Fatalf(
+								"foreign session reached service: status=%d wake=%d body=%s",
+								status.calls,
+								wake.calls,
+								response.Body.String(),
+							)
+						}
+					} else {
+						marker := `"agent_name":"coder"`
+						if method == http.MethodPost {
+							marker = `"result":"skipped"`
+						}
+						if status.calls+wake.calls != 1 || !strings.Contains(response.Body.String(), marker) {
+							t.Fatalf(
+								"selected session calls=%d/%d body=%s",
+								status.calls,
+								wake.calls,
+								response.Body.String(),
+							)
+						}
+					}
+				},
+			)
+		}
 	}
 }

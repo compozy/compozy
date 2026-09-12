@@ -44,9 +44,10 @@ const CREATE_BODIES: Record<AuthoredFileKind, string> = {
 export function buildAuthoredFileResourceKey(
   workspaceId: string | null,
   agentName: string,
-  kind: AuthoredFileKind
+  kind: AuthoredFileKind,
+  profile = "default"
 ): string {
-  return JSON.stringify([workspaceId, agentName, kind]);
+  return JSON.stringify([workspaceId, agentName, kind, profile]);
 }
 
 export function useAgentAuthoredFileEditor({

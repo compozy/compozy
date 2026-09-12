@@ -353,6 +353,7 @@ func (s *ManagedHeartbeatAuthoringService) History(
 	revisions, err := s.store.ListHeartbeatRevisions(ctx, RevisionListQuery{
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
+		SourcePath:  target.sourcePath,
 		Limit:       req.Limit,
 	})
 	if err != nil {

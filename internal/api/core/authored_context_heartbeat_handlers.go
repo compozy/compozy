@@ -262,9 +262,9 @@ func (h *BaseHandlers) GetAgentHeartbeatStatus(c *gin.Context) {
 	}
 	sessionID := strings.TrimSpace(c.Query("session_id"))
 	if sessionID != "" {
-		if _, err := h.requireSessionInWorkspace(
+		if err := h.requireAuthoredAgentSession(
 			c.Request.Context(),
-			target.storageWorkspaceID(),
+			target,
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
@@ -327,9 +327,9 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 	}
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID != "" {
-		if _, err := h.requireSessionInWorkspace(
+		if err := h.requireAuthoredAgentSession(
 			c.Request.Context(),
-			target.storageWorkspaceID(),
+			target,
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)

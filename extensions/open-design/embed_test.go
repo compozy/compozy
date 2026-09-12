@@ -133,7 +133,8 @@ func (s lintSchemas) Snapshot(id string) (loop.ToolSchemaSnapshot, bool) {
 }
 
 // Invariant: the shipped review Loop completes only for an explicit, evidenced
-// approval of the unchanged candidate. Owner: embedded Loop product contract;
+// approval of the unchanged candidate with a sourced exception for every lint
+// finding. Owner: embedded Loop product contract;
 // use its real schema validator, template renderer, and compiled CEL predicate.
 func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 	t.Helper()
@@ -158,9 +159,11 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 		t.Fatal("critic output schema is missing")
 	}
 	cases := []struct {
-		name  string
-		patch func(map[string]any)
-		want  bool
+		name        string
+		patch       func(map[string]any)
+		want        bool
+		validSchema bool
+		wantError   bool
 	}{
 		{name: "Should accept an evidenced approval", want: true},
 		{name: "Should reject a requested revision", patch: func(v map[string]any) {
@@ -182,11 +185,33 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 			reviewNodeOutput(v, "design")["primary_html_path"] = "docs/design/other.html"
 		}},
 		{name: "Should accept a matching source-backed lint exception", want: true, patch: func(v map[string]any) {
-			addReviewLintFinding(v)
-			reviewArtifact(v, "critique")["exceptions"] = []any{map[string]any{
-				"id": "color_rule", "severity": "P1", "source": "DESIGN.md palette", "reason": "Approved brand color",
-			}}
+			addReviewLintException(v)
 		}},
+		{name: "Should verify file identity without comparing lint prose", want: true, patch: func(v map[string]any) {
+			addReviewLintException(v)
+			reviewArtifact(v, "verify")["findings"].([]any)[0].(map[string]any)["message"] = "Equivalent wording"
+		}},
+		{name: "Should reject schema-valid approval without remaining lint exceptions", validSchema: true,
+			patch: addReviewLintFinding},
+		{name: "Should reject schema-valid approval with unrelated lint exceptions", validSchema: true,
+			patch: func(v map[string]any) {
+				addReviewLintFinding(v)
+				reviewArtifact(v, "critique")["exceptions"] = map[string]any{"another_rule": map[string]any{
+					"source": "DESIGN.md palette",
+					"reason": "Approved brand color",
+				}}
+			}},
+		{name: "Should reject an extra exception on a clean file", validSchema: true, patch: func(v map[string]any) {
+			addReviewLintException(v)
+			for _, node := range []string{"lint", "verify"} {
+				reviewArtifact(v, node)["findings"] = []any{}
+			}
+		}},
+		{name: "Should reject verification for a different path", validSchema: true, patch: func(v map[string]any) {
+			reviewArtifact(v, "verify")["path"] = "docs/design/other.html"
+		}},
+		{name: "Should fail closed on a missing lint index target", validSchema: true, wantError: true,
+			patch: func(v map[string]any) { reviewArtifact(v, "critique")["lint_index"] = 31 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -195,7 +220,7 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 			if tc.patch != nil {
 				tc.patch(variables)
 			}
-			if tc.want {
+			if tc.want || tc.validSchema {
 				raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
 				if err != nil {
 					t.Fatal(err)
@@ -208,6 +233,12 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 				}
 			}
 			result, err := condition.Evaluate(variables)
+			if tc.wantError {
+				if err == nil || result.Value {
+					t.Fatalf("invalid approval should fail evaluation: %v, %v", result.Value, err)
+				}
+				return
+			}
 			if err != nil || result.Value != tc.want {
 				t.Fatalf("review completion = %v, %v; want %v", result.Value, err, tc.want)
 			}
@@ -230,6 +261,7 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 		variables["inputs"].(map[string]any)["artifact_path"] = "docs/design/board-0.html"
 		reviewNodeOutput(variables, "design")["primary_html_path"] = "docs/design/board-0.html"
 		paths := make([]any, 0, 32)
+		lintDetail := strings.Repeat("Detailed heuristic explanation. ", 256)
 		for index := range 32 {
 			paths = append(paths, fmt.Sprintf("docs/design/board-%d.html", index))
 		}
@@ -246,20 +278,20 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 						findings,
 						map[string]any{
 							"id":       fmt.Sprintf("rule-%d", finding),
-							"severity": "P1",
-							"message":  "Color differs",
-							"fix":      "Use approved color",
+							"severity": fmt.Sprintf("P%d", finding%3),
+							"message":  lintDetail,
+							"fix":      lintDetail,
 						},
 					)
 				}
 				if node == "critique" {
-					exceptions := make([]any, 0, len(findings))
+					exceptions := make(map[string]any, len(findings))
 					for _, finding := range findings {
-						exceptions = append(exceptions, map[string]any{
-							"id": finding.(map[string]any)["id"], "severity": "P1",
+						exceptions[finding.(map[string]any)["id"].(string)] = map[string]any{
 							"source": "DESIGN.md", "reason": "Approved design authority",
-						})
+						}
 					}
+					artifact["lint_index"] = index
 					artifact["evidence"] = "Read the full source and checked the brief"
 					artifact["exceptions"] = exceptions
 				} else {
@@ -269,11 +301,52 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 			}
 			reviewNodeOutput(variables, node)["artifacts"] = artifacts
 		}
+		raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loop.ValidateActionStructured(criticSchema, loop.ActionPromptResult{Structured: raw}); err != nil {
+			t.Fatalf("full batch review schema: %v", err)
+		}
 		result, err := condition.Evaluate(variables)
 		if err != nil || !result.Value || result.CostWarning {
 			t.Fatalf("full batch completion = %#v, %v", result, err)
 		}
+		t.Logf("full batch predicate cost = %d/%d", result.Cost, condition.CostLimit)
+		reviewArtifact(variables, "critique")["lint_index"] = 1
+		result, err = condition.Evaluate(variables)
+		if err != nil || result.Value {
+			t.Fatalf("another artifact's index should reject approval: %v, %v", result.Value, err)
+		}
 	})
+	for _, field := range []string{"source", "reason"} {
+		for _, missing := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should reject lint exceptions with invalid %s missing=%t", field, missing),
+				func(t *testing.T) {
+					t.Parallel()
+					variables := reviewLoopFixture(t)
+					addReviewLintException(variables)
+					exception := reviewArtifact(variables, "critique")["exceptions"].(map[string]any)["color_rule"].(map[string]any)
+					if missing {
+						delete(exception, field)
+					} else {
+						exception[field] = " \t\n"
+					}
+					raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := loop.ValidateActionStructured(
+						criticSchema,
+						loop.ActionPromptResult{Structured: raw},
+					); err == nil {
+						t.Fatalf("exception with invalid %s was accepted", field)
+					}
+				},
+			)
+		}
+	}
 	t.Run("Should reject critic output without actual evidence", func(t *testing.T) {
 		t.Parallel()
 		variables := reviewLoopFixture(t)
@@ -345,7 +418,7 @@ func reviewLoopFixture(t *testing.T) map[string]any {
 	    "critique": {"status": "succeeded", "output": {
 	      "verdict": "approved", "blocking_issues": [], "limitations": [], "artifacts": [{
 	        "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	        "evidence": "Read selection handlers against the brief", "exceptions": []}]}}
+	        "lint_index": 0, "evidence": "Read selection handlers against the brief", "exceptions": {}}]}}
 	  }
 	}`
 	var variables map[string]any
@@ -374,4 +447,11 @@ func addReviewLintFinding(variables map[string]any) {
 			},
 		}
 	}
+}
+
+func addReviewLintException(variables map[string]any) {
+	addReviewLintFinding(variables)
+	reviewArtifact(variables, "critique")["exceptions"] = map[string]any{"color_rule": map[string]any{
+		"source": "DESIGN.md palette", "reason": "Approved brand color",
+	}}
 }

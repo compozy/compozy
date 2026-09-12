@@ -40,6 +40,7 @@ SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_d
 FROM agent_soul_revisions
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
+  AND source_path = sqlc.arg(source_path)
   AND id = sqlc.arg(id)
   AND action IN ('put', 'rollback');
 

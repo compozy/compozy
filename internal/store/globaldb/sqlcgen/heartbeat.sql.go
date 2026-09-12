@@ -60,18 +60,25 @@ SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, ne
 FROM agent_heartbeat_revisions
 WHERE workspace_id = ?1
   AND agent_name = ?2
-  AND id = ?3
+  AND source_path = ?3
+  AND id = ?4
   AND operation IN ('write', 'delete', 'rollback')
 `
 
 type GetHeartbeatRevisionForRollbackParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
+	SourcePath  string `json:"source_path"`
 	ID          string `json:"id"`
 }
 
 func (q *Queries) GetHeartbeatRevisionForRollback(ctx context.Context, arg GetHeartbeatRevisionForRollbackParams) (AgentHeartbeatRevision, error) {
-	row := q.db.QueryRowContext(ctx, getHeartbeatRevisionForRollback, arg.WorkspaceID, arg.AgentName, arg.ID)
+	row := q.db.QueryRowContext(ctx, getHeartbeatRevisionForRollback,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SourcePath,
+		arg.ID,
+	)
 	var i AgentHeartbeatRevision
 	err := row.Scan(
 		&i.ID,

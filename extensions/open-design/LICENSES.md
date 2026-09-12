@@ -1,6 +1,6 @@
 # Third-party notices
 
-Selected OpenDesign prompts, craft guidance, template principles and linter code are adapted from nexu-io/open-design, revision 933dc96038a4ee7a30c56d479f3497ad2716cbb3. The agent-browser instructions are adapted from vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2. Both projects use Apache-2.0. Compozy modifications are described in SOURCES.md.
+Selected OpenDesign prompts, craft guidance, template principles and linter code are adapted from nexu-io/open-design, revision 933dc96038a4ee7a30c56d479f3497ad2716cbb3. The agent-browser instructions are adapted from vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2. Both projects use Apache-2.0. CompozyOS modifications are described in SOURCES.md.
 
 ## Apache-2.0
 

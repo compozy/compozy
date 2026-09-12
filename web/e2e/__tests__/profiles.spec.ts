@@ -242,6 +242,13 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
+    // Bundled extensions can create profiles; arrange the single-profile state.
+    for (const profile of await listProfiles(runtime)) {
+      if (profile.name !== "default" && profile.state === "active") {
+        await archiveProfile(runtime, profile.name);
+      }
+    }
+    await appPage.reload({ waitUntil: "domcontentloaded" });
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     const ui = profilesOperatorSelectors(appPage);

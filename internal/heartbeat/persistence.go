@@ -188,6 +188,8 @@ type Revision struct {
 type RevisionListQuery struct {
 	WorkspaceID string
 	AgentName   string
+	SourcePath  string
+	NewDigest   string
 	Operation   RevisionOperation
 	Limit       int
 }
@@ -196,6 +198,7 @@ type RevisionListQuery struct {
 type RollbackLookup struct {
 	WorkspaceID string
 	AgentName   string
+	SourcePath  string
 	RevisionID  string
 }
 
@@ -244,6 +247,7 @@ type WakeState struct {
 // WakeStateListQuery filters Heartbeat wake state rows.
 type WakeStateListQuery struct {
 	WorkspaceID string
+	ProfileID   string
 	AgentName   string
 	SessionID   string
 	Limit       int
@@ -267,6 +271,7 @@ type WakeEvent struct {
 // WakeEventListQuery filters retained Heartbeat wake audit rows.
 type WakeEventListQuery struct {
 	WorkspaceID string
+	ProfileID   string
 	AgentName   string
 	SessionID   string
 	Source      WakeSource

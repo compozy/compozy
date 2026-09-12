@@ -9,7 +9,7 @@ Create the smallest complete artifact that answers the request. A short brief an
 
 ## Bind the design to its project
 
-Read the supplied context and the relevant existing UI, components, tokens, assets, and approved references. Current project authority governs visual choices; do not impose Compozy styling on another product or let a generic aesthetic rule replace the approved system. If no direction exists, choose one coherent approach suited to the audience and content.
+Read the supplied context and the relevant existing UI, components, tokens, assets, and approved references. Current project authority governs visual choices; do not impose CompozyOS styling on another product or let a generic aesthetic rule replace the approved system. If no direction exists, choose one coherent approach suited to the audience and content.
 
 For `_uiux.md`, preserve requested surfaces, states, artifact paths, component mappings, and relevant behavior from linked spec/story sections. Respect superseded entries and group related states where useful. Treat illustrative references as visual guidance, not permission to invent features. Keep unresolved product decisions visibly provisional.
 

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import {
   deleteAgentHeartbeat,
   putAgentHeartbeat,
@@ -15,6 +17,7 @@ import {
 } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
 import type {
+  AgentAuthoredMutationVariables,
   DeleteAgentHeartbeatParams,
   PutAgentHeartbeatParams,
   RollbackAgentHeartbeatParams,
@@ -31,8 +34,9 @@ export function useAgentHeartbeat(
   workspace?: string | null,
   options: UseAgentHeartbeatOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentHeartbeatOptions(name, workspace),
+    ...agentHeartbeatOptions(name, workspace, destination),
     enabled: (options.enabled ?? true) && !!name,
   });
 }
@@ -42,8 +46,9 @@ export function useAgentHeartbeatHistory(
   workspace?: string | null,
   options: UseAgentHeartbeatOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentHeartbeatHistoryOptions(name, workspace),
+    ...agentHeartbeatHistoryOptions(name, workspace, destination),
     enabled: (options.enabled ?? true) && !!name,
   });
 }
@@ -53,8 +58,9 @@ export function useAgentHeartbeatStatus(
   statusOptions: FetchAgentHeartbeatStatusParams = {},
   options: UseAgentHeartbeatOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentHeartbeatStatusOptions(name, statusOptions),
+    ...agentHeartbeatStatusOptions(name, { ...statusOptions, profile: destination }),
     enabled: (options.enabled ?? true) && !!name,
   });
 }
@@ -62,61 +68,94 @@ export function useAgentHeartbeatStatus(
 function invalidateHeartbeatQueries(
   queryClient: ReturnType<typeof useQueryClient>,
   name: string,
-  workspace?: string | null
+  workspace: string | null,
+  profile: string
 ) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: agentKeys.heartbeat(name, workspace) }),
-    queryClient.invalidateQueries({ queryKey: agentKeys.heartbeatHistory(name, workspace) }),
-    queryClient.invalidateQueries({ queryKey: agentKeys.heartbeatStatuses(name, workspace) }),
+    queryClient.invalidateQueries({ queryKey: agentKeys.heartbeat(name, workspace, profile) }),
+    queryClient.invalidateQueries({
+      queryKey: agentKeys.heartbeatHistory(name, workspace, profile),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: agentKeys.heartbeatStatuses(name, workspace, profile),
+    }),
   ]);
 }
 
-export function useValidateAgentHeartbeat(name: string) {
+export function useValidateAgentHeartbeat() {
   return useMutation({
-    mutationFn: (params: ValidateAgentHeartbeatParams) => validateAgentHeartbeat(name, params),
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<ValidateAgentHeartbeatParams>) =>
+      validateAgentHeartbeat(name, params, undefined, profile),
   });
 }
 
-export function usePutAgentHeartbeat(name: string, workspace?: string | null) {
+export function usePutAgentHeartbeat() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: PutAgentHeartbeatParams) => putAgentHeartbeat(name, params),
-    onSuccess: data => {
-      queryClient.setQueryData(agentKeys.heartbeat(name, workspace), data.heartbeat);
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<PutAgentHeartbeatParams>) =>
+      putAgentHeartbeat(name, params, undefined, profile),
+    onSuccess: (data, { name, cacheWorkspace, profile }) => {
+      queryClient.setQueryData(agentKeys.heartbeat(name, cacheWorkspace, profile), data.heartbeat);
     },
-    onSettled: () => invalidateHeartbeatQueries(queryClient, name, workspace),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateHeartbeatQueries(queryClient, name, cacheWorkspace, profile),
   });
 }
 
-export function useDeleteAgentHeartbeat(name: string, workspace?: string | null) {
+export function useDeleteAgentHeartbeat() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: DeleteAgentHeartbeatParams) => deleteAgentHeartbeat(name, params),
-    onSettled: () => invalidateHeartbeatQueries(queryClient, name, workspace),
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<DeleteAgentHeartbeatParams>) =>
+      deleteAgentHeartbeat(name, params, undefined, profile),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateHeartbeatQueries(queryClient, name, cacheWorkspace, profile),
   });
 }
 
-export function useRollbackAgentHeartbeat(name: string, workspace?: string | null) {
+export function useRollbackAgentHeartbeat() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: RollbackAgentHeartbeatParams) => rollbackAgentHeartbeat(name, params),
-    onSuccess: data => {
-      queryClient.setQueryData(agentKeys.heartbeat(name, workspace), data.heartbeat);
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<RollbackAgentHeartbeatParams>) =>
+      rollbackAgentHeartbeat(name, params, undefined, profile),
+    onSuccess: (data, { name, cacheWorkspace, profile }) => {
+      queryClient.setQueryData(agentKeys.heartbeat(name, cacheWorkspace, profile), data.heartbeat);
     },
-    onSettled: () => invalidateHeartbeatQueries(queryClient, name, workspace),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateHeartbeatQueries(queryClient, name, cacheWorkspace, profile),
   });
 }
 
-export function useWakeAgentHeartbeat(name: string, workspace?: string | null) {
+export function useWakeAgentHeartbeat() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: WakeAgentHeartbeatParams) => wakeAgentHeartbeat(name, params),
-    onSettled: () => {
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<WakeAgentHeartbeatParams>) =>
+      wakeAgentHeartbeat(name, params, undefined, profile),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) => {
       void queryClient.invalidateQueries({
-        queryKey: agentKeys.heartbeatStatuses(name, workspace),
+        queryKey: agentKeys.heartbeatStatuses(name, cacheWorkspace, profile),
       });
       void queryClient.invalidateQueries({
-        queryKey: agentKeys.heartbeat(name, workspace),
+        queryKey: agentKeys.heartbeat(name, cacheWorkspace, profile),
       });
     },
   });

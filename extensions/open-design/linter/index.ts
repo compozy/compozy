@@ -302,12 +302,12 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
   }
 
   // ── P1-2: raw hex outside :root ───────────────────────────────────
-  // Heuristic: count `#xxxxxx` occurrences inside the first <style> block,
+  // Heuristic: count `#xxxxxx` occurrences across every <style> block,
   // outside the `:root{...}` declaration. Many is suspicious.
-  const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/i;
-  const styleMatch = styleRe.exec(html);
-  if (styleMatch) {
-    const css = styleMatch[1] ?? "";
+  const css = Array.from(html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi), m => m[1] ?? "").join(
+    "\n"
+  );
+  if (css) {
     const rootRe = /:root\s*\{[^}]*\}/g;
     const cssWithoutRoot = css.replace(rootRe, "");
     const hexes = cssWithoutRoot.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
@@ -362,9 +362,12 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
   }
 
   // ── P2-2: missing slide theme classes (deck specifically) ──────────
-  // Triggered only if the artifact looks deck-shaped (has .slide).
-  if (/class\s*=\s*["'][^"']*\bslide\b/.test(html)) {
-    const slideMatches = html.match(/<section\s+class\s*=\s*["'][^"']*\bslide\b[^"']*["']/gi) ?? [];
+  // Read only class values so attribute order and unrelated attribute
+  // values cannot hide a slide or supply its theme.
+  const slideMatches = sections
+    .map(section => /\sclass\s*=\s*(["'])([\s\S]*?)\1/i.exec(section)?.[2] ?? "")
+    .filter(classes => /(?:^|\s)slide(?:\s|$)/i.test(classes));
+  if (slideMatches.length > 0) {
     const themed = slideMatches.filter(s =>
       /\b(light|dark|hero\s+light|hero\s+dark)\b/.test(s)
     ).length;

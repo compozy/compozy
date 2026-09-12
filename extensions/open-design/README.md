@@ -19,10 +19,10 @@ opens the HTML directly and requests changes in the same session. Drawing a feat
 authorize changing production application code.
 
 For a complete independent review, ask the designer to use `open-design-review`. Its native Loop
-runs designer → original lint → independent critic → digest verification. It completes only
+runs designer → OpenDesign-derived lint → independent critic → digest verification. It completes only
 after the critic approves the exact checked files; rejection starts another full pass. The skill
 supplies a per-run limit of three passes, allowing at most two refinements.
-Compozy runtime defaults can override values declared by a Loop; when starting it directly,
+CompozyOS runtime defaults can override values declared by a Loop; when starting it directly,
 supply `iteration_cap: 3` and `reattempt_strategy: full_body` through
 `config_overrides` (or the CLI's `--config-file`). The critic covers craft, purpose/states, brand,
 accessibility, and copy. It must resolve
@@ -101,7 +101,8 @@ go generate ./extensions/open-design
 CGO_ENABLED=1 go test -race ./extensions/open-design
 ```
 
-The linter suite retains all 97 original test cases and runs them directly against the shipped
+The linter suite retains all 97 original test cases and adds local regressions for supported CSS
+selector specificity, multiple style blocks, and slide attribute order. It runs against the shipped
 bundle using Bun's test API. Runtime QA also exercises the public tool, managed designer,
 browser, and optional review Loop.
 
