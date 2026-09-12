@@ -70,6 +70,7 @@ next-env.d.ts
 
 # Vercel
 .vercel
+.audits
 
 # >>> skeeper ignored specs >>>
 .skeeper/
