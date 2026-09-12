@@ -269,7 +269,16 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-registry",
+				ProfileID:   store.DefaultProfileID,
+				AgentName:   "coder",
+			}, nil
+		},
+	}, testutil.StubObserver{}, workspaces, nil, nil)
 	soulAuthoring := &workspaceIDCaptureSoulAuthoring{}
 	statusSpy := &heartbeatStatusSpy{}
 	wakeSpy := &heartbeatWakeSpy{}
@@ -320,7 +329,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 
 	t.Run("Should pass registry workspace id to Heartbeat wake", func(t *testing.T) {
 		body := []byte(
-			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"source\":\"manual\",\"dry_run\":true}",
+			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
 		)
 		req := httptest.NewRequestWithContext(
 			context.Background(),
@@ -332,6 +341,13 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 		recorder := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(recorder, req)
 
+		if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), `"result":"skipped"`) {
+			t.Fatalf(
+				"wake status=%d body=%s, want conflict with skipped decision",
+				recorder.Code,
+				recorder.Body.String(),
+			)
+		}
 		if wakeSpy.calls != 1 {
 			t.Fatalf("heartbeat wake calls = %d, want 1", wakeSpy.calls)
 		}
@@ -626,6 +642,45 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {
 	t.Parallel()
+
+	for _, body := range []string{
+		`{"workspace_id":"ws-1","source":"manual"}`,
+		`{"workspace_id":"ws-1","session_id":"   ","source":"manual"}`,
+	} {
+		t.Run("Should reject missing wake session before service invocation "+body, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{
+					ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+						}, nil
+					},
+				},
+				nil,
+				nil,
+			)
+			wake := &heartbeatWakeSpy{}
+			fixture.Handlers.HeartbeatWake = wake
+			fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
+			response := performRequest(t, fixture.Engine, http.MethodPost, "/agents/coder/heartbeat/wake", []byte(body))
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "session_id is required") {
+				t.Fatalf(
+					"missing wake session status=%d body=%s, want 400 session_id is required",
+					response.Code,
+					response.Body.String(),
+				)
+			}
+			if wake.calls != 0 {
+				t.Fatalf("missing session reached wake service %d times", wake.calls)
+			}
+		})
+	}
 
 	workspaceRoot := t.TempDir()
 	manager := testutil.StubSessionManager{
@@ -1470,28 +1525,33 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 						t.Fatalf("status=%d want=%d body=%s", response.Code, expected, response.Body.String())
 					}
 					if sessionScope != "selected" {
-						if !strings.Contains(response.Body.String(), "workspace-scoped resource not found") ||
-							status.calls != 0 ||
-							wake.calls != 0 {
+						if status.calls != 0 || wake.calls != 0 {
+							t.Fatalf("foreign session reached service: status=%d wake=%d", status.calls, wake.calls)
+						}
+						if !strings.Contains(response.Body.String(), "workspace-scoped resource not found") {
 							t.Fatalf(
-								"foreign session reached service: status=%d wake=%d body=%s",
-								status.calls,
-								wake.calls,
+								"foreign session error body=%s, want workspace-scoped resource not found",
 								response.Body.String(),
 							)
 						}
 					} else {
 						marker := `"agent_name":"coder"`
+						wantStatus, wantWake := 1, 0
 						if method == http.MethodPost {
 							marker = `"result":"skipped"`
+							wantStatus, wantWake = 0, 1
 						}
-						if status.calls+wake.calls != 1 || !strings.Contains(response.Body.String(), marker) {
+						if status.calls != wantStatus || wake.calls != wantWake {
 							t.Fatalf(
-								"selected session calls=%d/%d body=%s",
+								"selected session calls status=%d wake=%d, want %d/%d",
 								status.calls,
 								wake.calls,
-								response.Body.String(),
+								wantStatus,
+								wantWake,
 							)
+						}
+						if !strings.Contains(response.Body.String(), marker) {
+							t.Fatalf("selected session body=%s, want %s", response.Body.String(), marker)
 						}
 					}
 				},

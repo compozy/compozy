@@ -326,15 +326,14 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 		source = heartbeat.WakeSourceManual
 	}
 	sessionID := strings.TrimSpace(req.SessionID)
-	if sessionID != "" {
-		if err := h.requireAuthoredAgentSession(
-			c.Request.Context(),
-			target,
-			sessionID,
-		); err != nil {
-			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
-			return
-		}
+	if sessionID == "" {
+		err := newAuthoredValidationError("session_id is required")
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
+	if err := h.requireAuthoredAgentSession(c.Request.Context(), target, sessionID); err != nil {
+		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+		return
 	}
 	decision, err := h.HeartbeatWake.Wake(c.Request.Context(), heartbeat.WakeRequest{
 		WorkspaceID: target.storageWorkspaceID(),

@@ -89,3 +89,10 @@ recorded in RT-077 and ET-profile-extension-agent-skill-isolation. Current lab e
 Round-one final strict audit passed without blockers or warnings; the local gate passed all
 affected lanes (7,277 Web tests). Lab teardown completed with `clean: true` and no surviving
 owned process.
+
+2026-09-11 PR #625 follow-up: native lint must reject insufficient uppercase tracking inherited
+from `body` even when `:root` declares a compliant value. Slides require exactly one `light` or
+`dark` class token; `dark-mode`, `light-panel`, and simultaneous `light dark` are invalid. `hero`
+is independent of token order and does not change the light/dark rhythm. The rebuilt daemon's
+native tool found both defects in a deck, then accepted the same file after refinement; its returned
+SHA-256 matched the file. See `reports/2026-09-11-pr625-review-remediation.md`.

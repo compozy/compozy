@@ -241,3 +241,14 @@ The HTTP/UDS hook catalog handler now resolves alias/name/path input to Resolved
   supported, and duplication leaves the original unchanged. Individual package-owned deletion is
   explicitly rejected. Existing bundled install policies preserve edits across unchanged-bundle
   restarts; a bundle upgrade can replace its managed files. Authored sidecar protections are unchanged.
+
+### PR #625 remaining review findings and main rebase
+
+The existing Open Design audit also covers body-level custom-property inheritance and exact slide
+theme tokens in the linter; its tool ID, schemas, file isolation, and generated bundle owner are
+unchanged. Missing or whitespace-only Heartbeat wake sessions now fail shared HTTP/UDS validation
+with 400, matching the existing required `session_id` contract. Profile-bound session authorization,
+source-specific history, and the authorized session identity from main remain intact. No config,
+hook, database, official skill interface, or generated API shape changes are needed. Web provider
+selection and editor validation were extracted without changing behavior. RT-077 and ET-open-design
+record the public replay; the remediation report inventories every review source and its disposition.

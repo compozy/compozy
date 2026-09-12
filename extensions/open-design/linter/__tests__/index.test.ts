@@ -1309,3 +1309,52 @@ describe("slide themes", () => {
     expect(findings.find(finding => finding.id === "slide-theme-missing")).toBeUndefined();
   });
 });
+
+describe("body token inheritance", () => {
+  for (const declarations of [
+    ":root { --tracking: 0.08em; } body { --tracking: 0.02em; }",
+    "body { --tracking: 0.02em; } :root { --tracking: 0.08em; }",
+    ':root[data-theme="dark"] { --tracking: 0.08em; } body { --tracking: 0.02em; }',
+  ]) {
+    it(`flags descendant tracking inherited from body: ${declarations}`, () => {
+      const findings = lintArtifact(`<style>${declarations}
+        .label { text-transform: uppercase; letter-spacing: var(--tracking); }
+        </style><span class="label">Label</span>`);
+      expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeDefined();
+    });
+  }
+  it("lets compliant body tokens override noncompliant inherited root tokens", () => {
+    const findings = lintArtifact(`<style>
+      body { --tracking: 0.08em; } :root { --tracking: 0.02em; }
+      .label { text-transform: uppercase; letter-spacing: var(--tracking); }
+      </style><span class="label">Label</span>`);
+    expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
+  });
+});
+
+describe("exact slide theme tokens", () => {
+  for (const theme of ["dark-mode", "light-panel", "light dark", "hero light dark"]) {
+    it(`rejects invalid theme tokens: ${theme}`, () => {
+      const findings = lintArtifact(`<section id="cover" class="slide ${theme}"></section>`);
+      expect(requiredFinding(findings, "slide-theme-missing").severity).toBe("P0");
+    });
+  }
+  it("accepts hero as an independent modifier in any position", () => {
+    const findings = lintArtifact(
+      '<section class="hero slide dark"></section><section class="light slide hero"></section>'
+    );
+    expect(findings.find(f => f.id === "slide-theme-missing")).toBeUndefined();
+  });
+  it("uses exact themes for rhythm without counting compound tokens", () => {
+    const findings = lintArtifact(
+      '<section class="slide dark"></section><section class="slide dark-mode"></section><section class="slide dark"></section>'
+    );
+    expect(findings.find(f => f.id === "slide-rhythm")).toBeUndefined();
+  });
+  it("counts reordered hero modifiers in the same-theme rhythm", () => {
+    const findings = lintArtifact(
+      '<section class="slide dark"></section><section class="dark slide hero"></section><section class="hero slide dark"></section>'
+    );
+    expect(findings.find(f => f.id === "slide-rhythm")).toBeDefined();
+  });
+});

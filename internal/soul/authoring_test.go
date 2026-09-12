@@ -416,6 +416,7 @@ func TestManagedSoulAuthoringServiceDeleteRollbackAndHistory(t *testing.T) {
 			if !errors.Is(err, soul.ErrRevisionNotFound) {
 				t.Errorf("Rollback(foreign source) error = %v, want ErrRevisionNotFound", err)
 			}
+			requireAuthoringCode(t, err, "revision_not_found")
 			assertFileContent(t, filepath.Join(filepath.Dir(base.AgentPath), soul.FileName), baseBody)
 			assertFileContent(t, filepath.Join(filepath.Dir(profile.AgentPath), soul.FileName), profileBody)
 			history, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: base})

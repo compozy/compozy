@@ -364,39 +364,30 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
   // ── P2-2: missing slide theme classes (deck specifically) ──────────
   // Read only class values so attribute order and unrelated attribute
   // values cannot hide a slide or supply its theme.
-  const slideMatches = sections
-    .map(section => /\sclass\s*=\s*(["'])([\s\S]*?)\1/i.exec(section)?.[2] ?? "")
-    .filter(classes => /(?:^|\s)slide(?:\s|$)/i.test(classes));
-  if (slideMatches.length > 0) {
-    const themed = slideMatches.filter(s =>
-      /\b(light|dark|hero\s+light|hero\s+dark)\b/.test(s)
-    ).length;
-    if (slideMatches.length > 0 && themed < slideMatches.length) {
+  const slideClasses = sections
+    .map(section => {
+      const classes = /\sclass\s*=\s*(["'])([\s\S]*?)\1/i.exec(section)?.[2] ?? "";
+      return new Set(classes.split(/\s+/));
+    })
+    .filter(classes => classes.has("slide"));
+  if (slideClasses.length > 0) {
+    const themeSeq = slideClasses.map(classes => {
+      if (classes.has("light") === classes.has("dark")) return undefined;
+      return classes.has("light") ? "light" : "dark";
+    });
+    const missing = themeSeq.filter(theme => theme === undefined).length;
+    if (missing > 0) {
       out.push({
         severity: "P0",
         id: "slide-theme-missing",
-        message: `${slideMatches.length - themed} of ${slideMatches.length} slides lack a theme class (light / dark / hero light / hero dark).`,
-        fix: 'Every <section class="slide"> must include exactly one theme class. Audit your slide list and add light/dark/hero modifiers.',
+        message: `${missing} of ${slideClasses.length} slides lack exactly one theme class (light / dark).`,
+        fix: 'Every <section class="slide"> must include exactly one light or dark theme class. Add hero independently when needed.',
       });
     }
-    // Theme rhythm: no 3+ same-theme in a row.
-    const themeSeq = slideMatches
-      .map(s => {
-        if (/hero\s+dark/.test(s)) return "HD";
-        if (/hero\s+light/.test(s)) return "HL";
-        if (/\bdark\b/.test(s)) return "D";
-        if (/\blight\b/.test(s)) return "L";
-        return "?";
-      })
-      .filter(t => t !== "?");
+    // Hero is independent of the light/dark rhythm; invalid slides break the sequence.
     for (let i = 0; i < themeSeq.length - 2; i++) {
       const a = themeSeq[i];
-      const isLight = (t: string | undefined) => t === "L" || t === "HL";
-      const isDark = (t: string | undefined) => t === "D" || t === "HD";
-      if (
-        (isLight(a) && isLight(themeSeq[i + 1]) && isLight(themeSeq[i + 2])) ||
-        (isDark(a) && isDark(themeSeq[i + 1]) && isDark(themeSeq[i + 2]))
-      ) {
+      if (a !== undefined && a === themeSeq[i + 1] && a === themeSeq[i + 2]) {
         out.push({
           severity: "P1",
           id: "slide-rhythm",

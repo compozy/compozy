@@ -73,15 +73,23 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
   }
   return Array.from(themeKeys, themeKey => {
     const tokens = new Map<string, string>();
-    const specificity = new Map<string, number>();
-    for (const scope of scopes) {
-      const matching = scope.selectors.filter(s => isBareGlobalSelector(s) || s === themeKey);
-      if (matching.length === 0) continue;
-      const rank = matching.reduce((highest, s) => Math.max(highest, globalThemeSpecificity(s)), 0);
-      for (const [name, value] of scope.tokens) {
-        if (rank >= (specificity.get(name) ?? -1)) {
-          tokens.set(name, value);
-          specificity.set(name, rank);
+    // Body declarations override inherited root tokens regardless of root specificity.
+    for (const bodyScope of [false, true]) {
+      const specificity = new Map<string, number>();
+      for (const scope of scopes) {
+        const matching = scope.selectors.filter(
+          s => /^body(?:\[|$)/.test(s) === bodyScope && (isBareGlobalSelector(s) || s === themeKey)
+        );
+        if (matching.length === 0) continue;
+        const rank = matching.reduce(
+          (highest, s) => Math.max(highest, globalThemeSpecificity(s)),
+          0
+        );
+        for (const [name, value] of scope.tokens) {
+          if (rank >= (specificity.get(name) ?? -1)) {
+            tokens.set(name, value);
+            specificity.set(name, rank);
+          }
         }
       }
     }
