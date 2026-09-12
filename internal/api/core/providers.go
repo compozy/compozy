@@ -35,12 +35,17 @@ func (h *BaseHandlers) ListProviders(c *gin.Context) {
 
 // GetProvider returns one canonical provider summary.
 func (h *BaseHandlers) GetProvider(c *gin.Context) {
-	providerName, provider, err := h.resolveProvider(c.Param("provider_id"))
+	cfg, err := h.activeConfig(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	providerName, provider, err := resolveProvider(&cfg, c.Param("provider_id"))
 	if err != nil {
 		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
-	payload, err := h.providerSummaryPayload(c.Request.Context(), providerName, provider)
+	payload, err := h.providerSummaryPayload(c.Request.Context(), providerName, provider, cfg.Defaults.Provider)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
@@ -50,7 +55,12 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 
 // ProbeProviderAuth runs a live provider auth status command.
 func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
-	providerName, provider, err := h.resolveProvider(c.Param("provider_id"))
+	cfg, err := h.activeConfig(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	providerName, provider, err := resolveProvider(&cfg, c.Param("provider_id"))
 	if err != nil {
 		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
@@ -162,14 +172,18 @@ func (h *BaseHandlers) respondProviderAuthStatus(
 }
 
 func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.ProviderListResponse, error) {
-	providerNames := providerInventoryNames(&h.Config)
+	cfg, err := h.activeConfig(ctx)
+	if err != nil {
+		return contract.ProviderListResponse{}, err
+	}
+	providerNames := providerInventoryNames(&cfg)
 	payloads := make([]contract.ProviderSummaryPayload, 0, len(providerNames))
 	for _, providerName := range providerNames {
-		provider, err := h.Config.ResolveProvider(providerName)
+		provider, err := cfg.ResolveProvider(providerName)
 		if err != nil {
 			return contract.ProviderListResponse{}, fmt.Errorf("resolve provider %q: %w", providerName, err)
 		}
-		payload, err := h.providerSummaryPayload(ctx, providerName, provider)
+		payload, err := h.providerSummaryPayload(ctx, providerName, provider, cfg.Defaults.Provider)
 		if err != nil {
 			return contract.ProviderListResponse{}, err
 		}
@@ -182,6 +196,7 @@ func (h *BaseHandlers) providerSummaryPayload(
 	ctx context.Context,
 	providerName string,
 	provider compozyconfig.ProviderConfig,
+	defaultProvider string,
 ) (contract.ProviderSummaryPayload, error) {
 	env, err := h.providerProbeEnv(providerName, provider)
 	if err != nil {
@@ -199,7 +214,7 @@ func (h *BaseHandlers) providerSummaryPayload(
 		Name:            providerName,
 		DisplayName:     strings.TrimSpace(provider.DisplayName),
 		RuntimeStrategy: providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
-		Default:         compozyconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
+		Default:         compozyconfig.CanonicalProviderName(defaultProvider) == providerName,
 		AuthStatus:      authStatus,
 	}, nil
 }
@@ -223,17 +238,18 @@ func (h *BaseHandlers) providerProbeEnv(
 	}, nil
 }
 
-func (h *BaseHandlers) resolveProvider(
+func resolveProvider(
+	cfg *compozyconfig.Config,
 	providerRef string,
 ) (string, compozyconfig.ProviderConfig, error) {
 	providerName := compozyconfig.CanonicalProviderName(providerRef)
 	if providerName == "" {
 		return "", compozyconfig.ProviderConfig{}, errProviderNotFound
 	}
-	if !providerExists(&h.Config, providerName) {
+	if !providerExists(cfg, providerName) {
 		return "", compozyconfig.ProviderConfig{}, fmt.Errorf("%w: %q", errProviderNotFound, providerName)
 	}
-	provider, err := h.Config.ResolveProvider(providerName)
+	provider, err := cfg.ResolveProvider(providerName)
 	if err != nil {
 		return "", compozyconfig.ProviderConfig{}, err
 	}

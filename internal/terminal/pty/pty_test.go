@@ -1036,6 +1036,7 @@ func zshStartupFixture(t *testing.T, custom bool, change string) map[string]stri
 			}
 			if phase == "zshrc" {
 				script += `source "${ZDOTDIR:-$HOME}/.zsh_plugins.txt"` + "\n"
+				script += "PROMPT='startup-ready> '\n"
 			}
 			if err := os.WriteFile(filepath.Join(dir, "."+phase), []byte(script), 0o600); err != nil {
 				t.Fatal(err)
@@ -1066,14 +1067,22 @@ func runZshStartup(t *testing.T, argv []string, env map[string]string, integrati
 		Mode: ModePTY, Cols: 80, Rows: 24,
 	})
 	t.Cleanup(func() { stopTestProc(t, proc) })
+	if err := proc.(*unixProc).reader.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(proc.Reader())
+	ready, err := reader.ReadString('>')
+	if err != nil || !strings.Contains(ready, "startup-ready>") {
+		t.Fatalf("zsh startup readiness = %q, error = %v", ready, err)
+	}
 	// A child must inherit the user's directory without inheriting the shim or nonce.
 	command := shellQuote(argv[0]) + ` -i -c 'print -r -- "child|${__compozy_nonce-unset}" >> "$STARTUP_TRACE"'` + "\n"
 	if _, err := proc.Write([]byte(command + "echo startup-done\nexit\n")); err != nil {
 		t.Fatal(err)
 	}
-	output, err := io.ReadAll(proc.Reader())
+	output, err := io.ReadAll(reader)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("read zsh output = %q, error = %v", output, err)
 	}
 	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()

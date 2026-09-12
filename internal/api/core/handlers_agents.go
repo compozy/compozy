@@ -33,8 +33,12 @@ func (h *BaseHandlers) createAgentDraftAndPath(
 		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
 	}
 
+	cfg, err := h.activeConfig(ctx)
+	if err != nil {
+		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
+	}
 	target, err := createAgentDefinitionTargetFor(
-		ctx, req, h.HomePaths, &h.Config, h.Workspaces, h.transportName(), profileNames...,
+		ctx, req, h.HomePaths, &cfg, h.Workspaces, h.transportName(), profileNames...,
 	)
 	if err != nil {
 		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
@@ -49,7 +53,11 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 ) (string, error) {
-	return createAgentDefinitionPathFor(ctx, req, h.HomePaths, &h.Config, h.Workspaces, h.transportName())
+	cfg, err := h.activeConfig(ctx)
+	if err != nil {
+		return "", err
+	}
+	return createAgentDefinitionPathFor(ctx, req, h.HomePaths, &cfg, h.Workspaces, h.transportName())
 }
 
 func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(

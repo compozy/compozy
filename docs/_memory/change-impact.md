@@ -18,6 +18,10 @@
 - **Compatibility:** existing config, model IDs, database shapes and public DTOs remain unchanged.
   Built-in model identities are mapping hints for advertised Claude aliases only; they create no
   overlay rows and confer no account availability. Existing short curated aliases remain valid.
+- **API follow-up:** provider inventory/auth and global agent creation, resolution and projection read
+  the active Settings snapshot, so live additions are usable immediately. Snapshot errors propagate;
+  workspace/profile loaders retain their existing ownership. No new routes or migration. See
+  `docs/qa/bugs/BUG-20260912-live-provider-api-snapshot.md` and the September 12 integration report.
 - **Official skill:** runtime operations now explain overlay-scoped discovery and binding.
 - **Web/Docs/QA:** no Web component or layout changes; Settings and runtime selectors receive the
   shared corrected projection. Model catalog docs and `RT-model-catalog-cold-open` cover overlays.

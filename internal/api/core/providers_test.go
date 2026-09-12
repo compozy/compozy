@@ -21,6 +21,74 @@ import (
 func TestProviderAuthHandlers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should use the active provider generation for inventory auth and agent admission", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		settings := &activeProviderSettings{config: providerAuthTestConfig(t)}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config:    compozyconfig.CloneConfig(&settings.config),
+			Settings:  settings,
+			HomePaths: homePaths,
+		})
+		router := gin.New()
+		router.GET("/providers", handlers.ListProviders)
+		router.GET("/providers/:provider_id", handlers.GetProvider)
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+		settings.config.Providers["local-overlay"] = compozyconfig.ProviderConfig{
+			Command: "sh", RuntimeProvider: "claude", AuthMode: compozyconfig.ProviderAuthModeNone,
+			NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+		}
+		for _, endpoint := range []struct{ method, path string }{
+			{http.MethodGet, "/providers"},
+			{http.MethodGet, "/providers/local-overlay"},
+			{http.MethodPost, "/providers/local-overlay/auth/probe"},
+		} {
+			t.Run("Should expose the applied overlay through "+endpoint.method+" "+endpoint.path, func(t *testing.T) {
+				response := httptest.NewRecorder()
+				router.ServeHTTP(
+					response,
+					httptest.NewRequestWithContext(t.Context(), endpoint.method, endpoint.path, http.NoBody),
+				)
+				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "local-overlay") {
+					t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+				}
+			})
+		}
+		_, _, _, cfg, err := handlers.createAgentDraftAndPath(t.Context(), contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:     "writer",
+				Provider: "local-overlay",
+				Prompt:   "Write project outlines.",
+			},
+		})
+		if err != nil || cfg.Providers["local-overlay"].RuntimeProvider != "claude" {
+			t.Fatalf("agent admission config = %#v, error = %v", cfg.Providers, err)
+		}
+		delete(settings.config.Providers, "local-overlay")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/providers/local-overlay", http.NoBody),
+		)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "provider_not_installed") {
+			t.Fatalf("removed provider status = %d, body = %s", response.Code, response.Body.String())
+		}
+		settings.err = errors.New("active generation unavailable")
+		response = httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/providers", http.NoBody),
+		)
+		if response.Code != http.StatusInternalServerError ||
+			!strings.Contains(response.Body.String(), settings.err.Error()) {
+			t.Fatalf("unavailable generation status = %d, body = %s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should discard cached pre-start failure after successful reauthentication", func(t *testing.T) {
 		t.Parallel()
 
@@ -570,4 +638,14 @@ func providerAuthTestConfig(t *testing.T) compozyconfig.Config {
 		AuthLoginCmd:  "provider-cli login",
 	}
 	return cfg
+}
+
+type activeProviderSettings struct {
+	SettingsService
+	config compozyconfig.Config
+	err    error
+}
+
+func (s *activeProviderSettings) ActiveConfig(context.Context) (compozyconfig.Config, error) {
+	return compozyconfig.CloneConfig(&s.config), s.err
 }

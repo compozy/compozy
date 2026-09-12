@@ -49,6 +49,10 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		return h.resolveWorkspaceAgentDefinition(ctx, workspaceRef, target, profileName)
 	}
 
+	cfg, err := h.activeConfig(ctx)
+	if err != nil {
+		return resolvedAgentDefinition{}, err
+	}
 	if h.AgentCatalog != nil {
 		entries, err := h.AgentCatalog.ListAgentsForWorkspace(
 			ctx,
@@ -67,7 +71,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			return resolvedAgentDefinition{
 				Entry:       entry,
 				ProfileName: strings.TrimSpace(profileName),
-				Config:      h.Config,
+				Config:      cfg,
 			}, nil
 		}
 		return resolvedAgentDefinition{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
@@ -79,7 +83,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 	}
 	return resolvedAgentDefinition{
 		Entry:  h.agentCatalogEntryFromDef(agent, ""),
-		Config: h.Config,
+		Config: cfg,
 	}, nil
 }
 
@@ -155,10 +159,14 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	targetName := compozyconfig.NormalizeAgentName(req.Name)
 	switch scope {
 	case contract.AgentCreateScopeGlobal:
+		cfg, err := h.activeConfig(ctx)
+		if err != nil {
+			return agentDefinitionMutationTarget{}, err
+		}
 		return agentDefinitionMutationTarget{
 			Path:   filepath.Join(h.HomePaths.AgentsDir, targetName),
 			Origin: contract.AgentOriginGlobal,
-			Config: h.Config,
+			Config: cfg,
 		}, nil
 	case contract.AgentCreateScopeWorkspace:
 		workspaceRef := strings.TrimSpace(req.Workspace)

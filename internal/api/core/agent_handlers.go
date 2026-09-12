@@ -42,6 +42,11 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		)
 		return
 	}
+	cfg, err := h.activeConfig(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
@@ -56,7 +61,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.respondError(c, http.StatusInternalServerError, listErr)
 			return
 		}
-		h.respondAgentEntries(c, entries, &h.Config, "")
+		h.respondAgentEntries(c, entries, &cfg, "")
 		return
 	}
 	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
@@ -64,7 +69,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	h.respondAgentDefs(c, agentDefs, &h.Config, "")
+	h.respondAgentDefs(c, agentDefs, &cfg, "")
 }
 
 // CreateAgent writes a new global or workspace-local AGENT.md definition.
@@ -153,6 +158,11 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &cfg)})
 		return
 	}
+	cfg, err := h.activeConfig(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
@@ -171,7 +181,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		for _, entry := range entries {
 			if strings.TrimSpace(entry.Def.Name) == target {
 				c.JSON(http.StatusOK, contract.AgentResponse{
-					Agent: AgentPayloadFromEntryWithConfig(entry, &h.Config),
+					Agent: AgentPayloadFromEntryWithConfig(entry, &cfg),
 				})
 				return
 			}
@@ -189,7 +199,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 			continue
 		}
 		c.JSON(http.StatusOK, contract.AgentResponse{
-			Agent: AgentPayloadFromEntryWithConfig(h.agentCatalogEntryFromDef(agent, ""), &h.Config),
+			Agent: AgentPayloadFromEntryWithConfig(h.agentCatalogEntryFromDef(agent, ""), &cfg),
 		})
 		return
 	}
