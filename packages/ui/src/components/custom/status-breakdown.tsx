@@ -8,8 +8,14 @@ import type { PillTone } from "./pill";
 
 export interface StatusBreakdownItem {
   label: React.ReactNode;
+  /** Optional visual key, composed from an existing icon or swatch primitive. */
+  swatch?: React.ReactNode;
   value: number;
+  /** Optional human-readable count; numeric value still determines the bar. */
+  formattedValue?: React.ReactNode;
   tone?: PillTone;
+  /** Hide magnitude geometry when only a label and value are meaningful. */
+  showBar?: boolean;
 }
 
 export interface StatusBreakdownProps extends React.ComponentProps<"div"> {
@@ -32,18 +38,31 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               data-slot="status-breakdown-row"
               className="flex items-center gap-3"
             >
-              <span className="inline-flex w-24 shrink-0 truncate text-form-label text-muted">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-2 text-form-label text-muted",
+                  item.showBar === false ? "min-w-0 flex-1" : "w-24 shrink-0 truncate"
+                )}
+              >
+                {item.swatch}
                 {item.label}
               </span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas-tint">
-                <span
-                  data-slot="status-breakdown-bar"
-                  className={cn("absolute inset-y-0 left-0 rounded-pill", toneBg(tone))}
-                  style={{ width: `${Math.round(ratio * 100)}%` }}
-                />
-              </div>
-              <span className="inline-flex w-12 shrink-0 justify-end font-mono text-mono-id tabular-nums text-muted">
-                {item.value}
+              {item.showBar !== false ? (
+                <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas-tint">
+                  <span
+                    data-slot="status-breakdown-bar"
+                    className={cn("absolute inset-y-0 left-0 rounded-pill", toneBg(tone))}
+                    style={{ width: `${Math.round(ratio * 100)}%` }}
+                  />
+                </div>
+              ) : null}
+              <span
+                className={cn(
+                  "inline-flex shrink-0 justify-end font-mono text-mono-id tabular-nums text-muted",
+                  item.showBar === false ? "min-w-14" : "w-12"
+                )}
+              >
+                {item.formattedValue ?? item.value}
               </span>
             </li>
           );

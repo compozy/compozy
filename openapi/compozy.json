@@ -356847,6 +356847,26 @@
                       ],
                       "type": "object"
                     },
+                    "session_usage_changed": {
+                      "nullable": true,
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "sequence": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "turn_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "sequence"
+                      ],
+                      "type": "object"
+                    },
                     "transcript_delta": {
                       "nullable": true,
                       "properties": {
@@ -362412,6 +362432,165 @@
                   "properties": {
                     "usage": {
                       "properties": {
+                        "cache_read_tokens": {
+                          "format": "int64",
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "cache_write_tokens": {
+                          "format": "int64",
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "context": {
+                          "properties": {
+                            "injected": {
+                              "nullable": true,
+                              "properties": {
+                                "estimate": {
+                                  "type": "string"
+                                },
+                                "rows": {
+                                  "items": {
+                                    "properties": {
+                                      "bytes": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "delivered_turn_id": {
+                                        "type": "string"
+                                      },
+                                      "delivery": {
+                                        "type": "string"
+                                      },
+                                      "delivery_sequence": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "hook_modified": {
+                                        "type": "boolean"
+                                      },
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "last_seen_turn_id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "owner_kind": {
+                                        "type": "string"
+                                      },
+                                      "sent_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "stale": {
+                                        "type": "boolean"
+                                      },
+                                      "tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "unchanged": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "bytes",
+                                      "delivered_turn_id",
+                                      "delivery_sequence",
+                                      "key",
+                                      "kind",
+                                      "label",
+                                      "owner_kind",
+                                      "sent_at",
+                                      "stale",
+                                      "unchanged"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "stale": {
+                                  "type": "boolean"
+                                },
+                                "tokens": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "estimate",
+                                "rows",
+                                "stale",
+                                "tokens"
+                              ],
+                              "type": "object"
+                            },
+                            "pressure_threshold": {
+                              "format": "double",
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "ratio": {
+                              "format": "double",
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "reported_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "reported_turn_id": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "size": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "size_source": {
+                              "type": "string"
+                            },
+                            "stale": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "state": {
+                              "enum": [
+                                "reported",
+                                "estimated_size",
+                                "unknown",
+                                "unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            "used": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "cost_currency": {
                           "type": "string"
                         },
@@ -362460,6 +362639,7 @@
                         }
                       },
                       "required": [
+                        "context",
                         "turn_count"
                       ],
                       "type": "object"
@@ -362628,6 +362808,431 @@
           }
         },
         "summary": "Get aggregated token usage for a session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns": {
+      "get": {
+        "operationId": "getSessionUsageTurns",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "compactions": {
+                      "items": {
+                        "properties": {
+                          "at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "context_size": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "context_used": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "from_sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "pressure": {
+                            "format": "double",
+                            "type": "number"
+                          },
+                          "sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "span_archived": {
+                            "type": "boolean"
+                          },
+                          "strategy": {
+                            "type": "string"
+                          },
+                          "to_sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "context_size",
+                          "context_used",
+                          "from_sequence",
+                          "pressure",
+                          "sequence",
+                          "span_archived",
+                          "strategy",
+                          "to_sequence",
+                          "turn_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "turns": {
+                      "items": {
+                        "properties": {
+                          "injected": {
+                            "nullable": true,
+                            "properties": {
+                              "estimate": {
+                                "type": "string"
+                              },
+                              "sent_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "sequence": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "spans": {
+                                "items": {
+                                  "properties": {
+                                    "bytes": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "delivery": {
+                                      "type": "string"
+                                    },
+                                    "hook_modified": {
+                                      "type": "boolean"
+                                    },
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "startup_dedup": {
+                                      "type": "boolean"
+                                    },
+                                    "tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "unchanged": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "bytes",
+                                    "key",
+                                    "kind",
+                                    "unchanged"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "estimate",
+                              "sent_at",
+                              "sequence",
+                              "spans",
+                              "tokens"
+                            ],
+                            "type": "object"
+                          },
+                          "sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          },
+                          "usage": {
+                            "nullable": true,
+                            "properties": {
+                              "cache_read_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "cache_write_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "context_size": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "context_used": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "cost_amount": {
+                                "format": "double",
+                                "nullable": true,
+                                "type": "number"
+                              },
+                              "cost_currency": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "meta": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "sequence": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "thought_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "timestamp": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "total_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "timestamp"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "sequence",
+                          "turn_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "compactions",
+                    "turns"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get per-turn session usage and replay compaction spans",
         "tags": [
           "sessions"
         ],

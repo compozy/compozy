@@ -15,3 +15,7 @@ func WithMarketplaceCatalogService(service core.MarketplaceCatalogService) Optio
 		server.marketplaceCatalog = service
 	}
 }
+
+func WithContextWindowResolver(resolver core.ContextWindowResolver) Option {
+	return func(server *Server) { server.contextWindowResolver = resolver }
+}

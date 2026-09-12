@@ -11,6 +11,7 @@ import {
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
+  fetchSessionUsageTurns,
   fetchSessions,
   SessionLedgerUnavailableError,
   SessionApiError,
@@ -31,6 +32,7 @@ import { normalizeSessionListFilters, sessionListRequest } from "./session-list-
 import { normalizeTranscriptSearchQuery } from "./session-navigation";
 import { expiredInteractionsByRequest } from "./session-pending-interactions";
 import {
+  queryKeyHasScope,
   SESSION_TRANSCRIPT_STALE_TIME_MS,
   SESSION_WARM_CACHE_POLICY,
 } from "./session-query-policy";
@@ -39,13 +41,6 @@ import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/sy
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
-
-/** True when `queryKey` starts with every element of `scope`, element by element. */
-function queryKeyHasScope(queryKey: readonly unknown[], scope: readonly unknown[]): boolean {
-  return (
-    scope.length <= queryKey.length && scope.every((element, index) => queryKey[index] === element)
-  );
-}
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 export const SESSION_OWNER_STALE_TIME_MS = 30_000;
@@ -75,10 +70,7 @@ export function sessionOwnerOptions(sessionId: string) {
   });
 }
 
-/**
- * Live session states worth polling: while a session is `active|starting|stopping`, detail and
- * usage aggregates can still change. A `stopped` session is terminal; no polling.
- */
+/** Live sessions poll; stopped sessions are terminal and never refetch. */
 export function isLiveSessionState(state: SessionState | null | undefined): boolean {
   return state === "active" || state === "starting" || state === "stopping";
 }
@@ -480,5 +472,29 @@ export function sessionAcrossProfilesOptions(sessionId: string, enabled = true) 
     enabled: enabled && id !== "",
     retry: false,
     staleTime: 30_000,
+  });
+}
+
+export function sessionUsageTurnsOptions(
+  workspace: string,
+  id: string,
+  sessionState?: SessionState | null
+) {
+  return queryOptions({
+    queryKey: sessionKeys.usageTurns(workspace, id),
+    queryFn: ({ signal }) => fetchSessionUsageTurns(workspace, id, signal),
+    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
+    enabled: !!workspace && !!id,
+  });
+}
+
+/** The shared reset generation is client-owned and only changed by transcript fence resets. */
+export function sessionContextResetOptions(workspaceId: string, sessionId: string) {
+  return queryOptions({
+    queryKey: sessionKeys.contextReset(workspaceId, sessionId),
+    queryFn: () => 0,
+    enabled: false,
   });
 }

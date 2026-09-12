@@ -72,6 +72,7 @@ type BaseHandlerConfig struct {
 	Onboarding                  OnboardingStore
 	AgentCatalog                AgentCatalog
 	AgentDefinitionSync         AgentDefinitionSync
+	ContextWindowResolver       ContextWindowResolver
 	ModelCatalog                ModelCatalogService
 	MarketplaceCatalog          MarketplaceCatalogService
 	OnProviderAuthSuccess       func()
@@ -162,6 +163,7 @@ type BaseHandlers struct {
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
+	ContextWindowResolver        ContextWindowResolver
 	ModelCatalog                 ModelCatalogService
 	MarketplaceCatalog           MarketplaceCatalogService
 	OnProviderAuthSuccess        func()
@@ -278,6 +280,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
+		ContextWindowResolver:        cfg.ContextWindowResolver,
 		ModelCatalog:                 cfg.ModelCatalog,
 		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		OnProviderAuthSuccess:        cfg.OnProviderAuthSuccess,

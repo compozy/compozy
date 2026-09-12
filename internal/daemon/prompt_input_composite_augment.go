@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/compozy/compozy/internal/acp"
 
 	"time"
 
@@ -111,6 +114,7 @@ func (c *promptInputComposite) applyAugmenterDescriptor(
 		limited,
 		timestamp,
 	)
+	registerDeliveredAugmentation(ctx, descriptor.Name, current, nextCurrent)
 	return nextCurrent, nextBudget, nil
 }
 
@@ -142,4 +146,35 @@ func (c *promptInputComposite) handleAugmenterFailure(
 		augmentErr,
 	)
 	return current, remainingBudget, nil
+}
+
+// Register the final budgeted prefix, excluding user text and section separators.
+// Skills owns its registration because it also carries startup/stub signatures.
+func registerDeliveredAugmentation(ctx context.Context, name HarnessAugmenter, current, next string) {
+	var key string
+	switch name {
+	case HarnessAugmenterWorkspaceKnowledge:
+		key = "knowledge"
+	case HarnessAugmenterDurableMemory:
+		key = "memory"
+	case HarnessAugmenterSituation:
+		key = "situation"
+	default:
+		return
+	}
+	if current == next {
+		return
+	}
+	content := next
+	if current != "" {
+		before, after, ok := splitPromptInputAugmentation(current, next)
+		if !ok || after != "" {
+			return
+		}
+		content = before
+	}
+	content = strings.TrimSpace(content)
+	if content != "" {
+		acp.RegisterPromptSection(ctx, acp.PromptSection{Key: key, Content: content})
+	}
 }

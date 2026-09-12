@@ -392,3 +392,5 @@ No additional public, config, persistence, or Web contracts change.
   `ET-terminal-redaction-boundaries` and `ET-terminal-agent-handoff-input` scenarios gain raw-mode
   cases. Canonical PTY, session input/recording, and real HTTP/WebSocket integration suites own
   regression evidence; changes do not affect Unicode counting or shell environment setup.
+
+Session-context implementation closure (2026-09-12): the turn query hook shares `use-session-context.ts`; confirmed receipt data uses AgentEvent's existing optional payload with isolated clones, preserving the public `delivery` JSON field. Lazy CreateAccepted retains startup ownership. All selected scenario verdicts pass after runtime and opaque-ID repairs; the feature QA report is `docs/qa/reports/2026-09-12-session-context.md`. Cache migration 00110 and owning generated contracts co-ship. Native tool IDs, hook contracts and workspace isolation remain as audited above.

@@ -1,0 +1,80 @@
+{
+    "turns": [
+        {
+            "turn_id": "A",
+            "sequence": 9,
+            "usage": {
+                "turn_id": "A",
+                "sequence": 9,
+                "context_used": 80,
+                "timestamp": "2026-09-11T10:00:00Z"
+            },
+            "injected": {
+                "estimate": "bytes_div_4",
+                "tokens": 20,
+                "sequence": 3,
+                "sent_at": "2026-09-11T10:00:00Z",
+                "spans": [
+                    {
+                        "key": "skills",
+                        "kind": "text",
+                        "bytes": 80,
+                        "tokens": 20,
+                        "unchanged": false
+                    }
+                ]
+            }
+        },
+        {
+            "turn_id": "C",
+            "sequence": 58,
+            "injected": {
+                "estimate": "bytes_div_4",
+                "tokens": 8,
+                "sequence": 58,
+                "sent_at": "2026-09-11T10:00:00Z",
+                "spans": [
+                    {
+                        "key": "skills",
+                        "kind": "text",
+                        "bytes": 32,
+                        "tokens": 8,
+                        "unchanged": true,
+                        "startup_dedup": true
+                    },
+                    {
+                        "key": "attachment",
+                        "kind": "binary",
+                        "bytes": 1024,
+                        "unchanged": false,
+                        "name": "screenshot.png"
+                    }
+                ]
+            }
+        },
+        {
+            "turn_id": "D",
+            "sequence": 77,
+            "usage": {
+                "turn_id": "D",
+                "sequence": 77,
+                "input_tokens": 10,
+                "timestamp": "2026-09-11T10:00:00Z"
+            }
+        }
+    ],
+    "compactions": [
+        {
+            "turn_id": "B",
+            "sequence": 40,
+            "at": "2026-09-11T10:00:00Z",
+            "span_archived": true,
+            "from_sequence": 1,
+            "to_sequence": 8,
+            "context_used": 85,
+            "context_size": 100,
+            "pressure": 0.85,
+            "strategy": "summary_archive"
+        }
+    ]
+}

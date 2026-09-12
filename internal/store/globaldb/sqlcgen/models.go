@@ -2264,18 +2264,20 @@ type TaskTriageState struct {
 }
 
 type TokenStat struct {
-	ID           string          `json:"id"`
-	SessionID    string          `json:"session_id"`
-	AgentName    string          `json:"agent_name"`
-	InputTokens  sql.NullInt64   `json:"input_tokens"`
-	OutputTokens sql.NullInt64   `json:"output_tokens"`
-	TotalTokens  sql.NullInt64   `json:"total_tokens"`
-	TotalCost    sql.NullFloat64 `json:"total_cost"`
-	CostCurrency sql.NullString  `json:"cost_currency"`
-	CostStatus   string          `json:"cost_status"`
-	CostSource   string          `json:"cost_source"`
-	TurnCount    int64           `json:"turn_count"`
-	UpdatedAt    string          `json:"updated_at"`
+	CacheReadTokens  sql.NullInt64   `json:"cache_read_tokens"`
+	CacheWriteTokens sql.NullInt64   `json:"cache_write_tokens"`
+	ID               string          `json:"id"`
+	SessionID        string          `json:"session_id"`
+	AgentName        string          `json:"agent_name"`
+	InputTokens      sql.NullInt64   `json:"input_tokens"`
+	OutputTokens     sql.NullInt64   `json:"output_tokens"`
+	TotalTokens      sql.NullInt64   `json:"total_tokens"`
+	TotalCost        sql.NullFloat64 `json:"total_cost"`
+	CostCurrency     sql.NullString  `json:"cost_currency"`
+	CostStatus       string          `json:"cost_status"`
+	CostSource       string          `json:"cost_source"`
+	TurnCount        int64           `json:"turn_count"`
+	UpdatedAt        string          `json:"updated_at"`
 }
 
 type TokenUsageDaily struct {

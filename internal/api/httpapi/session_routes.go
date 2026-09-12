@@ -53,6 +53,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/transcript/outline", handlers.SessionTranscriptOutline)
 	workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
 	workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
+	workspaceSessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
 	workspaceSessions.GET("/:session_id/stream", handlers.StreamSession)
 	workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 	workspaceSessions.GET("/:session_id/clarifications", handlers.ListSessionClarifications)

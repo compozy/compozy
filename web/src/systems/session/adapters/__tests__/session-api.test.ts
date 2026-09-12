@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import {
   expectFetchRequest,
   fetchRequest,
   mockEmptyResponse,
   mockJsonResponse,
 } from "@/test/fetch-test-utils";
-
 import {
   SessionApiError,
   SessionGoalCommandError,
@@ -40,6 +38,14 @@ import {
   unarchiveSession,
 } from "../session-api";
 import { fetchSessionCommands } from "../session-command-api";
+import { createMswFetch } from "@/test/msw-fetch";
+import { sessionContextHandlers } from "../../mocks/context-handlers";
+import { primarySessionFixture } from "../../mocks/fixtures";
+import {
+  sessionContextTurnsFixture,
+  sessionContextUsageFixture,
+} from "../../mocks/context-fixtures";
+import { fetchSessionUsage, fetchSessionUsageTurns } from "../session-history-api";
 
 const mockSession = {
   id: "sess-001",
@@ -1333,5 +1339,29 @@ describe("fetchSessionTranscript", () => {
     await expect(fetchSessionTranscript(WORKSPACE_ID, "unknown")).rejects.toThrow(
       "Session not found: unknown"
     );
+  });
+});
+
+// Invariant: usage reads preserve the aggregate/context and turn-union contracts through their workspace-scoped HTTP routes.
+// Owner and canonical suite: session API adapter; MSW supplies only the transport boundary.
+
+describe("session context HTTP adapters", () => {
+  it("Should read context and union turns and preserve workspace errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() =>
+        sessionContextHandlers(new Map([[primarySessionFixture.id, primarySessionFixture]]))
+      )
+    );
+    const workspace = primarySessionFixture.workspace_id!;
+    await expect(fetchSessionUsage(workspace, primarySessionFixture.id)).resolves.toEqual(
+      sessionContextUsageFixture
+    );
+    await expect(fetchSessionUsageTurns(workspace, primarySessionFixture.id)).resolves.toEqual(
+      sessionContextTurnsFixture
+    );
+    await expect(
+      fetchSessionUsageTurns("foreign-workspace", primarySessionFixture.id)
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });

@@ -31,6 +31,7 @@ interface SessionComposerActionRowProps {
   promptImageCapability: SessionPromptCapability;
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
+  contextControl?: ReactNode;
 }
 
 type SessionComposerActionState = {
@@ -244,16 +245,18 @@ export function SessionComposerActionRow({
   promptImageCapability,
   runtimeControl,
   environmentControl,
+  contextControl,
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
 
   return (
     <div className="flex min-h-7 flex-wrap items-center gap-2">
-      {runtimeControl || environmentControl ? (
+      {runtimeControl || environmentControl || contextControl ? (
         <div className="flex min-w-0 items-center gap-2">
           {runtimeControl}
           {environmentControl}
+          {contextControl}
         </div>
       ) : null}
       {canPrompt ? <SessionAttachButton /> : null}

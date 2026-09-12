@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/compozy/internal/redact"
 )
 
 func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
@@ -25,7 +26,7 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 		if err := json.Unmarshal(raw.Update, &update); err != nil {
 			return fmt.Errorf("acp: decode usage_update: %w", err)
 		}
-		usage := tokenUsageFromUsageUpdate(p.activeTurnID(), update)
+		usage := p.validatedUsage(tokenUsageFromUsageUpdate(p.activeTurnID(), update))
 		if !usage.IsZero() {
 			merged := p.mergePromptUsage(usage)
 			p.emitPromptEvent(AgentEvent{
@@ -34,7 +35,7 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 				TurnID:    merged.TurnID,
 				Timestamp: usage.Timestamp,
 				Usage:     &merged,
-				Raw:       CloneRawMessage(raw.Update),
+				Raw:       redact.ClaimTokensJSON(raw.Update),
 			})
 		}
 		return nil

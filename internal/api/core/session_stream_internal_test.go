@@ -8,10 +8,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/acp"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	commandpkg "github.com/compozy/compozy/internal/command"
@@ -108,6 +113,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 
 		initializeErr := errors.New("projection unavailable")
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 			transcriptPage: func(
 				context.Context,
 				string,
@@ -180,6 +186,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		handlers := &BaseHandlers{
 			Logger: slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 			Sessions: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 				status: func(context.Context, string) (*session.Info, error) {
 					return stopped, nil
 				},
@@ -224,6 +231,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		info.State = session.StateStopped
 		manager := &commandStreamManagerStub{
 			sessionManagerStub: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 				transcriptPage: func(
 					context.Context,
 					string,
@@ -423,6 +431,7 @@ func TestTranscriptPushTreatsRawSequenceAsWakeOnly(t *testing.T) {
 		pageCalls := 0
 		handlers := &BaseHandlers{
 			Sessions: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 				status: func(_ context.Context, id string) (*session.Info, error) {
 					statusCalls++
 					info := streamTestSessionInfo(id)
@@ -498,6 +507,7 @@ func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
 		changeCalls := 0
 		handlers := &BaseHandlers{
 			Sessions: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 				status: func(context.Context, string) (*session.Info, error) {
 					return stopped, nil
 				},
@@ -590,6 +600,7 @@ func TestTranscriptPushCoalescesWakeWatermarks(t *testing.T) {
 		queries := 0
 		info := streamTestSessionInfo("sess-burst")
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 			status: func(context.Context, string) (*session.Info, error) { return info, nil },
 			transcriptChanges: func(_ context.Context, _ string, query transcript.ChangeQuery) (transcript.ChangePage, error) {
 				queries++
@@ -706,6 +717,7 @@ func TestInitializeTranscriptStream(t *testing.T) {
 	t.Run("Should confirm the current watermark when reconnecting without new entries", func(t *testing.T) {
 		t.Parallel()
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 			transcriptChanges: func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error) {
 				return transcript.ChangePage{Generation: 4, MaxSequence: 7, NextAfter: 7}, nil
 			},
@@ -750,6 +762,7 @@ func TestInitializeTranscriptStream(t *testing.T) {
 			pageCalls := 0
 			changeCalls := 0
 			handlers := &BaseHandlers{Sessions: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 				transcriptPage: func(
 					context.Context,
 					string,
@@ -825,6 +838,7 @@ func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
 		t.Parallel()
 
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 			latestEvent: func(
 				_ context.Context,
 				sessionID string,
@@ -1056,6 +1070,7 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 
 		calls := 0
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
 			transcriptChanges: func(
 				context.Context,
 				string,
@@ -1109,4 +1124,111 @@ func waitForStreamTestSignal(t *testing.T, signal <-chan struct{}, label string)
 	case <-timer.C:
 		t.Fatalf("timed out waiting for %s", label)
 	}
+}
+
+func TestWriteUsageChangedEvents(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		poll bool
+	}{{"Should emit each pushed usage change without advancing the transcript cursor", false}, {"Should read every usage change after the polling cursor", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			events := []store.SessionEvent{
+				{Sequence: 10, Type: acp.EventTypeUsage},
+				{Sequence: 11, Type: acp.EventTypeAgentMessage},
+				{Sequence: 12, TurnID: "A", Type: acp.EventTypeUsage},
+				{Sequence: 13, TurnID: "A", Type: acp.EventTypeDone},
+				{Sequence: 14, TurnID: "A", Type: acp.EventTypePromptDelivery},
+			}
+			calls := 0
+			handlers := &BaseHandlers{
+				Sessions: sessionManagerStub{
+					events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+						calls++
+						if id != "sess-a" || query.AfterSequence != 10 {
+							t.Fatalf("poll scope=%s %#v", id, query)
+						}
+						var result []store.SessionEvent
+						for _, event := range events {
+							if event.Type == query.Type && event.Sequence > query.AfterSequence {
+								result = append(result, event)
+							}
+						}
+						return result, nil
+					},
+				},
+			}
+			supplied := events
+			if tc.poll {
+				supplied = nil
+			}
+			writer := &streamTestFlushWriter{}
+			if err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied); err != nil {
+				t.Fatal(err)
+			}
+			body := writer.String()
+			if strings.Count(body, "event: session_usage_changed") != 3 || strings.Contains(body, "id:") ||
+				strings.Contains(body, `"sequence":10`) {
+				t.Fatalf("usage frames=%s", body)
+			}
+			if (tc.poll && calls != 3) || (!tc.poll && calls != 0) {
+				t.Fatalf("poll calls=%d", calls)
+			}
+			golden, err := os.ReadFile(filepath.Join("testdata", "session-context", "usage-changed.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want map[string]any
+			if err := json.Unmarshal(golden, &want); err != nil {
+				t.Fatal(err)
+			}
+			for line := range strings.SplitSeq(body, "\n") {
+				if strings.HasPrefix(line, "data: ") {
+					var got map[string]any
+					if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &got); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(got, want) {
+						t.Fatalf("first change=%#v want=%#v", got, want)
+					}
+					break
+				}
+			}
+		})
+	}
+	t.Run("Should propagate read and stream write failures", func(t *testing.T) {
+		t.Parallel()
+		failure := errors.New("ledger unavailable")
+		h := &BaseHandlers{
+			Sessions: sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, failure },
+			},
+		}
+		if err := h.writeUsageChangedEvents(
+			t.Context(),
+			&streamTestFlushWriter{},
+			"sess-a",
+			0,
+			nil,
+		); !errors.Is(
+			err,
+			failure,
+		) {
+			t.Fatalf("read error=%v", err)
+		}
+		writer := &streamTestFailWriter{err: failure}
+		if err := h.writeUsageChangedEvents(
+			t.Context(),
+			writer,
+			"sess-a",
+			0,
+			[]store.SessionEvent{{Sequence: 1, Type: acp.EventTypeDone}},
+		); !errors.Is(
+			err,
+			failure,
+		) {
+			t.Fatalf("write error=%v", err)
+		}
+	})
 }

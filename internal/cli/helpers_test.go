@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	getSessionUsageTurnsFn             func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
 	searchSessionTranscriptFn          func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
 	getSessionOutlineFn                func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
 	statusFn                           func(context.Context) (StatusRecord, error)
@@ -4604,4 +4605,11 @@ func (s *stubClient) GetSessionOutline(
 		return s.getSessionOutlineFn(ctx, id)
 	}
 	return contract.SessionTranscriptOutlineResponse{}, errors.New("unexpected GetSessionOutline call")
+}
+
+func (s *stubClient) GetSessionUsageTurns(ctx context.Context, id string) (contract.SessionUsageTurnsResponse, error) {
+	if s.getSessionUsageTurnsFn != nil {
+		return s.getSessionUsageTurnsFn(ctx, id)
+	}
+	return contract.SessionUsageTurnsResponse{}, errors.New("unexpected GetSessionUsageTurns call")
 }

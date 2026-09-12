@@ -9,6 +9,7 @@ import (
 )
 
 type agentEventPayload struct {
+	delivery          *DeliveryManifest
 	eventID           string
 	messageID         string
 	requestID         string
@@ -43,6 +44,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 		return &agentEventPayload{}
 	}
 	cloned := *e.payload
+	cloned.delivery = cloneDeliveryManifest(e.payload.delivery)
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
 	if e.payload.availableCommands != nil {
@@ -57,7 +59,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
 		payload.resolvedBy == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
-		payload.availableCommands == nil &&
+		payload.availableCommands == nil && payload.delivery == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
@@ -244,4 +246,20 @@ func (e AgentEvent) ToolErrorDetail() string {
 // HasToolPayload reports whether typed tool metadata is present on the event.
 func (e AgentEvent) HasToolPayload() bool {
 	return e.payload != nil && e.payload.hasTool
+}
+
+// WithDelivery returns an event carrying an isolated confirmed delivery receipt.
+func (e AgentEvent) WithDelivery(manifest *DeliveryManifest) AgentEvent {
+	payload := e.clonePayload()
+	payload.delivery = cloneDeliveryManifest(manifest)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// DeliveryManifest returns an isolated receipt, when present.
+func (e AgentEvent) DeliveryManifest() *DeliveryManifest {
+	if e.payload == nil {
+		return nil
+	}
+	return cloneDeliveryManifest(e.payload.delivery)
 }

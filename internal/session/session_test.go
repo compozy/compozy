@@ -172,7 +172,7 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 			Name:   "coder",
 			Prompt: "candidate definition",
 			Tools:  []string{"write"},
-		})
+		}, acp.StartupManifest{})
 
 		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
 		definition := session.AgentDefinition()

@@ -72,7 +72,7 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		return startupFailure("session runtime preparation failed", err)
 	}
 	accepted.runtime = runtime
-	session.setAgentDefinition(runtime.agentDef)
+	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	session.updateSoulSnapshot(spec.soulSnapshot, spec.parentSoulDigest, m.now())
 	if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
 		return startupFailure(

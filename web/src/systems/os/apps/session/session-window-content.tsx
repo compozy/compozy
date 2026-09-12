@@ -1,3 +1,4 @@
+import { SessionContextControl } from "@/systems/session";
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
@@ -172,9 +173,10 @@ export function SessionWindowContent({
     controls,
     inspector,
     sidebar,
-    inspectorMemory,
+    sessionContext,
+    sessionUsageTurns,
+    activityGoal,
     inspectorUsage,
-    sessionVault,
     deleteDialog,
     renameDialog,
     clearDialog,
@@ -270,6 +272,12 @@ export function SessionWindowContent({
           unconfirmedSends={controls.unconfirmedSends}
           onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
           onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+          contextControl={
+            <SessionContextControl
+              context={sessionContext.context}
+              onOpen={() => inspector.setOpen(true)}
+            />
+          }
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
           environmentControl={
             <SessionEnvironmentControl
@@ -296,13 +304,17 @@ export function SessionWindowContent({
       {inspector.open ? (
         <Suspense fallback={null}>
           <SessionInspector
-            messages={controls.messages}
-            sessionId={sessionId}
+            activitySource={{
+              session,
+              running: controls.isSessionRunning,
+              live: liveDataEnabled,
+              queued: controls.queuedPrompts.length,
+              goal: activityGoal,
+            }}
+            context={sessionContext.context}
+            turns={sessionUsageTurns.data}
+            turnsUnavailable={sessionUsageTurns.isError}
             usage={inspectorUsage}
-            memory={inspectorMemory}
-            vaultSecrets={sessionVault.data ?? []}
-            vaultIsLoading={sessionVault.isLoading}
-            vaultError={sessionVault.error}
             drawerOpen
             onDrawerOpenChange={open => {
               if (!open) {

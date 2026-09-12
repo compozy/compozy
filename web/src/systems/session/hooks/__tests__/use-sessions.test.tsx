@@ -2,14 +2,29 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { SessionPayload } from "../../types";
 import { sessionKeys } from "../../lib/query-keys";
 import { useSession, useSessionById, useSessionLedger, useSessions } from "../use-sessions";
+import {
+  fetchSessionLedger,
+  SessionLedgerUnavailableError,
+  fetchSessions,
+} from "../../adapters/session-api";
+import { fetchSessionById } from "../../adapters/session-owner-api";
+import { useSessionContext, useSessionUsageTurns } from "../use-session-context";
+import { fetchSessionUsage, fetchSessionUsageTurns } from "../../adapters/session-api";
+import { sessionUsageOptions, sessionUsageTurnsOptions } from "../../lib/query-options";
+import {
+  sessionContextUsageFixture,
+  sessionContextTurnsFixture,
+} from "../../mocks/context-fixtures";
+import type { SessionUsagePayload } from "../../types";
 
 vi.mock("../../adapters/session-api", async importOriginal => ({
   fetchSessionLedger: vi.fn(),
   fetchSessionRecap: vi.fn(),
+  fetchSessionUsage: vi.fn(),
+  fetchSessionUsageTurns: vi.fn(),
   fetchSessions: vi.fn(),
   fetchSessionEvents: vi.fn(),
   fetchSessionGoal: vi.fn(),
@@ -39,13 +54,6 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
 vi.mock("../../adapters/session-owner-api", () => ({
   fetchSessionById: vi.fn(),
 }));
-
-import {
-  fetchSessionLedger,
-  SessionLedgerUnavailableError,
-  fetchSessions,
-} from "../../adapters/session-api";
-import { fetchSessionById } from "../../adapters/session-owner-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -423,5 +431,99 @@ describe("session ledger availability projection", () => {
     });
     await waitFor(() => expect(result.current.error).toBe(error), { timeout: 3000 });
     expect(result.current.availability).toBeUndefined();
+  });
+});
+
+// Invariant: the usage read alone owns context; ledger sequence fences observations while equal-sequence policy and attribution remain live.
+// Owner and canonical suite: session query hooks; HTTP responses are supplied at the adapter I/O boundary.
+
+describe("Session context query projection", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+  it("Should retain sequenced observations, refresh attribution and policy, and survive unavailable reads", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionKeys.usage("ws", "session");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    vi.mocked(fetchSessionUsage).mockResolvedValue(sessionContextUsageFixture);
+    const { result, unmount } = renderHook(() => useSessionContext("session", "ws", "stopped"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.context.ratio).toBe(89_700 / 256_000));
+    const update = async (usage: SessionUsagePayload) => {
+      await act(async () => {
+        client.setQueryData(key, usage);
+      });
+    };
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, used: 225_280, ratio: 0.88, sequence: 500 },
+    });
+    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    await update({
+      ...sessionContextUsageFixture,
+      cache_read_tokens: 900,
+      context: {
+        ...sessionContextUsageFixture.context,
+        sequence: 499,
+        injected: { estimate: "bytes_div_4", rows: [], tokens: 999, stale: false },
+        pressure_threshold: 0.9,
+      },
+    });
+    await waitFor(() => expect(result.current.context.injected?.tokens).toBe(999));
+    expect(result.current.context.ratio).toBe(0.88);
+    expect(result.current.context.warning).toBe(false);
+    expect(result.current.usage?.cache_read_tokens).toBe(900);
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, sequence: 500, pressure_threshold: 0.8 },
+    });
+    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    expect(result.current.context.used).toBe(225_280);
+    await update({ ...sessionContextUsageFixture, context: { state: "unavailable" } });
+    await waitFor(() => expect(result.current.context.state).toBe("unavailable"));
+    expect(result.current.context.used).toBe(225_280);
+    vi.mocked(fetchSessionUsage).mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: key, exact: true });
+    });
+    expect(result.current.context.used).toBe(225_280);
+    expect(result.current.context.state).toBe("unavailable");
+    unmount();
+    client.clear();
+  });
+
+  it("Should reset retained observations on the explicit reset signal and use the turns route", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    vi.mocked(fetchSessionUsage).mockResolvedValue(sessionContextUsageFixture);
+    vi.mocked(fetchSessionUsageTurns).mockResolvedValue(sessionContextTurnsFixture);
+    const { result, unmount, rerender } = renderHook(
+      ({ enabled }) => ({
+        context: useSessionContext("session", "ws", "stopped", { enabled }),
+        turns: useSessionUsageTurns("session", "ws", "stopped"),
+      }),
+      { wrapper, initialProps: { enabled: false } }
+    );
+    expect(result.current.context.context.loading).toBe(false);
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.context.context.used).toBe(89_700));
+    await waitFor(() => expect(result.current.turns.data).toEqual(sessionContextTurnsFixture));
+    vi.mocked(fetchSessionUsage).mockResolvedValue({
+      context: { state: "unknown" },
+      turn_count: 0,
+    });
+    await act(async () => {
+      await client.resetQueries({ queryKey: sessionKeys.usage("ws", "session"), exact: true });
+      client.setQueryData(sessionKeys.contextReset("ws", "session"), 1);
+    });
+    await waitFor(() => expect(result.current.context.context.state).toBe("unknown"));
+    expect(result.current.context.context.used).toBeUndefined();
+    expect(sessionUsageOptions("ws", "session", "stopped").refetchInterval).toBe(false);
+    expect(sessionUsageTurnsOptions("ws", "session", "stopped").refetchInterval).toBe(false);
+    unmount();
+    client.clear();
   });
 });

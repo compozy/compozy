@@ -259,6 +259,10 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[speedpkg.Speed]():                     speedpkg.Values(),
 		reflect.TypeFor[speedpkg.ResolutionStatus]():          speedpkg.ResolutionStatusValues(),
 		reflect.TypeFor[speedpkg.ResolutionReason]():          speedpkg.ResolutionReasonValues(),
+		reflect.TypeFor[contract.SessionContextState](): {
+			string(contract.SessionContextStateReported), string(contract.SessionContextStateEstimatedSize),
+			string(contract.SessionContextStateUnknown), string(contract.SessionContextStateUnavailable),
+		},
 		reflect.TypeFor[modelcatalog.CostStatus]():            modelcatalog.CostStatusValues(),
 		reflect.TypeFor[modelcatalog.CostSource]():            modelcatalog.CostSourceValues(),
 		reflect.TypeFor[session.Type]():                       sessionTypeValues(),

@@ -14,6 +14,7 @@ import (
 )
 
 type sessionStartRuntime struct {
+	startupManifest     acp.StartupManifest
 	agent               compozyconfig.ResolvedAgent
 	agentDef            compozyconfig.AgentDef
 	mcpServers          []compozyconfig.MCPServer

@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/providerexec"
@@ -29,6 +30,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -672,6 +674,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		cfg.Memory.Enabled = false
 		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
+		workspace.Agents[0].Model = "" // The receipt fixture advertises no selectable model.
 		expectedSkills := []string{"compozy"}
 		for index := range 23 {
 			name := fmt.Sprintf("measured-skill-%02d", index)
@@ -731,16 +734,82 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			var receipt *acp.DeliveryManifest
 			done := false
 			for event := range events {
 				if event.Type == acp.EventTypeError {
 					t.Fatalf("%s: %s", label, event.Error)
+				}
+				if event.Type == acp.EventTypePromptDelivery {
+					if receipt != nil {
+						t.Fatal("duplicate receipt")
+					}
+					receipt = event.DeliveryManifest()
 				}
 				done = done || event.Type == acp.EventTypeDone
 			}
 			if !done {
 				t.Fatalf("%s did not complete", label)
 			}
+			if receipt == nil || receipt.Estimate != acp.TextEstimateMethod || receipt.SentAt.IsZero() {
+				t.Fatalf("%s missing receipt: %#v", label, receipt)
+			}
+			deliveries, err := manager.Deliveries(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(deliveries) == 0 || !reflect.DeepEqual(deliveries[len(deliveries)-1].Manifest, *receipt) {
+				t.Fatalf("%s persisted receipt differs", label)
+			}
+			ledger, err := manager.Events(
+				t.Context(),
+				sess.ID,
+				store.EventQuery{Type: acp.EventTypePromptDelivery},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(ledger) != len(deliveries) {
+				t.Fatal("receipt read lost ledger rows")
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(ledger[len(ledger)-1].Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(decoded.DeliveryManifest(), receipt) {
+				t.Fatal("canonical codec lost receipt")
+			}
+			var skills []acp.DeliveredSpan
+			for _, span := range receipt.Spans {
+				if span.Key == "skills" {
+					skills = append(skills, span)
+				}
+			}
+			switch label {
+			case "first":
+				if len(skills) != 2 || skills[0].Unchanged || skills[0].Delivery != "first_turn_prefix" ||
+					!skills[1].StartupDedup ||
+					!skills[1].Unchanged {
+					t.Fatalf("startup skills receipt: %#v", skills)
+				}
+			case "unchanged":
+				if len(skills) != 1 || !skills[0].Unchanged || skills[0].StartupDedup ||
+					skills[0].Bytes != int64(len(skillspkg.BuildCurrentCatalogUnchanged())) {
+					t.Fatalf("unchanged receipt: %#v", skills)
+				}
+			case "changed":
+				if len(skills) != 1 || skills[0].Unchanged || skills[0].StartupDedup {
+					t.Fatalf("changed receipt: %#v", skills)
+				}
+			case "hook":
+				if len(receipt.Spans) < 2 || receipt.Spans[0].Key != "system_prompt" ||
+					!receipt.Spans[0].HookModified ||
+					len(skills) != 1 ||
+					!skills[0].StartupDedup {
+					t.Fatalf("opaque receipt: %#v", receipt)
+				}
+			}
+
 			records, err := acpmock.ReadDiagnostics(diagnostics)
 			if err != nil {
 				t.Fatal(err)
@@ -782,8 +851,9 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			owner := manager
 			t.Cleanup(func() {
-				if err := manager.Stop(context.Background(), created.ID); err != nil {
+				if err := owner.Stop(context.Background(), created.ID); err != nil {
 					t.Errorf("Stop: %v", err)
 				}
 			})
@@ -836,6 +906,74 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 				t.Errorf("%s lost its runtime, instructions, or input", role)
 			}
 		}
+		logical, err := manager.CreateAccepted(t.Context(), session.CreateAcceptedOpts{
+			Session: session.CreateOpts{AgentName: workspace.Agents[0].Name, Workspace: workspace.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		logicalSession, ok := manager.Get(logical.ID)
+		if !ok {
+			t.Fatal("accepted session missing")
+		}
+		logicalOwner := manager
+		t.Cleanup(func() {
+			if err := logicalOwner.Stop(context.Background(), logical.ID); err != nil {
+				t.Errorf("Stop logical: %v", err)
+			}
+		})
+		logicalPrompt := send(logicalSession, "first")
+		assertCatalog("logical first payload", logicalPrompt, append(slices.Clone(expectedSkills), "measured-added"))
+		beforeStop, err := manager.Deliveries(t.Context(), ordinary.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Stop(t.Context(), ordinary.ID); err != nil {
+			t.Fatal(err)
+		}
+		afterStop, err := manager.Deliveries(t.Context(), ordinary.ID)
+		if err != nil || !reflect.DeepEqual(beforeStop, afterStop) {
+			t.Fatalf("stopped receipts changed: %v", err)
+		}
+		runtimeHooks := hookspkg.NewHooks(
+			hookspkg.WithLogger(discardLogger()),
+			hookspkg.WithNativeDeclarations(
+				[]hookspkg.HookDecl{
+					{
+						Name:         "replace-startup",
+						Event:        hookspkg.HookPromptPostAssemble,
+						Mode:         hookspkg.HookModeSync,
+						ExecutorKind: hookspkg.HookExecutorNative,
+					},
+				},
+			),
+			hookspkg.WithExecutorResolver(
+				daemonExecutorResolver(
+					map[string]hookspkg.Executor{
+						"replace-startup": hookspkg.NewTypedNativeExecutor(
+							func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.PromptPayload) (hookspkg.PromptPatch, error) {
+								text := "Hook replacement\n\n" + payload.Prompt
+								return hookspkg.PromptPatch{Prompt: &text}, nil
+							},
+						),
+					},
+				),
+			),
+		)
+		t.Cleanup(runtimeHooks.Close)
+		if err := runtimeHooks.Rebuild(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager = newHarnessIntegrationManager(
+			t,
+			homePaths,
+			deps,
+			workspace,
+			session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter))),
+			session.WithHookSet(session.HookSet{Prompt: runtimeHooks}),
+		)
+		send(create(""), "hook")
+
 	})
 }
 

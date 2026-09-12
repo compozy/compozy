@@ -21,3 +21,18 @@ func (c *daemonClient) GetSessionUsage(ctx context.Context, id string) (SessionU
 	}
 	return response.Usage, nil
 }
+
+func (c *daemonClient) GetSessionUsageTurns(
+	ctx context.Context,
+	id string,
+) (contract.SessionUsageTurnsResponse, error) {
+	var response contract.SessionUsageTurnsResponse
+	path, err := c.sessionScopedPath(ctx, id, "/usage/turns")
+	if err != nil {
+		return response, err
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return response, err
+	}
+	return response, nil
+}

@@ -1,5 +1,5 @@
 // Suite: OS session-window controller
-// Invariant: inspector-only projections fetch only while the inspector is open in a live window.
+// Invariant: context reads run whenever the window is live or the context sidebar is open.
 // Invariant: runtime snapshot projection remains render-stable while the runtime store is unchanged.
 // Boundary IN: retained-window liveness and inspector query admission.
 // Boundary OUT: query transport behavior, owned by each domain hook suite.
@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   sessionLedger: vi.fn(),
   sessionTopbar: vi.fn(),
   sessionUsage: vi.fn(),
+  usageTurns: vi.fn(),
   sessionVault: vi.fn(),
   promptRuntimeStore: null as SessionPromptRuntimeStore | null,
   worktreeBinding: {
@@ -93,9 +94,13 @@ vi.mock("@/systems/session", () => ({
   useSessionPromptRuntimeContext: () => mocks.promptRuntimeStore,
   useSessionTopbarSlot: (...args: unknown[]) => mocks.sessionTopbar(...args),
   useSessionWorktreeBinding: () => mocks.worktreeBinding,
-  useSessionUsage: (...args: unknown[]) => {
+  useSessionUsageTurns: (...args: unknown[]) => {
+    mocks.usageTurns(...args);
+    return {};
+  },
+  useSessionContext: (...args: unknown[]) => {
     mocks.sessionUsage(...args);
-    return { data: undefined };
+    return { usage: undefined, context: { state: "unknown" } };
   },
 }));
 
@@ -122,6 +127,7 @@ describe("useSessionWindowController", () => {
     mocks.sessionCommands.mockReset();
     mocks.sessionTopbar.mockReset();
     mocks.sessionUsage.mockReset();
+    mocks.usageTurns.mockReset();
     mocks.sessionVault.mockReset();
     mocks.promptRuntimeStore = sessionPromptRuntimeStoreLogic.createStore(
       sessionPromptRuntimeInput({
@@ -139,7 +145,7 @@ describe("useSessionWindowController", () => {
     mocks.worktreeBinding.bound = false;
   });
 
-  it("Should defer inspector-only reads until the inspector opens in a live window", () => {
+  it("Should admit context reads while live or open and never read ledger or vault", () => {
     const input = {
       windowId: "window:sess-1",
       sessionId: "sess-1",
@@ -149,24 +155,27 @@ describe("useSessionWindowController", () => {
       liveDataEnabled: true,
     };
     const { rerender } = renderHook(() => useSessionWindowController(input));
-
-    expect(mocks.sessionVault).toHaveBeenLastCalledWith("sess-1", { enabled: false });
-    expect(mocks.sessionLedger).toHaveBeenLastCalledWith("sess-1", "ws-1", { enabled: false });
+    expect(mocks.sessionUsage).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
+      enabled: true,
+    });
+    expect(mocks.usageTurns).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
+      enabled: true,
+    });
+    input.liveDataEnabled = false;
+    rerender();
     expect(mocks.sessionUsage).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
       enabled: false,
     });
-    expect(mocks.sessionCommands).toHaveBeenLastCalledWith("ws-1", "sess-1", {
-      enabled: true,
-    });
-
     mocks.inspectorOpen = true;
     rerender();
-
-    expect(mocks.sessionVault).toHaveBeenLastCalledWith("sess-1", { enabled: true });
-    expect(mocks.sessionLedger).toHaveBeenLastCalledWith("sess-1", "ws-1", { enabled: true });
     expect(mocks.sessionUsage).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
       enabled: true,
     });
+    expect(mocks.usageTurns).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
+      enabled: true,
+    });
+    expect(mocks.sessionLedger).not.toHaveBeenCalled();
+    expect(mocks.sessionVault).not.toHaveBeenCalled();
   });
 
   it("Should route a bound worktree chip through the shell-owned lifecycle dialogs", () => {

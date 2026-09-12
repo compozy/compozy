@@ -75,6 +75,9 @@ func (h *BaseHandlers) initializeTranscriptStream(
 	options sessionStreamOptions,
 	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, error) {
+	if err := h.writeUsageChangedEvents(ctx, writer, sessionID, cursor, namedEvents); err != nil {
+		return transcriptStreamState{}, err
+	}
 	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, cursor, namedEvents); err != nil {
 		return transcriptStreamState{}, err
 	}
@@ -146,6 +149,9 @@ func (h *BaseHandlers) refreshTranscriptStream(
 		}
 		state.commandRevision = revision
 		state.commandCheckedAt = time.Now()
+	}
+	if err := h.writeUsageChangedEvents(ctx, writer, sessionID, state.cursor, namedEvents); err != nil {
+		return state, info, err
 	}
 	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, state.cursor, namedEvents); err != nil {
 		return state, info, err

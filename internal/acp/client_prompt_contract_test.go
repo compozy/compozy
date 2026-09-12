@@ -1,11 +1,14 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -20,6 +23,125 @@ import (
 func TestTokenUsageParsing(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should decode canonical adapter cache counters and prefer them over legacy aliases", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, raw   string
+			read, write int64
+		}{
+			{"Should decode OpenCode buildUsage", `{"inputTokens":10,"outputTokens":2,"totalTokens":12,"cachedReadTokens":4,"cachedWriteTokens":5}`, 4, 5},
+			{"Should preserve decoder aliases", `{"cacheReadTokens":9,"cacheWriteTokens":8}`, 9, 8},
+			{"Should prefer canonical fields", `{"cachedReadTokens":4,"cachedWriteTokens":5,"cacheReadTokens":9,"cacheWriteTokens":8}`, 4, 5},
+			{"Should preserve canonical zero", `{"cachedReadTokens":0,"cachedWriteTokens":0,"cacheReadTokens":9,"cacheWriteTokens":8}`, 0, 0},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				var wire wireUsage
+				if err := json.Unmarshal([]byte(tc.raw), &wire); err != nil {
+					t.Fatal(err)
+				}
+				got := tokenUsageFromPromptResponse("turn", &wire)
+				if got.CacheReadTokens == nil || *got.CacheReadTokens != tc.read || got.CacheWriteTokens == nil ||
+					*got.CacheWriteTokens != tc.write {
+					t.Fatalf("usage = %#v", got)
+				}
+			})
+		}
+	})
+	t.Run("Should retain only sanitized object metadata and overlay reported metadata", func(t *testing.T) {
+		t.Parallel()
+		raw := json.RawMessage(
+			`{"_claude/origin":"result","nested":{"claim_token":"secret","note":"compozy_claim_secret"}}`,
+		)
+		meta := decodeUsageMeta(raw)
+		nested, ok := meta["nested"].(map[string]any)
+		if !ok || meta["_claude/origin"] != "result" || nested["note"] != "compozy_claim_[REDACTED]" {
+			t.Fatalf("meta = %#v", meta)
+		}
+		if _, exists := nested["claim_token"]; exists {
+			t.Fatal("claim_token survived sanitization")
+		}
+		if !(TokenUsage{Meta: meta}).IsZero() {
+			t.Fatal("metadata alone is not reported usage")
+		}
+		merged := (TokenUsage{Meta: map[string]any{"old": true}}).Merge(TokenUsage{Meta: meta})
+		if !reflect.DeepEqual(merged.Meta, meta) || !reflect.DeepEqual(merged.Merge(TokenUsage{}).Meta, meta) {
+			t.Fatal("metadata merge lost its overlay")
+		}
+		for _, raw := range []string{`"x"`, `[1]`, `3`, `null`} {
+			got := tokenUsageFromUsageUpdate(
+				"turn",
+				wireUsageUpdate{Used: new(int64(80)), Size: new(int64(100)), Meta: json.RawMessage(raw)},
+			)
+			if got.Meta != nil || got.ContextUsed == nil || *got.ContextUsed != 80 {
+				t.Fatalf("non-object %s usage = %#v", raw, got)
+			}
+		}
+	})
+	t.Run("Should drop invalid context and counter values and preserve valid zero", func(t *testing.T) {
+		t.Parallel()
+		got, dropped := validateContextNumbers(
+			TokenUsage{
+				ContextUsed:      new(int64(-1)),
+				ContextSize:      new(int64(0)),
+				InputTokens:      new(int64(-5)),
+				OutputTokens:     new(int64(0)),
+				CacheReadTokens:  new(int64(-1)),
+				CacheWriteTokens: new(int64(-2)),
+				ThoughtTokens:    new(int64(-1)),
+				TotalTokens:      new(int64(-1)),
+			},
+		)
+		want := []string{
+			"used",
+			"size",
+			"input_tokens",
+			"total_tokens",
+			"thought_tokens",
+			"cache_read_tokens",
+			"cache_write_tokens",
+		}
+		if !slices.Equal(dropped, want) || got.ContextUsed != nil || got.ContextSize != nil || got.InputTokens != nil ||
+			got.CacheReadTokens != nil ||
+			got.CacheWriteTokens != nil ||
+			got.TotalTokens != nil ||
+			got.ThoughtTokens != nil ||
+			got.OutputTokens == nil ||
+			*got.OutputTokens != 0 {
+			t.Fatalf("validated = %#v, dropped = %v", got, dropped)
+		}
+		valid := TokenUsage{ContextUsed: new(int64(0)), ContextSize: new(int64(100)), InputTokens: new(int64(0))}
+		got, dropped = validateContextNumbers(valid)
+		if len(dropped) != 0 || !reflect.DeepEqual(got, valid) {
+			t.Fatalf("valid usage changed: %#v / %v", got, dropped)
+		}
+	})
+	t.Run("Should warn once per session for aliases and invalid numbers", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		proc := &AgentProcess{SessionID: "session-a", logger: slog.New(slog.NewTextHandler(&logs, nil))}
+		proc.warnUsageAlias(&wireUsage{CachedReadTokens: new(int64(4))})
+		if logs.Len() != 0 {
+			t.Fatal("canonical shape emitted deprecation")
+		}
+		for range 2 {
+			proc.warnUsageAlias(&wireUsage{LegacyCacheReadTokens: new(int64(9))})
+			proc.validatedUsage(TokenUsage{ContextUsed: new(int64(-1))})
+		}
+		text := logs.String()
+		if strings.Count(text, "are deprecated") != 1 || strings.Count(text, "dropped out-of-range") != 1 ||
+			!strings.Contains(text, "cachedReadTokens/cachedWriteTokens") ||
+			!strings.Contains(text, "v0.6.0") ||
+			!strings.Contains(text, "used") {
+			t.Fatalf("warnings: %s", text)
+		}
+		next := &AgentProcess{SessionID: "session-b", logger: proc.logger}
+		next.validatedUsage(TokenUsage{ContextSize: new(int64(0))})
+		if strings.Count(logs.String(), "dropped out-of-range") != 2 {
+			t.Fatal("a separate session lost its warning")
+		}
+	})
+
 	inputTokens := int64(10)
 	outputTokens := int64(12)
 	totalTokens := int64(22)
@@ -32,12 +154,12 @@ func TestTokenUsageParsing(t *testing.T) {
 	currency := "USD"
 
 	promptUsage := tokenUsageFromPromptResponse("turn-1", &wireUsage{
-		InputTokens:      &inputTokens,
-		OutputTokens:     &outputTokens,
-		TotalTokens:      &totalTokens,
-		ThoughtTokens:    &thoughtTokens,
-		CacheReadTokens:  &cacheReadTokens,
-		CacheWriteTokens: &cacheWriteTokens,
+		InputTokens:       &inputTokens,
+		OutputTokens:      &outputTokens,
+		TotalTokens:       &totalTokens,
+		ThoughtTokens:     &thoughtTokens,
+		CachedReadTokens:  &cacheReadTokens,
+		CachedWriteTokens: &cacheWriteTokens,
 	})
 	if promptUsage.InputTokens == nil || *promptUsage.InputTokens != inputTokens {
 		t.Fatalf("tokenUsageFromPromptResponse() input_tokens = %#v, want %d", promptUsage.InputTokens, inputTokens)
@@ -90,7 +212,7 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 		}
 
 		events := collectEvents(t, eventsCh)
-		wantTypes := []string{EventTypeToolCall, EventTypeToolResult, EventTypeDone}
+		wantTypes := []string{EventTypeToolCall, EventTypeToolResult, EventTypePromptDelivery, EventTypeDone}
 		if len(events) != len(wantTypes) {
 			t.Fatalf("Prompt() event count = %d, want %d", len(events), len(wantTypes))
 		}
@@ -129,7 +251,7 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 		}
 
 		events := collectEvents(t, eventsCh)
-		if got, want := len(events), 1_101; got != want {
+		if got, want := len(events), 1_102; got != want {
 			t.Fatalf("Prompt() event count = %d, want %d", got, want)
 		}
 		for index := range 1_100 {
@@ -139,6 +261,11 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 			if got, want := events[index].ToolCallID, fmt.Sprintf("tool-diverse-%04d", index); got != want {
 				t.Fatalf("event %d tool call id = %q, want %q", index, got, want)
 			}
+		}
+		if receipt := events[len(events)-2]; receipt.Type != EventTypePromptDelivery ||
+			receipt.DeliveryManifest() == nil ||
+			receipt.DeliveryManifest().TurnID != "turn-diverse-update-burst" {
+			t.Fatalf("missing confirmed receipt: %#v", receipt)
 		}
 		if got := events[len(events)-1].Type; got != EventTypeDone {
 			t.Fatalf("last event type = %q, want %q", got, EventTypeDone)
@@ -193,6 +320,99 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 }
 
 func TestPromptCompactsDeliveredSections(t *testing.T) {
+	t.Run("Should estimate only text bytes with overflow-safe rounding", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ bytes, tokens int64 }{{0, 0}, {1, 1}, {4, 1}, {5, 2}, {24400, 6100}, {9223372036854775807, 2305843009213693952}} {
+			if got := EstimateTokens(tc.bytes); got != tc.tokens {
+				t.Fatalf("estimate(%d) = %d, want %d", tc.bytes, got, tc.tokens)
+			}
+		}
+	})
+	t.Run("Should capture exact wire spans with startup dedup and text and binary attachments", func(t *testing.T) {
+		t.Parallel()
+		section := PromptSection{
+			Key:              "skills",
+			Content:          "catalog full",
+			StartupContent:   "startup catalog",
+			UnchangedContent: "unchanged",
+		}
+		for _, mode := range []SystemPromptDeliveryMode{SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative} {
+			proc := &AgentProcess{
+				SessionID:            "session",
+				systemPrompt:         section.StartupContent,
+				systemPromptDelivery: mode,
+				startupManifest: StartupManifest{
+					Spans: []DeliveredSpan{TextSpan("skills", section.StartupContent)},
+				},
+				caps: Caps{PromptImage: true, PromptEmbeddedContext: true},
+			}
+			before := timeNowUTC()
+			wire, manifest, err := buildWirePromptRequest(
+				proc,
+				PromptRequest{
+					TurnID:   "turn",
+					Message:  section.Content + "\nknowledge text\nuser request",
+					Sections: []PromptSection{section, {Key: "knowledge", Content: "knowledge text"}},
+					Attachments: []PromptAttachment{
+						{Name: "notes.txt", MIMEType: "text/plain", Data: []byte("hello")},
+						{Name: "photo.png", MIMEType: "image/png", Data: []byte{1, 2, 3}},
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if manifest.TurnID != "turn" || manifest.Estimate != "bytes_div_4" || manifest.SentAt.Before(before) ||
+				len(manifest.Spans) != 5 {
+				t.Fatalf("manifest = %#v", manifest)
+			}
+			spans := manifest.Spans
+			if spans[0].Key != "skills" || spans[0].Bytes != 15 || spans[0].Delivery != string(mode) ||
+				spans[0].Unchanged {
+				t.Fatalf("startup = %#v", spans[0])
+			}
+			if spans[1].Key != "skills" || spans[1].Bytes != 9 || !spans[1].Unchanged || !spans[1].StartupDedup {
+				t.Fatalf("stub = %#v", spans[1])
+			}
+			if spans[2].Key != "knowledge" || spans[2].Bytes != 14 || spans[2].Unchanged || *spans[2].Tokens != 4 {
+				t.Fatalf("full = %#v", spans[2])
+			}
+			if spans[3].Name != "notes.txt" || spans[3].Kind != "text" || spans[3].Bytes != 5 || *spans[3].Tokens != 2 {
+				t.Fatalf("text = %#v", spans[3])
+			}
+			if spans[4].Name != "photo.png" || spans[4].Kind != "binary" || spans[4].Bytes != 3 ||
+				spans[4].Tokens != nil {
+				t.Fatalf("binary = %#v", spans[4])
+			}
+			if strings.Contains(
+				wire.Prompt[0].Text.Text,
+				section.StartupContent,
+			) != (mode == SystemPromptDeliveryFirstTurnPrefix) {
+				t.Fatalf("wire text = %q", wire.Prompt[0].Text.Text)
+			}
+		}
+	})
+	t.Run("Should attribute fallback attachment framing and avoid overlapping section ownership", func(t *testing.T) {
+		t.Parallel()
+		_, manifest, err := buildWirePromptRequest(
+			&AgentProcess{},
+			PromptRequest{
+				Message: "outer inner end",
+				Sections: []PromptSection{
+					{Key: "outer", Content: "outer inner end"},
+					{Key: "inner", Content: "inner"},
+				},
+				Attachments: []PromptAttachment{{Name: "note.txt", MIMEType: "text/plain", Data: []byte("hello")}},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(manifest.Spans) != 2 || manifest.Spans[0].Bytes != 15 ||
+			manifest.Spans[1].Bytes != int64(len("--- note.txt ---\nhello")) {
+			t.Fatalf("spans = %#v", manifest.Spans)
+		}
+	})
 	t.Parallel()
 	for _, native := range []bool{false, true} {
 		t.Run(
@@ -201,7 +421,12 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 				t.Parallel()
 				section := PromptSection{Key: "skills", Content: "<current>alpha</current>",
 					StartupContent: "<startup>alpha</startup>", UnchangedContent: "<unchanged/>"}
-				opts := StartOpts{SystemPrompt: section.StartupContent}
+				opts := StartOpts{
+					SystemPrompt: section.StartupContent,
+					StartupManifest: StartupManifest{
+						Spans: []DeliveredSpan{TextSpan("skills", section.StartupContent)},
+					},
+				}
 				if native {
 					opts.SystemPromptDelivery = SystemPromptDeliveryNative
 				}
@@ -230,6 +455,29 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 						strings.Contains(got[0].Text, section.UnchangedContent) == change {
 						t.Fatalf("turn %d wire payload = %q", index, got[0].Text)
 					}
+					var receipt *DeliveryManifest
+					for _, event := range got {
+						if event.Type == EventTypePromptDelivery {
+							if receipt != nil {
+								t.Fatal("duplicate receipt")
+							}
+							receipt = event.DeliveryManifest()
+						}
+					}
+					if receipt == nil || receipt.TurnID != request.TurnID {
+						t.Fatalf("missing confirmed receipt on turn %d", index)
+					}
+					expectedCount := 1
+					if index == 0 {
+						expectedCount = 2
+					}
+					if len(receipt.Spans) != expectedCount {
+						t.Fatalf("receipt spans = %#v", receipt.Spans)
+					}
+					last := receipt.Spans[len(receipt.Spans)-1]
+					if last.Unchanged == change || last.StartupDedup != (index == 0) {
+						t.Fatalf("receipt state = %#v", last)
+					}
 					if request.Message != section.Content+"\nrequest" {
 						t.Fatal("compaction mutated retry input")
 					}
@@ -249,11 +497,11 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 		proc := &AgentProcess{systemPrompt: "<startup>old</startup>"}
 		invalid := req
 		invalid.Attachments = []PromptAttachment{{Name: "image.png", MIMEType: "image/png", Data: []byte("image")}}
-		if _, err := buildWirePromptRequest(proc, invalid); !errors.Is(err, ErrPromptImagesUnsupported) {
+		if _, _, err := buildWirePromptRequest(proc, invalid); !errors.Is(err, ErrPromptImagesUnsupported) {
 			t.Fatalf("attachment error = %v", err)
 		}
 		for range 2 {
-			wire, err := buildWirePromptRequest(proc, req)
+			wire, _, err := buildWirePromptRequest(proc, req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -262,15 +510,15 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 			}
 		}
 		proc.markPromptSectionsDelivered(req)
-		if got := proc.compactPromptSections(req.Message, req.Sections); got != section.UnchangedContent {
+		if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != section.UnchangedContent {
 			t.Fatalf("confirmed context = %q", got)
 		}
 		fresh := &AgentProcess{}
-		if got := fresh.compactPromptSections(req.Message, req.Sections); got != section.Content {
+		if got, _ := fresh.compactPromptSections(req.Message, req.Sections); got != section.Content {
 			t.Fatalf("fresh process reused unseen context: %q", got)
 		}
 		proc.markPromptSectionsDelivered(PromptRequest{Message: "empty", Sections: []PromptSection{{Key: "skills"}}})
-		if got := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+		if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
 			t.Fatalf("removed context remained current: %q", got)
 		}
 	})
@@ -300,8 +548,12 @@ func TestPromptCompactsDeliveredSections(t *testing.T) {
 				}
 				cancel()
 			}
-			collectEvents(t, events)
-			if got := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+			for _, event := range collectEvents(t, events) {
+				if event.Type == EventTypePromptDelivery {
+					t.Fatalf("failed transport emitted delivery: %#v", event)
+				}
+			}
+			if got, _ := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
 				t.Fatalf("failed delivery retained uncertain context: %q", got)
 			}
 		})
@@ -471,7 +723,7 @@ func TestBuildWirePromptRequestAttachesPromptCacheControlMetadata(t *testing.T) 
 				TTL:  "1h",
 			},
 		}
-		request, err := buildWirePromptRequest(proc, PromptRequest{
+		request, _, err := buildWirePromptRequest(proc, PromptRequest{
 			TurnID:  "turn-cache",
 			Message: "hello cache",
 		})
@@ -503,7 +755,7 @@ func TestBuildWirePromptRequestAttachesPromptCacheControlMetadata(t *testing.T) 
 	t.Run("Should leave text content metadata empty when provider is unsupported", func(t *testing.T) {
 		t.Parallel()
 
-		request, err := buildWirePromptRequest(&AgentProcess{SessionID: "sess-cache"}, PromptRequest{
+		request, _, err := buildWirePromptRequest(&AgentProcess{SessionID: "sess-cache"}, PromptRequest{
 			TurnID:  "turn-cache",
 			Message: "hello cache",
 		})
@@ -527,7 +779,7 @@ func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
 
 		proc := &AgentProcess{SessionID: "sess-attachments"}
 		proc.setCaps(Caps{PromptImage: true})
-		request, err := buildWirePromptRequest(proc, PromptRequest{
+		request, _, err := buildWirePromptRequest(proc, PromptRequest{
 			TurnID:  "turn-attachments",
 			Message: "inspect this",
 			Attachments: []PromptAttachment{{
@@ -547,7 +799,7 @@ func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
 
 		proc := &AgentProcess{SessionID: "sess-attachment-only"}
 		proc.setCaps(Caps{PromptImage: true})
-		request, err := buildWirePromptRequest(proc, PromptRequest{
+		request, _, err := buildWirePromptRequest(proc, PromptRequest{
 			TurnID: "turn-attachment-only",
 			Attachments: []PromptAttachment{{
 				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
@@ -572,7 +824,7 @@ func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T
 			SessionID:    "sess-system-after-attachment-error",
 			systemPrompt: "Keep this first-turn guidance.",
 		}
-		_, err := buildWirePromptRequest(proc, PromptRequest{
+		_, _, err := buildWirePromptRequest(proc, PromptRequest{
 			TurnID: "turn-invalid-attachment",
 			Attachments: []PromptAttachment{{
 				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
@@ -582,7 +834,7 @@ func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T
 			t.Fatalf("buildWirePromptRequest(invalid attachment) error = %v, want ErrPromptImagesUnsupported", err)
 		}
 
-		request, err := buildWirePromptRequest(proc, PromptRequest{
+		request, _, err := buildWirePromptRequest(proc, PromptRequest{
 			TurnID:  "turn-first-delivered",
 			Message: "first accepted request",
 		})

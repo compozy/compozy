@@ -64,7 +64,7 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 		return m.discardLogicalSessionStart(accepted, err)
 	}
 	accepted.runtime = runtime
-	accepted.session.setAgentDefinition(runtime.agentDef)
+	accepted.session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	accepted.session.updateSoulSnapshot(accepted.spec.soulSnapshot, accepted.spec.parentSoulDigest, m.now())
 	accepted.session.setEffectivePermissions(string(m.startPermissions(
 		accepted.spec.sessionType,

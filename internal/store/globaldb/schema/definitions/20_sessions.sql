@@ -201,6 +201,8 @@ CREATE TABLE session_pending_interactions (
 	);
 
 CREATE TABLE token_stats (
+		cache_read_tokens INTEGER,
+		cache_write_tokens INTEGER,
 		id            TEXT PRIMARY KEY,
 		session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 		agent_name    TEXT NOT NULL,

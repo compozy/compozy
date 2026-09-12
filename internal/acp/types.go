@@ -82,6 +82,7 @@ type StartOpts struct {
 	MCPServers           []compozyconfig.MCPServer
 	Permissions          compozyconfig.PermissionMode
 	SystemPrompt         string
+	StartupManifest      StartupManifest
 	SystemPromptDelivery SystemPromptDeliveryMode
 	PreferredModel       string
 	ReasoningEffort      string
@@ -266,6 +267,8 @@ func CloneCaps(caps Caps) Caps {
 
 // TokenUsage captures per-turn usage reported by the agent.
 type TokenUsage struct {
+	Meta             map[string]any
+	Sequence         int64
 	TurnID           string
 	InputTokens      *int64
 	OutputTokens     *int64
@@ -303,6 +306,12 @@ type RuntimeActivity struct {
 // Merge overlays non-nil usage fields from other into the receiver.
 func (u TokenUsage) Merge(other TokenUsage) TokenUsage {
 	merged := u
+	if other.Meta != nil {
+		merged.Meta = other.Meta
+	}
+	if other.Sequence != 0 {
+		merged.Sequence = other.Sequence
+	}
 	if turnID := strings.TrimSpace(other.TurnID); turnID != "" {
 		merged.TurnID = turnID
 	}

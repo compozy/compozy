@@ -30,15 +30,27 @@ DELETE FROM permission_log WHERE timestamp < sqlc.arg(cutoff);
 
 -- name: UpsertTokenStats :exec
 INSERT INTO token_stats (
+  cache_read_tokens, cache_write_tokens,
   id, session_id, agent_name, input_tokens, output_tokens, total_tokens,
   total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
 ) VALUES (
+  sqlc.narg(cache_read_tokens), sqlc.narg(cache_write_tokens),
   sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(agent_name), sqlc.narg(input_tokens),
   sqlc.narg(output_tokens), sqlc.narg(total_tokens), sqlc.narg(total_cost),
   sqlc.narg(cost_currency), sqlc.arg(cost_status), sqlc.arg(cost_source),
   sqlc.arg(turn_count), sqlc.arg(updated_at)
 )
 ON CONFLICT(session_id, agent_name) DO UPDATE SET
+  cache_read_tokens = CASE
+    WHEN excluded.cache_read_tokens IS NULL THEN token_stats.cache_read_tokens
+    WHEN token_stats.cache_read_tokens IS NULL THEN excluded.cache_read_tokens
+    ELSE token_stats.cache_read_tokens + excluded.cache_read_tokens
+  END,
+  cache_write_tokens = CASE
+    WHEN excluded.cache_write_tokens IS NULL THEN token_stats.cache_write_tokens
+    WHEN token_stats.cache_write_tokens IS NULL THEN excluded.cache_write_tokens
+    ELSE token_stats.cache_write_tokens + excluded.cache_write_tokens
+  END,
   input_tokens = CASE
     WHEN excluded.input_tokens IS NULL THEN token_stats.input_tokens
     WHEN token_stats.input_tokens IS NULL THEN excluded.input_tokens

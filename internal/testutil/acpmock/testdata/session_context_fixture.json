@@ -1,0 +1,254 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "session-context-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "Acknowledge the scripted context state.",
+            "turns": [
+                {
+                    "name": "reported",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "reported"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 89690,
+                            "size": 256000,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: reported."
+                        }
+                    ]
+                },
+                {
+                    "name": "warning",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "warning"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 225280,
+                            "size": 256000,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: warning."
+                        }
+                    ]
+                },
+                {
+                    "name": "summarized",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "summarized"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 24000,
+                            "size": 256000,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: summarized."
+                        }
+                    ]
+                },
+                {
+                    "name": "estimate-exceeds",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "estimate-exceeds"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 100,
+                            "size": 256000,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: estimate-exceeds."
+                        }
+                    ]
+                },
+                {
+                    "name": "over-capacity",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "over-capacity"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 280000,
+                            "size": 256000,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: over-capacity."
+                        }
+                    ]
+                },
+                {
+                    "name": "used-only",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "used-only"
+                    },
+                    "usage_updates": [
+                        {
+                            "used": 89690,
+                            "size": 0,
+                            "meta": {
+                                "_fixture/origin": "session-context",
+                                "nested": {
+                                    "claim_token": "redact-this-key",
+                                    "note": "compozy_claim_fixture"
+                                }
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 240,
+                        "cache_read_tokens": 800,
+                        "cache_write_tokens": 120
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Context fixture: used-only."
+                        }
+                    ]
+                },
+                {
+                    "name": "counter-only",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "counter-only"
+                    },
+                    "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 20
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Counters reported without a new context observation."
+                        }
+                    ]
+                },
+                {
+                    "name": "delivery-only",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Prompt received without context or token counters."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "session-context-unknown",
+            "provider": "gemini",
+            "permissions": "approve-all",
+            "prompt": "Acknowledge input without reporting context.",
+            "turns": [
+                {
+                    "name": "unknown",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Received. Context usage is not reported by this fixture."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

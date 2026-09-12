@@ -127,6 +127,7 @@ The persisted event `type` values currently emitted by CompozyOS are:
 | `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                                      |
 | `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse                       |
 | `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                                |
+| `prompt_delivery` | Confirmed delivery of Compozy-owned context | `delivery` with turn, send time, estimate method and disjoint spans |
 | `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
 | `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                                            |
 | `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                                            |
@@ -220,6 +221,41 @@ turn; it is not injected into a provider tool-result boundary.
 
 ## Usage cost and provenance
 
+The usage response includes nullable cache totals and a `context` object. `context.state` is
+`reported` when the agent reports usage, `estimated_size` when only its window size comes from the
+model catalog, `unknown` before any context report, and `unavailable` when the ledger cannot be read.
+An unavailable context does not discard the aggregate token and cost totals. Context selects the latest
+ledger observation; it never sums context-window usage. `stale` marks an observation from a different
+turn that precedes the latest settled turn. `pressure_threshold` appears only for an agent-reported
+window when pressure compaction is enabled.
+
+Use `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns` or
+`compozy session usage <session-id> --turns` for the union of usage-bearing and delivery-bearing turns.
+The response returns ordered `turns` and separate `compactions`. Each compaction marker reports
+`span_archived`, meaning all events in its replay span are archived now; it does not claim that the
+agent's context window shrank or that a particular compaction attempt completed. The turns endpoint
+returns an error if its ledger reads fail.
+
+A transcript stream emits `session_usage_changed` with `{sequence, turn_id, kind}` for new `usage`,
+`done`, and `prompt_delivery` events. Use it to refresh usage and turns queries. This side signal
+carries no SSE event ID and does not advance the transcript resume cursor.
+
+ACP prompt-response counters use `cachedReadTokens` and `cachedWriteTokens`. CompozyOS carries them
+as `cache_read_tokens` and `cache_write_tokens` on usage payloads and accumulates them in the session
+statistics. An absent count remains unreported; an explicit zero remains zero. Historical statistics
+upgrade with unknown cache counts until an adapter reports them.
+
+The decoder still accepts `cacheReadTokens` and `cacheWriteTokens` in v0.4.0 and v0.5.0, with a
+once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.0.
+Canonical names take precedence when both are present. Negative counters, negative context usage,
+and a context size of zero or less are discarded with one warning per session.
+
+Object metadata from `usage_update._meta` is available as optional `usage.meta` in live and transcript
+payloads and in the canonical event content. CompozyOS removes nested `claim_token` keys and redacts
+claim-token values before storage or delivery. Non-object metadata is ignored. Metadata never enters
+the token projection or aggregate columns. `usage.sequence`, when present, identifies the carrying
+ledger event; an absent sequence does not imply a persisted observation.
+
 Read a session's aggregate token usage from
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage`. Token counts and monetary status
 are independent: CompozyOS keeps counting tokens when cost is included in a subscription or cannot be
@@ -248,6 +284,25 @@ rate for cache tokens or an output rate for reasoning tokens.
 
 `included` is a billing classification, not a provider account-balance check. CompozyOS does not read
 native CLI credential stores or expose provider subscription quotas.
+
+## Delivered context estimates
+
+After the transport confirms a prompt, Compozy records a `prompt_delivery` event. Its manifest measures
+startup sections and the agent prompt, the full or unchanged per-turn sections actually sent, and
+attachments. Text uses `ceil(bytes / 4)` (`bytes_div_4`); binary attachments report bytes and their name
+without a token estimate. These estimates cover Compozy-owned text only. They cannot measure the
+agent's private instructions, tool results, or conversation history.
+
+`context.injected` folds these receipts into one owner per section. An unchanged stub retains its full
+owner and reports the last-seen turn. When a hook replaces the startup prompt, its final text becomes
+one opaque System prompt row; deduplicated sections say they are included in that startup prompt.
+A row may have been summarized only after an agent-reported context drop following its send time.
+A full delivery refreshes that row. Replay-compaction markers alone do not make rows stale.
+
+The per-turn route and `compozy session usage --turns` retain each receipt's actual bytes and estimates.
+`compozy session events` exposes the same typed `delivery` object, including `sent_at`, `startup_dedup`,
+`hook_modified`, attachment names and explicit `unchanged` flags. Failed transport requests do not
+produce delivery receipts.
 
 ## Querying stored events
 

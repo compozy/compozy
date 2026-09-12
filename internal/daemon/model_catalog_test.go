@@ -21,6 +21,27 @@ import (
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve only the selected provider model context window", func(t *testing.T) {
+		t.Parallel()
+		catalog := &recordingModelCatalogService{models: []modelcatalog.Model{
+			{ProviderID: "other", ModelID: "model-a", ContextWindow: new(int64(1))},
+			{ProviderID: "claude", ModelID: "other-model", ContextWindow: new(int64(2))},
+			{ProviderID: "claude", ModelID: "model-a", ContextWindow: new(int64(256000))},
+		}}
+		resolver := sessionContextWindowResolver{catalog: catalog}
+		window, err := resolver.ContextWindow(t.Context(), "claude", "model-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if window == nil || *window != 256000 || catalog.lastList.ProviderID != "claude" ||
+			!catalog.lastList.SkipRefreshIfEmpty {
+			t.Fatalf("window=%v opts=%#v", window, catalog.lastList)
+		}
+		unknown, err := resolver.ContextWindow(t.Context(), "claude", "missing")
+		if err != nil || unknown != nil {
+			t.Fatalf("unknown=%v error=%v", unknown, err)
+		}
+	})
 
 	t.Run("Should register and remove overlay discovery during config reconciliation", func(t *testing.T) {
 		t.Parallel()

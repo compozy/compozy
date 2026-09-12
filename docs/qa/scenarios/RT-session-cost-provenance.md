@@ -4,21 +4,21 @@ area: RT
 title: Session usage reports truthful cost provenance
 persona: Rafa
 journey: J-14
-expected: The session Usage surface and structured usage response agree on actual provider cost, exact five-bucket model-catalog estimates, native-subscription inclusion, or unknown cost; every nonzero bucket requires its own rate, included and unknown never display a fabricated amount, and every state identifies its source.
-entry_points: web session inspector Usage tab; `compozy session usage <session-id> -o json`; `GET /api/workspaces/:workspace_id/sessions/:session_id/usage`
-qa_status: blocked-verify
+expected: The session Context sidebar and structured usage response agree on actual provider cost, exact five-bucket model-catalog estimates, native-subscription inclusion, or unknown cost; every nonzero bucket requires its own rate, included and unknown never display a fabricated amount, and every state identifies its source.
+entry_points: web session Context sidebar; `compozy session usage <session-id> -o json`; `GET /api/workspaces/:workspace_id/sessions/:session_id/usage`
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa;docs/qa/reports/2026-09-12-session-context.md
+last_report: docs/qa/reports/2026-09-12-session-context.md
 overlaps:
 ---
 
 Exercise one finished session for each available provenance path: `actual/agent_reported`,
 `estimated/catalog_config|models_dev|builtin`, `included/none`, and `unknown/none`. Reload the
-session and confirm the Web inspector, CLI output, and fresh structured response remain consistent. Treat a
+session and confirm the Context sidebar, CLI output, and fresh structured response remain consistent. Treat a
 missing native account-usage probe as `included` only when the active auth mode proves a native
 subscription; otherwise require `unknown` with no amount.
 
@@ -38,3 +38,7 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   `unknown` with no amount and no error.
 - Reference to the recorded per-provider account-usage viability determination
   (`analysis/account-usage-token-reachability.md`, ADR-006 §5 — fetcher dropped).
+
+Session-context integration: compare the cache-read/cache-write tiles with the aggregate and per-turn rows. Unknown and unavailable context must not change the independently reported cost provenance. Final execution is owned by session-context tasks 05/06.
+
+QA 2026-09-12: session-context final feature pass; runtime, focused integration/browser and 43 visual-pair evidence are separated in the linked report. Unchanged lifecycle/roll-up behavior reuses the earlier owning evidence; this pass verifies the new Context surface and its coexistence.

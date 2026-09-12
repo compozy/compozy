@@ -194,6 +194,12 @@ func TestCreateUsesPatchedPrompt(t *testing.T) {
 		reportSessionStop(t, h, session.ID)
 	})
 
+	manifest := h.driver.startCalls[0].StartupManifest
+	if !manifest.HookModified || len(manifest.Spans) != 1 || manifest.Spans[0].Key != "system_prompt" ||
+		!manifest.Spans[0].HookModified ||
+		manifest.Spans[0].Bytes != int64(len("patched system prompt")) {
+		t.Fatalf("patched manifest = %#v", manifest)
+	}
 	if got := h.driver.startCalls[0].SystemPrompt; got != "patched system prompt" {
 		t.Fatalf("start system prompt = %q, want %q", got, "patched system prompt")
 	}
