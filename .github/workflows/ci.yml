@@ -343,6 +343,14 @@ jobs:
         with:
           install-playwright: "false"
 
+      - name: Install zsh for shell integration contracts
+        run: |
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
+          zsh --version
+
       - name: Run Go runtime verification
         run: make test
 

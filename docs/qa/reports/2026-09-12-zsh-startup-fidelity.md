@@ -48,3 +48,8 @@ The existing canonical suite now explicitly launches children in both bridge int
 and custom ZDOTDIR. It compares native/integrated child output and verifies the child has no parent
 nonce. This follow-up is validated exclusively by GitHub CI under the later user instruction;
 the earlier local results above apply to the initial implementation only.
+
+
+The initial Linux CI logs exposed missing zsh, so the Go race-test workflow now installs zsh
+before executing its existing sharded suite. Linux evidence must include the real shell cases in
+the gotestsum JSON artifact; package success with skipped shell cases is insufficient.
