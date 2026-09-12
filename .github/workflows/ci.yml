@@ -343,7 +343,8 @@ jobs:
         with:
           install-playwright: "false"
 
-      - name: Install zsh for shell integration contracts
+      - &install-terminal-scenario-shell
+        name: Install zsh for terminal contracts
         run: |
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
@@ -647,10 +648,7 @@ jobs:
         with:
           install-playwright: "true"
 
-      - name: Install terminal scenario shell
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes zsh
+      - *install-terminal-scenario-shell
 
       - name: Restore Turbo cache
         uses: actions/cache/restore@v6
