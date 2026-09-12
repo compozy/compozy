@@ -14,8 +14,10 @@ func promptResponseUsage(turn acpmock.TurnFixture) *acpsdk.Usage {
 		totalTokens = *turn.Usage.TotalTokens
 	}
 	return &acpsdk.Usage{
-		InputTokens:  turn.Usage.InputTokens,
-		OutputTokens: turn.Usage.OutputTokens,
-		TotalTokens:  totalTokens,
+		CachedReadTokens:  turn.Usage.CacheReadTokens,
+		CachedWriteTokens: turn.Usage.CacheWriteTokens,
+		InputTokens:       turn.Usage.InputTokens,
+		OutputTokens:      turn.Usage.OutputTokens,
+		TotalTokens:       totalTokens,
 	}
 }

@@ -442,6 +442,62 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should migrate historical token totals without inventing cache reports", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00110_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('ws-cache','/cache','cache','2026-09-11T00:00:00Z','2026-09-11T00:00:00Z')`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) SELECT 'sess-cache',id,'coder','ws-cache','stopped','2026-09-11T00:00:00Z','2026-09-11T00:00:00Z' FROM profiles LIMIT 1`,
+			`INSERT INTO token_stats(id,session_id,agent_name,input_tokens,output_tokens,total_tokens,turn_count,updated_at) VALUES ('tok-cache','sess-cache','coder',10,2,12,1,'2026-09-11T00:00:00Z')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		rows, err := upgraded.ListTokenStats(ctx, TokenStatsQuery{SessionID: "sess-cache"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].CacheReadTokens != nil || rows[0].CacheWriteTokens != nil ||
+			rows[0].InputTokens == nil ||
+			*rows[0].InputTokens != 10 ||
+			rows[0].TotalTokens == nil ||
+			*rows[0].TotalTokens != 12 ||
+			rows[0].TurnCount != 1 {
+			t.Fatalf("historical stats = %#v", rows)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		var count int
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('token_usage_daily') WHERE name IN ('cache_read_tokens','cache_write_tokens')`).
+			Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatal("daily rollup unexpectedly changed")
+		}
+	})
+
 	for _, migration := range []string{"00102_schema.sql", "00103_schema.sql", "00104_schema.sql", "00105_schema.sql"} {
 		t.Run("Should preserve sessions and queued inputs through "+migration, func(t *testing.T) {
 			t.Parallel()
@@ -4312,6 +4368,45 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 
 func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should accumulate cache totals while preserving unreported and explicit zero values", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		registerSessionForGlobalTests(t, db, "sess-cache")
+		ctx := testutil.Context(t)
+		for i, tc := range []struct {
+			read, write         *int64
+			wantRead, wantWrite *int64
+		}{
+			{nil, nil, nil, nil},
+			{new(int64(4)), nil, new(int64(4)), nil},
+			{nil, new(int64(0)), new(int64(4)), new(int64(0))},
+			{new(int64(7)), new(int64(5)), new(int64(11)), new(int64(5))},
+		} {
+			if err := db.UpdateTokenStats(
+				ctx,
+				TokenStatsUpdate{
+					SessionID:        "sess-cache",
+					AgentName:        "coder",
+					CacheReadTokens:  tc.read,
+					CacheWriteTokens: tc.write,
+					CostStatus:       "unknown",
+					CostSource:       "none",
+					Turns:            1,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := db.ListTokenStats(ctx, TokenStatsQuery{SessionID: "sess-cache"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || !reflect.DeepEqual(rows[0].CacheReadTokens, tc.wantRead) ||
+				!reflect.DeepEqual(rows[0].CacheWriteTokens, tc.wantWrite) ||
+				rows[0].TurnCount != int64(i+1) {
+				t.Fatalf("step %d rows = %#v", i, rows)
+			}
+		}
+	})
 
 	globalDB := openTestGlobalDB(t)
 	registerSessionForGlobalTests(t, globalDB, "sess-stats")

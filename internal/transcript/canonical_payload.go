@@ -41,6 +41,7 @@ type canonicalEventPayload struct {
 	AvailableCommands []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
 	SkillInvocations  []commandpkg.Invocation          `json:"skill_invocations,omitempty"`
 	Attachments       []acp.EventAttachment            `json:"attachments,omitempty"`
+	Delivery          *acp.DeliveryManifest            `json:"delivery,omitempty"`
 	Usage             *acp.TokenUsage                  `json:"usage,omitempty"`
 	Runtime           *acp.RuntimeActivity             `json:"runtime,omitempty"`
 	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitempty"`

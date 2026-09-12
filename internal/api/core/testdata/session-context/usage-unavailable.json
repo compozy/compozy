@@ -1,0 +1,11 @@
+{
+    "usage": {
+        "input_tokens": 10,
+        "cache_read_tokens": 4,
+        "cache_write_tokens": 5,
+        "turn_count": 1,
+        "cost_status": "unknown",
+        "cost_source": "none",
+        "context": { "state": "unavailable" }
+    }
+}

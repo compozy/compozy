@@ -14,6 +14,7 @@ import (
 
 type transcriptStreamState struct {
 	cursor           int64
+	usageCursor      int64
 	generation       int64
 	epoch            int64
 	commandRevision  string
@@ -75,15 +76,20 @@ func (h *BaseHandlers) initializeTranscriptStream(
 	options sessionStreamOptions,
 	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, error) {
+	usageCursor, err := h.writeUsageChangedEvents(ctx, writer, sessionID, cursor, namedEvents)
+	if err != nil {
+		return transcriptStreamState{}, err
+	}
 	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, cursor, namedEvents); err != nil {
 		return transcriptStreamState{}, err
 	}
 	if cursor == 0 {
 		snapshot, err := h.writeTranscriptSnapshot(ctx, writer, sessionID, info, limit, false, "")
 		return transcriptStreamState{
-			cursor:     snapshot.cursor,
-			generation: snapshot.generation,
-			epoch:      transcriptEpoch(info),
+			cursor:      snapshot.cursor,
+			usageCursor: usageCursor,
+			generation:  snapshot.generation,
+			epoch:       transcriptEpoch(info),
 		}, err
 	}
 
@@ -105,9 +111,10 @@ func (h *BaseHandlers) initializeTranscriptStream(
 	if reason != "" {
 		snapshot, snapshotErr := h.writeTranscriptSnapshot(ctx, writer, sessionID, info, limit, true, reason)
 		return transcriptStreamState{
-			cursor:     snapshot.cursor,
-			generation: snapshot.generation,
-			epoch:      transcriptEpoch(info),
+			cursor:      snapshot.cursor,
+			usageCursor: usageCursor,
+			generation:  snapshot.generation,
+			epoch:       transcriptEpoch(info),
 		}, snapshotErr
 	}
 
@@ -124,9 +131,10 @@ func (h *BaseHandlers) initializeTranscriptStream(
 		err = h.writeTranscriptDeltaPage(writer, sessionID, info, first, nextCursor)
 	}
 	return transcriptStreamState{
-		cursor:     nextCursor,
-		generation: generation,
-		epoch:      transcriptEpoch(info),
+		cursor:      nextCursor,
+		usageCursor: usageCursor,
+		generation:  generation,
+		epoch:       transcriptEpoch(info),
 	}, err
 }
 
@@ -203,6 +211,11 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	if err != nil {
 		return state, info, err
 	}
+	usageCursor, err := h.writeUsageChangedEvents(ctx, writer, sessionID, state.usageCursor, namedEvents)
+	if err != nil {
+		return state, info, err
+	}
+	state.usageCursor = usageCursor
 	state.cursor = nextCursor
 	state.generation = generation
 	return state, info, nil
@@ -218,9 +231,10 @@ func (h *BaseHandlers) resetTranscriptStream(
 ) (transcriptStreamState, error) {
 	snapshot, err := h.writeTranscriptSnapshot(ctx, writer, sessionID, info, limit, true, reason)
 	return transcriptStreamState{
-		cursor:     snapshot.cursor,
-		generation: snapshot.generation,
-		epoch:      transcriptEpoch(info),
+		cursor:      snapshot.cursor,
+		usageCursor: snapshot.cursor,
+		generation:  snapshot.generation,
+		epoch:       transcriptEpoch(info),
 	}, err
 }
 

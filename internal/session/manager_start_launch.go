@@ -18,6 +18,7 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session runtime adapter failed", err)
 	}
+	startOpts.StartupManifest = runtime.startupManifest
 	startOpts, err = m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)

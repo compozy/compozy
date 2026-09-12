@@ -1,16 +1,24 @@
-import { FileCode, Gauge } from "lucide-react";
+import { Coins } from "lucide-react";
 
-import { Empty, Eyebrow, Metric, ScrollArea } from "@compozy/ui";
+import { Metric, MetricGrid } from "@compozy/ui";
 import { describeCost } from "@/lib/cost-provenance";
 
 import { hasReportableUsage } from "./session-inspector.logic";
-import type { InspectorFileEntry } from "./session-inspector.logic";
+import {
+  SessionInspectorEmpty,
+  SessionInspectorSection,
+  SessionInspectorSectionHead,
+} from "./session-inspector-section";
 import type { InspectorUsage } from "./session-inspector-types";
 
 function formatNumber(value?: number): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return value.toLocaleString();
 }
+
+/** Tiles sit on `canvas` with a hairline so they read against the rail's canvas-soft. */
+const TILE =
+  "gap-1.25 border border-line-soft bg-canvas px-3 py-2.5 [&_[data-slot=metric-subtext]]:text-micro [&_[data-slot=metric-subtext]]:leading-4 [&_[data-slot=metric-subtext]]:whitespace-normal [&_[data-slot=metric-subtext]]:text-subtle";
 
 export function SessionInspectorUsageSection({
   usage,
@@ -27,97 +35,85 @@ export function SessionInspectorUsageSection({
   const hasUsage = usage != null && hasReportableUsage(usage, cost);
 
   return (
-    <div className="flex min-h-full flex-col gap-3" data-testid="session-inspector-usage">
+    <SessionInspectorSection data-testid="session-inspector-usage">
+      <SessionInspectorSectionHead
+        meta={
+          turnCount > 0 ? (
+            <span data-testid="session-inspector-usage-turns">
+              {`across ${turnCount.toLocaleString()} turn${turnCount === 1 ? "" : "s"}`}
+            </span>
+          ) : undefined
+        }
+      >
+        Tokens & cost
+      </SessionInspectorSectionHead>
       {hasUsage ? (
-        <>
-          <div className="grid grid-cols-2 gap-2" data-testid="session-inspector-usage-grid">
+        <MetricGrid
+          columns={2}
+          className="grid-cols-2 gap-2"
+          data-testid="session-inspector-usage-grid"
+        >
+          <Metric
+            size="compact"
+            className={TILE}
+            data-testid="session-inspector-usage-tokens-in"
+            label="Tokens in"
+            value={formatNumber(usage?.tokensIn)}
+          />
+          <Metric
+            size="compact"
+            className={TILE}
+            data-testid="session-inspector-usage-tokens-out"
+            label="Tokens out"
+            value={formatNumber(usage?.tokensOut)}
+          />
+          {usage?.cacheReadTokens != null ? (
             <Metric
-              className="p-3"
-              data-testid="session-inspector-usage-tokens-in"
-              label="Tokens in"
-              value={formatNumber(usage?.tokensIn)}
+              size="compact"
+              className={TILE}
+              label="Cache read"
+              value={formatNumber(usage.cacheReadTokens)}
             />
-            <Metric
-              className="p-3"
-              data-testid="session-inspector-usage-tokens-out"
-              label="Tokens out"
-              value={formatNumber(usage?.tokensOut)}
-            />
-            <Metric
-              className="col-span-2 p-3"
-              data-testid="session-inspector-usage-total-tokens"
-              label="Total tokens"
-              value={formatNumber(usage?.totalTokens)}
-            />
-            <Metric
-              className="col-span-2 p-3"
-              data-testid="session-inspector-usage-cost"
-              label="Total cost"
-              subtext={cost.note ?? undefined}
-              value={cost.value}
-            />
-          </div>
-          {turnCount > 0 ? (
-            <Eyebrow className="text-subtle self-start" data-testid="session-inspector-usage-turns">
-              {`Across ${turnCount.toLocaleString()} turn${turnCount === 1 ? "" : "s"}`}
-            </Eyebrow>
           ) : null}
-        </>
+          {usage?.cacheWriteTokens != null ? (
+            <Metric
+              size="compact"
+              className={TILE}
+              label="Cache write"
+              value={formatNumber(usage.cacheWriteTokens)}
+            />
+          ) : null}
+          <Metric
+            size="compact"
+            className={`${TILE} col-span-2`}
+            data-testid="session-inspector-usage-total-tokens"
+            label="Total tokens"
+            value={formatNumber(usage?.totalTokens)}
+          />
+          <Metric
+            size="compact"
+            className={`${TILE} col-span-2`}
+            data-testid="session-inspector-usage-cost"
+            label="Total cost"
+            subtext={cost.note ?? undefined}
+            value={
+              // The provenance word is a sentence, never dressed as an amount.
+              cost.isAmount ? (
+                cost.value
+              ) : (
+                <span className="text-small-body font-medium text-fg">{cost.value}</span>
+              )
+            }
+          />
+        </MetricGrid>
       ) : (
-        <Empty
+        <SessionInspectorEmpty
           data-testid="session-inspector-usage-empty"
           description="Token counts and cost land here once the agent reports its first turn."
-          icon={Gauge}
+          icon={Coins}
           title="No usage yet"
         />
       )}
-    </div>
-  );
-}
-
-export function SessionInspectorFilesSection({ files }: { files: InspectorFileEntry[] }) {
-  return (
-    <div className="flex min-h-full flex-col" data-testid="session-inspector-files">
-      {files.length === 0 ? (
-        <Empty
-          data-testid="session-inspector-files-empty"
-          description="Files the agent reads during this session appear here."
-          icon={FileCode}
-          title="No files read"
-        />
-      ) : (
-        <ScrollArea
-          className="max-h-60 rounded-md border border-line bg-canvas-soft"
-          data-testid="session-inspector-files-scroll"
-        >
-          <ul
-            className="flex flex-col divide-y divide-line"
-            data-testid="session-inspector-files-list"
-          >
-            {files.map(file => (
-              <li
-                className="flex items-center gap-2 px-2 py-1.5"
-                data-testid="session-inspector-files-row"
-                key={file.path}
-              >
-                <FileCode aria-hidden="true" className="size-3 shrink-0 text-subtle" />
-                <span
-                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-fg"
-                  data-testid="session-inspector-files-path"
-                >
-                  {file.path}
-                </span>
-                <span
-                  className="shrink-0 font-mono text-badge text-subtle"
-                  data-testid="session-inspector-files-count"
-                >
-                  ×{file.readCount}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </ScrollArea>
-      )}
-    </div>
+    </SessionInspectorSection>
   );
 }

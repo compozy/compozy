@@ -1443,3 +1443,119 @@ describe("useSessionLiveTail", () => {
     });
   });
 });
+
+// Invariant: named usage signals trigger two bounded rereads and never advance transcript cursors.
+// Owner and canonical suite: live-tail orchestration (the fake source owns the stream I/O boundary).
+describe("Session context stream signals", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("Should register and detach the named usage listener and debounce burst rereads", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { sources, unmount } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    const source = sources[0]!;
+    expect(source.listeners.get("session_usage_changed")?.size).toBe(1);
+    const invalidations = vi.spyOn(queryClient, "invalidateQueries");
+    const before = queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID));
+    act(() => {
+      for (const sequence of [412, 413, 414])
+        source.emit("session_usage_changed", { sequence, turn_id: "turn-12", kind: "usage" });
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(249));
+    expect(invalidations).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(invalidations.mock.calls.map(call => call[0])).toEqual([
+      { queryKey: sessionKeys.usage(WORKSPACE_ID, SESSION_ID), exact: true },
+      { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
+    ]);
+    expect(queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID))).toBe(before);
+    invalidations.mockClear();
+    act(() =>
+      source.emit("session_usage_changed", { sequence: 415, turn_id: "turn-12", kind: "done" })
+    );
+    unmount();
+    expect(invalidations.mock.calls.map(call => call[0])).toEqual([
+      { queryKey: sessionKeys.usage(WORKSPACE_ID, SESSION_ID), exact: true },
+      { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
+    ]);
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(invalidations).toHaveBeenCalledTimes(2);
+    expect(source.listeners.get("session_usage_changed")?.size).toBe(0);
+    expect(source.closed).toBe(true);
+    queryClient.clear();
+  });
+
+  it("Should not reread usage from a transcript delta and should clear retention on explicit reset", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { sources, unmount } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    const invalidations = vi.spyOn(queryClient, "invalidateQueries");
+    act(() =>
+      sources[0]!.emit("transcript_delta", {
+        cursor: 5,
+        entries: [],
+        epoch: 1,
+        generation: 1,
+        has_more: false,
+        max_sequence: 5,
+        session_id: SESSION_ID,
+      })
+    );
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<SessionTranscriptData>(
+          sessionKeys.transcript(WORKSPACE_ID, SESSION_ID)
+        )?.pages[0]?.cursor
+      ).toBe(5)
+    );
+    expect(
+      invalidations.mock.calls.some(
+        call =>
+          JSON.stringify(call[0]?.queryKey) ===
+          JSON.stringify(sessionKeys.usage(WORKSPACE_ID, SESSION_ID))
+      )
+    ).toBe(false);
+    expect(
+      invalidations.mock.calls.some(
+        call =>
+          JSON.stringify(call[0]?.queryKey) ===
+          JSON.stringify(sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID))
+      )
+    ).toBe(false);
+    queryClient.setQueryData(sessionKeys.usage(WORKSPACE_ID, SESSION_ID), {
+      context: { state: "reported", sequence: 412, used: 89_700 },
+      turn_count: 12,
+    });
+    act(() =>
+      sources[0]!.emit("transcript_snapshot", {
+        entries: [],
+        epoch: 2,
+        generation: 2,
+        has_older: false,
+        max_sequence: 0,
+        cursor: 0,
+        session_id: SESSION_ID,
+        reset: "conversation_cleared",
+      })
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(sessionKeys.contextReset(WORKSPACE_ID, SESSION_ID))).toBe(1)
+    );
+    expect(queryClient.getQueryData(sessionKeys.usage(WORKSPACE_ID, SESSION_ID))).toBeUndefined();
+    unmount();
+    queryClient.clear();
+  });
+});

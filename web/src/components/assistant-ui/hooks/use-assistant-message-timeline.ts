@@ -11,12 +11,16 @@ import {
   type SessionTimelineWorkingPart,
   type SessionWorkGroupAnchor,
 } from "../session-timeline.logic";
-import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
+import {
+  isRecord,
+  stringField,
+  toTimelineParts,
+} from "@/systems/session/lib/timeline-message-parts";
 import { timelineRowLogic } from "./use-timeline-row-context";
 import { useSessionTurnOutcomes } from "@/systems/session/hooks/use-session-turn-outcomes";
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import type { SessionTurnOutcomes } from "@/systems/session/lib/session-turn-outcomes";
-import { isSessionErrorEvent } from "@/systems/session/components/runtime-activity-notice.logic";
+import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
 // A turn is "working" while it streams: assistant-ui marks the message status

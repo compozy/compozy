@@ -87,6 +87,7 @@ export interface SessionComposerProps {
   decisionDock?: ReactNode;
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
+  contextControl?: ReactNode;
   promptImageCapability?: SessionPromptCapability;
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
@@ -241,6 +242,7 @@ function SessionComposerControls() {
       busyInputSteerDelivery={meta.busyInputSteerDelivery}
       composerAttachmentCount={state.composerAttachmentCount}
       environmentControl={meta.environmentControl}
+      contextControl={meta.contextControl}
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }

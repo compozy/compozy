@@ -205,6 +205,7 @@ type Session struct {
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
 	agentDef                  compozyconfig.AgentDef
+	startupManifest           acp.StartupManifest
 
 	sessionDir string
 	metaPath   string

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -1554,6 +1555,218 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 
 func TestSessionUsageEndpoint(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should distinguish reported unknown and unavailable context while retaining aggregate cache counts",
+		func(t *testing.T) {
+			t.Parallel()
+			at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+			for _, tc := range []struct {
+				name, golden string
+				usage        []session.UsageEventEnvelope
+				failure      error
+			}{
+				{name: "Should serve unknown context without invented numbers", golden: "usage-unknown.json"},
+				{name: "Should retain aggregate on a failed ledger read", golden: "usage-unavailable.json", failure: errors.New("ledger unavailable")},
+				{name: "Should report the current ledger observation", golden: "usage.json", usage: []session.UsageEventEnvelope{{Sequence: 10, At: at, TurnID: "turn-A", Usage: acp.TokenUsage{ContextUsed: new(int64(80)), ContextSize: new(int64(100))}}}},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					manager := testutil.StubSessionManager{
+						StatusFn:      func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
+						UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) { return tc.usage, tc.failure },
+					}
+					observer := testutil.StubObserver{
+						QueryTokenStatsFn: func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
+							return []store.TokenStats{
+								{
+									InputTokens:      new(int64(10)),
+									CacheReadTokens:  new(int64(4)),
+									CacheWriteTokens: new(int64(5)),
+									TurnCount:        1,
+									CostStatus:       "unknown",
+									CostSource:       "none",
+								},
+							}, nil
+						},
+					}
+					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+					fixture.Handlers.Config.Session.Compaction.Enabled = true
+					fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
+					response := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/workspaces/ws-workspace/sessions/sess-a/usage",
+						nil,
+					)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+					}
+					assertSessionContextGolden(t, tc.golden, response.Body.Bytes())
+					if tc.failure != nil {
+						turns := performRequest(
+							t,
+							fixture.Engine,
+							http.MethodGet,
+							"/workspaces/ws-workspace/sessions/sess-a/usage/turns",
+							nil,
+						)
+						if turns.Code != http.StatusInternalServerError ||
+							!strings.Contains(turns.Body.String(), "ledger unavailable") {
+							t.Fatalf("turns failure=%d %s", turns.Code, turns.Body.String())
+						}
+					}
+				})
+			}
+		},
+	)
+	t.Run("Should fill only the missing window from the catalog without enabling compaction", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			info := testutil.NewSessionInfo("sess-a")
+			info.Provider = "claude"
+			info.Model = "model-a"
+			return info, nil
+		}, UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) {
+			return []session.UsageEventEnvelope{
+				{Sequence: 10, TurnID: "A", Usage: acp.TokenUsage{ContextUsed: new(int64(80))}},
+			}, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.ContextWindowResolver = sessionContextWindowFunc(
+			func(_ context.Context, provider, model string) (*int64, error) {
+				if provider != "claude" || model != "model-a" {
+					t.Fatalf("catalog identity = %s/%s", provider, model)
+				}
+				return new(int64(100)), nil
+			},
+		)
+		fixture.Handlers.Config.Session.Compaction.Enabled = true
+		fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		var payload contract.SessionUsageResponse
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		c := payload.Usage.Context
+		if c.State != contract.SessionContextStateEstimatedSize || c.Size == nil || *c.Size != 100 ||
+			c.SizeSource != "catalog" ||
+			c.PressureThreshold != nil {
+			t.Fatalf("catalog context=%#v", c)
+		}
+	})
+	t.Run("Should expose usage and delivery turn union with truthful compaction archive facts", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				info := testutil.NewSessionInfo("sess-a")
+				info.State = session.StateStopped
+				return info, nil
+			},
+			UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) {
+				return []session.UsageEventEnvelope{
+					{
+						Sequence: 9,
+						At:       at,
+						TurnID:   "A",
+						Usage:    acp.TokenUsage{ContextUsed: new(int64(80)), Timestamp: at},
+					},
+					{
+						Sequence: 77,
+						At:       at,
+						TurnID:   "D",
+						Usage:    acp.TokenUsage{InputTokens: new(int64(10)), Timestamp: at},
+					},
+				}, nil
+			},
+			DeliveriesFn: func(context.Context, string) ([]session.DeliveryEventEnvelope, error) {
+				return []session.DeliveryEventEnvelope{
+					{
+						Sequence: 3,
+						At:       at,
+						Manifest: acp.DeliveryManifest{
+							TurnID:   "A",
+							SentAt:   at,
+							Estimate: "bytes_div_4",
+							Spans: []acp.DeliveredSpan{
+								{Key: "skills", Kind: "text", Bytes: 80, Tokens: new(int64(20))},
+							},
+						},
+					},
+					{
+						Sequence: 58,
+						At:       at,
+						Manifest: acp.DeliveryManifest{
+							TurnID:   "C",
+							SentAt:   at,
+							Estimate: "bytes_div_4",
+							Spans: []acp.DeliveredSpan{
+								{
+									Key:          "skills",
+									Kind:         "text",
+									Bytes:        32,
+									Tokens:       new(int64(8)),
+									Unchanged:    true,
+									StartupDedup: true,
+								},
+								{Key: "attachment", Kind: "binary", Bytes: 1024, Name: "screenshot.png"},
+							},
+						},
+					},
+				}, nil
+			},
+			CompactionsFn: func(context.Context, string) ([]session.CompactionEnvelope, error) {
+				return []session.CompactionEnvelope{
+					{
+						Sequence:     40,
+						At:           at,
+						SpanArchived: true,
+						Payload: session.CompactionFiredPayload{
+							TurnID:       "B",
+							FromSequence: 1,
+							ToSequence:   8,
+							ContextUsed:  85,
+							ContextSize:  100,
+							Pressure:     0.85,
+							Strategy:     "summary_archive",
+						},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage/turns",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		assertSessionContextGolden(t, "usage-turns.json", response.Body.Bytes())
+		response = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/wrong-workspace/sessions/sess-a/usage/turns",
+			nil,
+		)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "not found") {
+			t.Fatalf("cross-workspace status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
 
 	int64Ptr := func(v int64) *int64 { return &v }
 	float64Ptr := func(v float64) *float64 { return &v }
@@ -5309,4 +5522,28 @@ func (metadataDoctorSessions) SessionMetadataHealth(context.Context) (int, logge
 	var failures loggerpkg.FailureSummary
 	failures.Add("session-unreadable", errors.New("unsupported session creation profile version 6"))
 	return 1, failures, nil
+}
+
+type sessionContextWindowFunc func(context.Context, string, string) (*int64, error)
+
+func (f sessionContextWindowFunc) ContextWindow(ctx context.Context, provider, model string) (*int64, error) {
+	return f(ctx, provider, model)
+}
+
+func assertSessionContextGolden(t *testing.T, name string, actual []byte) {
+	t.Helper()
+	expected, err := os.ReadFile(filepath.Join("testdata", "session-context", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got, want any
+	if err := json.Unmarshal(actual, &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(expected, &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("wire contract %s mismatch\ngot: %s\nwant: %s", name, actual, expected)
+	}
 }

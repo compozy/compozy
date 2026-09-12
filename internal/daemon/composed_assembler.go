@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -61,9 +62,10 @@ type filteredAgentSessionPromptSectionProvider interface {
 }
 
 var (
-	_ session.PromptAssembler        = (*ComposedAssembler)(nil)
-	_ session.StartupPromptAssembler = (*ComposedAssembler)(nil)
-	_ session.ResumeContextProvider  = (*ComposedAssembler)(nil)
+	_ session.PromptAssembler          = (*ComposedAssembler)(nil)
+	_ session.StartupPromptAssembler   = (*ComposedAssembler)(nil)
+	_ session.StartupManifestAssembler = (*ComposedAssembler)(nil)
+	_ session.ResumeContextProvider    = (*ComposedAssembler)(nil)
 )
 
 // NewComposedAssembler constructs a ComposedAssembler from startup section
@@ -168,31 +170,50 @@ func (a *ComposedAssembler) AssembleStartup(
 	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
+	prompt, _, err := a.AssembleStartupWithManifest(ctx, startup, agent, workspace)
+	return prompt, err
+}
+
+// AssembleStartupWithManifest measures budgeted sections in their document order.
+func (a *ComposedAssembler) AssembleStartupWithManifest(
+	ctx context.Context,
+	startup session.StartupPromptContext,
+	agent compozyconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, acp.StartupManifest, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)
-	if a == nil {
-		return basePrompt, nil
+	manifest := acp.StartupManifest{}
+	var sections []assembledPromptSection
+	if a != nil {
+		selected, resolved, err := a.selectDescriptors(startup)
+		if err != nil {
+			return "", manifest, err
+		}
+		prepend, appendSections, err := gatherPromptSections(
+			ctx,
+			startup,
+			agent,
+			workspace,
+			selected,
+			resolved.Policy.SkillInjectionFilter,
+		)
+		if err != nil {
+			return "", manifest, err
+		}
+		sections = append(sections, prepend...)
+		if basePrompt != "" {
+			sections = append(sections, assembledPromptSection{key: "agent_prompt", text: basePrompt})
+		}
+		sections = append(sections, appendSections...)
+	} else if basePrompt != "" {
+		sections = append(sections, assembledPromptSection{key: "agent_prompt", text: basePrompt})
 	}
-
-	selected, resolved, err := a.selectDescriptors(startup)
-	if err != nil {
-		return "", err
+	texts := make([]string, 0, len(sections))
+	for _, section := range sections {
+		texts = append(texts, section.text)
+		manifest.Spans = append(manifest.Spans, acp.TextSpan(section.key, section.text))
 	}
-
-	prependSections, appendSections, err := gatherPromptSections(
-		ctx, startup, agent, workspace, selected, resolved.Policy.SkillInjectionFilter,
-	)
-	if err != nil {
-		return "", err
-	}
-
-	sections := make([]string, 0, len(prependSections)+len(appendSections)+1)
-	sections = append(sections, prependSections...)
-	if basePrompt != "" {
-		sections = append(sections, basePrompt)
-	}
-	sections = append(sections, appendSections...)
-
-	return strings.Join(sections, "\n\n"), nil
+	return strings.Join(texts, "\n\n"), manifest, nil
 }
 
 // ResumeContextSection gathers resume-only sections from the same selected
@@ -268,6 +289,8 @@ func filterPromptDescriptorsForStartup(
 	return filtered
 }
 
+type assembledPromptSection struct{ key, text string }
+
 func gatherPromptSections(
 	ctx context.Context,
 	startup session.StartupPromptContext,
@@ -275,9 +298,9 @@ func gatherPromptSections(
 	workspace *workspacepkg.ResolvedWorkspace,
 	descriptors []PromptSectionDescriptor,
 	filter SkillInjectionFilter,
-) ([]string, []string, error) {
-	prependSections := make([]string, 0, len(descriptors))
-	appendSections := make([]string, 0, len(descriptors))
+) ([]assembledPromptSection, []assembledPromptSection, error) {
+	prependSections := make([]assembledPromptSection, 0, len(descriptors))
+	appendSections := make([]assembledPromptSection, 0, len(descriptors))
 
 	for _, descriptor := range descriptors {
 		if descriptor.Provider == nil {
@@ -301,9 +324,9 @@ func gatherPromptSections(
 
 		switch descriptor.Position {
 		case PromptSectionPositionPrepend:
-			prependSections = append(prependSections, section)
+			prependSections = append(prependSections, assembledPromptSection{key: descriptor.Name, text: section})
 		case PromptSectionPositionAppend:
-			appendSections = append(appendSections, section)
+			appendSections = append(appendSections, assembledPromptSection{key: descriptor.Name, text: section})
 		default:
 			return nil, nil, fmt.Errorf(
 				"daemon: invalid prompt section position %q for %q",

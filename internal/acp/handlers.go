@@ -49,19 +49,23 @@ type wireLoadSessionRequest struct {
 }
 
 type wireUsage struct {
-	InputTokens      *int64 `json:"inputTokens,omitempty"`
-	OutputTokens     *int64 `json:"outputTokens,omitempty"`
-	TotalTokens      *int64 `json:"totalTokens,omitempty"`
-	ThoughtTokens    *int64 `json:"thoughtTokens,omitempty"`
-	CacheReadTokens  *int64 `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	InputTokens       *int64 `json:"inputTokens,omitempty"`
+	OutputTokens      *int64 `json:"outputTokens,omitempty"`
+	TotalTokens       *int64 `json:"totalTokens,omitempty"`
+	ThoughtTokens     *int64 `json:"thoughtTokens,omitempty"`
+	CachedReadTokens  *int64 `json:"cachedReadTokens,omitempty"`
+	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitempty"`
+	// compat(v0.4.0→v0.5.0, remove in v0.6.0)
+	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitempty"`
+	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 }
 
 type wireUsageUpdate struct {
-	SessionUpdate string    `json:"sessionUpdate"`
-	Used          *int64    `json:"used,omitempty"`
-	Size          *int64    `json:"size,omitempty"`
-	Cost          *wireCost `json:"cost,omitempty"`
+	Meta          json.RawMessage `json:"_meta,omitempty"`
+	SessionUpdate string          `json:"sessionUpdate"`
+	Used          *int64          `json:"used,omitempty"`
+	Size          *int64          `json:"size,omitempty"`
+	Cost          *wireCost       `json:"cost,omitempty"`
 }
 
 type wireCost struct {

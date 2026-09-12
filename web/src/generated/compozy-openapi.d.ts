@@ -6931,6 +6931,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get per-turn session usage and replay compaction spans */
+    get: operations["getSessionUsageTurns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/wait": {
     parameters: {
       query?: never;
@@ -141886,6 +141903,12 @@ export interface operations {
               workspace_path?: string;
               worktree_id?: string;
             } | null;
+            session_usage_changed?: {
+              kind: string;
+              /** Format: int64 */
+              sequence: number;
+              turn_id?: string;
+            } | null;
             transcript_delta?: {
               /** Format: int64 */
               cursor: number;
@@ -144462,6 +144485,56 @@ export interface operations {
         content: {
           "application/json": {
             usage: {
+              /** Format: int64 */
+              cache_read_tokens?: number | null;
+              /** Format: int64 */
+              cache_write_tokens?: number | null;
+              context: {
+                injected?: {
+                  estimate: string;
+                  rows: {
+                    /** Format: int64 */
+                    bytes: number;
+                    delivered_turn_id: string;
+                    delivery?: string;
+                    /** Format: int64 */
+                    delivery_sequence: number;
+                    hook_modified?: boolean;
+                    key: string;
+                    kind: string;
+                    label: string;
+                    last_seen_turn_id?: string;
+                    name?: string;
+                    owner_kind: string;
+                    /** Format: date-time */
+                    sent_at: string;
+                    stale: boolean;
+                    /** Format: int64 */
+                    tokens?: number | null;
+                    unchanged: boolean;
+                  }[];
+                  stale: boolean;
+                  /** Format: int64 */
+                  tokens: number;
+                } | null;
+                /** Format: double */
+                pressure_threshold?: number | null;
+                /** Format: double */
+                ratio?: number | null;
+                /** Format: date-time */
+                reported_at?: string | null;
+                reported_turn_id?: string;
+                /** Format: int64 */
+                sequence?: number | null;
+                /** Format: int64 */
+                size?: number | null;
+                size_source?: string;
+                stale?: boolean | null;
+                /** @enum {string} */
+                state: "reported" | "estimated_size" | "unknown" | "unavailable";
+                /** Format: int64 */
+                used?: number | null;
+              };
               cost_currency?: string;
               /** @enum {string} */
               cost_source?: "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";
@@ -144478,6 +144551,167 @@ export interface operations {
               /** Format: int64 */
               turn_count: number;
             };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSessionUsageTurns: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            compactions: {
+              /** Format: date-time */
+              at: string;
+              /** Format: int64 */
+              context_size: number;
+              /** Format: int64 */
+              context_used: number;
+              /** Format: int64 */
+              from_sequence: number;
+              /** Format: double */
+              pressure: number;
+              /** Format: int64 */
+              sequence: number;
+              span_archived: boolean;
+              strategy: string;
+              /** Format: int64 */
+              to_sequence: number;
+              turn_id: string;
+            }[];
+            turns: {
+              injected?: {
+                estimate: string;
+                /** Format: date-time */
+                sent_at: string;
+                /** Format: int64 */
+                sequence: number;
+                spans: {
+                  /** Format: int64 */
+                  bytes: number;
+                  delivery?: string;
+                  hook_modified?: boolean;
+                  key: string;
+                  kind: string;
+                  name?: string;
+                  startup_dedup?: boolean;
+                  /** Format: int64 */
+                  tokens?: number | null;
+                  unchanged: boolean;
+                }[];
+                /** Format: int64 */
+                tokens: number;
+              } | null;
+              /** Format: int64 */
+              sequence: number;
+              turn_id: string;
+              usage?: {
+                /** Format: int64 */
+                cache_read_tokens?: number | null;
+                /** Format: int64 */
+                cache_write_tokens?: number | null;
+                /** Format: int64 */
+                context_size?: number | null;
+                /** Format: int64 */
+                context_used?: number | null;
+                /** Format: double */
+                cost_amount?: number | null;
+                cost_currency?: string | null;
+                /** Format: int64 */
+                input_tokens?: number | null;
+                meta?: {
+                  [key: string]: unknown;
+                };
+                /** Format: int64 */
+                output_tokens?: number | null;
+                /** Format: int64 */
+                sequence?: number | null;
+                /** Format: int64 */
+                thought_tokens?: number | null;
+                /** Format: date-time */
+                timestamp: string;
+                /** Format: int64 */
+                total_tokens?: number | null;
+                turn_id?: string;
+              } | null;
+            }[];
           };
         };
       };

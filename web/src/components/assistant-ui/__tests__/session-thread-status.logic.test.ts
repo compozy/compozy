@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { activeReplyHasContent, lastSettledTurn } from "../session-thread-status.logic";
+import {
+  activeReplyHasContent,
+  lastSettledTurn,
+} from "@/systems/session/lib/session-thread-status";
 
 // Suite: thread status derivation for the S3 row (US-027, US-009.EC-2, US-014.EC-2).
 // Invariant: the frozen sentence after a turn comes from the daemon's own

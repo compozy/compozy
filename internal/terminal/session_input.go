@@ -66,13 +66,6 @@ func (s *session) deliverInputMode(
 			Code: ErrorCodeNotInteractive, Message: errorMessageNotInteractive, Err: ErrNotInteractive,
 		}
 	}
-	if s.audit.Blocked() {
-		return inputDeliveryState{}, &Error{
-			Code:    ErrorCodeJournalUnavailable,
-			Message: "terminal input is blocked while journal delivery is unavailable",
-			Err:     ErrJournalUnavailable,
-		}
-	}
 	if err := s.runningGate(); err != nil {
 		return inputDeliveryState{}, err
 	}
@@ -100,13 +93,9 @@ func (s *session) deliverInputMode(
 		}
 		auditInput = JournalInput{Redacted: true, Characters: characters}
 	}
-	reservation, admitted := s.manager.reserveJournalInput(info, auditInput)
-	if !admitted {
-		return inputDeliveryState{}, &Error{
-			Code:    ErrorCodeJournalUnavailable,
-			Message: "terminal input is blocked while the journal lane is full",
-			Err:     ErrJournalUnavailable,
-		}
+	reservation, err := s.reserveInputDelivery(info, auditInput)
+	if err != nil {
+		return inputDeliveryState{}, err
 	}
 	deliveryErr := writeAllInput(filtered, writer)
 	state, err := s.commitInputDelivery(actor, filtered, contentBytes, auditInput, reservation, deliveryErr)
@@ -114,6 +103,27 @@ func (s *session) deliverInputMode(
 		return state, err
 	}
 	return state, deliveryErr
+}
+
+func (s *session) reserveInputDelivery(info Info, input JournalInput) (JournalInputReservation, error) {
+	s.markerMu.Lock()
+	defer s.markerMu.Unlock()
+	if s.audit.Blocked() {
+		return nil, &Error{
+			Code:    ErrorCodeJournalUnavailable,
+			Message: "terminal input is blocked while journal delivery is unavailable",
+			Err:     ErrJournalUnavailable,
+		}
+	}
+	reservation, admitted := s.manager.reserveJournalInput(info, input)
+	if !admitted {
+		return nil, &Error{
+			Code:    ErrorCodeJournalUnavailable,
+			Message: "terminal input is blocked while the journal lane is full",
+			Err:     ErrJournalUnavailable,
+		}
+	}
+	return reservation, nil
 }
 
 func (s *session) commitInputDelivery(

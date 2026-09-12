@@ -237,7 +237,7 @@ func loopEventsOutputBundle(page contract.LoopTimelineResponse, entries []looppk
 		copyPage,
 		entries,
 		"Loop events",
-		[]string{"SEQ", loopRoundHeader, "EVENT"},
+		[]string{sequenceHeader, loopRoundHeader, "EVENT"},
 		"loop_events",
 		[]string{"seq", resourceKindKey, "generation", loopNodeIDJSONKey, networkTitleKey, "at"},
 		loopEventHumanRow,
@@ -248,7 +248,7 @@ func loopEventsOutputBundle(page contract.LoopTimelineResponse, entries []looppk
 		for _, entry := range entries {
 			rows = append(rows, loopEventHumanRow(entry))
 		}
-		return renderLoopReadTable([]string{"SEQ", loopRoundHeader, "EVENT"}, rows), nil
+		return renderLoopReadTable([]string{sequenceHeader, loopRoundHeader, "EVENT"}, rows), nil
 	}
 	return bundle
 }

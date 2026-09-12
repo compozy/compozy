@@ -1,137 +1,56 @@
-import { useState } from "react";
-
 import { DetailInspector, cn } from "@compozy/ui";
+import { deriveSessionContext, type SessionContextView } from "../lib/session-context";
+import type { SessionUsageTurnsResponse } from "../types";
+import { SessionContextMeterSection } from "./session-context-meter-section";
+import { SessionContextInjectedSection } from "./session-context-injected-section";
+import { SessionContextTurnsSection } from "./session-context-turns-section";
+import { SessionActivitySection, type SessionActivityView } from "./session-activity-section";
+import { SessionInspectorUsageSection } from "./session-inspector-sections";
+import type { InspectorUsage } from "./session-inspector-types";
 
-import {
-  deriveFileReads,
-  type InspectorFileEntry,
-  type ThreadMessageState,
-} from "./session-inspector.logic";
-import { SessionInspectorMemorySection } from "./session-inspector-memory";
-import {
-  SessionInspectorFilesSection,
-  SessionInspectorUsageSection,
-} from "./session-inspector-sections";
-import type { InspectorMemoryState, InspectorUsage } from "./session-inspector-types";
-import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
-
-export type {
-  InspectorMemoryState,
-  InspectorSessionLedger,
-  InspectorUsage,
-} from "./session-inspector-types";
-
-const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
-const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
-
-type InspectorTabId = "usage" | "memory" | "files" | "vault";
-
-const SESSION_INSPECTOR_TABS = [
-  { id: "usage", label: "Usage" },
-  { id: "memory", label: "Memory" },
-  { id: "files", label: "Files" },
-  { id: "vault", label: "Vault" },
-] as const satisfies ReadonlyArray<{ id: InspectorTabId; label: string }>;
-
-const SESSION_INSPECTOR_TAB_TESTIDS: Record<InspectorTabId, string> = {
-  usage: "session-inspector-tab-usage",
-  memory: "session-inspector-tab-memory",
-  files: "session-inspector-tab-files",
-  vault: "session-inspector-tab-vault",
-};
+export type { InspectorUsage } from "./session-inspector-types";
 
 export interface SessionInspectorProps {
-  messages: readonly ThreadMessageState[];
-  sessionId?: string;
+  context?: SessionContextView;
   usage?: InspectorUsage | null;
-  memory?: InspectorMemoryState;
-  vaultSecrets?: readonly VaultSecret[];
-  vaultIsLoading?: boolean;
-  vaultError?: Error | null;
-  files?: InspectorFileEntry[];
+  turns?: SessionUsageTurnsResponse;
+  turnsUnavailable?: boolean;
+  activity?: SessionActivityView;
+  injectedDefaultOpen?: boolean;
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
   className?: string;
 }
 
-interface InspectorTabRendererProps {
-  activeTab: InspectorTabId;
-  usage: InspectorUsage | null | undefined;
-  memory: InspectorMemoryState;
-  sessionId?: string;
-  vaultSecrets: readonly VaultSecret[];
-  vaultIsLoading: boolean;
-  vaultError: Error | null;
-  files: InspectorFileEntry[];
-}
-
-function InspectorTabRenderer(props: InspectorTabRendererProps) {
-  switch (props.activeTab) {
-    case "usage":
-      return <SessionInspectorUsageSection usage={props.usage} />;
-    case "memory":
-      return <SessionInspectorMemorySection memory={props.memory} />;
-    case "files":
-      return <SessionInspectorFilesSection files={props.files} />;
-    case "vault":
-      return (
-        <SessionVaultPanel
-          error={props.vaultError}
-          isLoading={props.vaultIsLoading}
-          secrets={props.vaultSecrets}
-          sessionId={props.sessionId}
-        />
-      );
-  }
-}
-
 export function SessionInspector({
-  messages,
-  sessionId,
+  context = deriveSessionContext(),
   usage,
-  memory,
-  vaultSecrets = EMPTY_VAULT_SECRETS,
-  vaultIsLoading = false,
-  vaultError = null,
-  files,
+  turns,
+  turnsUnavailable,
+  activity,
+  injectedDefaultOpen,
   drawerOpen,
   onDrawerOpenChange,
   className,
 }: SessionInspectorProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTabId>("usage");
-  const handleTabChange = (id: string) => {
-    if (SESSION_INSPECTOR_TABS.some(tab => tab.id === id)) setActiveTab(id as InspectorTabId);
-  };
-  const tabs = SESSION_INSPECTOR_TABS.map(tab => ({
-    id: tab.id,
-    label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,
-  }));
-
   return (
     <DetailInspector
-      activeTab={activeTab}
+      title="Context"
       className={cn("min-w-0", className)}
-      data-testid="session-inspector"
+      drawerClassName="rounded-none border-l border-line-strong"
       onOpenChange={onDrawerOpenChange}
-      onTabChange={handleTabChange}
       open={drawerOpen}
-      tabs={tabs}
     >
-      <div
-        className="flex min-h-full flex-col gap-4 p-4"
-        data-active-tab={activeTab}
-        data-testid="session-inspector-panel"
-      >
-        <InspectorTabRenderer
-          activeTab={activeTab}
-          files={files ?? deriveFileReads(messages)}
-          memory={memory ?? EMPTY_MEMORY_STATE}
-          sessionId={sessionId}
-          usage={usage}
-          vaultError={vaultError}
-          vaultIsLoading={vaultIsLoading}
-          vaultSecrets={vaultSecrets}
+      <div className="flex flex-col gap-4.5 p-4" data-testid="session-inspector">
+        <SessionContextMeterSection context={context} />
+        <SessionContextInjectedSection
+          injected={context.injected}
+          showBars={context.used != null}
+          defaultOpen={injectedDefaultOpen}
         />
+        <SessionInspectorUsageSection usage={usage} />
+        <SessionContextTurnsSection data={turns} unavailable={turnsUnavailable} />
+        <SessionActivitySection activity={activity} />
       </div>
     </DetailInspector>
   );

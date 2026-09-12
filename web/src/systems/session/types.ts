@@ -79,6 +79,8 @@ export type SessionRecapResponse = OperationResponse<"getSessionRecap", 200>;
 export type SessionRecapPayload = SessionRecapResponse["recap"];
 export type SessionUsageResponse = OperationResponse<"getSessionUsage", 200>;
 export type SessionUsagePayload = SessionUsageResponse["usage"];
+export type SessionContextPayload = SessionUsagePayload["context"];
+export type SessionUsageTurnsResponse = OperationResponse<"getSessionUsageTurns", 200>;
 export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][number];
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
@@ -234,6 +236,8 @@ export interface ToolUseResult {
 }
 
 export interface TokenUsagePayload {
+  meta?: Record<string, unknown>;
+  sequence?: number;
   turn_id?: string;
   input_tokens?: number;
   output_tokens?: number;
@@ -266,6 +270,23 @@ export interface RuntimeActivityPayload {
   elapsed_seconds?: number;
 }
 
+export interface PromptDeliveryPayload {
+  turn_id: string;
+  sent_at: string;
+  estimate: string;
+  spans: Array<{
+    key: string;
+    kind: string;
+    bytes: number;
+    tokens?: number | null;
+    delivery?: string;
+    name?: string;
+    unchanged?: boolean;
+    startup_dedup?: boolean;
+    hook_modified?: boolean;
+  }>;
+}
+
 export interface AgentEventPayload {
   type: string;
   session_id?: string;
@@ -284,6 +305,7 @@ export interface AgentEventPayload {
   failure?: SessionFailurePayload;
   provider_error?: ProviderErrorDiagnosticPayload | null;
   usage?: TokenUsagePayload;
+  delivery?: PromptDeliveryPayload;
   runtime?: RuntimeActivityPayload;
   marker?: TranscriptMarkerPayload;
   goal?: GoalPromptMeta;

@@ -33,6 +33,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		AvailableCommands: availableCommandPayloads(event.AvailableCommandSet().Values()), Action: event.Action,
 		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
 		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
+		Delivery:      transcript.RedactAgentEvent(event).DeliveryManifest(),
 		ProviderError: providerErrorDiagnosticPayload(event.ProviderError),
 		Goal:          goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
 		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),

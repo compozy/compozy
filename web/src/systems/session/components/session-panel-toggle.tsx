@@ -3,7 +3,7 @@ import { List, PanelRight } from "lucide-react";
 
 const PANELS = {
   sidebar: { label: "sessions sidebar", testId: "session-sidebar-toggle", Glyph: List },
-  inspector: { label: "session inspector", testId: "session-inspector-toggle", Glyph: PanelRight },
+  inspector: { label: "context sidebar", testId: "session-inspector-toggle", Glyph: PanelRight },
 } as const;
 
 export function SessionPanelToggle({

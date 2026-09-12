@@ -27,16 +27,7 @@ func (s *session) readOutput() {
 				filtered.MarkerFacts = append(filtered.MarkerFacts, final.MarkerFacts...)
 			}
 			if len(filtered.MarkerFacts) > 0 {
-				if err := s.manager.journal.ConsumeMarkerFacts(
-					s.ctx, s.Info(), filtered.MarkerFacts,
-				); err != nil {
-					s.audit.SetBlocked(true)
-					s.manager.logger.Error(
-						"terminal: consume authenticated marker facts",
-						"terminal_id", s.info.ID,
-						"error", err,
-					)
-				}
+				s.consumeMarkerFacts(filtered.MarkerFacts)
 			}
 			if len(read.data) > 0 && len(filtered.DisplayBytes) == 0 {
 				s.acceptFilteredOutput()
@@ -53,6 +44,19 @@ func (s *session) readOutput() {
 		case <-coalescer.Ready():
 			coalescer.Flush()
 		}
+	}
+}
+
+func (s *session) consumeMarkerFacts(facts []MarkerFacts) {
+	s.markerMu.Lock()
+	defer s.markerMu.Unlock()
+	if err := s.manager.journal.ConsumeMarkerFacts(s.ctx, s.Info(), facts); err != nil {
+		s.audit.SetBlocked(true)
+		s.manager.logger.Error(
+			"terminal: consume authenticated marker facts",
+			"terminal_id", s.info.ID,
+			"error", err,
+		)
 	}
 }
 

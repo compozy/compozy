@@ -24,6 +24,7 @@ func promptAgentEventPayloadFromEvent(event acp.AgentEvent) promptAgentEventPayl
 		Error:         promptRedactString(base.Error),
 		ProviderError: base.ProviderError,
 		Usage:         promptTokenUsagePayloadFromUsage(event.Usage),
+		Delivery:      base.Delivery,
 		Runtime:       base.Runtime,
 		Raw:           promptRedactRaw(base.Raw),
 	}
@@ -40,6 +41,8 @@ func promptTokenUsagePayloadFromUsage(usage *acp.TokenUsage) *promptTokenUsagePa
 	}
 
 	payload := &promptTokenUsagePayload{
+		Meta:             base.Meta,
+		Sequence:         base.Sequence,
 		TurnID:           base.TurnID,
 		InputTokens:      base.InputTokens,
 		OutputTokens:     base.OutputTokens,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -167,14 +168,20 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
+		previousManifest := acp.OpaqueStartupManifest("previous startup", true)
+		session.setAgentDefinition(session.AgentDefinition(), previousManifest)
 		snapshot := session.runtimeBindingSnapshot()
 		session.setAgentDefinition(compozyconfig.AgentDef{
 			Name:   "coder",
 			Prompt: "candidate definition",
 			Tools:  []string{"write"},
-		})
+		}, acp.OpaqueStartupManifest("candidate startup", false))
 
 		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
+		_, manifest := session.startupDefinition()
+		if !reflect.DeepEqual(manifest, previousManifest) {
+			t.Fatalf("restored startup manifest = %#v, want %#v", manifest, previousManifest)
+		}
 		definition := session.AgentDefinition()
 		if definition.Prompt != "previous definition" {
 			t.Fatalf("AgentDefinition().Prompt = %q, want prior definition", definition.Prompt)

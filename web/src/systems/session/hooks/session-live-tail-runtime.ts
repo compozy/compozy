@@ -133,6 +133,20 @@ export function createSessionLiveTailRuntime({
         ? applyTranscriptSnapshot(existing, { ...frame.payload, entries }, frame.cursor)
         : applyTranscriptDelta(existing, { ...frame.payload, entries }, frame.cursor);
     });
+    if (applied !== "mismatch" && frame.kind === "snapshot" && frame.payload.reset) {
+      void queryClient.resetQueries({
+        queryKey: sessionKeys.usage(workspaceId, sessionId),
+        exact: true,
+      });
+      void queryClient.resetQueries({
+        queryKey: sessionKeys.usageTurns(workspaceId, sessionId),
+        exact: true,
+      });
+      queryClient.setQueryData<number>(
+        sessionKeys.contextReset(workspaceId, sessionId),
+        value => (value ?? 0) + 1
+      );
+    }
     return applied;
   };
 
@@ -212,10 +226,21 @@ export function createSessionLiveTailRuntime({
       handlers.degraded(payload.through_sequence);
     };
 
+    let usageTimer: ReturnType<typeof setTimeout> | undefined;
+    const flushUsageChanges = () => {
+      usageTimer = undefined;
+      invalidateExact(sessionKeys.usage(workspaceId, sessionId), "session usage");
+      invalidateExact(sessionKeys.usageTurns(workspaceId, sessionId), "session usage turns");
+    };
+    const usageChangedListener: EventListener = () => {
+      if (usageTimer !== undefined) clearTimeout(usageTimer);
+      usageTimer = setTimeout(flushUsageChanges, 250);
+    };
     let detach: () => void;
     try {
       detach = attachSessionStreamSource(source, handlers.error, {
         commandsChanged: commandsChangedListener,
+        usageChanged: usageChangedListener,
         degraded: degradedListener,
         delta: deltaListener,
         goalSnapshot: goalSnapshotListener,
@@ -232,6 +257,10 @@ export function createSessionLiveTailRuntime({
     }
 
     return (reason: string) => {
+      if (usageTimer !== undefined) {
+        clearTimeout(usageTimer);
+        flushUsageChanges();
+      }
       detach();
       source.onmessage = null;
       source.onerror = null;

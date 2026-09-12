@@ -1,3 +1,4 @@
+import { sessionContextHandlers } from "./context-handlers";
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
@@ -114,6 +115,7 @@ function createSessionCatalogStreamResponse(): Response {
 }
 
 export const handlers: HttpHandler[] = [
+  ...sessionContextHandlers(sessionById),
   compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
     const workspace = url.searchParams.get("workspace_id")?.trim();

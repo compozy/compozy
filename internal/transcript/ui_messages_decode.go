@@ -73,6 +73,9 @@ func decodeStoredEvent(storedEvent store.SessionEvent) *decodedStoredEvent {
 	if strings.TrimSpace(decoded.agent.Error) == "" && decoded.parsed.ToolResult != nil {
 		decoded.agent.Error = firstNonEmpty(decoded.parsed.ToolResult.Error, decoded.parsed.Text)
 	}
+	if decoded.agent.Usage != nil {
+		decoded.agent.Usage.Sequence = storedEvent.Sequence
+	}
 	decoded.parsed = redactTranscriptEvent(decoded.parsed)
 	decoded.agent = RedactAgentEvent(decoded.agent)
 	return decoded

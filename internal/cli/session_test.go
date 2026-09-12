@@ -2379,6 +2379,158 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 
 func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 	t.Parallel()
+	t.Run("Should render reported context cache totals and byte-only attribution", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+		value := SessionUsageRecord{
+			CacheReadTokens:  new(int64(4)),
+			CacheWriteTokens: new(int64(5)),
+			Context: contract.SessionContextPayload{
+				State:             contract.SessionContextStateReported,
+				Used:              new(int64(80)),
+				Size:              new(int64(100)),
+				Ratio:             new(0.8),
+				SizeSource:        "agent",
+				Sequence:          new(int64(10)),
+				ReportedTurnID:    "A",
+				ReportedAt:        &at,
+				PressureThreshold: new(0.85),
+				Stale:             new(false),
+				Injected: &contract.SessionContextInjectedPayload{
+					Estimate: "bytes_div_4",
+					Tokens:   20,
+					Rows: []contract.SessionContextRowPayload{
+						{
+							Key:             "skills",
+							Label:           "Skills catalog",
+							OwnerKind:       "full",
+							Kind:            "text",
+							Tokens:          new(int64(20)),
+							DeliveredTurnID: "A",
+							LastSeenTurnID:  "B",
+							Unchanged:       true,
+						},
+						{Key: "attachment", Kind: "binary", Name: "screenshot.png", Bytes: 1024, DeliveredTurnID: "A"},
+						{Key: "memory", OwnerKind: "startup_opaque", DeliveredTurnID: "A"},
+					},
+				},
+			},
+		}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) { return value, nil },
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Cache Read", "Cache Write", "Context", "Skills catalog", "80 / 100 (80%)", "Compaction At", "85%", "≈ 20", "unchanged since A (last seen B)", "1024 B", "screenshot.png", "binary, no estimate", "included in the startup prompt"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "usage", "sess-1", "-o", "toon")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"cache_read_tokens", "cache_write_tokens", "context_state", "context_sequence", "context_reported_turn_id", "context_pressure_threshold", "injected_tokens", "injected_stale", "context_reported_at", "2026-09-11T10:00:00Z", "context_rows[3]", "Skills catalog", "screenshot.png", "startup_opaque", "bytes_div_4"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing TOON field %q in %s", want, stdout)
+			}
+		}
+	})
+	t.Run("Should omit unknown context and expose unavailable reads", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []contract.SessionContextState{contract.SessionContextStateUnknown, contract.SessionContextStateUnavailable} {
+			value := SessionUsageRecord{Context: contract.SessionContextPayload{State: state}}
+			text, err := sessionUsageBundle(value).human()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state == contract.SessionContextStateUnknown && strings.Contains(text, "Context") {
+				t.Fatalf("unknown context fabricated a section: %s", text)
+			}
+			if state == contract.SessionContextStateUnavailable &&
+				(!strings.Contains(text, "Context") || !strings.Contains(text, "unavailable")) {
+				t.Fatalf("missing unavailable state: %s", text)
+			}
+		}
+	})
+	t.Run("Should route turns and preserve the JSON union with ordered compaction markers", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+		value := contract.SessionUsageTurnsResponse{Turns: []contract.SessionUsageTurnPayload{
+			{
+				TurnID:   "A",
+				Sequence: 9,
+				Usage: &contract.TokenUsagePayload{
+					ContextUsed: new(int64(80)),
+					ContextSize: new(int64(100)),
+					Timestamp:   at,
+				},
+			},
+			{
+				TurnID:   "C",
+				Sequence: 58,
+				Injected: &contract.SessionTurnInjectedPayload{
+					Tokens: 8,
+					SentAt: at,
+					Spans:  []contract.SessionContextSpanPayload{{Key: "skills", Unchanged: true}},
+				},
+			},
+			{TurnID: "D", Sequence: 77, Usage: &contract.TokenUsagePayload{InputTokens: new(int64(10)), Timestamp: at}},
+		}, Compactions: []contract.SessionCompactionPayload{{TurnID: "B", Sequence: 40, At: at, SpanArchived: true, Pressure: 0.85, ContextUsed: 85, ContextSize: 100, FromSequence: 1, ToSequence: 8}}}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				getSessionUsageTurnsFn: func(_ context.Context, id string) (contract.SessionUsageTurnsResponse, error) {
+					if id != "sess-1" {
+						t.Fatalf("turns id=%s", id)
+					}
+					return value, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1", "--turns", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got contract.SessionUsageTurnsResponse
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, value) {
+			t.Fatalf("turns JSON=%s", stdout)
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "usage", "sess-1", "--turns")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"80 / 100", "CompozyOS compaction · at 85%", "replay span archived", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing turns %q in %s", want, stdout)
+			}
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "usage", "sess-1", "--turns", "-o", "toon")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{
+			"session_usage_turns[3]{turn_id,sequence}", "usage[2]", "deliveries[1]", "spans[1]",
+			"compactions[1]{turn_id,sequence,at,span_archived,from_sequence,to_sequence,context_used,context_size,pressure,strategy}",
+			"B,40,2026-09-11T10:00:00Z,true,1,8,85,100,0.85",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing structured TOON %q in %s", want, stdout)
+			}
+		}
+		rows := sessionUsageTurnRows(value)
+		if len(rows) != 4 || rows[0][0] != "A" || rows[1][0] != "B" || rows[2][0] != "C" || rows[3][0] != "D" {
+			t.Fatalf("turn/marker order=%#v", rows)
+		}
+	})
 
 	t.Run("Should return the exact estimated usage contract as JSON", func(t *testing.T) {
 		t.Parallel()

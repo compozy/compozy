@@ -50,6 +50,7 @@ type session struct {
 	failedRecording     *activeRecording
 	lifecycleMu         sync.Mutex
 	inputMu             sync.Mutex
+	markerMu            sync.Mutex
 	finalizationMu      sync.Mutex
 	journalClosePending bool
 	streamMu            sync.Mutex

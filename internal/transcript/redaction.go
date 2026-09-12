@@ -13,6 +13,24 @@ const transcriptStdoutFieldKey = "stdout"
 
 var structuralRedactor = redactpkg.New(redactpkg.Options{Disabled: true})
 
+func redactTokenUsage(usage *acp.TokenUsage) *acp.TokenUsage {
+	if usage == nil {
+		return nil
+	}
+	redacted := *usage
+	if usage.Meta != nil {
+		redacted.Meta = nil
+		raw, err := json.Marshal(usage.Meta)
+		if err != nil {
+			return &redacted
+		}
+		if err := json.Unmarshal(redactpkg.ClaimTokensJSON(raw), &redacted.Meta); err != nil {
+			redacted.Meta = nil
+		}
+	}
+	return &redacted
+}
+
 // RedactAgentEvent removes displayable secret material before an ACP event is
 // stored, replayed, or streamed to a caller.
 func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
@@ -43,6 +61,8 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
 	redacted = redacted.WithPromptRuntime(event.PromptRuntimeSnapshot())
 	redacted = redacted.WithAttachments(redactEventAttachments(event.Attachments()))
+	redacted = redacted.WithDelivery(redactDeliveryManifest(event.DeliveryManifest()))
+	redacted.Usage = redactTokenUsage(event.Usage)
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
 }
@@ -71,6 +91,8 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.Goal = redactGoalPromptMeta(payload.Goal)
 	payload.Attachments = redactEventAttachments(payload.Attachments)
 	payload.Runtime = redactRuntimeActivity(payload.Runtime)
+	payload.Delivery = redactDeliveryManifest(payload.Delivery)
+	payload.Usage = redactTokenUsage(payload.Usage)
 	payload.Raw = redactRawMessage(payload.Raw)
 }
 
@@ -214,4 +236,16 @@ func redactProviderError(diagnostic *acp.ProviderErrorDiagnostic) *acp.ProviderE
 	redacted.NextAction = acp.ProviderFailureAction(redactStructuralString(string(redacted.NextAction)))
 	redacted.Guidance = redactDisplayString(redacted.Guidance)
 	return redacted
+}
+
+func redactDeliveryManifest(manifest *acp.DeliveryManifest) *acp.DeliveryManifest {
+	if manifest == nil {
+		return nil
+	}
+	redacted := *manifest
+	redacted.Spans = append([]acp.DeliveredSpan(nil), manifest.Spans...)
+	for index := range redacted.Spans {
+		redacted.Spans[index].Name = redactDisplayString(redacted.Spans[index].Name)
+	}
+	return &redacted
 }

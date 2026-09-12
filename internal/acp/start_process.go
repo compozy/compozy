@@ -134,6 +134,7 @@ func (d *Driver) newAgentProcess(
 		providerAuthMode = normalized.ProviderConfig.EffectiveAuthMode()
 	}
 	return &AgentProcess{
+		logger:               d.logger,
 		caps:                 Caps{SteerCapability: steerCapabilityForStart(normalized)},
 		PID:                  handle.PID(),
 		AgentName:            normalized.AgentName,
@@ -155,6 +156,7 @@ func (d *Driver) newAgentProcess(
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,
 		systemPrompt:         normalized.SystemPrompt,
+		startupManifest:      CloneStartupManifest(normalized.StartupManifest),
 		systemPromptDelivery: normalized.SystemPromptDelivery,
 		promptCacheControl:   promptCacheControlForStartOpts(normalized),
 	}

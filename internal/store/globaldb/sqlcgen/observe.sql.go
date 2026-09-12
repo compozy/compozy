@@ -147,15 +147,27 @@ func (q *Queries) InsertEventSummary(ctx context.Context, arg InsertEventSummary
 
 const upsertTokenStats = `-- name: UpsertTokenStats :exec
 INSERT INTO token_stats (
+  cache_read_tokens, cache_write_tokens,
   id, session_id, agent_name, input_tokens, output_tokens, total_tokens,
   total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9, ?10,
-  ?11, ?12
+  ?1, ?2,
+  ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14
 )
 ON CONFLICT(session_id, agent_name) DO UPDATE SET
+  cache_read_tokens = CASE
+    WHEN excluded.cache_read_tokens IS NULL THEN token_stats.cache_read_tokens
+    WHEN token_stats.cache_read_tokens IS NULL THEN excluded.cache_read_tokens
+    ELSE token_stats.cache_read_tokens + excluded.cache_read_tokens
+  END,
+  cache_write_tokens = CASE
+    WHEN excluded.cache_write_tokens IS NULL THEN token_stats.cache_write_tokens
+    WHEN token_stats.cache_write_tokens IS NULL THEN excluded.cache_write_tokens
+    ELSE token_stats.cache_write_tokens + excluded.cache_write_tokens
+  END,
   input_tokens = CASE
     WHEN excluded.input_tokens IS NULL THEN token_stats.input_tokens
     WHEN token_stats.input_tokens IS NULL THEN excluded.input_tokens
@@ -214,22 +226,26 @@ ON CONFLICT(session_id, agent_name) DO UPDATE SET
 `
 
 type UpsertTokenStatsParams struct {
-	ID           string          `json:"id"`
-	SessionID    string          `json:"session_id"`
-	AgentName    string          `json:"agent_name"`
-	InputTokens  sql.NullInt64   `json:"input_tokens"`
-	OutputTokens sql.NullInt64   `json:"output_tokens"`
-	TotalTokens  sql.NullInt64   `json:"total_tokens"`
-	TotalCost    sql.NullFloat64 `json:"total_cost"`
-	CostCurrency sql.NullString  `json:"cost_currency"`
-	CostStatus   string          `json:"cost_status"`
-	CostSource   string          `json:"cost_source"`
-	TurnCount    int64           `json:"turn_count"`
-	UpdatedAt    string          `json:"updated_at"`
+	CacheReadTokens  sql.NullInt64   `json:"cache_read_tokens"`
+	CacheWriteTokens sql.NullInt64   `json:"cache_write_tokens"`
+	ID               string          `json:"id"`
+	SessionID        string          `json:"session_id"`
+	AgentName        string          `json:"agent_name"`
+	InputTokens      sql.NullInt64   `json:"input_tokens"`
+	OutputTokens     sql.NullInt64   `json:"output_tokens"`
+	TotalTokens      sql.NullInt64   `json:"total_tokens"`
+	TotalCost        sql.NullFloat64 `json:"total_cost"`
+	CostCurrency     sql.NullString  `json:"cost_currency"`
+	CostStatus       string          `json:"cost_status"`
+	CostSource       string          `json:"cost_source"`
+	TurnCount        int64           `json:"turn_count"`
+	UpdatedAt        string          `json:"updated_at"`
 }
 
 func (q *Queries) UpsertTokenStats(ctx context.Context, arg UpsertTokenStatsParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTokenStats,
+		arg.CacheReadTokens,
+		arg.CacheWriteTokens,
 		arg.ID,
 		arg.SessionID,
 		arg.AgentName,

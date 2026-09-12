@@ -25,7 +25,6 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 	return &core.BaseHandlerConfig{
 		TransportName:                "udsapi",
-		MaskInternalErrors:           false,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     cfg.sessions,
 		SessionAcceptance:            sessionAcceptanceManager(cfg.sessions),
@@ -68,6 +67,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Onboarding:                   cfg.onboarding,
 		AgentCatalog:                 cfg.agentCatalog,
 		AgentDefinitionSync:          cfg.agentSync,
+		ContextWindowResolver:        cfg.contextWindowResolver,
 		ModelCatalog:                 cfg.modelCatalog,
 		MarketplaceCatalog:           cfg.marketplaceCatalog,
 		AgentContextService:          cfg.agentContext,

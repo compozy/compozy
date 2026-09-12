@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@compozy/ui";
-
-import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
+import { userEvent } from "@testing-library/user-event";
+import { SessionContextControl } from "../session-context-control";
+import { deriveSessionContext } from "../../lib/session-context";
+import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
+import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
+import type { SessionContextPayload } from "../../types";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -37,97 +39,10 @@ afterEach(() => {
   });
 });
 
-function makeLedger(overrides?: Partial<SessionLedgerResponse>): SessionLedgerResponse {
-  return {
-    meta: {
-      version: 1,
-      session_id: "sess_123",
-      workspace_id: "ws_alpha",
-      root_session_id: "sess_root",
-      parent_session_id: "sess_parent",
-      spawn_depth: 2,
-      path: "/sessions/ws_alpha/sess_123/ledger.jsonl",
-      checksum: "sha256:abc123",
-      created_at: "2026-04-20T10:00:00Z",
-      stopped_at: "2026-04-20T11:00:00Z",
-      ...overrides?.meta,
-    },
-    events: overrides?.events ?? [
-      { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
-      { sequence: 2, event_type: "memory.recall", emitted_at: "2026-04-20T10:01:00Z" },
-      { sequence: 3, event_type: "memory.event", emitted_at: "2026-04-20T10:02:00Z" },
-    ],
-  };
-}
-
-function openMemoryTab() {
-  fireEvent.click(screen.getByTestId("session-inspector-tab-memory"));
-}
-
-function openUsageTab() {
-  fireEvent.click(screen.getByTestId("session-inspector-tab-usage"));
-}
-
-describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
-  it("Should consume <DetailInspector> with 4 tabs in a single flat tab strip", () => {
-    const ledger = makeLedger();
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
-
-    expect(screen.queryByTestId("session-inspector-tab-trace")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-tab-usage")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-tab-memory")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-tab-files")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-tab-vault")).toBeInTheDocument();
-  });
-
-  it("Should default the active tab to Usage", () => {
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
-
-    expect(screen.getByTestId("session-inspector-panel")).toHaveAttribute(
-      "data-active-tab",
-      "usage"
-    );
-    expect(screen.getByTestId("session-inspector-usage")).toBeInTheDocument();
-  });
-
-  it("Should render inline at >= 1440 px viewport (data-mode=inline) at 320 px width", () => {
-    installMatchMedia(true);
-    const { container } = render(
-      <SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />
-    );
-    const root = container.querySelector<HTMLElement>(
-      '[data-slot="detail-inspector"][data-mode="inline"]'
-    );
-    expect(root).not.toBeNull();
-    expect(root?.style.width).toBe("320px");
-  });
-
-  it("Should collapse into the right-anchored sheet drawer below 1440 px", () => {
-    installMatchMedia(false);
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        memory={{ ledger: null }}
-        drawerOpen
-        onDrawerOpenChange={() => {}}
-      />
-    );
-    const drawer = document.querySelector('[data-slot="detail-inspector"][data-mode="drawer"]');
-    expect(drawer).not.toBeNull();
-  });
-
-  it("Should expose DETAIL_INSPECTOR_INLINE_BREAKPOINT as the canonical 1440 px constant", () => {
-    expect(DETAIL_INSPECTOR_INLINE_BREAKPOINT).toBe(1440);
-  });
-});
-
 describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
   it("Should render real aggregated usage values from the daemon summary", () => {
     render(
       <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
         usage={{
           tokensIn: 128_400,
           tokensOut: 24_900,
@@ -138,11 +53,8 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
           costSource: "agent_reported",
           turnCount: 12,
         }}
-        memory={{ ledger: null }}
       />
     );
-
-    openUsageTab();
 
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
@@ -151,7 +63,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("$18.42");
     expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent(
-      "Across 12 turns"
+      "across 12 turns"
     );
   });
 
@@ -164,8 +76,6 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     }).format(2.5);
     render(
       <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
         usage={{
           costUsd: 2.5,
           costCurrency: "EUR",
@@ -173,27 +83,15 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
           costSource: "agent_reported",
           turnCount: 1,
         }}
-        memory={{ ledger: null }}
       />
     );
 
-    openUsageTab();
-
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(expectedCost);
-    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 1 turn");
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("across 1 turn");
   });
 
   it("Should show the truthful empty state when the session reported no usage", () => {
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        usage={{ turnCount: 0 }}
-        memory={{ ledger: null }}
-      />
-    );
-
-    openUsageTab();
+    render(<SessionInspector usage={{ turnCount: 0 }} />);
 
     expect(screen.queryByTestId("session-inspector-usage-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-usage-empty")).toHaveTextContent("No usage yet");
@@ -202,15 +100,8 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
 
   it("Should open the usage panel for a classification-only summary with no token counters", () => {
     render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        usage={{ costStatus: "included", costSource: "none", turnCount: 0 }}
-        memory={{ ledger: null }}
-      />
+      <SessionInspector usage={{ costStatus: "included", costSource: "none", turnCount: 0 }} />
     );
-
-    openUsageTab();
 
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
@@ -220,34 +111,16 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
   });
 
   it("Should open the usage panel when only a positive turn count is reported", () => {
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        usage={{ turnCount: 2 }}
-        memory={{ ledger: null }}
-      />
-    );
-
-    openUsageTab();
+    render(<SessionInspector usage={{ turnCount: 2 }} />);
 
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 2 turns");
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("across 2 turns");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("—");
   });
 
   it("Should keep the empty state when only a statusless cost amount is present", () => {
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        usage={{ costUsd: 18.42, costCurrency: "USD", turnCount: 0 }}
-        memory={{ ledger: null }}
-      />
-    );
-
-    openUsageTab();
+    render(<SessionInspector usage={{ costUsd: 18.42, costCurrency: "USD", turnCount: 0 }} />);
 
     expect(screen.queryByTestId("session-inspector-usage-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-usage-empty")).toHaveTextContent("No usage yet");
@@ -256,15 +129,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
 
 describe("SessionInspector — Usage tab cost provenance (W4)", () => {
   function renderUsage(usage: InspectorUsage) {
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        usage={usage}
-        memory={{ ledger: null }}
-      />
-    );
-    openUsageTab();
+    render(<SessionInspector usage={usage} />);
   }
 
   it("Should render actual cost as measured spend without an estimate glyph", () => {
@@ -322,183 +187,327 @@ describe("SessionInspector — Usage tab cost provenance (W4)", () => {
   });
 });
 
-describe("SessionInspector — Memory v2 forensic ledger surface", () => {
-  it("Should render lineage meta and ledger events when the ledger is materialized", () => {
-    const ledger = makeLedger();
+// Invariant: the single Context surface renders reported facts, bounded magnitude, and honest absence.
+// Owner: session domain components; canonical suite: SessionInspector.
 
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
+function ContextJourney() {
+  const inspector = useSessionInspectorState("context-journey");
+  return (
+    <>
+      <SessionContextControl
+        context={deriveSessionContext(sessionContextFixture)}
+        onOpen={() => inspector.setOpen(true)}
+      />
+      {inspector.open ? (
+        <SessionInspector context={deriveSessionContext(sessionContextFixture)} />
+      ) : null}
+    </>
+  );
+}
 
-    openMemoryTab();
-
-    const memorySurface = screen.getByTestId("session-inspector-memory");
-    expect(memorySurface).toHaveAttribute("data-state", "ready");
-
-    const meta = screen.getByTestId("session-inspector-memory-meta");
+describe("Session context", () => {
+  it("Should open the tab-less sidebar from the keyboard and share its preference", async () => {
+    window.localStorage.clear();
+    const user = userEvent.setup();
+    render(<ContextJourney />);
+    const button = screen.getByRole("button", { name: "Context 35% used" });
+    await user.tab();
+    expect(button).toHaveFocus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("35% · 89.7K / 256K");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("as of turn 12");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("complementary", { name: "Context" })).toBeVisible();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-testid^="session-inspector-tab-"]')).toBeNull();
+    expect(screen.getByTestId("session-inspector").children).toHaveLength(5);
     expect(
-      within(meta).getByTestId("session-inspector-memory-meta-workspace-value")
-    ).toHaveTextContent("ws_alpha");
-    expect(
-      within(meta).getByTestId("session-inspector-memory-meta-root-session-value")
-    ).toHaveTextContent("sess_root");
-    expect(
-      within(meta).getByTestId("session-inspector-memory-meta-parent-session-value")
-    ).toHaveTextContent("sess_parent");
-    expect(
-      within(meta).getByTestId("session-inspector-memory-meta-spawn-depth-value")
-    ).toHaveTextContent("2");
-    expect(within(meta).getByTestId("session-inspector-memory-meta-path-value")).toHaveTextContent(
-      "/sessions/ws_alpha/sess_123/ledger.jsonl"
-    );
-    expect(
-      within(meta).getByTestId("session-inspector-memory-meta-checksum-value")
-    ).toHaveTextContent("sha256:abc123");
-    expect(
-      within(meta).getByTestId("session-inspector-memory-meta-version-value")
-    ).toHaveTextContent("v1");
-
-    const eventsPanel = screen.getByTestId("session-inspector-memory-events");
-    expect(within(eventsPanel).getByText("Ledger events")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-memory-events-count")).toHaveTextContent("3");
-    const rows = screen.getAllByTestId("session-inspector-memory-event-row");
-    expect(rows).toHaveLength(3);
-    expect(
-      within(rows[0]!).getByTestId("session-inspector-memory-event-sequence")
-    ).toHaveTextContent("#1");
-    expect(within(rows[0]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "session.started"
-    );
-    expect(within(rows[1]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "memory.recall"
-    );
-    expect(within(rows[2]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "memory.event"
+      Array.from(screen.getByTestId("session-inspector").children).map(element =>
+        element.getAttribute("data-testid")
+      )
+    ).toEqual([
+      "session-context-meter",
+      "session-context-injected",
+      "session-inspector-usage",
+      "session-context-turns",
+      "session-context-activity",
+    ]);
+    expect(window.localStorage.getItem("compozy:session:inspector:v2")).toContain(
+      '"context-journey":true'
     );
   });
 
-  it("Should label the events panel as ledger events even when no memory.* events are present", () => {
-    const ledger = makeLedger({
-      events: [
-        { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
-        { sequence: 2, event_type: "transcript.user", emitted_at: "2026-04-20T10:01:00Z" },
-        { sequence: 3, event_type: "session.stopped", emitted_at: "2026-04-20T10:05:00Z" },
-      ],
-    });
-
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
-
-    openMemoryTab();
-
-    const eventsPanel = screen.getByTestId("session-inspector-memory-events");
-    expect(within(eventsPanel).getByText("Ledger events")).toBeInTheDocument();
-    expect(within(eventsPanel).queryByText("Memory events")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-memory-events-count")).toHaveTextContent("3");
-    const rows = screen.getAllByTestId("session-inspector-memory-event-row");
-    expect(rows).toHaveLength(3);
-    expect(within(rows[0]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "session.started"
-    );
-    expect(within(rows[1]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "transcript.user"
-    );
-    expect(within(rows[2]!).getByTestId("session-inspector-memory-event-type")).toHaveTextContent(
-      "session.stopped"
-    );
-  });
-
-  it("Should render a forensic-empty state when no ledger has materialized yet", () => {
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
-
-    openMemoryTab();
-
-    const memorySurface = screen.getByTestId("session-inspector-memory");
-    expect(memorySurface).toHaveAttribute("data-state", "unavailable");
-    expect(screen.getByTestId("session-inspector-memory-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-memory-empty")).toHaveTextContent(
-      "No session ledger yet"
-    );
-  });
-
-  it.each(["not-materialized", "unsupported"] as const)(
-    "Should present %s ledger availability without a read error",
-    availability => {
-      render(
-        <SessionInspector
-          messages={[]}
-          sessionId="sess_123"
-          memory={{ ledger: null, availability }}
-        />
-      );
-
-      openMemoryTab();
-
-      const memorySurface = screen.getByTestId("session-inspector-memory");
-      expect(memorySurface).toHaveAttribute("data-state", "unavailable");
-      expect(screen.queryByTestId("session-inspector-memory-error")).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-inspector-memory-empty")).toBeInTheDocument();
+  it.each([
+    {
+      context: { state: "unknown" } as SessionContextPayload,
+      label: "Context usage unknown",
+      copy: "This agent hasn't reported context usage.",
+    },
+    {
+      context: { state: "reported", used: 89_700 } as SessionContextPayload,
+      label: "Context 89.7K used",
+      copy: "89.7K used",
+    },
+    {
+      context: {
+        ...sessionContextFixture,
+        state: "estimated_size",
+        size_source: "catalog",
+        pressure_threshold: undefined,
+      } as SessionContextPayload,
+      label: "Context 35% used",
+      copy: "Window from model catalog.",
+    },
+  ])(
+    "Should render $label without inventing context or a compaction policy",
+    async ({ context, label, copy }) => {
+      const user = userEvent.setup();
+      render(<SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />);
+      await user.hover(screen.getByRole("button", { name: label }));
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(copy);
+      expect(screen.getByRole("tooltip")).not.toHaveTextContent("Compaction runs at");
+      if (context.used == null) expect(screen.getByRole("button")).not.toHaveTextContent("0%");
     }
   );
 
-  it("Should render a loading state while the ledger query resolves", () => {
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ isLoading: true }} />);
-
-    openMemoryTab();
-
-    expect(screen.getByTestId("session-inspector-memory")).toHaveAttribute("data-state", "loading");
-    expect(screen.getByTestId("session-inspector-memory-loading")).toBeInTheDocument();
+  it("Should retain raw over-capacity values, mark stale, and expose the eligible threshold", async () => {
+    const user = userEvent.setup();
+    const context = deriveSessionContext({
+      ...sessionContextFixture,
+      used: 281_600,
+      ratio: 1.1,
+      stale: true,
+    });
+    render(<SessionContextControl context={context} onOpen={vi.fn()} />);
+    await user.hover(screen.getByRole("button"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("stale");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Compaction runs at 85%");
+    expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
+      "stroke-dasharray",
+      "1 1"
+    );
+    // Freshness is shape (dotted mask), pressure is hue: both survive on one arc.
+    expect(screen.getByRole("button")).toHaveAttribute("data-state", "stale");
+    expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
+      "mask",
+      expect.stringMatching(/^url\(#/)
+    );
+    expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
+      "stroke",
+      "var(--color-warning)"
+    );
   });
 
-  it("Should render a forensic error state for non-404 ledger failures", () => {
+  it("Should bound the bar to used and size while retaining the raw estimate", () => {
+    const context = deriveSessionContext({
+      ...sessionContextFixture,
+      injected: { ...sessionContextFixture.injected!, tokens: 90_000 },
+    });
+    expect(context.display).toEqual({ compozy: 89_700, agent: 0, free: 166_300, total: 256_000 });
+    render(<SessionInspector context={context} />);
+    const meter = screen.getByTestId("session-context-meter");
+    expect(meter).toHaveTextContent("estimate exceeds reported");
+    expect(meter).toHaveTextContent("90K");
+    expect(meter).toHaveTextContent("166.3K");
+    expect(within(meter).getByRole("img")).toHaveAccessibleName(
+      "Context window: 89.7K of 256K used"
+    );
+    expect(deriveSessionContext(sessionContextFixture).display).toEqual({
+      compozy: 12_400,
+      agent: 77_300,
+      free: 166_300,
+      total: 256_000,
+    });
+    expect(deriveSessionContext({ ...sessionContextFixture, used: 281_600 }).display?.free).toBe(0);
+  });
+
+  it("Should show attribution without an agent report and disclose receipts honestly", async () => {
+    const user = userEvent.setup();
     render(
       <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        memory={{ error: new Error("ledger materializer crashed") }}
+        context={deriveSessionContext({
+          state: "unknown",
+          injected: {
+            ...sessionContextFixture.injected!,
+            rows: sessionContextFixture.injected!.rows.map(row => ({ ...row, stale: true })),
+          },
+        })}
       />
     );
-
-    openMemoryTab();
-
-    expect(screen.getByTestId("session-inspector-memory")).toHaveAttribute("data-state", "error");
-    expect(screen.getByTestId("session-inspector-memory-error")).toHaveTextContent(
-      "ledger materializer crashed"
+    expect(
+      within(screen.getByTestId("session-context-meter")).queryByRole("img")
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Context usage unknown");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("No context report");
+    await user.click(screen.getByRole("button", { name: /CompozyOS context/ }));
+    expect(screen.getByTestId("session-context-injected")).toHaveTextContent(
+      "No window reported, so there is nothing to draw the rows against."
     );
+    const rows = screen.getAllByTestId("session-context-injected-row");
+    expect(rows).toHaveLength(4);
+    expect(
+      screen
+        .getByTestId("session-context-injected")
+        .querySelector('[data-slot="status-breakdown-bar"]')
+    ).toBeNull();
+    expect(rows[0]).toHaveTextContent("≈ 3.1K");
+    expect(rows[0]).toHaveTextContent("unchanged since turn 1 · last seen turn 12");
+    expect(rows[1]).toHaveTextContent("modified by a hook");
+    expect(rows[2]).toHaveTextContent("architecture.png");
+    expect(rows[2]).toHaveTextContent("200 KiB");
+    expect(rows[2]).not.toHaveTextContent("≈");
+    expect(rows[3]).toHaveTextContent("included in the startup prompt");
+    expect(rows[3]).not.toHaveTextContent("≈");
+    expect(rows[0]).toHaveTextContent("may have been summarized");
   });
 
-  it("Should remain read-only and never expose editor, promote, or replay controls", () => {
-    const ledger = makeLedger();
-
-    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
-
-    openMemoryTab();
-
-    const memorySurface = screen.getByTestId("session-inspector-memory");
-    expect(within(memorySurface).queryAllByRole("button")).toHaveLength(0);
-    expect(within(memorySurface).queryAllByRole("textbox")).toHaveLength(0);
-    expect(within(memorySurface).queryByText(/promote/i)).not.toBeInTheDocument();
-    expect(within(memorySurface).queryByText(/replay/i)).not.toBeInTheDocument();
-    expect(within(memorySurface).queryByText(/edit/i)).not.toBeInTheDocument();
+  it("Should keep the last meter with an unavailable chip and omit unreported cache tiles", () => {
+    const { rerender } = render(
+      <SessionInspector
+        context={deriveSessionContext(sessionContextFixture, { unavailable: true })}
+        usage={{ cacheReadTokens: 12_800, cacheWriteTokens: 400 }}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("unavailable");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("89.7K");
+    expect(screen.getByTestId("session-inspector-usage")).toHaveTextContent("Cache read");
+    expect(screen.getByTestId("session-inspector-usage")).toHaveTextContent("Cache write");
+    rerender(<SessionInspector context={deriveSessionContext(undefined, { unavailable: true })} />);
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Usage unavailable");
+    expect(screen.queryByText("Cache read")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-context-turns")).toHaveTextContent("No turns yet");
+    expect(screen.getByTestId("session-context-activity").querySelector("li")).toBeNull();
   });
 
-  it("Should render an event-empty state when the ledger has zero events", () => {
-    const ledger = makeLedger({
-      meta: {
-        version: 1,
-        session_id: "sess_x",
-        spawn_depth: 0,
-        path: "/p",
-        checksum: "sha256:x",
-        created_at: "2026-04-20T10:00:00Z",
-      },
-      events: [],
-    });
+  it("Should order the union and compaction markers by sequence without claiming completion", () => {
+    render(
+      <SessionInspector
+        turns={sessionContextTurnsFixture}
+        activity={{ status: "Working for 49m 20s" }}
+      />
+    );
+    const rows = screen.getAllByTestId("session-context-turn-row");
+    expect(rows.map(row => within(row).getByText(/^Turn [0-9]+$/).textContent)).toEqual([
+      "Turn 4",
+      "Turn 3",
+      "Turn 2",
+      "Turn 1",
+    ]);
+    expect(rows[0]).toHaveTextContent("in 1K · out 200 · cache 800");
+    expect(rows[1]).toHaveTextContent("≈ 4K injected");
+    expect(rows[2]).toHaveTextContent("20K / 256K");
+    expect(rows[3]).toHaveTextContent("10K / 256K");
+    expect(screen.getAllByTestId("session-context-compaction")[0]).toHaveTextContent(
+      "CompozyOS compaction · at 88% · 225.3K · replay span not archived"
+    );
+    expect(screen.getAllByTestId("session-context-compaction")[1]).toHaveTextContent(
+      "CompozyOS compaction · at 85% · 217.6K · replay span archived"
+    );
+    expect(screen.getByTestId("session-context-activity")).toHaveTextContent("Working for 49m 20s");
+  });
 
-    render(<SessionInspector messages={[]} sessionId="sess_x" memory={{ ledger }} />);
+  it("Should show the newest fifty turns and reveal earlier turns on demand", async () => {
+    const user = userEvent.setup();
+    render(
+      <SessionInspector
+        turns={{
+          compactions: [],
+          turns: Array.from({ length: 120 }, (_, index) => ({
+            turn_id: `turn-${index + 1}`,
+            sequence: index + 1,
+          })),
+        }}
+      />
+    );
+    expect(screen.getAllByTestId("session-context-turn-row")).toHaveLength(50);
+    expect(screen.getAllByTestId("session-context-turn-row")[0]).toHaveTextContent("Turn 120");
+    await user.click(screen.getByRole("button", { name: /^Show earlier turns/ }));
+    expect(screen.getAllByTestId("session-context-turn-row")).toHaveLength(120);
+  });
 
-    openMemoryTab();
+  it("Should keep the same Context content in the narrow drawer", () => {
+    installMatchMedia(false);
+    render(<SessionInspector drawerOpen />);
+    expect(screen.getByRole("dialog", { name: "Context" })).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector")).toBeInTheDocument();
+  });
+});
 
-    const empty = screen.getByTestId("session-inspector-memory-events-empty");
-    expect(empty).toBeInTheDocument();
-    expect(empty).toHaveTextContent("No ledger events");
-    expect(screen.queryByTestId("session-inspector-memory-events-list")).not.toBeInTheDocument();
+// Invariant: loading is not a report, eligible pressure is visible, and per-turn costs preserve absence/currency.
+// Owner: session domain surfaces; canonical suite: SessionInspector.
+describe("Fable context surface corrections", () => {
+  it("Should reserve the loading control without asserting that the agent has not reported", async () => {
+    const user = userEvent.setup();
+    render(
+      <SessionContextControl
+        context={deriveSessionContext(undefined, { loading: true })}
+        onOpen={vi.fn()}
+      />
+    );
+    const button = screen.getByRole("button", { name: "Context usage loading" });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await user.tab();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Loading context usage");
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("hasn't reported");
+    expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+  });
+
+  it("Should use the meter empty copy and show near compaction only with eligible pressure", () => {
+    const { rerender } = render(<SessionInspector />);
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("No context report yet");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
+      "The meter fills once the agent reports its first turn."
+    );
+    rerender(
+      <SessionInspector
+        context={deriveSessionContext({ ...sessionContextFixture, ratio: 0.88, used: 225_280 })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("near compaction");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Compaction runs at 85%");
+    rerender(
+      <SessionInspector
+        context={deriveSessionContext({
+          ...sessionContextFixture,
+          state: "estimated_size",
+          ratio: 0.88,
+          size_source: "catalog",
+          pressure_threshold: undefined,
+        })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("near compaction");
+  });
+
+  it("Should show reported per-turn cost and currency while preserving the empty cost cell", () => {
+    render(
+      <SessionInspector
+        turns={{
+          compactions: [],
+          turns: [
+            {
+              turn_id: "turn-1",
+              sequence: 1,
+              usage: { timestamp: "2026-09-12T12:00:00Z", cost_amount: 1.25, cost_currency: "USD" },
+            },
+            {
+              turn_id: "turn-2",
+              sequence: 2,
+              usage: { timestamp: "2026-09-12T12:01:00Z", cost_amount: 2.5, cost_currency: "EUR" },
+            },
+            { turn_id: "turn-3", sequence: 3 },
+          ],
+        }}
+        activity={{ tools: "38 tools", thoughts: "12 thoughts", queued: "1 queued" }}
+      />
+    );
+    const rows = screen.getAllByTestId("session-context-turn-row");
+    expect(within(rows[0]!).getByRole("definition")).toHaveTextContent("—");
+    expect(within(rows[1]!).getByRole("definition")).toHaveTextContent("€2.50");
+    expect(within(rows[2]!).getByRole("definition")).toHaveTextContent("$1.25");
+    expect(screen.getByTestId("session-context-activity").querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByTestId("session-context-activity")).toHaveTextContent(
+      "38 tools · 12 thoughts"
+    );
   });
 });

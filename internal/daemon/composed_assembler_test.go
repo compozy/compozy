@@ -83,6 +83,53 @@ func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 }
 
 func TestComposedAssemblerAssemble(t *testing.T) {
+	t.Run("Should measure disjoint budgeted sections in document order without separators", func(t *testing.T) {
+		t.Parallel()
+		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:     "memory",
+				Position: PromptSectionPositionPrepend,
+				Budget:   3,
+				Provider: staticPromptProvider("abcdef"),
+			},
+			PromptSectionDescriptor{
+				Name:     "skills",
+				Position: PromptSectionPositionAppend,
+				Provider: staticPromptProvider("áé"),
+			},
+			PromptSectionDescriptor{
+				Name:           "omitted",
+				Position:       PromptSectionPositionAppend,
+				Budget:         1,
+				BudgetBehavior: PromptSectionBudgetBehaviorOmit,
+				Provider:       staticPromptProvider("too long"),
+			},
+		))
+		prompt, manifest, err := assembler.AssembleStartupWithManifest(
+			t.Context(),
+			session.StartupPromptContext{},
+			testPromptAgent(" base "),
+			&workspacepkg.ResolvedWorkspace{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prompt != "abc\n\nbase\n\náé" || len(manifest.Spans) != 3 {
+			t.Fatalf("prompt = %q, manifest = %#v", prompt, manifest)
+		}
+		keys := []string{"memory", "agent_prompt", "skills"}
+		lengths := []int64{3, 4, 4}
+		var total int64
+		for i, span := range manifest.Spans {
+			if span.Key != keys[i] || span.Bytes != lengths[i] || span.Kind != "text" || span.Tokens == nil {
+				t.Fatalf("span %d = %#v", i, span)
+			}
+			total += span.Bytes
+		}
+		if total != int64(len(prompt)-4) {
+			t.Fatalf("attributed %d bytes, prompt has %d", total, len(prompt))
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should zero providers returns trimmed base prompt", func(t *testing.T) {

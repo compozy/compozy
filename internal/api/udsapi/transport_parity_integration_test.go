@@ -2634,94 +2634,131 @@ func assertAndNormalizeSettingsReadParityVolatileFields(
 		return
 	}
 
-	// The transports are sampled sequentially, so runtime uptime can cross a second boundary.
+	assertAndNormalizeSampledUptime(
+		t,
+		&httpGeneral.Runtime.UptimeSeconds,
+		&udsGeneral.Runtime.UptimeSeconds,
+		sampleDuration,
+	)
+}
+
+func assertAndNormalizeSampledUptime(t *testing.T, httpUptime, udsUptime *int64, sampleDuration time.Duration) {
+	t.Helper()
 	maxDriftSeconds := int64(sampleDuration/time.Second) + 1
-	uptimeDrift := udsGeneral.Runtime.UptimeSeconds - httpGeneral.Runtime.UptimeSeconds
-	if uptimeDrift < 0 || uptimeDrift > maxDriftSeconds {
+	uptimeDrift := *udsUptime - *httpUptime
+	if *httpUptime < 0 || *udsUptime < 0 || uptimeDrift < 0 || uptimeDrift > maxDriftSeconds {
 		t.Fatalf(
-			"runtime uptime drift = %ds, want UDS after HTTP within %ds sampling window",
-			uptimeDrift,
+			"uptime HTTP=%ds UDS=%ds, want nonnegative values and UDS after HTTP within %ds sampling window",
+			*httpUptime,
+			*udsUptime,
 			maxDriftSeconds,
 		)
 	}
-	httpGeneral.Runtime.UptimeSeconds = 0
-	udsGeneral.Runtime.UptimeSeconds = 0
+	*httpUptime, *udsUptime = 0, 0
 }
 
 func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	t.Run("Should preserve extension state and bound uptime drift across transports", func(t *testing.T) {
+		t.Parallel()
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
-	clients, err := runtimeHarness.TransportClients()
-	if err != nil {
-		t.Fatalf("TransportClients() error = %v", err)
-	}
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
 
-	httpListResp := mustUnixRequest(
-		t,
-		clients.HTTPClient,
-		http.MethodGet,
-		transportSettingsHTTPURL(runtimeHarness, "/api/extensions"),
-		nil,
-		nil,
-	)
-	if httpListResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, httpListResp)
-		t.Fatalf(
-			"HTTP extension list status = %d, want %d; body=%s",
-			httpListResp.StatusCode,
-			http.StatusOK,
-			string(body),
+		sampleStarted := time.Now()
+		httpListResp := mustUnixRequest(
+			t,
+			clients.HTTPClient,
+			http.MethodGet,
+			transportSettingsHTTPURL(runtimeHarness, "/api/extensions"),
+			nil,
+			nil,
 		)
-	}
-	var httpList compozycontract.ExtensionsResponse
-	decodeHTTPJSON(t, httpListResp, &httpList)
+		if httpListResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, httpListResp)
+			t.Fatalf(
+				"HTTP extension list status = %d, want %d; body=%s",
+				httpListResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
+		}
+		var httpList compozycontract.ExtensionsResponse
+		decodeHTTPJSON(t, httpListResp, &httpList)
 
-	var udsList compozycontract.ExtensionsResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
-		t.Fatalf("UDSJSON(/api/extensions) error = %v", err)
-	}
-	if !reflect.DeepEqual(httpList.Extensions, udsList.Extensions) {
-		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
-	}
-	if len(httpList.Extensions) == 0 {
-		return
-	}
+		var udsList compozycontract.ExtensionsResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
+			t.Fatalf("UDSJSON(/api/extensions) error = %v", err)
+		}
+		sampleDuration := time.Since(sampleStarted)
+		if len(httpList.Extensions) != len(udsList.Extensions) {
+			t.Fatalf("HTTP extension count = %d, want UDS parity %d", len(httpList.Extensions), len(udsList.Extensions))
+		}
+		for i := range httpList.Extensions {
+			assertAndNormalizeSampledUptime(
+				t,
+				&httpList.Extensions[i].UptimeSeconds,
+				&udsList.Extensions[i].UptimeSeconds,
+				sampleDuration,
+			)
+		}
+		if !reflect.DeepEqual(httpList.Extensions, udsList.Extensions) {
+			t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
+		}
+		if len(httpList.Extensions) == 0 {
+			return
+		}
 
-	name := httpList.Extensions[0].Name
-	httpStatusResp := mustUnixRequest(
-		t,
-		clients.HTTPClient,
-		http.MethodGet,
-		transportSettingsHTTPURL(runtimeHarness, "/api/extensions/"+url.PathEscape(name)),
-		nil,
-		nil,
-	)
-	if httpStatusResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, httpStatusResp)
-		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
-	}
-	var httpStatus compozycontract.ExtensionResponse
-	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
+		name := httpList.Extensions[0].Name
+		sampleStarted = time.Now()
+		httpStatusResp := mustUnixRequest(
+			t,
+			clients.HTTPClient,
+			http.MethodGet,
+			transportSettingsHTTPURL(runtimeHarness, "/api/extensions/"+url.PathEscape(name)),
+			nil,
+			nil,
+		)
+		if httpStatusResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, httpStatusResp)
+			t.Fatalf(
+				"HTTP extension status = %d, want %d; body=%s",
+				httpStatusResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
+		}
+		var httpStatus compozycontract.ExtensionResponse
+		decodeHTTPJSON(t, httpStatusResp, &httpStatus)
 
-	var udsStatus compozycontract.ExtensionResponse
-	if err := runtimeHarness.UDSJSON(
-		ctx,
-		http.MethodGet,
-		"/api/extensions/"+url.PathEscape(name),
-		nil,
-		&udsStatus,
-	); err != nil {
-		t.Fatalf("UDSJSON(/api/extensions/%s) error = %v", name, err)
-	}
-	if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
-		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
-	}
+		var udsStatus compozycontract.ExtensionResponse
+		if err := runtimeHarness.UDSJSON(
+			ctx,
+			http.MethodGet,
+			"/api/extensions/"+url.PathEscape(name),
+			nil,
+			&udsStatus,
+		); err != nil {
+			t.Fatalf("UDSJSON(/api/extensions/%s) error = %v", name, err)
+		}
+		assertAndNormalizeSampledUptime(
+			t,
+			&httpStatus.Extension.UptimeSeconds,
+			&udsStatus.Extension.UptimeSeconds,
+			time.Since(sampleStarted),
+		)
+		if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
+			t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
+		}
+	})
 }
 
 func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *testing.T) {

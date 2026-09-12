@@ -1,8 +1,9 @@
 import type { CostSource, CostStatus } from "@/lib/cost-provenance";
-import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 
 export interface InspectorUsage {
   tokensIn?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   tokensOut?: number;
   totalTokens?: number;
   costUsd?: number;
@@ -10,16 +11,4 @@ export interface InspectorUsage {
   costStatus?: CostStatus;
   costSource?: CostSource;
   turnCount?: number;
-}
-
-export interface InspectorSessionLedger {
-  meta: SessionLedgerMeta;
-  events: readonly SessionLedgerEvent[];
-}
-
-export interface InspectorMemoryState {
-  availability?: "not-materialized" | "unsupported";
-  ledger?: InspectorSessionLedger | null;
-  isLoading?: boolean;
-  error?: Error | null;
 }

@@ -416,6 +416,22 @@ TaskExecutionProfile selectors, automation resources, or subsystem policy into `
 
 ### Usage cost truth
 
+ACP prompt-response counters use `cachedReadTokens` and `cachedWriteTokens`. CompozyOS carries them
+as `cache_read_tokens` and `cache_write_tokens` on usage payloads and accumulates them in the session
+statistics. An absent count remains unreported; an explicit zero remains zero. Historical statistics
+upgrade with unknown cache counts until an adapter reports them.
+
+The decoder still accepts `cacheReadTokens` and `cacheWriteTokens` in v0.4.0 and v0.5.0, with a
+once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.0.
+Canonical names take precedence when both are present. Negative counters, negative context usage,
+and a context size of zero or less are discarded with one warning per session.
+
+Object metadata from `usage_update._meta` is available as optional `usage.meta` in live and transcript
+payloads and in the canonical event content. CompozyOS removes nested `claim_token` keys and redacts
+claim-token values before storage or delivery. Non-object metadata is ignored. Metadata never enters
+the token projection or aggregate columns. `usage.sequence`, when present, identifies the carrying
+ledger event; an absent sequence does not imply a persisted observation.
+
 Provider model metadata is global config. Use Provider Settings HTTP/UDS or `config.toml` for the
 five pricing fields and `models.reasoning.apply`; use atomic model curation for flags and default
 effort or speed. A model's `default_speed` applies when the agent omits `speed`; an authored agent
@@ -443,6 +459,23 @@ nonzero bucket requires its own finite, non-negative rate. Never infer a cache r
 reasoning rate from output.
 
 Prefer `compozy session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
+
+The same response includes `context.state`: `reported`, `estimated_size`, `unknown`, or `unavailable`.
+Context is the latest ledger report, not a token sum. An estimated size comes from the current model
+catalog and does not enable pressure compaction. `stale` means the report precedes a different settled
+turn. Failed context reads retain the aggregate and return `context: {state: "unavailable"}`.
+
+Use `compozy session usage <session-id> --turns -o json` or `GET …/usage/turns` to inspect each turn
+that has usage or a delivery. `compactions[].span_archived` describes the persisted replay span's
+current archive flags; it is not proof that the agent compacted its window. A failed turns read returns
+an error. Listen for `session_usage_changed` on the transcript stream to refresh these queries; the
+signal never advances the transcript cursor. Its replay watermark is independent of transcript
+projection reads, so concurrent usage commits remain eligible for the next refresh.
+
+For TOON consumers, aggregate output includes `context_reported_at` and a `context_rows` array with
+delivery ownership and freshness. `--turns -o toon` emits separate `session_usage_turns`, `usage`,
+`deliveries`, `spans`, and `compactions` arrays joined by `turn_id`; numeric values, timestamps, and
+archive fields stay structured rather than being embedded in display text.
 
 `compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
 Use `--wait -o json` for the stop outcome (`state`, `verified`, `escalated`, `stop_cause`, `phase`,
@@ -964,3 +997,13 @@ Provider overlays inherit live-discovery adapters through `runtime_provider` whi
 `provider_live:<id>` source, execution command, credentials, and catalog scope. Refresh and list the
 overlay's models before curating them; a built-in provider's live result does not authorize another
 account's model. Claude logical IDs resolve to aliases advertised by the selected overlay.
+
+### Delivered context receipts
+
+`session usage <id> --turns` and `/sessions/{id}/usage/turns` include confirmed `prompt_delivery`
+receipts. `context.injected` estimates text with `bytes_div_4`, retains full owners for unchanged
+sections, and reports binary attachment bytes without tokens. An opaque hook-replaced startup prompt
+has one System prompt owner. Treat `stale` as possible summarization after a reported context drop;
+a replay-compaction marker alone does not establish that. Use session events to inspect receipt
+send times and exact per-turn spans. These receipts cover CompozyOS-owned content, not the agent's
+private context, and a failed transport dispatch produces no receipt.

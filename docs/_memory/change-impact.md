@@ -118,6 +118,12 @@ Owning spec: `.compozy/tasks/fallback-account/_spec.md` (Part II §Impact Analys
 
 ## Session context — composer meter, Context sidebar, usage contract
 
+PR #635 CI follow-up: terminal input waits for an in-flight authenticated marker admission before
+checking the journal audit state, including inputs queued behind another submission. This preserves
+the existing fail-closed contract without changing native tool IDs, HTTP/UDS/CLI schemas, hooks,
+configuration, stored data, workspace isolation, Web layout, or official skill/site instructions.
+`ET-terminal-journal-fail-closed` and the existing terminal/API integration suites own verification.
+
 Owning spec: `.compozy/tasks/session-context/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001…007 record the decisions; exploration in `analysis/summary.md`; peer review rounds 1 and 2 incorporated 2026-09-11, `qa/peer-review-incorporation-round{1,2}.md`). Implementation slices link here and update only affected entries.
 
 - **Native tools:** no `compozy__*` tool added, renamed, or changed; `compozy__session_describe|events|history` keep their IDs, schemas, and digests (`session_events` now also lists `prompt_delivery` events through the existing passthrough). Agents read context through `compozy session usage -o json [--turns]` over UDS or `GET …/usage` / `GET …/usage/turns`.
@@ -125,6 +131,19 @@ Owning spec: `.compozy/tasks/session-context/_spec.md` (Part II §Impact Analysi
 - **Workspace data isolation:** globaldb `token_stats` gains nullable `cache_read_tokens` / `cache_write_tokens` by Goose migration (accumulated per session/agent on done turns like the other counters; historical rows read NULL → absent); no session-DB schema change (the delivery manifest is a ledger event archived and wiped with the session ledger; usage payloads gain a wire-only `sequence`); `context` is derived per session from that session's ledger (observations, deliveries, compactions), projection, and effective model; the catalog window lookup is keyed by the session's provider/model; nothing crosses workspaces or sessions.
 - **Official CompozyOS skill:** `skills/compozy/references/runtime-operations.md` §session usage documents cache totals, `context` (`state` incl. `unavailable`, `used`, `size`, `size_source`, `stale`, `sequence`, `pressure_threshold` eligibility, `injected` rows), `--turns` (union rows ordered by sequence, compaction markers with `span_archived` — a fact, never a completion claim), the `prompt_delivery` event, and the `session_usage_changed` stream event.
 - **Web/Docs:** `web/src/components/assistant-ui/session-composer-action-row.tsx` (new context control), `web/src/systems/session/components/session-inspector*.tsx` (tab-less Context sidebar; Memory/Files/Vault sections deleted — Vault stays at `/vault`, file audit stays in the transcript roll-up, the ledger stays on `getMemorySessionLedger`), `web/src/systems/session/hooks/use-session-context.ts` + `use-session-usage-turns` (new), `hooks/session-stream-source.ts` + `hooks/session-live-tail-runtime.ts` (named `session_usage_changed` listener and invalidation), `web/src/systems/os/apps/session/use-session-window-controller.tsx` (usage query ungated; ledger/vault wiring removed). `packages/site`: `cli/session/usage.mdx` (cache lines, Context block, `--turns`), `api/sessions.mdx` (`context`, `getSessionUsageTurns`), `sessions/events.mdx` (`prompt_delivery`). Verification owners: `_tests.md` (UT/IT/E2E), `eng-ui-screenshot` bundles for `docs/design/opendesign/session-context/`, QA scenarios `RT-052`, `RT-session-cost-provenance`, `RT-024`, `ET-web-session-inspector-toggle` updated and reset to `untested`; new `ET-web-session-context-meter`, `ET-web-session-context-sidebar`, `ET-cli-session-usage-context`, `RT-acp-usage-cache-meta`.
+
+PR #635 review follow-up: usage SSE keeps its own replay watermark and reads ordered ledger events.
+Web teardown flushes pending aggregate and turn invalidations; an unavailable context snapshot no
+longer hides newer token/cache totals. The window owns activity subscriptions and passes presentation
+data into the Context panel. CLI TOON retains report timestamps, delivered rows, and separate raw
+turn/usage/delivery/span/compaction arrays. HTTP/UDS schemas, native tool IDs, hook/config contracts,
+and persisted workspace isolation are unchanged. The official runtime-operations skill and the
+owning CLI/context-sidebar QA scenarios document these corrections.
+The final review extends the terminal marker lock through journal reservation, preserving output
+progress outside PTY writes. Text-only session errors now remain visible with their original detail;
+empty errors and attributed stops retain their existing filtering. This changes Web presentation
+only, with no new event fields, native tools, hook/config behavior, persistence, or skill contract.
+Predicate coverage follows its library owner; the transcript-grammar scenario records the change.
 
 ## Marketplace catalog — one kind, plugin marketplaces as sources
 
@@ -392,3 +411,5 @@ No additional public, config, persistence, or Web contracts change.
   `ET-terminal-redaction-boundaries` and `ET-terminal-agent-handoff-input` scenarios gain raw-mode
   cases. Canonical PTY, session input/recording, and real HTTP/WebSocket integration suites own
   regression evidence; changes do not affect Unicode counting or shell environment setup.
+
+Session-context implementation closure (2026-09-12): the turn query hook shares `use-session-context.ts`; confirmed receipt data uses AgentEvent's existing optional payload with isolated clones, preserving the public `delivery` JSON field. Lazy CreateAccepted retains startup ownership. All selected scenario verdicts pass after runtime and opaque-ID repairs; the feature QA report is `docs/qa/reports/2026-09-12-session-context.md`. Cache migration 00110 and owning generated contracts co-ship. Native tool IDs, hook contracts and workspace isolation remain as audited above.

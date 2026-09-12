@@ -1,0 +1,22 @@
+{
+    "usage": {
+        "input_tokens": 10,
+        "cache_read_tokens": 4,
+        "cache_write_tokens": 5,
+        "turn_count": 1,
+        "cost_status": "unknown",
+        "cost_source": "none",
+        "context": {
+            "state": "reported",
+            "used": 80,
+            "size": 100,
+            "ratio": 0.8,
+            "size_source": "agent",
+            "stale": false,
+            "sequence": 10,
+            "reported_turn_id": "turn-A",
+            "reported_at": "2026-09-11T10:00:00Z",
+            "pressure_threshold": 0.85
+        }
+    }
+}

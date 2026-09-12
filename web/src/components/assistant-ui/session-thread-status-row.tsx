@@ -14,7 +14,7 @@ import {
   activeReplyHasContent,
   lastSettledTurn,
   type SessionStopFacts,
-} from "./session-thread-status.logic";
+} from "@/systems/session/lib/session-thread-status";
 
 // Thinking needs nothing from the session resource; a surface without one
 // (read-only rows, stories) still reads the pending reply truthfully.

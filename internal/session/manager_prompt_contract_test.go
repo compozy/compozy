@@ -200,6 +200,70 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should persist cache counters and sanitized metadata while projecting only usage values",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				out := make(chan acp.AgentEvent, 2)
+				for _, kind := range []string{acp.EventTypeUsage, acp.EventTypeDone} {
+					out <- acp.AgentEvent{Type: kind, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC), Usage: &acp.TokenUsage{TurnID: req.TurnID, InputTokens: new(int64(10)), OutputTokens: new(int64(2)), TotalTokens: new(int64(12)), CacheReadTokens: new(int64(4)), CacheWriteTokens: new(int64(5)), ContextUsed: new(int64(80)), ContextSize: new(int64(100)), Meta: map[string]any{"_claude/origin": "result", "nested": map[string]any{"claim_token": "secret", "note": "compozy_claim_secret"}}}}
+				}
+				close(out)
+				return out, nil
+			}
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			stream, err := h.manager.Prompt(testutil.Context(t), sess.ID, "measure")
+			if err != nil {
+				t.Fatal(err)
+			}
+			delivered := collectEvents(t, stream)
+			if len(delivered) != 2 {
+				t.Fatalf("delivered = %#v", delivered)
+			}
+			stored, err := sess.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, event := range delivered {
+				usage := event.Usage
+				if usage == nil || usage.CacheReadTokens == nil || *usage.CacheReadTokens != 4 ||
+					usage.Sequence != stored[i+1].Sequence ||
+					usage.Sequence <= 0 ||
+					usage.Meta["_claude/origin"] != "result" {
+					t.Fatalf("delivered usage = %#v", usage)
+				}
+				nested := usage.Meta["nested"].(map[string]any)
+				if _, exists := nested["claim_token"]; exists {
+					t.Fatal("claim key reached live delivery")
+				}
+				if nested["note"] != "compozy_claim_[REDACTED]" {
+					t.Fatalf("nested metadata = %#v", nested)
+				}
+			}
+			for _, event := range stored {
+				if strings.Contains(event.Content, "claim_token") ||
+					strings.Contains(event.Content, "compozy_claim_secret") {
+					t.Fatalf("unsafe stored event = %s", event.Content)
+				}
+			}
+			projected, err := sess.recorderHandle().ListTokenUsage(testutil.Context(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(projected) != 1 || projected[0].CacheReadTokens == nil || *projected[0].CacheReadTokens != 4 ||
+				projected[0].CacheWriteTokens == nil ||
+				*projected[0].CacheWriteTokens != 5 ||
+				projected[0].InputTokens == nil ||
+				*projected[0].InputTokens != 10 ||
+				projected[0].ContextUsed == nil ||
+				*projected[0].ContextUsed != 80 {
+				t.Fatalf("projection = %#v", projected)
+			}
+		},
+	)
 
 	h := newHarness(t)
 	session := createSession(t, h)

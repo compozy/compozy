@@ -41,24 +41,27 @@ type promptAgentEventPayload struct {
 	Decision      string                           `json:"decision,omitempty"`
 	Error         string                           `json:"error,omitempty"`
 	ProviderError *acp.ProviderErrorDiagnostic     `json:"provider_error,omitempty"`
+	Delivery      *acp.DeliveryManifest            `json:"delivery,omitempty"`
 	Usage         *promptTokenUsagePayload         `json:"usage,omitempty"`
 	Runtime       *contract.RuntimeActivityPayload `json:"runtime,omitempty"`
 	Raw           json.RawMessage                  `json:"raw,omitempty"`
 }
 
 type promptTokenUsagePayload struct {
-	TurnID           string   `json:"turn_id,omitempty"`
-	InputTokens      *int64   `json:"input_tokens,omitempty"`
-	OutputTokens     *int64   `json:"output_tokens,omitempty"`
-	TotalTokens      *int64   `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64   `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64   `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64   `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64   `json:"context_used,omitempty"`
-	ContextSize      *int64   `json:"context_size,omitempty"`
-	CostAmount       *float64 `json:"cost_amount,omitempty"`
-	CostCurrency     *string  `json:"cost_currency,omitempty"`
-	Timestamp        string   `json:"timestamp,omitempty"`
+	Meta             map[string]any `json:"meta,omitempty"`
+	Sequence         *int64         `json:"sequence,omitempty"`
+	TurnID           string         `json:"turn_id,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitempty"`
+	OutputTokens     *int64         `json:"output_tokens,omitempty"`
+	TotalTokens      *int64         `json:"total_tokens,omitempty"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
+	ContextUsed      *int64         `json:"context_used,omitempty"`
+	ContextSize      *int64         `json:"context_size,omitempty"`
+	CostAmount       *float64       `json:"cost_amount,omitempty"`
+	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	Timestamp        string         `json:"timestamp,omitempty"`
 }
 
 type promptFinishPayload struct {

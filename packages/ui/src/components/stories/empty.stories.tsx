@@ -197,3 +197,24 @@ export const FillRemaining: Story = {
     </div>
   ),
 };
+
+/**
+ * Compact rendition for 320px rails and dense panels: 32px well, form-size
+ * title, micro description. The dashed hairline here is the host's frame,
+ * not part of the primitive.
+ */
+export const Compact: Story = {
+  render: () => (
+    <div className="flex w-[320px] flex-col gap-4 bg-canvas-soft p-4">
+      <Empty
+        size="compact"
+        fill={false}
+        className="rounded-lg border border-dashed border-line-soft px-3 py-4.5"
+        icon={SearchIcon}
+        title="No context report yet"
+        description="The meter fills once the agent reports its first turn."
+      />
+      <Empty size="compact" fill={false} title="No turns yet" />
+    </div>
+  ),
+};
