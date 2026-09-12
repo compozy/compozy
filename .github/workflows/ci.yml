@@ -349,6 +349,13 @@ jobs:
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
+          # Runner-provided completion directories can be group/world writable.
+          # Repair their permissions so global compinit can pass its security audit.
+          mapfile -t insecure_paths < <(zsh -fc 'autoload -Uz compaudit; compaudit' 2>/dev/null)
+          if (( ${#insecure_paths[@]} > 0 )); then
+            sudo chmod go-w -- "${insecure_paths[@]}"
+          fi
+          zsh -fc 'autoload -Uz compaudit; compaudit'
           zsh --version
 
       - name: Verify zsh startup contracts
