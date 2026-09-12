@@ -65,6 +65,7 @@ type fakeProc struct {
 	redactedWrites atomic.Int32
 	echoWrites     atomic.Bool
 	echoEnabled    bool
+	lineEditing    bool
 	visibilitySeen chan struct{}
 	visibilityWait <-chan struct{}
 	writeStarted   chan struct{}
@@ -132,7 +133,7 @@ func (p *fakeProc) InputVisible() (bool, error) {
 	started := p.visibilitySeen
 	p.visibilitySeen = nil
 	release := p.visibilityWait
-	visible := p.echoEnabled
+	visible := p.echoEnabled || p.lineEditing
 	p.mu.Unlock()
 	if started != nil {
 		close(started)
@@ -141,6 +142,12 @@ func (p *fakeProc) InputVisible() (bool, error) {
 		<-release
 	}
 	return visible, nil
+}
+
+func (p *fakeProc) InputEchoEnabled() (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.echoEnabled, nil
 }
 
 func (p *fakeProc) WriteRedacted(input []byte) (terminalpty.RedactedWriteResult, error) {

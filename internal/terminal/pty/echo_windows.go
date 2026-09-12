@@ -56,6 +56,10 @@ func windowsErrorCode(err error) uint32 {
 }
 
 func (p *windowsProc) InputVisible() (bool, error) {
+	return p.InputEchoEnabled()
+}
+
+func (p *windowsProc) InputEchoEnabled() (bool, error) {
 	p.inputMu.Lock()
 	defer p.inputMu.Unlock()
 	if err := p.io.begin(); err != nil {

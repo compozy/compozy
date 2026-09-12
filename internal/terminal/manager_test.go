@@ -3053,75 +3053,86 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve delivered redacted input once while foreground input stays hidden", func(t *testing.T) {
-		t.Parallel()
-		journal := &fakeRecordingJournal{}
-		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
-		handle, err := manager.Open(t.Context(), OpenRequest{
-			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+	for _, tc := range []struct {
+		name        string
+		lineEditing bool
+	}{
+		{name: "Should resolve delivered redacted input once while foreground input stays hidden"},
+		{name: "Should resolve explicitly redacted raw input without recording its contents", lineEditing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			journal := &fakeRecordingJournal{}
+			manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(agent) error = %v", err)
+			}
+			proc := receiveStartedProc(t, starter)
+			proc.hideInputEcho()
+			proc.mu.Lock()
+			proc.lineEditing = tc.lineEditing
+			proc.mu.Unlock()
+			type requestResult struct {
+				outcome *InputOutcome
+				err     error
+			}
+			requestDone := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(
+					t.Context(),
+					agent,
+					InputRequest{Reason: "password", Redact: true},
+				)
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			answer, answerErr := handle.AnswerInput(
+				t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+			)
+			if answerErr != nil || answer == nil || answer.Outcome != "answered" || answer.Length != len("secret") {
+				t.Fatalf(
+					"AnswerInput(hidden foreground) = %#v error=%v, want answered",
+					answer,
+					answerErr,
+				)
+			}
+			request := <-requestDone
+			if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" {
+				t.Fatalf("RequestInput() = %#v error=%v, want answered", request.outcome, request.err)
+			}
+			if got := proc.inputString(); got != "secret\n" {
+				t.Fatalf("delivered input = %q, want one secret delivery", got)
+			}
+			read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
+			if err != nil {
+				t.Fatalf("Screen() error = %v", err)
+			}
+			if len(read.Segments) != 1 || read.Segments[0].Kind != OutputSegmentRedactedInput ||
+				read.Segments[0].Characters != len("secret") {
+				t.Fatalf("redacted segments = %#v, want one trusted length-only marker", read.Segments)
+			}
+			journal.mu.Lock()
+			journalInputs := slices.Clone(journal.inputs)
+			journal.mu.Unlock()
+			if len(journalInputs) != 1 || !journalInputs[0].Redacted ||
+				journalInputs[0].Characters != len("secret") || len(journalInputs[0].Content) != 0 {
+				t.Fatalf("journal inputs = %#v, want one length-only redacted input", journalInputs)
+			}
+			if _, retryErr := handle.AnswerInput(
+				t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+			); !errors.Is(retryErr, ErrInputAnswered) ||
+				terminalErrorCode(retryErr) != string(ErrorCodeInputRequestAnswered) {
+				t.Fatalf("AnswerInput(retry) error = %v, want already answered", retryErr)
+			}
+			if got := proc.inputString(); got != "secret\n" {
+				t.Fatalf("delivered input after retry = %q, want no duplicate", got)
+			}
 		})
-		if err != nil {
-			t.Fatalf("Open(agent) error = %v", err)
-		}
-		proc := receiveStartedProc(t, starter)
-		proc.hideInputEcho()
-		type requestResult struct {
-			outcome *InputOutcome
-			err     error
-		}
-		requestDone := make(chan requestResult, 1)
-		go func() {
-			outcome, requestErr := handle.RequestInput(
-				t.Context(),
-				agent,
-				InputRequest{Reason: "password", Redact: true},
-			)
-			requestDone <- requestResult{outcome: outcome, err: requestErr}
-		}()
-		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
-		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		answer, answerErr := handle.AnswerInput(
-			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
-		)
-		if answerErr != nil || answer == nil || answer.Outcome != "answered" || answer.Length != len("secret") {
-			t.Fatalf(
-				"AnswerInput(hidden foreground) = %#v error=%v, want answered",
-				answer,
-				answerErr,
-			)
-		}
-		request := <-requestDone
-		if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" {
-			t.Fatalf("RequestInput() = %#v error=%v, want answered", request.outcome, request.err)
-		}
-		if got := proc.inputString(); got != "secret\n" {
-			t.Fatalf("delivered input = %q, want one secret delivery", got)
-		}
-		read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
-		if err != nil {
-			t.Fatalf("Screen() error = %v", err)
-		}
-		if len(read.Segments) != 1 || read.Segments[0].Kind != OutputSegmentRedactedInput ||
-			read.Segments[0].Characters != len("secret") {
-			t.Fatalf("redacted segments = %#v, want one trusted length-only marker", read.Segments)
-		}
-		journal.mu.Lock()
-		journalInputs := slices.Clone(journal.inputs)
-		journal.mu.Unlock()
-		if len(journalInputs) != 1 || !journalInputs[0].Redacted ||
-			journalInputs[0].Characters != len("secret") || len(journalInputs[0].Content) != 0 {
-			t.Fatalf("journal inputs = %#v, want one length-only redacted input", journalInputs)
-		}
-		if _, retryErr := handle.AnswerInput(
-			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
-		); !errors.Is(retryErr, ErrInputAnswered) ||
-			terminalErrorCode(retryErr) != string(ErrorCodeInputRequestAnswered) {
-			t.Fatalf("AnswerInput(retry) error = %v, want already answered", retryErr)
-		}
-		if got := proc.inputString(); got != "secret\n" {
-			t.Fatalf("delivered input after retry = %q, want no duplicate", got)
-		}
-	})
+	}
 
 	t.Run(
 		"Should supersede a redacted request when foreground input becomes visible before delivery",

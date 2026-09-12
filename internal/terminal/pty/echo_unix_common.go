@@ -23,17 +23,22 @@ func (p *unixProc) inputVisibleLocked() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if state.Lflag&unix.ECHO != 0 {
-		return true, nil
+	// Raw line editors render their own input regardless of foreground process group.
+	return state.Lflag&unix.ECHO != 0 || state.Lflag&unix.ICANON == 0, nil
+}
+
+func (p *unixProc) InputEchoEnabled() (bool, error) {
+	if err := p.io.begin(); err != nil {
+		return false, err
 	}
-	if state.Lflag&unix.ICANON != 0 {
-		return false, nil
-	}
-	foregroundGroup, err := p.foregroundProcessGroup()
+	defer p.io.end()
+	p.inputMu.Lock()
+	defer p.inputMu.Unlock()
+	state, err := p.readTermios()
 	if err != nil {
 		return false, err
 	}
-	return foregroundGroup == p.ProcessGroupID(), nil
+	return state.Lflag&unix.ECHO != 0, nil
 }
 
 func (p *unixProc) WriteRedacted(input []byte) (RedactedWriteResult, error) {
@@ -43,11 +48,11 @@ func (p *unixProc) WriteRedacted(input []byte) (RedactedWriteResult, error) {
 	defer p.io.end()
 	p.inputMu.Lock()
 	defer p.inputMu.Unlock()
-	visible, err := p.inputVisibleLocked()
+	state, err := p.readTermios()
 	if err != nil {
 		return RedactedWriteResult{}, err
 	}
-	if visible {
+	if state.Lflag&unix.ECHO != 0 {
 		return RedactedWriteResult{}, ErrInputVisible
 	}
 	written, writeErr := writeAllRedactedBytes(input, p.write)
@@ -75,18 +80,6 @@ func (p *unixProc) writeTermios(state *unix.Termios, action string) error {
 		return fmt.Errorf("terminal pty: %s echo: %w", action, err)
 	}
 	return nil
-}
-
-func (p *unixProc) foregroundProcessGroup() (int, error) {
-	foregroundGroup := 0
-	if err := p.controlTerminal(func(fd int) error {
-		var err error
-		foregroundGroup, err = unix.IoctlGetInt(fd, unix.TIOCGPGRP)
-		return err
-	}); err != nil {
-		return 0, fmt.Errorf("terminal pty: inspect foreground process group: %w", err)
-	}
-	return foregroundGroup, nil
 }
 
 func (p *unixProc) controlTerminal(operation func(int) error) error {

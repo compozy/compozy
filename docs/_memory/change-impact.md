@@ -340,3 +340,25 @@ No additional public, config, persistence, or Web contracts change.
 - **Web/Docs/QA:** Web Terminal uses the corrected daemon PTY path without renderer changes.
   `ET-terminal-shell-config-fidelity` includes startup redirection, plugin loading and nested shells.
   The real-zsh PTY replay and platform limits are recorded in the linked QA report.
+
+## Issue 628 — Nested raw terminal input
+
+- **Native tools:** `compozy__terminal_write`, `compozy__terminal_request_input`, CLI respond,
+  and HTTP/UDS/WebSocket input retain their schemas and authorization. Unix ordinary raw input
+  no longer emits automatic hidden-input markers. Explicit redaction remains accepted for no-echo
+  canonical and raw readers, and rejects echo-enabled input at admission and delivery.
+- **Extensibility/hooks/config:** no new configuration, hook, SDK, or capability. Existing input
+  events retain trusted redaction/length metadata. Process identity no longer guesses secrecy.
+- **Workspace data isolation:** no database or layout migration; existing session/profile/workspace
+  checks and journal reservation remain authoritative. Previously redacted recordings stay intact.
+  Ordinary raw input is now journaled as ordinary input; raw secrets require explicit redaction.
+- **Compatibility:** public shapes and error codes remain; the internal PTY interface adds an echo
+  query to separate automatic classification from explicit hidden-input admission. Windows retains
+  console echo behavior. No public removal or deprecation shim is needed.
+- **Official skill:** terminal input-request guidance documents canonical detection, explicit raw
+  secret entry, and the limit that application-rendered input cannot be hidden by termios.
+- **Web/Docs/QA:** existing Terminal rendering consumes the corrected stream without component or
+  layout changes. Terminal safety and recording docs explain the same limits. The affected
+  `ET-terminal-redaction-boundaries` and `ET-terminal-agent-handoff-input` scenarios gain raw-mode
+  cases. Canonical PTY, session input/recording, and real HTTP/WebSocket integration suites own
+  regression evidence; changes do not affect Unicode counting or shell environment setup.

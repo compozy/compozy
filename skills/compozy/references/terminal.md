@@ -106,10 +106,19 @@ input from other authorized actors.
 After the operator answers, resume from the returned outcome. A rejected or expired request is
 terminal for that request; do not infer consent or replay old input. Redacted input
 is delivered directly to the waiting process and never returned to the agent. The runtime rejects a
-redacted request while input is visible and supersedes it if visibility changes before delivery.
+redacted request while terminal echo is enabled and supersedes it if echo is enabled before delivery.
 Scrollback, replay, the journal, and
 recordings retain only the trusted `hidden input · N characters` marker. Identical text printed by the
 shell remains ordinary untrusted output and does not become a marker.
+
+On Unix, automatic hidden-input detection applies to canonical line input with terminal echo
+disabled. Raw-mode programs, including nested shells, editors, pagers, and REPLs, handle their own
+echo and remain ordinary input. A raw password reader is indistinguishable from a line editor by
+terminal mode alone: use an explicitly redacted input request for secrets, and ensure the foreground
+program does not print them. The daemon requires terminal echo to be disabled both when creating
+the request and when delivering its answer; it does not turn echo off on the program's behalf.
+Never send a secret to an idle shell or a program that renders it. Redaction omits submitted bytes
+from the input journal and emits length markers; it cannot prevent a program from printing its input.
 
 `terminal input-requests -o json` returns bounded `pending` and `resolved` arrays. Requester and
 resolver are limited to `{kind,id}`; resolved rows retain outcome, timestamps, redaction, and length,
