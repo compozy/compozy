@@ -14,9 +14,9 @@ Fumadocs/Next.js site at `compozy.com`, with Velite blog content and Bun workspa
 
 ## References and Validation
 
-Use `fumadocs` or `next-best-practices` for framework-specific work, `documentation-writer` for substantial doc structure, `copywriting` for marketing, and `eng-design` for redesign. Load only the relevant procedure; ordinary prose edits need no whole skill stack.
+Use `fumadocs` or `next-best-practices` for framework-specific work, `documentation-writer` for substantial doc structure, `copywriting` for marketing, and `eng-design` for redesign.
 
-Choose the existing content/route/component suite that owns changed behavior. Source generation, build, metadata, and link checks often cover editorial changes without a new Vitest test. Frontend validation runs through Turbo from the repo root:
+Source generation, build, metadata, and link checks often cover editorial changes without a new Vitest test. Frontend validation runs through Turbo from the repo root:
 
 ```bash
 bunx turbo run typecheck --filter=./packages/site
@@ -26,7 +26,7 @@ make cli-docs
 make cli-docs-check
 ```
 
-`make gate` selects required delivery lanes. The Turbo `generate:openapi → generate:content` graph owns generation; local `make site-dev` runs dev generators. After `source.config.ts` changes, regenerate and run the focused typecheck. Reuse current check results for unchanged inputs.
+`make gate` selects required delivery lanes. The Turbo `generate:openapi → generate:content` graph owns generation; local `make site-dev` runs dev generators. After `source.config.ts` changes, regenerate and run the focused typecheck.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

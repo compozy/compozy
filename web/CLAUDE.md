@@ -13,7 +13,7 @@ React SPA using Vite, TanStack Router/Query, Tailwind, shadcn/ui, XState Store, 
 
 ## Design and Copy
 
-- Read `packages/ui/src/index.ts` before adding UI; compose existing primitives and domain components. Domain variants use domain-prefixed names.
+- Before adding UI, check `packages/ui/src/index.ts` with the `primitives.ts` and `exports/*.ts` files it re-exports, then the owning system's `components/`. Compose what exists. A domain-prefixed name such as `SessionToolCallRow` is for behavior the primitive cannot express, not for a restyled copy; a near-miss extends the primitive in `packages/ui` with a variant, slot, or tone. A generic need with no primitive goes to `packages/ui` with story and test, callsites migrated in the same change; a domain composite stays in `src/systems/<domain>/components/`. `compozy-ui-reuse/no-shadow-ui-primitive` catches same-name shadows only; prefixed copies are caught by review.
 - `tokens.css` and `DESIGN.md` own visual grammar: flat content surfaces; tokenized glass/blur/window shadows only for OS-shell chrome. Fonts, signal colors, and spacing come from tokens.
 - Structural micro-labels use `Eyebrow` or the `eyebrow` utility; uppercase is opt-in through `variant="caps"`. Preserve the canonical token contract instead of reconstructing it with utility tuples.
 - `COPY.md` owns labels and public wording; runtime truth owns available controls, metrics, and states. Named prototypes constrain visual language; actual content, primitives, and host chrome keep their production owners.
@@ -22,7 +22,7 @@ React SPA using Vite, TanStack Router/Query, Tailwind, shadcn/ui, XState Store, 
 
 Use `app-renderer-systems` for a new or restructured domain system; `eng-data-boundaries` for changed authorization, pagination, cache, or stream contracts; `xstate-store` for store lifecycle changes; `react` for React-specific patterns. Load other library references only for the API or pattern in question.
 
-Use `eng-design` for design-system/redesign work, `eng-ui-screenshot` for named-reference comparison, and `storybook-stories` for stories. Routine edits do not require the entire design/React/testing skill stack.
+Use `eng-design` for design-system/redesign work, `eng-ui-screenshot` for named-reference comparison, and `storybook-stories` for stories.
 
 ## Validation
 
@@ -33,6 +33,6 @@ bunx turbo run typecheck --filter=./web
 bunx turbo run test --filter=./web
 ```
 
-Use the existing route/hook/component/E2E suite that owns the changed behavior. Storybook configuration is infrastructure: prefer build, `list-stories`, or rendered capture over assertions about decorator arrays or globs. Repeat checks only when their inputs change or a failure needs investigation.
+Use the existing route/hook/component/E2E suite that owns the changed behavior. Storybook configuration is infrastructure: prefer build, `list-stories`, or rendered capture over assertions about decorator arrays or globs.
 
-`make web-dev`, `make web-build`, and `make web-fmt` are local development commands; package-local test/typecheck runs do not replace Turbo evidence. Isolated QA derives `COMPOZY_WEB_API_PROXY_TARGET` from its bootstrap manifest and follows root teardown rules.
+`make web-dev`, `make web-build`, and `make web-fmt` are local development commands.

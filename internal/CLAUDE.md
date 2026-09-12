@@ -17,9 +17,10 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 - Session Manager owns and joins its spawned goroutines. Keep goroutine channels in per-run handles instead of mutable shared fields.
 - Work that outlives a request uses an independent execution lifetime (`context.WithoutCancel` where appropriate), explicit cancellation, and any needed replacement deadline. Client disconnect stops streaming, not the execution.
 - Managed subprocess stop respects cancellation between Shutdown and Wait. Centralize signaling in `internal/procutil`; preserve Unix process-group and Windows forced-exit behavior. Cross-build affected subprocess code for Windows before claiming platform parity.
-- Append canonical lifecycle events durably before broadcasting. Preserve applicable correlation/ownership keys, token hashes, and `after_seq` replay fences; verify changed emit paths in the existing lifecycle suite.
-- The append-only runtime event ledger is authoritative; projections do not replace it. Confirm the owning stream and paths in current code rather than infer them from historical filenames.
+- Append canonical lifecycle events durably before broadcasting. Preserve applicable correlation/ownership keys, token hashes, and `after_seq` replay fences.
+- The append-only runtime event ledger is authoritative; projections do not replace it.
 - Single-binary/local-first is the runtime boundary. New sidecars/control planes require an explicit design decision. Daemon operation is background by default; preserve `compozy exec` headless text/JSON and opt-in TUI/persistence contracts.
+- Startup-pending sessions are not crashed; stale ACP session IDs require classification before a fresh-start fallback.
 
 ## Persistence
 
@@ -27,7 +28,7 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 - Existing migration bytes, versions, order, and recorded history are immutable. Integrity/ahead failures remain explicit; never bypass checks or repair schema opportunistically at boot.
 - Released user databases must upgrade losslessly under SD-013. If an older shape lacks an upgrade path, design an explicit migration with preserved-data evidence; do not call it disposable alpha state or silently reset it. Unknown/corrupt state remains unchanged while diagnosed.
 - sqlc owns static SQL, kept package-private behind repository mappings. Structural dynamic SQL needs a named owner and reason.
-- Extend the owning fresh/reopen/ahead/integrity/equivalence suites for the changed invariant. Keep `t.Run("Should …")`, parallel-safe defaults, `CGO_ENABLED=1`/`-race`, integration/E2E build tags, status-plus-body assertions, and the project coverage floor; reuse current suite coverage instead of duplicating tests.
+- Extend the owning fresh/reopen/ahead/integrity/equivalence suites for the changed invariant; keep status-plus-body assertions and the project coverage floor.
 
 ## Security
 
@@ -42,5 +43,3 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 Read current skill-loader/config code when changing precedence: Bundled → Marketplace → User → Profile → Additional → Workspace → Workspace-Profile → Agent-local; configured overlay roots replace hardcoded paths. Preserve shadow audit trails.
 
 For memory changes, preserve `user|feedback|project|reference` types, `agent|workspace|global` scopes, per-agent write scope, and the Time → Sessions → Lock consolidation gate order. For lifecycle hooks, preserve hierarchy/alphabetical order, configurable timeout, JSON stdin, and fail-open error reporting.
-
-Bug fixes use a narrow reproduction or existing incident evidence; record uncertainty when reproduction is unavailable. Startup-pending sessions are not crashed, and stale ACP session IDs require classification before a fresh-start fallback. Add broader investigation only when the local evidence does not explain the failure.
