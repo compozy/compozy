@@ -77,20 +77,50 @@ func prepareZshIntegration(setup *shellSetup, root, nonce string) error {
 	if err != nil {
 		return fmt.Errorf("terminal pty: resolve zsh home: %w", err)
 	}
-	originalRoot := strings.TrimSpace(setup.env["ZDOTDIR"])
-	if originalRoot == "" {
+	originalRoot, hasZdotdir := setup.env["ZDOTDIR"]
+	if !hasZdotdir {
+		originalRoot, hasZdotdir = os.LookupEnv("ZDOTDIR")
+	}
+	restore := "unset ZDOTDIR\n"
+	if hasZdotdir {
+		restore = "export ZDOTDIR=" + shellQuote(originalRoot) + "\n"
+	} else {
 		originalRoot = home
 	}
-	envScript := zshSourceIfExists(filepath.Join(originalRoot, ".zshenv"))
-	if err := os.WriteFile(filepath.Join(root, ".zshenv"), []byte(envScript), 0o600); err != nil {
-		return fmt.Errorf("terminal pty: write zsh env integration: %w", err)
-	}
-	rcScript := zshSourceIfExists(filepath.Join(originalRoot, ".zshrc")) + zshMarkerScript(nonce)
-	if err := os.WriteFile(filepath.Join(root, ".zshrc"), []byte(rcScript), 0o600); err != nil {
-		return fmt.Errorf("terminal pty: write zsh integration: %w", err)
+	envScript := restore + zshSourceIfExists(originalRoot+"/.zshenv") + zshContinueIntegration(root)
+	profileScript := zshRestoreDirectory() + zshSourceUserFile(".zprofile") + zshContinueIntegration(root)
+	rcScript := zshRestoreDirectory() + zshSourceUserFile(".zshrc") + zshMarkerScript(nonce)
+	for _, file := range []struct{ name, script string }{
+		{".zshenv", envScript}, {".zprofile", profileScript}, {".zshrc", rcScript},
+	} {
+		if err := os.WriteFile(filepath.Join(root, file.name), []byte(file.script), 0o600); err != nil {
+			return fmt.Errorf("terminal pty: write zsh %s integration: %w", file.name, err)
+		}
 	}
 	setup.env["ZDOTDIR"] = root
 	return nil
+}
+
+func zshContinueIntegration(root string) string {
+	// Keep zsh on the shim route only until its next interactive startup stage.
+	return `if [[ -o interactive && -o rcs ]]; then
+  __compozy_zdotdir=$(typeset -p ZDOTDIR 2>/dev/null) || __compozy_zdotdir=''
+  export ZDOTDIR=` + shellQuote(root) + `
+fi
+`
+}
+
+func zshRestoreDirectory() string {
+	// typeset emits shell-quoted declarations, preserving unset and export attributes.
+	return `unset ZDOTDIR
+if [[ -n $__compozy_zdotdir ]]; then eval "$__compozy_zdotdir"; fi
+unset __compozy_zdotdir
+`
+}
+
+func zshSourceUserFile(name string) string {
+	return `if [[ -f "${ZDOTDIR-$HOME}/` + name + `" ]]; then source "${ZDOTDIR-$HOME}/` + name + `"; fi
+`
 }
 
 func zshSourceIfExists(path string) string {

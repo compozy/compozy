@@ -185,7 +185,6 @@ The [integration report](../qa/reports/2026-09-10-pr-607-611-integration.md) rec
 
 PR #619 review remediation preserves the same surface and isolation contracts: editable controls retain text-editing shortcuts, a one-session bulk failure exposes its daemon error and retry, failed targets beyond the five-row preview remain named with their errors, and selection derives from current catalog membership before catalog/selection-store-driven pruning. The existing list/dialog/lifecycle suites own regression coverage; CI owns the final integration run.
 
-
 ## QA workspace hook dispatch identity — 2026-09-11
 
 BUG-20260911-workspace-hooks-not-dispatched: workspace declaration scoping now uses the registered workspace ID, matching actual session, task-run and window hook payloads. The durable directory identity is not changed. The owning canonical daemon integration fixtures distinguish both IDs, dispatch real hook subprocesses and verify a foreign task workspace does not execute the hook.
@@ -261,3 +260,22 @@ public replay. No Web, hook, config, persistence, or official skill surface chan
 The following linter-only continuation preserves custom-property importance and recognizes icon
 containers with delimiter-aware names across non-void tags. The same tool/schema/isolation audit
 and ET-open-design scenario apply; no additional surface contract is introduced.
+
+## Issue 626 — Zsh startup directory fidelity
+
+- **Native tools:** terminal open/write/wait/read retain their IDs and schemas. Zsh user startup
+  files see the original ZDOTDIR state and subsequent startup-file changes; authenticated markers
+  still load after the interactive rc. No daemon authority or journal grammar change.
+- **Extensibility/hooks/config:** existing `terminal.shell_integration` controls injection. No new
+  key or hook. User `.zshenv`, `.zprofile`, `.zshrc`, `.zlogin` and `.zlogout` retain their ordering;
+  unset versus set ZDOTDIR and its export attribute survive the temporary startup routing.
+- **Workspace data isolation:** private per-process shim files remain ephemeral and cleanup-owned.
+  User startup files are sourced without rewriting them. Child shells inherit the user's environment,
+  not the shim directory or marker nonce. Profile/workspace ownership is unchanged.
+- **Compatibility:** internal startup fix with no database, wire, CLI, or config shape change;
+  no migration or recovery command. Bash, fish and disabled-integration paths are unchanged.
+- **Official skill:** terminal operation guidance and structured interfaces remain valid; no skill
+  resource edit is required for this transparent configuration fidelity fix.
+- **Web/Docs/QA:** Web Terminal uses the corrected daemon PTY path without renderer changes.
+  `ET-terminal-shell-config-fidelity` includes startup redirection, plugin loading and nested shells.
+  The real-zsh PTY replay and platform limits are recorded in the linked QA report.
