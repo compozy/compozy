@@ -51,6 +51,10 @@ Final runtime-image inspection exposed [opaque turn ID overflow](../bugs/BUG-202
 
 The final CI product-language check required the current name CompozyOS in UI, CLI and documentation. COPY.md and the glossary own this naming disposition over the older board labels. The affected component captures were refreshed with the longer name; runtime calculations and public identifiers are unchanged.
 
+## Design-parity refresh (later on 2026-09-12)
+
+After this pass the composer control and the Context rail were brought to the named boards in `docs/design/opendesign/session-context/`: the retained F9 ring disposition, the visible percent label, the default `Empty` scale, and the canvas-soft tiles are replaced by the boards' ring-only trigger, compact empties, canvas tiles and turn card, legend/line grammar, and drawer header parity. The owning unit suites, `@compozy/ui` primitive suites, and the focused browser E2E (E2E-001, E2E-010) passed on the refreshed tree; the 45 implementation captures in `.compozy/tasks/session-context/evidence/visual/` were regenerated against unchanged references. React Doctor reports no issues on the changed scope.
+
 ## Retained review artifacts
 
 [Runtime evidence summary](../../design/generated/session-context/runtime-summary.json) records normalized surface parity, fixture counters, actual live cost and binary receipt facts, unknown rows, threshold omission and asynchronous archive truth. Original source captures remain in the lab.

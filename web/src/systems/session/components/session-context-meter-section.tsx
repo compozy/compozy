@@ -1,143 +1,191 @@
-import { Empty, Eyebrow, PillDot, StackedProgress, StatusBreakdown } from "@compozy/ui";
-import { Gauge } from "lucide-react";
+import { Fragment, type ComponentProps } from "react";
+import { Clock, Gauge, Minimize2 } from "lucide-react";
+import { Pill, StackedProgress, StatusBreakdown, cn } from "@compozy/ui";
 import type { SessionContextView } from "../lib/session-context";
+import { formatContextTokens } from "../lib/context-format";
 import {
-  formatContextPercent,
-  formatContextTokens,
-  formatContextTurn,
-} from "../lib/context-format";
-import { SessionContextStateChip } from "./session-context-control";
+  describeSessionContextChip,
+  describeSessionContextMeter,
+  type SessionContextMeterView,
+  type SessionContextTiersView,
+} from "../lib/session-context-view";
+import { SessionInspectorEmpty, SessionInspectorSection } from "./session-inspector-section";
+
+type StatusBreakdownItem = ComponentProps<typeof StatusBreakdown>["items"][number];
+
+/** Meter chip: reported · stale · estimated size · near compaction · unavailable (hollow). */
+export function SessionContextStateChip({ context }: { context: SessionContextView }) {
+  const chip = describeSessionContextChip(context);
+  return (
+    <Pill size="xs" form={chip.form} tone={chip.tone}>
+      {chip.label}
+    </Pill>
+  );
+}
+
+/** Tier swatches are magnitude keys: 8px squares, never signal dots. */
+function TierSwatch({ className }: { className: string }) {
+  return <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-[2px]", className)} />;
+}
+
+function TierLabel({ children, approx }: { children: string; approx?: boolean }) {
+  return (
+    <>
+      <span className="truncate font-medium text-fg">{children}</span>
+      {approx ? (
+        <em aria-label="approximately" className="text-micro not-italic text-faint">
+          ≈
+        </em>
+      ) : null}
+    </>
+  );
+}
+
+function compozyTierItem(tiers: SessionContextTiersView): StatusBreakdownItem[] {
+  const { compozy } = tiers;
+  if (!compozy) return [];
+  const caveat = compozy.exceeds
+    ? "estimate exceeds reported"
+    : tiers.stale
+      ? "may have been summarized"
+      : undefined;
+  return [
+    {
+      id: "compozy",
+      label: <TierLabel approx>CompozyOS context</TierLabel>,
+      swatch: <TierSwatch className={tiers.stale ? "bg-accent-dim" : "bg-accent"} />,
+      value: compozy.value,
+      formattedValue: formatContextTokens(compozy.value),
+      detail: compozy.exceeds ? `of ≈ ${formatContextTokens(compozy.raw)}` : undefined,
+      note: caveat ? <span className="text-warning">{caveat}</span> : undefined,
+      tone: "accent",
+      showBar: false,
+    },
+  ];
+}
+
+/** The three-tier bar and its legend: magnitude colours only, the tick is the one signal. */
+function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
+  const items: StatusBreakdownItem[] = [
+    ...compozyTierItem(tiers),
+    {
+      id: "agent",
+      label: <TierLabel>Agent & conversation</TierLabel>,
+      swatch: <TierSwatch className="bg-muted" />,
+      value: tiers.agent,
+      formattedValue: formatContextTokens(tiers.agent),
+      tone: "neutral",
+      showBar: false,
+    },
+    {
+      id: "free",
+      label: <TierLabel>Free</TierLabel>,
+      swatch: <TierSwatch className="bg-canvas-tint shadow-hairline-inset" />,
+      value: tiers.free,
+      formattedValue: formatContextTokens(tiers.free),
+      tone: "neutral",
+      showBar: false,
+    },
+  ];
+  return (
+    <>
+      <div className="relative">
+        <StackedProgress
+          className={tiers.stale ? "[&_[data-tone=accent]]:bg-accent-dim" : undefined}
+          ariaLabel={`Context window: ${formatContextTokens(tiers.used)} of ${formatContextTokens(tiers.total)} used`}
+          total={tiers.total}
+          segments={[
+            { value: tiers.compozy?.value ?? 0, tone: "accent", label: "CompozyOS context" },
+            { value: tiers.agent, tone: "neutral", label: "Agent & conversation" },
+          ]}
+        />
+        {tiers.tick != null ? (
+          <span
+            aria-hidden="true"
+            className="absolute -inset-y-0.75 w-px bg-warning opacity-90"
+            style={{ left: `${tiers.tick * 100}%` }}
+          />
+        ) : null}
+      </div>
+      <StatusBreakdown total={tiers.total} items={items} />
+    </>
+  );
+}
+
+function SessionContextMeterLine({ parts, warning }: { parts: string[]; warning: boolean }) {
+  const Icon = warning ? Minimize2 : Clock;
+  return (
+    <p
+      className={cn(
+        "flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-micro leading-4 text-subtle",
+        warning && "text-warning"
+      )}
+    >
+      <Icon aria-hidden="true" className="size-2.75 shrink-0" />
+      {parts.map((part, index) => (
+        <Fragment key={part}>
+          {index > 0 ? (
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+          ) : null}
+          <span>{part}</span>
+        </Fragment>
+      ))}
+    </p>
+  );
+}
+
+function SessionContextMeterBody({
+  view,
+  context,
+}: {
+  view: SessionContextMeterView;
+  context: SessionContextView;
+}) {
+  if (view.kind === "empty") {
+    return <SessionInspectorEmpty icon={Gauge} title={view.title} description={view.description} />;
+  }
+  if (view.kind === "unknown") {
+    return (
+      <>
+        <p className="text-small-body font-medium text-fg">Context usage unknown</p>
+        <p className="text-micro leading-4 text-subtle">
+          This agent hasn't reported context usage.
+        </p>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
+        <span
+          className={cn(
+            "text-kpi-compact leading-none tracking-tight text-fg-strong",
+            view.warning && "text-warning"
+          )}
+          style={{ fontWeight: "var(--font-weight-display)" }}
+        >
+          {view.value}
+        </span>
+        <span className="font-mono text-mono-id text-muted">{view.amount}</span>
+        <span className="ml-auto self-center">
+          <SessionContextStateChip context={context} />
+        </span>
+      </div>
+      {view.tiers ? <SessionContextTiers tiers={view.tiers} /> : null}
+      {view.line.length > 0 ? (
+        <SessionContextMeterLine parts={view.line} warning={view.warning} />
+      ) : null}
+    </>
+  );
+}
 
 export function SessionContextMeterSection({ context }: { context: SessionContextView }) {
-  const { display, used, size } = context;
+  const view = describeSessionContextMeter(context);
   return (
-    <section className="flex flex-col gap-3" data-testid="session-context-meter">
-      {used == null ? (
-        <div className="flex items-center justify-between gap-2">
-          <Eyebrow>Context window</Eyebrow>
-          <SessionContextStateChip context={context} />
-        </div>
-      ) : null}
-      {used != null ? (
-        <>
-          <div className="flex items-center gap-2 tabular-nums">
-            <span
-              className={context.warning ? "text-kpi-compact text-warning" : "text-kpi-compact"}
-              style={{ fontWeight: "var(--font-weight-display)" }}
-            >
-              {context.ratio != null
-                ? formatContextPercent(context.ratio)
-                : formatContextTokens(used)}
-            </span>
-            <span className="font-mono text-mono-id text-muted">
-              {context.ratio != null ? formatContextTokens(used) : "used"}
-              {size != null ? ` / ${formatContextTokens(size)}` : ""}
-            </span>
-            <div className="ml-auto shrink-0">
-              <SessionContextStateChip context={context} />
-            </div>
-          </div>
-          {display ? (
-            <>
-              <div className="relative py-1">
-                <StackedProgress
-                  className={
-                    context.injected?.stale ? "[&_[data-tone=accent]]:bg-accent-dim" : undefined
-                  }
-                  ariaLabel={`Context window: ${formatContextTokens(used)} of ${formatContextTokens(display.total)} used`}
-                  total={display.total}
-                  segments={[
-                    { value: display.compozy, tone: "accent", label: "CompozyOS context" },
-                    { value: display.agent, tone: "neutral", label: "Agent & conversation" },
-                  ]}
-                />
-                {context.pressure_threshold != null && context.size_source === "agent" ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-y-0 w-px bg-warning"
-                    style={{
-                      left: `${Math.min(1, Math.max(0, context.pressure_threshold)) * 100}%`,
-                    }}
-                  />
-                ) : null}
-              </div>
-              <StatusBreakdown
-                total={display.total}
-                items={[
-                  ...(context.injected
-                    ? [
-                        {
-                          label: "CompozyOS context ≈",
-                          swatch: <PillDot tone="accent" size="md" />,
-                          value: context.injected.tokens,
-                          formattedValue: formatContextTokens(context.injected.tokens),
-                          tone: "accent" as const,
-                          showBar: false,
-                        },
-                      ]
-                    : []),
-                  {
-                    label: "Agent & conversation",
-                    swatch: <PillDot tone="neutral" size="md" />,
-                    value: Math.max(0, used - (context.injected?.tokens ?? 0)),
-                    formattedValue: formatContextTokens(
-                      Math.max(0, used - (context.injected?.tokens ?? 0))
-                    ),
-                    tone: "neutral",
-                    showBar: false,
-                  },
-                  {
-                    label: "Free",
-                    swatch: <PillDot color="var(--color-canvas-tint)" size="md" />,
-                    value: display.free,
-                    formattedValue: formatContextTokens(display.free),
-                    tone: "neutral",
-                    showBar: false,
-                  },
-                ]}
-              />
-            </>
-          ) : null}
-          {context.estimateExceedsReported ? (
-            <p className="text-eyebrow text-warning">estimate exceeds reported</p>
-          ) : null}
-          {context.state === "unavailable" ? (
-            <p className="text-eyebrow text-muted">Usage unavailable</p>
-          ) : null}
-          {context.reported_turn_id ||
-          (context.pressure_threshold != null && context.size_source === "agent") ? (
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-eyebrow text-subtle">
-              {context.reported_turn_id ? (
-                <span>
-                  as of turn {formatContextTurn(context.reported_turn_id)}
-                  {context.size_source === "catalog" ? " · window from model catalog" : ""}
-                </span>
-              ) : null}
-              {context.pressure_threshold != null && context.size_source === "agent" ? (
-                <span className={context.warning ? "text-warning" : undefined}>
-                  Compaction runs at {formatContextPercent(context.pressure_threshold)}
-                </span>
-              ) : null}
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <Empty
-          icon={Gauge}
-          title={
-            context.loading
-              ? "Loading context"
-              : context.state === "unavailable"
-                ? "Usage unavailable"
-                : "No context report yet"
-          }
-          description={
-            context.state === "unavailable" || context.loading
-              ? undefined
-              : "The meter fills once the agent reports its first turn."
-          }
-        />
-      )}
-    </section>
+    <SessionInspectorSection data-testid="session-context-meter">
+      <SessionContextMeterBody view={view} context={context} />
+    </SessionInspectorSection>
   );
 }

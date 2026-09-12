@@ -45,3 +45,33 @@ it("Should render a label and formatted value without a magnitude bar when reque
   expect(screen.getByText("≈ 12.4K")).toBeInTheDocument();
   expect(container.querySelector('[data-slot="status-breakdown-bar"]')).toBeNull();
 });
+
+// Invariant: a caveat and a raw figure ride with their row without changing its magnitude; owner: StatusBreakdown.
+it("Should keep a detail beside the value and a note under the row keyed by id", () => {
+  const { container } = render(
+    <StatusBreakdown
+      total={256_000}
+      items={[
+        {
+          id: "compozy",
+          label: <b>Compozy</b>,
+          value: 225_000,
+          formattedValue: "225K",
+          detail: "of ≈ 231K",
+          note: "estimate exceeds reported",
+          showBar: false,
+        },
+        { id: "free", label: <b>Free</b>, value: 31_000, formattedValue: "31K", showBar: false },
+      ]}
+    />
+  );
+  const rows = container.querySelectorAll('[data-slot="status-breakdown-row"]');
+  expect(rows).toHaveLength(2);
+  expect(rows[0]?.querySelector('[data-slot="status-breakdown-detail"]')).toHaveTextContent(
+    "of ≈ 231K"
+  );
+  expect(rows[0]?.querySelector('[data-slot="status-breakdown-note"]')).toHaveTextContent(
+    "estimate exceeds reported"
+  );
+  expect(rows[1]?.querySelector('[data-slot="status-breakdown-note"]')).toBeNull();
+});

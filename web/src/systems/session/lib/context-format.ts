@@ -20,3 +20,15 @@ export function formatContextBytes(bytes: number): string {
 export function formatContextTurn(id: string): string {
   return id.replace(/^turn[-_]/, "");
 }
+
+/** Wall-clock `HH:MM:SS` of a report; empty when the timestamp is unusable. */
+export function formatContextClock(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return "";
+  return new Date(ms).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+}

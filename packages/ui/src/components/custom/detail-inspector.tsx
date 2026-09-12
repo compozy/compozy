@@ -122,7 +122,7 @@ function DetailInspector({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         aria-label={labelledBy}
-        className={cn("w-(--detail-inspector-width) sm:max-w-none", drawerClassName)}
+        className={cn("w-(--detail-inspector-width) gap-0 sm:max-w-none", drawerClassName)}
         data-mode="drawer"
         data-slot="detail-inspector"
         side="right"
@@ -133,8 +133,14 @@ function DetailInspector({
         }
       >
         {title ? (
-          <SheetHeader>
-            <SheetTitle data-slot="detail-inspector-header">{title}</SheetTitle>
+          // Same header anatomy as the inline aside so the drawer reads as the same rail.
+          <SheetHeader className="shrink-0 gap-0 border-b border-line px-4 py-3 pr-12">
+            <SheetTitle
+              data-slot="detail-inspector-header"
+              className="flex items-center gap-2 text-small-body font-medium tracking-normal text-fg-strong"
+            >
+              {title}
+            </SheetTitle>
           </SheetHeader>
         ) : null}
         <DetailInspectorBody tabs={tabs} activeTab={activeTab} onTabChange={onTabChange}>

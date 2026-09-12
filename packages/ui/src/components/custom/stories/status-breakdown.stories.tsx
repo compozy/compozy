@@ -59,6 +59,29 @@ export const FormattedCount: Story = {
   },
 };
 
+/**
+ * A clamped count keeps its raw figure as a quiet detail and states the caveat under the row.
+ */
+export const DetailAndNote: Story = {
+  args: {
+    total: 256_000,
+    items: [
+      {
+        id: "compozy",
+        label: <span className="font-medium text-fg">Compozy context</span>,
+        swatch: <PillDot tone="accent" />,
+        value: 225_000,
+        formattedValue: "225K",
+        detail: "of ≈ 231K",
+        note: <span className="text-warning">estimate exceeds reported</span>,
+        showBar: false,
+      },
+      { id: "agent", label: "Agent & conversation", value: 0, formattedValue: "0", showBar: false },
+      { id: "free", label: "Free", value: 31_000, formattedValue: "31K", showBar: false },
+    ],
+  },
+};
+
 export const LabelAndValue: Story = {
   args: {
     items: [

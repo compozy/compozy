@@ -142,3 +142,15 @@ describe("Empty", () => {
     expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
   });
 });
+
+// Invariant: the compact rendition keeps every slot and only changes scale; owner: Empty.
+it("Should render the compact rendition with the same slots at rail scale", () => {
+  const { container } = render(
+    <Empty size="compact" title="No turns yet" description="Rows land here after a turn." />
+  );
+  const empty = container.querySelector('[data-slot="empty"]');
+  expect(empty).toHaveAttribute("data-size", "compact");
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("size-8");
+  expect(container.querySelector('[data-slot="empty-title"]')).toHaveClass("text-form-label");
+  expect(container.querySelector('[data-slot="empty-description"]')).toHaveClass("text-micro");
+});

@@ -60,3 +60,23 @@ export function deriveSessionContext(
     estimateExceedsReported: used != null && injected > used,
   };
 }
+
+export type SessionContextRingState =
+  | "loading"
+  | "unknown"
+  | "used-only"
+  | "stale"
+  | "warning"
+  | "estimated"
+  | "reported";
+
+/** Shape carries freshness (dotted = stale, dashed = unknown); hue carries pressure only. */
+export function sessionContextRingState(context: SessionContextView): SessionContextRingState {
+  if (context.loading && context.used == null) return "loading";
+  if (context.used == null) return "unknown";
+  if (context.ratio == null) return "used-only";
+  if (context.stale) return "stale";
+  if (context.warning) return "warning";
+  if (context.size_source === "catalog") return "estimated";
+  return "reported";
+}

@@ -1,5 +1,4 @@
 import {
-  Activity,
   CircleStop,
   ListPlus,
   LoaderCircle,
@@ -8,21 +7,15 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { Empty, Eyebrow } from "@compozy/ui";
+import { Eyebrow, cn } from "@compozy/ui";
 import {
   useSessionContextActivity,
   type SessionContextActivitySource,
 } from "../hooks/use-session-context-activity";
+import type { SessionActivityView } from "../lib/session-activity-view";
+import { SessionInspectorSection } from "./session-inspector-section";
 
-export interface SessionActivityView {
-  status?: string;
-  agents?: string;
-  tools?: string;
-  thoughts?: string;
-  queued?: string;
-  goal?: string;
-  warning?: string;
-}
+export type { SessionActivityView } from "../lib/session-activity-view";
 
 /** The clock and transcript subscription only mount with this sidebar leaf. */
 export function SessionContextLiveActivity({ source }: { source: SessionContextActivitySource }) {
@@ -36,12 +29,21 @@ export function SessionContextLiveActivity({ source }: { source: SessionContextA
   return <SessionActivitySection activity={activity} />;
 }
 
+/** The status sentence leads with its headline ("Working for 49m 20s") before the first separator. */
+function splitLead(text: string): { lead: string; rest: string } {
+  const index = text.indexOf(" · ");
+  return index === -1
+    ? { lead: text, rest: "" }
+    : { lead: text.slice(0, index), rest: text.slice(index) };
+}
+
 export function SessionActivitySection({ activity = {} }: { activity?: SessionActivityView }) {
   const counts = [activity.tools, activity.thoughts].filter(Boolean).join(" · ");
   const rows = [
     {
       key: "status",
       text: activity.status,
+      lead: true,
       Icon: activity.status?.startsWith("Working") ? LoaderCircle : CircleStop,
     },
     { key: "agents", text: activity.agents, Icon: Users },
@@ -49,25 +51,37 @@ export function SessionActivitySection({ activity = {} }: { activity?: SessionAc
     { key: "queued", text: activity.queued, Icon: ListPlus },
     { key: "goal", text: activity.goal, Icon: Target },
     { key: "warning", text: activity.warning, Icon: TriangleAlert },
-  ].filter(row => !!row.text);
+  ].filter((row): row is typeof row & { text: string } => !!row.text);
+  // A signal that is absent has no row; with no signal at all the section keeps its slot but draws nothing.
   return (
-    <section className="flex flex-col gap-3" data-testid="session-context-activity">
+    <SessionInspectorSection data-testid="session-context-activity" hidden={rows.length === 0}>
       <Eyebrow>Activity</Eyebrow>
       {rows.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {rows.map(({ key, text, Icon }) => (
-            <li
-              key={key}
-              className={`flex items-start gap-2 text-small-body ${key === "warning" ? "text-warning" : "text-muted"}`}
-            >
-              <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-              <span>{text}</span>
-            </li>
-          ))}
+        <ul className="flex flex-col gap-1.5">
+          {rows.map(({ key, text, lead, Icon }) => {
+            const { lead: headline, rest } = lead ? splitLead(text) : { lead: "", rest: text };
+            return (
+              <li
+                key={key}
+                data-kind={key === "warning" ? "warning" : undefined}
+                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-[1.45] text-muted"
+              >
+                <Icon
+                  aria-hidden="true"
+                  className={cn(
+                    "mt-0.5 size-3.25",
+                    key === "warning" ? "text-warning" : "text-subtle"
+                  )}
+                />
+                <span className="min-w-0 break-words">
+                  {headline ? <b className="font-medium text-fg">{headline}</b> : null}
+                  {rest}
+                </span>
+              </li>
+            );
+          })}
         </ul>
-      ) : (
-        <Empty icon={Activity} title="No activity yet" />
-      )}
-    </section>
+      ) : null}
+    </SessionInspectorSection>
   );
 }

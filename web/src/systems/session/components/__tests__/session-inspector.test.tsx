@@ -63,7 +63,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("$18.42");
     expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent(
-      "Across 12 turns"
+      "across 12 turns"
     );
   });
 
@@ -87,7 +87,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     );
 
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(expectedCost);
-    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 1 turn");
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("across 1 turn");
   });
 
   it("Should show the truthful empty state when the session reported no usage", () => {
@@ -115,7 +115,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
 
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 2 turns");
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("across 2 turns");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("—");
   });
 
@@ -255,7 +255,7 @@ describe("Session context", () => {
         pressure_threshold: undefined,
       } as SessionContextPayload,
       label: "Context 35% used",
-      copy: "window from model catalog",
+      copy: "Window from model catalog.",
     },
   ])(
     "Should render $label without inventing context or a compaction policy",
@@ -285,6 +285,16 @@ describe("Session context", () => {
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke-dasharray",
       "1 1"
+    );
+    // Freshness is shape (dotted mask), pressure is hue: both survive on one arc.
+    expect(screen.getByRole("button")).toHaveAttribute("data-state", "stale");
+    expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
+      "mask",
+      expect.stringMatching(/^url\(#/)
+    );
+    expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
+      "stroke",
+      "var(--color-warning)"
     );
   });
 
@@ -327,7 +337,12 @@ describe("Session context", () => {
     expect(
       within(screen.getByTestId("session-context-meter")).queryByRole("img")
     ).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Context usage unknown");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("No context report");
     await user.click(screen.getByRole("button", { name: /CompozyOS context/ }));
+    expect(screen.getByTestId("session-context-injected")).toHaveTextContent(
+      "No window reported, so there is nothing to draw the rows against."
+    );
     const rows = screen.getAllByTestId("session-context-injected-row");
     expect(rows).toHaveLength(4);
     expect(
@@ -378,15 +393,15 @@ describe("Session context", () => {
       "Turn 2",
       "Turn 1",
     ]);
-    expect(rows[0]).toHaveTextContent("1K in200 out800 cache read");
+    expect(rows[0]).toHaveTextContent("in 1K · out 200 · cache 800");
     expect(rows[1]).toHaveTextContent("≈ 4K injected");
     expect(rows[2]).toHaveTextContent("20K / 256K");
     expect(rows[3]).toHaveTextContent("10K / 256K");
     expect(screen.getAllByTestId("session-context-compaction")[0]).toHaveTextContent(
-      "CompozyOS compaction · at 88% · replay span not archived"
+      "CompozyOS compaction · at 88% · 225.3K · replay span not archived"
     );
     expect(screen.getAllByTestId("session-context-compaction")[1]).toHaveTextContent(
-      "CompozyOS compaction · at 85% · replay span archived"
+      "CompozyOS compaction · at 85% · 217.6K · replay span archived"
     );
     expect(screen.getByTestId("session-context-activity")).toHaveTextContent("Working for 49m 20s");
   });
@@ -406,7 +421,7 @@ describe("Session context", () => {
     );
     expect(screen.getAllByTestId("session-context-turn-row")).toHaveLength(50);
     expect(screen.getAllByTestId("session-context-turn-row")[0]).toHaveTextContent("Turn 120");
-    await user.click(screen.getByRole("button", { name: "Show earlier turns" }));
+    await user.click(screen.getByRole("button", { name: /^Show earlier turns/ }));
     expect(screen.getAllByTestId("session-context-turn-row")).toHaveLength(120);
   });
 

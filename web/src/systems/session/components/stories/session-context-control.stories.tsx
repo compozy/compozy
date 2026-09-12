@@ -50,6 +50,8 @@ export const Loading: Story = {
 export const OverCapacity: Story = {
   args: { context: deriveSessionContext({ ...sessionContextFixture, used: 281_600, ratio: 1.1 }) },
 };
+/** The Context rail is open: the trigger keeps its plate while sharing the rail's preference. */
+export const RailOpen: Story = { args: { open: true } };
 export const NarrowRow: Story = {
   decorators: [
     Story => (

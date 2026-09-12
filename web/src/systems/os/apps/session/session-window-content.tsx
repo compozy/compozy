@@ -275,6 +275,7 @@ export function SessionWindowContent({
           contextControl={
             <SessionContextControl
               context={sessionContext.context}
+              open={inspector.open}
               onOpen={() => inspector.setOpen(true)}
             />
           }

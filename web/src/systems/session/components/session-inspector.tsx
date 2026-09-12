@@ -44,13 +44,11 @@ export function SessionInspector({
     <DetailInspector
       title="Context"
       className={cn("min-w-0", className)}
+      drawerClassName="rounded-none border-l border-line-strong"
       onOpenChange={onDrawerOpenChange}
       open={drawerOpen}
     >
-      <div
-        className="flex min-h-full flex-col [&>section]:px-4 [&>section]:py-4"
-        data-testid="session-inspector"
-      >
+      <div className="flex flex-col gap-4.5 p-4" data-testid="session-inspector">
         <SessionContextMeterSection context={context} />
         <SessionContextInjectedSection
           injected={context.injected}
