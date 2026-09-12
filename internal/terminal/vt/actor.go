@@ -275,6 +275,32 @@ func (a *Actor) finishClose(emulator *charmvt.Emulator, drainDone <-chan error, 
 	a.closeErr = shutdownEmulator(emulator, drainDone)
 }
 
+// RenderLines interprets retained bytes as rendered scrollback and screen text.
+func RenderLines(ctx context.Context, data []byte, cols, rows int) (content string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	emulator, drainDone := startEmulator(cols, rows)
+	defer func() { err = errors.Join(err, shutdownEmulator(emulator, drainDone)) }()
+	const chunkBytes = 4 * 1024
+	for offset := 0; offset < len(data); offset += chunkBytes {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		end := min(offset+chunkBytes, len(data))
+		if _, err := emulator.Write(data[offset:end]); err != nil {
+			return "", fmt.Errorf("terminal vt: render retained lines: %w", err)
+		}
+	}
+	var lines []string
+	if scrollback := emulator.Scrollback(); scrollback != nil {
+		for _, line := range scrollback.Lines() {
+			lines = append(lines, line.String())
+		}
+	}
+	return strings.Join(append(lines, screenText(emulator)), "\n"), nil
+}
+
 func startEmulator(cols, rows int) (*charmvt.Emulator, <-chan error) {
 	cols, rows = normalizeSize(cols, rows)
 	emulator := charmvt.NewEmulator(cols, rows)

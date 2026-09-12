@@ -34,6 +34,13 @@
 
 ## Issue 629 — Unicode terminal prompt redraw
 
+- **Quote follow-up:** PTY `terminal_read` line ranges and CLI quotes now render the retained bytes
+  with the existing VT emulator before selecting rows, so cursor edits do not leak into excerpts.
+  Raw `tail`, pipe output, stored bytes, profile authorization, routes and DTOs keep their contracts.
+  The projection respects buffer trimming and current terminal dimensions; no persistent migration.
+  Existing hooks/config/extension IDs and official skill call syntax remain applicable. Web consumes
+  the same corrected line projection; site quote docs and the shell-fidelity scenario record it.
+
 - **Native tools / CLI / HTTP / UDS:** existing terminal input, stream, read, wait and quote paths
   preserve UTF-8 characters containing C1 byte values. No IDs, DTOs, routes or flags change.
 - **Extensibility / hooks / config:** marker authentication and OSC/DCS security policies remain;

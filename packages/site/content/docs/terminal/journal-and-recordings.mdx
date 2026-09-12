@@ -62,7 +62,9 @@ or missing artifact returns the same not-found boundary instead of revealing own
 
 `compozy terminal quote <id> --lines <from>-<to>` prints escaped, line-numbered output inside a
 `<terminal_context>` block. The block records the terminal ID and the scrollback-relative range; it
-is untrusted data, and its line numbers can change after buffer trimming.
+is untrusted data, and its line numbers can change after buffer trimming. PTY excerpts contain rendered
+text with cursor edits applied; pipe excerpts preserve process output. The `tail` read view retains
+the raw terminal stream.
 
 With `-o json`, the result is `{terminal_id, from, to, quote, untrusted}`. `quote` contains the same
 escaped `<terminal_context>` block and `untrusted` is always `true`.

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	terminalvt "github.com/compozy/compozy/internal/terminal/vt"
 )
 
 func (s *session) Info() Info {
@@ -52,7 +54,7 @@ func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult,
 	case terminalViewTail:
 		return s.readTail(options)
 	case "lines":
-		return s.readLines(options)
+		return s.readLines(ctx, options)
 	default:
 		return nil, fmt.Errorf("terminal read view must be screen, tail, or lines: %w", ErrUnsupported)
 	}
@@ -111,8 +113,18 @@ func boundedTail(content []byte, maxBytes int) []byte {
 	return trimPartialLeadingRune(content[len(content)-maxBytes:])
 }
 
-func (s *session) readLines(options ReadOptions) (*ReadResult, error) {
+func (s *session) readLines(ctx context.Context, options ReadOptions) (*ReadResult, error) {
 	data, seq := s.ring.Snapshot()
+	s.mu.RLock()
+	mode, cols, rows := s.info.Mode, s.cols, s.rows
+	s.mu.RUnlock()
+	if mode == ModePTY {
+		content, err := terminalvt.RenderLines(ctx, data, int(cols), int(rows))
+		if err != nil {
+			return nil, fmt.Errorf("terminal: read rendered lines: %w", err)
+		}
+		data = []byte(content)
+	}
 	data = modelFacingOutput(data)
 	lines := strings.Split(string(data), "\n")
 	from := max(options.FromLine, 0)

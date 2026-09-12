@@ -951,6 +951,40 @@ func TestManagerCwdAndShell(t *testing.T) {
 func TestSessionTailReadContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should select rendered PTY lines while preserving raw tail bytes", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		input := "one\r\ntwo\r\n❯ a\babc"
+		if err := starter.latest().emit([]byte(input)); err != nil {
+			t.Fatal(err)
+		}
+		tail := waitForTailContent(t, handle, "a\babc")
+		if tail.Content != input {
+			t.Fatalf("raw tail = %q, want %q", tail.Content, input)
+		}
+		lines, err := handle.Screen(t.Context(), ReadOptions{View: "lines", FromLine: 1, ToLine: 3, Grep: "^❯"})
+		if err != nil || lines.Content != "❯ abc" || lines.Seq != tail.Seq || !lines.Untrusted {
+			t.Fatalf("rendered lines = %#v, error = %v", lines, err)
+		}
+	})
+
+	t.Run("Should render only retained bytes after scrollback trimming", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.ScrollbackBytes = 8
+		manager, starter, _ := newTestManager(t, settings)
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		if err := starter.latest().emit([]byte("discarded history\r\nretained")); err != nil {
+			t.Fatal(err)
+		}
+		waitForTailContent(t, handle, "retained")
+		lines, err := handle.Screen(t.Context(), ReadOptions{View: "lines"})
+		if err != nil || lines.Content != "retained" {
+			t.Fatalf("retained rendered lines = %#v, error = %v", lines, err)
+		}
+	})
+
 	t.Run("Should trim a partial UTF-8 rune from the front of a bounded tail", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())

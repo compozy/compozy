@@ -52,6 +52,24 @@ func TestActorScreenContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should render retained lines through cursor redraws and wide characters", func(t *testing.T) {
+		t.Parallel()
+		input := "first\r\nsecond\r\n\x1b[35m❯ \x1b[0ma\babc"
+		for _, testCase := range []struct{ name, input, want string }{
+			{"Should keep scrolled rows and the redrawn prompt", input, "first\nsecond\n❯ abc"},
+			{"Should apply deletion before wide input", input + "\b \b界🙂", "first\nsecond\n❯ ab界🙂"},
+			{"Should apply carriage return and erase", "old text\rnew\x1b[K", "new"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				got, err := RenderLines(t.Context(), []byte(testCase.input), 20, 2)
+				if err != nil || got != testCase.want {
+					t.Fatalf("RenderLines() = %q, error = %v, want %q", got, err, testCase.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should serialize concurrent reads with flood writes [UT-039]", func(t *testing.T) {
 		t.Parallel()
 		actor := New(40, 10, nil)

@@ -45,3 +45,9 @@ is unchanged; this replay does not claim a new rendered Web or packaged-desktop 
 2026-09-12 QA impact: step 9 owns the Unicode/C1 filtering regression in #629; its targeted replay
 is tracked in [the Unicode prompt report](../reports/2026-09-12-terminal-unicode-prompt.md).
 Earlier evidence remains applicable to unchanged fish and shell-config loading behavior.
+
+2026-09-12 follow-up: the browser redraw checks reached their quote assertion after CI shell
+permissions were repaired. PTY line reads now project the retained bytes through the VT emulator,
+applying cursor edits before selecting the quote range. Native CLI/HTTP replay verifies both prompt
+glyphs, separate keystrokes, Backspace and subsequent command execution. Browser replay remains
+owned by the unchanged E2E cases; see [the integration report](../reports/2026-09-12-pr-630-634-integration.md).
