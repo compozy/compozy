@@ -127,9 +127,9 @@ func NewLiveProviderSources(cfg *LiveProviderSourcesConfig) ([]Source, error) {
 			providerSet[providerID] = struct{}{}
 		}
 	}
-	for providerID := range cfg.Providers {
+	for providerID, provider := range cfg.Providers {
 		providerID = compozyconfig.CanonicalProviderName(providerID)
-		if _, registered := liveProviderAdapters[providerID]; registered {
+		if _, registered := liveProviderAdapterFor(providerID, provider); registered {
 			providerSet[providerID] = struct{}{}
 		}
 	}
@@ -156,7 +156,7 @@ func NewLiveProviderSource(
 	cfg *LiveProviderSourcesConfig,
 ) (*LiveProviderSource, error) {
 	trimmedProviderID := strings.TrimSpace(providerID)
-	adapter, ok := liveProviderAdapters[trimmedProviderID]
+	adapter, ok := liveProviderAdapterFor(trimmedProviderID, provider)
 	if !ok {
 		return nil, fmt.Errorf(
 			"model catalog: live discovery adapter for provider %q is not registered",
@@ -330,7 +330,9 @@ func liveDiscoveryConfigChanged(
 	current compozyconfig.ProviderConfig,
 	next compozyconfig.ProviderConfig,
 ) bool {
-	return !reflect.DeepEqual(current.Models.Discovery, next.Models.Discovery) ||
+	return strings.TrimSpace(current.Command) != strings.TrimSpace(next.Command) ||
+		current.RuntimeProviderName("") != next.RuntimeProviderName("") ||
+		!reflect.DeepEqual(current.Models.Discovery, next.Models.Discovery) ||
 		strings.TrimSpace(current.BaseURL) != strings.TrimSpace(next.BaseURL) ||
 		current.EffectiveHarness() != next.EffectiveHarness() ||
 		current.EffectiveAuthMode() != next.EffectiveAuthMode() ||

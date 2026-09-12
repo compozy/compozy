@@ -76,6 +76,8 @@ func (r *modelCatalogRuntime) dynamicRefreshTargets() []modelCatalogRefreshTarge
 	if r == nil {
 		return nil
 	}
+	r.liveSourcesMu.RLock()
+	defer r.liveSourcesMu.RUnlock()
 	sources := make(map[string]modelcatalog.Source, len(r.dynamicSources)+len(r.liveSources))
 	maps.Copy(sources, r.dynamicSources)
 	for _, source := range r.liveSources {

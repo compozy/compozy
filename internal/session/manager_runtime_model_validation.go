@@ -35,6 +35,7 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	}
 	_, err := m.resolveCatalogTransportModel(
 		ctx,
+		providerID,
 		selection,
 		modelCatalogExecutionContextForSession(session),
 	)
@@ -46,7 +47,7 @@ func (m *Manager) resolveCursorCatalogBinding(
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	models, err := m.listLiveProviderModels(ctx, cursorRuntimeProvider, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +81,7 @@ func (m *Manager) resolveClaudeCatalogBinding(
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
 	modelID := strings.TrimSpace(selection.Model)
-	models, err := m.listLiveProviderModels(ctx, runtimeProviderClaude, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		if !claudeLogicalModelRequiresCatalogBinding(modelID) {
 			return modelID, nil
@@ -127,10 +128,11 @@ func claudeLogicalModelRequiresCatalogBinding(modelID string) bool {
 
 func (m *Manager) resolveCatalogTransportModel(
 	ctx context.Context,
+	runtimeProvider string,
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	switch strings.TrimSpace(selection.Provider) {
+	switch strings.TrimSpace(runtimeProvider) {
 	case cursorRuntimeProvider:
 		return m.resolveCursorCatalogBinding(ctx, selection, executionContext)
 	case runtimeProviderClaude:
@@ -401,8 +403,8 @@ func (m *Manager) validateExplicitStartModel(
 	if strings.TrimSpace(modelID) == "" {
 		return nil
 	}
-	transportModel, err := m.resolveCatalogTransportModel(ctx, RuntimeSelection{
-		Provider:        providerID,
+	transportModel, err := m.resolveCatalogTransportModel(ctx, providerID, RuntimeSelection{
+		Provider:        runtime.agent.Provider,
 		Model:           modelID,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,

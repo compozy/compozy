@@ -897,6 +897,71 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 func TestLiveProviderSourceRegistration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should discover overlay models with its own execution and transport identity", func(t *testing.T) {
+		t.Parallel()
+		const overlay = "claude-secondary"
+		command := "env CLAUDE_CONFIG_DIR=/account-secondary claude-acp"
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{{Value: "haiku", Label: "Haiku"}},
+		}}}
+		providers := map[string]compozyconfig.ProviderConfig{overlay: {
+			RuntimeProvider: "claude", Command: command, AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+			Harness: compozyconfig.ProviderHarnessACP,
+		}}
+		sources, err := NewLiveProviderSources(&LiveProviderSourcesConfig{
+			Providers: providers, ACPProbe: probe, BaseEnv: []string{"PATH=/bin", "ANTHROPIC_API_KEY=ambient-secret"},
+			WorkingDir: t.TempDir(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var source *LiveProviderSource
+		for _, candidate := range sources {
+			if candidate.ID() == SourceKindProviderLiveID(overlay) {
+				source = candidate.(*LiveProviderSource)
+			}
+		}
+		if source == nil {
+			t.Fatal("overlay live source is missing")
+		}
+		rows, err := source.ListModels(t.Context(), ListOptions{ProviderID: overlay, Now: testTime(0)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		row := requireSingleRow(t, rows)
+		if row.ProviderID != overlay || row.SourceID != SourceKindProviderLiveID(overlay) ||
+			row.ModelID != "claude-haiku-4-5-20251001" {
+			t.Fatalf("overlay row = %#v", row)
+		}
+		assertClaudeTransportBinding(t, row, "haiku")
+		request := probe.singleRequest(t)
+		if request.ProviderID != overlay || request.Command != command || request.Cwd != source.workingDir {
+			t.Fatalf("overlay execution = %#v", request)
+		}
+		if firstEnvValue(request.Env, "COMPOZY_PROVIDER") != overlay ||
+			firstEnvValue(request.Env, "ANTHROPIC_API_KEY") != "" {
+			t.Fatalf("overlay environment = %#v", request.Env)
+		}
+		fingerprint, err := source.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatal(err)
+		}
+		changedProvider := providers[overlay]
+		changedProvider.Command = "env CLAUDE_CONFIG_DIR=/account-other claude-acp"
+		clone, changed, err := source.CloneWithProvider(changedProvider)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nextFingerprint, err := clone.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !changed || fingerprint == nextFingerprint {
+			t.Fatal("account command change reused discovery identity")
+		}
+	})
+
 	t.Run("Should preserve builtin model mappings under a partial provider override", func(t *testing.T) {
 		t.Parallel()
 

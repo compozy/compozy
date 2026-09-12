@@ -799,6 +799,74 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bind a Claude overlay using only its own live catalog", func(t *testing.T) {
+		t.Parallel()
+		const overlay = "claude-secondary"
+		const logical = "claude-haiku-4-5-20251001"
+		for _, available := range []bool{true, false} {
+			name := "Should reject another account live binding"
+			if available {
+				name = "Should launch with the overlay live binding"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				catalogProvider := "claude"
+				if available {
+					catalogProvider = overlay
+				}
+				h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{
+					{
+						ProviderID:        catalogProvider,
+						ModelID:           logical,
+						AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+						TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: "haiku"}},
+						Sources: []modelcatalog.SourceRef{
+							{
+								SourceID:   modelcatalog.SourceKindProviderLiveID(catalogProvider),
+								SourceKind: modelcatalog.SourceKindProviderLive,
+							},
+						},
+					},
+				}}))
+				workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				workspace.Config.Providers[overlay] = compozyconfig.ProviderConfig{
+					RuntimeProvider: "claude", Command: "env CLAUDE_CONFIG_DIR=/account-secondary claude-acp",
+					AuthMode: compozyconfig.ProviderAuthModeNativeCLI, Harness: compozyconfig.ProviderHarnessACP,
+				}
+				h.resolver.upsert(&workspace)
+				session, err := h.manager.Create(
+					t.Context(),
+					CreateOpts{AgentName: "coder", Provider: overlay, Model: logical, Workspace: h.workspaceID},
+				)
+				if !available {
+					if err == nil {
+						t.Fatal("overlay accepted another account catalog")
+					}
+					if len(h.driver.startCalls) != 0 {
+						t.Fatal("unavailable model launched")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+				if got := h.driver.startCalls[0].PreferredModel; got != "haiku" {
+					t.Fatalf("transport = %q", got)
+				}
+				if info := session.Info(); info.Provider != overlay || info.Model != logical {
+					t.Fatalf("session identity = %#v", info)
+				}
+				if got := readMeta(t, session.MetaPath()).Model; got != logical {
+					t.Fatalf("persisted model = %q", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject an aliased Cursor agent default before session reservation", func(t *testing.T) {
 		t.Parallel()
 

@@ -5,9 +5,11 @@ package modelcatalog_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -19,11 +21,96 @@ import (
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	_ "modernc.org/sqlite"
 )
 
 func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should discover account scoped Claude overlays through ACP subprocesses and SQLite", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		driver := acpmock.RequireDriver(t)
+		fixture := acpmock.Fixture{Version: acpmock.FixtureVersion}
+		for _, name := range []string{"haiku", "sonnet"} {
+			fixture.Agents = append(fixture.Agents, acpmock.AgentFixture{
+				Name:     name,
+				Provider: "claude",
+				Model:    name,
+				ConfigOptions: []acpmock.SessionConfigOptionFixture{{
+					ID: "model", Name: "Model", Category: "model", Current: name,
+					Values: []acpmock.SessionConfigOptionValueFixture{{Value: name, Label: name}},
+				}},
+				Turns: []acpmock.TurnFixture{
+					{
+						Match: acpmock.TurnMatch{UserText: "noop"},
+						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Chunks: []string{"noop"}}},
+					},
+				},
+			})
+		}
+		data, err := json.Marshal(fixture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixturePath := filepath.Join(t.TempDir(), "overlay-fixture.json")
+		if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store, _ := openCatalogGlobalDB(t)
+		var sources []modelcatalog.Source
+		for _, name := range []string{"haiku", "sonnet"} {
+			providerID := "claude-" + name
+			provider := compozyconfig.ProviderConfig{
+				RuntimeProvider: "claude", Command: acpmock.BuildCommand(driver, fixturePath, name, ""),
+				Harness: compozyconfig.ProviderHarnessACP, AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+			}
+			source, err := modelcatalog.NewLiveProviderSource(
+				providerID,
+				provider,
+				&modelcatalog.LiveProviderSourcesConfig{
+					BaseEnv: os.Environ(), WorkingDir: t.TempDir(),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sources = append(sources, source)
+		}
+		service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		execution := modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: "overlay-test",
+		}
+		for _, test := range []struct{ provider, model, transport string }{
+			{"claude-haiku", "claude-haiku-4-5-20251001", "haiku"},
+			{"claude-sonnet", "claude-sonnet-5", "sonnet"},
+		} {
+			models, err := service.ListModels(
+				ctx,
+				modelcatalog.ListOptions{
+					ProviderID:       test.provider,
+					ExecutionContext: execution,
+					Now:              integrationTime(0),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(models) != 1 || models[0].ProviderID != test.provider || models[0].ModelID != test.model ||
+				models[0].AvailabilityState != modelcatalog.AvailabilityStateAvailableLive {
+				t.Fatalf("account catalog = %#v", models)
+			}
+			if len(models[0].TransportBindings) != 1 ||
+				models[0].TransportBindings[0].TransportModelID != test.transport {
+				t.Fatalf("transport bindings = %#v", models[0].TransportBindings)
+			}
+		}
+	})
 
 	t.Run("Should refresh and list rows by provider with global DB store", func(t *testing.T) {
 		t.Parallel()

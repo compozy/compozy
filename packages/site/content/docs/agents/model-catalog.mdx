@@ -51,6 +51,32 @@ catalog read with no recorded status bootstraps these sources before returning; 
 rows and refresh them in the background. A failed attempt is recorded as source status and never replaces
 the last successful rows with an empty catalog.
 
+## Provider overlays
+
+A provider overlay with `runtime_provider = "claude"` uses the Claude live-discovery adapter while
+keeping its own provider ID, launch command, environment/home policy, credential bindings, and
+profile/workspace catalog scope. Creating or deleting an overlay through Settings updates live
+source registration without a daemon restart. Source health appears as `provider_live:<overlay-id>`.
+
+Claude's advertised aliases, such as `haiku` and `sonnet`, map to logical catalog IDs using the
+runtime family's built-in identities and the overlay's configured model identities. Session creation
+resolves the private transport alias from that overlay's live catalog. Another account's catalog
+cannot establish availability for the overlay. Built-in identity hints do not add unadvertised rows.
+
+Refresh and inspect the overlay before curating a model:
+
+```sh
+compozy provider models refresh claude-secondary
+compozy provider models list claude-secondary --all
+compozy provider models set claude-secondary <model-id-from-list>
+```
+
+Command-based overlays such as Cursor and OpenCode must configure `models.discovery.command` for
+their account. The built-in discovery command is not inherited across account commands.
+
+An empty or failed live response remains visible in source status; it does not make static model
+IDs startable. Existing explicit `models.curated` entries still control the curated view.
+
 ## Automatic model updates
 
 Live provider catalogs have a five-minute freshness window. The daemon refreshes them periodically and

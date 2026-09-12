@@ -10,8 +10,9 @@ import (
 
 // RefreshPlan buffers source replacements until a whole catalog generation is ready.
 type RefreshPlan struct {
-	owner *CatalogService
-	store *refreshPlanStore
+	owner   *CatalogService
+	store   *refreshPlanStore
+	sources *CatalogService
 }
 
 // NewRefreshPlan creates an isolated, read-through refresh generation.
@@ -62,7 +63,47 @@ func (s *CatalogService) CommitRefreshPlan(ctx context.Context, plan *RefreshPla
 	if plan == nil || plan.store == nil || plan.owner != s {
 		return errors.New("model catalog: refresh plan does not belong to service")
 	}
-	return s.store.ReplaceSourceRowsBatch(ctx, plan.store.snapshot())
+	if err := s.store.ReplaceSourceRowsBatch(ctx, plan.store.snapshot()); err != nil {
+		return err
+	}
+	if plan.sources != nil {
+		s.sourcesMu.Lock()
+		s.sources = plan.sources.sources
+		s.sourceByID = plan.sources.sourceByID
+		s.sourcesMu.Unlock()
+	}
+	return nil
+}
+
+// SetLiveSources stages the complete live source registry with its durable generation.
+func (p *RefreshPlan) SetLiveSources(live []*LiveProviderSource) error {
+	if p == nil || p.owner == nil {
+		return errors.New("model catalog: refresh plan is required")
+	}
+	sources := make([]Source, 0)
+	for _, source := range p.owner.sourcesSnapshot() {
+		if source.Kind() != SourceKindProviderLive {
+			sources = append(sources, source)
+		}
+	}
+	for _, source := range live {
+		if source == nil {
+			return errors.New("model catalog: live source is required")
+		}
+		sources = append(sources, source)
+	}
+	staged, err := NewService(p.owner.store, sources, MergeOptions{})
+	if err != nil {
+		return err
+	}
+	p.sources = staged
+	return nil
+}
+
+func (s *CatalogService) sourcesSnapshot() []Source {
+	s.sourcesMu.RLock()
+	defer s.sourcesMu.RUnlock()
+	return s.sources
 }
 
 type refreshPlanStore struct {

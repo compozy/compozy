@@ -143,6 +143,15 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 	},
 }
 
+func liveProviderAdapterFor(providerID string, provider compozyconfig.ProviderConfig) (liveProviderAdapter, bool) {
+	adapter, ok := liveProviderAdapters[compozyconfig.CanonicalProviderName(providerID)]
+	if ok {
+		return adapter, true
+	}
+	adapter, ok = liveProviderAdapters[compozyconfig.CanonicalProviderName(provider.RuntimeProvider)]
+	return adapter, ok
+}
+
 func (s *LiveProviderSource) discoveryTarget(
 	provider compozyconfig.ProviderConfig,
 ) (liveDiscoveryTarget, error) {
@@ -190,6 +199,12 @@ func (s *LiveProviderSource) discoveryTarget(
 			timeout:  timeout,
 		}, nil
 	case liveDiscoveryCommand:
+		if _, registered := liveProviderAdapters[s.providerID]; !registered {
+			return liveDiscoveryTarget{}, fmt.Errorf(
+				"model catalog: provider overlay %q requires models.discovery.command for command discovery",
+				s.providerID,
+			)
+		}
 		return liveDiscoveryTarget{
 			kind:    liveDiscoveryCommand,
 			command: s.adapter.defaultCommand,
@@ -263,10 +278,14 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 	}
 	modelMappings := ""
 	if s.adapter.parseACPModelRows != nil {
-		modelMappings = providerModelMappingFingerprint(provider.Models)
+		modelMappings = providerModelMappingFingerprint(liveModelMappings(s.providerID, provider))
+	}
+	providerIdentity := s.providerID
+	if _, registered := liveProviderAdapters[s.providerID]; !registered {
+		providerIdentity += "\x1f" + provider.RuntimeProviderName(s.providerID)
 	}
 	return CatalogExecutionFingerprint(
-		s.providerID,
+		providerIdentity,
 		string(target.kind),
 		strings.TrimSpace(target.endpoint),
 		command,

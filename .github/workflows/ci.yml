@@ -346,6 +346,15 @@ jobs:
       - name: Run Go runtime verification
         run: make test
 
+      - name: Verify overlay catalog with ACP subprocesses and SQLite
+        if: matrix.shard_index == '0'
+        env:
+          CGO_ENABLED: "1"
+          COMPOZY_TEST_ACPMOCK_DRIVER_BIN: ${{ runner.temp }}/acpmock-driver
+        run: |
+          go build -o "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" ./internal/testutil/acpmock/cmd/acpmock-driver
+          go test -race -tags=integration -count=1 -timeout=5m ./internal/modelcatalog
+
       - name: Upload gotestsum timing data
         uses: actions/upload-artifact@v7
         with:
