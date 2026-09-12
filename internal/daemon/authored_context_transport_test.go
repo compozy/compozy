@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -501,7 +502,12 @@ func authoredContextSessionManager() testutil.StubSessionManager {
 			if strings.TrimSpace(id) != "sess-1" {
 				return nil, session.ErrSessionNotFound
 			}
-			return &session.Info{ID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}, nil
+			return &session.Info{
+				ID:          "sess-1",
+				WorkspaceID: "ws-1",
+				ProfileID:   store.DefaultProfileID,
+				AgentName:   "coder",
+			}, nil
 		},
 	}
 }

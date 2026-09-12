@@ -82,7 +82,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeState(
 		return nil, err
 	}
 
-	// dynamic-sql: optional workspace/agent/session filters and the caller limit change the statement shape.
+	// dynamic-sql: optional workspace/profile/agent/session filters and the caller limit change the statement shape.
 	sqlQuery := `SELECT workspace_id, agent_name, session_id, policy_snapshot_id, last_wake_at, next_allowed_at,
 			coalesced_count, last_result, last_reason, updated_at
 		FROM agent_heartbeat_wake_state`
@@ -91,6 +91,11 @@ func (g *HeartbeatRepo) ListHeartbeatWakeState(
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("session_id", query.SessionID),
 	)
+	if profileID := strings.TrimSpace(query.ProfileID); profileID != "" {
+		where = append(where, `EXISTS (SELECT 1 FROM sessions
+			WHERE sessions.id = agent_heartbeat_wake_state.session_id AND sessions.profile_id = ?)`)
+		args = append(args, profileID)
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY updated_at DESC, session_id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -293,7 +298,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 		return nil, err
 	}
 
-	// dynamic-sql: optional workspace/agent/session/source/result/reason filters and limit change the statement shape.
+	// dynamic-sql: optional profile and wake-event filters plus the caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
 			synthetic_prompt_id, created_at, expires_at
 		FROM agent_heartbeat_wake_events`
@@ -305,6 +310,11 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 		store.StringClause("result", string(query.Result)),
 		store.StringClause("reason", string(query.Reason)),
 	)
+	if profileID := strings.TrimSpace(query.ProfileID); profileID != "" {
+		where = append(where, `EXISTS (SELECT 1 FROM sessions
+			WHERE sessions.id = agent_heartbeat_wake_events.session_id AND sessions.profile_id = ?)`)
+		args = append(args, profileID)
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)

@@ -195,6 +195,7 @@ describe("session actions", () => {
   });
 
   it("useCreateSession seeds detail without replacing infinite list caches", async () => {
+    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" }));
     vi.mocked(createSession).mockResolvedValue(createdSession);
 
     const queryClient = new QueryClient({
@@ -226,7 +227,7 @@ describe("session actions", () => {
         agent_name: createdSession.agent_name,
         workspace: createdSession.workspace_id,
       },
-      "default"
+      "open-design"
     );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession

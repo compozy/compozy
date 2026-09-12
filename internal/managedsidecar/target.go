@@ -43,6 +43,9 @@ func RevisionSourcePath(agentDefinitionPath, sidecarName string) (string, error)
 		return "", errors.New("purge agent history source path is outside an agents root")
 	}
 	root := filepath.Dir(agentsDir)
+	if profilesDir := filepath.Dir(root); filepath.Base(profilesDir) == compozyconfig.ProfilesDirName {
+		root = filepath.Dir(profilesDir)
+	}
 	if filepath.Base(root) == compozyconfig.DirName {
 		root = filepath.Dir(root)
 	}

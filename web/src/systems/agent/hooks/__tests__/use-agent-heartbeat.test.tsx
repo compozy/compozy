@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resetProfileViews, setProfileView, useProfileReadScope } from "@/systems/profiles";
 
 import { agentKeys } from "../../lib/query-keys";
 
@@ -92,6 +94,7 @@ function createWrapper(queryClient: QueryClient) {
 
 describe("use-agent-heartbeat", () => {
   beforeEach(() => {
+    resetProfileViews();
     for (const mock of [
       mockFetchHeartbeat,
       mockPutHeartbeat,
@@ -127,6 +130,242 @@ describe("use-agent-heartbeat", () => {
     });
   });
 
+  afterEach(() =>
+    act(() => {
+      onlineManager.setOnline(true);
+      resetProfileViews();
+    })
+  );
+
+  it("Should read and cache same-name heartbeat resources independently for the selected profile", async () => {
+    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const selected = { ...heartbeat, digest: "selected-profile" };
+    const original = { ...heartbeat, digest: "default-profile" };
+    const selectedHistory = { revisions: [{ id: "selected-revision" }] };
+    const defaultHistory = { revisions: [] };
+    mockFetchHeartbeat.mockImplementation(async (_name, _workspace, _signal, profile) =>
+      profile === "open-design" ? selected : original
+    );
+    mockFetchHistory.mockImplementation(async (_name, _workspace, _signal, profile) =>
+      profile === "open-design" ? selectedHistory : defaultHistory
+    );
+    const selectedStatus = { agent_name: "coder", enabled: true };
+    const defaultStatus = { agent_name: "coder", enabled: false };
+    mockFetchStatus.mockImplementation(async (_name, options) =>
+      options.profile === "open-design" ? selectedStatus : defaultStatus
+    );
+    const { result, unmount } = renderHook(
+      () => ({
+        profile: useProfileReadScope().destination,
+        file: useAgentHeartbeat("coder", "ws_alpha"),
+        history: useAgentHeartbeatHistory("coder", "ws_alpha"),
+        status: useAgentHeartbeatStatus("coder", { workspaceId: "ws_alpha" }),
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(result.current.file.data).toEqual(selected));
+    await waitFor(() => expect(result.current.history.data).toEqual(selectedHistory));
+    expect(mockFetchHeartbeat).toHaveBeenCalledWith(
+      "coder",
+      "ws_alpha",
+      expect.any(AbortSignal),
+      "open-design"
+    );
+    expect(mockFetchHistory).toHaveBeenCalledWith(
+      "coder",
+      "ws_alpha",
+      expect.any(AbortSignal),
+      "open-design"
+    );
+    await waitFor(() => expect(result.current.status.data).toEqual(selectedStatus));
+    expect(mockFetchStatus).toHaveBeenCalledWith(
+      "coder",
+      { workspaceId: "ws_alpha", profile: "open-design" },
+      expect.any(AbortSignal)
+    );
+    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+    await waitFor(() => expect(result.current.file.data).toEqual(original));
+    await waitFor(() => expect(result.current.history.data).toEqual(defaultHistory));
+    expect(
+      queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha", "open-design"))
+    ).toEqual(selected);
+    expect(
+      queryClient.getQueryData(agentKeys.heartbeatHistory("coder", "ws_alpha", "open-design"))
+    ).toEqual(selectedHistory);
+    await waitFor(() => expect(result.current.status.data).toEqual(defaultStatus));
+    expect(
+      queryClient.getQueryData(
+        agentKeys.heartbeatStatus("coder", { workspaceId: "ws_alpha", profile: "open-design" })
+      )
+    ).toEqual(selectedStatus);
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each(
+    (["put", "delete", "rollback", "validate", "wake"] as const).flatMap(operation =>
+      (["in flight", "offline"] as const).map(phase => ({ operation, phase }))
+    )
+  )(
+    "Should retain the original heartbeat resource for $operation while $phase",
+    async ({ operation, phase }) => {
+      setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const originalKey = agentKeys.heartbeat("coder", "ws_alpha", "open-design");
+      const otherProfileKey = agentKeys.heartbeat("coder", "ws_alpha", "default");
+      const nextResourceKey = agentKeys.heartbeat("reviewer", "ws_beta", "default");
+      const originalHistoryKey = agentKeys.heartbeatHistory("coder", "ws_alpha", "open-design");
+      const otherHistoryKey = agentKeys.heartbeatHistory("coder", "ws_alpha", "default");
+      const original = { ...heartbeat, digest: "original" };
+      const other = { ...heartbeat, digest: "other-profile" };
+      const next = { ...heartbeat, digest: "next-resource" };
+      const updated = { ...heartbeat, digest: "changed" };
+      queryClient.setQueryData(originalKey, original);
+      queryClient.setQueryData(otherProfileKey, other);
+      queryClient.setQueryData(nextResourceKey, next);
+      queryClient.setQueryData(originalHistoryKey, { revisions: [] });
+      queryClient.setQueryData(otherHistoryKey, { revisions: [] });
+      const originalStatusKey = agentKeys.heartbeatStatus("coder", {
+        workspaceId: "ws_alpha",
+        profile: "open-design",
+      });
+      const otherStatusKey = agentKeys.heartbeatStatus("coder", {
+        workspaceId: "ws_alpha",
+        profile: "default",
+      });
+      queryClient.setQueryData(originalStatusKey, { enabled: true });
+      queryClient.setQueryData(otherStatusKey, { enabled: false });
+      let finish!: () => void;
+      const pending = new Promise(resolve => {
+        finish = () =>
+          resolve(
+            operation === "validate"
+              ? updated
+              : { heartbeat: updated, revision: { id: "r2" }, decision: { result: "sent" } }
+          );
+      });
+      const adapter = {
+        put: mockPutHeartbeat,
+        delete: mockDeleteHeartbeat,
+        rollback: mockRollbackHeartbeat,
+        validate: mockValidateHeartbeat,
+        wake: mockWake,
+      }[operation];
+      adapter.mockReturnValue(pending);
+      const { result, rerender, unmount } = renderHook(
+        ({ name, workspace }) => ({
+          name,
+          workspace,
+          profile: useProfileReadScope().destination,
+          put: usePutAgentHeartbeat(),
+          delete: useDeleteAgentHeartbeat(),
+          rollback: useRollbackAgentHeartbeat(),
+          validate: useValidateAgentHeartbeat(),
+          wake: useWakeAgentHeartbeat(),
+        }),
+        {
+          initialProps: { name: "coder", workspace: "ws_alpha" },
+          wrapper: createWrapper(queryClient),
+        }
+      );
+      const run = () => {
+        const scope = {
+          name: result.current.name,
+          cacheWorkspace: result.current.workspace,
+          profile: result.current.profile,
+        };
+        switch (operation) {
+          case "put":
+            return result.current.put.mutateAsync({
+              ...scope,
+              params: {
+                workspace_id: "ws_alpha",
+                body: "changed",
+                expected_digest: "b".repeat(64),
+              },
+            });
+          case "delete":
+            return result.current.delete.mutateAsync({
+              ...scope,
+              params: { workspace_id: "ws_alpha", expected_digest: "b".repeat(64) },
+            });
+          case "rollback":
+            return result.current.rollback.mutateAsync({
+              ...scope,
+              params: {
+                workspace_id: "ws_alpha",
+                revision_id: "r1",
+                expected_digest: "b".repeat(64),
+              },
+            });
+          case "validate":
+            return result.current.validate.mutateAsync({
+              ...scope,
+              params: { workspace_id: "ws_alpha", body: "changed" },
+            });
+          case "wake":
+            return result.current.wake.mutateAsync({
+              ...scope,
+              params: { session_id: "sess-original", source: "manual" },
+            });
+        }
+      };
+      let completion!: ReturnType<typeof run>;
+      act(() => {
+        onlineManager.setOnline(phase !== "offline");
+        completion = run();
+      });
+      if (phase === "offline") {
+        await waitFor(() => expect(result.current[operation].isPaused).toBe(true));
+        expect(adapter).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+      }
+      act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+      rerender({ name: "reviewer", workspace: "ws_beta" });
+      await waitFor(() => expect(result.current.profile).toBe("default"));
+      act(() => onlineManager.setOnline(true));
+      await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+      await act(async () => {
+        finish();
+        await completion;
+      });
+      expect(adapter.mock.calls[0]?.[0]).toBe("coder");
+      expect(adapter.mock.calls[0]?.[3]).toBe("open-design");
+      if (operation === "wake") {
+        expect(adapter.mock.calls[0]?.[1]).toEqual({
+          session_id: "sess-original",
+          source: "manual",
+        });
+      } else {
+        expect(adapter.mock.calls[0]?.[1]).toMatchObject({ workspace_id: "ws_alpha" });
+      }
+      expect(queryClient.getQueryData(originalKey)).toEqual(
+        operation === "put" || operation === "rollback" ? updated : original
+      );
+      expect(queryClient.getQueryData(otherProfileKey)).toEqual(other);
+      expect(queryClient.getQueryData(nextResourceKey)).toEqual(next);
+      expect(queryClient.getQueryState(originalKey)?.isInvalidated).toBe(operation !== "validate");
+      expect(queryClient.getQueryState(otherProfileKey)?.isInvalidated).toBe(false);
+      expect(queryClient.getQueryState(nextResourceKey)?.isInvalidated).toBe(false);
+      expect(queryClient.getQueryState(originalHistoryKey)?.isInvalidated).toBe(
+        operation !== "validate"
+      );
+      expect(queryClient.getQueryState(otherHistoryKey)?.isInvalidated).toBe(false);
+      expect(queryClient.getQueryState(originalStatusKey)?.isInvalidated).toBe(
+        operation !== "validate"
+      );
+      expect(queryClient.getQueryState(otherStatusKey)?.isInvalidated).toBe(false);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should load heartbeat/status and cache put results", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -156,19 +395,29 @@ describe("use-agent-heartbeat", () => {
       return { heartbeat: putHeartbeat, revision: { id: "r1" } };
     });
 
-    const put = renderHook(() => usePutAgentHeartbeat("coder", "ws_alpha"), {
+    const put = renderHook(() => usePutAgentHeartbeat(), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
       await put.result.current.mutateAsync({
-        body: "---\nenabled: true\n---\n",
-        expected_digest: "b".repeat(64),
+        name: "coder",
+        cacheWorkspace: "ws_alpha",
+        profile: "default",
+        params: {
+          body: "---\nenabled: true\n---\n",
+          expected_digest: "b".repeat(64),
+        },
       });
     });
-    expect(mockPutHeartbeat).toHaveBeenCalledWith("coder", {
-      body: "---\nenabled: true\n---\n",
-      expected_digest: "b".repeat(64),
-    });
+    expect(mockPutHeartbeat).toHaveBeenCalledWith(
+      "coder",
+      {
+        body: "---\nenabled: true\n---\n",
+        expected_digest: "b".repeat(64),
+      },
+      undefined,
+      "default"
+    );
     await waitFor(() => {
       expect(queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha"))).toEqual(
         putHeartbeat
@@ -261,47 +510,87 @@ describe("use-agent-heartbeat", () => {
       return { heartbeat: rolledBackHeartbeat, revision: { id: "r3" } };
     });
 
-    const validate = renderHook(() => useValidateAgentHeartbeat("coder"), {
+    const validate = renderHook(() => useValidateAgentHeartbeat(), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
-      await validate.result.current.mutateAsync({ body: "---\nenabled: true\n---\n" });
+      await validate.result.current.mutateAsync({
+        name: "coder",
+        cacheWorkspace: "ws_alpha",
+        profile: "default",
+        params: { body: "---\nenabled: true\n---\n" },
+      });
     });
-    expect(mockValidateHeartbeat).toHaveBeenCalledWith("coder", {
-      body: "---\nenabled: true\n---\n",
-    });
+    expect(mockValidateHeartbeat).toHaveBeenCalledWith(
+      "coder",
+      {
+        body: "---\nenabled: true\n---\n",
+      },
+      undefined,
+      "default"
+    );
 
-    const del = renderHook(() => useDeleteAgentHeartbeat("coder", "ws_alpha"), {
+    const del = renderHook(() => useDeleteAgentHeartbeat(), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
-      await del.result.current.mutateAsync({ expected_digest: "b".repeat(64) });
+      await del.result.current.mutateAsync({
+        name: "coder",
+        cacheWorkspace: "ws_alpha",
+        profile: "default",
+        params: { expected_digest: "b".repeat(64) },
+      });
     });
-    expect(mockDeleteHeartbeat).toHaveBeenCalledWith("coder", {
-      expected_digest: "b".repeat(64),
-    });
+    expect(mockDeleteHeartbeat).toHaveBeenCalledWith(
+      "coder",
+      {
+        expected_digest: "b".repeat(64),
+      },
+      undefined,
+      "default"
+    );
 
-    const rollback = renderHook(() => useRollbackAgentHeartbeat("coder", "ws_alpha"), {
+    const rollback = renderHook(() => useRollbackAgentHeartbeat(), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
-      await rollback.result.current.mutateAsync({ expected_digest: "b".repeat(64) });
+      await rollback.result.current.mutateAsync({
+        name: "coder",
+        cacheWorkspace: "ws_alpha",
+        profile: "default",
+        params: { expected_digest: "b".repeat(64) },
+      });
     });
-    expect(mockRollbackHeartbeat).toHaveBeenCalledWith("coder", {
-      expected_digest: "b".repeat(64),
-    });
+    expect(mockRollbackHeartbeat).toHaveBeenCalledWith(
+      "coder",
+      {
+        expected_digest: "b".repeat(64),
+      },
+      undefined,
+      "default"
+    );
     await waitFor(() => {
       expect(queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha"))).toEqual(
         rolledBackHeartbeat
       );
     });
 
-    const wake = renderHook(() => useWakeAgentHeartbeat("coder", "ws_alpha"), {
+    const wake = renderHook(() => useWakeAgentHeartbeat(), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
-      await wake.result.current.mutateAsync({ session_id: "sess-1", source: "manual" });
+      await wake.result.current.mutateAsync({
+        name: "coder",
+        cacheWorkspace: "ws_alpha",
+        profile: "default",
+        params: { session_id: "sess-1", source: "manual" },
+      });
     });
-    expect(mockWake).toHaveBeenCalledWith("coder", { session_id: "sess-1", source: "manual" });
+    expect(mockWake).toHaveBeenCalledWith(
+      "coder",
+      { session_id: "sess-1", source: "manual" },
+      undefined,
+      "default"
+    );
   });
 });

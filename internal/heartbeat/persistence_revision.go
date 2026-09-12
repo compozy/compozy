@@ -70,6 +70,8 @@ func (q RollbackLookup) Validate() error {
 		return fmt.Errorf("%w: workspace id is required", ErrInvalidRevision)
 	case strings.TrimSpace(q.AgentName) == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidRevision)
+	case strings.TrimSpace(q.SourcePath) == "":
+		return fmt.Errorf("%w: source path is required", ErrInvalidRevision)
 	case strings.TrimSpace(q.RevisionID) == "":
 		return fmt.Errorf("%w: revision id is required", ErrInvalidRevision)
 	default:

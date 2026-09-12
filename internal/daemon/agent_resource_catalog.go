@@ -107,6 +107,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		}
 		merged[name] = rankedEntry{entry: core.AgentCatalogEntry{
 			Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
+			PackageOwned: record.Owner.Kind.Normalize() == extensionResourceOwnerKind,
 		}, rank: rank, key: sortKey}
 	}
 	names := make([]string, 0, len(merged))

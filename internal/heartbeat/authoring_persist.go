@@ -136,6 +136,7 @@ func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 		selected, err := s.store.FindHeartbeatRevisionForRollback(ctx, RollbackLookup{
 			WorkspaceID: target.workspaceID,
 			AgentName:   target.agentName,
+			SourcePath:  target.sourcePath,
 			RevisionID:  revisionID,
 		})
 		if err != nil {
@@ -160,6 +161,21 @@ func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 	}
 	if !ok {
 		return rollbackTarget{}, revisionMissingError(target.sourcePath, ErrRevisionNotFound)
+	}
+	if snapshot.SourcePath != target.sourcePath {
+		revisions, err := s.store.ListHeartbeatRevisions(ctx, RevisionListQuery{
+			WorkspaceID: target.workspaceID,
+			AgentName:   target.agentName,
+			SourcePath:  target.sourcePath,
+			NewDigest:   targetDigest,
+			Limit:       1,
+		})
+		if err != nil {
+			return rollbackTarget{}, fmt.Errorf("heartbeat: verify rollback snapshot source: %w", err)
+		}
+		if len(revisions) == 0 {
+			return rollbackTarget{}, revisionMissingError(target.sourcePath, ErrRevisionNotFound)
+		}
 	}
 	envelope, err := snapshot.ResolvedEnvelope()
 	if err != nil {

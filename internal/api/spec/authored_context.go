@@ -1,6 +1,7 @@
 package spec
 
 const (
+	authoredContextInvalidProfileSelectionDescription    = "Invalid profile selection"
 	authoredContextAPIAgentSoulPath                      = "/api/agent/soul"
 	authoredContextAPIAgentsAgentNameHeartbeatPath       = "/api/agents/{name}/heartbeat"
 	authoredContextAPIAgentsAgentNameHeartbeatStatusPath = "/api/agents/{name}/heartbeat/status"

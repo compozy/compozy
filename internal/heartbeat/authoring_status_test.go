@@ -357,6 +357,135 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *testing.T) {
 	t.Parallel()
 
+	for _, scope := range []string{"workspace", "personal", "personal .compozy"} {
+		t.Run("Should isolate same-named "+scope+" profile history and rollback", func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newHeartbeatFixture(t)
+			base := fixture.target
+			sourceRoot := filepath.Join(fixture.root, compozyconfig.DirName)
+			if scope == "personal" {
+				base.WorkspaceRoot = filepath.Join(fixture.root, "home")
+				sourceRoot = base.WorkspaceRoot
+				base.AgentPath = filepath.Join(sourceRoot, "agents", "coder", "AGENT.md")
+			}
+			if scope == "personal .compozy" {
+				base.WorkspaceRoot = t.TempDir()
+				sourceRoot = filepath.Join(base.WorkspaceRoot, compozyconfig.DirName)
+				base.AgentPath = filepath.Join(sourceRoot, "agents", "coder", "AGENT.md")
+			}
+			profile := base
+			profile.AgentPath = filepath.Join(sourceRoot, "profiles", "design", "agents", "coder", "AGENT.md")
+			definition, err := os.ReadFile(fixture.agentPath)
+			if err != nil {
+				t.Fatalf("ReadFile(AGENT.md) error = %v", err)
+			}
+			for _, agentPath := range []string{base.AgentPath, profile.AgentPath} {
+				if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+					t.Fatalf("MkdirAll(agent) error = %v", err)
+				}
+				if err := os.WriteFile(agentPath, definition, 0o644); err != nil {
+					t.Fatalf("WriteFile(agent) error = %v", err)
+				}
+			}
+			baseBody := validHeartbeatBody("Default profile", "Inspect the default profile.")
+			original, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: base, Body: baseBody})
+			if err != nil {
+				t.Fatalf("Put(default) error = %v", err)
+			}
+			profileBody := validHeartbeatBody("Design profile", "Inspect the design profile.")
+			other, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: profile, Body: profileBody})
+			if err != nil {
+				t.Fatalf("Put(profile) error = %v", err)
+			}
+			wantSource, err := filepath.Rel(
+				base.WorkspaceRoot,
+				filepath.Join(filepath.Dir(profile.AgentPath), heartbeat.FileName),
+			)
+			if err != nil {
+				t.Fatalf("Rel(profile source) error = %v", err)
+			}
+			if other.Revision.SourcePath != filepath.ToSlash(wantSource) ||
+				other.Revision.SourcePath == original.Revision.SourcePath {
+				t.Fatalf(
+					"revision sources = %q, %q; want distinct normalized paths",
+					original.Revision.SourcePath,
+					other.Revision.SourcePath,
+				)
+			}
+			for _, selected := range []struct {
+				target heartbeat.AuthoringTarget
+				id     string
+			}{{base, original.Revision.ID}, {profile, other.Revision.ID}} {
+				history, err := fixture.authoring.History(
+					fixture.ctx,
+					heartbeat.HistoryRequest{Target: selected.target, Limit: 1},
+				)
+				if err != nil {
+					t.Fatalf("History() error = %v", err)
+				}
+				if len(history.Revisions) != 1 || history.Revisions[0].ID != selected.id {
+					t.Errorf("History() = %#v, want only %q", history.Revisions, selected.id)
+				}
+			}
+			for _, request := range []heartbeat.RollbackRequest{
+				{Target: base, RevisionID: other.Revision.ID, ExpectedDigest: original.Policy.Digest},
+				{Target: base, TargetDigest: other.Policy.Digest, ExpectedDigest: original.Policy.Digest},
+			} {
+				_, err := fixture.authoring.Rollback(fixture.ctx, request)
+				if !errors.Is(err, heartbeat.ErrRevisionNotFound) {
+					t.Errorf("Rollback(foreign source) error = %v, want ErrRevisionNotFound", err)
+				}
+				assertHeartbeatFileContent(t, filepath.Join(filepath.Dir(base.AgentPath), heartbeat.FileName), baseBody)
+			}
+			assertHeartbeatFileContent(
+				t,
+				filepath.Join(filepath.Dir(profile.AgentPath), heartbeat.FileName),
+				profileBody,
+			)
+			history, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: base})
+			if err != nil || len(history.Revisions) != 1 || history.Revisions[0].ID != original.Revision.ID {
+				t.Fatalf("History(after rejected rollback) = %#v, error = %v", history, err)
+			}
+
+			rolledBack, err := fixture.authoring.Rollback(fixture.ctx, heartbeat.RollbackRequest{
+				Target: base, TargetDigest: original.Policy.Digest, ExpectedDigest: original.Policy.Digest,
+			})
+			if err != nil || rolledBack.Policy.Digest != original.Policy.Digest {
+				t.Fatalf("Rollback(own source) = %#v, error = %v", rolledBack, err)
+			}
+			shared, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+				Target: profile, Body: baseBody, ExpectedDigest: other.Policy.Digest,
+			})
+			if err != nil || shared.Snapshot.ID != original.Snapshot.ID {
+				t.Fatalf("Put(shared digest) = %#v, error = %v; want reused snapshot", shared, err)
+			}
+			sharedRollback, err := fixture.authoring.Rollback(fixture.ctx, heartbeat.RollbackRequest{
+				Target: profile, TargetDigest: original.Policy.Digest, ExpectedDigest: shared.Policy.Digest,
+			})
+			if err != nil || sharedRollback.Policy.Digest != original.Policy.Digest {
+				t.Fatalf("Rollback(own shared digest) = %#v, error = %v", sharedRollback, err)
+			}
+
+			if err := fixture.authoring.PurgeAgentHistory(
+				fixture.ctx,
+				heartbeat.WorkspaceRef{WorkspaceID: fixture.workspaceID},
+				"coder",
+				profile.AgentPath,
+			); err != nil {
+				t.Fatalf("PurgeAgentHistory(profile) error = %v", err)
+			}
+			profileHistory, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: profile})
+			if err != nil || len(profileHistory.Revisions) != 0 {
+				t.Fatalf("History(purged profile) = %#v, error = %v", profileHistory, err)
+			}
+			baseHistory, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: base})
+			if err != nil || len(baseHistory.Revisions) != 2 {
+				t.Fatalf("History(preserved default) = %#v, error = %v", baseHistory, err)
+			}
+		})
+	}
+
 	t.Run("Should delete only the managed HEARTBEAT file and append a delete revision", func(t *testing.T) {
 		t.Parallel()
 

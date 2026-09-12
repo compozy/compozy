@@ -10,7 +10,12 @@ import {
 } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
 import { workspaceDetailOptions } from "@/systems/workspace";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import {
+  actingProfile,
+  readProfileLens,
+  readProfileView,
+  readProfileScopeParams,
+} from "@/systems/profiles";
 
 export async function preloadAgentsRoute(
   queryClient: QueryClient,
@@ -18,8 +23,9 @@ export async function preloadAgentsRoute(
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) return;
+  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, filters)),
+    queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { ...filters, profile })),
   ]);
 }
 
@@ -29,8 +35,9 @@ export async function preloadAgentSettingsRoute(
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) return;
+  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
-    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId)),
+    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
     queryClient.ensureQueryData(settingsProvidersListOptions()),
   ]);
@@ -44,8 +51,9 @@ export async function preloadAgentDetailRoute(
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) return;
 
+  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
-    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId)),
+    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
         workspace_id: workspaceId,

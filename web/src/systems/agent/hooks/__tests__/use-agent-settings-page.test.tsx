@@ -1,7 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as unknown,
@@ -70,21 +73,32 @@ vi.mock("../use-unsaved-guard", () => ({
 import { AgentApiError, AgentDigestConflictError } from "../../adapters/agent-api";
 import { useAgentSettingsPage } from "../use-agent-settings-page";
 
+function createWrapper() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
+
 describe("useAgentSettingsPage", () => {
+  afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.updateMutateAsync = vi.fn();
     mocks.refetch = vi.fn();
     mocks.agent = { ...primaryAgentFixture, origin: "workspace" };
     mocks.workspaceId = "ws-test";
+    resetProfileViews();
     mocks.refetch.mockResolvedValue({
       data: { ...primaryAgentFixture, origin: "workspace", prompt: "Reloaded prompt" },
     });
   });
 
   it("Should save one whole-definition draft with CAS and return to pristine", async () => {
-    const { result } = renderHook(() =>
-      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
+    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    const { result } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" }),
+      { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
 
@@ -103,6 +117,7 @@ describe("useAgentSettingsPage", () => {
 
     const variables = mocks.updateMutateAsync.mock.calls.at(-1)![0];
     expect(variables).toMatchObject({
+      profile: "open-design",
       name: primaryAgentFixture.name,
       params: {
         expected_digest: primaryAgentFixture.definition_digest,
@@ -117,8 +132,9 @@ describe("useAgentSettingsPage", () => {
   });
 
   it("Should render conflict recovery and reload the fresh digest before retry", async () => {
-    const { result, rerender } = renderHook(() =>
-      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
+    const { result, rerender } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" }),
+      { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => result.current.patchDraft({ prompt: "Conflicting prompt" }));
@@ -140,8 +156,9 @@ describe("useAgentSettingsPage", () => {
   });
 
   it("Should save through the mutation callback from the render that issues the intent", async () => {
-    const { result, rerender } = renderHook(() =>
-      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
+    const { result, rerender } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" }),
+      { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => result.current.patchDraft({ prompt: "Current callback prompt" }));
@@ -162,8 +179,9 @@ describe("useAgentSettingsPage", () => {
   });
 
   it("Should keep Save focusable-but-blocked with a caption after a permission denial", async () => {
-    const { result } = renderHook(() =>
-      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
+    const { result } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" }),
+      { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => result.current.patchDraft({ prompt: "Denied prompt" }));
@@ -176,8 +194,9 @@ describe("useAgentSettingsPage", () => {
   });
 
   it("Should navigate between sections, detail, and provider settings", async () => {
-    const { result } = renderHook(() =>
-      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "basics" })
+    const { result } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "basics" }),
+      { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => {
@@ -198,32 +217,38 @@ describe("useAgentSettingsPage", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings/providers" });
   });
 
-  it("Should expose a replacement agent draft in every render without leaking dirty state", () => {
-    const renderedPrompts: Array<string | null> = [];
-    const { result, rerender } = renderHook(
-      ({ name }: { name: string }) => {
-        const page = useAgentSettingsPage({ name, section: "instructions" });
-        renderedPrompts.push(page.draft?.prompt ?? null);
-        return page;
-      },
-      { initialProps: { name: primaryAgentFixture.name } }
-    );
+  it.each(["agent", "profile"] as const)(
+    "Should replace the draft on %s changes without leaking dirty state",
+    dimension => {
+      const renderedPrompts: Array<string | null> = [];
+      const { result, rerender } = renderHook(
+        ({ name }: { name: string }) => {
+          const page = useAgentSettingsPage({ name, section: "instructions" });
+          renderedPrompts.push(page.draft?.prompt ?? null);
+          return page;
+        },
+        { initialProps: { name: primaryAgentFixture.name }, wrapper: createWrapper() }
+      );
 
-    act(() => result.current.patchDraft({ prompt: "Dirty prompt" }));
-    expect(result.current.draft?.prompt).toBe("Dirty prompt");
+      act(() => result.current.patchDraft({ prompt: "Dirty prompt" }));
+      expect(result.current.draft?.prompt).toBe("Dirty prompt");
 
-    mocks.agent = {
-      ...primaryAgentFixture,
-      name: "replacement-agent",
-      definition_digest: "replacement-digest",
-      prompt: "Replacement prompt",
-      origin: "workspace",
-    };
-    renderedPrompts.length = 0;
-    rerender({ name: "replacement-agent" });
+      mocks.agent = {
+        ...primaryAgentFixture,
+        name: dimension === "agent" ? "replacement-agent" : primaryAgentFixture.name,
+        definition_digest: "replacement-digest",
+        prompt: "Replacement prompt",
+        origin: "workspace",
+      };
+      renderedPrompts.length = 0;
+      if (dimension === "profile") {
+        act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" }));
+      }
+      rerender({ name: dimension === "agent" ? "replacement-agent" : primaryAgentFixture.name });
 
-    expect(renderedPrompts.length).toBeGreaterThan(0);
-    expect(renderedPrompts.every(prompt => prompt === "Replacement prompt")).toBe(true);
-    expect(result.current.dirty).toBe(false);
-  });
+      expect(renderedPrompts.length).toBeGreaterThan(0);
+      expect(renderedPrompts.every(prompt => prompt === "Replacement prompt")).toBe(true);
+      expect(result.current.dirty).toBe(false);
+    }
+  );
 });

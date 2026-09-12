@@ -339,6 +339,116 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 func TestManagedSoulAuthoringServiceDeleteRollbackAndHistory(t *testing.T) {
 	t.Parallel()
 
+	for _, scope := range []string{"workspace", "personal", "personal .compozy"} {
+		t.Run("Should isolate same-named "+scope+" profile history and rollback", func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newAuthoringFixture(t)
+			base := fixture.target
+			sourceRoot := filepath.Join(fixture.root, compozyconfig.DirName)
+			if scope == "personal" {
+				base.WorkspaceRoot = filepath.Join(fixture.root, "home")
+				sourceRoot = base.WorkspaceRoot
+				base.AgentPath = filepath.Join(sourceRoot, "agents", "coder", "AGENT.md")
+			}
+			if scope == "personal .compozy" {
+				base.WorkspaceRoot = t.TempDir()
+				sourceRoot = filepath.Join(base.WorkspaceRoot, compozyconfig.DirName)
+				base.AgentPath = filepath.Join(sourceRoot, "agents", "coder", "AGENT.md")
+			}
+			profile := base
+			profile.AgentPath = filepath.Join(sourceRoot, "profiles", "design", "agents", "coder", "AGENT.md")
+			definition, err := os.ReadFile(fixture.agentPath)
+			if err != nil {
+				t.Fatalf("ReadFile(AGENT.md) error = %v", err)
+			}
+			for _, agentPath := range []string{base.AgentPath, profile.AgentPath} {
+				if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+					t.Fatalf("MkdirAll(agent) error = %v", err)
+				}
+				if err := os.WriteFile(agentPath, definition, 0o644); err != nil {
+					t.Fatalf("WriteFile(agent) error = %v", err)
+				}
+			}
+			baseBody := validSoulBody("coder", "Default profile instructions.")
+			original, err := fixture.service.Put(fixture.ctx, soul.PutRequest{Target: base, Body: baseBody})
+			if err != nil {
+				t.Fatalf("Put(default) error = %v", err)
+			}
+			profileBody := validSoulBody("coder", "Design profile instructions.")
+			other, err := fixture.service.Put(fixture.ctx, soul.PutRequest{Target: profile, Body: profileBody})
+			if err != nil {
+				t.Fatalf("Put(profile) error = %v", err)
+			}
+			wantSource, err := filepath.Rel(
+				base.WorkspaceRoot,
+				filepath.Join(filepath.Dir(profile.AgentPath), soul.FileName),
+			)
+			if err != nil {
+				t.Fatalf("Rel(profile source) error = %v", err)
+			}
+			if other.Revision.SourcePath != filepath.ToSlash(wantSource) ||
+				other.Revision.SourcePath == original.Revision.SourcePath {
+				t.Fatalf(
+					"revision sources = %q, %q; want distinct normalized paths",
+					original.Revision.SourcePath,
+					other.Revision.SourcePath,
+				)
+			}
+			for _, selected := range []struct {
+				target soul.AuthoringTarget
+				id     string
+			}{{base, original.Revision.ID}, {profile, other.Revision.ID}} {
+				history, err := fixture.service.History(
+					fixture.ctx,
+					soul.HistoryRequest{Target: selected.target, Limit: 1},
+				)
+				if err != nil {
+					t.Fatalf("History() error = %v", err)
+				}
+				if len(history.Revisions) != 1 || history.Revisions[0].ID != selected.id {
+					t.Errorf("History() = %#v, want only %q", history.Revisions, selected.id)
+				}
+			}
+			_, err = fixture.service.Rollback(fixture.ctx, soul.RollbackRequest{
+				Target: base, RevisionID: other.Revision.ID, ExpectedDigest: original.Soul.Digest,
+			})
+			if !errors.Is(err, soul.ErrRevisionNotFound) {
+				t.Errorf("Rollback(foreign source) error = %v, want ErrRevisionNotFound", err)
+			}
+			requireAuthoringCode(t, err, "revision_not_found")
+			assertFileContent(t, filepath.Join(filepath.Dir(base.AgentPath), soul.FileName), baseBody)
+			assertFileContent(t, filepath.Join(filepath.Dir(profile.AgentPath), soul.FileName), profileBody)
+			history, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: base})
+			if err != nil || len(history.Revisions) != 1 || history.Revisions[0].ID != original.Revision.ID {
+				t.Fatalf("History(after rejected rollback) = %#v, error = %v", history, err)
+			}
+
+			rolledBack, err := fixture.service.Rollback(fixture.ctx, soul.RollbackRequest{
+				Target: base, RevisionID: original.Revision.ID, ExpectedDigest: original.Soul.Digest,
+			})
+			if err != nil || rolledBack.Soul.Digest != original.Soul.Digest {
+				t.Fatalf("Rollback(own source) = %#v, error = %v", rolledBack, err)
+			}
+			if err := fixture.service.PurgeAgentHistory(
+				fixture.ctx,
+				soul.WorkspaceRef{WorkspaceID: fixture.workspaceID},
+				"coder",
+				profile.AgentPath,
+			); err != nil {
+				t.Fatalf("PurgeAgentHistory(profile) error = %v", err)
+			}
+			profileHistory, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: profile})
+			if err != nil || len(profileHistory.Revisions) != 0 {
+				t.Fatalf("History(purged profile) = %#v, error = %v", profileHistory, err)
+			}
+			baseHistory, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: base})
+			if err != nil || len(baseHistory.Revisions) != 2 {
+				t.Fatalf("History(preserved default) = %#v, error = %v", baseHistory, err)
+			}
+		})
+	}
+
 	t.Run("Should delete only the managed SOUL file and append a delete revision", func(t *testing.T) {
 		t.Parallel()
 

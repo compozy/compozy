@@ -1146,6 +1146,19 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
+				for _, operationSpec := range agentDefinitionMutationOperations() {
+					operation := operationFor(t, doc, operationSpec.Path, operationSpec.Method)
+					assertParameter(t, operation, specProfileKey, openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+				assertParameter(
+					t,
+					operationFor(t, doc, "/api/agents", "POST"),
+					specProfileKey,
+					openapi3.ParameterInQuery,
+					false,
+				)
+
 				update := operationFor(t, doc, "/api/agents/{name}", "PUT")
 				assertParameter(t, update, "name", openapi3.ParameterInPath, true)
 				assertResponseStatus(t, update, 409)
@@ -1155,6 +1168,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertPropertyAbsent(t, updateAgentSchema, "mcp_servers")
 
 				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
+				assertResponseStatus(t, deleteAgent, 403)
 				assertParameter(t, deleteAgent, "workspace", openapi3.ParameterInQuery, false)
 				deleteSchema := jsonResponseSchema(t, deleteAgent, 200)
 				assertRequired(t, deleteSchema, "name", "origin")
@@ -1167,6 +1181,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, duplicateSchema, "name")
 				assertNotRequired(t, duplicateSchema, "scope", "workspace", "overrides")
 				assertEnumValues(t, propertySchema(t, duplicateSchema, "scope"), "workspace", "global")
+
+				for _, path := range []string{"/api/agents", "/api/agents/catalog", "/api/agents/{name}"} {
+					read := operationFor(t, doc, path, "GET")
+					assertParameter(t, read, specProfileKey, openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, read, "all_profiles", openapi3.ParameterInQuery)
+				}
 
 				getAgent := operationFor(t, doc, "/api/agents/{name}", "GET")
 				getSchema := jsonResponseSchema(t, getAgent, 200)

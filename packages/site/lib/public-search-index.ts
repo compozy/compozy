@@ -5,9 +5,9 @@ import type { ChangelogRelease } from "@/lib/changelog/types";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
-import { BUNDLED_SPEC_CYCLE_PATH, specCycleExtension } from "@/lib/marketplace-bundled";
+import { bundledExtensions } from "@/lib/marketplace-bundled";
 import {
-  bundledSpecCycleDescription,
+  bundledExtensionDescription,
   MARKETPLACE_DESCRIPTION,
   marketplaceBridgesDescription,
 } from "@/lib/marketplace-copy";
@@ -246,30 +246,30 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     })),
   ];
 
-  const bundled: AdvancedIndex[] = [
-    {
-      id: BUNDLED_SPEC_CYCLE_PATH,
-      url: BUNDLED_SPEC_CYCLE_PATH,
-      title: `${specCycleExtension.displayName} — Marketplace`,
-      description: bundledSpecCycleDescription(specCycleExtension.description),
-      breadcrumbs: ["Marketplace"],
-      tag: "Marketplace",
-      structuredData: {
-        headings: [],
-        contents: [
-          {
-            heading: undefined,
-            content: joinContent(
-              specCycleExtension.description,
-              specCycleExtension.statusCommand,
-              specCycleExtension.loops.map(loop => loop.name).join(", "),
-              specCycleExtension.skills.join(", ")
-            ),
-          },
-        ],
-      },
+  const bundled = bundledExtensions.map<AdvancedIndex>(extension => ({
+    id: extension.path,
+    url: extension.path,
+    title: `${extension.displayName} — Marketplace`,
+    description: bundledExtensionDescription(extension.description),
+    breadcrumbs: ["Marketplace"],
+    tag: "Marketplace",
+    structuredData: {
+      headings: [],
+      contents: [
+        {
+          heading: undefined,
+          content: joinContent(
+            extension.description,
+            extension.statusCommand,
+            extension.loops.map(loop => loop.name).join(", "),
+            extension.skills.join(", "),
+            extension.agents.join(", "),
+            extension.tools.map(tool => `${tool.name}: ${tool.description}`).join("\n")
+          ),
+        },
+      ],
     },
-  ];
+  }));
 
   return [overview, ...kinds, ...bridges, ...bundled];
 }

@@ -44,6 +44,7 @@ SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, ne
 FROM agent_heartbeat_revisions
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
+  AND source_path = sqlc.arg(source_path)
   AND id = sqlc.arg(id)
   AND operation IN ('write', 'delete', 'rollback');
 

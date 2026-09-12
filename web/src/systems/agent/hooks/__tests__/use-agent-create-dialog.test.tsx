@@ -1,5 +1,9 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { PropsWithChildren } from "react";
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockCreateAgent,
@@ -115,18 +119,27 @@ function renderAgentCreateDialog(
     workspaceProvidersLoading: boolean;
   }> = {}
 ) {
-  return renderHook(() =>
-    useAgentCreateDialog({
-      activeWorkspace: "activeWorkspace" in overrides ? overrides.activeWorkspace : activeWorkspace,
-      workspaceProviders: overrides.workspaceProviders ?? workspaceProviders,
-      workspaceProvidersError: overrides.workspaceProvidersError ?? null,
-      workspaceProvidersLoading: overrides.workspaceProvidersLoading ?? false,
-    })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return renderHook(
+    () =>
+      useAgentCreateDialog({
+        activeWorkspace:
+          "activeWorkspace" in overrides ? overrides.activeWorkspace : activeWorkspace,
+        workspaceProviders: overrides.workspaceProviders ?? workspaceProviders,
+        workspaceProvidersError: overrides.workspaceProvidersError ?? null,
+        workspaceProvidersLoading: overrides.workspaceProvidersLoading ?? false,
+      }),
+    { wrapper }
   );
 }
 
 describe("useAgentCreateDialog", () => {
+  afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
+    resetProfileViews();
     mockCreateAgent.mockReset();
     mockCreateAgent.mockResolvedValue({
       name: "release-captain",
@@ -197,6 +210,7 @@ describe("useAgentCreateDialog", () => {
   });
 
   it("submits a workspace create request and navigates to the created agent", async () => {
+    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
 
     act(() => {
@@ -223,20 +237,23 @@ describe("useAgentCreateDialog", () => {
 
     await waitFor(() => {
       expect(mockCreateAgent).toHaveBeenCalledWith({
-        scope: "workspace",
-        workspace: "ws_alpha",
-        agent: {
-          name: "release-captain",
-          provider: "codex",
-          prompt: "Own release readiness.",
-          model: "gpt-5.4",
-          reasoning_effort: "high",
-          tools: ["compozy__skill_view"],
-          toolsets: ["compozy__catalog"],
-          deny_tools: ["compozy__task_*"],
-          permissions: "approve-reads",
-          category_path: ["Engineering", "Release"],
-          skills: { disabled: ["copywriting"] },
+        profile: "open-design",
+        params: {
+          scope: "workspace",
+          workspace: "ws_alpha",
+          agent: {
+            name: "release-captain",
+            provider: "codex",
+            prompt: "Own release readiness.",
+            model: "gpt-5.4",
+            reasoning_effort: "high",
+            tools: ["compozy__skill_view"],
+            toolsets: ["compozy__catalog"],
+            deny_tools: ["compozy__task_*"],
+            permissions: "approve-reads",
+            category_path: ["Engineering", "Release"],
+            skills: { disabled: ["copywriting"] },
+          },
         },
       });
       expect(mockNavigate).toHaveBeenCalledWith({
@@ -391,6 +408,7 @@ describe("useAgentCreateDialog", () => {
   });
 
   it("Should submit duplicate override diff and never call create", async () => {
+    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
     const source = {
       name: "release-captain",
@@ -422,6 +440,7 @@ describe("useAgentCreateDialog", () => {
       expect(result.current.submitError).toBeNull();
       expect(mockCreateAgent).not.toHaveBeenCalled();
       expect(mockDuplicateAgent).toHaveBeenCalledWith({
+        profile: "open-design",
         sourceName: "release-captain",
         params: {
           name: "release-captain-copy",

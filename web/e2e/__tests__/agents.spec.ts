@@ -231,15 +231,17 @@ test.describe("seeded agent detail", () => {
     await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
 
     const createRequestPromise = appPage.waitForRequest(
-      request => request.method() === "POST" && request.url().endsWith("/api/agents")
+      request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"
     );
     const createResponsePromise = appPage.waitForResponse(
-      response => response.request().method() === "POST" && response.url().endsWith("/api/agents")
+      response =>
+        response.request().method() === "POST" && new URL(response.url()).pathname === "/api/agents"
     );
     await appPage.getByTestId("submit-agent-create").click();
 
     const createRequest = await createRequestPromise;
     const createResponse = await createResponsePromise;
+    expect(new URL(createRequest.url()).searchParams.get("profile")).toBe("default");
     expect(createRequest.postDataJSON()).toMatchObject({
       scope: "workspace",
       agent: {

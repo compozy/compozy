@@ -153,55 +153,69 @@ describe("AgentAuthoredFileEditor", () => {
     expect(onSave).toHaveBeenCalledWith(dirtyDraft, "d1");
   });
 
-  it("Should reseed draft and CAS when resourceKey changes across agents", async () => {
-    const user = userEvent.setup();
-    const view = render(
-      <AgentAuthoredFileEditor
-        resourceKey={resourceKeyA}
-        kind="soul"
-        payload={soulPayload({ digest: "digest-a", body: "# Soul\n\nAgent A." })}
-        isLoading={false}
-        isError={false}
-        history={history}
-        onValidate={vi.fn().mockResolvedValue({})}
-        onSave={vi.fn().mockResolvedValue(soulPayload())}
-        onRestore={vi.fn().mockResolvedValue(soulPayload())}
-        onRetry={vi.fn()}
-      />
-    );
+  it.each([
+    { scope: "agents", nextResourceKey: resourceKeyB, role: "reviewer" },
+    {
+      scope: "profiles",
+      nextResourceKey: buildAuthoredFileResourceKey("ws-test", "coder", "soul", "open-design"),
+      role: "coder",
+    },
+  ])(
+    "Should reseed draft and CAS when resourceKey changes across $scope",
+    async ({ nextResourceKey, role }) => {
+      const user = userEvent.setup();
+      const onSave = vi.fn().mockResolvedValue(soulPayload());
+      const view = render(
+        <AgentAuthoredFileEditor
+          resourceKey={resourceKeyA}
+          kind="soul"
+          payload={soulPayload({ digest: "digest-a", body: "# Soul\n\nAgent A." })}
+          isLoading={false}
+          isError={false}
+          history={history}
+          onValidate={vi.fn().mockResolvedValue({})}
+          onSave={onSave}
+          onRestore={vi.fn().mockResolvedValue(soulPayload())}
+          onRetry={vi.fn()}
+        />
+      );
 
-    const editor = screen.getByTestId("agent-soul-textarea");
-    await user.type(editor, "\nDirty A draft");
-    expect((editor as HTMLTextAreaElement).value).toContain("Dirty A draft");
+      const editor = screen.getByTestId("agent-soul-textarea");
+      await user.type(editor, "\nDirty A draft");
+      expect((editor as HTMLTextAreaElement).value).toContain("Dirty A draft");
 
-    view.rerender(
-      <AgentAuthoredFileEditor
-        resourceKey={resourceKeyB}
-        kind="soul"
-        payload={soulPayload({
-          digest: "digest-b",
-          body: "# Soul\n\nAgent B.",
-          frontmatter: {
-            version: "1",
-            role: "reviewer",
-            tone: ["careful"],
-            principles: ["Review carefully"],
-          },
-        })}
-        isLoading={false}
-        isError={false}
-        history={history}
-        onValidate={vi.fn().mockResolvedValue({})}
-        onSave={vi.fn().mockResolvedValue(soulPayload())}
-        onRestore={vi.fn().mockResolvedValue(soulPayload())}
-        onRetry={vi.fn()}
-      />
-    );
+      view.rerender(
+        <AgentAuthoredFileEditor
+          resourceKey={nextResourceKey}
+          kind="soul"
+          payload={soulPayload({
+            digest: "digest-b",
+            body: "# Soul\n\nAgent B.",
+            frontmatter: {
+              version: "1",
+              role,
+              tone: ["careful"],
+              principles: ["Review carefully"],
+            },
+          })}
+          isLoading={false}
+          isError={false}
+          history={history}
+          onValidate={vi.fn().mockResolvedValue({})}
+          onSave={onSave}
+          onRestore={vi.fn().mockResolvedValue(soulPayload())}
+          onRetry={vi.fn()}
+        />
+      );
 
-    const next = screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement;
-    expect(next.value).not.toContain("Dirty A draft");
-    expect(next.value).toContain('role: "reviewer"');
-  });
+      const next = screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement;
+      expect(next.value).not.toContain("Dirty A draft");
+      expect(next.value).toContain(`role: "${role}"`);
+      await user.type(next, "\nNew resource edit");
+      await user.click(screen.getByTestId("agent-soul-save"));
+      expect(onSave).toHaveBeenCalledWith(expect.stringContaining("New resource edit"), "digest-b");
+    }
+  );
 
   it("Should render reload-and-retry recovery for a stale digest on save", async () => {
     const user = userEvent.setup();

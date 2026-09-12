@@ -90,10 +90,11 @@ function composeAgentApiErrorMessage(fallback: string, response: Response, error
 
 export async function fetchAgents(
   workspace?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentPayload[]> {
   const { data, error, response } = await apiClient.GET("/api/agents", {
-    params: { query: agentWorkspaceQuery(workspace) },
+    params: { query: { ...agentWorkspaceQuery(workspace), ...(profile ? { profile } : {}) } },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -108,10 +109,14 @@ export async function fetchAgents(
 export async function fetchAgent(
   name: string,
   workspace?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentPayload> {
   const { data, error, response } = await apiClient.GET("/api/agents/{name}", {
-    params: { path: { name }, query: agentWorkspaceQuery(workspace) },
+    params: {
+      path: { name },
+      query: { ...agentWorkspaceQuery(workspace), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -128,9 +133,11 @@ export async function fetchAgent(
 
 export async function createAgent(
   params: CreateAgentParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentPayload> {
   const { data, error, response } = await apiClient.POST("/api/agents", {
+    params: { query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -153,10 +160,11 @@ export async function createAgent(
 export async function updateAgent(
   name: string,
   params: UpdateAgentParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentPayload> {
   const { data, error, response } = await apiClient.PUT("/api/agents/{name}", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -179,10 +187,14 @@ export async function updateAgent(
 export async function deleteAgent(
   name: string,
   workspace?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<DeleteAgentResponse> {
   const { data, error, response } = await apiClient.DELETE("/api/agents/{name}", {
-    params: { path: { name }, query: agentWorkspaceQuery(workspace) },
+    params: {
+      path: { name },
+      query: { ...agentWorkspaceQuery(workspace), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
 
@@ -202,10 +214,11 @@ export async function deleteAgent(
 export async function duplicateAgent(
   sourceName: string,
   params: DuplicateAgentParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentPayload> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/duplicate", {
-    params: { path: { name: sourceName } },
+    params: { path: { name: sourceName }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });

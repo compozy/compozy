@@ -12,9 +12,9 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 		Summary:     "Replace one effective AGENT.md definition with digest CAS",
 		Tags:        []string{specAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
-		},
+		),
 		RequestBody: contract.UpdateAgentRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentResponse{}},
@@ -38,12 +38,17 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 		Summary:     "Durably delete one effective authored agent definition",
 		Tags:        []string{specAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Agent name"),
 			queryParam(specWorkspaceKey, "Workspace id, name, or path used to resolve the effective definition", false),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.DeleteAgentResponse{}},
+			{
+				Status:      403,
+				Description: "Package-owned agent definition cannot be deleted",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -61,9 +66,9 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 		Summary:     "Duplicate one effective authored agent definition server-side",
 		Tags:        []string{specAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("name", "Source agent name"),
-		},
+		),
 		RequestBody: contract.DuplicateAgentRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.AgentResponse{}},

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 
 import { ConfirmDialog } from "@compozy/ui";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import { useDeleteAgent } from "./use-agents";
 import type { AgentPayload, DeleteAgentResponse } from "../types";
 
@@ -25,6 +27,7 @@ export function useAgentDeleteFlow({
   workspaceId,
 }: UseAgentDeleteFlowOptions): UseAgentDeleteFlowResult {
   const navigate = useNavigate();
+  const { destination } = useProfileReadScope();
   const deleteAgent = useDeleteAgent();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export function useAgentDeleteFlow({
     if (!agent) return;
     setError(null);
     deleteAgent.mutate(
-      { name: agent.name, workspace: workspaceId },
+      { name: agent.name, workspace: workspaceId, profile: destination },
       {
         onSuccess: (result: DeleteAgentResponse) => {
           setOpen(false);

@@ -19,6 +19,7 @@
         "github.com/compozy/compozy/extensions/bridges/whatsapp": 5.29,
         "github.com/compozy/compozy/extensions/connectivity/tailscale": 2.75,
         "github.com/compozy/compozy/extensions/forge/github": 1.05,
+        "github.com/compozy/compozy/extensions/open-design": 1.84,
         "github.com/compozy/compozy/extensions/spec-cycle": 5.98,
         "github.com/compozy/compozy/internal/acp": 20.58,
         "github.com/compozy/compozy/internal/admission": 0.1,

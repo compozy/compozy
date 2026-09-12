@@ -30,10 +30,14 @@ function workspaceIdQuery(workspaceId?: string | null): { workspace_id: string }
 export async function fetchAgentHeartbeat(
   name: string,
   workspaceId?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentHeartbeatPayload> {
   const { data, error, response } = await apiClient.GET("/api/agents/{name}/heartbeat", {
-    params: { path: { name }, query: workspaceIdQuery(workspaceId) },
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -48,10 +52,11 @@ export async function fetchAgentHeartbeat(
 export async function validateAgentHeartbeat(
   name: string,
   params: ValidateAgentHeartbeatParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<ValidateAgentHeartbeatResponse> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/heartbeat/validate", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -67,10 +72,11 @@ export async function validateAgentHeartbeat(
 export async function putAgentHeartbeat(
   name: string,
   params: PutAgentHeartbeatParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<PutAgentHeartbeatResponse> {
   const { data, error, response } = await apiClient.PUT("/api/agents/{name}/heartbeat", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -91,10 +97,11 @@ export async function putAgentHeartbeat(
 export async function deleteAgentHeartbeat(
   name: string,
   params: DeleteAgentHeartbeatParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<DeleteAgentHeartbeatResponse> {
   const { data, error, response } = await apiClient.DELETE("/api/agents/{name}/heartbeat", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -115,10 +122,14 @@ export async function deleteAgentHeartbeat(
 export async function fetchAgentHeartbeatHistory(
   name: string,
   workspaceId?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<AgentHeartbeatHistoryResponse> {
   const { data, error, response } = await apiClient.GET("/api/agents/{name}/heartbeat/history", {
-    params: { path: { name }, query: workspaceIdQuery(workspaceId) },
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -133,10 +144,11 @@ export async function fetchAgentHeartbeatHistory(
 export async function rollbackAgentHeartbeat(
   name: string,
   params: RollbackAgentHeartbeatParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<RollbackAgentHeartbeatResponse> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/heartbeat/rollback", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });
@@ -155,6 +167,7 @@ export async function rollbackAgentHeartbeat(
 }
 
 export interface FetchAgentHeartbeatStatusParams {
+  profile?: string;
   workspaceId?: string | null;
   sessionId?: string;
   includeSessionHealth?: boolean;
@@ -171,6 +184,7 @@ export async function fetchAgentHeartbeatStatus(
     params: {
       path: { name },
       query: {
+        ...(options.profile ? { profile: options.profile } : {}),
         ...(workspace ? { workspace_id: workspace } : {}),
         ...(options.sessionId ? { session_id: options.sessionId } : {}),
         ...(options.includeSessionHealth !== undefined
@@ -195,10 +209,11 @@ export async function fetchAgentHeartbeatStatus(
 export async function wakeAgentHeartbeat(
   name: string,
   params: WakeAgentHeartbeatParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<WakeAgentHeartbeatResponse> {
   const { data, error, response } = await apiClient.POST("/api/agents/{name}/heartbeat/wake", {
-    params: { path: { name } },
+    params: { path: { name }, query: profile ? { profile } : undefined },
     body: params,
     signal,
   });

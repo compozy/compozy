@@ -3,12 +3,13 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  statSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import { parse as parseToml } from "smol-toml";
@@ -32,6 +33,10 @@ vi.mock("@/lib/source", () => ({
 
 import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
 import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
+import { MarketplaceBundledSection } from "@/components/marketplace/marketplace-bundled-section";
+import BundledExtensionPage, {
+  generateStaticParams as generateBundledExtensionParams,
+} from "@/app/marketplace/bundled/[name]/page";
 import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
 import MarketplaceEntryPage, {
   generateStaticParams as generateMarketplaceEntryParams,
@@ -43,7 +48,7 @@ import { BRIDGE_LOGOS } from "../marketplace-bridge-logos";
 import { bridgeProviders, findBridgeProvider, readBridgeProviders } from "../marketplace-bridges";
 import {
   bundledSkills,
-  specCycleExtension,
+  bundledExtensions,
   parseBundledSkillFrontmatter,
 } from "../marketplace-bundled";
 import {
@@ -531,11 +536,13 @@ function bridgeManifests() {
 
 function manifestDirectories(root: string, directories: string[]): string[] {
   return directories
-    .flatMap(directory =>
-      readdirSync(resolve(root, directory), { withFileTypes: true })
+    .flatMap(directory => {
+      const path = resolve(root, directory);
+      if (statSync(path).isFile()) return [basename(dirname(path))];
+      return readdirSync(path, { withFileTypes: true })
         .filter(entry => entry.isDirectory())
-        .map(entry => entry.name)
-    )
+        .map(entry => entry.name);
+    })
     .sort();
 }
 
@@ -633,73 +640,90 @@ describe("marketplace bridge providers", () => {
 });
 
 describe("marketplace bundled resources", () => {
-  it("derives the spec-cycle inventory from its manifest and directories", () => {
-    const specCycleRoot = resolve(repoRoot, "extensions", "spec-cycle");
-    type ResourcePath = { path: string; profile?: string };
-    const manifest = JSON.parse(readFileSync(resolve(specCycleRoot, "extension.json"), "utf8")) as {
-      extension: {
-        name: string;
-        version: string;
-        description: string;
-        min_compozy_version: string;
-      };
-      capabilities: { provides: string[] };
-      resources: {
-        loops: ResourcePath[];
-        skills: ResourcePath[];
-        agents: ResourcePath[];
-        tools: Record<string, unknown>;
-      };
-    };
-    const loopDirectories = manifest.resources.loops.flatMap(({ path: parent }) =>
-      readdirSync(resolve(specCycleRoot, parent), { withFileTypes: true })
-        .filter(entry => entry.isDirectory())
-        .map(entry => ({ parent, name: entry.name }))
-    );
-    const loops = loopDirectories.map(({ parent, name }) => {
-      const loop = parseYaml(
-        readFileSync(resolve(specCycleRoot, parent, name, "loop.yaml"), "utf8")
+  it.each(["spec-cycle", "open-design"])(
+    "derives the %s inventory from its declared resources",
+    name => {
+      const extension = bundledExtensions.find(item => item.name === name)!;
+      const extensionRoot = resolve(repoRoot, "extensions", name);
+      type ResourcePath = { path: string; profile?: string };
+      const manifest = JSON.parse(
+        readFileSync(resolve(extensionRoot, "extension.json"), "utf8")
       ) as {
-        meta: {
+        extension: {
           name: string;
+          version: string;
           description: string;
-          catalog?: { use_when?: string; category?: string };
+          min_compozy_version: string;
+        };
+        capabilities: { provides: string[] };
+        resources: {
+          loops: ResourcePath[];
+          skills: ResourcePath[];
+          agents: ResourcePath[];
+          tools: Record<string, unknown>;
         };
       };
-      return {
-        name: loop.meta.name,
-        description: loop.meta.description,
-        useWhen: loop.meta.catalog?.use_when,
-        category: loop.meta.catalog?.category,
-      };
-    });
+      const loopDirectories = manifest.resources.loops.flatMap(({ path: parent }) =>
+        readdirSync(resolve(extensionRoot, parent), { withFileTypes: true })
+          .filter(entry => entry.isDirectory())
+          .map(entry => ({ parent, name: entry.name }))
+      );
+      const loops = loopDirectories.map(({ parent, name }) => {
+        const loop = parseYaml(
+          readFileSync(resolve(extensionRoot, parent, name, "loop.yaml"), "utf8")
+        ) as {
+          meta: {
+            name: string;
+            description: string;
+            catalog?: { use_when?: string; category?: string };
+          };
+        };
+        return {
+          name: loop.meta.name,
+          description: loop.meta.description,
+          useWhen: loop.meta.catalog?.use_when,
+          category: loop.meta.catalog?.category,
+        };
+      });
 
-    expect(specCycleExtension).toMatchObject({
-      name: manifest.extension.name,
-      version: manifest.extension.version,
-      description: manifest.extension.description,
-      minCompozyVersion: manifest.extension.min_compozy_version,
-      provides: manifest.capabilities.provides,
-      loops,
-      skills: manifestDirectories(
-        specCycleRoot,
-        manifest.resources.skills.map(resource => resource.path)
-      ),
-      agents: manifestDirectories(
-        specCycleRoot,
-        manifest.resources.agents.map(resource => resource.path)
-      ),
-    });
-    expect(specCycleExtension.tools).toHaveLength(Object.keys(manifest.resources.tools).length);
-  });
+      expect(extension).toMatchObject({
+        name: manifest.extension.name,
+        version: manifest.extension.version,
+        description: manifest.extension.description,
+        minCompozyVersion: manifest.extension.min_compozy_version,
+        provides: manifest.capabilities.provides,
+        loops,
+        skills: manifestDirectories(
+          extensionRoot,
+          manifest.resources.skills.map(resource => resource.path)
+        ),
+        agents: manifestDirectories(
+          extensionRoot,
+          manifest.resources.agents.map(resource => resource.path)
+        ),
+      });
+      expect(extension.tools).toHaveLength(Object.keys(manifest.resources.tools).length);
+    }
+  );
 
-  it("offers inspection instead of an install command for bundled resources", () => {
-    // spec-cycle is enrolled from the binary at first boot (SourceBundled), so an install command
-    // would be false and a feed entry would collide with that managed install.
-    expect(specCycleExtension.statusCommand).toBe(
-      `compozy extension status ${specCycleExtension.name}`
-    );
-    expect(findEntry("extensions", specCycleExtension.name)).toBeUndefined();
+  it("offers inspection and a detail page for each bundled extension", async () => {
+    render(<MarketplaceBundledSection />);
+    expect(generateBundledExtensionParams()).toEqual([
+      { name: "spec-cycle" },
+      { name: "open-design" },
+    ]);
+    for (const extension of bundledExtensions) {
+      expect(
+        screen.getByRole("link", { name: new RegExp(extension.displayName) }).getAttribute("href")
+      ).toBe(extension.path);
+      expect(extension.statusCommand).toBe(`compozy extension status ${extension.name}`);
+      expect(findEntry("extensions", extension.name)).toBeUndefined();
+      const detail = render(
+        await BundledExtensionPage({ params: Promise.resolve({ name: extension.name }) })
+      );
+      expect(screen.getByRole("heading", { level: 1, name: extension.displayName })).toBeDefined();
+      detail.unmount();
+    }
   });
 
   it("reads every bundled skill's identity from its SKILL.md", () => {

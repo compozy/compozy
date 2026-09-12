@@ -173,7 +173,7 @@ func (s *ManagedHeartbeatStatusService) Status(
 	if err != nil {
 		return StatusResult{}, err
 	}
-	wakeState, err := s.wakeStateForStatus(ctx, target, req.SessionID)
+	wakeState, err := s.wakeStateForStatus(ctx, target, req.SessionID, req.Target.ProfileID)
 	if err != nil {
 		return StatusResult{}, err
 	}
@@ -295,6 +295,7 @@ func (s *ManagedHeartbeatStatusService) wakeStateForStatus(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
 	sessionID string,
+	profileID string,
 ) (*WakeState, error) {
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	if trimmedSessionID != "" {
@@ -309,6 +310,7 @@ func (s *ManagedHeartbeatStatusService) wakeStateForStatus(
 	}
 	states, err := s.store.ListHeartbeatWakeState(ctx, WakeStateListQuery{
 		WorkspaceID: target.workspaceID,
+		ProfileID:   profileID,
 		AgentName:   target.agentName,
 		Limit:       1,
 	})

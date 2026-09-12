@@ -9,6 +9,7 @@
         "commands",
         "publish",
         "install",
+        "open-design",
         "agent-plugins",
         "secrets"
     ]

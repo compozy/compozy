@@ -18,6 +18,9 @@ import (
 )
 
 var (
+	errAgentDefinitionPackageDelete = errors.New(
+		"api: package-owned agent definitions cannot be deleted; disable the extension instead",
+	)
 	errAgentDefinitionConflict        = errors.New("api: agent definition conflict")
 	errAgentDefinitionInvalid         = errors.New("api: invalid agent definition request")
 	errAgentDefinitionSyncUnavailable = errors.New("api: agent definition sync is unavailable")
@@ -132,6 +135,10 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
+	if resolved.Entry.PackageOwned {
+		h.respondError(c, http.StatusForbidden, errAgentDefinitionPackageDelete)
 		return
 	}
 	if resolved.OperationWorkspace != "" &&

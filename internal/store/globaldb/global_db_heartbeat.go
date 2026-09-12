@@ -362,13 +362,15 @@ func (g *HeartbeatRepo) ListHeartbeatRevisions(
 		return nil, err
 	}
 
-	// dynamic-sql: optional workspace/agent/operation filters and the caller limit change the statement shape.
+	// dynamic-sql: optional workspace/agent/source/digest/operation filters and caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
 			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("source_path", query.SourcePath),
+		store.StringClause("new_digest", query.NewDigest),
 		store.StringClause("operation", string(query.Operation)),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
@@ -413,7 +415,8 @@ func (g *HeartbeatRepo) FindHeartbeatRevisionForRollback(
 
 	row, err := g.queries.GetHeartbeatRevisionForRollback(ctx, sqlcgen.GetHeartbeatRevisionForRollbackParams{
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID), AgentName: strings.TrimSpace(query.AgentName),
-		ID: strings.TrimSpace(query.RevisionID),
+		SourcePath: strings.TrimSpace(query.SourcePath),
+		ID:         strings.TrimSpace(query.RevisionID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.Revision{}, fmt.Errorf(

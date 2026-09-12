@@ -22,6 +22,8 @@ import type { RuntimeModelOption } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
 import { useActiveWorkspace, useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 export interface UseAgentSettingsPageOptions {
   name: string;
   section: AgentSettingsSection;
@@ -29,15 +31,12 @@ export interface UseAgentSettingsPageOptions {
 
 export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOptions) {
   const navigate = useNavigate();
+  const { destination } = useProfileReadScope();
   const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
   const agentQuery = useAgent(name, runtimeWorkspaceId);
   const updateAgent = useUpdateAgent();
-  const settingsProviders = useSettingsProviders();
-  const workspaceDetail = useWorkspace(runtimeWorkspaceId ?? "", {
-    enabled: runtimeWorkspaceId !== null,
-  });
 
-  const resourceKey = JSON.stringify([runtimeWorkspaceId, name]);
+  const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
   const { store } = useStoreBinding(
     resourceKey,
     () =>
@@ -56,14 +55,8 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   );
   const editor = useSelector(store, snapshot => snapshot.context);
 
-  const draft = editor.draft;
-  const dirty = isEditorDirty(editor);
-  const validation = draft ? validateAgentSettingsDraft(draft) : null;
-  const canSave = Boolean(validation?.canSave);
-  const mutationDenied = editor.phase === "denied";
-  const editorError = "error" in editor ? editor.error : null;
-  const saveBlocked = dirty && (!canSave || mutationDenied);
-  const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
+  const { draft, dirty, validation, canSave, saveBlocked, saveBlockedCaption, error } =
+    describeEditor(editor);
 
   const guard = useUnsavedGuard({ dirty, entityName: name });
   const deleteFlow = useAgentDeleteFlow({
@@ -71,25 +64,16 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     workspaceId: runtimeWorkspaceId,
   });
 
-  const useWorkspaceProviders = agentQuery.data?.origin === "workspace";
-  const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
-  const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
-  const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
-  const providersLoading = useWorkspaceProviders
-    ? runtimeWorkspaceId !== null && workspaceDetail.isLoading
-    : settingsProviders.isLoading || settingsProviders.isFetching;
+  const { providerOptions, providersLoading } = useAgentSettingsProviders(
+    agentQuery.data?.origin,
+    runtimeWorkspaceId
+  );
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,
     needsAuth: option.needs_auth,
   }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agentQuery.data) });
-
-  const saveBlockedCaption = mutationDenied
-    ? "Editing is not permitted for this agent."
-    : saveBlocked && fieldErrorCount > 0
-      ? `Fix ${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} before saving`
-      : undefined;
 
   return {
     agent: agentQuery.data,
@@ -115,7 +99,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     onSave: () =>
       store.trigger.saveRequested({
         name,
-        save: updateAgent.mutateAsync,
+        save: input => updateAgent.mutateAsync({ ...input, profile: destination }),
         workspaceId: runtimeWorkspaceId,
       }),
     onDiscard: () => store.trigger.discardRequested(),
@@ -124,7 +108,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     onBackToDetail: () => void navigate({ to: "/agents/$name", params: { name } }),
     onOpenProviderSettings: () => void navigate({ to: "/settings/providers" }),
     phase: editor.phase,
-    error: editorError,
+    error,
     providerOptions,
     providersLoading,
     runtimeModels: catalog.models as RuntimeModelOption[],
@@ -142,4 +126,37 @@ function isEditorDirty(editor: AgentSettingsEditorState): boolean {
   return Boolean(
     editor.baseline && editor.draft && isAgentSettingsDraftDirty(editor.draft, editor.baseline)
   );
+}
+
+function useAgentSettingsProviders(origin: string | undefined, runtimeWorkspaceId: string | null) {
+  const settingsProviders = useSettingsProviders();
+  const workspaceDetail = useWorkspace(runtimeWorkspaceId ?? "", {
+    enabled: runtimeWorkspaceId !== null,
+  });
+  const useWorkspaceProviders = origin === "workspace";
+  const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
+  const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
+  const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
+  const providersLoading = useWorkspaceProviders
+    ? runtimeWorkspaceId !== null && workspaceDetail.isLoading
+    : settingsProviders.isLoading || settingsProviders.isFetching;
+
+  return { providerOptions, providersLoading };
+}
+
+function describeEditor(editor: AgentSettingsEditorState) {
+  const draft = editor.draft;
+  const dirty = isEditorDirty(editor);
+  const validation = draft ? validateAgentSettingsDraft(draft) : null;
+  const canSave = Boolean(validation?.canSave);
+  const mutationDenied = editor.phase === "denied";
+  const error = "error" in editor ? editor.error : null;
+  const saveBlocked = dirty && (!canSave || mutationDenied);
+  const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
+  const saveBlockedCaption = mutationDenied
+    ? "Editing is not permitted for this agent."
+    : saveBlocked && fieldErrorCount > 0
+      ? `Fix ${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} before saving`
+      : undefined;
+  return { draft, dirty, validation, canSave, saveBlocked, saveBlockedCaption, error };
 }

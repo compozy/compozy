@@ -18,6 +18,7 @@ import type {
 } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
 import { useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 function describeError(fallback: string, error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -62,6 +63,7 @@ export function useAgentRuntimeEditor({
 }: UseAgentRuntimeEditorOptions): UseAgentRuntimeEditorResult {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { destination } = useProfileReadScope();
   const updateAgent = useUpdateAgent();
   const settingsProviders = useSettingsProviders();
   const workspaceDetail = useWorkspace(workspaceId ?? "", {
@@ -114,9 +116,9 @@ export function useAgentRuntimeEditor({
     setError(null);
     setConflictMessage(null);
     const cacheWorkspace = workspaceId;
-    const detailKey = agentKeys.detail(agent.name, cacheWorkspace);
+    const detailKey = agentKeys.detail(agent.name, cacheWorkspace, destination);
     updateAgent.mutate(
-      { name: agent.name, params, cacheWorkspace },
+      { name: agent.name, params, cacheWorkspace, profile: destination },
       {
         onSuccess: () => {
           toast.success("Runtime updated");

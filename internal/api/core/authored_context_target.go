@@ -21,29 +21,33 @@ import (
 func (h *BaseHandlers) resolveAuthoredAgentTargetForRequest(
 	c *gin.Context, workspaceRef, agentName string,
 ) (authoredAgentTarget, error) {
-	profileName, err := h.agentResourceProfileName(c)
+	scope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		return authoredAgentTarget{}, err
 	}
-	return h.resolveAuthoredAgentTarget(c.Request.Context(), workspaceRef, agentName, profileName)
+	return h.resolveAuthoredAgentTargetForProfile(c.Request.Context(), workspaceRef, agentName, scope, profileName)
 }
 
-// resolveAuthoredAgentTargetForSession uses the owning session Profile to locate authored agent resources.
+// resolveAuthoredAgentTargetForSession uses the authorized session Profile to locate authored resources.
 func (h *BaseHandlers) resolveAuthoredAgentTargetForSession(
 	ctx context.Context, info *session.Info,
 ) (authoredAgentTarget, error) {
-	profileName, err := h.agentResourceProfileNameForScope(ctx, profilepkg.ReadScope{ProfileID: info.ProfileID})
+	scope := profilepkg.ReadScope{ProfileID: strings.TrimSpace(info.ProfileID)}
+	if err := scope.Validate(); err != nil {
+		return authoredAgentTarget{}, fmt.Errorf("api: session profile scope: %w", err)
+	}
+	profileName, err := h.agentResourceProfileNameForScope(ctx, scope)
 	if err != nil {
 		return authoredAgentTarget{}, err
 	}
-	return h.resolveAuthoredAgentTarget(ctx, info.WorkspaceID, info.AgentName, profileName)
+	return h.resolveAuthoredAgentTargetForProfile(ctx, info.WorkspaceID, info.AgentName, scope, profileName)
 }
 
-// resolveAuthoredAgentTarget resolves workspace and Profile context before selecting agent artifacts.
-func (h *BaseHandlers) resolveAuthoredAgentTarget(
+func (h *BaseHandlers) resolveAuthoredAgentTargetForProfile(
 	ctx context.Context,
 	workspaceRef string,
 	agentName string,
+	scope profilepkg.ReadScope,
 	profileName string,
 ) (authoredAgentTarget, error) {
 	name := strings.TrimSpace(agentName)
@@ -66,11 +70,11 @@ func (h *BaseHandlers) resolveAuthoredAgentTarget(
 		return authoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
 	return authoredAgentTarget{
+		profileID:          scope.ProfileID,
+		profileName:        profileName,
 		workspaceID:        strings.TrimSpace(resolved.WorkspaceID),
 		sessionWorkspaceID: strings.TrimSpace(resolved.ID),
 		workspaceRoot:      root,
-		profileID:          resolved.ProfileID,
-		profileName:        resolved.ProfileName,
 		agentName:          name,
 		agentPath:          authoredAgentPath(&resolved, name),
 		soulConfig:         resolved.Config.Agents.Soul,
@@ -119,10 +123,10 @@ func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 // heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
-		WorkspaceID:   t.storageWorkspaceID(),
-		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		ProfileID:     t.profileID,
 		ProfileName:   t.profileName,
+		WorkspaceID:   t.storageWorkspaceID(),
+		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
@@ -159,6 +163,9 @@ func trustedRootFromAgentSourcePath(agentPath string) string {
 		return ""
 	}
 	root := filepath.Dir(agentsDir)
+	if profilesDir := filepath.Dir(root); filepath.Base(profilesDir) == compozyconfig.ProfilesDirName {
+		root = filepath.Dir(profilesDir)
+	}
 	if filepath.Base(root) == compozyconfig.DirName {
 		return filepath.Dir(root)
 	}

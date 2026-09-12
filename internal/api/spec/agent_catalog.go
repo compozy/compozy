@@ -11,7 +11,7 @@ func agentCatalogOperations() []OperationSpec {
 			Summary:     "List a filtered workspace agent fleet with exact session metrics",
 			Tags:        []string{specAgentsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				queryParam(specWorkspaceKey, "Workspace id, name, or path", true),
 				queryParam("name", "Exact agent name", false),
 				queryParam("q", "Case-insensitive agent name or category search", false),
@@ -19,7 +19,7 @@ func agentCatalogOperations() []OperationSpec {
 				enumQueryParam("status", "Agent session status", []string{specActiveKey, "idle"}),
 				queryParam("cursor", "Opaque cursor bound to workspace and filters", false),
 				intQueryParam("limit", "Agents per page (1-100; default 50)"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.AgentCatalogResponse{}},
 				{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},

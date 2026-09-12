@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import { useCreateAgent, useDuplicateAgent } from "./use-agents";
 import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
 import {
@@ -73,47 +75,18 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
+  const { destination } = useProfileReadScope();
   const createAgent = useCreateAgent();
   const duplicateAgent = useDuplicateAgent();
-  const settingsProviders = useSettingsProviders();
   const dialogStore = useStore(agentCreateDialogLogic, {
     initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
   });
   const flow = useSelector(dialogStore, snapshot => snapshot.context);
-  const storedDraft = flow.draft;
 
-  const globalProviderEntries = settingsProviders.data?.providers;
-  const globalProviders: RuntimeProviderOption[] =
-    globalProviderEntries?.map(settingsProviderToOption) ?? [];
-
-  const workspaceProviderOptions: RuntimeProviderOption[] =
-    workspaceProviders.map(workspaceProviderToOption);
-
-  // The menubar owns scope: the draft never freezes it, both flip directions included.
-  const scopedDraft: AgentCreateDialogDraft = updateAgentCreateScope(
-    storedDraft,
-    activeWorkspace ? "workspace" : "global"
+  const { draft, providerOptions, providersLoading, providersError } = useAgentCreateProviders(
+    flow.draft,
+    { activeWorkspace, workspaceProviders, workspaceProvidersError, workspaceProvidersLoading }
   );
-  const sourceProviders =
-    scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
-  const draft: AgentCreateDialogDraft =
-    scopedDraft.provider.length > 0 &&
-    !sourceProviders.some(provider => provider.name === scopedDraft.provider)
-      ? { ...scopedDraft, provider: "", model: "", reasoningEffort: "" as const }
-      : scopedDraft;
-  const providerOptions: RuntimeProviderOption[] =
-    draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
-
-  const providersLoading =
-    draft.scope === "workspace"
-      ? workspaceProvidersLoading
-      : settingsProviders.isLoading || settingsProviders.isFetching;
-  const providersError =
-    draft.scope === "workspace"
-      ? workspaceProvidersError
-      : settingsProviders.error
-        ? describeError("Unable to load global provider settings.", settingsProviders.error)
-        : null;
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,
@@ -206,6 +179,7 @@ export function useAgentCreateDialog({
         duplicateAgent.mutateAsync({
           sourceName: flow.source.name,
           params: request,
+          profile: destination,
         });
       failureMessage = "Failed to duplicate agent.";
     } else {
@@ -218,7 +192,7 @@ export function useAgentCreateDialog({
         dialogStore.trigger.submissionRejected({ error: message });
         return;
       }
-      execute = () => createAgent.mutateAsync(request);
+      execute = () => createAgent.mutateAsync({ params: request, profile: destination });
       failureMessage = "Failed to create agent.";
     }
 
@@ -254,4 +228,50 @@ export function useAgentCreateDialog({
     onOpenProviderSettings,
     onSubmit,
   };
+}
+
+function useAgentCreateProviders(
+  storedDraft: AgentCreateDialogDraft,
+  {
+    activeWorkspace,
+    workspaceProviders,
+    workspaceProvidersError,
+    workspaceProvidersLoading,
+  }: AgentCreateDialogContext
+) {
+  const settingsProviders = useSettingsProviders();
+  const globalProviderEntries = settingsProviders.data?.providers;
+  const globalProviders: RuntimeProviderOption[] =
+    globalProviderEntries?.map(settingsProviderToOption) ?? [];
+
+  const workspaceProviderOptions: RuntimeProviderOption[] =
+    workspaceProviders.map(workspaceProviderToOption);
+
+  // The menubar owns scope: the draft never freezes it, both flip directions included.
+  const scopedDraft: AgentCreateDialogDraft = updateAgentCreateScope(
+    storedDraft,
+    activeWorkspace ? "workspace" : "global"
+  );
+  const sourceProviders =
+    scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
+  const draft: AgentCreateDialogDraft =
+    scopedDraft.provider.length > 0 &&
+    !sourceProviders.some(provider => provider.name === scopedDraft.provider)
+      ? { ...scopedDraft, provider: "", model: "", reasoningEffort: "" as const }
+      : scopedDraft;
+  const providerOptions: RuntimeProviderOption[] =
+    draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
+
+  const providersLoading =
+    draft.scope === "workspace"
+      ? workspaceProvidersLoading
+      : settingsProviders.isLoading || settingsProviders.isFetching;
+  const providersError =
+    draft.scope === "workspace"
+      ? workspaceProvidersError
+      : settingsProviders.error
+        ? describeError("Unable to load global provider settings.", settingsProviders.error)
+        : null;
+
+  return { draft, providerOptions, providersLoading, providersError };
 }

@@ -213,9 +213,10 @@ func TestSoulPersistenceValidation(t *testing.T) {
 			name  string
 			query RollbackLookup
 		}{
-			{name: "Should reject missing workspace id", query: RollbackLookup{AgentName: "coder", RevisionID: "rev-1"}},
-			{name: "Should reject missing agent name", query: RollbackLookup{WorkspaceID: "ws-1", RevisionID: "rev-1"}},
-			{name: "Should reject missing revision id", query: RollbackLookup{WorkspaceID: "ws-1", AgentName: "coder"}},
+			{name: "Should reject missing workspace id", query: RollbackLookup{AgentName: "coder", SourcePath: "agents/coder/SOUL.md", RevisionID: "rev-1"}},
+			{name: "Should reject missing agent name", query: RollbackLookup{WorkspaceID: "ws-1", SourcePath: "agents/coder/SOUL.md", RevisionID: "rev-1"}},
+			{name: "Should reject missing revision id", query: RollbackLookup{WorkspaceID: "ws-1", AgentName: "coder", SourcePath: "agents/coder/SOUL.md"}},
+			{name: "Should reject missing source path", query: RollbackLookup{WorkspaceID: "ws-1", AgentName: "coder", RevisionID: "rev-1"}},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()

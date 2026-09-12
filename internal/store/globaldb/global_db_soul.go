@@ -246,13 +246,14 @@ func (g *SoulRepo) ListSoulRevisions(
 		return nil, err
 	}
 
-	// dynamic-sql: optional workspace/agent/action filters and the caller limit change the statement shape.
+	// dynamic-sql: optional workspace/agent/source/action filters and the caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
 			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("source_path", query.SourcePath),
 		store.StringClause("action", string(query.Action)),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
@@ -297,7 +298,8 @@ func (g *SoulRepo) FindSoulRevisionForRollback(
 
 	row, err := g.queries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID), AgentName: strings.TrimSpace(query.AgentName),
-		ID: strings.TrimSpace(query.RevisionID),
+		SourcePath: strings.TrimSpace(query.SourcePath),
+		ID:         strings.TrimSpace(query.RevisionID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Revision{}, fmt.Errorf(

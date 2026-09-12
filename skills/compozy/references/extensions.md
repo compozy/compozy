@@ -3,6 +3,7 @@
 ## Contents
 
 - Extension kits
+- Built-in open design
 - Portable Agent Plugins
 - Install trust
 - Authoring and dev loop
@@ -23,6 +24,32 @@ Extensions declare required environment variable names. Bind an existing Vault r
 If a candidate extension changes its normalized Network Live requirement, install or update returns `extension_network_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
+
+## Built-in Open Design
+
+The bundled `open-design` extension creates or binds the `open-design` profile. Its default agent
+is `open-design-designer`; `open-design-critic` provides independent review. The profile includes
+`open-design`, `open-design-review`, and `open-design-browser` skills, the `open-design-review`
+Loop, and the read-only `ext__open_design__lint_artifact` tool. Two local references cover craft
+and the four artifact formats; there is no upstream library, download, or synchronization step.
+
+Use the designer for interface, site, HTML-slide, or visual-document requests. A short brief or a
+`_uiux.md` is valid. Outputs stay under the active workspace's `docs/design/`, with explicit paths
+preferred; the user opens HTML directly. This port uses native CompozyOS execution and does not
+require OpenDesign's app, daemon, or MCP server. It does not implement production application code.
+
+The lint tool accepts `paths: string[]` and obtains its root from authenticated workspace context.
+It requires Node.js, preserves original findings, reports file digests, and never writes artifacts.
+Its `passed` means zero original P0 findings. The optional review Loop uses an independent
+critic session and verifies the approved file digests before completion. Its skill passes per-run
+`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` so runtime defaults
+cannot replace the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
+specific source-backed exceptions. A normal design request does not start the Loop automatically.
+Use its skill and this reference's normal lifecycle surfaces to inspect or operate it.
+
+Browser inspection uses the local skill plus an available agent-browser CLI/browser and an
+image-capable harness. Missing browser support is reported, not replaced with a fabricated visual
+check. Source attribution and licenses ship with the extension; the selected content is maintained locally.
 
 ## Portable Agent Plugins
 

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import {
   deleteAgentSoul,
   putAgentSoul,
@@ -9,6 +11,7 @@ import {
 import { agentSoulHistoryOptions, agentSoulOptions } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
 import type {
+  AgentAuthoredMutationVariables,
   DeleteAgentSoulParams,
   PutAgentSoulParams,
   RollbackAgentSoulParams,
@@ -24,8 +27,9 @@ export function useAgentSoul(
   workspace?: string | null,
   options: UseAgentSoulOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentSoulOptions(name, workspace),
+    ...agentSoulOptions(name, workspace, destination),
     enabled: (options.enabled ?? true) && !!name,
   });
 }
@@ -35,8 +39,9 @@ export function useAgentSoulHistory(
   workspace?: string | null,
   options: UseAgentSoulOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentSoulHistoryOptions(name, workspace),
+    ...agentSoulHistoryOptions(name, workspace, destination),
     enabled: (options.enabled ?? true) && !!name,
   });
 }
@@ -44,46 +49,66 @@ export function useAgentSoulHistory(
 function invalidateSoulQueries(
   queryClient: ReturnType<typeof useQueryClient>,
   name: string,
-  workspace?: string | null
+  workspace: string | null,
+  profile: string
 ) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: agentKeys.soul(name, workspace) }),
-    queryClient.invalidateQueries({ queryKey: agentKeys.soulHistory(name, workspace) }),
+    queryClient.invalidateQueries({ queryKey: agentKeys.soul(name, workspace, profile) }),
+    queryClient.invalidateQueries({ queryKey: agentKeys.soulHistory(name, workspace, profile) }),
   ]);
 }
 
-export function useValidateAgentSoul(name: string) {
+export function useValidateAgentSoul() {
   return useMutation({
-    mutationFn: (params: ValidateAgentSoulParams) => validateAgentSoul(name, params),
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<ValidateAgentSoulParams>) =>
+      validateAgentSoul(name, params, undefined, profile),
   });
 }
 
-export function usePutAgentSoul(name: string, workspace?: string | null) {
+export function usePutAgentSoul() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: PutAgentSoulParams) => putAgentSoul(name, params),
-    onSuccess: data => {
-      queryClient.setQueryData(agentKeys.soul(name, workspace), data.soul);
+    mutationFn: ({ name, params, profile }: AgentAuthoredMutationVariables<PutAgentSoulParams>) =>
+      putAgentSoul(name, params, undefined, profile),
+    onSuccess: (data, { name, cacheWorkspace, profile }) => {
+      queryClient.setQueryData(agentKeys.soul(name, cacheWorkspace, profile), data.soul);
     },
-    onSettled: () => invalidateSoulQueries(queryClient, name, workspace),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateSoulQueries(queryClient, name, cacheWorkspace, profile),
   });
 }
 
-export function useDeleteAgentSoul(name: string, workspace?: string | null) {
+export function useDeleteAgentSoul() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: DeleteAgentSoulParams) => deleteAgentSoul(name, params),
-    onSettled: () => invalidateSoulQueries(queryClient, name, workspace),
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<DeleteAgentSoulParams>) =>
+      deleteAgentSoul(name, params, undefined, profile),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateSoulQueries(queryClient, name, cacheWorkspace, profile),
   });
 }
 
-export function useRollbackAgentSoul(name: string, workspace?: string | null) {
+export function useRollbackAgentSoul() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: RollbackAgentSoulParams) => rollbackAgentSoul(name, params),
-    onSuccess: data => {
-      queryClient.setQueryData(agentKeys.soul(name, workspace), data.soul);
+    mutationFn: ({
+      name,
+      params,
+      profile,
+    }: AgentAuthoredMutationVariables<RollbackAgentSoulParams>) =>
+      rollbackAgentSoul(name, params, undefined, profile),
+    onSuccess: (data, { name, cacheWorkspace, profile }) => {
+      queryClient.setQueryData(agentKeys.soul(name, cacheWorkspace, profile), data.soul);
     },
-    onSettled: () => invalidateSoulQueries(queryClient, name, workspace),
+    onSettled: (_data, _error, { name, cacheWorkspace, profile }) =>
+      invalidateSoulQueries(queryClient, name, cacheWorkspace, profile),
   });
 }

@@ -26,6 +26,7 @@
         "internal/tools/builtin/testdata/native-tool-catalog.json",
         "openapi/compozy.json",
         "**/routeTree.gen.ts",
+        "extensions/open-design/lint.gen.mjs",
         ".compozy/tasks/**",
         "docs/**"
     ]
