@@ -1256,6 +1256,36 @@ describe("global theme specificity", () => {
 });
 
 describe("raw-hex", () => {
+  it.each([
+    ":root",
+    "html",
+    "body",
+    '[data-theme="dark"]',
+    "html[data-color-scheme='light']",
+    "body[data-mode=dark]",
+  ])("excludes color tokens declared on %s", selector => {
+    const tokens = Array.from({ length: 13 }, (_, i) => `--color-${i}: #123456;`).join(" ");
+    const findings = lintArtifact(`<style>${selector} { ${tokens} }</style>`);
+    expect(findings.find(f => f.id === "raw-hex")).toBeUndefined();
+  });
+
+  it.each([".component", ":root, .component", '[data-variant="primary"]'])(
+    "counts local colors declared on %s",
+    selector => {
+      const tokens = Array.from({ length: 13 }, (_, i) => `--color-${i}: #123456;`).join(" ");
+      expect(
+        requiredFinding(lintArtifact(`<style>${selector} { ${tokens} }</style>`), "raw-hex").message
+      ).toStartWith("13 raw hex values");
+    }
+  );
+
+  it("keeps visible declarations in global token scopes in the count", () => {
+    const rules = "html { --bg: #ffffff; background: #123456; }".repeat(13);
+    expect(requiredFinding(lintArtifact(`<style>${rules}</style>`), "raw-hex").message).toStartWith(
+      "13 raw hex values"
+    );
+  });
+
   it("flags raw colors in a later style block", () => {
     const colors = ".chip { color: #123456; }".repeat(13);
     const findings = lintArtifact(
@@ -1356,5 +1386,53 @@ describe("exact slide theme tokens", () => {
       '<section class="slide dark"></section><section class="dark slide hero"></section><section class="hero slide dark"></section>'
     );
     expect(findings.find(f => f.id === "slide-rhythm")).toBeDefined();
+  });
+});
+
+describe("equivalent global theme selectors", () => {
+  it.each(["html[data-theme=dark]", "html[data-theme='dark']", '[data-theme="dark"]'])(
+    "combines root tokens with %s",
+    selector => {
+      const findings = lintArtifact(`<style>
+      :root { --size: 16px; --tracking: 1px; }
+      :root[data-theme="dark"] { --size: 48px; }
+      ${selector} { --tracking: 3px; }
+      .label { text-transform: uppercase; font-size: var(--size); letter-spacing: var(--tracking); }
+    </style>`);
+      expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
+    }
+  );
+
+  it("preserves specificity across equivalent selector forms", () => {
+    const findings = lintArtifact(`<style>
+      :root { --tracking: .08em; }
+      :root[data-theme="dark"] { --tracking: .02em; }
+      html[data-theme='dark'] { --tracking: .1em; }
+      .label { text-transform: uppercase; letter-spacing: var(--tracking); }
+    </style>`);
+    expect(requiredFinding(findings, "all-caps-no-tracking").severity).toBe("P1");
+  });
+});
+
+describe("emoji-icon", () => {
+  it.each([
+    '<span aria-hidden="true" class="icon">✨</span>',
+    "<span aria-hidden='true' class='feature-icon'>✨</span>",
+    "<span aria-hidden=true class=icon>✨</span>",
+    "<button><span>✨</span> Launch</button>",
+    "<h2><em>Build <strong>✨</strong></em></h2>",
+    '<span class="icon"><span>Text</span><span>✨</span></span>',
+  ])("flags structural emoji in %s", html => {
+    expect(requiredFinding(lintArtifact(html), "emoji-icon").severity).toBe("P0");
+  });
+
+  it.each([
+    "<button>Launch</button><p>✨ A story</p>",
+    '<span class="icon"><span>Text</span></span><p>✨ A story</p>',
+    '<span title="class=icon">✨ A story</span>',
+    '<button title="✨">Launch</button>',
+    '<script>const sample = "<button>✨</button>";</script>',
+  ])("allows emoji outside structural text in %s", html => {
+    expect(lintArtifact(html).find(f => f.id === "emoji-icon")).toBeUndefined();
   });
 });

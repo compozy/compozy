@@ -96,3 +96,11 @@ from `body` even when `:root` declares a compliant value. Slides require exactly
 is independent of token order and does not change the light/dark rhythm. The rebuilt daemon's
 native tool found both defects in a deck, then accepted the same file after refinement; its returned
 SHA-256 matched the file. See `reports/2026-09-11-pr625-review-remediation.md`.
+
+Post-push review continuation: equivalent `:root[data-theme]` and `html[data-theme]` declarations
+must resolve as one theme while retaining specificity. Global color tokens are excluded from
+raw-hex counts, but local tokens and visible global declarations remain counted. Emoji in nested
+heading/button/list/icon content must be detected regardless of icon attribute order or quoting;
+body prose, attribute values, and script examples remain exempt. The rebuilt public tool passed
+these cases and the emoji refinement, with matching digests (`qa/round2-public-lint.json` in the
+remediation lab). The canonical linter suite passes 144 tests; native extension race tests pass.

@@ -2,7 +2,6 @@
 import {
   PURPLE_HEXES,
   AI_DEFAULT_INDIGO,
-  SLOP_EMOJI,
   INVENTED_METRIC_PATTERNS,
   FILLER_PATTERNS,
   DISPLAY_SANS_RE,
@@ -10,7 +9,13 @@ import {
   escapeRe,
   detectBlueCyanTrustGradient,
 } from "./rules";
-import { extractCssTokens, hasAdequateUppercaseTracking, stripTokenBlocks } from "./css";
+import {
+  extractCssTokens,
+  hasAdequateUppercaseTracking,
+  stripTokenBlocks,
+  stripGlobalTokenDeclarations,
+} from "./css";
+import { findStructuralEmoji } from "./html";
 
 export type LintFinding = {
   id: string;
@@ -112,26 +117,15 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
   }
 
   // ── P0-2: emoji used as feature/UI icons ──────────────────────────
-  for (const e of SLOP_EMOJI) {
-    if (html.includes(e)) {
-      // Only flag if it appears in a structural context — heading,
-      // button, list item — not in body prose.
-      const re = new RegExp(
-        `<(?:h[1-6]|button|li|span class="[^"]*icon[^"]*")[^>]*>[^<]*${escapeRe(e)}`,
-        "i"
-      );
-      const m = re.exec(html);
-      if (m) {
-        out.push({
-          severity: "P0",
-          id: "emoji-icon",
-          message: `Emoji "${e}" used as a UI icon — anti-slop list says SVG monoline only.`,
-          fix: "Replace with a small inline SVG icon (1.6–1.8px stroke, currentColor) or remove the icon entirely.",
-          snippet: clip(m[0]),
-        });
-        break;
-      }
-    }
+  const structuralEmoji = findStructuralEmoji(html);
+  if (structuralEmoji) {
+    out.push({
+      severity: "P0",
+      id: "emoji-icon",
+      message: `Emoji "${structuralEmoji.emoji}" used as a UI icon — anti-slop list says SVG monoline only.`,
+      fix: "Replace with a small inline SVG icon (1.6–1.8px stroke, currentColor) or remove the icon entirely.",
+      snippet: clip(structuralEmoji.text),
+    });
   }
 
   // ── P0-3: rounded card with left-border accent ────────────────────
@@ -301,17 +295,15 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
     });
   }
 
-  // ── P1-2: raw hex outside :root ───────────────────────────────────
+  // ── P1-2: raw hex outside global tokens ───────────────────────────────────
   // Heuristic: count `#xxxxxx` occurrences across every <style> block,
-  // outside the `:root{...}` declaration. Many is suspicious.
+  // excluding custom properties declared in global theme scopes.
   const css = Array.from(html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi), m => m[1] ?? "").join(
     "\n"
   );
   if (css) {
-    const rootRe = /:root\s*\{[^}]*\}/g;
-    const cssWithoutRoot = css.replace(rootRe, "");
-    const hexes = cssWithoutRoot.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
-    // Allow up to ~12 raw hex values outside :root. Device chrome
+    const hexes = stripGlobalTokenDeclarations(css).match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    // Allow up to ~12 raw hex values outside global tokens. Device chrome
     // (mobile-app frame: bezel gradient, side rails, status icons) has
     // legitimate hardware-specific values in the 8–10 range; raise the
     // threshold so seed templates pass without ceremony. More than ~12
@@ -320,7 +312,7 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
       out.push({
         severity: "P1",
         id: "raw-hex",
-        message: `${hexes.length} raw hex values found outside :root — design tokens probably not honoured.`,
+        message: `${hexes.length} raw hex values found outside global tokens — design tokens probably not honoured.`,
         fix: "Move every color into the :root token block (--bg / --surface / --fg / --muted / --border / --accent) and reference via var(). Use color-mix() for derived tones.",
         snippet: hexes.slice(0, 6).join(" "),
       });

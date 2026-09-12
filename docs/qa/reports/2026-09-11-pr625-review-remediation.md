@@ -17,6 +17,9 @@ React Doctor diagnostics, and rebase onto `origin/main` at `bfd56223b`.
 | CodeRabbit 3994497454 | Soul rollback error code | Sentinel assertion retained and revision_not_found authoring code asserted. |
 | Greptile 3994226058 | Unenforced lint exceptions | Existing typed schema and exact per-artifact finding-ID predicate retained and verified. |
 | Greptile general 5641865386 | Authored files ignore Profile | Existing end-to-end Profile propagation retained; rebase preserves main session identity handling. |
+| CodeRabbit 3994749656 | Equivalent theme selector identities | Normalize the attribute condition while retaining selector specificity; paired tokens resolve together. |
+| CodeRabbit 3994749660 | Structural emoji escapes | Scan nested structural text and parse icon attributes independently of order and quoting; prose and script controls remain exempt. |
+| CodeRabbit 3994749662 | Theme tokens counted as raw colors | Reuse the global scope parser to exclude custom-property declarations; preserve visible declarations and component-local colors. |
 | React Doctor | Create/settings hook complexity | Provider selection and editor projections extracted; changed-file scan 100/100, zero findings. |
 | CodeRabbit general | Docstring coverage threshold | Not applied: generic 80% coverage conflicts with the repository's explicit comment policy (eng-code-guidelines/references/coding-style.md, Comments). Keep short comments for non-obvious invariants; do not add repetitive comments to 170 functions. |
 | CodeRabbit embedded OpenGrep | Command injection at styleRe.exec | False positive: this is RegExp.exec on HTML, not child_process execution. No shell command is constructed. |
@@ -71,3 +74,14 @@ while other local checks ran. The exact case passed alone in 35.195s without cod
 timeout changes. The migration and fixture match main. The complete gate is repeated without
 competing frontend work; this is a timing-failure diagnosis, not a claimed production fix.
 Root Turborepo completed all 24 tasks; Web passed 773 files / 7,298 tests.
+
+## Post-push review continuation
+
+The automatic review of `dfb23b0e1` reported three additional linter findings (one major, two
+minor). Canonical generated-bundle regressions reproduced 16 failures; the corrected suite passes
+144 tests. The existing native extension race suite passes. The rebuilt daemon's public tool
+accepted equivalent root-theme tokens and 13 colors in global tokens, rejected nested structural
+emoji, and accepted the refined file. Every returned digest independently matches its artifact.
+Evidence: `qa/round2-public-lint.json` in the same targeted lab. Teardown is clean with no survivors.
+The final local gate is repeated for this change; unchanged authored-context and React Doctor
+evidence remains applicable. No new dependency or lint exception was introduced.

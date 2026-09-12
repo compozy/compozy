@@ -252,3 +252,8 @@ source-specific history, and the authorized session identity from main remain in
 hook, database, official skill interface, or generated API shape changes are needed. Web provider
 selection and editor validation were extracted without changing behavior. RT-077 and ET-open-design
 record the public replay; the remediation report inventories every review source and its disposition.
+
+The post-push continuation also normalizes equivalent theme selectors, excludes supported global
+token declarations from raw-color counts, and scans nested structural emoji. These corrections
+remain within the same native linter contract and workspace boundary; ET-open-design records the
+public replay. No Web, hook, config, persistence, or official skill surface changes are required.

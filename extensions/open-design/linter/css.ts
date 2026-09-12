@@ -49,7 +49,7 @@ function isResolvedTrackingAdequate(body: string): boolean {
 // Build per-theme effective token maps from the per-scope records
 // produced by `extractCssTokens`. A "theme" is the default rendering
 // (no theme attribute set) plus one entry per distinct theme-attribute
-// selector seen across scopes. Default-applying scopes (whose selector
+// condition seen across scopes. Default-applying scopes (whose selector
 // list contains a bare `:root` / `html` / `body`) apply to every theme
 // as a baseline; variant scopes apply only to the themes their
 // selector targets. Within a single theme, the most specific matching
@@ -78,7 +78,9 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
       const specificity = new Map<string, number>();
       for (const scope of scopes) {
         const matching = scope.selectors.filter(
-          s => /^body(?:\[|$)/.test(s) === bodyScope && (isBareGlobalSelector(s) || s === themeKey)
+          s =>
+            /^body(?:\[|$)/.test(s) === bodyScope &&
+            (isBareGlobalSelector(s) || globalThemeIdentity(s) === themeKey)
         );
         if (matching.length === 0) continue;
         const rank = matching.reduce(
@@ -103,6 +105,12 @@ function buildResolvedThemes(scopes: CssTokenScope[]): Map<string, string>[] {
 function globalThemeSpecificity(selector: string): number {
   const base = selector.startsWith(":root") ? 10 : /^(html|body)\b/.test(selector) ? 1 : 0;
   return base + (selector.includes("[") ? 10 : 0);
+}
+
+function globalThemeIdentity(selector: string): string {
+  const attribute = /\[([a-zA-Z-]+)(?:([*^$|~]?=)([^\]]*))?\]/.exec(selector);
+  const value = (attribute?.[3] ?? "").trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
+  return JSON.stringify([attribute?.[1]?.toLowerCase(), attribute?.[2] ?? "", value]);
 }
 
 function isBareGlobalSelector(s: string): boolean {
@@ -173,7 +181,7 @@ function resolveFontSizePx(decls: CssDeclaration[]): number | null {
 //   `{ selectors, tokens, themeKeys }`
 // where `tokens` is the per-scope last-write-wins map of CSS custom
 // properties, `selectors` lists the parsed selectors from the rule,
-// `themeKeys` is the set of theme-attribute selector strings the rule
+// `themeKeys` is the set of normalized theme-attribute conditions the rule
 // targets. Per-theme effective maps are derived downstream from these
 // records by `buildResolvedThemes`, which preserves the scope-internal
 // relationship between values so a paired declaration like
@@ -202,7 +210,9 @@ export function extractCssTokens(html: string): CssTokenScope[] {
         .split(",")
         .map(s => s.trim())
         .filter(Boolean);
-      const themeKeys = new Set(selectors.filter(s => !isBareGlobalSelector(s)));
+      const themeKeys = new Set(
+        selectors.filter(s => !isBareGlobalSelector(s)).map(globalThemeIdentity)
+      );
       const body = m[2] ?? "";
       const tokens = new Map();
       for (const decl of body
@@ -286,6 +296,16 @@ export function stripTokenBlocks(input: string): string {
     (_m: string, open: string, css: string, close: string) =>
       `${open}${stripTokenBlocksFromCss(css)}${close}`
   );
+}
+
+export function stripGlobalTokenDeclarations(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/([^{}]*)\{([^{}]*)\}/g, (full: string, selector: string, body: string) => {
+      if (!selectorListIsGlobalThemeScope(selector.trim())) return full;
+      const visible = body.split(";").filter(decl => !/^\s*--[\w-]+\s*:/.test(decl));
+      return `${selector}{${visible.join(";")}}`;
+    });
 }
 
 function stripTokenBlocksFromCss(css: string): string {
