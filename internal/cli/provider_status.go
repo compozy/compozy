@@ -196,6 +196,8 @@ func populateProviderAuthProbe(
 	if err != nil {
 		return err
 	}
+	result.Stdout = authproviders.RedactAuthProbeOutput(result.Stdout, 4096)
+	result.Stderr = authproviders.RedactAuthProbeOutput(result.Stderr, 4096)
 	record.Probe = &result
 	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
 		classification := authproviders.ClassifyProbeResultContext(ctx, provider, authproviders.ProbeOutcome{

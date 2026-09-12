@@ -155,3 +155,9 @@ Provider aliases are small built-in conveniences, not user-configured compatibil
 Settings writes are governed by the config apply lifecycle. Provider model-only changes are live; provider command/auth changes remain restart-required. After config edits, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `compozy config apply-history -o json`.
 
 After native provider login, run `compozy provider auth status <provider> --remote` to probe through the daemon (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authenticated` result clears cached pre-start verdicts; retry session creation immediately. Each workspace/profile still probes its own credentials. HTTP and UDS never execute the login command.
+
+Claude's default `claude auth status` JSON is supported directly: only a valid
+`loggedIn: true` with exit zero permits authentication, while `false` requires
+native login. Invalid or missing verdicts remain unknown and error classifications
+retain precedence. Structured status output retains only the verdict, excluding
+account and organization details from probe responses and diagnostics.

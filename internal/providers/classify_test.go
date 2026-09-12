@@ -29,6 +29,177 @@ func TestClassifyProviderAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("Should classify structured login verdicts without trusting identity text", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name     string
+			stdout   string
+			stderr   string
+			exitCode int
+			state    ProviderAuthState
+		}{
+			{
+				name:   "Should accept a true boolean",
+				stdout: `{"loggedIn":true,"email":"private@example.test","orgId":"org-429","orgName":"Unauthorized Labs"}`,
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name:   "Should reject a false boolean on success",
+				stdout: `{"loggedIn":false,"orgName":"Authenticated Labs"}`,
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:     "Should reject a false boolean on failure",
+				stdout:   `{"loggedIn":false}`,
+				exitCode: 1,
+				state:    ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should reject a missing boolean",
+				stdout: `{"orgName":"Authenticated Labs"}`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should reject a string boolean",
+				stdout: `{"loggedIn":"true","orgName":"Authenticated Labs"}`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{name: "Should reject a null boolean", stdout: `{"loggedIn":null}`, state: ProviderAuthStateUnknown},
+			{name: "Should reject a numeric boolean", stdout: `{"loggedIn":1}`, state: ProviderAuthStateUnknown},
+			{
+				name:   "Should reject malformed JSON",
+				stdout: `{"loggedIn":true,"email":"private@example.test"`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should reject trailing content",
+				stdout: `{"loggedIn":true} authenticated`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should reject duplicate verdicts",
+				stdout: `{"loggedIn":false,"loggedIn":true}`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should reject nested verdicts",
+				stdout: `{"status":{"loggedIn":true}}`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{name: "Should reject array verdicts", stdout: `[{"loggedIn":true}]`, state: ProviderAuthStateUnknown},
+			{
+				name:   "Should reject a verdict accompanied by a structured error",
+				stdout: `{"loggedIn":true,"error":"private provider failure"}`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:     "Should keep nonzero true verdict unknown",
+				stdout:   `{"loggedIn":true}`,
+				exitCode: 1,
+				state:    ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should prioritize permission errors",
+				stdout: `{"loggedIn":true}`,
+				stderr: "HTTP 403 forbidden",
+				state:  ProviderAuthStatePermissionDenied,
+			},
+			{
+				name:   "Should prioritize rate limits",
+				stdout: `{"loggedIn":true}`,
+				stderr: "HTTP 429 rate limit",
+				state:  ProviderAuthStateRateLimited,
+			},
+			{
+				name:   "Should prioritize transport errors",
+				stdout: `{"loggedIn":true}`,
+				stderr: "connection refused",
+				state:  ProviderAuthStateTransient,
+			},
+			{
+				name:   "Should prioritize login errors",
+				stdout: `{"loggedIn":true}`,
+				stderr: "not authenticated",
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should reject conflicting stream verdicts",
+				stdout: `{"loggedIn":true}`,
+				stderr: `{"loggedIn":false}`,
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should not let success text override invalid JSON",
+				stdout: `{"loggedIn":"true"}`,
+				stderr: "authenticated",
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should prioritize negative text even on success",
+				stdout: "not logged in",
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should retain successful text with brace-delimited metadata",
+				stdout: "logged in {region=us-east}",
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name:   "Should not let brace metadata hide a later JSON verdict",
+				stdout: "[INFO] {region=us-east}\n" + `{"loggedIn":false,"email":"private@example.test"}`,
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should retain bracket-prefixed text probes",
+				stdout: "[INFO] logged in",
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name: "Should parse a warning-prefixed false verdict without exposing identity",
+				stdout: "warning\n" +
+					`{"loggedIn":false,"orgName":"Authenticated Labs","email":"private@example.test"}`,
+				state: ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should parse a warning-prefixed true verdict",
+				stdout: "[INFO] account status\n" + `{"loggedIn":true}`,
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name:   "Should suppress malformed warning-prefixed identity",
+				stdout: "warning\n" + `{"loggedIn":true,"email":"private@example.test"`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should preserve a classified error before JSON",
+				stdout: "HTTP 403 forbidden\n" + `{"loggedIn":true,"email":"private@example.test"}`,
+				state:  ProviderAuthStatePermissionDenied,
+			},
+		}
+		for _, tt := range cases {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				got := ClassifyProbeResult(
+					nativeProvider(),
+					ProbeOutcome{ExitCode: tt.exitCode, Stdout: tt.stdout, Stderr: tt.stderr},
+					presentEnv(),
+				)
+				if got.State != tt.state {
+					t.Fatalf("State = %q, want %q", got.State, tt.state)
+				}
+				encoded, err := json.Marshal(DiagnosticItem("native", got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, identity := range []string{"private@example.test", "org-429", "Unauthorized Labs", "Authenticated Labs"} {
+					if strings.Contains(string(encoded), identity) {
+						t.Fatalf("diagnostic leaked %q: %s", identity, encoded)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should treat the Hermes ACP import check as preflight success", func(t *testing.T) {
 		t.Parallel()
 

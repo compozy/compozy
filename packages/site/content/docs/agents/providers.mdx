@@ -281,6 +281,14 @@ a replacement process starts a new count. Older events may omit this object.
 Use this when you need to pin a different adapter command or change the default model used by
 agents that omit `model`.
 
+Keep `claude auth status` in its default JSON mode. CompozyOS reads the top-level
+`loggedIn` boolean: `true` requires exit code zero, and `false` requests native
+login. Missing, malformed, or non-boolean verdicts remain unknown; reported
+permission, rate-limit, transport, and login errors take precedence over success.
+Structured probe output exposes only the verdict, omitting account and
+organization details from status responses and diagnostics. No translation shim
+or `--text` override is needed.
+
 ```toml
 [providers.claude]
 auth_mode = "native_cli"
