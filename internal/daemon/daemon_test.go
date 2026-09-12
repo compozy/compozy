@@ -5560,6 +5560,7 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	}
 }
 
+// TestWorkspaceRegistrationRefreshesHookBindings verifies workspace registration refreshes the hook bindings used by later events.
 func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
 	t.Parallel()
 
@@ -5618,7 +5619,7 @@ args = ["-c", "printf '{}'"]
 
 		waitForCondition(t, "workspace hook binding refresh", func() bool {
 			entries, catalogErr := hooksRuntime.Catalog(hookspkg.CatalogFilter{
-				WorkspaceID: resolved.WorkspaceID,
+				WorkspaceID: resolved.ID,
 				Event:       hookspkg.HookSessionPostCreate,
 			})
 			if catalogErr != nil {

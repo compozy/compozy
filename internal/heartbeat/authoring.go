@@ -54,6 +54,8 @@ type AuthoringService interface {
 type AuthoringTarget struct {
 	WorkspaceID   string
 	WorkspaceRoot string
+	ProfileID     string
+	ProfileName   string
 	AgentName     string
 	AgentPath     string
 	Config        compozyconfig.HeartbeatConfig

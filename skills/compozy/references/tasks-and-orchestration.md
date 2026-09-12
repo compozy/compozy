@@ -172,6 +172,8 @@ Use this guidance only inside a worker session with an active task claim or whil
 When a run includes a designation, follow only your own `designation.brief`; do not merge sibling
 assignments into your scope.
 
+Native task claims accept an explicit registered workspace ID, stable workspace ID, name, or path and select the same workspace work as the CLI/API. A denied cross-workspace claim includes the permission-mode guidance; do not retry without an operator policy change or applicable consent.
+
 The native tool scope supplies the caller session and workspace identity. A provider shell may intentionally omit daemon identity, so a CLI subprocess is not an equivalent claim path.
 
 Workspace-scoped worker and coordinator claims are bounded by

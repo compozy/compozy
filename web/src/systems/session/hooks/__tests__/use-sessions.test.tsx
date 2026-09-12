@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "../../types";
 import { sessionKeys } from "../../lib/query-keys";
-import { useSession, useSessionById, useSessions } from "../use-sessions";
+import { useSession, useSessionById, useSessionLedger, useSessions } from "../use-sessions";
 
-vi.mock("../../adapters/session-api", () => ({
+vi.mock("../../adapters/session-api", async importOriginal => ({
   fetchSessionLedger: vi.fn(),
   fetchSessionRecap: vi.fn(),
   fetchSessions: vi.fn(),
@@ -25,7 +25,9 @@ vi.mock("../../adapters/session-api", () => ({
       this.name = "SessionApiError";
     }
   },
-  SessionLedgerUnavailableError: class SessionLedgerUnavailableError extends Error {},
+  SessionLedgerUnavailableError: (
+    await importOriginal<typeof import("../../adapters/session-api")>()
+  ).SessionLedgerUnavailableError,
   SessionNotFoundError: class SessionNotFoundError extends Error {
     constructor(public readonly sessionId: string) {
       super(`Session not found: ${sessionId}`);
@@ -38,7 +40,11 @@ vi.mock("../../adapters/session-owner-api", () => ({
   fetchSessionById: vi.fn(),
 }));
 
-import { fetchSessions } from "../../adapters/session-api";
+import {
+  fetchSessionLedger,
+  SessionLedgerUnavailableError,
+  fetchSessions,
+} from "../../adapters/session-api";
 import { fetchSessionById } from "../../adapters/session-owner-api";
 
 function createWrapper() {
@@ -391,5 +397,31 @@ describe("useSessionById", () => {
       { profile: "default" },
       expect.any(AbortSignal)
     );
+  });
+});
+
+describe("session ledger availability projection", () => {
+  it.each(["not-materialized", "unsupported"] as const)(
+    "Should expose %s independently of the adapter error",
+    async reason => {
+      vi.mocked(fetchSessionLedger).mockRejectedValue(
+        new SessionLedgerUnavailableError("sess-001", reason)
+      );
+      const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
+        wrapper: createWrapper(),
+      });
+      await waitFor(() => expect(result.current.availability).toBe(reason));
+      expect(result.current.isLoading).toBe(false);
+    }
+  );
+
+  it("Should retain unexpected ledger read failures as errors", async () => {
+    const error = new Error("ledger materializer crashed");
+    vi.mocked(fetchSessionLedger).mockRejectedValue(error);
+    const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.error).toBe(error), { timeout: 3000 });
+    expect(result.current.availability).toBeUndefined();
   });
 });

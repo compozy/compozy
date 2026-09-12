@@ -2,9 +2,10 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Pill, Spinner, useTopbarSlot } from "@compozy/ui";
+import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDetail } from "./use-loop-run-detail";
+import { useLoopRunTopbar } from "./hooks/use-loop-run-topbar";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
@@ -16,10 +17,7 @@ import {
   LoopNodeRowActions,
   LoopQuarantineSheet,
   LoopRunControlDialog,
-  LoopRunControls,
-  LoopRunOverflowMenu,
   LoopRunPageBody,
-  LoopStatusPill,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -94,6 +92,7 @@ interface LoopRunDetailProps {
   requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }
 
+/** Connects a run page to its data, window navigation, and coordinated control overlays. */
 function LoopRunDetail({
   workspaceId,
   runId,
@@ -104,58 +103,9 @@ function LoopRunDetail({
   navigate,
   requestFocus,
 }: LoopRunDetailProps) {
-  const { page, nodeControls, requests, timetravel, dialogs, events } = useLoopRunDetail(
-    workspaceId,
-    runId,
-    { liveDataEnabled }
-  );
-  const quarantineNode =
-    nodeControls.quarantineNodeId === null
-      ? null
-      : (page.nodesById.get(nodeControls.quarantineNodeId) ?? null);
-  const sheetNestsNodeDialog = quarantineNode !== null && nodeControls.request !== null;
-
-  const loopName = page.run?.loop_name;
-  useTopbarSlot({
-    ...loopRunsTrail({
-      level: "run",
-      loopName,
-      onBack: openRuns,
-      openLoop:
-        loopName === undefined
-          ? undefined
-          : () => {
-              void navigate({ to: "/loops/$name", params: { name: loopName } });
-            },
-      openLoops,
-      openRuns,
-      runId,
-    }),
-    status: page.run ? (
-      <span className="flex items-center gap-2">
-        <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
-        {page.run.historical ? (
-          <Pill data-testid="loop-run-history-pill" size="xs" tone="neutral">
-            History
-          </Pill>
-        ) : null}
-      </span>
-    ) : undefined,
-    actions:
-      page.run && !page.run.historical ? (
-        <div className="flex items-center gap-2">
-          <LoopRunControls
-            status={page.run.status}
-            pauseRequested={page.run.pause_requested}
-            pendingVerb={page.pendingRunVerb}
-            onPause={page.handlePause}
-            onResume={page.handleResume}
-            onCancel={() => dialogs.openRunControl("cancel")}
-          />
-          <LoopRunOverflowMenu loopName={page.run.loop_name} />
-        </div>
-      ) : undefined,
-  });
+  const detail = useLoopRunDetail(workspaceId, runId, { liveDataEnabled });
+  const { page, nodeControls, requests, timetravel, dialogs, events, goalTurns } = detail;
+  useLoopRunTopbar(detail, { runId, openLoops, openRuns, navigate });
 
   if (page.runQuery.isLoading) {
     return (
@@ -204,6 +154,7 @@ function LoopRunDetail({
         storyPaging={page.storyPaging}
         rosterRead={page.rosterRead}
         events={events}
+        goalTurns={goalTurns}
         isReconnecting={page.isReconnecting}
         usageRows={page.usageRows}
         usageNote={page.usageNote}
@@ -243,6 +194,37 @@ function LoopRunDetail({
         onCompareGeneration={timetravel.onCompareGeneration}
         onForkGeneration={timetravel.onForkGeneration}
       />
+      <LoopRunDetailDialogs
+        detail={detail}
+        workspaceId={workspaceId}
+        runId={runId}
+        run={page.effectiveRun}
+      />
+    </>
+  );
+}
+
+/** Keeps run and node overlays coordinated, including a dialog nested in quarantine. */
+function LoopRunDetailDialogs({
+  detail,
+  workspaceId,
+  runId,
+  run,
+}: {
+  detail: ReturnType<typeof useLoopRunDetail>;
+  workspaceId: string;
+  runId: string;
+  run: NonNullable<ReturnType<typeof useLoopRunDetail>["page"]["effectiveRun"]>;
+}) {
+  const { page, nodeControls, timetravel, dialogs } = detail;
+  const quarantineNode =
+    nodeControls.quarantineNodeId === null
+      ? null
+      : (page.nodesById.get(nodeControls.quarantineNodeId) ?? null);
+  const sheetNestsNodeDialog = quarantineNode !== null && nodeControls.request !== null;
+
+  return (
+    <>
       <LoopNodeControlDialog
         answer={sheetNestsNodeDialog ? undefined : nodeControls.answer}
         error={sheetNestsNodeDialog ? undefined : nodeControls.error}
@@ -304,7 +286,7 @@ function LoopRunDetail({
         answer={page.cancelAnswer}
         elapsedLabel={page.elapsedLabel}
         error={page.cancelError}
-        generation={page.effectiveRun.generation}
+        generation={run.generation}
         inFlightCount={
           page.nodeLifecycles.filter(
             node => !node.parked && node.state !== "canceled" && node.cancelState !== "canceled"
@@ -318,14 +300,14 @@ function LoopRunDetail({
           if (!open) dialogs.closeRunControl();
         }}
         runId={runId}
-        status={page.effectiveRun.status}
+        status={run.status}
         verb={dialogs.runVerb}
         waitingOnYouCount={page.waitingNodes.length}
       />
       <LoopQuarantineSheet
         isRequeuePending={nodeControls.isPending}
         node={quarantineNode}
-        runEnded={isTerminalLoopStatus(page.effectiveRun.status)}
+        runEnded={isTerminalLoopStatus(run.status)}
         onOpenChange={open => {
           if (!open) nodeControls.closeQuarantine();
         }}

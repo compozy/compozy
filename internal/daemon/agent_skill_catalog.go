@@ -214,6 +214,7 @@ func (c *resourceAgentCatalog) ResolveAgentArtifacts(
 	return artifacts, nil
 }
 
+// ResolveHeartbeatPolicy selects package-owned policy in the requested workspace and Profile scopes.
 func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 	ctx context.Context,
 	target heartbeat.AuthoringTarget,
@@ -229,6 +230,8 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	workspace := &workspacepkg.ResolvedWorkspace{
+		ProfileID:   strings.TrimSpace(target.ProfileID),
+		ProfileName: strings.TrimSpace(target.ProfileName),
 		Workspace: workspacepkg.Workspace{
 			ID:      strings.TrimSpace(target.WorkspaceID),
 			RootDir: strings.TrimSpace(target.WorkspaceRoot),

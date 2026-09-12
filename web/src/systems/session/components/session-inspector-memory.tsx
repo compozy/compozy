@@ -2,12 +2,12 @@ import { AlertCircle, Library } from "lucide-react";
 
 import { Empty, Eyebrow, MetadataList, Pill, Skeleton, cn } from "@compozy/ui";
 
-import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import type { InspectorMemoryState } from "./session-inspector-types";
 
 const LEDGER_EVENT_LIMIT = 20;
 
+/** Shows available session memory or an explicit capability and read-state explanation. */
 export function SessionInspectorMemorySection({ memory }: { memory: InspectorMemoryState }) {
   if (memory.isLoading) {
     return (
@@ -37,7 +37,7 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
       </div>
     );
   }
-  if (memory.error && !(memory.error instanceof SessionLedgerUnavailableError)) {
+  if (memory.error) {
     return (
       <div
         className="flex min-h-full flex-col"
@@ -54,6 +54,7 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
     );
   }
   if (!memory.ledger) {
+    const unsupported = memory.availability === "unsupported";
     return (
       <div
         className="flex min-h-full flex-col"
@@ -62,9 +63,13 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
       >
         <Empty
           data-testid="session-inspector-memory-empty"
-          description="The forensic ledger materializes once the session stops. Lineage and ledger event metadata appear here after that."
+          description={
+            unsupported
+              ? "This runtime does not provide session memory."
+              : "The forensic ledger materializes once the session stops. Lineage and ledger event metadata appear here after that."
+          }
           icon={Library}
-          title="No session ledger yet"
+          title={unsupported ? "Session ledger unavailable" : "No session ledger yet"}
         />
       </div>
     );

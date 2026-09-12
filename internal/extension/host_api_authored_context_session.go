@@ -85,6 +85,7 @@ type hostAPIInputQueueSummaryManager interface {
 	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }
 
+// resolveHostAPIAuthoredAgentTarget preserves workspace resolution context for extension sidecar operations.
 func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 	ctx context.Context,
 	workspaceRef string,
@@ -114,6 +115,8 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 		return hostAPIAuthoredAgentTarget{}, err
 	}
 	return hostAPIAuthoredAgentTarget{
+		profileID:       resolved.ProfileID,
+		profileName:     resolved.ProfileName,
 		workspaceID:     workspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
@@ -134,8 +137,11 @@ func (t hostAPIAuthoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	}
 }
 
+// heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t hostAPIAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		ProfileID:     t.profileID,
+		ProfileName:   t.profileName,
 		WorkspaceID:   t.workspaceID,
 		WorkspaceRoot: t.workspaceRoot,
 		AgentName:     t.agentName,

@@ -1,3 +1,4 @@
+import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Search } from "lucide-react";
@@ -82,6 +83,7 @@ export interface LoopRunInspectState {
 export type LoopRunPendingAction = "approve";
 
 export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "children"> {
+  goalTurns?: GoalTurnsRead;
   run: LoopRunRecord;
   materializedContract: LoopContract;
   graph: LoopGraph | null;
@@ -150,7 +152,9 @@ function shortDigest(digest: string): string {
   return digest.replace(/^sha256:/, "").slice(0, 7);
 }
 
+/** Composes run content from the page model while keeping data reads and controls with its owner. */
 export function LoopRunPageBody({
+  goalTurns,
   run,
   materializedContract,
   graph,
@@ -258,6 +262,7 @@ export function LoopRunPageBody({
             <LoopRunLineageSection forkedFrom={run.forked_from ?? null} forks={run.forks} />
             {/* Everything the default read demoted lives one disclosure down. */}
             <LoopRunRegisters
+              goalTurns={goalTurns}
               bestGeneration={run.best_generation}
               generations={generations}
               nodeLifecycles={nodeLifecycles ?? []}

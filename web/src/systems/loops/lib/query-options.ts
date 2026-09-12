@@ -1,3 +1,4 @@
+import { listGoalTurns } from "../adapters/goal-turns-api";
 import type { ProfileScopeParams } from "@/systems/profiles";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
@@ -328,5 +329,27 @@ export function loopRunDiffOptions(
       return bothTerminal ? false : LIVE_REFETCH_INTERVAL;
     },
     enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
+  });
+}
+
+/** Keeps Goal turn cursors and live polling within the owning Profile query cache. */
+export function goalTurnsOptions(
+  workspaceId: string,
+  runId: string,
+  enabled = true,
+  isLive = false,
+  profileKey = "default"
+) {
+  return infiniteQueryOptions({
+    queryKey: [...loopsKeys.goalTurns(workspaceId, runId), profileKey],
+    /** Reads a cursor page with cancellation from the owning Query observer. */
+    queryFn: ({ pageParam, signal }) =>
+      listGoalTurns(workspaceId, runId, { limit: 50, after_seq: pageParam }, signal),
+    initialPageParam: undefined as number | undefined,
+    /** Stops pagination when the server omits the continuation cursor. */
+    getNextPageParam: page => page.next_after_seq ?? undefined,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: isLive ? LIVE_REFETCH_INTERVAL : false,
+    enabled: enabled && Boolean(workspaceId) && Boolean(runId),
   });
 }

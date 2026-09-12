@@ -18,7 +18,7 @@ import (
 
 // GetSessionHealth returns metadata-only session health and wake eligibility.
 func (h *BaseHandlers) GetSessionHealth(c *gin.Context) {
-	health, _, ok := h.sessionHealthPayloadForRoute(c)
+	health, _, _, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}
@@ -27,7 +27,7 @@ func (h *BaseHandlers) GetSessionHealth(c *gin.Context) {
 
 // GetSessionStatus returns compact session health with wake state when available.
 func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
-	health, badge, ok := h.sessionHealthPayloadForRoute(c)
+	health, badge, info, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		response.PendingInteractions = PendingInteractionPayloadsFromStore(interactions)
 	}
 	if h.HeartbeatStatus != nil {
-		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, false)
+		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, false)
 		if err != nil {
 			h.respondError(c, StatusForHeartbeatError(err), err)
 			return
@@ -83,7 +83,7 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	health, _, ok := h.sessionHealthPayloadForRoute(c)
+	health, _, info, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}
@@ -92,7 +92,7 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		Health:    health,
 	}
 	if h.HeartbeatStatus != nil {
-		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, true)
+		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, true)
 		if statusErr != nil {
 			h.respondError(c, StatusForHeartbeatError(statusErr), statusErr)
 			return
@@ -105,7 +105,7 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		}
 	}
 	if includeEvents {
-		target, targetErr := h.resolveAuthoredAgentTarget(c.Request.Context(), health.WorkspaceID, health.AgentName)
+		target, targetErr := h.resolveAuthoredAgentTargetForSession(c.Request.Context(), info)
 		if targetErr != nil {
 			h.respondError(c, StatusForHeartbeatError(targetErr), targetErr)
 			return

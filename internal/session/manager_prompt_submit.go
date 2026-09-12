@@ -170,6 +170,7 @@ func (m *Manager) preparePromptRequestMessage(
 	return message, nil
 }
 
+// submitPromptInReservedSlot starts durable delivery and balances lifecycle edges when setup fails.
 func (m *Manager) submitPromptInReservedSlot(
 	ctx context.Context,
 	session *Session,
@@ -194,9 +195,13 @@ func (m *Manager) submitPromptInReservedSlot(
 	if err != nil {
 		return nil, fmt.Errorf("session: open durable prompt delivery for %q: %w", req.target, err)
 	}
-	supervision := m.supervision
-	activity := newPromptActivitySupervisor(ctx, m, session, turnState, supervision)
-	activity.start()
+	activity, running := m.startPromptActivity(ctx, session, turnState)
+	pumpStarted := false
+	defer func() {
+		if !pumpStarted {
+			m.publishLifecycleAttentionTransition(ctx, running, session.Info())
+		}
+	}()
 	recoveryRequest := acp.PromptRequest{
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
@@ -206,7 +211,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		Attachments:               attachments,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
-		ActivityHeartbeatInterval: supervision.ActivityHeartbeatInterval,
+		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
 	}
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)
 	if err != nil {
@@ -243,7 +248,22 @@ func (m *Manager) submitPromptInReservedSlot(
 		cancelPromptExecution,
 		delivery.persistenceDone,
 	)
+	pumpStarted = true
 	return delivery.events, nil
+}
+
+// startPromptActivity publishes the running badge and returns its snapshot for failed setup cleanup.
+func (m *Manager) startPromptActivity(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+) (*promptActivitySupervisor, *Info) {
+	activity := newPromptActivitySupervisor(ctx, m, session, turnState, m.supervision)
+	before := session.Info()
+	activity.start()
+	running := session.Info()
+	m.publishLifecycleAttentionTransition(ctx, before, running)
+	return activity, running
 }
 
 func (m *Manager) preparePromptDelivery(

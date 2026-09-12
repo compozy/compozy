@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 type soulIfMatchTestAuthoring struct {
@@ -971,6 +972,134 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			}
 
 			tc.assertCalls(t, authoring, refresher)
+		})
+	}
+}
+
+type emptyHeartbeatStatusStore struct{}
+
+// FindHeartbeatSnapshotByDigest models a Profile with no stored Heartbeat snapshots.
+func (emptyHeartbeatStatusStore) FindHeartbeatSnapshotByDigest(
+	context.Context, string, string, string,
+) (heartbeat.Snapshot, bool, error) {
+	return heartbeat.Snapshot{}, false, nil
+}
+
+// GetHeartbeatWakeState models a missing wake state in the Profile fixture.
+func (emptyHeartbeatStatusStore) GetHeartbeatWakeState(
+	context.Context, string, string, string,
+) (heartbeat.WakeState, error) {
+	return heartbeat.WakeState{}, heartbeat.ErrWakeStateNotFound
+}
+
+// ListHeartbeatWakeState models an empty wake-state catalog in the Profile fixture.
+func (emptyHeartbeatStatusStore) ListHeartbeatWakeState(
+	context.Context, heartbeat.WakeStateListQuery,
+) ([]heartbeat.WakeState, error) {
+	return nil, nil
+}
+
+// TestAuthoredContextResolvesProfileAgentSources verifies authored reads select the correct Profile for agent resources and Heartbeat policy.
+func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	home := testutil.NewTestHomePaths(t)
+	cfg := compozyconfig.DefaultWithHome(home)
+	digests := make(map[string]string)
+	for _, name := range []string{"default", "marketing"} {
+		dir := filepath.Join(root, ".compozy", "profiles", name, "agents", "coder")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "AGENT.md"),
+			[]byte("---\nname: coder\nprovider: codex\n---\nMaintain notes.\n"),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+		body := "---\nversion: 1\nenabled: true\n---\nCheck " + name + " notes.\n"
+		path := filepath.Join(dir, "HEARTBEAT.md")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		policy, err := heartbeat.Parse(t.Context(), heartbeat.ParseRequest{
+			SourcePath: path, WorkspaceRoot: root, Content: []byte(body), Config: cfg.Agents.Heartbeat,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		digests[name] = policy.Digest
+	}
+	resolve := func(_ context.Context, ref, profileName string) (workspacepkg.ResolvedWorkspace, error) {
+		if ref != "ws-profile" {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+		}
+		agents, err := compozyconfig.LoadWorkspaceAgentDefs(root, nil, home, profileName)
+		return workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: ref, RootDir: root}, WorkspaceID: ref,
+			ProfileName: profileName, Config: cfg, Agents: agents,
+		}, err
+	}
+	workspaces := testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			return resolve(ctx, ref, "")
+		},
+		ResolveForProfileFn: resolve,
+	}
+	healthReader := sessionHealthReaderStub{health: heartbeat.SessionHealth{
+		SessionID: "sess-profile", WorkspaceID: "ws-profile", AgentName: "coder",
+		State: heartbeat.SessionHealthStateIdle, Health: heartbeat.SessionHealthHealthy,
+		UpdatedAt: time.Date(2026, 9, 10, 22, 40, 0, 0, time.UTC),
+	}}
+	status, err := heartbeat.NewManagedHeartbeatStatusService(
+		emptyHeartbeatStatusStore{},
+		heartbeat.WithHeartbeatStatusSessionHealthReader(healthReader),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := testutil.StubSessionManager{
+		StatusFn: func(context.Context, string) (*session.Info, error) {
+			return &session.Info{
+				ID: "sess-profile", WorkspaceID: "ws-profile", AgentName: "coder",
+				ProfileID: "profile-marketing", State: session.StateActive,
+			}, nil
+		},
+	}
+	for _, tc := range []struct {
+		name, path, profile, digestField string
+	}{
+		{"Should inspect the default profile agent", "/agents/coder/heartbeat?workspace_id=ws-profile", "default", "digest"},
+		{"Should inspect the selected profile agent", "/agents/coder/heartbeat?workspace_id=ws-profile&profile=marketing", "marketing", "digest"},
+		{"Should enrich a session using its owning profile", "/workspaces/ws-profile/sessions/sess-profile/inspect?profile=default", "marketing", "policy_digest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				HomePaths: home, Config: cfg, Workspaces: workspaces, Profiles: sessionProfileServiceStub{},
+				Sessions: manager, HeartbeatStatus: status,
+				SessionHealth: healthReader,
+			})
+			engine := gin.New()
+			engine.GET("/agents/:name/heartbeat", handlers.GetAgentHeartbeat)
+			engine.GET("/workspaces/:workspace_id/sessions/:session_id/inspect", handlers.InspectSession)
+			response := performRequest(t, engine, http.MethodGet, tc.path, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body)
+			}
+			var payload map[string]any
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if got := payload[tc.digestField]; got != digests[tc.profile] {
+				t.Fatalf(
+					"%s = %v, want policy from %s profile (%s)",
+					tc.digestField,
+					got,
+					tc.profile,
+					digests[tc.profile],
+				)
+			}
 		})
 	}
 }

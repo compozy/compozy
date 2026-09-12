@@ -1,4 +1,5 @@
 import { createStore } from "@xstate/store";
+import { z } from "zod";
 
 import type { SessionGoalCommandResult } from "../types";
 
@@ -91,8 +92,18 @@ const initialSessionContext: SessionStoreContext = {
 };
 
 export const sessionStore = createStore({
+  schemas: {
+    emitted: {
+      goalDraftCompleted: z.object({ sessionId: z.string(), text: z.string() }),
+    },
+  },
   context: initialSessionContext,
   on: {
+    /** Forwards the proposal to composer subscribers without persisting draft state. */
+    goalDraftCompleted: (context, event: { sessionId: string; text: string }, enqueue) => {
+      enqueue.emit.goalDraftCompleted(event);
+      return context;
+    },
     allDraftsDiscarded: context => {
       if (Object.keys(context.drafts).length === 0) {
         return;

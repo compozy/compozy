@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 )
 
 type daemonMemorySessionLedgerService struct {
@@ -22,7 +23,8 @@ type daemonMemorySessionLedgerService struct {
 	now              func() time.Time
 }
 
-func newDaemonMemorySessionLedgerService(state *bootState, now func() time.Time) *daemonMemorySessionLedgerService {
+// newDaemonMemorySessionLedgerService enables ledger reads only when memory and its ledger root are configured.
+func newDaemonMemorySessionLedgerService(state *bootState, now func() time.Time) core.MemorySessionLedgerService {
 	if state == nil || !state.cfg.Memory.Enabled {
 		return nil
 	}

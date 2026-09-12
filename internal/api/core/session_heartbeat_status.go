@@ -7,14 +7,17 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
 )
 
+// availableHeartbeatStatusForHealth omits enrichment for a deleted agent and preserves other read failures.
 func (h *BaseHandlers) availableHeartbeatStatusForHealth(
 	ctx context.Context,
 	health contract.SessionHealthPayload,
+	info *session.Info,
 	includeHealth bool,
 ) (*contract.HeartbeatStatusResponse, error) {
-	status, err := h.heartbeatStatusForHealth(ctx, health, includeHealth)
+	status, err := h.heartbeatStatusForHealth(ctx, health, info, includeHealth)
 	if errors.Is(err, heartbeat.ErrAuthoringAgentNotFound) {
 		return nil, nil
 	}
@@ -24,12 +27,14 @@ func (h *BaseHandlers) availableHeartbeatStatusForHealth(
 	return &status, nil
 }
 
+// heartbeatStatusForHealth reads Heartbeat policy and wake state in the session owner Profile.
 func (h *BaseHandlers) heartbeatStatusForHealth(
 	ctx context.Context,
 	health contract.SessionHealthPayload,
+	info *session.Info,
 	includeHealth bool,
 ) (contract.HeartbeatStatusResponse, error) {
-	target, err := h.resolveAuthoredAgentTarget(ctx, health.WorkspaceID, health.AgentName)
+	target, err := h.resolveAuthoredAgentTargetForSession(ctx, info)
 	if err != nil {
 		return contract.HeartbeatStatusResponse{}, fmt.Errorf("resolve authored agent target: %w", err)
 	}

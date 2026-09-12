@@ -33,6 +33,8 @@ type authoredAgentTarget struct {
 	workspaceID         string
 	sessionWorkspaceID  string
 	workspaceRoot       string
+	profileID           string
+	profileName         string
 	agentName           string
 	agentPath           string
 	soulConfig          compozyconfig.SoulConfig
@@ -49,6 +51,9 @@ func StatusForSoulError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case isProfileDomainError(err):
+		status, _ := profileErrorResponse(err)
+		return status
 	case errors.Is(err, errSoulAuthoringUnavailable),
 		errors.Is(err, errSoulRefreshUnavailable):
 		return http.StatusServiceUnavailable
@@ -85,6 +90,9 @@ func StatusForHeartbeatError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case isProfileDomainError(err):
+		status, _ := profileErrorResponse(err)
+		return status
 	case errors.Is(err, errHeartbeatAuthoringMissing),
 		errors.Is(err, errHeartbeatStatusMissing),
 		errors.Is(err, errHeartbeatWakeMissing),
@@ -125,8 +133,8 @@ func (h *BaseHandlers) AgentSoul(c *gin.Context) {
 	if !ok {
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		caller.Session.WorkspaceID,
 		caller.Session.AgentName,
 	)
@@ -139,8 +147,8 @@ func (h *BaseHandlers) AgentSoul(c *gin.Context) {
 
 // GetAgentSoul returns the resolved full Soul read model for one workspace-visible agent.
 func (h *BaseHandlers) GetAgentSoul(c *gin.Context) {
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		authoredWorkspaceRefFromQuery(c),
 		pathAgentName(c),
 	)
@@ -163,8 +171,8 @@ func (h *BaseHandlers) ValidateAgentSoulDefinition(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -186,8 +194,8 @@ func (h *BaseHandlers) ValidateAgentSoul(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, caller.Session.WorkspaceID),
 		firstNonEmpty(req.AgentName, caller.Session.AgentName),
 	)
@@ -217,8 +225,8 @@ func (h *BaseHandlers) PutAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -259,8 +267,8 @@ func (h *BaseHandlers) DeleteAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -292,8 +300,8 @@ func (h *BaseHandlers) ListAgentSoulHistory(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		authoredWorkspaceRefFromQuery(c),
 		pathAgentName(c),
 	)
@@ -347,8 +355,8 @@ func (h *BaseHandlers) RollbackAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)

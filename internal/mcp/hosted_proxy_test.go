@@ -391,6 +391,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 	})
 }
 
+// TestHostedProxyHelpers verifies hosted result projection, fallback content, error classification, and exact JSON deduplication.
 func TestHostedProxyHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -469,12 +470,57 @@ func TestHostedProxyHelpers(t *testing.T) {
 	t.Run("Should convert canonical results and errors", func(t *testing.T) {
 		t.Parallel()
 
+		identical, err := hostedToolResult(tools.ToolResult{
+			Structured: json.RawMessage(`{"ok":true,"value":42}`),
+			Preview:    "  {\"value\":42, \"ok\":true}\n",
+		})
+		if err != nil || identical == nil || len(identical.Content) != 1 {
+			t.Fatalf("hostedToolResult(identical preview) = %#v, %v; want one text result", identical, err)
+		}
+
+		precise, err := hostedToolResult(tools.ToolResult{
+			Structured: json.RawMessage(`{"n":9007199254740992}`),
+			Preview:    `{"n":9007199254740993}`,
+		})
+		if err != nil || precise == nil || len(precise.Content) != 2 {
+			t.Fatalf(
+				"hostedToolResult(adjacent large integers) = %#v, %v; want distinct preview and exact result",
+				precise,
+				err,
+			)
+		}
+		exact, ok := precise.Content[1].(*sdkmcp.TextContent)
+		if !ok || exact.Text != `{"n":9007199254740992}` {
+			t.Fatalf("exact structured text = %#v, want original integer", precise.Content[1])
+		}
+
 		structured, err := hostedToolResult(tools.ToolResult{
 			Structured: json.RawMessage(`{"ok":true}`),
 			Preview:    "structured fallback",
 		})
 		if err != nil || structured == nil || structured.IsError {
 			t.Fatalf("hostedToolResult(structured) = %#v, %v; want structured result", structured, err)
+		}
+		var textResult any
+		previewPresent := false
+		for _, block := range structured.Content {
+			content, ok := block.(*sdkmcp.TextContent)
+			if !ok {
+				continue
+			}
+			previewPresent = previewPresent || content.Text == "structured fallback"
+			if json.Valid([]byte(content.Text)) {
+				if err := json.Unmarshal([]byte(content.Text), &textResult); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if !previewPresent || !reflect.DeepEqual(textResult, structured.StructuredContent) {
+			t.Fatalf(
+				"text content = %#v, want preview and complete structured result %#v",
+				structured.Content,
+				structured.StructuredContent,
+			)
 		}
 
 		text, err := hostedToolResult(tools.ToolResult{

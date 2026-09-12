@@ -152,6 +152,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 	}
 }
 
+// TestHookHandlers verifies hook catalog and mutation handlers preserve workspace scoping and typed failures.
 func TestHookHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -234,7 +235,7 @@ func TestHookHandlers(t *testing.T) {
 					ID:      "ws-alpha",
 					RootDir: "/workspace/alpha",
 				},
-				WorkspaceID: "ws-alpha",
+				WorkspaceID: "01M26N9AVTCXB8NYSTT4PTWKCJ",
 			}, nil
 		},
 	}

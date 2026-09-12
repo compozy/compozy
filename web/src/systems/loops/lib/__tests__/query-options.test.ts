@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 
 import {
+  goalTurnsOptions,
   loopConfigOptions,
   loopDetailOptions,
   loopRequestDetailOptions,
@@ -16,6 +18,48 @@ import {
 } from "../query-options";
 
 describe("loop query-options", () => {
+  it("Should page Goal turns by the server cursor and isolate workspace and Profile caches", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const requests: URL[] = [];
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL((input as Request).url);
+      requests.push(url);
+      return Response.json({
+        turns: [],
+        next_after_seq: url.searchParams.has("after_seq") ? null : 9,
+      });
+    });
+    const options = goalTurnsOptions("ws_a", "run_1");
+    const observer = new InfiniteQueryObserver(client, options);
+    try {
+      await client.fetchInfiniteQuery(options);
+      const result = await observer.fetchNextPage();
+      expect(requests[1]?.searchParams.get("after_seq")).toBe("9");
+      expect(result.data).toEqual({
+        pages: [
+          { turns: [], next_after_seq: 9 },
+          { turns: [], next_after_seq: null },
+        ],
+        pageParams: [undefined, 9],
+      });
+      expect(result.hasNextPage).toBe(false);
+      await observer.fetchNextPage();
+      expect(requests).toHaveLength(2);
+
+      await client.fetchInfiniteQuery(goalTurnsOptions("ws_b", "run_1"));
+      await client.fetchInfiniteQuery(goalTurnsOptions("ws_a", "run_1", true, false, "other"));
+      expect(requests).toHaveLength(4);
+      expect(requests[2]?.pathname).toBe("/api/workspaces/ws_b/loop-runs/run_1/turns");
+      expect(requests[2]?.searchParams.has("after_seq")).toBe(false);
+      expect(requests[3]?.searchParams.has("after_seq")).toBe(false);
+      expect(client.getQueryData(options.queryKey)).toEqual(result.data);
+    } finally {
+      observer.destroy();
+      client.clear();
+      fetch.mockRestore();
+    }
+  });
+
   it("Should key each option by its workspace-scoped query key", () => {
     expect(loopsCatalogOptions("ws_a").queryKey).toEqual([
       "loops",

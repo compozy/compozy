@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { SessionLedgerUnavailableError } from "../adapters/session-api";
 
 import {
   sessionScopedDetailOptions,
@@ -100,7 +101,12 @@ export function useSessionLedger(
 ) {
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
-  return useQuery(sessionLedgerOptions(workspaceId, id, options));
+  const query = useQuery(sessionLedgerOptions(workspaceId, id, options));
+  return {
+    ...query,
+    availability:
+      query.error instanceof SessionLedgerUnavailableError ? query.error.reason : undefined,
+  };
 }
 
 export function useSessionRecap(id: string, workspace?: string | null, limit?: number) {

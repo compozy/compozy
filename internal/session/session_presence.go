@@ -139,6 +139,7 @@ func (m *Manager) hasLivePresenceLocked(sessionID string, now time.Time) bool {
 	return false
 }
 
+// settleSessionAttention persists the settled attention state without publishing an intermediate badge.
 func (m *Manager) settleSessionAttention(
 	ctx context.Context,
 	sessionID string,
@@ -160,6 +161,5 @@ func (m *Manager) settleSessionAttention(
 	if err != nil {
 		return fmt.Errorf("session: settle attention for %q: %w", sessionID, err)
 	}
-	m.publishAttentionCommit(ctx, sessionID, commit)
 	return nil
 }

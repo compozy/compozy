@@ -27,6 +27,7 @@ import {
   getLoopRunRoster,
   getLoopRunTimeline,
   listLoopRequests,
+  listGoalTurns,
   listLoopRuns,
   listLoops,
   patchLoop,
@@ -84,6 +85,36 @@ describe("loops-api (request construction + error mapping)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("Should preserve the scoped Goal turn envelope and propagate cancellation", async () => {
+    const page = { turns: [], next_after_seq: 9 };
+    mockJsonResponse(page);
+    const controller = new AbortController();
+    expect(
+      await listGoalTurns(
+        WS,
+        "run_1",
+        {
+          node: "goal",
+          item: 1,
+          after_seq: 3,
+          limit: 50,
+        },
+        controller.signal
+      )
+    ).toEqual(page);
+    const request = await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/turns?node=goal&item=1&after_seq=3&limit=50",
+    });
+    controller.abort();
+    expect(request.signal.aborted).toBe(true);
+
+    mockJsonResponse({ error: "unavailable" }, { status: 503 });
+    await expect(listGoalTurns(WS, "run_1")).rejects.toMatchObject({
+      name: "LoopsApiError",
+      status: 503,
+    });
   });
 
   it("Should GET the workspace-scoped catalog", async () => {

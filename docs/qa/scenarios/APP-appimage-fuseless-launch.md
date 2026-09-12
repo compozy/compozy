@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/reports/2026-09-03-appimage-static-runtime.md
-last_report: docs/qa/reports/2026-09-03-appimage-static-runtime.md
+evidence: docs/qa/evidence/2026-09-10-qa-execution-unblock/platform-prerequisites.json
+last_report: docs/qa/reports/2026-09-10-qa-execution-unblock.md
 overlaps: APP-install-first-run-provision; APP-app-auto-update
 ---
 
@@ -34,3 +34,7 @@ release-config path. The run used the operator's default home and port and retai
 `linux-x64` artifact in a fresh isolated Linux QA envelope with FUSE 3, no `libfuse.so.2`, unique
 home/ports, the product window open, and `teardown.json` reporting `clean: true` before restoring
 `qa_status: pass`.
+
+## 2026-09-10 prerequisite reassessment
+
+Current assigned lab is Darwin arm64/macOS26.6.2. Exact released linux-x64 AppImage must run on an isolated graphical Linux host with FUSE3 and no libfuse.so.2, without extraction fallback, with retained clean teardown. The September3 locally built artifact and September4 review do not satisfy that contract. No runtime pass is claimed; retain blocked-verify with this exact external prerequisite.

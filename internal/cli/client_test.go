@@ -5446,6 +5446,72 @@ func TestNewClientConfiguresTimeouts(t *testing.T) {
 	}
 }
 
+// TestUnixSocketClientSessionWaitLifetime verifies requested session waits outlive the ordinary transport deadline.
+func TestUnixSocketClientSessionWaitLifetime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a server wait beyond the ordinary request timeout", func(t *testing.T) {
+		t.Parallel()
+
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPost || req.URL.Path != "/api/workspaces/ws-1/sessions/sess-1/wait" {
+				t.Fatalf("request = %s %s, want scoped session wait", req.Method, req.URL.Path)
+			}
+			var request SessionWaitRequest
+			if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+				t.Fatalf("decode wait: %v", err)
+			}
+			if request.TimeoutMS != 50 {
+				t.Fatalf("timeout = %d, want 50", request.TimeoutMS)
+			}
+			timer := time.NewTimer(50 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			case <-timer.C:
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session_id":"sess-1","outcome":"timeout","state":"running","waited_ms":50,"resume_id":"wait-1"}`,
+				), nil
+			}
+		})
+		client := &daemonClient{
+			target:       LocalClientTarget("/tmp/compozy.sock"),
+			httpClient:   &http.Client{Transport: transport, Timeout: time.Millisecond},
+			streamClient: &http.Client{Transport: transport},
+		}
+		result, err := client.WaitSession(t.Context(), "ws-1", "sess-1", SessionWaitRequest{TimeoutMS: 50})
+		if err != nil {
+			t.Fatalf("WaitSession() error = %v, want server timeout outcome", err)
+		}
+		if result.Outcome != "timeout" || result.WaitedMS != 50 || result.ResumeID != "wait-1" {
+			t.Fatalf("WaitSession() = %#v, want resumable server timeout", result)
+		}
+	})
+
+	t.Run("Should release the wait when its caller cancels", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			cancel()
+			<-req.Context().Done()
+			return nil, req.Context().Err()
+		})
+		client := &daemonClient{
+			target:       LocalClientTarget("/tmp/compozy.sock"),
+			httpClient:   &http.Client{Transport: transport},
+			streamClient: &http.Client{Transport: transport},
+		}
+		_, err := client.WaitSession(ctx, "ws-1", "sess-1", SessionWaitRequest{TimeoutMS: 50})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("WaitSession() error = %v, want caller cancellation", err)
+		}
+	})
+}
+
 func TestDoRequestSetsHeaders(t *testing.T) {
 	t.Parallel()
 

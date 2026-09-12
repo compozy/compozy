@@ -909,6 +909,7 @@ describe("session timeline derivation", () => {
       expect(foldRow.rows[0]).toMatchObject({
         active: false,
         summary: { label: "1 tool · 1 thought · 1 stopped" },
+        expanded: false,
         entries: [{ kind: "reasoning" }, { kind: "tool", status: "interrupted", state }],
       });
       expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });

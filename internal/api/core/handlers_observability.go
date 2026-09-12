@@ -34,7 +34,7 @@ func (h *BaseHandlers) HookCatalog(c *gin.Context) {
 			h.respondError(c, StatusForWorkspaceError(err), err)
 			return
 		}
-		filter.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
+		filter.WorkspaceID = strings.TrimSpace(resolved.ID)
 		filter.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
 	}
 	if !readScope.AllProfiles {

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { toast } from "sonner";
+import { useMarketplaceKind } from "../use-marketplace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
@@ -270,6 +271,63 @@ describe("marketplace acquisition cache boundaries", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["skills"] });
+  });
+
+  it("Should replace a pre-install initial search with authoritative installed state", async () => {
+    /** Builds server responses that distinguish stale and authoritative installation state. */
+    const listing = (installed: boolean) =>
+      Response.json({
+        kind: "skill",
+        stale: false,
+        items: [
+          {
+            kind: "skill",
+            entry_id: "reviewer",
+            name: "reviewer",
+            installed,
+            update_available: false,
+          },
+        ],
+      });
+    let releaseStaleRead!: (response: Response) => void;
+    const staleRead = new Promise<Response>(resolve => {
+      releaseStaleRead = resolve;
+    });
+    const fetch = vi
+      .fn()
+      .mockReturnValueOnce(staleRead)
+      .mockImplementation(async () => listing(true));
+    vi.stubGlobal("fetch", fetch);
+    vi.mocked(installMarketplaceSkill).mockResolvedValue({
+      skill: {
+        hash: "sha256:reviewer",
+        name: "reviewer",
+        path: "/skills/reviewer",
+        registry: "compozy",
+        slug: "@compozy/reviewer",
+        status: "installed",
+        version: "1.2.0",
+      },
+    });
+    const { invalidateQueries, wrapper } = setup();
+    const { result } = renderHook(
+      () => ({
+        listing: useMarketplaceKind({ kind: "skill", q: "reviewer" }),
+        install: useInstallMarketplaceSkill(),
+      }),
+      { wrapper }
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(result.current.listing.data).toBeUndefined();
+    act(() => result.current.install.mutate({ slug: "@compozy/reviewer", version: "1.2.0" }));
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] })
+    );
+    releaseStaleRead(listing(false));
+    await waitFor(() => expect(result.current.install.isSuccess).toBe(true));
+    await waitFor(() =>
+      expect(result.current.listing.data?.pages[0]?.items[0]?.installed).toBe(true)
+    );
   });
 
   it("Should invalidate marketplace and extension management after extension install", async () => {

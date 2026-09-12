@@ -178,6 +178,7 @@ export type LoopRouteCause = LoopRunGeneration["route_causes"][number];
 // Status vocabulary ---------------------------------------------------------
 
 export type LoopRunStatus = LoopRun["status"];
-// The goal-turn read had no web consumer left once the cockpit went, but the SSE
-// reducer still classifies `goal_turn_*` frames, so the shape stays.
 export type GoalTurn = OperationResponse<"listGoalTurns", 200>["turns"][number];
+
+export type GoalTurnFilter = OperationQuery<"listGoalTurns">;
+export type GoalTurnPage = OperationResponse<"listGoalTurns", 200>;

@@ -948,10 +948,12 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	}
 }
 
+// assertTerminalLifecycleHandlers exercises terminal creation, polling, release, and validation through ACP handlers.
 func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+	proc.terminals.scope.SessionID = "compozy-session"
 	active, err := proc.beginPromptForRun("turn-terminal-lifecycle", "run-terminal-lifecycle", 17, 8)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
@@ -964,7 +966,8 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 		mustMarshalJSON(acpsdk.CreateTerminalRequest{
 			SessionId: "sess-direct",
 			Command:   "sh",
-			Args:      []string{"-c", "printf hi"},
+			Args:      []string{"-c", `printf '%s' "$COMPOZY_SESSION_ID"`},
+			Env:       []acpsdk.EnvVariable{{Name: "COMPOZY_SESSION_ID", Value: "spoofed-session"}},
 			Cwd:       new(proc.Cwd),
 		}),
 	)
@@ -1018,8 +1021,8 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	if !ok {
 		t.Fatalf("handleInbound(output terminal) type = %T, want TerminalOutputResponse", outputResult)
 	}
-	if outputResponse.Output != "hi" {
-		t.Fatalf("handleInbound(output terminal) output = %q, want %q", outputResponse.Output, "hi")
+	if outputResponse.Output != "compozy-session" {
+		t.Fatalf("handleInbound(output terminal) output = %q, want %q", outputResponse.Output, "compozy-session")
 	}
 
 	if _, reqErr := proc.handleInbound(

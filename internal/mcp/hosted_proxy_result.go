@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"reflect"
 	"strings"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -18,13 +21,16 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		return nil, err
 	}
 	if len(result.Structured) > 0 {
-		var structured any
-		if err := json.Unmarshal(result.Structured, &structured); err == nil {
+		if structured, err := decodeHostedJSON(result.Structured); err == nil {
+			content := []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}
+			previewValue, previewErr := decodeHostedJSON([]byte(result.Preview))
+			if strings.TrimSpace(result.Preview) != "" &&
+				(previewErr != nil || !reflect.DeepEqual(previewValue, structured)) {
+				content = append(content, &sdkmcp.TextContent{Text: string(result.Structured)})
+			}
 			converted := &sdkmcp.CallToolResult{
 				StructuredContent: structured,
-				Content: []sdkmcp.Content{
-					&sdkmcp.TextContent{Text: hostedResultFallback(result)},
-				},
+				Content:           content,
 			}
 			return finishHostedToolResult(converted, result, isError)
 		}
@@ -56,6 +62,20 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		return finishHostedToolResult(converted, result, isError)
 	}
 	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
+}
+
+// decodeHostedJSON retains exact numbers and rejects trailing values before comparing MCP payloads.
+func decodeHostedJSON(raw []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
+		return nil, errors.New("mcp: trailing data after JSON result")
+	}
+	return value, nil
 }
 
 func finishHostedToolResult(

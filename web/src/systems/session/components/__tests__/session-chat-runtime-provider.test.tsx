@@ -1216,6 +1216,83 @@ describe("SessionChatRuntimeProvider", () => {
     ).toThrow("SessionChatRuntimeProvider requires a non-empty workspaceId");
   });
 
+  // Invariant: only a completed operator Goal draft stages the final proposal;
+  // it never submits automatically or overwrites text authored while waiting.
+  // Owning layer and canonical suite: this chat-runtime/composer integration.
+  it.each([false, true])(
+    "Should stage a completed Goal draft while protecting authored text (%s)",
+    async preserveAuthored => {
+      const proposal =
+        "Report the workspace ID.\nverify: the ID matches kickoff.md\nconstraints: no file changes";
+      const openPrompt = openSseResponse([
+        'data: {"type":"start","messageId":"draft-answer"}\n\n',
+        'data: {"type":"text-start","id":"planning"}\n\n',
+        'data: {"type":"text-delta","id":"planning","delta":"I will propose an objective."}\n\n',
+        'data: {"type":"text-end","id":"planning"}\n\n',
+        'data: {"type":"text-start","id":"proposal"}\n\n',
+        `data: ${JSON.stringify({ type: "text-delta", id: "proposal", delta: proposal })}\n\n`,
+      ]);
+      promptResponsePromise = Promise.resolve(openPrompt.response);
+      const user = userEvent.setup();
+      renderSessionThread({ eventSourceFactory: url => new FakeSessionEventSource(url) });
+      await screen.findByTestId("composer-input");
+      await setComposerText("/goal draft Report the workspace identity without edits");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      if (preserveAuthored) await setComposerText("Keep my own next message");
+      openPrompt.close([
+        'data: {"type":"text-end","id":"proposal"}\n\n',
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+      await waitFor(() => expect(screen.getByTestId("composer-send-button")).toBeEnabled());
+      await waitFor(() =>
+        expect(composerText()).toBe(
+          preserveAuthored ? "Keep my own next message" : `/goal ${proposal}`
+        )
+      );
+      expect(countPromptFetches(fetchMock)).toBe(1);
+    }
+  );
+
+  it.each(["ordinary", "unfinished", "cancelled"])(
+    "Should not prefill an %s answer as a Goal",
+    async outcome => {
+      const openPrompt = openSseResponse([
+        'data: {"type":"start","messageId":"not-a-complete-draft"}\n\n',
+        'data: {"type":"text-start","id":"proposal"}\n\n',
+        'data: {"type":"text-delta","id":"proposal","delta":"A proposed objective"}\n\n',
+      ]);
+      promptResponsePromise = Promise.resolve(openPrompt.response);
+      const user = userEvent.setup();
+      renderSessionThread({ eventSourceFactory: url => new FakeSessionEventSource(url) });
+      await screen.findByTestId("composer-input");
+      await setComposerText(
+        outcome === "ordinary" ? "Propose an objective" : "/goal draft Propose an objective"
+      );
+      await user.click(screen.getByTestId("composer-send-button"));
+      await screen.findByText("A proposed objective");
+      if (outcome === "cancelled") {
+        await user.click(screen.getByTestId("composer-stop-button"));
+      } else {
+        openPrompt.close(
+          outcome === "ordinary"
+            ? [
+                'data: {"type":"text-end","id":"proposal"}\n\n',
+                'data: {"type":"finish","finishReason":"stop"}\n\n',
+                "data: [DONE]\n\n",
+              ]
+            : []
+        );
+      }
+      await waitFor(() =>
+        expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument()
+      );
+      expect(composerText()).toBe("");
+      expect(countPromptFetches(fetchMock)).toBe(1);
+    }
+  );
+
   it("Should mint a fresh gateway ticket for every remote prompt", async () => {
     streamTickets = ["prompt-ticket-one", "prompt-ticket-two"];
     const user = userEvent.setup();

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { useStore } from "@xstate/store-react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ export interface SessionComposerState {
   isRunning: boolean;
 }
 
+/** Keeps composer input scoped to its session and protects edits during Goal draft handoff. */
 export function useSessionComposerState(sessionId: string): SessionComposerState {
   const aui = useAui();
   const draftText = useSessionComposerDraft(sessionId);
@@ -111,6 +112,17 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     setComposerText(text);
     composerInputHandleRef.current?.focus();
   };
+
+  const onGoalDraftCompleted = useEffectEvent((event: { sessionId: string; text: string }) => {
+    if (event.sessionId === sessionId) prefillComposer(event.text);
+  });
+
+  useEffect(() => {
+    const subscription = sessionStore.on("goalDraftCompleted", event =>
+      onGoalDraftCompleted(event)
+    );
+    return () => subscription.unsubscribe();
+  }, []);
 
   useLayoutEffect(() => {
     syncStore.trigger.draftObserved({

@@ -2035,6 +2035,7 @@ func promptRequestEndsWith(message string, request string) bool {
 	return message == request || strings.HasSuffix(message, "User request:\n\n"+request)
 }
 
+// TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission verifies Goal dispatch preserves ingress semantics and rechecks draft admission after parsing.
 func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *testing.T) {
 	t.Parallel()
 
@@ -2083,6 +2084,60 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		if persistedInputs[0].Text != "/goal status" ||
 			persistedInputs[0].MessageIDValue() != "client-literal-goal" {
 			t.Fatalf("persisted literal input = %#v", persistedInputs[0])
+		}
+	})
+
+	t.Run("Should return structured parser failures before dispatching Goal work", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name    string
+			message string
+			reason  GoalReasonCode
+		}{
+			{name: "Should reject a missing objective", message: "/goal", reason: GoalReasonObjectiveRequired},
+			{name: "Should reject an oversized objective", message: "/goal " + strings.Repeat("x", 4001), reason: GoalReasonObjectiveTooLarge},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				queueStore := openManagerInputQueueStore(t)
+				handlerCalls := 0
+				h := newHarness(
+					t,
+					WithSessionInputQueueStore(queueStore),
+					WithGoalCommandHandler(
+						GoalCommandHandlerFunc(
+							func(context.Context, string, string, PromptCaller, GoalCommand) (GoalDispatchDecision, error) {
+								handlerCalls++
+								return GoalDispatchDecision{}, errors.New("invalid Goal reached execution")
+							},
+						),
+					),
+				)
+				registerManagerInputQueueWorkspace(t, queueStore, h)
+				sess := createSession(t, h)
+				registerManagerInputQueueSession(t, queueStore, h, sess)
+				t.Cleanup(func() {
+					if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+						t.Errorf("Stop() error = %v", err)
+					}
+				})
+				result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+					Message: tc.message, AllowCommands: true,
+					Caller:    PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+					MessageID: "invalid-goal", IdempotencyKey: "invalid-goal",
+				})
+				if err != nil {
+					t.Fatalf("SendPrompt(invalid Goal) error = %v, want structured rejection", err)
+				}
+				if result.Goal == nil || result.Goal.Outcome != GoalOutcomeError || result.Goal.ReasonCode == nil ||
+					*result.Goal.ReasonCode != tc.reason ||
+					result.Goal.Snapshot != nil {
+					t.Fatalf("Goal result = %#v, want %s without a snapshot", result.Goal, tc.reason)
+				}
+				if handlerCalls != 0 {
+					t.Fatalf("Goal handler calls = %d, want 0", handlerCalls)
+				}
+			})
 		}
 	})
 

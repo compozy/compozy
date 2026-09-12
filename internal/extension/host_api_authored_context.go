@@ -71,6 +71,8 @@ type hostAPISessionHealthGetParams = extensioncontract.SessionHealthGetParams
 type hostAPISessionStatusGetParams = extensioncontract.SessionStatusGetParams
 
 type hostAPIAuthoredAgentTarget struct {
+	profileID       string
+	profileName     string
 	workspaceID     string
 	workspaceRoot   string
 	agentName       string

@@ -44,6 +44,9 @@ In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_
 
 `compozy skill` commands reject accidental use while `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present and point to native skill tools. Treat this as a supported-path guard, not authorization: clearing environment markers or opening the same-user operator socket is outside this guard.
 
+Hosted MCP includes structured results as JSON text as well as `structuredContent`, so clients that
+consume text can read the complete bounded result. A preview may precede that JSON.
+
 ## Operator Profile Scope
 
 For operator tool and toolset commands, use `--profile <name>` with `--workspace <id>` to select

@@ -7,8 +7,10 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// normalizeClaimCriteriaForActor normalizes workspace selection and rejects claims outside the trusted actor scope.
 func (m *Service) normalizeClaimCriteriaForActor(
 	ctx context.Context,
 	criteria ClaimCriteria,
@@ -53,8 +55,9 @@ func (m *Service) normalizeClaimCriteriaForActor(
 			}
 			if !allowed {
 				return ClaimCriteria{}, fmt.Errorf(
-					"%w: claim workspace does not match trusted caller",
+					"%w: claim workspace does not match trusted caller: %s",
 					ErrPermissionDenied,
+					workspaceaccess.DenialHint,
 				)
 			}
 		}

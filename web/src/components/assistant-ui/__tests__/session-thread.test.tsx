@@ -3448,7 +3448,11 @@ describe("SessionThread transcript states", () => {
       ).toBe(retainedTool);
       if (mixed) {
         expect(screen.getByTestId("thinking-block")).toBe(thought);
-        expect(thought).toHaveTextContent("Checked files");
+        const thoughtTrigger = within(thought!).getByTestId("thinking-trigger");
+        expect(thoughtTrigger).toHaveAttribute("aria-expanded", "true");
+        expect(within(thought!).getByRole("region", { name: "Reasoning" })).toHaveTextContent(
+          "Checked files"
+        );
         expect(
           thought!.compareDocumentPosition(retainedTool!) & Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy();

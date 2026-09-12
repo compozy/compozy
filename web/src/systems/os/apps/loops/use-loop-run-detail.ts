@@ -1,4 +1,4 @@
-import { useLoopRunEventsRead } from "@/systems/loops";
+import { useGoalTurns, type GoalTurnsRead, useLoopRunEventsRead } from "@/systems/loops";
 import { useLoopNodeControls } from "./use-loop-node-controls";
 import { useLoopRunDetailDialogs, type LoopRunDetailDialogs } from "./use-loop-run-detail-dialogs";
 import { useLoopRunPage } from "./use-loop-run-page";
@@ -8,6 +8,7 @@ import { useLoopRunTimetravel } from "./use-loop-run-timetravel";
 const NO_INPUTS: Readonly<Record<string, unknown>> = {};
 
 export interface UseLoopRunDetailResult {
+  goalTurns?: GoalTurnsRead;
   page: ReturnType<typeof useLoopRunPage>;
   nodeControls: ReturnType<typeof useLoopNodeControls>;
   requests: ReturnType<typeof useLoopRunRequestsState>;
@@ -16,6 +17,7 @@ export interface UseLoopRunDetailResult {
   events: ReturnType<typeof useLoopRunEventsRead>;
 }
 
+/** Coordinates run state, node controls, requests, time travel, and Goal history reads. */
 export function useLoopRunDetail(
   workspaceId: string,
   runId: string,
@@ -53,5 +55,20 @@ export function useLoopRunDetail(
     options.liveDataEnabled && dialogs.inspectOpen
   );
 
-  return { page, nodeControls, requests, timetravel, dialogs, events };
+  const hasGoal = page.definition?.graph.nodes.some(node => node.kind === "goal") ?? false;
+  const goalTurns = useGoalTurns(
+    workspaceId,
+    runId,
+    options.liveDataEnabled && dialogs.inspectOpen && hasGoal,
+    page.isLive
+  );
+  return {
+    page,
+    nodeControls,
+    requests,
+    timetravel,
+    dialogs,
+    events,
+    goalTurns: hasGoal ? goalTurns : undefined,
+  };
 }

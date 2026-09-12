@@ -569,109 +569,123 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 	}
 }
 
+// TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy verifies extension-agent resources and Heartbeat policy retain their owning Profile context.
 func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
-	t.Run("Should resolve extension-owned artifacts and heartbeat policy", func(t *testing.T) {
-		t.Parallel()
+	for _, scope := range []resources.ResourceScope{
+		{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+		{Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing"},
+		{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "ws-1@pf:marketing"},
+	} {
+		t.Run(
+			"Should resolve extension-owned artifacts and heartbeat policy in "+string(scope.Kind),
+			func(t *testing.T) {
+				t.Parallel()
 
-		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
-		owner := resources.ResourceOwner{
-			Kind: extensionResourceOwnerKind,
-			ID:   "marketing-kit",
-		}
-		agentCatalog := newResourceCatalog(cloneAgentDef)
-		agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
-			{
-				ID:    "agt-global",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-				Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
-			},
-			{
-				ID:    "agt-marketer",
-				Scope: scope,
-				Owner: owner,
-				Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "extension marketer"},
-			},
-		})
-		soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
-		soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
-			{
-				ID:    "sol-marketer",
-				Scope: scope,
-				Owner: owner,
-				Spec: soul.ResourceSpec{
-					AgentName:       "marketer",
-					AgentResourceID: "agt-marketer",
-					SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
-					Body:            "Lead with campaign context.",
-				},
-			},
-			{
-				ID:    "sol-leak",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-				Owner: owner,
-				Spec: soul.ResourceSpec{
-					AgentName:       "marketer",
-					AgentResourceID: "agt-global",
-					SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
-					Body:            "Do not attach this global sidecar.",
-				},
-			},
-		})
-		heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
-		heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{{
-			ID:    "hbt-marketer",
-			Scope: scope,
-			Owner: owner,
-			Spec: heartbeat.ResourceSpec{
-				AgentName:       "marketer",
-				AgentResourceID: "agt-marketer",
-				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
-				Body:            "Inspect campaign status and use Compozy task APIs.",
-			},
-		}})
+				owner := resources.ResourceOwner{
+					Kind: extensionResourceOwnerKind,
+					ID:   "marketing-kit",
+				}
+				agentCatalog := newResourceCatalog(cloneAgentDef)
+				agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
+					{
+						ID:    "agt-global",
+						Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
+					},
+					{
+						ID:    "agt-marketer",
+						Scope: scope,
+						Owner: owner,
+						Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "extension marketer"},
+					},
+				})
+				soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+				soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
+					{
+						ID:    "sol-marketer",
+						Scope: scope,
+						Owner: owner,
+						Spec: soul.ResourceSpec{
+							AgentName:       "marketer",
+							AgentResourceID: "agt-marketer",
+							SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
+							Body:            "Lead with campaign context.",
+						},
+					},
+					{
+						ID:    "sol-leak",
+						Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Owner: owner,
+						Spec: soul.ResourceSpec{
+							AgentName:       "marketer",
+							AgentResourceID: "agt-global",
+							SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
+							Body:            "Do not attach this global sidecar.",
+						},
+					},
+				})
+				heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
+				heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{{
+					ID:    "hbt-marketer",
+					Scope: scope,
+					Owner: owner,
+					Spec: heartbeat.ResourceSpec{
+						AgentName:       "marketer",
+						AgentResourceID: "agt-marketer",
+						SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
+						Body:            "Inspect campaign status and use Compozy task APIs.",
+					},
+				}})
 
-		dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
-			soul:      soulCatalog,
-			heartbeat: heartbeatCatalog,
-		})
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}}
-		artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
-		if err != nil {
-			t.Fatalf("ResolveAgentArtifacts(marketer) error = %v", err)
-		}
-		if !artifacts.PackageOwned {
-			t.Fatal("artifacts.PackageOwned = false, want true")
-		}
-		if got, want := artifacts.Agent.Prompt, "extension marketer"; got != want {
-			t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
-		}
-		if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
-			t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
-		}
-		if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
-			t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
-		}
+				dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
+					soul:      soulCatalog,
+					heartbeat: heartbeatCatalog,
+				})
+				resolved := &workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()},
+					ProfileID: "profile-marketing", ProfileName: "marketing",
+				}
+				artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
+				if err != nil {
+					t.Fatalf("ResolveAgentArtifacts(marketer) error = %v", err)
+				}
+				if !artifacts.PackageOwned {
+					t.Fatal("artifacts.PackageOwned = false, want true")
+				}
+				if got, want := artifacts.Agent.Prompt, "extension marketer"; got != want {
+					t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
+				}
+				if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
+					t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
+				}
+				if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
+					t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
+				}
 
-		policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
-			AgentName:     "marketer",
-			WorkspaceID:   "ws-1",
-			WorkspaceRoot: resolved.RootDir,
-		})
-		if err != nil {
-			t.Fatalf("ResolveHeartbeatPolicy(marketer) error = %v", err)
-		}
-		if !ok {
-			t.Fatal("ResolveHeartbeatPolicy(marketer) ok = false, want true")
-		}
-		if !policy.Present || !policy.Valid || !policy.Active {
-			t.Fatalf(
-				"heartbeat policy flags = present:%v valid:%v active:%v, want all true",
-				policy.Present,
-				policy.Valid,
-				policy.Active,
-			)
-		}
-	})
+				policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
+					AgentName:     "marketer",
+					WorkspaceID:   "ws-1",
+					WorkspaceRoot: resolved.RootDir,
+					ProfileID:     resolved.ProfileID,
+					ProfileName:   resolved.ProfileName,
+				})
+				if err != nil {
+					t.Fatalf("ResolveHeartbeatPolicy(marketer) error = %v", err)
+				}
+				if !ok {
+					t.Fatal("ResolveHeartbeatPolicy(marketer) ok = false, want true")
+				}
+				if !policy.Present || !policy.Valid || !policy.Active {
+					t.Fatalf(
+						"heartbeat policy flags = present:%v valid:%v active:%v, want all true",
+						policy.Present,
+						policy.Valid,
+						policy.Active,
+					)
+				}
+			},
+		)
+	}
 }
 
 func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *testing.T) {

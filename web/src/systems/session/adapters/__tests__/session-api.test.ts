@@ -9,6 +9,7 @@ import {
 
 import {
   SessionApiError,
+  SessionGoalCommandError,
   SessionLedgerUnavailableError,
   SessionNotFoundError,
   buildSessionStreamUrl,
@@ -611,6 +612,35 @@ describe("cancelSessionPrompt", () => {
 });
 
 describe("sendSessionPrompt", () => {
+  it.each(["goal_replace_required", "goal_replace_stale"])(
+    "preserves the typed %s rejection for the replacement action",
+    async reason => {
+      const goal = {
+        outcome: "error",
+        reason_code: reason,
+        replaced_run_id: null,
+        snapshot: { run_id: "run-current", objective: "Keep current work" },
+      };
+      mockJsonResponse({ prompt: { status: "goal", goal } }, { status: 409 });
+
+      const error = await sendSessionPrompt(WORKSPACE_ID, "sess-001", {
+        idempotency_key: "idempotency-001",
+        message_id: "message-001",
+        messages: [
+          {
+            id: "message-001",
+            role: "user",
+            parts: [{ type: "text", text: "/goal New objective" }],
+          },
+        ],
+        mode: "steer",
+      }).catch(error => error);
+
+      expect(error).toBeInstanceOf(SessionGoalCommandError);
+      expect(error).toMatchObject({ status: 409, sessionId: "sess-001", result: goal });
+    }
+  );
+
   it("unwraps the Goal result from the durable prompt envelope", async () => {
     const goalResult = {
       outcome: "cleared" as const,
@@ -1116,6 +1146,31 @@ describe("fetchSessionLedger", () => {
       status: 404,
       sessionId: "sess-001",
     });
+  });
+
+  it("exposes unsupported session memory as unavailable", async () => {
+    mockJsonResponse(
+      { code: "memory.unsupported", message: "Unsupported memory operation" },
+      { status: 501 }
+    );
+
+    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
+
+    expect(error).toBeInstanceOf(SessionLedgerUnavailableError);
+    expect(error).toMatchObject({ status: 501, code: "memory.unsupported", reason: "unsupported" });
+  });
+
+  it("preserves unrelated not-implemented failures as errors", async () => {
+    mockJsonResponse(
+      { code: "server.unsupported", message: "Unsupported operation" },
+      { status: 501 }
+    );
+
+    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
+
+    expect(error).toBeInstanceOf(SessionApiError);
+    expect(error).not.toBeInstanceOf(SessionLedgerUnavailableError);
+    expect(error).toMatchObject({ status: 501, code: "server.unsupported" });
   });
 
   it("throws a typed adapter error for non-404 failures", async () => {

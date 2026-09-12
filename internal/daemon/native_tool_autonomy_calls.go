@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// autonomyClaimNext validates native claim scope and delegates leasing to the task service.
 func (n *daemonNativeTools) autonomyClaimNext(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -37,6 +38,12 @@ func (n *daemonNativeTools) autonomyClaimNext(
 	criteria, err := input.criteria(scope, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	if criteria.WorkspaceID != strings.TrimSpace(scope.WorkspaceID) {
+		criteria.WorkspaceID, err = n.nativeNetworkWorkspaceID(ctx, req.ToolID, criteria.WorkspaceID, scope)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	result, err := n.deps.Tasks.ClaimNextRun(ctx, criteria, actor)
 	if err != nil {

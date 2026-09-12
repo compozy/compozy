@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/skills"
 
@@ -59,6 +60,7 @@ func (n *daemonNativeTools) skillsFor(
 	return n.deps.Skills.ForWorkspace(ctx, resolved)
 }
 
+// nativeSkillWorkspace resolves native resource reads without silently changing a non-default Profile.
 func (n *daemonNativeTools) nativeSkillWorkspace(
 	ctx context.Context,
 	profileID string,
@@ -67,6 +69,9 @@ func (n *daemonNativeTools) nativeSkillWorkspace(
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" && workspaceID == "" {
 		return nil, nil
+	}
+	if profileID != "" && profileID != store.DefaultProfileID && n.deps.Profiles == nil {
+		return nil, errors.New("daemon: profile reader is required for non-default profile")
 	}
 	profileName := compozyconfig.DefaultProfileDirName
 	if n.deps.Profiles != nil {
@@ -224,6 +229,8 @@ func (n *daemonNativeTools) workspaceID(ctx context.Context, ref string) (string
 }
 
 type nativeAuthoredAgentTarget struct {
+	profileID       string
+	profileName     string
 	workspaceID     string
 	workspaceRoot   string
 	agentName       string
@@ -231,9 +238,11 @@ type nativeAuthoredAgentTarget struct {
 	heartbeatConfig compozyconfig.HeartbeatConfig
 }
 
+// authoredAgentTarget resolves the native caller Profile and registered workspace before selecting agent paths.
 func (n *daemonNativeTools) authoredAgentTarget(
 	ctx context.Context,
 	toolID toolspkg.ToolID,
+	profileID string,
 	workspaceRef string,
 	agentName string,
 ) (nativeAuthoredAgentTarget, error) {
@@ -248,7 +257,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if n.deps.WorkspaceResolver == nil {
 		return nativeAuthoredAgentTarget{}, errors.New("daemon: workspace resolver is required")
 	}
-	resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := n.nativeSkillWorkspace(ctx, profileID, workspaceID)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}
@@ -256,21 +265,26 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(resolved)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}
 	return nativeAuthoredAgentTarget{
+		profileID:       resolved.ProfileID,
+		profileName:     resolved.ProfileName,
 		workspaceID:     resolvedWorkspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
-		agentPath:       nativeAuthoredAgentPath(&resolved, name),
+		agentPath:       nativeAuthoredAgentPath(resolved, name),
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
 	}, nil
 }
 
+// heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		ProfileID:     t.profileID,
+		ProfileName:   t.profileName,
 		WorkspaceID:   t.workspaceID,
 		WorkspaceRoot: nativeAuthoredSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,

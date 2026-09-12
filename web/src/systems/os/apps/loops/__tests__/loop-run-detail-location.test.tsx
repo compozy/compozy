@@ -129,6 +129,14 @@ vi.mock("@/systems/loops", async () => ({
   LoopRunOverflowMenu: () => null,
   LoopRunPageBody: (props: Record<string, unknown>) => loopRunPageBodySpy(props),
   LoopStatusPill: () => null,
+  /** Keeps Goal history idle while these cases exercise route composition. */
+  useGoalTurns: () => ({
+    turns: [],
+    hasMore: false,
+    isLoading: false,
+    isError: false,
+    isLoadingMore: false,
+  }),
   // The Events lane's `view=all` read. Composed in `useLoopRunDetail` because the
   // disclosure that gates it is owned there; stubbed idle so these route cases
   // keep asserting what they own — workspace naming and the drill-in trail.

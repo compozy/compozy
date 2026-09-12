@@ -59,6 +59,7 @@ export {
   getLoopRunBriefing,
   getLoopRunRoster,
   getLoopRunTimeline,
+  listGoalTurns,
   listLoopRequests,
   listLoopRuns,
   listLoops,
@@ -373,3 +374,5 @@ export { setLoopTargetInput, setLoopTargetLoop, setLoopTargetMapping } from "./l
 export type { LoopAutomationStartKind, LoopTargetCatalog } from "./lib/loop-target-availability";
 export { loopTargetAvailabilityMessage } from "./lib/loop-target-availability";
 export { useLoopTargetCatalog } from "./hooks/use-loop-target-catalog";
+
+export { useGoalTurns, type GoalTurnsRead } from "./hooks/use-goal-turns";
