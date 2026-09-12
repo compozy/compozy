@@ -13,6 +13,7 @@ const maxPendingOSCBytes = 64 << 10
 
 type outputFilter interface {
 	Filter(input []byte) FilterResult
+	Flush() FilterResult
 	FilterInput(input []byte) []byte
 }
 
@@ -25,6 +26,7 @@ type oscSecurityFilter struct {
 
 type oscParser struct {
 	pending       []byte
+	utf8Carry     []byte
 	discarding    bool
 	discardEscape bool
 	discardKind   byte
@@ -35,12 +37,17 @@ func newOSCSecurityFilter(nonce string, onTitle func(string)) *oscSecurityFilter
 }
 
 func (f *oscSecurityFilter) Filter(input []byte) FilterResult {
-	display, facts := f.output.filter(input, f.nonce, f.onTitle, true)
+	display, facts := f.output.filter(input, f.nonce, f.onTitle, true, false)
+	return FilterResult{DisplayBytes: display, MarkerFacts: facts}
+}
+
+func (f *oscSecurityFilter) Flush() FilterResult {
+	display, facts := f.output.filter(nil, f.nonce, f.onTitle, true, true)
 	return FilterResult{DisplayBytes: display, MarkerFacts: facts}
 }
 
 func (f *oscSecurityFilter) FilterInput(input []byte) []byte {
-	display, _ := f.input.filter(input, "", nil, false)
+	display, _ := f.input.filter(input, "", nil, false, false)
 	return display
 }
 
@@ -49,8 +56,19 @@ func (p *oscParser) filter(
 	nonce string,
 	onTitle func(string),
 	parseMarkers bool,
+	final bool,
 ) ([]byte, []MarkerFacts) {
 	data := input
+	if len(p.utf8Carry) > 0 {
+		p.utf8Carry = append(p.utf8Carry, input...)
+		data = p.utf8Carry
+		p.utf8Carry = nil
+	}
+	if !final {
+		var carry []byte
+		data, carry = splitCompleteUTF8(data)
+		p.utf8Carry = bytes.Clone(carry)
+	}
 	if p.discarding {
 		data = p.discardUntilTerminator(data)
 		if p.discarding {
@@ -129,58 +147,47 @@ func (p *oscParser) discardUntilTerminator(input []byte) []byte {
 }
 
 func controlStart(input []byte) (int, byte, int) {
-	osc := bytes.Index(input, []byte{0x1b, ']'})
-	dcs := bytes.Index(input, []byte{0x1b, 'P'})
-	c1OSC := bytes.IndexByte(input, 0x9d)
-	c1DCS := bytes.IndexByte(input, 0x90)
-	start, kind, prefixBytes := -1, byte(0), 0
-	for _, candidate := range []struct {
-		start       int
-		kind        byte
-		prefixBytes int
-	}{
-		{start: osc, kind: 'o', prefixBytes: 2},
-		{start: dcs, kind: 'd', prefixBytes: 2},
-		{start: c1OSC, kind: 'o', prefixBytes: 1},
-		{start: c1DCS, kind: 'd', prefixBytes: 1},
-	} {
-		if candidate.start >= 0 && (start < 0 || candidate.start < start) {
-			start, kind, prefixBytes = candidate.start, candidate.kind, candidate.prefixBytes
+	for index := 0; index < len(input); {
+		value, size := utf8.DecodeRune(input[index:])
+		// Decode first so continuation bytes cannot masquerade as controls.
+		if value == utf8.RuneError && size == 1 {
+			value = rune(input[index])
 		}
+		switch value {
+		case 0x9d:
+			return index, 'o', size
+		case 0x90:
+			return index, 'd', size
+		}
+		if value == 0x1b && index+1 < len(input) {
+			switch input[index+1] {
+			case ']':
+				return index, 'o', 2
+			case 'P':
+				return index, 'd', 2
+			}
+		}
+		index += size
 	}
-	return start, kind, prefixBytes
+	return -1, 0, 0
 }
 
 func controlEnd(input []byte, kind byte) (int, int) {
-	if kind == 'd' {
-		return dcsEnd(input)
-	}
-	return oscEnd(input)
-}
-
-func dcsEnd(input []byte) (int, int) {
-	for index, value := range input {
-		if value == 0x9c {
+	for index := 0; index < len(input); {
+		value, size := utf8.DecodeRune(input[index:])
+		if value == utf8.RuneError && size == 1 {
+			value = rune(input[index])
+		}
+		if kind == 'o' && value == 0x07 {
 			return index, 1
+		}
+		if value == 0x9c {
+			return index, size
 		}
 		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {
 			return index, 2
 		}
-	}
-	return -1, 0
-}
-
-func oscEnd(input []byte) (int, int) {
-	for index, value := range input {
-		if value == 0x07 {
-			return index, 1
-		}
-		if value == 0x9c {
-			return index, 1
-		}
-		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {
-			return index, 2
-		}
+		index += size
 	}
 	return -1, 0
 }

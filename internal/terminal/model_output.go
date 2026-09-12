@@ -5,68 +5,27 @@ import "bytes"
 func modelFacingOutput(input []byte) []byte {
 	output := make([]byte, 0, len(input))
 	for offset := 0; offset < len(input); {
-		kind, prefix, ok := modelControlAt(input[offset:])
-		if !ok {
-			output = append(output, input[offset])
-			offset++
-			continue
+		start, kind, prefix := controlStart(input[offset:])
+		if start < 0 {
+			output = append(output, input[offset:]...)
+			break
 		}
-		end := modelControlEnd(input[offset+prefix:], kind == modelControlOSC)
+		output = append(output, input[offset:offset+start]...)
+		offset += start
+		end, terminator := controlEnd(input[offset+prefix:], kind)
 		if end < 0 {
-			if kind == modelControlOSC && !blockedModelOSC(input[offset+prefix:]) {
+			if kind == 'o' && !blockedModelOSC(input[offset+prefix:]) {
 				output = append(output, input[offset:]...)
 			}
 			break
 		}
-		wholeEnd := offset + prefix + end
-		if kind == modelControlOSC && !blockedModelOSC(input[offset+prefix:wholeEnd]) {
+		wholeEnd := offset + prefix + end + terminator
+		if kind == 'o' && !blockedModelOSC(input[offset+prefix:wholeEnd]) {
 			output = append(output, input[offset:wholeEnd]...)
 		}
 		offset = wholeEnd
 	}
 	return output
-}
-
-type modelControl uint8
-
-const (
-	modelControlOSC modelControl = iota + 1
-	modelControlDCS
-)
-
-func modelControlAt(input []byte) (modelControl, int, bool) {
-	if len(input) >= 2 && input[0] == 0x1b {
-		switch input[1] {
-		case ']':
-			return modelControlOSC, 2, true
-		case 'P':
-			return modelControlDCS, 2, true
-		}
-	}
-	if len(input) > 0 {
-		switch input[0] {
-		case 0x9d:
-			return modelControlOSC, 1, true
-		case 0x90:
-			return modelControlDCS, 1, true
-		}
-	}
-	return 0, 0, false
-}
-
-func modelControlEnd(input []byte, allowBell bool) int {
-	for index, value := range input {
-		if allowBell && value == 0x07 {
-			return index + 1
-		}
-		if value == 0x9c {
-			return index + 1
-		}
-		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {
-			return index + 2
-		}
-	}
-	return -1
 }
 
 func blockedModelOSC(content []byte) bool {

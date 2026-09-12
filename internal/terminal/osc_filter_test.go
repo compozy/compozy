@@ -4,12 +4,117 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
+
+func TestOSCSecurityFilterUnicode(t *testing.T) {
+	t.Parallel()
+	for _, sample := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"Should preserve colored Unicode prompts and ANSI redraws", "\x1b[34m~/project\x1b[39m\r\n\x1b[35m❯\x1b[39m abc\b \b", "\x1b[34m~/project\x1b[39m\r\n\x1b[35m❯\x1b[39m abc\b \b"},
+		{"Should preserve multibyte characters containing C1 bytes", "❯❮⇡⇣≡✦ АÝ✜🔐", "❯❮⇡⇣≡✦ АÝ✜🔐"},
+		{"Should keep Unicode ST bytes inside blocked controls", "before\x1b]52;c;✜secret\x07after\x1bP✜private\x1b\\done", "beforeafterdone"},
+		{"Should retain raw C1 filtering beside Unicode", "❯\x9d52;c;✜secret\x9cА\x90✜private\x9cÝ", "❯АÝ"},
+		{"Should filter UTF-8 encoded C1 controls beside printable Unicode", "❯\u009d52;c;✜secret\u009cА\u0090✜private\u009cÝ", "❯АÝ"},
+		{"Should preserve unknown OSC with Unicode content", "\x1b]133;✜❯\x07abc", "\x1b]133;✜❯\x07abc"},
+		{"Should retain invalid bytes without hiding adjacent controls", "\xff\xe2x\x9d52;c;secret\x07ready", "\xff\xe2xready"},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			t.Parallel()
+			for chunkSize := 1; chunkSize <= len(sample.input); chunkSize++ {
+				for _, inputSide := range []bool{false, true} {
+					filter := newOSCSecurityFilter("nonce-1", nil)
+					var got []byte
+					for offset := 0; offset < len(sample.input); offset += chunkSize {
+						chunk := []byte(sample.input[offset:min(offset+chunkSize, len(sample.input))])
+						if inputSide {
+							got = append(got, filter.FilterInput(chunk)...)
+						} else {
+							got = append(got, filter.Filter(chunk).DisplayBytes...)
+						}
+					}
+					if string(got) != sample.want {
+						t.Fatalf("chunk=%d inputSide=%v: got %q, want %q", chunkSize, inputSide, got, sample.want)
+					}
+				}
+			}
+		})
+	}
+	t.Run("Should flush an incomplete final rune without releasing blocked control content", func(t *testing.T) {
+		t.Parallel()
+		for _, sample := range []struct{ name, input, want string }{
+			{"Should retain final malformed bytes before a raw OSC", "visible\xe2\x9d", "visible\xe2"},
+			{"Should retain an incomplete final character", "visible\xf0\x9f", "visible\xf0\x9f"},
+			{"Should keep an unterminated clipboard control blocked", "visible\x1b]52;c;secret\xf0\x9f", "visible"},
+		} {
+			t.Run(sample.name, func(t *testing.T) {
+				t.Parallel()
+				filter := newOSCSecurityFilter("nonce-1", nil)
+				got := filter.Filter([]byte(sample.input)).DisplayBytes
+				got = append(got, filter.Flush().DisplayBytes...)
+				if string(got) != sample.want {
+					t.Fatalf("input=%q flushed=%q, want %q", sample.input, got, sample.want)
+				}
+			})
+		}
+	})
+	t.Run("Should preserve Unicode in model facing output", func(t *testing.T) {
+		t.Parallel()
+		input := []byte("❯АÝ✜🔐\x1b]8;;https://example.com/✜\x1b\\link\x1bP✜private\x1b\\done" +
+			"\u009d8;;https://example.com\u009c\u0090private\u009c")
+		if got := string(modelFacingOutput(input)); got != "❯АÝ✜🔐linkdone" {
+			t.Fatalf("modelFacingOutput() = %q", got)
+		}
+	})
+	t.Run("Should discard oversized controls through their real terminator", func(t *testing.T) {
+		t.Parallel()
+		for _, prefix := range []string{"\x1b]52;c;", "\x1bP"} {
+			t.Run(fmt.Sprintf("Should discard control %x", prefix), func(t *testing.T) {
+				t.Parallel()
+				for _, terminator := range []string{"\x1b\\", "\x9c", "\u009c"} {
+					t.Run(fmt.Sprintf("Should resume after terminator %x", terminator), func(t *testing.T) {
+						t.Parallel()
+						filter := newOSCSecurityFilter("nonce-1", nil)
+						first := filter.Filter([]byte(prefix + strings.Repeat("x", maxPendingOSCBytes)))
+						got := first.DisplayBytes
+						for _, value := range []byte("✜secret" + terminator + "❯ ready") {
+							got = append(got, filter.Filter([]byte{value}).DisplayBytes...)
+						}
+						if string(got) != "❯ ready" {
+							t.Fatalf("prefix=%q terminator=%q display=%q", prefix, terminator, got)
+						}
+					})
+				}
+			})
+		}
+	})
+	t.Run("Should deliver each key after an ASCII or Unicode prompt", func(t *testing.T) {
+		t.Parallel()
+		for _, glyph := range []string{">", "❯"} {
+			t.Run(fmt.Sprintf("Should deliver keys after prompt %s", glyph), func(t *testing.T) {
+				t.Parallel()
+				filter := newOSCSecurityFilter("nonce-1", nil)
+				prompt := fmt.Sprintf("\x1b[34m~/project\x1b[39m\r\n\x1b[35m%s\x1b[39m ", glyph)
+				if got := string(filter.Filter([]byte(prompt)).DisplayBytes); got != prompt {
+					t.Errorf("prompt %q: got %q", glyph, got)
+				}
+				for _, key := range []string{"a", "b", "c"} {
+					if got := string(filter.Filter([]byte(key)).DisplayBytes); got != key {
+						t.Errorf("prompt %q key %q: got %q", glyph, key, got)
+					}
+				}
+			})
+		}
+	})
+}
 
 func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T) {
 	t.Parallel()
