@@ -50,3 +50,14 @@ Final delivery is pending the current-head GitHub CI and both external reviewers
 The historical Daytona leg of RT-026 remains outside this local-provider slice.
 No first-prompt replay was performed because the assignment prohibits creating
 Compozy sessions; existing integration/E2E workflows own broader session evidence.
+
+PR #632 review remediation: Greptile finding 3995000662 exposed two untested
+prefix cases. The shared projection now preserves bracket-labeled text probes
+and locates a JSON object after a warning. It suppresses the surrounding identity
+payload, preserves classified prefix errors, and keeps malformed mixed output
+unknown. The existing classifier table covers both reported forms and adjacent
+true/malformed/error-prefixed variants. These cases run in GitHub CI under the
+execution override; the unchanged native true response retains the earlier live
+probe evidence. CodeRabbit completed the initial source review without actionable
+comments; its generic docstring-coverage warning conflicts with the repository's
+explicit rule against restating obvious private helper behavior in comments.

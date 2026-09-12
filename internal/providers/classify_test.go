@@ -139,6 +139,32 @@ func TestClassifyProviderAuth(t *testing.T) {
 				stdout: "not logged in",
 				state:  ProviderAuthStateNeedsLogin,
 			},
+			{
+				name:   "Should retain bracket-prefixed text probes",
+				stdout: "[INFO] logged in",
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name: "Should parse a warning-prefixed false verdict without exposing identity",
+				stdout: "warning\n" +
+					`{"loggedIn":false,"orgName":"Authenticated Labs","email":"private@example.test"}`,
+				state: ProviderAuthStateNeedsLogin,
+			},
+			{
+				name:   "Should parse a warning-prefixed true verdict",
+				stdout: "[INFO] account status\n" + `{"loggedIn":true}`,
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name:   "Should suppress malformed warning-prefixed identity",
+				stdout: "warning\n" + `{"loggedIn":true,"email":"private@example.test"`,
+				state:  ProviderAuthStateUnknown,
+			},
+			{
+				name:   "Should preserve a classified error before JSON",
+				stdout: "HTTP 403 forbidden\n" + `{"loggedIn":true,"email":"private@example.test"}`,
+				state:  ProviderAuthStatePermissionDenied,
+			},
 		}
 		for _, tt := range cases {
 			t.Run(tt.name, func(t *testing.T) {

@@ -11,15 +11,29 @@ const (
 	probeJSONAuthenticated = `{"loggedIn":true}`
 	probeJSONNeedsLogin    = `{"loggedIn":false}`
 	probeJSONUnknown       = "{}"
+	probeJSONTrueLiteral   = "true"
+	probeJSONFalseLiteral  = "false"
 )
 
 // RedactAuthProbeOutput retains only the authentication verdict from structured status output.
 func RedactAuthProbeOutput(output string, limit int) string {
-	trimmed := strings.TrimSpace(output)
-	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+	payload, prefix, structured := structuredProbeOutput(output)
+	if !structured {
 		return diagnostics.RedactAndBound(output, limit)
 	}
-	loggedIn, valid := probeLoggedIn(trimmed)
+	if failure, classified := classifyProbeOutput(strings.ToLower(prefix)); classified {
+		switch failure.State {
+		case ProviderAuthStateRateLimited:
+			return "rate limit"
+		case ProviderAuthStatePermissionDenied:
+			return "permission denied"
+		case ProviderAuthStateTransient:
+			return "temporary failure"
+		case ProviderAuthStateNeedsLogin:
+			return "not authenticated"
+		}
+	}
+	loggedIn, valid := probeLoggedIn(payload)
 	if !valid {
 		return probeJSONUnknown
 	}
@@ -27,6 +41,37 @@ func RedactAuthProbeOutput(output string, limit int) string {
 		return probeJSONAuthenticated
 	}
 	return probeJSONNeedsLogin
+}
+
+func structuredProbeOutput(output string) (string, string, bool) {
+	trimmed := strings.TrimSpace(output)
+	if strings.HasPrefix(trimmed, "[") && !probeTextLabel(trimmed) {
+		return trimmed, "", true
+	}
+	if start := strings.IndexByte(trimmed, '{'); start >= 0 {
+		return trimmed[start:], trimmed[:start], true
+	}
+	if strings.Contains(trimmed, `"loggedIn"`) {
+		return trimmed, "", true
+	}
+	return "", "", false
+}
+
+func probeTextLabel(output string) bool {
+	end := strings.IndexByte(output, ']')
+	if end <= 1 {
+		return false
+	}
+	label := output[1:end]
+	if label == probeJSONTrueLiteral || label == probeJSONFalseLiteral || label == "null" {
+		return false
+	}
+	for _, char := range label {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && char != ' ' && char != '_' && char != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func probeLoggedIn(output string) (bool, bool) {
@@ -60,9 +105,9 @@ func probeLoggedIn(output string) (bool, bool) {
 		}
 		found = true
 		switch string(value) {
-		case "true":
+		case probeJSONTrueLiteral:
 			loggedIn = true
-		case "false":
+		case probeJSONFalseLiteral:
 			loggedIn = false
 		default:
 			return false, false

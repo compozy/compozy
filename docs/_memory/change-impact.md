@@ -286,3 +286,8 @@ and ET-open-design scenario apply; no additional surface contract is introduced.
   [the QA report](../qa/reports/2026-09-12-issue-623-claude-auth.md) records evidence
   and platform boundaries. Cursor/Codex output shapes and overlay discovery remain
   outside this fix.
+
+PR #632 prefix remediation remains within the same projection boundary: bracket
+log labels retain text compatibility; warning-prefixed JSON is reduced to its
+verdict, and recognized prefix errors retain their safe recovery classification.
+No additional public, config, persistence, or Web contracts change.
