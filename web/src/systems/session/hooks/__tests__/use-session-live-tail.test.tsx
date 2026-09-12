@@ -1481,7 +1481,17 @@ describe("Session context stream signals", () => {
       { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
     ]);
     expect(queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID))).toBe(before);
+    invalidations.mockClear();
+    act(() =>
+      source.emit("session_usage_changed", { sequence: 415, turn_id: "turn-12", kind: "done" })
+    );
     unmount();
+    expect(invalidations.mock.calls.map(call => call[0])).toEqual([
+      { queryKey: sessionKeys.usage(WORKSPACE_ID, SESSION_ID), exact: true },
+      { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
+    ]);
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(invalidations).toHaveBeenCalledTimes(2);
     expect(source.listeners.get("session_usage_changed")?.size).toBe(0);
     expect(source.closed).toBe(true);
     queryClient.clear();
@@ -1516,6 +1526,13 @@ describe("Session context stream signals", () => {
         call =>
           JSON.stringify(call[0]?.queryKey) ===
           JSON.stringify(sessionKeys.usage(WORKSPACE_ID, SESSION_ID))
+      )
+    ).toBe(false);
+    expect(
+      invalidations.mock.calls.some(
+        call =>
+          JSON.stringify(call[0]?.queryKey) ===
+          JSON.stringify(sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID))
       )
     ).toBe(false);
     queryClient.setQueryData(sessionKeys.usage(WORKSPACE_ID, SESSION_ID), {

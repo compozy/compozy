@@ -481,8 +481,15 @@ describe("Session context query projection", () => {
     });
     await waitFor(() => expect(result.current.context.warning).toBe(true));
     expect(result.current.context.used).toBe(225_280);
-    await update({ ...sessionContextUsageFixture, context: { state: "unavailable" } });
+    await update({
+      ...sessionContextUsageFixture,
+      input_tokens: 12345,
+      cache_read_tokens: 9876,
+      context: { state: "unavailable" },
+    });
     await waitFor(() => expect(result.current.context.state).toBe("unavailable"));
+    expect(result.current.usage?.input_tokens).toBe(12345);
+    expect(result.current.usage?.cache_read_tokens).toBe(9876);
     expect(result.current.context.used).toBe(225_280);
     vi.mocked(fetchSessionUsage).mockRejectedValue(new Error("offline"));
     await act(async () => {

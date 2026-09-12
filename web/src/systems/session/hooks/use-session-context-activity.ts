@@ -1,11 +1,11 @@
 import { useSecondClock } from "@/hooks/use-second-clock";
-import { lastSettledTurn } from "@/components/assistant-ui/session-thread-status.logic";
-import { toTimelineParts } from "@/components/assistant-ui/timeline-message-parts";
+import { lastSettledTurn } from "@/systems/session/lib/session-thread-status";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { useSessionTranscriptThreadMessages } from "./use-session-transcript-thread-messages";
 import { deriveWorkingStatus } from "../lib/session-working-status";
 import { deriveSessionActivityView, type SessionActivityView } from "../lib/session-activity-view";
 import { isAgentEventPayload } from "../lib/message-parts";
-import { isRuntimeActivityEvent } from "../components/runtime-activity-notice.logic";
+import { isRuntimeActivityEvent } from "@/systems/session/lib/runtime-activity-notice";
 import type { SessionGoalSnapshot, SessionPayload } from "../types";
 
 export interface SessionContextActivitySource {

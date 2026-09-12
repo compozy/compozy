@@ -9,7 +9,7 @@ import {
   isSessionErrorEvent,
   isQueueRemovalMarker,
   isFileMutationUnverifiedEvent,
-} from "../components/runtime-activity-notice.logic";
+} from "@/systems/session/lib/runtime-activity-notice";
 import { CLARIFY_EVENT_TYPE } from "./clarify-event";
 import { PROMPT_STEERED_MARKER, PROMPT_SUPERSEDED_MARKER } from "./steer-marker";
 

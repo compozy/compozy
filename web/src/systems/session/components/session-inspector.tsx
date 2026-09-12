@@ -1,15 +1,10 @@
-import type { SessionContextActivitySource } from "../hooks/use-session-context-activity";
 import { DetailInspector, cn } from "@compozy/ui";
 import { deriveSessionContext, type SessionContextView } from "../lib/session-context";
 import type { SessionUsageTurnsResponse } from "../types";
 import { SessionContextMeterSection } from "./session-context-meter-section";
 import { SessionContextInjectedSection } from "./session-context-injected-section";
 import { SessionContextTurnsSection } from "./session-context-turns-section";
-import {
-  SessionActivitySection,
-  SessionContextLiveActivity,
-  type SessionActivityView,
-} from "./session-activity-section";
+import { SessionActivitySection, type SessionActivityView } from "./session-activity-section";
 import { SessionInspectorUsageSection } from "./session-inspector-sections";
 import type { InspectorUsage } from "./session-inspector-types";
 
@@ -21,7 +16,6 @@ export interface SessionInspectorProps {
   turns?: SessionUsageTurnsResponse;
   turnsUnavailable?: boolean;
   activity?: SessionActivityView;
-  activitySource?: SessionContextActivitySource;
   injectedDefaultOpen?: boolean;
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
@@ -34,7 +28,6 @@ export function SessionInspector({
   turns,
   turnsUnavailable,
   activity,
-  activitySource,
   injectedDefaultOpen,
   drawerOpen,
   onDrawerOpenChange,
@@ -57,11 +50,7 @@ export function SessionInspector({
         />
         <SessionInspectorUsageSection usage={usage} />
         <SessionContextTurnsSection data={turns} unavailable={turnsUnavailable} />
-        {activitySource ? (
-          <SessionContextLiveActivity source={activitySource} />
-        ) : (
-          <SessionActivitySection activity={activity} />
-        )}
+        <SessionActivitySection activity={activity} />
       </div>
     </DetailInspector>
   );

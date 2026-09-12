@@ -66,13 +66,6 @@ func (s *session) deliverInputMode(
 			Code: ErrorCodeNotInteractive, Message: errorMessageNotInteractive, Err: ErrNotInteractive,
 		}
 	}
-	if s.audit.Blocked() {
-		return inputDeliveryState{}, &Error{
-			Code:    ErrorCodeJournalUnavailable,
-			Message: "terminal input is blocked while journal delivery is unavailable",
-			Err:     ErrJournalUnavailable,
-		}
-	}
 	if err := s.runningGate(); err != nil {
 		return inputDeliveryState{}, err
 	}
@@ -81,6 +74,16 @@ func (s *session) deliverInputMode(
 	// decides which complete submission reaches the process first.
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
+	s.markerMu.Lock()
+	blocked := s.audit.Blocked()
+	s.markerMu.Unlock()
+	if blocked {
+		return inputDeliveryState{}, &Error{
+			Code:    ErrorCodeJournalUnavailable,
+			Message: "terminal input is blocked while journal delivery is unavailable",
+			Err:     ErrJournalUnavailable,
+		}
+	}
 	filtered := s.filter.FilterInput(input)
 	contentBytes := len(filtered)
 	if appendNewline &&

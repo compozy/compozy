@@ -714,6 +714,45 @@ func TestTranscriptReconnectFence(t *testing.T) {
 // bounded snapshot, never a partial delta. Owner: stream initialization suite.
 func TestInitializeTranscriptStream(t *testing.T) {
 	t.Parallel()
+	t.Run("Should replay usage committed between its read and the transcript watermark", func(t *testing.T) {
+		t.Parallel()
+		info := streamTestSessionInfo("sess-a")
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			status: func(context.Context, string) (*session.Info, error) { return info, nil },
+			events: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if query.Type != "" {
+					return nil, nil
+				}
+				if query.AfterSequence != 12 {
+					t.Fatalf("usage cursor = %d, want 12", query.AfterSequence)
+				}
+				return []store.SessionEvent{{Sequence: 14, TurnID: "A", Type: acp.EventTypeDone}}, nil
+			},
+			transcriptChanges: func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error) {
+				return transcript.ChangePage{Generation: 4, MaxSequence: 14, NextAfter: 14}, nil
+			},
+		}}
+		writer := &streamTestFlushWriter{}
+		state, err := handlers.initializeTranscriptStream(t.Context(), writer, "sess-a", info, 10, 50,
+			sessionStreamOptions{expectedEpoch: new(int64(3)), expectedGeneration: new(int64(4))},
+			[]store.SessionEvent{{Sequence: 12, TurnID: "A", Type: acp.EventTypeUsage}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.cursor != 14 {
+			t.Fatalf("transcript cursor = %d, want 14", state.cursor)
+		}
+		state.commandCheckedAt = time.Now()
+		state, _, err = handlers.refreshTranscriptStream(t.Context(), writer, "sess-a", info, state, 50, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.usageCursor != 14 || strings.Count(writer.String(), "event: session_usage_changed") != 2 ||
+			!strings.Contains(writer.String(), `"sequence":14,"turn_id":"A","kind":"done"`) {
+			t.Fatalf("usage catchup state=%#v frames=%s", state, writer.String())
+		}
+	})
+
 	t.Run("Should confirm the current watermark when reconnecting without new entries", func(t *testing.T) {
 		t.Parallel()
 		handlers := &BaseHandlers{Sessions: sessionManagerStub{
@@ -1151,7 +1190,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 						}
 						var result []store.SessionEvent
 						for _, event := range events {
-							if event.Type == query.Type && event.Sequence > query.AfterSequence {
+							if (query.Type == "" || event.Type == query.Type) && event.Sequence > query.AfterSequence {
 								result = append(result, event)
 							}
 						}
@@ -1164,7 +1203,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				supplied = nil
 			}
 			writer := &streamTestFlushWriter{}
-			if err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied); err != nil {
+			if _, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied); err != nil {
 				t.Fatal(err)
 			}
 			body := writer.String()
@@ -1172,7 +1211,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				strings.Contains(body, `"sequence":10`) {
 				t.Fatalf("usage frames=%s", body)
 			}
-			if (tc.poll && calls != 3) || (!tc.poll && calls != 0) {
+			if (tc.poll && calls != 1) || (!tc.poll && calls != 0) {
 				t.Fatalf("poll calls=%d", calls)
 			}
 			golden, err := os.ReadFile(filepath.Join("testdata", "session-context", "usage-changed.json"))
@@ -1183,17 +1222,23 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			if err := json.Unmarshal(golden, &want); err != nil {
 				t.Fatal(err)
 			}
+			wants := []map[string]any{
+				want,
+				{"sequence": float64(13), "turn_id": "A", "kind": acp.EventTypeDone},
+				{"sequence": float64(14), "turn_id": "A", "kind": acp.EventTypePromptDelivery},
+			}
+			var got []map[string]any
 			for line := range strings.SplitSeq(body, "\n") {
 				if strings.HasPrefix(line, "data: ") {
-					var got map[string]any
-					if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &got); err != nil {
+					var payload map[string]any
+					if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &payload); err != nil {
 						t.Fatal(err)
 					}
-					if !reflect.DeepEqual(got, want) {
-						t.Fatalf("first change=%#v want=%#v", got, want)
-					}
-					break
+					got = append(got, payload)
 				}
+			}
+			if !reflect.DeepEqual(got, wants) {
+				t.Fatalf("usage changes=%#v want=%#v", got, wants)
 			}
 		})
 	}
@@ -1205,7 +1250,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, failure },
 			},
 		}
-		if err := h.writeUsageChangedEvents(
+		if _, err := h.writeUsageChangedEvents(
 			t.Context(),
 			&streamTestFlushWriter{},
 			"sess-a",
@@ -1218,7 +1263,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			t.Fatalf("read error=%v", err)
 		}
 		writer := &streamTestFailWriter{err: failure}
-		if err := h.writeUsageChangedEvents(
+		if _, err := h.writeUsageChangedEvents(
 			t.Context(),
 			writer,
 			"sess-a",

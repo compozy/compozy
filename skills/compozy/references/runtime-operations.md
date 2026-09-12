@@ -469,7 +469,13 @@ Use `compozy session usage <session-id> --turns -o json` or `GET …/usage/turns
 that has usage or a delivery. `compactions[].span_archived` describes the persisted replay span's
 current archive flags; it is not proof that the agent compacted its window. A failed turns read returns
 an error. Listen for `session_usage_changed` on the transcript stream to refresh these queries; the
-signal never advances the transcript cursor.
+signal never advances the transcript cursor. Its replay watermark is independent of transcript
+projection reads, so concurrent usage commits remain eligible for the next refresh.
+
+For TOON consumers, aggregate output includes `context_reported_at` and a `context_rows` array with
+delivery ownership and freshness. `--turns -o toon` emits separate `session_usage_turns`, `usage`,
+`deliveries`, `spans`, and `compactions` arrays joined by `turn_id`; numeric values, timestamps, and
+archive fields stay structured rather than being embedded in display text.
 
 `compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
 Use `--wait -o json` for the stop outcome (`state`, `verified`, `escalated`, `stop_cause`, `phase`,

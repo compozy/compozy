@@ -24,8 +24,14 @@ export function SessionContextStateChip({ context }: { context: SessionContextVi
 }
 
 /** Tier swatches are magnitude keys: 8px squares, never signal dots. */
-function TierSwatch({ className }: { className: string }) {
-  return <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-[2px]", className)} />;
+function TierSwatch({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("size-2 shrink-0 rounded-[2px]", className)}
+      {...props}
+    />
+  );
 }
 
 function TierLabel({ children, approx }: { children: string; approx?: boolean }) {

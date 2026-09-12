@@ -10,12 +10,13 @@ export function SessionInspectorSection({ className, ...props }: ComponentProps<
 export function SessionInspectorSectionHead({
   children,
   meta,
-}: {
-  children: ReactNode;
+  className,
+  ...props
+}: ComponentProps<"div"> & {
   meta?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className={cn("flex items-center gap-1.5", className)} {...props}>
       <Eyebrow>{children}</Eyebrow>
       {meta ? (
         <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-faint">

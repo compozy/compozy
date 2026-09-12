@@ -8,26 +8,10 @@ import {
   Wrench,
 } from "lucide-react";
 import { Eyebrow, cn } from "@compozy/ui";
-import {
-  useSessionContextActivity,
-  type SessionContextActivitySource,
-} from "../hooks/use-session-context-activity";
 import type { SessionActivityView } from "../lib/session-activity-view";
 import { SessionInspectorSection } from "./session-inspector-section";
 
 export type { SessionActivityView } from "../lib/session-activity-view";
-
-/** The clock and transcript subscription only mount with this sidebar leaf. */
-export function SessionContextLiveActivity({ source }: { source: SessionContextActivitySource }) {
-  const activity = useSessionContextActivity(
-    source.session,
-    source.running,
-    source.live,
-    source.queued,
-    source.goal
-  );
-  return <SessionActivitySection activity={activity} />;
-}
 
 /** The status sentence leads with its headline ("Working for 49m 20s") before the first separator. */
 function splitLead(text: string): { lead: string; rest: string } {

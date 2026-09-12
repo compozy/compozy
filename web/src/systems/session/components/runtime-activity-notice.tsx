@@ -15,7 +15,7 @@ import {
   isRuntimeActivityEvent,
   isSessionErrorEvent,
   isTranscriptMarkerEvent,
-} from "./runtime-activity-notice.logic";
+} from "@/systems/session/lib/runtime-activity-notice";
 
 function formatDuration(seconds: number | undefined): string | null {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {

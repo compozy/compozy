@@ -10,11 +10,15 @@ import type {
 } from "@/systems/session/lib/session-working-status";
 import type { SessionPayload } from "@/systems/session/types";
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
-import { isSessionErrorEvent } from "@/systems/session/components/runtime-activity-notice.logic";
+import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import { providerErrorView } from "@/systems/session/lib/provider-error";
 
-import type { SessionTimelinePart } from "./session-timeline.logic";
-import { isRecord, stringField, toTimelineParts } from "./timeline-message-parts";
+import type { SessionTimelinePart } from "./session-timeline-parts";
+import {
+  isRecord,
+  stringField,
+  toTimelineParts,
+} from "@/systems/session/lib/timeline-message-parts";
 
 interface ThreadStatusMessage {
   id?: string;

@@ -14,7 +14,7 @@ import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import {
   isSessionErrorEvent,
   isFileMutationUnverifiedEvent,
-} from "@/systems/session/components/runtime-activity-notice.logic";
+} from "@/systems/session/lib/runtime-activity-notice";
 import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";

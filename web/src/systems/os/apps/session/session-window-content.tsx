@@ -1,4 +1,9 @@
-import { SessionContextControl } from "@/systems/session";
+import {
+  SessionContextControl,
+  useSessionContextActivity,
+  type SessionContextActivitySource,
+  type SessionInspectorProps,
+} from "@/systems/session";
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
@@ -42,6 +47,22 @@ const SessionInspector = lazy(() =>
     default: module.SessionInspector,
   }))
 );
+
+function SessionWindowInspector({
+  activitySource: source,
+  ...props
+}: SessionInspectorProps & {
+  activitySource: SessionContextActivitySource;
+}) {
+  const activity = useSessionContextActivity(
+    source.session,
+    source.running,
+    source.live,
+    source.queued,
+    source.goal
+  );
+  return <SessionInspector {...props} activity={activity} />;
+}
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
 
@@ -304,7 +325,7 @@ export function SessionWindowContent({
       </div>
       {inspector.open ? (
         <Suspense fallback={null}>
-          <SessionInspector
+          <SessionWindowInspector
             activitySource={{
               session,
               running: controls.isSessionRunning,

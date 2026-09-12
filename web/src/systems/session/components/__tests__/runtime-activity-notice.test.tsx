@@ -7,7 +7,7 @@ import {
   isSessionErrorEvent,
   isRuntimeActivityEvent,
   isTranscriptMarkerEvent,
-} from "../runtime-activity-notice.logic";
+} from "@/systems/session/lib/runtime-activity-notice";
 import { RuntimeActivityNotice } from "../runtime-activity-notice";
 
 const runtime: RuntimeActivityPayload = {

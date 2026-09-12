@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -58,7 +60,7 @@ func sessionContextHuman(value contract.SessionContextPayload) string {
 			},
 		)
 		for _, row := range value.Injected.Rows {
-			rows = append(rows, keyValue{Label: "  " + row.Key, Value: sessionContextRowHuman(row)})
+			rows = append(rows, keyValue{Label: "  " + cmp.Or(row.Label, row.Key), Value: sessionContextRowHuman(row)})
 		}
 	}
 	return renderHumanSection("Context", rows)
@@ -104,19 +106,27 @@ func sessionUsageToon(record SessionUsageRecord, cost string) string {
 		"cache_read_tokens",
 		"cache_write_tokens",
 		"context_state",
-		"context_used",
-		"context_size",
+		sessionContextUsedKey,
+		sessionContextSizeKey,
 		"context_ratio",
 		"context_size_source",
 		"context_stale",
 		"context_sequence",
 		"context_reported_turn_id",
+		"context_reported_at",
 		"context_pressure_threshold",
+		"injected_estimate",
 		"injected_tokens",
 		"injected_stale",
+		"cost_amount",
+		sessionCostCurrencyKey,
 	}
-	injectedTokens, injectedStale := "", ""
+	injectedTokens, injectedStale, estimate, reportedAt := "", "", "", ""
+	if value.ReportedAt != nil {
+		reportedAt = value.ReportedAt.Format(time.RFC3339Nano)
+	}
 	if value.Injected != nil {
+		estimate = value.Injected.Estimate
 		injectedTokens = strconv.FormatInt(value.Injected.Tokens, 10)
 		injectedStale = strconv.FormatBool(value.Injected.Stale)
 	}
@@ -142,9 +152,13 @@ func sessionUsageToon(record SessionUsageRecord, cost string) string {
 		stale,
 		formatInt64Ptr(value.Sequence),
 		value.ReportedTurnID,
+		reportedAt,
 		formatFloat64Ptr(value.PressureThreshold),
+		estimate,
 		injectedTokens,
 		injectedStale,
+		formatFloat64Ptr(record.TotalCost),
+		record.CostCurrency,
 	}
-	return renderToonObject("session_usage", fields, values)
+	return renderHumanBlocks(renderToonObject("session_usage", fields, values), sessionContextRowsToon(value.Injected))
 }

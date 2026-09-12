@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type ComponentProps } from "react";
 import { Minimize2 } from "lucide-react";
 import { Button, Pill, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 import type { SessionContextRingState, SessionContextView } from "../lib/session-context";
@@ -14,7 +14,9 @@ function SessionContextRing({
   state,
   fraction,
   warning,
-}: {
+  className,
+  ...props
+}: ComponentProps<"svg"> & {
   state: SessionContextRingState;
   fraction: number;
   warning: boolean;
@@ -22,7 +24,12 @@ function SessionContextRing({
   const maskId = `session-context-ring-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const ring = describeSessionContextRing(state, fraction, warning);
   return (
-    <svg aria-hidden="true" className="size-4 shrink-0 -rotate-90" viewBox="0 0 16 16">
+    <svg
+      aria-hidden="true"
+      className={cn("size-4 shrink-0 -rotate-90", className)}
+      viewBox="0 0 16 16"
+      {...props}
+    >
       <circle
         cx="8"
         cy="8"
@@ -68,11 +75,18 @@ function SessionContextRing({
   );
 }
 
-function SessionContextTooltipLine({ row }: { row: SessionContextTooltipRow }) {
+function SessionContextTooltipLine({
+  row,
+  className,
+  ...props
+}: ComponentProps<"p"> & { row: SessionContextTooltipRow }) {
   switch (row.kind) {
     case "numbers":
       return (
-        <p className="flex items-baseline gap-1 text-fg-strong tabular-nums">
+        <p
+          className={cn("flex items-baseline gap-1 text-fg-strong tabular-nums", className)}
+          {...props}
+        >
           {row.percent ? (
             <>
               <b
@@ -92,10 +106,14 @@ function SessionContextTooltipLine({ row }: { row: SessionContextTooltipRow }) {
         </p>
       );
     case "headline":
-      return <p className="text-small-body font-medium text-fg">{row.text}</p>;
+      return (
+        <p className={cn("text-small-body font-medium text-fg", className)} {...props}>
+          {row.text}
+        </p>
+      );
     case "state":
       return (
-        <p className="flex items-center gap-1.5 text-subtle">
+        <p className={cn("flex items-center gap-1.5 text-subtle", className)} {...props}>
           {row.chip ? (
             <Pill size="xs" tone={row.chip.tone}>
               {row.chip.label}
@@ -111,13 +129,17 @@ function SessionContextTooltipLine({ row }: { row: SessionContextTooltipRow }) {
       );
     case "policy":
       return (
-        <p className="flex items-center gap-1.5 text-warning">
+        <p className={cn("flex items-center gap-1.5 text-warning", className)} {...props}>
           <Minimize2 aria-hidden="true" className="size-3 shrink-0" />
           {row.text}
         </p>
       );
     default:
-      return <p>{row.text}</p>;
+      return (
+        <p className={className} {...props}>
+          {row.text}
+        </p>
+      );
   }
 }
 

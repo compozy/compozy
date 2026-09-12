@@ -227,13 +227,14 @@ export function createSessionLiveTailRuntime({
     };
 
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
+    const flushUsageChanges = () => {
+      usageTimer = undefined;
+      invalidateExact(sessionKeys.usage(workspaceId, sessionId), "session usage");
+      invalidateExact(sessionKeys.usageTurns(workspaceId, sessionId), "session usage turns");
+    };
     const usageChangedListener: EventListener = () => {
       if (usageTimer !== undefined) clearTimeout(usageTimer);
-      usageTimer = setTimeout(() => {
-        usageTimer = undefined;
-        invalidateExact(sessionKeys.usage(workspaceId, sessionId), "session usage");
-        invalidateExact(sessionKeys.usageTurns(workspaceId, sessionId), "session usage turns");
-      }, 250);
+      usageTimer = setTimeout(flushUsageChanges, 250);
     };
     let detach: () => void;
     try {
@@ -256,7 +257,10 @@ export function createSessionLiveTailRuntime({
     }
 
     return (reason: string) => {
-      if (usageTimer !== undefined) clearTimeout(usageTimer);
+      if (usageTimer !== undefined) {
+        clearTimeout(usageTimer);
+        flushUsageChanges();
+      }
       detach();
       source.onmessage = null;
       source.onerror = null;

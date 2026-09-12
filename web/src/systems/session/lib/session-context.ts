@@ -14,7 +14,9 @@ export function retainSessionUsage(
   incoming: SessionUsagePayload | undefined
 ): SessionUsagePayload | undefined {
   if (!incoming) return previous;
-  if (incoming.context.state === "unavailable") return previous ?? incoming;
+  if (incoming.context.state === "unavailable") {
+    return previous ? { ...incoming, context: previous.context } : incoming;
+  }
   if (!previous) return incoming;
   const old = previous.context;
   const next = incoming.context;

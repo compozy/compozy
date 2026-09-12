@@ -60,3 +60,24 @@ After this pass the composer control and the Context rail were brought to the na
 [Runtime evidence summary](../../design/generated/session-context/runtime-summary.json) records normalized surface parity, fixture counters, actual live cost and binary receipt facts, unknown rows, threshold omission and asynchronous archive truth. Original source captures remain in the lab.
 
 ![Context sidebar component specimen with illustrative fixture values](../../design/generated/session-context/context-sidebar.png)
+
+
+## PR review remediation verification
+
+The first CodeRabbit review prompted corrections to usage replay, cache settlement, structured CLI
+output, and UI ownership. The existing suites gained coverage for a usage event committed between
+usage and transcript reads, complete notification identity/order, distinct startup-manifest rollback,
+TOON report/delivery/archive fields, both usage query keys on teardown, and newer aggregates retained
+during context unavailability. No standalone test files or weakened expectations were introduced.
+
+- Root Turbo Web typecheck and all 7,304 tests passed. React Doctor scored 100/100 with zero errors
+  and zero warnings for the changed source.
+- A fresh root Turbo Web build and daemon binary passed the existing daemon-served E2E-001 and
+  E2E-010 journeys (2/2, 20.4s). The harness owned and closed its temporary runtime; the run acquired
+  the machine-wide verification lock. Evidence: `.cache/pr635-review/browser-round1.log`.
+- Focused core/CLI/session race suites passed. The terminal journal admission correction passed the
+  full terminal race suite, repeated ordering cases, a Windows cross-build, and the real
+  HTTP/WebSocket and UDS lifecycle integration suites. Evidence: `.cache/pr635-review/`.
+
+These checks cover the changed behavior. Final local gate and current-head CI remain recorded by the
+PR delivery workflow; this section does not replace them or claim another live-provider run.

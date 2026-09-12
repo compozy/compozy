@@ -29,24 +29,7 @@ func sessionUsageTurnsBundle(value contract.SessionUsageTurnsResponse) outputBun
 	return outputBundle{
 		jsonValue: value,
 		human:     func() (string, error) { return renderHumanTable("Session Usage Turns", headers, rows), nil },
-		toon: func() (string, error) {
-			return renderToonArray(
-				"session_usage_turns",
-				[]string{
-					"turn",
-					"sequence",
-					"time",
-					"used_size",
-					"input",
-					"output",
-					"cache_read",
-					"cache_write",
-					"cost",
-					"compozy",
-				},
-				rows,
-			), nil
-		},
+		toon:      func() (string, error) { return sessionUsageTurnsToon(value) },
 	}
 }
 

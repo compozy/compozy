@@ -19,6 +19,9 @@ overlaps: RT-session-cost-provenance, RT-acp-usage-cache-meta
 Complete turns with context reports and cache counters. Compare CLI human, JSON and TOON output with
 HTTP and UDS. Confirm the latest ledger sequence wins even if timestamps differ; totals accumulate
 cache while context usage is a snapshot. A counter-only turn and a delivery-only turn remain visible.
+In TOON, verify the context report timestamp and delivered rows. Join the separate turn, usage,
+delivery, span, and compaction arrays by `turn_id`; compare raw values and archive fields with JSON.
+Human output uses the delivered section label, falling back to its key when no label exists.
 Repeat reads after stopping the session. Unknown sessions and cross-workspace reads return 404.
 
 Exercise an agent-reported window, catalog fallback, and no window. Only an agent-reported window can
@@ -27,7 +30,8 @@ numbers. A failed ledger read retains aggregates with unavailable context; usage
 
 Confirm transcript-stream push and polling paths emit session_usage_changed for new usage, done and
 prompt_delivery events, without advancing the transcript cursor. Reconnect must preserve transcript
-fences while usage refreshes.
+fences while usage refreshes. Commit a usage or settlement event between the usage read and transcript
+projection read: the next refresh must still emit its sequence, turn ID, and kind.
 
 Inspect a replay compaction marker before and after its span is archived. The marker changes its
 span_archived fact without claiming that the agent's window shrank. Repeat after an initially failed

@@ -2402,6 +2402,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 					Rows: []contract.SessionContextRowPayload{
 						{
 							Key:             "skills",
+							Label:           "Skills catalog",
 							OwnerKind:       "full",
 							Kind:            "text",
 							Tokens:          new(int64(20)),
@@ -2425,7 +2426,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"Cache Read", "Cache Write", "Context", "80 / 100 (80%)", "Compaction At", "85%", "≈ 20", "unchanged since A (last seen B)", "1024 B", "screenshot.png", "binary, no estimate", "included in the startup prompt"} {
+		for _, want := range []string{"Cache Read", "Cache Write", "Context", "Skills catalog", "80 / 100 (80%)", "Compaction At", "85%", "≈ 20", "unchanged since A (last seen B)", "1024 B", "screenshot.png", "binary, no estimate", "included in the startup prompt"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing %q in %s", want, stdout)
 			}
@@ -2434,7 +2435,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"cache_read_tokens", "cache_write_tokens", "context_state", "context_sequence", "context_reported_turn_id", "context_pressure_threshold", "injected_tokens", "injected_stale"} {
+		for _, want := range []string{"cache_read_tokens", "cache_write_tokens", "context_state", "context_sequence", "context_reported_turn_id", "context_pressure_threshold", "injected_tokens", "injected_stale", "context_reported_at", "2026-09-11T10:00:00Z", "context_rows[3]", "Skills catalog", "screenshot.png", "startup_opaque", "bytes_div_4"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing TOON field %q in %s", want, stdout)
 			}
@@ -2510,6 +2511,19 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		for _, want := range []string{"80 / 100", "CompozyOS compaction · at 85%", "replay span archived", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing turns %q in %s", want, stdout)
+			}
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "usage", "sess-1", "--turns", "-o", "toon")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{
+			"session_usage_turns[3]{turn_id,sequence}", "usage[2]", "deliveries[1]", "spans[1]",
+			"compactions[1]{turn_id,sequence,at,span_archived,from_sequence,to_sequence,context_used,context_size,pressure,strategy}",
+			"B,40,2026-09-11T10:00:00Z,true,1,8,85,100,0.85",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing structured TOON %q in %s", want, stdout)
 			}
 		}
 		rows := sessionUsageTurnRows(value)
