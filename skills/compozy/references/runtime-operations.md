@@ -959,3 +959,8 @@ or `output`. The stable entry sequence remains the result identity. Use these
 hints to reveal the correct work row instead of inferring a location from snippets.
 
 A queued edit arriving after dispatch started returns409 with `code: "entry_dispatching"`, including when the entry is already sent. The Web preserves the refused edit after the current composer draft. A raw stream replaying an older session_stopped episode stays live when the session has resumed; current session status owns stream termination.
+
+Provider overlays inherit live-discovery adapters through `runtime_provider` while retaining their own
+`provider_live:<id>` source, execution command, credentials, and catalog scope. Refresh and list the
+overlay's models before curating them; a built-in provider's live result does not authorize another
+account's model. Claude logical IDs resolve to aliases advertised by the selected overlay.

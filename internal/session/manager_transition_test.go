@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -874,94 +875,116 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist only an advertised Cursor runtime selection", func(t *testing.T) {
-		t.Parallel()
+	for _, providerID := range []string{"cursor", "cursor-secondary"} {
+		t.Run("Should persist only an advertised Cursor runtime selection for "+providerID, func(t *testing.T) {
+			t.Parallel()
 
-		const advertisedModel = "grok-4.5"
-		const transportModel = "cursor-grok-4.5-high"
-		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
-			ProviderID:             "cursor",
-			ModelID:                advertisedModel,
-			AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
-			DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
-			TransportBindings: []modelcatalog.ModelTransportBinding{{
-				TransportModelID: transportModel,
-				ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
-				Fast:             new(false),
-			}},
-			Sources: []modelcatalog.SourceRef{{
-				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
-				SourceKind: modelcatalog.SourceKindProviderLive,
-			}},
-		}}}))
-		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		for index := range resolvedWorkspace.Agents {
-			if resolvedWorkspace.Agents[index].Name == "coder" {
-				resolvedWorkspace.Agents[index].Provider = "cursor"
-				resolvedWorkspace.Agents[index].Model = ""
+			const advertisedModel = "grok-4.5"
+			const transportModel = "cursor-grok-4.5-high"
+			h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+				ProviderID:             providerID,
+				ModelID:                advertisedModel,
+				AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+				DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+				TransportBindings: []modelcatalog.ModelTransportBinding{{
+					TransportModelID: transportModel,
+					ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+					Fast:             new(false),
+				}},
+				Sources: []modelcatalog.SourceRef{{
+					SourceID:   modelcatalog.SourceKindProviderLiveID(providerID),
+					SourceKind: modelcatalog.SourceKindProviderLive,
+				}},
+			}}}))
+			resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
 			}
-		}
-		h.resolver.upsert(&resolvedWorkspace)
-		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
-			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-runtime-selection")
-			proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
-				ID:             "model",
-				Category:       "model",
-				Kind:           acp.SessionConfigOptionKindSelect,
-				CurrentValueID: transportModel,
-				Values:         []acp.SessionConfigOptionValue{{Value: transportModel}},
-			}}})
-			return proc, nil
-		}
-		active := createSession(t, h)
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
-				t.Errorf("Stop() cleanup error = %v", err)
+			provider := compozyconfig.BuiltinProviders()["cursor"]
+			provider.RuntimeProvider = "cursor"
+			resolvedWorkspace.Config.Providers[providerID] = provider
+			for index := range resolvedWorkspace.Agents {
+				if resolvedWorkspace.Agents[index].Name == "coder" {
+					resolvedWorkspace.Agents[index].Provider = providerID
+					resolvedWorkspace.Agents[index].Model = ""
+				}
+			}
+			h.resolver.upsert(&resolvedWorkspace)
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-runtime-selection")
+				proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+					ID:             "model",
+					Category:       "model",
+					Kind:           acp.SessionConfigOptionKindSelect,
+					CurrentValueID: transportModel,
+					Values:         []acp.SessionConfigOptionValue{{Value: transportModel}},
+				}}})
+				return proc, nil
+			}
+			active := createSession(t, h)
+			t.Cleanup(func() {
+				if err := h.manager.Stop(
+					testutil.Context(t),
+					active.ID,
+				); err != nil &&
+					!errors.Is(err, ErrSessionNotFound) {
+					t.Errorf("Stop() cleanup error = %v", err)
+				}
+			})
+
+			_, err = h.manager.SetRuntimeSelection(
+				testutil.Context(t),
+				active.ID,
+				RuntimeSelection{Provider: providerID, Model: "cursor-grok-4.5-high"},
+				0,
+			)
+			negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+			if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+				t.Fatalf("SetRuntimeSelection(alias) error = %v, want model_unavailable NegotiationError", err)
+			}
+			rejectedMeta := readMeta(t, active.MetaPath())
+			rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(
+				rejectedMeta.RuntimeSelectionValue(),
+			)
+			if rejectedSelection != nil || rejectedRevision != 0 {
+				t.Fatalf(
+					"rejected Cursor selection = %#v at revision %d, want no persisted selection",
+					rejectedSelection,
+					rejectedRevision,
+				)
+			}
+
+			updated, err := h.manager.SetRuntimeSelection(
+				testutil.Context(t),
+				active.ID,
+				RuntimeSelection{Provider: providerID, Model: advertisedModel},
+				0,
+			)
+			if err != nil {
+				t.Fatalf("SetRuntimeSelection(advertised model) error = %v", err)
+			}
+			if updated.SelectedRuntime == nil || updated.SelectedRuntime.Model != advertisedModel ||
+				updated.RuntimeSelectionRevision != 1 {
+				t.Fatalf(
+					"SetRuntimeSelection(advertised model) info = %#v, want exact persisted model at revision 1",
+					updated,
+				)
+			}
+			if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+				t.Fatal(err)
+			}
+			_, err = h.manager.SetRuntimeSelection(
+				t.Context(),
+				active.ID,
+				RuntimeSelection{Provider: providerID, Model: transportModel},
+				1,
+			)
+			negotiationErr, ok = errors.AsType[*acp.NegotiationError](err)
+			if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+				t.Fatalf("stopped selection error = %v", err)
 			}
 		})
-
-		_, err = h.manager.SetRuntimeSelection(
-			testutil.Context(t),
-			active.ID,
-			RuntimeSelection{Provider: "cursor", Model: "cursor-grok-4.5-high"},
-			0,
-		)
-		negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
-		if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
-			t.Fatalf("SetRuntimeSelection(alias) error = %v, want model_unavailable NegotiationError", err)
-		}
-		rejectedMeta := readMeta(t, active.MetaPath())
-		rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(
-			rejectedMeta.RuntimeSelectionValue(),
-		)
-		if rejectedSelection != nil || rejectedRevision != 0 {
-			t.Fatalf(
-				"rejected Cursor selection = %#v at revision %d, want no persisted selection",
-				rejectedSelection,
-				rejectedRevision,
-			)
-		}
-
-		updated, err := h.manager.SetRuntimeSelection(
-			testutil.Context(t),
-			active.ID,
-			RuntimeSelection{Provider: "cursor", Model: advertisedModel},
-			0,
-		)
-		if err != nil {
-			t.Fatalf("SetRuntimeSelection(advertised model) error = %v", err)
-		}
-		if updated.SelectedRuntime == nil || updated.SelectedRuntime.Model != advertisedModel ||
-			updated.RuntimeSelectionRevision != 1 {
-			t.Fatalf(
-				"SetRuntimeSelection(advertised model) info = %#v, want exact persisted model at revision 1",
-				updated,
-			)
-		}
-	})
+	}
 
 	t.Run("Should update selected runtime while stopped without starting ACP", func(t *testing.T) {
 		t.Parallel()

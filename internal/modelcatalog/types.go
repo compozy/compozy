@@ -229,6 +229,8 @@ type Source interface {
 
 // SourceRowsReplacement is one provider-scoped source publication.
 type SourceRowsReplacement struct {
+	// RemoveSource deletes the live source for this provider across all execution contexts.
+	RemoveSource     bool
 	ExecutionContext CatalogExecutionContext
 	SourceID         string
 	ProviderID       string

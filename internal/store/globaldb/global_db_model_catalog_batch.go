@@ -13,6 +13,7 @@ type normalizedModelCatalogReplacement struct {
 	executionContext modelcatalog.CatalogExecutionContext
 	rows             []modelcatalog.ModelRow
 	status           modelcatalog.SourceStatus
+	removeSource     bool
 }
 
 // ReplaceSourceRowsBatch publishes a complete model catalog generation in one transaction.
@@ -30,33 +31,23 @@ func (g *ModelCatalogRepo) ReplaceSourceRowsBatch(
 	normalized := make([]normalizedModelCatalogReplacement, 0, len(replacements))
 	seen := make(map[string]struct{}, len(replacements))
 	for index, replacement := range replacements {
-		executionContext, rows, status, err := normalizeModelCatalogReplacement(
-			replacement.ExecutionContext,
-			replacement.SourceID,
-			replacement.ProviderID,
-			replacement.Rows,
-			replacement.Status,
-		)
+		entry, err := normalizeModelCatalogBatchReplacement(replacement)
 		if err != nil {
 			return fmt.Errorf("store: normalize model catalog replacement %d: %w", index, err)
 		}
-		key, err := modelCatalogReplacementKey(executionContext, status.SourceID, status.ProviderID)
+		key, err := modelCatalogReplacementKey(entry.executionContext, entry.status.SourceID, entry.status.ProviderID)
 		if err != nil {
 			return err
 		}
 		if _, duplicate := seen[key]; duplicate {
 			return fmt.Errorf(
 				"store: model catalog replacement %q/%q is duplicated",
-				status.SourceID,
-				status.ProviderID,
+				entry.status.SourceID,
+				entry.status.ProviderID,
 			)
 		}
 		seen[key] = struct{}{}
-		normalized = append(normalized, normalizedModelCatalogReplacement{
-			executionContext: executionContext,
-			rows:             rows,
-			status:           status,
-		})
+		normalized = append(normalized, entry)
 	}
 
 	return g.withModelCatalogImmediateTransaction(
@@ -64,6 +55,12 @@ func (g *ModelCatalogRepo) ReplaceSourceRowsBatch(
 		"model catalog source replacement batch",
 		func(exec modelCatalogSQLExecutor) error {
 			for _, replacement := range normalized {
+				if replacement.removeSource {
+					if err := deleteModelCatalogSource(ctx, exec, replacement.status); err != nil {
+						return err
+					}
+					continue
+				}
 				if err := replaceModelCatalogSourceRows(
 					ctx,
 					exec,
@@ -172,4 +169,47 @@ func modelCatalogReplacementKey(
 		return "", err
 	}
 	return contextID + "\x00" + strings.TrimSpace(sourceID) + "\x00" + strings.TrimSpace(providerID), nil
+}
+
+func normalizeModelCatalogBatchReplacement(
+	replacement modelcatalog.SourceRowsReplacement,
+) (normalizedModelCatalogReplacement, error) {
+	if replacement.RemoveSource {
+		if len(replacement.Rows) != 0 || replacement.ExecutionContext != (modelcatalog.CatalogExecutionContext{}) {
+			return normalizedModelCatalogReplacement{}, fmt.Errorf(
+				"store: live source removal cannot include rows or an execution context",
+			)
+		}
+		sourceID, providerID := strings.TrimSpace(replacement.SourceID), strings.TrimSpace(replacement.ProviderID)
+		if providerID == "" || sourceID != modelcatalog.SourceKindProviderLiveID(providerID) {
+			return normalizedModelCatalogReplacement{}, fmt.Errorf(
+				"store: live source removal requires matching source and provider IDs",
+			)
+		}
+		return normalizedModelCatalogReplacement{
+			executionContext: modelcatalog.GlobalCatalogExecutionContext(),
+			status:           modelcatalog.SourceStatus{SourceID: sourceID, ProviderID: providerID}, removeSource: true,
+		}, nil
+	}
+	executionContext, rows, status, err := normalizeModelCatalogReplacement(
+		replacement.ExecutionContext,
+		replacement.SourceID,
+		replacement.ProviderID,
+		replacement.Rows,
+		replacement.Status,
+	)
+	return normalizedModelCatalogReplacement{executionContext: executionContext, rows: rows, status: status}, err
+}
+
+func deleteModelCatalogSource(
+	ctx context.Context,
+	exec modelCatalogSQLExecutor,
+	status modelcatalog.SourceStatus,
+) error {
+	if err := sqlcgen.New(exec).DeleteModelCatalogSource(ctx, sqlcgen.DeleteModelCatalogSourceParams{
+		SourceID: status.SourceID, ProviderID: status.ProviderID,
+	}); err != nil {
+		return fmt.Errorf("store: delete model catalog source: %w", err)
+	}
+	return deleteUnusedModelCatalogExecutionContexts(ctx, exec)
 }

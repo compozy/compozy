@@ -20,6 +20,7 @@ type sourceTTLProvider interface {
 // CatalogService refreshes sources and projects stored model catalog rows.
 type CatalogService struct {
 	store                   Store
+	sourcesMu               sync.RWMutex
 	sources                 []Source
 	sourceByID              map[string]Source
 	mergeMu                 sync.RWMutex
@@ -99,7 +100,7 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 	opts.ExecutionContext = s.requestExecutionContext(opts.ExecutionContext)
 	listOpts := opts
 	listOpts.Now = now
-	sourceContexts, err := resolveReadSourceExecutionContexts(s.sources, listOpts.ExecutionContext)
+	sourceContexts, err := resolveReadSourceExecutionContexts(s.sourcesSnapshot(), listOpts.ExecutionContext)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 		needsRefresh = len(sourceRows) == 0 && !bootstrapHandled
 	}
 
-	if opts.Refresh || (needsRefresh && !opts.SkipRefreshIfEmpty && len(s.sources) > 0) {
+	if opts.Refresh || (needsRefresh && !opts.SkipRefreshIfEmpty && len(s.sourcesSnapshot()) > 0) {
 		statuses, err := s.Refresh(ctx, RefreshOptions{
 			ProviderID:       opts.ProviderID,
 			SourceID:         opts.SourceID,
@@ -210,7 +211,7 @@ func (s *CatalogService) ListSourceStatus(ctx context.Context, opts StatusOption
 		return nil, fmt.Errorf("model catalog status context is required")
 	}
 	opts.ExecutionContext = s.requestExecutionContext(opts.ExecutionContext)
-	sourceContexts, err := resolveReadSourceExecutionContexts(s.sources, opts.ExecutionContext)
+	sourceContexts, err := resolveReadSourceExecutionContexts(s.sourcesSnapshot(), opts.ExecutionContext)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +221,9 @@ func (s *CatalogService) ListSourceStatus(ctx context.Context, opts StatusOption
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list source status: %w", err)
 	}
+	s.sourcesMu.RLock()
 	statuses = filterStatusesByProviderOwnership(statuses, s.sourceByID, opts.ProviderID)
+	s.sourcesMu.RUnlock()
 	for index := range statuses {
 		statuses[index].LastError = RedactString(statuses[index].LastError)
 	}
@@ -376,6 +379,8 @@ func (s *CatalogService) storedProvidersForSource(
 }
 
 func (s *CatalogService) selectSources(sourceID string) ([]Source, error) {
+	s.sourcesMu.RLock()
+	defer s.sourcesMu.RUnlock()
 	trimmed := strings.TrimSpace(sourceID)
 	if trimmed == "" {
 		return s.sources, nil

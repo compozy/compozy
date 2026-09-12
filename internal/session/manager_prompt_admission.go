@@ -80,7 +80,7 @@ func (m *Manager) submitAdmittedGoalByTarget(
 			return SendPromptResult{}, err
 		}
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, target.meta); err != nil {
 		return SendPromptResult{}, err
 	}
 	return m.submitAdmittedGoalPrompt(ctx, target.session, preparation, opts, admissionReq)
@@ -124,7 +124,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 			return SendPromptResult{}, err
 		}
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, target.meta); err != nil {
 		return SendPromptResult{}, err
 	}
 	session := target.session

@@ -20,11 +20,9 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	ctx context.Context,
 	session *Session,
 	selection RuntimeSelection,
+	meta store.SessionMeta,
 ) error {
 	providerID := strings.TrimSpace(selection.Provider)
-	if providerID != cursorRuntimeProvider {
-		return nil
-	}
 	if session != nil {
 		snapshot := session.runtimeBindingSnapshot()
 		if snapshot.process != nil &&
@@ -33,10 +31,20 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 			return nil
 		}
 	}
-	_, err := m.resolveCatalogTransportModel(
-		ctx,
-		selection,
-		modelCatalogExecutionContextForSession(session),
+	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	if err != nil {
+		return err
+	}
+	provider, err := workspace.Config.ResolveProvider(providerID)
+	if err != nil {
+		return err
+	}
+	runtimeProvider := provider.RuntimeProviderName(providerID)
+	if runtimeProvider != cursorRuntimeProvider {
+		return nil
+	}
+	_, err = m.resolveCatalogTransportModel(
+		ctx, runtimeProvider, selection, modelCatalogExecutionContext(meta.ProfileID, meta.WorkspaceID),
 	)
 	return err
 }
@@ -46,7 +54,7 @@ func (m *Manager) resolveCursorCatalogBinding(
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	models, err := m.listLiveProviderModels(ctx, cursorRuntimeProvider, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +88,7 @@ func (m *Manager) resolveClaudeCatalogBinding(
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
 	modelID := strings.TrimSpace(selection.Model)
-	models, err := m.listLiveProviderModels(ctx, runtimeProviderClaude, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		if !claudeLogicalModelRequiresCatalogBinding(modelID) {
 			return modelID, nil
@@ -127,10 +135,11 @@ func claudeLogicalModelRequiresCatalogBinding(modelID string) bool {
 
 func (m *Manager) resolveCatalogTransportModel(
 	ctx context.Context,
+	runtimeProvider string,
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	switch strings.TrimSpace(selection.Provider) {
+	switch strings.TrimSpace(runtimeProvider) {
 	case cursorRuntimeProvider:
 		return m.resolveCursorCatalogBinding(ctx, selection, executionContext)
 	case runtimeProviderClaude:
@@ -401,8 +410,8 @@ func (m *Manager) validateExplicitStartModel(
 	if strings.TrimSpace(modelID) == "" {
 		return nil
 	}
-	transportModel, err := m.resolveCatalogTransportModel(ctx, RuntimeSelection{
-		Provider:        providerID,
+	transportModel, err := m.resolveCatalogTransportModel(ctx, providerID, RuntimeSelection{
+		Provider:        runtime.agent.Provider,
 		Model:           modelID,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,
@@ -413,13 +422,6 @@ func (m *Manager) validateExplicitStartModel(
 	}
 	spec.transportModel = transportModel
 	return nil
-}
-
-func modelCatalogExecutionContextForSession(session *Session) modelcatalog.CatalogExecutionContext {
-	if session == nil {
-		return modelCatalogExecutionContext("", "")
-	}
-	return modelCatalogExecutionContext(session.ProfileID, session.WorkspaceID)
 }
 
 func modelCatalogExecutionContext(profileID string, workspaceID string) modelcatalog.CatalogExecutionContext {
@@ -439,11 +441,6 @@ func modelCatalogExecutionContext(profileID string, workspaceID string) modelcat
 		ProfileID:   profileID,
 		WorkspaceID: workspaceID,
 	}
-}
-
-func isCursorRuntimeSelection(selection RuntimeSelection) bool {
-	return strings.TrimSpace(selection.Provider) == cursorRuntimeProvider &&
-		strings.TrimSpace(selection.Model) != ""
 }
 
 func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool {

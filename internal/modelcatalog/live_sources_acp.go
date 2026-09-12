@@ -89,7 +89,13 @@ func (s *LiveProviderSource) listACP(
 			s.providerID,
 		)
 	}
-	rows := acpModelRows(s.providerID, provider.Models, s.adapter.parseACPModelRows, modelOption, now)
+	rows := acpModelRows(
+		s.providerID,
+		liveModelMappings(s.providerID, provider),
+		s.adapter.parseACPModelRows,
+		modelOption,
+		now,
+	)
 	if len(rows) == 0 {
 		return nil, fmt.Errorf(
 			"model catalog: %s ACP model option did not advertise model values",
@@ -168,4 +174,29 @@ func acpModelRows(
 func (s *LiveProviderSource) usesNativeCodexDiscovery(provider compozyconfig.ProviderConfig) bool {
 	return s.providerID == liveSourcesCodexKey && strings.TrimSpace(provider.Models.Discovery.Command) == "" &&
 		providerexec.StrategyFor(provider).NativeCLI.Command == "codex"
+}
+
+func liveModelMappings(providerID string, provider compozyconfig.ProviderConfig) compozyconfig.ProviderModelsConfig {
+	models := provider.Models
+	builtins := compozyconfig.BuiltinProviders()
+	if _, builtin := builtins[providerID]; builtin {
+		return models
+	}
+	runtimeProvider := compozyconfig.CanonicalProviderName(provider.RuntimeProvider)
+	builtin, ok := builtins[runtimeProvider]
+	if !ok {
+		return models
+	}
+	// Seed identities only; the live response remains the sole source of advertised rows.
+	seen := make(map[string]bool, len(models.Curated))
+	for _, model := range models.Curated {
+		seen[model.ID] = true
+	}
+	models.Curated = append([]compozyconfig.ProviderModelConfig(nil), models.Curated...)
+	for _, model := range builtin.Models.Curated {
+		if !seen[model.ID] {
+			models.Curated = append(models.Curated, model)
+		}
+	}
+	return models
 }

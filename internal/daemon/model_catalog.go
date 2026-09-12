@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
@@ -27,6 +28,8 @@ type modelCatalogRuntime struct {
 	timeout            time.Duration
 	configSource       *modelcatalog.ProviderConfigSource
 	liveSources        map[string]*modelcatalog.LiveProviderSource
+	liveSourcesMu      sync.RWMutex
+	liveSourceFactory  func(map[string]compozyconfig.ProviderConfig) ([]modelcatalog.Source, error)
 	dynamicSources     map[string]modelcatalog.Source
 	executionContextMu sync.RWMutex
 	executionContexts  map[string]modelcatalog.CatalogExecutionContext
@@ -396,6 +399,12 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 			}
 			runtime.liveSources[typed.ProviderIDs()[0]] = typed
 		}
+	}
+	runtime.liveSourceFactory = func(providers map[string]compozyconfig.ProviderConfig) ([]modelcatalog.Source, error) {
+		return modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
+			Providers: providers, HomePaths: d.homePaths, BaseEnv: os.Environ(),
+			SecretResolver: d.modelCatalogSecretResolver(state), HTTPClient: httpClient, DefaultTimeout: sourceTimeout,
+		})
 	}
 	state.modelCatalog = runtime
 	runtime.startDynamicRefreshLoop()

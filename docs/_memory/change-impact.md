@@ -1,5 +1,33 @@
 # Compozy Change Impact
 
+## Issue 627 — Overlay model discovery and binding
+
+- **Native tools:** existing provider model list/status/refresh/curate and session-create tools keep
+  their IDs and schemas. CLI, HTTP, UDS and Extension Host consume the same corrected catalog rows.
+- **Extensibility/hooks/config:** no new key, hook, SDK or permission. `runtime_provider` selects a
+  registered adapter when the overlay ID has none. The overlay's command, auth mode, credential
+  slots and home/environment policies remain authoritative. Settings reconciliation adds/removes
+  live sources together with the durable catalog generation; no daemon restart is needed.
+  Removing an overlay deletes only its derived live cache across all execution contexts in that
+  transaction, so recreating it offline cannot revive the removed account observations.
+- **Workspace data isolation:** account observations keep the overlay provider/source IDs and
+  profile/workspace execution contexts. Command/runtime changes invalidate discovery identity.
+  Session binding reads the overlay source, never the runtime family's account observations.
+  Active and stopped runtime-selection admission resolve the configured runtime family while
+  retaining the overlay ID for catalog membership.
+- **Compatibility:** existing config, model IDs, database shapes and public DTOs remain unchanged.
+  Built-in model identities are mapping hints for advertised Claude aliases only; they create no
+  overlay rows and confer no account availability. Existing short curated aliases remain valid.
+- **Official skill:** runtime operations now explain overlay-scoped discovery and binding.
+- **Web/Docs/QA:** no Web component or layout changes; Settings and runtime selectors receive the
+  shared corrected projection. Model catalog docs and `RT-model-catalog-cold-open` cover overlays.
+  Owning checks: live-source and session suites, daemon reconciliation suite, and the SQLite/ACP
+  subprocess catalog integration suite. Real provider authentication is not inferred from fixtures.
+- **Related work:** PR #550 owns curated-merge semantics and broader picker/startability changes.
+  This fix is based independently on main and changes only overlay discovery/binding plus necessary
+  source lifecycle handling. Its overlapping Claude binding code must preserve overlay ownership
+  when that PR is integrated. Issue #623 owns auth classification; it is excluded here.
+
 ## Issue 616 — Supervised work recovery
 
 - **Native tools:** existing session stop, task inspection/recovery and Loop status IDs and schemas

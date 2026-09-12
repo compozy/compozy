@@ -273,6 +273,106 @@ func TestGlobalDBModelCatalogExecutionContextMigration(t *testing.T) {
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should atomically remove every context of a live source while preserving other providers",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			const provider = "claude-secondary"
+			sourceID := modelcatalog.SourceKindProviderLiveID(provider)
+			for _, profile := range []string{"profile-a", "profile-b"} {
+				execution := modelcatalog.CatalogExecutionContext{
+					Scope:              modelcatalog.ExecutionScopeProfile,
+					ProfileID:          profile,
+					CommandFingerprint: "account-command",
+				}
+				row := modelCatalogRow(sourceID, provider, "haiku", modelcatalog.SourceKindProviderLive, 110)
+				if err := db.ReplaceSourceRows(
+					ctx,
+					execution,
+					sourceID,
+					provider,
+					[]modelcatalog.ModelRow{row},
+					modelCatalogStatus(sourceID, provider, modelcatalog.SourceKindProviderLive, 110),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			replaceModelCatalogRows(
+				t,
+				db,
+				"provider_live:claude",
+				"claude",
+				modelcatalog.SourceKindProviderLive,
+				110,
+				[]modelcatalog.ModelRow{
+					modelCatalogRow(
+						"provider_live:claude",
+						"claude",
+						"sonnet",
+						modelcatalog.SourceKindProviderLive,
+						110,
+					),
+				},
+			)
+			removal := modelcatalog.SourceRowsReplacement{SourceID: sourceID, ProviderID: provider, RemoveSource: true}
+			invalid := modelCatalogRow("config", "codex", "new-model", modelcatalog.SourceKindConfig, 120)
+			invalid.ReasoningEfforts = []modelcatalog.ReasoningEffort{
+				modelcatalog.ReasoningEffortHigh,
+				modelcatalog.ReasoningEffortHigh,
+			}
+			err := db.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{
+				removal,
+				{
+					ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+					SourceID:         "config",
+					ProviderID:       "codex",
+					Rows: []modelcatalog.ModelRow{
+						invalid,
+					},
+					Status: modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
+				},
+			})
+			if err == nil {
+				t.Fatal("invalid later publication did not fail")
+			}
+			var count int
+			if err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM model_catalog_rows WHERE provider_id = ?", provider).
+				Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 2 {
+				t.Fatalf("failed batch removed account rows: %d", count)
+			}
+			if err := db.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{removal}); err != nil {
+				t.Fatal(err)
+			}
+			for _, table := range []string{"model_catalog_rows", "model_catalog_sources"} {
+				if err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE provider_id = ?", provider).
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if count != 0 {
+					t.Fatalf("removed account still has %d %s entries", count, table)
+				}
+			}
+			rows, err := db.ListRows(
+				ctx,
+				modelcatalog.ListOptions{
+					ProviderID:       "claude",
+					ExecutionContext: modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "sonnet" {
+				t.Fatalf("other provider rows = %#v", rows)
+			}
+		},
+	)
+
 	t.Run("Should isolate live rows and prune superseded fingerprints within one workspace", func(t *testing.T) {
 		t.Parallel()
 

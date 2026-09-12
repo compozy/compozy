@@ -11,6 +11,7 @@ type promptAdmissionTarget struct {
 	session     *Session
 	workspaceID string
 	runtime     *RuntimeSelection
+	meta        store.SessionMeta
 }
 
 func (m *Manager) canonicalizeAdmissionPromptAttachments(
@@ -44,7 +45,12 @@ func (m *Manager) resolvePromptAdmissionTarget(
 		if err != nil {
 			return promptAdmissionTarget{}, err
 		}
-		return promptAdmissionTarget{session: active, workspaceID: workspaceID, runtime: resolved}, nil
+		return promptAdmissionTarget{
+			session:     active,
+			workspaceID: workspaceID,
+			runtime:     resolved,
+			meta:        active.Meta(),
+		}, nil
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
@@ -58,5 +64,5 @@ func (m *Manager) resolvePromptAdmissionTarget(
 	if err != nil {
 		return promptAdmissionTarget{}, err
 	}
-	return promptAdmissionTarget{workspaceID: meta.WorkspaceID, runtime: resolved}, nil
+	return promptAdmissionTarget{workspaceID: meta.WorkspaceID, runtime: resolved, meta: meta}, nil
 }

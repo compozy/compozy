@@ -35,3 +35,23 @@ QA 2026-08-28: pass. A fresh isolated onboarding opened the model picker once an
 showed Cursor Agent, Grok 4.5, Grok 4.6, and GPT-5.6 Terra without pressing catalog refresh.
 
 QA 2026-09-09: pass for the changed catalog/reasoning journey. Fresh native discovery exposed Astra through Ultra, Luna through Max, Grok 4.5 through High and Grok 4.6 through Extra high. Saved runtime survived reload/restart. Native Cursor and Codex prompts completed; unsupported Cursor combinations returned 400 without changing the selection. See the current report for captures, exact runtime evidence and limits.
+
+QA impact 2026-09-12, issue #627: overlay discovery must remain account-scoped. The added checks
+below are pending until the issue delivery report records their evidence; earlier evidence above
+continues to cover unchanged selector interactions.
+
+1. Create a provider overlay with `runtime_provider = "claude"` and its own account command.
+2. Refresh/list that provider and inspect `provider_live:<overlay-id>` status. Only its advertised
+   models should appear; a runtime-family seed alone must not create a live model.
+3. Curate a returned logical ID and start a session. The overlay command must receive its advertised
+   transport alias while the persisted session keeps the overlay provider and logical model ID.
+4. With two accounts advertising different models, verify that neither catalog or session admission
+   accepts the other account's live bindings.
+5. Change the overlay command and refresh; prior account rows must not remain live under the new
+   execution identity. Remove the overlay through Settings and confirm it leaves scheduled discovery
+   and catalog projections without restarting the daemon.
+
+6. Recreate the removed overlay with the same command while its discovery is unavailable. No
+   previously removed live models may reappear, including stale entries from other profiles/workspaces.
+7. For a Cursor-family overlay with an explicit discovery command, set an advertised logical runtime
+   model on active and stopped sessions. Reject raw aliases before persisting a selection revision.

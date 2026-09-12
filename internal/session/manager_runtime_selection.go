@@ -55,7 +55,7 @@ func (m *Manager) updateRuntimeSelection(
 	}
 	if active, ok := m.Get(target); ok {
 		if selection != nil {
-			if err := m.validateRuntimeModelAtAdmission(ctx, active, *selection); err != nil {
+			if err := m.validateRuntimeModelAtAdmission(ctx, active, *selection, active.Meta()); err != nil {
 				return nil, err
 			}
 		}
@@ -106,15 +106,12 @@ func (m *Manager) updateStoppedRuntimeSelection(
 	if err != nil {
 		return nil, err
 	}
-	if selection != nil && isCursorRuntimeSelection(*selection) {
-		if _, err := m.resolveCursorCatalogBinding(
-			ctx,
-			*selection,
-			modelCatalogExecutionContext(meta.ProfileID, meta.WorkspaceID),
-		); err != nil {
+	if selection != nil {
+		if err := m.validateRuntimeModelAtAdmission(ctx, nil, *selection, meta); err != nil {
 			return nil, err
 		}
 	}
+
 	_, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	if selectionRevision != expectedRevision {
 		return nil, runtimeSelectionConflict(expectedRevision, selectionRevision)

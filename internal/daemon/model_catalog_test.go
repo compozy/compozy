@@ -22,6 +22,102 @@ import (
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should register and remove overlay discovery during config reconciliation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		home := testHomePaths(t)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, home.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		configSource := modelcatalog.NewConfigSource(nil)
+		service, err := modelcatalog.NewService(db, []modelcatalog.Source{configSource}, modelcatalog.MergeOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime, err := newModelCatalogRuntime(ctx, service, discardLogger(), nil, 5*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		runtime.configSource = configSource
+		probe := &configReloadACPProbe{}
+		runtime.liveSourceFactory = func(providers map[string]compozyconfig.ProviderConfig) ([]modelcatalog.Source, error) {
+			sources := make([]modelcatalog.Source, 0, len(providers))
+			for id, provider := range providers {
+				source, err := modelcatalog.NewLiveProviderSource(id, provider, &modelcatalog.LiveProviderSourcesConfig{
+					HomePaths: home, CommandExecutor: probe,
+				})
+				if err != nil {
+					return nil, err
+				}
+				sources = append(sources, source)
+			}
+			return sources, nil
+		}
+		const overlay = "cursor-secondary"
+		cfg := &compozyconfig.Config{Providers: map[string]compozyconfig.ProviderConfig{overlay: {
+			RuntimeProvider: "cursor",
+			Command:         "cursor-agent acp",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			Models: compozyconfig.ProviderModelsConfig{
+				Discovery: compozyconfig.ProviderModelsDiscoveryConfig{Command: "cursor-new"},
+			},
+		}}}
+		if err := runtime.ReconcileConfig(ctx, cfg); err != nil {
+			t.Fatal(err)
+		}
+		models, err := runtime.ListModels(ctx, modelcatalog.ListOptions{ProviderID: overlay})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(models) != 1 || models[0].ProviderID != overlay || models[0].ModelID != "new-model" {
+			t.Fatalf("overlay models = %#v", models)
+		}
+		if request := probe.LastRequest(t); request.ProviderID != overlay {
+			t.Fatalf("probe provider = %q", request.ProviderID)
+		}
+		if err := runtime.ReconcileConfig(ctx, &compozyconfig.Config{}); err != nil {
+			t.Fatal(err)
+		}
+		models, err = runtime.ListModels(ctx, modelcatalog.ListOptions{ProviderID: overlay})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("removed overlay leaked rows: %#v", models)
+		}
+		for _, target := range runtime.dynamicRefreshTargets() {
+			if target.providerID == overlay {
+				t.Fatal("removed overlay still scheduled")
+			}
+		}
+
+		probe.mu.Lock()
+		probe.err = errors.New("overlay discovery offline")
+		probe.mu.Unlock()
+		if err := runtime.ReconcileConfig(ctx, cfg); err != nil {
+			t.Fatal(err)
+		}
+		models, err = runtime.ListModels(
+			ctx,
+			modelcatalog.ListOptions{ProviderID: overlay, View: modelcatalog.CatalogViewAll},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("recreated offline overlay revived deleted account models: %#v", models)
+		}
+	})
+
 	t.Run("Should preserve builtin model mappings while staging a partial provider override", func(t *testing.T) {
 		t.Parallel()
 
@@ -1781,6 +1877,7 @@ func (s *catalogReadRefreshService) waitForRefresh(
 }
 
 type configReloadACPProbe struct {
+	err      error
 	mu       sync.Mutex
 	requests []modelcatalog.DiscoveryCommandRequest
 }
@@ -1912,7 +2009,11 @@ func (e *configReloadACPProbe) RunDiscoveryCommand(
 ) (modelcatalog.DiscoveryCommandResult, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
+	err := e.err
 	e.mu.Unlock()
+	if err != nil {
+		return modelcatalog.DiscoveryCommandResult{}, err
+	}
 	if req.Command == "cursor-offline" {
 		return modelcatalog.DiscoveryCommandResult{Stderr: "cursor discovery offline"},
 			errors.New("cursor discovery offline")

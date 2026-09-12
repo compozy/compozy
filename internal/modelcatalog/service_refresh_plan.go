@@ -10,8 +10,9 @@ import (
 
 // RefreshPlan buffers source replacements until a whole catalog generation is ready.
 type RefreshPlan struct {
-	owner *CatalogService
-	store *refreshPlanStore
+	owner   *CatalogService
+	store   *refreshPlanStore
+	sources *CatalogService
 }
 
 // NewRefreshPlan creates an isolated, read-through refresh generation.
@@ -62,7 +63,67 @@ func (s *CatalogService) CommitRefreshPlan(ctx context.Context, plan *RefreshPla
 	if plan == nil || plan.store == nil || plan.owner != s {
 		return errors.New("model catalog: refresh plan does not belong to service")
 	}
-	return s.store.ReplaceSourceRowsBatch(ctx, plan.store.snapshot())
+	if err := s.store.ReplaceSourceRowsBatch(ctx, plan.store.snapshot()); err != nil {
+		return err
+	}
+	if plan.sources != nil {
+		s.sourcesMu.Lock()
+		s.sources = plan.sources.sources
+		s.sourceByID = plan.sources.sourceByID
+		s.sourcesMu.Unlock()
+	}
+	return nil
+}
+
+// SetLiveSources stages the complete live source registry with its durable generation.
+func (p *RefreshPlan) SetLiveSources(live []*LiveProviderSource) error {
+	if p == nil || p.owner == nil {
+		return errors.New("model catalog: refresh plan is required")
+	}
+	sources := make([]Source, 0)
+	for _, source := range p.owner.sourcesSnapshot() {
+		if source.Kind() != SourceKindProviderLive {
+			sources = append(sources, source)
+		}
+	}
+	for _, source := range live {
+		if source == nil {
+			return errors.New("model catalog: live source is required")
+		}
+		sources = append(sources, source)
+	}
+	staged, err := NewService(p.owner.store, sources, MergeOptions{})
+	if err != nil {
+		return err
+	}
+	p.sources = staged
+	for _, source := range p.owner.sourcesSnapshot() {
+		if source.Kind() != SourceKindProviderLive {
+			continue
+		}
+		if _, exists := staged.sourceByID[source.ID()]; exists {
+			continue
+		}
+		owned, ok := source.(sourceProviderLister)
+		if !ok {
+			return errors.New("model catalog: live source provider ownership is required")
+		}
+		for _, providerID := range owned.ProviderIDs() {
+			key := removedSourceKey(source.ID(), providerID)
+			p.store.replacements[key] = SourceRowsReplacement{
+				SourceID:     source.ID(),
+				ProviderID:   providerID,
+				RemoveSource: true,
+			}
+		}
+	}
+	return nil
+}
+
+func (s *CatalogService) sourcesSnapshot() []Source {
+	s.sourcesMu.RLock()
+	defer s.sourcesMu.RUnlock()
+	return s.sources
 }
 
 type refreshPlanStore struct {
@@ -113,11 +174,7 @@ func (s *refreshPlanStore) ReplaceSourceRowsBatch(
 	next := make(map[string]SourceRowsReplacement, len(s.replacements)+len(replacements))
 	maps.Copy(next, s.replacements)
 	for _, replacement := range replacements {
-		key, err := refreshPlanSourceProviderKey(
-			replacement.ExecutionContext,
-			replacement.SourceID,
-			replacement.ProviderID,
-		)
+		key, err := replacementKey(replacement)
 		if err != nil {
 			return err
 		}
@@ -240,12 +297,26 @@ func replacementMatchesStatus(
 	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, status.SourceID, status.ProviderID)
 }
 
+func removedSourceKey(sourceID, providerID string) string {
+	return "removed\x00" + sourceID + "\x00" + providerID
+}
+
+func replacementKey(replacement SourceRowsReplacement) (string, error) {
+	if replacement.RemoveSource {
+		return removedSourceKey(replacement.SourceID, replacement.ProviderID), nil
+	}
+	return refreshPlanSourceProviderKey(replacement.ExecutionContext, replacement.SourceID, replacement.ProviderID)
+}
+
 func replacementMatchesSourceProvider(
 	replacements map[string]SourceRowsReplacement,
 	contexts map[string]CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 ) bool {
+	if _, removed := replacements[removedSourceKey(sourceID, providerID)]; removed {
+		return true
+	}
 	executionContext, ok := contexts[sourceID]
 	if !ok {
 		return false
@@ -262,6 +333,9 @@ func replacementContextSelected(
 	replacement SourceRowsReplacement,
 	contexts map[string]CatalogExecutionContext,
 ) bool {
+	if replacement.RemoveSource {
+		return false
+	}
 	selected, ok := contexts[replacement.SourceID]
 	if !ok {
 		return false

@@ -224,3 +224,7 @@ WHERE s.context_id = CAST(sqlc.arg(context_id) AS TEXT)
     OR r.stale = 0)
 ORDER BY s.source_id ASC, s.provider_id ASC, s.model_id ASC,
   s.transport_model_id ASC, s.option_id ASC;
+
+-- name: DeleteModelCatalogSource :exec
+DELETE FROM model_catalog_sources
+WHERE source_id = sqlc.arg(source_id) AND provider_id = sqlc.arg(provider_id);

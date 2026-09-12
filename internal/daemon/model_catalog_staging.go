@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"time"
 
@@ -54,6 +56,9 @@ func (r *modelCatalogRuntime) stageModelCatalogGeneration(
 			"daemon: create model catalog refresh plan: %w",
 			err,
 		)
+	}
+	if err := plan.SetLiveSources(slices.Collect(maps.Values(live.sources))); err != nil {
+		return stagedModelCatalogGeneration{}, fmt.Errorf("daemon: stage live model catalog sources: %w", err)
 	}
 	now := time.Now().UTC()
 	if r.now != nil {
@@ -142,9 +147,14 @@ func (r *modelCatalogRuntime) publishModelCatalogGeneration(generation stagedMod
 	if updater, ok := r.service.(modelCatalogMergeOptionsUpdater); ok {
 		updater.UpdateMergeOptions(modelcatalog.MergeOptions{ReasoningApply: generation.reasoningApply})
 	}
-	for providerID, source := range r.liveSources {
-		source.ReplaceProvider(generation.live.effective[providerID])
+	r.liveSourcesMu.Lock()
+	for id, source := range r.dynamicSources {
+		if source.Kind() == modelcatalog.SourceKindProviderLive {
+			delete(r.dynamicSources, id)
+		}
 	}
+	r.liveSources = generation.live.sources
+	r.liveSourcesMu.Unlock()
 }
 
 func reconcileProviderIDs(
@@ -171,7 +181,22 @@ func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 ) (stagedLiveProviderConfigs, error) {
 	resolver := &compozyconfig.Config{Providers: providers}
 	effective := make(map[string]compozyconfig.ProviderConfig, len(r.liveSources))
-	for providerID := range r.liveSources {
+	candidates := maps.Clone(r.liveSources)
+	if r.liveSourceFactory != nil {
+		sources, err := r.liveSourceFactory(providers)
+		if err != nil {
+			return stagedLiveProviderConfigs{}, err
+		}
+		candidates = make(map[string]*modelcatalog.LiveProviderSource, len(sources))
+		for _, source := range sources {
+			live, ok := source.(*modelcatalog.LiveProviderSource)
+			if !ok {
+				return stagedLiveProviderConfigs{}, fmt.Errorf("daemon: unexpected live source type %T", source)
+			}
+			candidates[live.ProviderIDs()[0]] = live
+		}
+	}
+	for providerID := range candidates {
 		provider, err := resolver.ResolveProvider(providerID)
 		if err != nil {
 			return stagedLiveProviderConfigs{}, fmt.Errorf(
@@ -188,7 +213,13 @@ func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 		previous:  make(map[string]*modelcatalog.LiveProviderSource, len(r.liveSources)),
 		changed:   make([]string, 0, len(r.liveSources)),
 	}
-	for providerID, source := range r.liveSources {
+	for providerID, candidate := range candidates {
+		source := r.liveSources[providerID]
+		if source == nil {
+			staged.sources[providerID] = candidate
+			staged.changed = append(staged.changed, providerID)
+			continue
+		}
 		clone, changed, err := source.CloneWithProvider(effective[providerID])
 		if err != nil {
 			return stagedLiveProviderConfigs{}, fmt.Errorf(
@@ -212,9 +243,7 @@ func previousLiveExecutionContext(
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (modelcatalog.CatalogExecutionContext, error) {
 	if source == nil {
-		return modelcatalog.CatalogExecutionContext{}, errors.New(
-			"daemon: previous live model catalog source is required",
-		)
+		return modelcatalog.CatalogExecutionContext{}, nil
 	}
 	fingerprint, err := source.CatalogExecutionFingerprint()
 	if err != nil {

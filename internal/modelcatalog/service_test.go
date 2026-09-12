@@ -3158,6 +3158,15 @@ func (s *memoryStore) ReplaceSourceRowsBatch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, replacement := range replacements {
+		if replacement.RemoveSource {
+			for key, status := range s.statuses {
+				if status.SourceID == replacement.SourceID && status.ProviderID == replacement.ProviderID {
+					delete(s.statuses, key)
+					delete(s.rows, key)
+				}
+			}
+			continue
+		}
 		s.replaceCount++
 		key, err := sourceProviderContextKey(
 			replacement.ExecutionContext,
