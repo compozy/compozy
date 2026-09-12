@@ -680,6 +680,114 @@ func TestShellIntegrationContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate children launched between zsh startup bridges", func(t *testing.T) {
+		t.Parallel()
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		for _, custom := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should preserve early children with custom directory %t", custom), func(t *testing.T) {
+				t.Parallel()
+				env := zshStartupFixture(t, custom, "")
+				child := shellQuote(zshPath) +
+					` -i -c 'print -r -- "child|${ZDOTDIR-unset}|${__compozy_nonce-unset}"'` + "\n"
+				script := `setopt rcs
+source "${ZDOTDIR-$HOME}/.zshenv"
+` + child + `source "${ZDOTDIR-$HOME}/.zprofile"
+` + child + `source "${ZDOTDIR-$HOME}/.zshrc"
+`
+				argv := []string{zshPath, "-i", "-f", "-c", script}
+				native := runZshStartupCommand(t, argv, env, false)
+				integrated := runZshStartupCommand(t, argv, env, true)
+				if integrated != native || strings.Count(integrated, "|unset\n") != 2 {
+					t.Fatalf("early child environment differs: integrated=%q native=%q", integrated, native)
+				}
+			})
+		}
+	})
+
+	t.Run("Should ignore stale bridge state while preserving inherited ZDOTDIR", func(t *testing.T) {
+		// not parallel: this case exercises the inherited daemon environment.
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		env := zshStartupFixture(t, false, "")
+		t.Setenv("ZDOTDIR", env["HOME"])
+		t.Setenv("__compozy_zdotdir_child", "/stale-user-directory")
+		t.Setenv("__compozy_zdotdir_child_attributes", "scalar-export")
+		t.Setenv("__compozy_zdotdir_child_root", "/stale-shim-directory")
+		argv := []string{zshPath, "-i"}
+		native := runZshStartup(t, argv, env, false)
+		if integrated := runZshStartup(t, argv, env, true); integrated != native {
+			t.Fatalf("inherited startup differs: integrated=%q native=%q", integrated, native)
+		}
+	})
+
+	t.Run("Should preserve noninteractive and empty ZDOTDIR semantics", func(t *testing.T) {
+		t.Parallel()
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		for _, empty := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should match native noninteractive startup with empty directory %t", empty),
+				func(t *testing.T) {
+					t.Parallel()
+					env := zshStartupFixture(t, true, "env")
+					if empty {
+						env["ZDOTDIR"] = ""
+					}
+					argv := []string{zshPath, "-l", "-c", `print -r -- "${ZDOTDIR-unset}|${parameters[ZDOTDIR]-unset}"`}
+					native := runZshStartupCommand(t, argv, env, false)
+					if integrated := runZshStartupCommand(t, argv, env, true); integrated != native {
+						t.Fatalf("noninteractive startup differs: integrated=%q native=%q", integrated, native)
+					}
+				},
+			)
+		}
+	})
+
+	t.Run("Should preserve native zsh startup and plugin paths with authenticated markers", func(t *testing.T) {
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		for _, test := range []struct {
+			name   string
+			custom bool
+			change string
+		}{
+			{name: "Should preserve unset ZDOTDIR"},
+			{name: "Should preserve custom quoted ZDOTDIR", custom: true},
+			{name: "Should follow zshenv redirection", change: "env"},
+			{name: "Should follow zprofile redirection", change: "profile"},
+			{name: "Should follow zshrc redirection", change: "rc"},
+			{name: "Should preserve zshenv unsetting ZDOTDIR", custom: true, change: "unset"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				for _, login := range []bool{false, true} {
+					t.Run(fmt.Sprintf("Should match native startup with login %t", login), func(t *testing.T) {
+						t.Parallel()
+						env := zshStartupFixture(t, test.custom, test.change)
+						argv := []string{zshPath, "-i"}
+						if login {
+							argv = append(argv, "-l")
+						}
+						native := runZshStartup(t, argv, env, false)
+						integrated := runZshStartup(t, argv, env, true)
+						if integrated != native {
+							t.Fatalf("startup differs from native zsh: integrated=%q native=%q", integrated, native)
+						}
+					})
+				}
+			})
+		}
+	})
+
 	t.Run("Should emit clean start and finish markers for one human zsh command [UT-123]", func(t *testing.T) {
 		zshPath, err := exec.LookPath("zsh")
 		if err != nil {
@@ -852,4 +960,108 @@ func TestPTYWinsizeHelperProcess(_ *testing.T) {
 		os.Exit(4)
 	}
 	os.Exit(0)
+}
+
+func zshStartupFixture(t *testing.T, custom bool, change string) map[string]string {
+	t.Helper()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	config := filepath.Join(root, " config 'quoted' ")
+	moved := filepath.Join(root, " moved 'quoted' ")
+	for _, dir := range []string{home, config, moved} {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, phase := range []string{"zshenv", "zprofile", "zshrc", "zlogin", "zlogout"} {
+			script := `print -r -- "` + phase + `|${ZDOTDIR-unset}|${parameters[ZDOTDIR]-unset}" >> "$STARTUP_TRACE"` + "\n"
+			if phase == "zshenv" && change == "env" || phase == "zprofile" && change == "profile" ||
+				phase == "zshrc" && change == "rc" {
+				script += "ZDOTDIR=" + shellQuote(moved) + "\n"
+			}
+			if phase == "zshenv" && change == "unset" {
+				script += "unset ZDOTDIR\n"
+			}
+			if phase == "zshrc" {
+				script += `source "${ZDOTDIR:-$HOME}/.zsh_plugins.txt"` + "\n"
+			}
+			if err := os.WriteFile(filepath.Join(dir, "."+phase), []byte(script), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, ".zsh_plugins.txt"),
+			[]byte("print -r -- PLUGIN_LOADED >> \"$STARTUP_TRACE\"\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env := map[string]string{"HOME": home, "STARTUP_TRACE": filepath.Join(root, "trace")}
+	if custom {
+		env["ZDOTDIR"] = config
+	}
+	return env
+}
+
+func runZshStartup(t *testing.T, argv []string, env map[string]string, integration bool) string {
+	t.Helper()
+	if err := os.WriteFile(env["STARTUP_TRACE"], nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	proc := startTestProc(t, ProcSpec{
+		Argv: argv, Env: env, MarkerNonce: "nonce-startup", ShellIntegration: integration,
+		Mode: ModePTY, Cols: 80, Rows: 24,
+	})
+	t.Cleanup(func() { stopTestProc(t, proc) })
+	// A child must inherit the user's directory without inheriting the shim or nonce.
+	command := shellQuote(argv[0]) + ` -i -c 'print -r -- "child|${__compozy_nonce-unset}" >> "$STARTUP_TRACE"'` + "\n"
+	if _, err := proc.Write([]byte(command + "echo startup-done\nexit\n")); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(proc.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	exit, err := proc.Wait(waitCtx)
+	if err != nil || exit.Code == nil || *exit.Code != 0 {
+		t.Fatalf("Wait()=%#v error=%v output=%q", exit, err, output)
+	}
+	if integration && (!bytes.Contains(output, []byte("7113;v1;nonce-startup;S;cmd=echo%20startup-done;")) ||
+		!bytes.Contains(output, []byte("7113;v1;nonce-startup;F;exit=0"))) {
+		t.Fatalf("authenticated markers missing: %q", output)
+	}
+	trace, err := os.ReadFile(env["STARTUP_TRACE"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(trace), "PLUGIN_LOADED\n") != 2 || !strings.Contains(string(trace), "child|unset\n") {
+		t.Fatalf("parent/child plugin or nonce isolation failed: trace=%q output=%q", trace, output)
+	}
+	return string(trace)
+}
+
+func runZshStartupCommand(t *testing.T, argv []string, env map[string]string, integration bool) string {
+	t.Helper()
+	setup, err := prepareShellIntegration(ProcSpec{
+		Argv: argv, Env: env, MarkerNonce: "nonce-command", ShellIntegration: integration,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := setup.cleanup(); err != nil {
+			t.Error(err)
+		}
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, setup.argv[0], setup.argv[1:]...)
+	cmd.Env = environment(setup.env)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("zsh command failed: %v output=%q", err, output)
+	}
+	return string(output)
 }

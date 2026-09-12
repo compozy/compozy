@@ -343,6 +343,20 @@ jobs:
         with:
           install-playwright: "false"
 
+      - name: Install zsh for shell integration contracts
+        run: |
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
+          zsh --version
+
+      - name: Verify zsh startup contracts
+        if: matrix.shard_index == '0'
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
+
       - name: Run Go runtime verification
         run: make test
 
