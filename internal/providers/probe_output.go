@@ -48,8 +48,15 @@ func structuredProbeOutput(output string) (string, string, bool) {
 	if strings.HasPrefix(trimmed, "[") && !probeTextLabel(trimmed) {
 		return trimmed, "", true
 	}
-	if start := strings.IndexByte(trimmed, '{'); start >= 0 {
-		return trimmed[start:], trimmed[:start], true
+	for start, char := range trimmed {
+		if char != '{' {
+			continue
+		}
+		body := strings.TrimSpace(trimmed[start+1:])
+		if body == "" || strings.HasPrefix(body, `"`) || strings.HasPrefix(body, "}") ||
+			strings.HasPrefix(body, "loggedIn") {
+			return trimmed[start:], trimmed[:start], true
+		}
 	}
 	if strings.Contains(trimmed, `"loggedIn"`) {
 		return trimmed, "", true

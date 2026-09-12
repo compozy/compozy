@@ -61,3 +61,10 @@ execution override; the unchanged native true response retains the earlier live
 probe evidence. CodeRabbit completed the initial source review without actionable
 comments; its generic docstring-coverage warning conflicts with the repository's
 explicit rule against restating obvious private helper behavior in comments.
+
+Greptile follow-up 3995018821 narrows candidate detection so ordinary text such as
+`logged in {region=us-east}` remains text. JSON-like object starts and malformed
+`loggedIn` payloads still take the safe structured path; the scan continues past
+ordinary brace metadata to find a later JSON verdict. Both cases extend the same
+canonical classifier table and await GitHub CI. No additional live-provider or
+surface contract changes are introduced.

@@ -140,6 +140,16 @@ func TestClassifyProviderAuth(t *testing.T) {
 				state:  ProviderAuthStateNeedsLogin,
 			},
 			{
+				name:   "Should retain successful text with brace-delimited metadata",
+				stdout: "logged in {region=us-east}",
+				state:  ProviderAuthStateAuthenticated,
+			},
+			{
+				name:   "Should not let brace metadata hide a later JSON verdict",
+				stdout: "[INFO] {region=us-east}\n" + `{"loggedIn":false,"email":"private@example.test"}`,
+				state:  ProviderAuthStateNeedsLogin,
+			},
+			{
 				name:   "Should retain bracket-prefixed text probes",
 				stdout: "[INFO] logged in",
 				state:  ProviderAuthStateAuthenticated,
