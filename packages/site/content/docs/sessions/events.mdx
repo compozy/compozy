@@ -127,7 +127,7 @@ The persisted event `type` values currently emitted by CompozyOS are:
 | `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                                      |
 | `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse                       |
 | `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                                |
-| `prompt_delivery`            | Confirmed delivery of Compozy-owned context                                                       | `delivery` with turn, send time, estimate method and disjoint spans                                           |
+| `prompt_delivery`            | Confirmed delivery of CompozyOS-owned context                                                     | `delivery` with turn, send time, estimate method and disjoint spans                                           |
 | `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
 | `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                                            |
 | `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                                            |
@@ -287,10 +287,10 @@ native CLI credential stores or expose provider subscription quotas.
 
 ## Delivered context estimates
 
-After the transport confirms a prompt, Compozy records a `prompt_delivery` event. Its manifest measures
+After the transport confirms a prompt, CompozyOS records a `prompt_delivery` event. Its manifest measures
 startup sections and the agent prompt, the full or unchanged per-turn sections actually sent, and
 attachments. Text uses `ceil(bytes / 4)` (`bytes_div_4`); binary attachments report bytes and their name
-without a token estimate. These estimates cover Compozy-owned text only. They cannot measure the
+without a token estimate. These estimates cover CompozyOS-owned text only. They cannot measure the
 agent's private instructions, tool results, or conversation history.
 
 `context.injected` folds these receipts into one owner per section. An unchanged stub retains its full

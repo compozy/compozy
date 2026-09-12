@@ -327,7 +327,7 @@ describe("Session context", () => {
     expect(
       within(screen.getByTestId("session-context-meter")).queryByRole("img")
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Compozy context/ }));
+    await user.click(screen.getByRole("button", { name: /CompozyOS context/ }));
     const rows = screen.getAllByTestId("session-context-injected-row");
     expect(rows).toHaveLength(4);
     expect(
@@ -383,10 +383,10 @@ describe("Session context", () => {
     expect(rows[2]).toHaveTextContent("20K / 256K");
     expect(rows[3]).toHaveTextContent("10K / 256K");
     expect(screen.getAllByTestId("session-context-compaction")[0]).toHaveTextContent(
-      "Compozy compaction · at 88% · replay span not archived"
+      "CompozyOS compaction · at 88% · replay span not archived"
     );
     expect(screen.getAllByTestId("session-context-compaction")[1]).toHaveTextContent(
-      "Compozy compaction · at 85% · replay span archived"
+      "CompozyOS compaction · at 85% · replay span archived"
     );
     expect(screen.getByTestId("session-context-activity")).toHaveTextContent("Working for 49m 20s");
   });

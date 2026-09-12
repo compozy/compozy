@@ -97,7 +97,7 @@ export function SessionContextTurnsSection({
             >
               <Minimize2 className="mt-0.5 size-3 shrink-0" />
               <span>
-                Compozy compaction · at {formatContextPercent(marker.pressure)} · replay span{" "}
+                CompozyOS compaction · at {formatContextPercent(marker.pressure)} · replay span{" "}
                 <span className={marker.span_archived ? undefined : "text-warning"}>
                   {marker.span_archived ? "archived" : "not archived"}
                 </span>

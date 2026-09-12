@@ -47,7 +47,7 @@ export function SessionContextMeterSection({ context }: { context: SessionContex
                   ariaLabel={`Context window: ${formatContextTokens(used)} of ${formatContextTokens(display.total)} used`}
                   total={display.total}
                   segments={[
-                    { value: display.compozy, tone: "accent", label: "Compozy context" },
+                    { value: display.compozy, tone: "accent", label: "CompozyOS context" },
                     { value: display.agent, tone: "neutral", label: "Agent & conversation" },
                   ]}
                 />
@@ -67,7 +67,7 @@ export function SessionContextMeterSection({ context }: { context: SessionContex
                   ...(context.injected
                     ? [
                         {
-                          label: "Compozy context ≈",
+                          label: "CompozyOS context ≈",
                           swatch: <PillDot tone="accent" size="md" />,
                           value: context.injected.tokens,
                           formattedValue: formatContextTokens(context.injected.tokens),

@@ -76,7 +76,7 @@ export function SessionContextInjectedSection({
         <CollapsibleTrigger
           render={<Button variant="ghost" size="sm" className="w-full justify-between px-0" />}
         >
-          <Eyebrow>Compozy context ≈</Eyebrow>
+          <Eyebrow>CompozyOS context ≈</Eyebrow>
           <span className="ml-auto font-mono text-mono-id tabular-nums">
             {injected && rows.some(row => row.tokens != null)
               ? formatContextTokens(injected.tokens)
@@ -97,11 +97,11 @@ export function SessionContextInjectedSection({
               ))}
             </ul>
             <p className="pt-2 text-eyebrow text-subtle">
-              Estimate: bytes ÷ 4 over the text Compozy delivered.
+              Estimate: bytes ÷ 4 over the text CompozyOS delivered.
             </p>
           </CollapsibleContent>
         ) : (
-          <Empty icon={Layers} title="No Compozy context yet" />
+          <Empty icon={Layers} title="No CompozyOS context yet" />
         )}
       </Collapsible>
     </section>

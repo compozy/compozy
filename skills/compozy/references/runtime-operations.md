@@ -999,5 +999,5 @@ receipts. `context.injected` estimates text with `bytes_div_4`, retains full own
 sections, and reports binary attachment bytes without tokens. An opaque hook-replaced startup prompt
 has one System prompt owner. Treat `stale` as possible summarization after a reported context drop;
 a replay-compaction marker alone does not establish that. Use session events to inspect receipt
-send times and exact per-turn spans. These receipts cover Compozy-owned content, not the agent's
+send times and exact per-turn spans. These receipts cover CompozyOS-owned content, not the agent's
 private context, and a failed transport dispatch produces no receipt.

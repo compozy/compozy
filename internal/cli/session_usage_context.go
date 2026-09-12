@@ -53,7 +53,7 @@ func sessionContextHuman(value contract.SessionContextPayload) string {
 		rows = append(
 			rows,
 			keyValue{
-				Label: "Compozy Sent",
+				Label: "CompozyOS Sent",
 				Value: fmt.Sprintf("≈ %d (%s)", value.Injected.Tokens, value.Injected.Estimate),
 			},
 		)

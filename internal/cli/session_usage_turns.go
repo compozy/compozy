@@ -66,7 +66,7 @@ func sessionUsageTurnRows(value contract.SessionUsageTurnsResponse) [][]string {
 			archived = "archived"
 		}
 		description := fmt.Sprintf(
-			"Compozy compaction · at %.0f%% · %d / %d · sequences %d–%d · replay span %s",
+			"CompozyOS compaction · at %.0f%% · %d / %d · sequences %d–%d · replay span %s",
 			marker.Pressure*100,
 			marker.ContextUsed,
 			marker.ContextSize,

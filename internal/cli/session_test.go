@@ -2507,7 +2507,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"80 / 100", "Compozy compaction · at 85%", "replay span archived", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
+		for _, want := range []string{"80 / 100", "CompozyOS compaction · at 85%", "replay span archived", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing turns %q in %s", want, stdout)
 			}

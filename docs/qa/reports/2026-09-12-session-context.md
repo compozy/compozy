@@ -49,6 +49,8 @@ The live lab and the subsequent bounded capture leg were shut down through the m
 
 Final runtime-image inspection exposed [opaque turn ID overflow](../bugs/BUG-20260912-context-turn-identifiers.md), absent from the numeric examples. The bounded column now truncates long identifiers while preserving full identity access and complete three-digit numeric labels. The real ID shape has its own VC08 story and capture. Four affected pairs were re-captured; the complete validator passes 44/44, root Turbo typecheck passes, and the second teardown is clean.
 
+The final CI product-language check required the current name CompozyOS in UI, CLI and documentation. COPY.md and the glossary own this naming disposition over the older board labels. The affected component captures were refreshed with the longer name; runtime calculations and public identifiers are unchanged.
+
 ## Retained review artifacts
 
 [Runtime evidence summary](../../design/generated/session-context/runtime-summary.json) records normalized surface parity, fixture counters, actual live cost and binary receipt facts, unknown rows, threshold omission and asynchronous archive truth. Original source captures remain in the lab.
