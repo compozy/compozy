@@ -680,6 +680,32 @@ func TestShellIntegrationContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate children launched between zsh startup bridges", func(t *testing.T) {
+		t.Parallel()
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		for _, custom := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should preserve early children with custom directory %t", custom), func(t *testing.T) {
+				t.Parallel()
+				env := zshStartupFixture(t, custom, "")
+				child := shellQuote(zshPath) + ` -i -c 'print -r -- "child|${ZDOTDIR-unset}|${__compozy_nonce-unset}"'` + "\n"
+				script := `setopt rcs
+source "${ZDOTDIR-$HOME}/.zshenv"
+` + child + `source "${ZDOTDIR-$HOME}/.zprofile"
+` + child + `source "${ZDOTDIR-$HOME}/.zshrc"
+`
+				argv := []string{zshPath, "-i", "-f", "-c", script}
+				native := runZshStartupCommand(t, argv, env, false)
+				integrated := runZshStartupCommand(t, argv, env, true)
+				if integrated != native || strings.Count(integrated, "|unset\n") != 2 {
+					t.Fatalf("early child environment differs: integrated=%q native=%q", integrated, native)
+				}
+			})
+		}
+	})
+
 	t.Run("Should preserve inherited ZDOTDIR for zsh startup", func(t *testing.T) {
 		// not parallel: this case exercises the inherited daemon environment.
 		zshPath, err := exec.LookPath("zsh")

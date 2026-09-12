@@ -33,3 +33,18 @@ The changed startup slice is verified at the real PTY boundary. This does not cl
 rendered Web, packaged-desktop, or Linux run. Linux validation belongs to the PR's current-head
 checks; a skipped zsh case does not establish Linux zsh coverage. Global system startup files
 continue to run under zsh's native startup mechanism; this replay exercises user startup files.
+
+
+## Review follow-up: children between startup bridges
+
+CodeRabbit identified an additional interval: a global startup file can launch a child after the
+user env/profile file returns and before the next user-file bridge restores ZDOTDIR. The bridge
+now carries only the user's directory value and export metadata for that interval. A child entering
+the shim restores the environment it would normally inherit, removes the temporary metadata, and
+sources its own `.zshenv` without continuing the parent's marker injection. A nonexported parent
+ZDOTDIR remains absent in the child. The parent still retains routing to its injected rc.
+
+The existing canonical suite now explicitly launches children in both bridge intervals with unset
+and custom ZDOTDIR. It compares native/integrated child output and verifies the child has no parent
+nonce. This follow-up is validated exclusively by GitHub CI under the later user instruction;
+the earlier local results above apply to the initial implementation only.

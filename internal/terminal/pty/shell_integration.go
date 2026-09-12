@@ -87,7 +87,9 @@ func prepareZshIntegration(setup *shellSetup, root, nonce string) error {
 	} else {
 		originalRoot = home
 	}
-	envScript := restore + zshSourceIfExists(originalRoot+"/.zshenv") + zshContinueIntegration(root)
+	envScript := "if (( ${+__compozy_zdotdir_child} )); then\n" +
+		zshRestoreChildDirectory() + zshSourceUserFile(".zshenv") + "else\n" +
+		restore + zshSourceIfExists(originalRoot+"/.zshenv") + zshContinueIntegration(root) + "fi\n"
 	profileScript := zshRestoreDirectory() + zshSourceUserFile(".zprofile") + zshContinueIntegration(root)
 	rcScript := zshRestoreDirectory() + zshSourceUserFile(".zshrc") + zshMarkerScript(nonce)
 	for _, file := range []struct{ name, script string }{
@@ -105,6 +107,8 @@ func zshContinueIntegration(root string) string {
 	// Keep zsh on the shim route only until its next interactive startup stage.
 	return `if [[ -o interactive && -o rcs ]]; then
   __compozy_zdotdir=$(typeset -p ZDOTDIR 2>/dev/null) || __compozy_zdotdir=''
+  export __compozy_zdotdir_child="${ZDOTDIR-}"
+  export __compozy_zdotdir_child_attributes="${parameters[ZDOTDIR]-}"
   export ZDOTDIR=` + shellQuote(root) + `
 fi
 `
@@ -114,7 +118,17 @@ func zshRestoreDirectory() string {
 	// typeset emits shell-quoted declarations, preserving unset and export attributes.
 	return `unset ZDOTDIR
 if [[ -n $__compozy_zdotdir ]]; then eval "$__compozy_zdotdir"; fi
-unset __compozy_zdotdir
+unset __compozy_zdotdir __compozy_zdotdir_child __compozy_zdotdir_child_attributes
+`
+}
+
+func zshRestoreChildDirectory() string {
+	// Children launched by global startup files must not install the parent's markers.
+	return `unset ZDOTDIR
+if [[ ${__compozy_zdotdir_child_attributes-} == *-export* ]]; then
+  export ZDOTDIR="$__compozy_zdotdir_child"
+fi
+unset __compozy_zdotdir_child __compozy_zdotdir_child_attributes
 `
 }
 

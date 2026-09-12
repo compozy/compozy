@@ -28,7 +28,8 @@ Walk:
 4. Open interactive and login zsh terminals with ZDOTDIR unset and with a custom directory containing spaces and quotes. Compare with a standalone zsh: `.zshenv`, `.zprofile`, `.zshrc`, `.zlogin` and `.zlogout` run in the same order with the same ZDOTDIR state. Load a bundle through `${ZDOTDIR:-$HOME}/.zsh_plugins.txt` and confirm it loads.
 5. Repeat with `.zshenv` setting or unsetting ZDOTDIR, and with `.zprofile` or `.zshrc` redirecting it. Confirm later files follow the changed directory and commands still emit authenticated start/finish markers.
 6. Start a nested interactive zsh. Confirm its bundle loads from the user directory and it receives neither the shim path nor the parent's marker nonce.
-7. Set `[terminal] shell_integration = false`; confirm the shell starts with no shim environment and journal rows degrade to `idle` detection.
+7. In an isolated startup harness, launch a child between the env/profile and rc bridges, as a global startup file can do. Confirm it restores the user directory/export state and never installs the parent nonce.
+8. Set `[terminal] shell_integration = false`; confirm the shell starts with no shim environment and journal rows degrade to `idle` detection.
 
 2026-09-12: Issue #626's real-zsh PTY replay covers the changed startup slice, including
 native/integrated trace equality and authenticated command markers. See
