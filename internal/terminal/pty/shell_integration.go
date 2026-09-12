@@ -72,6 +72,9 @@ func prepareBashIntegration(setup *shellSetup, root, nonce string) error {
 	return nil
 }
 
+const zshClearDirectoryState = "unset __compozy_zdotdir __compozy_zdotdir_child " +
+	"__compozy_zdotdir_child_attributes __compozy_zdotdir_child_root\n"
+
 func prepareZshIntegration(setup *shellSetup, root, nonce string) error {
 	home, err := shellHome(setup.env)
 	if err != nil {
@@ -87,9 +90,10 @@ func prepareZshIntegration(setup *shellSetup, root, nonce string) error {
 	} else {
 		originalRoot = home
 	}
-	envScript := "if (( ${+__compozy_zdotdir_child} )); then\n" +
+	envScript := "if [[ ${__compozy_zdotdir_child_root-} == " + shellQuote(root) + " ]]; then\n" +
 		zshRestoreChildDirectory() + zshSourceUserFile(".zshenv") + "else\n" +
-		restore + zshSourceIfExists(originalRoot+"/.zshenv") + zshContinueIntegration(root) + "fi\n"
+		zshClearDirectoryState + restore + zshSourceIfExists(originalRoot+"/.zshenv") +
+		zshContinueIntegration(root) + "fi\n"
 	profileScript := zshRestoreDirectory() + zshSourceUserFile(".zprofile") + zshContinueIntegration(root)
 	rcScript := zshRestoreDirectory() + zshSourceUserFile(".zshrc") + zshMarkerScript(nonce)
 	for _, file := range []struct{ name, script string }{
@@ -109,6 +113,7 @@ func zshContinueIntegration(root string) string {
   __compozy_zdotdir=$(typeset -p ZDOTDIR 2>/dev/null) || __compozy_zdotdir=''
   export __compozy_zdotdir_child="${ZDOTDIR-}"
   export __compozy_zdotdir_child_attributes="${parameters[ZDOTDIR]-}"
+  export __compozy_zdotdir_child_root=` + shellQuote(root) + `
   export ZDOTDIR=` + shellQuote(root) + `
 fi
 `
@@ -118,8 +123,7 @@ func zshRestoreDirectory() string {
 	// typeset emits shell-quoted declarations, preserving unset and export attributes.
 	return `unset ZDOTDIR
 if [[ -n $__compozy_zdotdir ]]; then eval "$__compozy_zdotdir"; fi
-unset __compozy_zdotdir __compozy_zdotdir_child __compozy_zdotdir_child_attributes
-`
+` + zshClearDirectoryState
 }
 
 func zshRestoreChildDirectory() string {
@@ -128,8 +132,7 @@ func zshRestoreChildDirectory() string {
 if [[ ${__compozy_zdotdir_child_attributes-} == *-export* ]]; then
   export ZDOTDIR="$__compozy_zdotdir_child"
 fi
-unset __compozy_zdotdir_child __compozy_zdotdir_child_attributes
-`
+` + zshClearDirectoryState
 }
 
 func zshSourceUserFile(name string) string {

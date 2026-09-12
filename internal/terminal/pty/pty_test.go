@@ -706,7 +706,7 @@ source "${ZDOTDIR-$HOME}/.zshenv"
 		}
 	})
 
-	t.Run("Should preserve inherited ZDOTDIR for zsh startup", func(t *testing.T) {
+	t.Run("Should ignore stale bridge state while preserving inherited ZDOTDIR", func(t *testing.T) {
 		// not parallel: this case exercises the inherited daemon environment.
 		zshPath, err := exec.LookPath("zsh")
 		if err != nil {
@@ -714,6 +714,9 @@ source "${ZDOTDIR-$HOME}/.zshenv"
 		}
 		env := zshStartupFixture(t, false, "")
 		t.Setenv("ZDOTDIR", env["HOME"])
+		t.Setenv("__compozy_zdotdir_child", "/stale-user-directory")
+		t.Setenv("__compozy_zdotdir_child_attributes", "scalar-export")
+		t.Setenv("__compozy_zdotdir_child_root", "/stale-shim-directory")
 		argv := []string{zshPath, "-i"}
 		native := runZshStartup(t, argv, env, false)
 		if integrated := runZshStartup(t, argv, env, true); integrated != native {

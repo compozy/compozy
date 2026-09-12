@@ -34,7 +34,6 @@ rendered Web, packaged-desktop, or Linux run. Linux validation belongs to the PR
 checks; a skipped zsh case does not establish Linux zsh coverage. Global system startup files
 continue to run under zsh's native startup mechanism; this replay exercises user startup files.
 
-
 ## Review follow-up: children between startup bridges
 
 CodeRabbit identified an additional interval: a global startup file can launch a child after the
@@ -49,7 +48,13 @@ and custom ZDOTDIR. It compares native/integrated child output and verifies the 
 nonce. This follow-up is validated exclusively by GitHub CI under the later user instruction;
 the earlier local results above apply to the initial implementation only.
 
-
 The initial Linux CI logs exposed missing zsh, so the Go race-test workflow now installs zsh
 before executing its existing sharded suite. Linux evidence must include the real shell cases in
 the gotestsum JSON artifact; package success with skipped shell cases is insufficient.
+
+
+Greptile's inherited-state follow-up binds the child restoration metadata to the current private
+shim directory and clears stale metadata before top-level user startup. The existing inherited
+daemon-environment case now includes stale bridge variables and still requires authenticated
+parent markers and native startup trace equality. This prevents an unrelated inherited variable
+from silently selecting the marker-free child path.

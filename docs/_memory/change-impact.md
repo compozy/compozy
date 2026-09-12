@@ -273,7 +273,8 @@ and ET-open-design scenario apply; no additional surface contract is introduced.
   User startup files are sourced without rewriting them. Child shells inherit the user's environment,
   not the marker nonce. An early child entering the shim from a global startup file restores the
   user directory/export state and bypasses parent marker injection. Temporary directory metadata
-  is removed before user files run; profile/workspace ownership is unchanged.
+  is bound to the current private shim and removed before user files run; stale daemon metadata
+  cannot select child routing. Profile/workspace ownership is unchanged.
 - **Compatibility:** internal startup fix with no database, wire, CLI, or config shape change;
   no migration or recovery command. Bash, fish and disabled-integration paths are unchanged.
 - **Official skill:** terminal operation guidance and structured interfaces remain valid; no skill
