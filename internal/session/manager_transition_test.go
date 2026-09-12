@@ -983,9 +983,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
 				t.Fatalf("stopped selection error = %v", err)
 			}
-
 		})
-
 	}
 
 	t.Run("Should update selected runtime while stopped without starting ACP", func(t *testing.T) {
