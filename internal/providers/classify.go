@@ -176,19 +176,30 @@ func ClassifyProbeResultContext(
 			Message: ProviderAuthNoAuthRequiredMessage,
 		}
 	}
+	outcome.Stdout = RedactAuthProbeOutput(outcome.Stdout, 4096)
+	outcome.Stderr = RedactAuthProbeOutput(outcome.Stderr, 4096)
 	combined := strings.ToLower(outcome.Stdout + "\n" + outcome.Stderr)
 	nativeCLI, classification, classified := classifyNativeCLIProbePrecondition(ctx, provider, env, authMode)
 	if classified {
 		return classification
+	}
+	if classification, classified := classifyProbeOutput(combined); classified {
+		return classification
+	}
+	if outcome.Stdout == probeJSONNeedsLogin || outcome.Stderr == probeJSONNeedsLogin {
+		return Classification{
+			State:   ProviderAuthStateNeedsLogin,
+			Code:    diagcontract.CodeProviderNotAuthenticated,
+			Message: loginGuidance(),
+			Kind:    ProviderFailureNotAuthenticated,
+			Action:  ProviderFailureActionLogin,
+		}
 	}
 	if outcome.ExitCode == 0 && outputLooksAuthenticated(outcome) {
 		return Classification{
 			State:   ProviderAuthStateAuthenticated,
 			Message: "Provider status command completed successfully.",
 		}
-	}
-	if classification, classified := classifyProbeOutput(combined); classified {
-		return classification
 	}
 	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present &&
 		hasAny(combined, "not found on path", "not found", "not installed") {
@@ -328,6 +339,12 @@ func ClassifyError(err error) Classification {
 }
 
 func outputLooksAuthenticated(outcome ProbeOutcome) bool {
+	if outcome.Stdout == probeJSONUnknown || outcome.Stderr == probeJSONUnknown {
+		return false
+	}
+	if outcome.Stdout == probeJSONAuthenticated || outcome.Stderr == probeJSONAuthenticated {
+		return true
+	}
 	combined := strings.ToLower(strings.TrimSpace(outcome.Stdout + "\n" + outcome.Stderr))
 	return combined == "" || hasAny(
 		combined,

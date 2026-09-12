@@ -1,9 +1,11 @@
 package providers
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,6 +52,38 @@ func TestProviderAuthCommandEnvironmentPrefix(t *testing.T) {
 
 func TestDefaultProviderAuthCommandRunner(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should remove structured identity before bounding subprocess output", func(t *testing.T) {
+		t.Parallel()
+		shell, err := exec.LookPath("sh")
+		if err != nil {
+			t.Skipf("POSIX shell unavailable: %v", err)
+		}
+		payload := `{"email":"private@example.test","orgId":"private-org-id","orgName":"` + strings.Repeat(
+			"Private Organization ",
+			300,
+		) + `","loggedIn":true}`
+		result, err := DefaultProviderAuthCommandRunner(t.Context(), ProviderAuthCommandSpec{
+			Command: "sh", Executable: shell,
+			Args:  []string{"-c", `printf '%s' "$1"; printf '%s' "$1" >&2`, "probe", payload},
+			NoTTY: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ExitCode != 0 {
+			t.Fatalf("ExitCode = %d, want 0", result.ExitCode)
+		}
+		for _, output := range []string{result.Stdout, result.Stderr} {
+			var verdict map[string]bool
+			if err := json.Unmarshal([]byte(output), &verdict); err != nil {
+				t.Fatal(err)
+			}
+			if len(verdict) != 1 || !verdict["loggedIn"] {
+				t.Fatalf("output = %q, want only loggedIn true", output)
+			}
+		}
+	})
 
 	t.Run("Should return when a lingering child keeps the output pipe open", func(t *testing.T) {
 		t.Parallel()

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox"
 )
@@ -88,8 +87,8 @@ func providerRuntimeCommandRunner(
 		}
 		return authproviders.ProviderAuthCommandResult{
 			ExitCode:   result.ExitCode,
-			Stdout:     diagnostics.RedactAndBound(result.Stdout, 4096),
-			Stderr:     diagnostics.RedactAndBound(result.Stderr, 4096),
+			Stdout:     authproviders.RedactAuthProbeOutput(result.Stdout, 4096),
+			Stderr:     authproviders.RedactAuthProbeOutput(result.Stderr, 4096),
 			DurationMs: duration.Milliseconds(),
 		}, nil
 	}

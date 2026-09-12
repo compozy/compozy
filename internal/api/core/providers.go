@@ -119,8 +119,8 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		AuthStatus: authStatus,
 		Probe: &contract.ProviderAuthProbeResult{
 			ExitCode:   result.ExitCode,
-			Stdout:     diagnostics.RedactAndBound(result.Stdout, maxDiagnosticPayloadBytes),
-			Stderr:     diagnostics.RedactAndBound(result.Stderr, maxDiagnosticPayloadBytes),
+			Stdout:     authproviders.RedactAuthProbeOutput(result.Stdout, maxDiagnosticPayloadBytes),
+			Stderr:     authproviders.RedactAuthProbeOutput(result.Stderr, maxDiagnosticPayloadBytes),
 			DurationMs: result.DurationMs,
 		},
 	})

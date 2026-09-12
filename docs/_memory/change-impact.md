@@ -261,3 +261,28 @@ public replay. No Web, hook, config, persistence, or official skill surface chan
 The following linter-only continuation preserves custom-property importance and recognizes icon
 containers with delimiter-aware names across non-void tags. The same tool/schema/isolation audit
 and ET-open-design scenario apply; no additional surface contract is introduced.
+
+## Issue 623 — Structured native authentication probes
+
+- **Native tools / CLI / HTTP / UDS:** existing provider status/probe and pre-start
+  admission share the top-level JSON `loggedIn` verdict. False requests native
+  login; invalid/missing/non-boolean/duplicate verdicts remain unknown. Exit zero
+  and absence of a classified error are required for success. Unknown admission
+  remains fail-closed. No native IDs, routes, or DTO shapes change.
+- **Extensibility / hooks / config:** no new configuration or hook contracts.
+  Existing text probes retain their vocabulary, with negative/error evidence
+  preceding positive text. Structured output retains only its boolean verdict;
+  unrecognized structured output is represented as an empty object, avoiding
+  identity-derived substring classifications and disclosure. Local and prepared
+  sandbox runners sanitize before bounding; API/CLI projection also sanitizes
+  injected runner results. Native login execution is unchanged.
+- **Workspace / profile isolation:** native credential ownership, operator-home
+  policy, prepared executable identity, pre-start cache keys, and workspace/profile
+  resolution remain unchanged. No schema, persisted-state migration, or host
+  credential change. Previously collected support bundles are not rewritten.
+- **Official skill / Web / Docs:** the agent definition reference and provider
+  configuration guide document direct JSON support. Web consumes the same state
+  and safe probe payload without UI changes. RT-026 owns the targeted replay;
+  [the QA report](../qa/reports/2026-09-12-issue-623-claude-auth.md) records evidence
+  and platform boundaries. Cursor/Codex output shapes and overlay discovery remain
+  outside this fix.

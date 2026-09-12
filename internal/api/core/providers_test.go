@@ -201,7 +201,7 @@ func TestProviderAuthHandlers(t *testing.T) {
 			}
 			return authproviders.ProviderAuthCommandResult{
 				ExitCode: 1,
-				Stdout:   "access_token=stdout-secret",
+				Stdout:   `{"loggedIn":false,"email":"private@example.test","orgId":"private-org-id","orgName":"Private Organization","access_token":"stdout-secret"}`,
 				Stderr:   "HTTP 401 unauthorized token=stderr-secret compozy_claim_sensitive",
 			}, nil
 		}
@@ -233,7 +233,7 @@ func TestProviderAuthHandlers(t *testing.T) {
 			t.Fatal("Probe = nil, want redacted probe output")
 		}
 		probeOutput := payload.Probe.Stdout + payload.Probe.Stderr
-		for _, leaked := range []string{"stdout-secret", "stderr-secret", "compozy_claim_sensitive"} {
+		for _, leaked := range []string{"stdout-secret", "stderr-secret", "compozy_claim_sensitive", "private@example.test", "private-org-id", "Private Organization"} {
 			if strings.Contains(probeOutput, leaked) {
 				t.Fatalf("probe output = %#v leaked %q", payload.Probe, leaked)
 			}

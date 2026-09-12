@@ -70,8 +70,8 @@ func DefaultProviderAuthCommandRunner(
 	err = execCmd.Run()
 	result := ProviderAuthCommandResult{
 		ExitCode:   commandExitCode(execCmd, err),
-		Stdout:     diagnostics.RedactAndBound(stdout.String(), 4096),
-		Stderr:     diagnostics.RedactAndBound(stderr.String(), 4096),
+		Stdout:     RedactAuthProbeOutput(stdout.String(), 4096),
+		Stderr:     RedactAuthProbeOutput(stderr.String(), 4096),
 		DurationMs: time.Since(startedAt).Milliseconds(),
 	}
 	if commandCtx.Err() != nil {
