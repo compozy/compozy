@@ -30,7 +30,7 @@ func DecodePresets(raw []byte) (*PresetDocument, error) {
 	if err := decodeStrict(raw, &document); err != nil {
 		return nil, err
 	}
-	if document.ManifestVersion != ManifestVersionV3 {
+	if document.ManifestVersion != ManifestVersion {
 		return nil, fmt.Errorf("marketplace presets require manifest_version 3")
 	}
 	if _, err := time.Parse(time.RFC3339, document.GeneratedAt); err != nil {

@@ -28,7 +28,10 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		catalogDir := t.TempDir()
-		catalogPath := filepath.Join(catalogDir, "extensions.json")
+		if err := os.MkdirAll(filepath.Join(catalogDir, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		catalogPath := filepath.Join(catalogDir, "v3", "extensions.json")
 		catalogDocument := `{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
 			`"entry_id":"checkout","name":"checkout","description":"Local checkout fixture",` +
 			`"tier":"official","version":"1.0.0","install_slug":"compozy/checkout","artifact_url":"https://example.test/checkout.tgz","digest_sha256":"` + strings.Repeat("a", 64) + `"}]}`
@@ -270,7 +273,7 @@ func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wa
 func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Store, fetchedAt time.Time) {
 	t.Helper()
 	if err := catalogStore.ReplaceKind(t.Context(), marketplace.KindExtension, &marketplace.Document{
-		ManifestVersion: marketplace.ManifestVersionV3,
+		ManifestVersion: marketplace.ManifestVersion,
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
 		Entries: []marketplace.Entry{{

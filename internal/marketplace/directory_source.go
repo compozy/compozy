@@ -37,7 +37,7 @@ func NewDirectorySource(kind Kind, baseURL string) (*DirectorySource, error) {
 	}
 	return &DirectorySource{
 		kind:             kind,
-		path:             filepath.Join(directory, filename),
+		path:             filepath.Join(directory, "v3", filename),
 		maxResponseBytes: defaultMaxResponseBytes,
 	}, nil
 }

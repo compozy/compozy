@@ -351,10 +351,13 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			t.Fatalf("ReplaceKind() error = %v", err)
 		}
 		directory := t.TempDir()
-		path := filepath.Join(directory, "extensions.json")
+		if err := os.MkdirAll(filepath.Join(directory, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(directory, "v3", "extensions.json")
 		if err := os.WriteFile(
 			path,
-			[]byte(strings.Replace(validExtensionDocumentJSON(), `"manifest_version":2`, `"manifest_version":3`, 1)),
+			[]byte(validExtensionDocumentJSON()),
 			0o600,
 		); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)

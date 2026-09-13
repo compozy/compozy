@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -23,35 +22,16 @@ import (
 func TestDecodeDocumentValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept a valid document for every curated kind", func(t *testing.T) {
+	t.Run("Should accept a valid document for the extension catalog", func(t *testing.T) {
 		t.Parallel()
 
-		tests := []struct {
-			kind Kind
-			raw  string
-		}{
-			{kind: KindMCP, raw: validMCPDocumentJSON()},
-			{kind: KindExtension, raw: validExtensionDocumentJSON()},
-			{kind: KindSkill, raw: validSkillDocumentJSON()},
+		document, err := DecodeDocument(KindExtension, []byte(validExtensionDocumentJSON()))
+		if err != nil {
+			t.Fatal(err)
 		}
-		for _, tt := range tests {
-			t.Run("Should accept a valid "+string(tt.kind)+" document", func(t *testing.T) {
-				t.Parallel()
-
-				document, err := DecodeDocument(tt.kind, []byte(tt.raw))
-				if err != nil {
-					t.Fatalf("DecodeDocument(%q) error = %v", tt.kind, err)
-				}
-				if got, want := document.ManifestVersion, ManifestVersion; got != want {
-					t.Fatalf("DecodeDocument(%q).ManifestVersion = %d, want %d", tt.kind, got, want)
-				}
-				if got, want := len(document.Entries), 1; got != want {
-					t.Fatalf("DecodeDocument(%q) entries = %d, want %d", tt.kind, got, want)
-				}
-				if got := document.Entries[0].Kind; got != tt.kind {
-					t.Fatalf("DecodeDocument(%q) entry kind = %q, want %q", tt.kind, got, tt.kind)
-				}
-			})
+		if document.ManifestVersion != ManifestVersion || len(document.Entries) != 1 ||
+			document.Entries[0].EntryID != "bridge-github" {
+			t.Fatalf("decoded catalog = %#v", document)
 		}
 	})
 
@@ -123,7 +103,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject documents outside the v2 schema", func(t *testing.T) {
+	t.Run("Should reject documents outside the v3 schema", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -132,28 +112,23 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			raw     string
 			wantErr string
 		}{
-			{
-				name:    "unknown kind",
-				kind:    Kind("artifact"),
-				raw:     validSkillDocumentJSON(),
-				wantErr: "unsupported kind",
-			},
+
 			{
 				name:    "missing manifest version",
-				kind:    KindMCP,
+				kind:    KindExtension,
 				raw:     `{"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
 				wantErr: "manifest_version is required",
 			},
 			{
 				name:    "missing entries array",
-				kind:    KindMCP,
-				raw:     `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z"}`,
+				kind:    KindExtension,
+				raw:     `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z"}`,
 				wantErr: "entries is required",
 			},
 			{
 				name: "extension without digest",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing digest",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz"}]}`,
@@ -162,7 +137,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension without registry tier",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -172,7 +147,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension without a curated artifact URL",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
@@ -182,7 +157,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension with a non HTTPS artifact URL",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Insecure artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"http://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -193,7 +168,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension with unknown registry tier",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Unknown tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -204,7 +179,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension with unsupported format marker",
 				kind: KindExtension,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Unknown format",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -213,28 +188,19 @@ func TestDecodeDocumentValidation(t *testing.T) {
 				wantErr: "unsupported format",
 			},
 			{
-				name: "skill with invented trust field",
-				kind: KindSkill,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				name: "extension with invented trust field",
+				kind: KindExtension,
+				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"skill","name":"Skill","description":"Invalid trust",` +
 					`"install_slug":"compozy/skill","verified":true}]}`,
 				wantErr: "unknown field",
 			},
+
 			{
-				name: "skill using the synthetic remote ID namespace",
-				kind: KindSkill,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"skill_QGFjbWUvc2tpbGw","name":"Colliding skill",` +
-					`"description":"Cannot shadow a synthetic ID","install_slug":"@acme/skill"}]}`,
-				wantErr: "reserved prefix",
-			},
-			{
-				name: "duplicate skill install slugs",
-				kind: KindSkill,
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[` +
-					`{"entry_id":"first","name":"First","description":"First skill","install_slug":"@acme/shared"},` +
-					`{"entry_id":"second","name":"Second","description":"Second skill","install_slug":"@acme/shared"}]}`,
-				wantErr: `install_slug "@acme/shared" is duplicated`,
+				name:    "duplicate extension install slugs",
+				kind:    KindExtension,
+				raw:     duplicateExtensionInstallSlugsJSON(t),
+				wantErr: `install_slug "compozy/bridge-github" is duplicated`,
 			},
 		}
 		for _, tt := range tests {
@@ -256,7 +222,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		t.Parallel()
 
 		_, err := DecodeDocument(
-			KindMCP,
+			KindExtension,
 			fmt.Appendf(
 				nil,
 				`{"manifest_version":%d,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
@@ -275,267 +241,26 @@ func TestDecodeDocumentValidation(t *testing.T) {
 	})
 }
 
-func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
+func TestNormalizeMCPInputValue(t *testing.T) {
 	t.Parallel()
 
-	validEntry := func(launch string, inputs string) string {
-		return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"server","name":"Server","description":"Validated launch",` +
-			launch + `,"inputs":` + inputs + `,"default_scope":"workspace"}]}`
+	// Invariant: shared input bindings neither collide nor put secrets in URL queries.
+	// Owner: catalog input grammar; canonical suite: TestNormalizeMCPInputValue.
+	for _, test := range []struct{ name, inputs, wantErr string }{
+		{"Should reject duplicated input destinations", `[{"id":"first","prompt":"First","type":"string","binding":{"type":"env","name":"SERVER_MODE"}},{"id":"second","prompt":"Second","type":"string","binding":{"type":"env","name":"SERVER_MODE"}}]`, `binding env/"SERVER_MODE" is duplicated`},
+		{"Should reject secret URL query inputs", `[{"id":"token","prompt":"Access token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}]`, "must not bind a secret"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			var inputs []EntryInput
+			if err := json.Unmarshal([]byte(test.inputs), &inputs); err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateInputGrammar(inputs); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("ValidateInputGrammar() = %v, want %q", err, test.wantErr)
+			}
+		})
 	}
-
-	t.Run("Should accept every typed launch distribution", func(t *testing.T) {
-		t.Parallel()
-
-		tests := []struct {
-			name     string
-			raw      string
-			wantArgs []string
-		}{
-			{
-				name: "Should accept npm launch arguments as literal argv",
-				raw: validEntry(
-					`"launch":{"type":"npm","package":"@acme/server","version":"1.2.3","args":["--read-only","path with spaces"]}`,
-					`[]`,
-				),
-				wantArgs: []string{"--read-only", "path with spaces"},
-			},
-			{
-				name: "Should accept uvx launch",
-				raw: validEntry(
-					`"launch":{"type":"uvx","package":"mcp-server","version":"1.2.3"}`,
-					`[]`,
-				),
-			},
-			{
-				name: "Should accept digest pinned docker launch",
-				raw: validEntry(
-					`"launch":{"type":"docker","image":"ghcr.io/acme/server","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`,
-					`[]`,
-				),
-			},
-			{
-				name: "Should accept remote launch with non-secret query input",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp.example.test"}`,
-					`[{"id":"project_ref","prompt":"Project reference","type":"identifier","required":true,"binding":{"type":"url_query","name":"project_ref"}}]`,
-				),
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				document, err := DecodeDocument(KindMCP, []byte(tt.raw))
-				if err != nil {
-					t.Fatalf("DecodeDocument() error = %v", err)
-				}
-				if tt.wantArgs != nil {
-					details, projectErr := ProjectEntry(document.Entries[0])
-					if projectErr != nil {
-						t.Fatalf("ProjectEntry() error = %v", projectErr)
-					}
-					if got := details.MCP.Launch.Args; !slices.Equal(got, tt.wantArgs) {
-						t.Fatalf("ProjectEntry() launch args = %#v, want %#v", got, tt.wantArgs)
-					}
-				}
-			})
-		}
-	})
-
-	t.Run("Should accept a public remote IP literal", func(t *testing.T) {
-		t.Parallel()
-
-		for _, rawURL := range []string{"https://8.8.8.8/mcp", "https://[2001:4860:4860::8888]/mcp"} {
-			t.Run("Should accept "+rawURL, func(t *testing.T) {
-				t.Parallel()
-
-				_, err := DecodeDocument(KindMCP, []byte(validEntry(
-					`"launch":{"type":"remote","url":"`+rawURL+`"}`,
-					`[]`,
-				)))
-				if err != nil {
-					t.Fatalf("DecodeDocument(%q) error = %v", rawURL, err)
-				}
-			})
-		}
-	})
-
-	t.Run("Should reject unsafe or legacy MCP v2 declarations", func(t *testing.T) {
-		t.Parallel()
-
-		tests := []struct {
-			name    string
-			raw     string
-			wantErr string
-		}{
-			{
-				name:    "Should reject a v1 manifest",
-				raw:     `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
-				wantErr: "feed too old",
-			},
-			{
-				name: "Should reject legacy MCP launch fields",
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"legacy","name":"Legacy","description":"Unsupported contract",` +
-					`"transport":"stdio","command":"server","default_scope":"workspace"}]}`,
-				wantErr: "unknown field",
-			},
-			{
-				name: "Should reject an insecure remote URL",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"http://mcp.example.test"}`,
-					`[]`,
-				),
-				wantErr: "absolute HTTPS URL",
-			},
-			{
-				name: "Should reject an explicit localhost remote URL",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp.localhost/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public host",
-			},
-			{
-				name: "Should reject an obviously local remote hostname",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp.internal/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public host",
-			},
-			{
-				name: "Should reject a single-label remote hostname",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public host",
-			},
-			{
-				name: "Should reject a loopback remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://127.0.0.1/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject an unspecified remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://0.0.0.0/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject a private remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://10.0.0.8/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject a link-local remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://169.254.169.254/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject a multicast remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://224.0.0.1/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject a documentation remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://192.0.2.1/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject a special-use remote IP literal",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://100.64.0.1/mcp"}`,
-					`[]`,
-				),
-				wantErr: "public HTTPS destination",
-			},
-			{
-				name: "Should reject duplicated input destinations",
-				raw: validEntry(
-					`"launch":{"type":"npm","package":"acme-server","version":"1.2.3"}`,
-					`[{"id":"first","prompt":"First","type":"string","required":false,"binding":{"type":"env","name":"SERVER_MODE"}},{"id":"second","prompt":"Second","type":"string","required":false,"binding":{"type":"env","name":"SERVER_MODE"}}]`,
-				),
-				wantErr: "binding env/\"SERVER_MODE\" is duplicated",
-			},
-			{
-				name: "Should reject option injection in package names",
-				raw: validEntry(
-					`"launch":{"type":"npm","package":"-y","version":"1.2.3"}`,
-					`[]`,
-				),
-				wantErr: "exact package name",
-			},
-			{
-				name: "Should reject an npm-scoped package in a uvx launch",
-				raw: validEntry(
-					`"launch":{"type":"uvx","package":"@acme/server","version":"1.2.3"}`,
-					`[]`,
-				),
-				wantErr: "exact package name",
-			},
-			{
-				name: "Should reject tagged docker images",
-				raw: validEntry(
-					`"launch":{"type":"docker","image":"ghcr.io/acme/server:latest","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`,
-					`[]`,
-				),
-				wantErr: "exact untagged image name",
-			},
-			{
-				name: "Should reject secret URL query inputs",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp.example.test"}`,
-					`[{"id":"token","prompt":"Access token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}]`,
-				),
-				wantErr: "must not bind a secret",
-			},
-			{
-				name: "Should reject query bindings that override launch configuration",
-				raw: validEntry(
-					`"launch":{"type":"remote","url":"https://mcp.example.test?read_only=true"}`,
-					`[{"id":"read_only","prompt":"Read only","type":"boolean","required":false,"binding":{"type":"url_query","name":"read_only"}}]`,
-				),
-				wantErr: "conflicts with launch URL",
-			},
-			{
-				name: "Should reject a missing default scope",
-				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"server","name":"Server","description":"Validated launch",` +
-					`"launch":{"type":"npm","package":"acme-server","version":"1.2.3"}}]}`,
-				wantErr: "default_scope must be workspace or global",
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				_, err := DecodeDocument(KindMCP, []byte(tt.raw))
-				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("DecodeDocument() error = %v, want %q", err, tt.wantErr)
-				}
-			})
-		}
-	})
 
 	t.Run("Should reject a malformed typed default", func(t *testing.T) {
 		t.Parallel()
@@ -582,11 +307,6 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestNormalizeMCPInputValue(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should preserve a validated secret value without canonicalization", func(t *testing.T) {
 		t.Parallel()
 
@@ -616,23 +336,17 @@ func TestValidateCatalogDirectory(t *testing.T) {
 	t.Run("Should keep every production feed browseable at first launch", func(t *testing.T) {
 		t.Parallel()
 
-		catalogDir := filepath.Join("..", "..", "catalog")
-		for _, kind := range AllKinds() {
-			filename, err := kindFilename(kind)
-			if err != nil {
-				t.Fatalf("kindFilename(%q) error = %v", kind, err)
-			}
-			raw, err := os.ReadFile(filepath.Join(catalogDir, filename))
-			if err != nil {
-				t.Fatalf("ReadFile(%q) error = %v", filename, err)
-			}
-			document, err := DecodeDocument(kind, raw)
-			if err != nil {
-				t.Fatalf("DecodeDocument(%q) error = %v", kind, err)
-			}
-			if len(document.Entries) == 0 {
-				t.Fatalf("production catalog %q entries = 0, want at least one curated launch entry", kind)
-			}
+		catalogDir := filepath.Join("..", "..", "catalog", "v3")
+		raw, err := os.ReadFile(filepath.Join(catalogDir, "extensions.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := DecodeDocument(KindExtension, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(document.Entries) == 0 {
+			t.Fatal("production catalog requires at least one curated launch entry")
 		}
 	})
 
@@ -681,16 +395,40 @@ func TestDigestFile(t *testing.T) {
 func TestCatalogSourceFetch(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: file sources cannot fall back to a retired root feed.
+	// Owner: directory source resolution; canonical suite: TestCatalogSourceFetch.
+	t.Run("Should reject a root-only directory without a v3 family", func(t *testing.T) {
+		t.Parallel()
+		directory := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(directory, "extensions.json"),
+			[]byte(validExtensionDocumentJSON()),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		source, err := NewDirectorySource(KindExtension, (&url.URL{Scheme: "file", Path: directory}).String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.Fetch(t.Context()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Fetch(root-only catalog) = %v, want missing v3 family", err)
+		}
+	})
+
 	t.Run("Should fetch a checkout document through a file URL", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "skills.json")
-		if err := os.WriteFile(path, []byte(validSkillDocumentJSON()), 0o600); err != nil {
+		if err := os.MkdirAll(filepath.Join(dir, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "v3", "extensions.json")
+		if err := os.WriteFile(path, []byte(validExtensionDocumentJSON()), 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 		baseURL := (&url.URL{Scheme: "file", Path: dir}).String()
-		source, err := NewSource(KindSkill, baseURL, &http.Client{Timeout: time.Second})
+		source, err := NewSource(KindExtension, baseURL, &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewSource(file) error = %v", err)
 		}
@@ -698,7 +436,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Fetch(file) error = %v", err)
 		}
-		if got, want := document.Entries[0].EntryID, "compozy"; got != want {
+		if got, want := document.Entries[0].EntryID, "bridge-github"; got != want {
 			t.Fatalf("Fetch(file) entry id = %q, want %q", got, want)
 		}
 	})
@@ -707,7 +445,10 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "skills.json")
+		if err := os.MkdirAll(filepath.Join(dir, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "v3", "extensions.json")
 		file, err := os.Create(path)
 		if err != nil {
 			t.Fatalf("Create(%q) error = %v", path, err)
@@ -722,7 +463,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 			t.Fatalf("Close(%q) error = %v", path, err)
 		}
 		source, err := NewDirectorySource(
-			KindSkill,
+			KindExtension,
 			(&url.URL{Scheme: "file", Path: dir}).String(),
 		)
 		if err != nil {
@@ -737,18 +478,18 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.URL.Path, "/mcp.json"; got != want {
+			if got, want := r.URL.Path, "/v3/extensions.json"; got != want {
 				t.Errorf("request path = %q, want %q", got, want)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			if _, err := w.Write([]byte(validMCPDocumentJSON())); err != nil {
+			if _, err := w.Write([]byte(validExtensionDocumentJSON())); err != nil {
 				t.Errorf("write response: %v", err)
 			}
 		}))
 		t.Cleanup(server.Close)
 
 		client := &http.Client{Timeout: time.Second}
-		source, err := NewHTTPSource(KindMCP, server.URL, client)
+		source, err := NewHTTPSource(KindExtension, server.URL, client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -756,7 +497,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Fetch() error = %v", err)
 		}
-		if got, want := document.Entries[0].EntryID, "filesystem"; got != want {
+		if got, want := document.Entries[0].EntryID, "bridge-github"; got != want {
 			t.Fatalf("Fetch() entry id = %q, want %q", got, want)
 		}
 	})
@@ -778,7 +519,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 				return nil, request.Context().Err()
 			}),
 		}
-		source, err := NewHTTPSource(KindMCP, "https://example.test/catalog", client)
+		source, err := NewHTTPSource(KindExtension, "https://example.test/catalog", client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -813,7 +554,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		source, err := NewHTTPSource(
-			KindMCP,
+			KindExtension,
 			server.URL,
 			&http.Client{Timeout: time.Second},
 			WithMaxResponseBytes(64),
@@ -830,7 +571,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject clients without an explicit timeout", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindMCP, "https://example.test/catalog", &http.Client{})
+		_, err := NewHTTPSource(KindExtension, "https://example.test/catalog", &http.Client{})
 		if err == nil {
 			t.Fatal("NewHTTPSource() error = nil, want timeout validation error")
 		}
@@ -846,7 +587,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		}))
 		t.Cleanup(server.Close)
-		source, err := NewHTTPSource(KindSkill, server.URL, &http.Client{Timeout: time.Second})
+		source, err := NewHTTPSource(KindExtension, server.URL, &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -860,7 +601,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a relative catalog URL", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindSkill, "relative/catalog", &http.Client{Timeout: time.Second})
+		_, err := NewHTTPSource(KindExtension, "relative/catalog", &http.Client{Timeout: time.Second})
 		if err == nil || !strings.Contains(err.Error(), "absolute HTTP(S) URL") {
 			t.Fatalf("NewHTTPSource(relative URL) error = %v, want absolute-URL validation", err)
 		}
@@ -869,7 +610,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a missing HTTP client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindSkill, "https://example.test", nil)
+		_, err := NewHTTPSource(KindExtension, "https://example.test", nil)
 		if err == nil || !strings.Contains(err.Error(), "HTTP client timeout must be positive") {
 			t.Fatalf("NewHTTPSource(nil client) error = %v, want client validation", err)
 		}
@@ -878,12 +619,12 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a nil fetch context", func(t *testing.T) {
 		t.Parallel()
 
-		source, err := NewHTTPSource(KindSkill, "https://example.test", &http.Client{Timeout: time.Second})
+		source, err := NewHTTPSource(KindExtension, "https://example.test", &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewHTTPSource(valid) error = %v", err)
 		}
-		if got := source.Kind(); got != KindSkill {
-			t.Fatalf("Kind() = %q, want %q", got, KindSkill)
+		if got := source.Kind(); got != KindExtension {
+			t.Fatalf("Kind() = %q, want %q", got, KindExtension)
 		}
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		if _, err := source.Fetch(nil); err == nil || !strings.Contains(err.Error(), "fetch context is required") {
@@ -908,7 +649,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Parallel()
 
 		const drainLimit int64 = 64 << 10
-		validDocument := validMCPDocumentJSON()
+		validDocument := validExtensionDocumentJSON()
 		probeErr := errors.New("probe response")
 		tests := []struct {
 			name              string
@@ -1036,7 +777,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 					}),
 				}
 				source, err := NewHTTPSource(
-					KindMCP,
+					KindExtension,
 					"https://example.test/catalog",
 					client,
 					WithMaxResponseBytes(tt.maxResponseBytes),
@@ -1095,7 +836,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 				return &http.Response{StatusCode: http.StatusOK, ContentLength: -1, Body: body}, nil
 			}),
 		}
-		source, err := NewHTTPSource(KindMCP, "https://example.test/catalog", client)
+		source, err := NewHTTPSource(KindExtension, "https://example.test/catalog", client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -1183,26 +924,21 @@ func (b *errorSequenceReadCloser) Close() error {
 	return b.closeErr
 }
 
-func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
+func TestDecodeExtensionTimestamps(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should parse published and updated timestamps for a remote MCP entry", func(t *testing.T) {
+	t.Run("Should parse published and updated timestamps for an extension entry", func(t *testing.T) {
 		t.Parallel()
 
-		raw := `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"remote","name":"Remote","description":"OAuth remote",` +
-			`"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z",` +
-			`"launch":{"type":"remote","url":"https://mcp.example.test/v1"},` +
-			`"auth":{"method":"oauth","registration":"auto","scopes":["mcp.read"]},` +
-			`"default_scope":"workspace"}]}`
-		document, err := DecodeDocument(KindMCP, []byte(raw))
+		raw := extensionDocumentJSON(`,"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z"`)
+		document, err := DecodeDocument(KindExtension, []byte(raw))
 		if err != nil {
-			t.Fatalf("DecodeDocument(remote MCP) error = %v", err)
+			t.Fatalf("DecodeDocument(extension) error = %v", err)
 		}
 		entry := document.Entries[0]
 		if entry.PublishedAt == nil || entry.UpdatedAt == nil {
 			t.Fatalf(
-				"DecodeDocument(remote MCP) timestamps = %#v/%#v, want both",
+				"DecodeDocument(extension) timestamps = %#v/%#v, want both",
 				entry.PublishedAt,
 				entry.UpdatedAt,
 			)
@@ -1212,21 +948,11 @@ func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
 	t.Run("Should reject a document with trailing JSON values", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := DecodeDocument(KindSkill, []byte(validSkillDocumentJSON()+` {}`))
+		_, err := DecodeDocument(KindExtension, []byte(validExtensionDocumentJSON()+` {}`))
 		if err == nil || !strings.Contains(err.Error(), "multiple values") {
 			t.Fatalf("DecodeDocument(trailing value) error = %v, want multiple-values diagnostic", err)
 		}
 	})
-}
-
-func validMCPDocumentJSON() string {
-	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-		`"entry_id":"filesystem","name":"Filesystem","description":"Read and write approved local files",` +
-		`"version":"1.0.0","launch":{"type":"npm","package":"@modelcontextprotocol/server-filesystem",` +
-		`"version":"1.0.0"},"inputs":[{"id":"root_path","prompt":"Allowed root",` +
-		`"type":"string","required":true,"binding":{"type":"env","name":"ROOT_PATH"}}],` +
-		`"default_scope":"workspace"` +
-		`}]}`
 }
 
 func validExtensionDocumentJSON() string {
@@ -1234,20 +960,12 @@ func validExtensionDocumentJSON() string {
 }
 
 func extensionDocumentJSON(formatField string) string {
-	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+	return `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 		`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 		`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
 		`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
 		`"tier":"official"` + formatField + `}]}`
-}
-
-func validSkillDocumentJSON() string {
-	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-		`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
-		`"description":"Operate Compozy through its structured surfaces","version":"1.0.0",` +
-		`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]` +
-		`}]}`
 }
 
 // Invariant: v3 entries retain inputs and safe icons; invalid optional icons never hide the extension.
@@ -1266,11 +984,14 @@ func TestDecodeV3ExtensionFields(t *testing.T) {
 			t.Fatalf("entry = %#v", entry)
 		}
 		root := t.TempDir()
-		if err := os.WriteFile(filepath.Join(root, "extensions.json"), raw, 0o600); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "v3", "extensions.json"), raw, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		presets := `{"manifest_version":3,"generated_at":"2026-09-12T10:00:00Z","entries":[]}`
-		if err := os.WriteFile(filepath.Join(root, "marketplaces.json"), []byte(presets), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(root, "v3", "marketplaces.json"), []byte(presets), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		if err := ValidateCatalogDirectory(root); err != nil {
@@ -1304,7 +1025,7 @@ func v3ExtensionJSON(t *testing.T, icon string) []byte {
 	fields := `,"icon":` + string(
 		rawIcon,
 	) + `,"inputs":[{"id":"region","prompt":"Region","type":"identifier","required":true,"binding":{"type":"env","name":"REGION"}},{"id":"debug","prompt":"Debug","type":"boolean","required":false,"default":false,"binding":{"type":"env","name":"DEBUG"}}]`
-	return []byte(strings.Replace(extensionDocumentJSON(fields), `"manifest_version":2`, `"manifest_version":3`, 1))
+	return []byte(extensionDocumentJSON(fields))
 }
 
 // Invariant: extension discovery reads only v3 and never retries a retired root feed.
@@ -1328,7 +1049,9 @@ func TestHTTPSourceV3Family(t *testing.T) {
 			t.Parallel()
 			v3 := v3ExtensionJSON(t, "")
 			if test.wrongVersion {
-				v3 = []byte(validExtensionDocumentJSON())
+				v3 = []byte(
+					strings.Replace(validExtensionDocumentJSON(), `"manifest_version":3`, `"manifest_version":2`, 1),
+				)
 			}
 			var rootCalls atomic.Int64
 			var v3Calls atomic.Int64
@@ -1368,4 +1091,27 @@ func TestHTTPSourceV3Family(t *testing.T) {
 			}
 		})
 	}
+}
+
+func duplicateExtensionInstallSlugsJSON(t *testing.T) string {
+	t.Helper()
+	var document struct {
+		ManifestVersion int              `json:"manifest_version"`
+		GeneratedAt     string           `json:"generated_at"`
+		Entries         []map[string]any `json:"entries"`
+	}
+	if err := json.Unmarshal([]byte(validExtensionDocumentJSON()), &document); err != nil {
+		t.Fatal(err)
+	}
+	entry := make(map[string]any)
+	for key, value := range document.Entries[0] {
+		entry[key] = value
+	}
+	entry["entry_id"] = "second"
+	document.Entries = append(document.Entries, entry)
+	raw, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
 }

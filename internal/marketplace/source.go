@@ -70,9 +70,7 @@ func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HT
 	if parsed.User != nil {
 		return nil, errors.New("marketplace catalog: base URL must not contain credentials")
 	}
-	if kind == KindExtension {
-		filename = "v3/" + filename
-	}
+	filename = "v3/" + filename
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + filename
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
@@ -101,19 +99,8 @@ func (s *HTTPSource) Kind() Kind {
 	return s.kind
 }
 
-// Fetch downloads and validates the source document without mutating projection state.
-func (s *HTTPSource) Fetch(ctx context.Context) (*Document, error) {
-	document, err := s.fetch(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if s.kind == KindExtension && document.ManifestVersion != ManifestVersionV3 {
-		return nil, fmt.Errorf("marketplace catalog v3 family requires manifest_version 3")
-	}
-	return document, nil
-}
-
-func (s *HTTPSource) fetch(ctx context.Context) (document *Document, err error) {
+// Fetch downloads and validates the extension catalog without mutating projection state.
+func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
@@ -201,7 +188,7 @@ func joinHTTPResponseErrors(primary error, additional ...error) error {
 	}
 }
 
-// DecodeDocument strictly validates a v2 document or the v3 extension family.
+// DecodeDocument strictly validates the extension catalog family.
 func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	document, err := decodeDocument(kind, raw)
 	if err == nil || errors.Is(err, ErrCatalogDecode) {
@@ -224,8 +211,7 @@ func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 	if envelope.ManifestVersion == nil || *envelope.ManifestVersion == 0 {
 		return nil, fmt.Errorf("marketplace catalog %q manifest_version is required", kind)
 	}
-	if *envelope.ManifestVersion != ManifestVersion &&
-		(*envelope.ManifestVersion != ManifestVersionV3 || kind != KindExtension) {
+	if *envelope.ManifestVersion != ManifestVersion {
 		return nil, &UnsupportedManifestVersionError{Kind: kind, Version: *envelope.ManifestVersion}
 	}
 	if envelope.Entries == nil {
@@ -244,7 +230,7 @@ func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 	}
 	entries := make([]Entry, 0, len(*envelope.Entries))
 	for index, entryRaw := range *envelope.Entries {
-		entry, err := decodeKindEntry(kind, entryRaw)
+		entry, err := decodeExtensionEntry(entryRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marketplace catalog %q entry %d: %w", kind, index, err)
 		}
@@ -258,19 +244,6 @@ func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 		GeneratedAt:     generatedAt.UTC(),
 		Entries:         entries,
 	}, nil
-}
-
-func decodeKindEntry(kind Kind, raw []byte) (Entry, error) {
-	switch kind {
-	case KindMCP:
-		return decodeMCPEntry(raw)
-	case KindExtension:
-		return decodeExtensionEntry(raw)
-	case KindSkill:
-		return decodeSkillEntry(raw)
-	default:
-		return Entry{}, fmt.Errorf("marketplace catalog: unsupported kind %q", kind)
-	}
 }
 
 func decodeStrict(raw []byte, destination any) error {
@@ -291,12 +264,8 @@ func decodeStrict(raw []byte, destination any) error {
 
 func kindFilename(kind Kind) (string, error) {
 	switch kind {
-	case KindMCP:
-		return "mcp.json", nil
 	case KindExtension:
 		return "extensions.json", nil
-	case KindSkill:
-		return "skills.json", nil
 	default:
 		return "", fmt.Errorf("marketplace catalog: unsupported kind %q", kind)
 	}

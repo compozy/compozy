@@ -7,10 +7,7 @@ import (
 	"time"
 )
 
-const ManifestVersion = 2
-
-// ManifestVersionV3 is the extension-only catalog family.
-const ManifestVersionV3 = 3
+const ManifestVersion = 3
 
 // RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
 const RemoteSkillEntryPrefix = "skill_"

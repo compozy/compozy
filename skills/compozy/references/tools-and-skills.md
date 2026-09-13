@@ -94,6 +94,8 @@ For structured catalog discovery, use `GET /api/marketplace` over HTTP or UDS. R
 `sources`, `revision`, `stale`, and optional `next_cursor`. Continue with the same query, profile, and
 workspace. On `marketplace_cursor_stale` with `restart: true`, discard prior pages and restart.
 Failed refreshes preserve cached entries; read source diagnostics before interpreting an empty list.
+HTTP(S) and file catalog roots both use `v3/extensions.json` and `v3/marketplaces.json`.
+Missing v3 is a source failure; there is no root-feed or v2 fallback.
 
 Inspect `GET /api/marketplace/entries/{entry_id}?source=<source>` and optionally
 `installed_name=<local-name>`. Identity is `(source_ref, entry_id)`, never the display name.
@@ -133,10 +135,9 @@ profile layer, `--scope workspace --workspace <id>` for a workspace layer, and c
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
-Catalog remote OAuth entries declare `method: oauth` and `registration: auto`. The daemon resolves
+For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
-Registration fallback attempt. Treat validation failure as a feed-authoring error; the last valid
-stale projection remains authoritative.
+Registration fallback attempt.
 
 Authorization is bound to the exact scoped server definition. Replacing or deleting that definition
 invalidates pending completion, and a stored token is never sent when the transport, remote URL, or

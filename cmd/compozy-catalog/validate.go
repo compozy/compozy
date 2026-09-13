@@ -53,7 +53,7 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 			directory,
 			temporaryRoot,
 			entry,
-			document.ManifestVersion == marketplace.ManifestVersionV3,
+			document.ManifestVersion == marketplace.ManifestVersion,
 		); err != nil {
 			return err
 		}

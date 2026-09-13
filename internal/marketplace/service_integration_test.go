@@ -17,23 +17,16 @@ import (
 func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should project every curated kind through HTTP and SQLite", func(t *testing.T) {
+	t.Run("Should project the extension catalog through HTTP and SQLite", func(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			writer.Header().Set("Content-Type", "application/json")
-			var body string
-			switch request.URL.Path {
-			case "/mcp.json":
-				body = validMCPDocumentJSON()
-			case "/extensions.json":
-				body = validExtensionDocumentJSON()
-			case "/skills.json":
-				body = validSkillDocumentJSON()
-			default:
+			if request.URL.Path != "/v3/extensions.json" {
 				http.NotFound(writer, request)
 				return
 			}
+			body := validExtensionDocumentJSON()
 			if _, err := writer.Write([]byte(body)); err != nil {
 				t.Errorf("write feed response: %v", err)
 			}
@@ -41,14 +34,11 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		client := &http.Client{Timeout: time.Second}
-		sources := make([]Source, 0, len(AllKinds()))
-		for _, kind := range AllKinds() {
-			source, err := NewHTTPSource(kind, server.URL, client)
-			if err != nil {
-				t.Fatalf("NewHTTPSource(%q) error = %v", kind, err)
-			}
-			sources = append(sources, source)
+		source, err := NewHTTPSource(KindExtension, server.URL, client)
+		if err != nil {
+			t.Fatal(err)
 		}
+		sources := []Source{source}
 		service, err := NewService(openMarketplaceTestStore(t), sources, time.Hour, time.Minute)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -57,18 +47,12 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if _, err := service.Refresh(ctx); err != nil {
 			t.Fatalf("Refresh(all kinds) error = %v", err)
 		}
-		for kind, wantEntryID := range map[Kind]string{
-			KindMCP:       "filesystem",
-			KindExtension: "bridge-github",
-			KindSkill:     "compozy",
-		} {
-			result, err := service.Browse(ctx, kind, "", 0, 10)
-			if err != nil {
-				t.Fatalf("Browse(%q) error = %v", kind, err)
-			}
-			if got, want := len(result.Entries), 1; got != want || result.Entries[0].EntryID != wantEntryID {
-				t.Fatalf("Browse(%q) = %#v, want only %q", kind, result.Entries, wantEntryID)
-			}
+		result, err := service.Browse(ctx, KindExtension, "", 0, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Entries) != 1 || result.Entries[0].EntryID != "bridge-github" {
+			t.Fatalf("Browse() = %#v, want the published extension", result)
 		}
 	})
 
@@ -77,12 +61,14 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			feed := &mutableCatalogFeed{body: validSkillFeed("stable", "Stable skill", "pulled", "Pulled skill")}
+			feed := &mutableCatalogFeed{
+				body: validExtensionFeed("stable", "Stable extension", "pulled", "Pulled extension"),
+			}
 			server := httptest.NewServer(feed)
 			t.Cleanup(server.Close)
 
 			store := openMarketplaceTestStore(t)
-			source, err := NewHTTPSource(KindSkill, server.URL, &http.Client{Timeout: time.Second})
+			source, err := NewHTTPSource(KindExtension, server.URL, &http.Client{Timeout: time.Second})
 			if err != nil {
 				t.Fatalf("NewHTTPSource() error = %v", err)
 			}
@@ -92,45 +78,45 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			}
 			ctx := testutil.Context(t)
 
-			if _, err := service.Refresh(ctx, KindSkill); err != nil {
+			if _, err := service.Refresh(ctx, KindExtension); err != nil {
 				t.Fatalf("Refresh(valid) error = %v", err)
 			}
-			assertProjectedSkillIDs(t, ctx, store, "pulled", "stable")
+			assertProjectedExtensionIDs(t, ctx, store, "pulled", "stable")
 
-			feed.setBody(validSkillFeed("stable", "Stable skill"))
-			if _, err := service.Refresh(ctx, KindSkill); err != nil {
+			feed.setBody(validExtensionFeed("stable", "Stable extension"))
+			if _, err := service.Refresh(ctx, KindExtension); err != nil {
 				t.Fatalf("Refresh(kill switch) error = %v", err)
 			}
-			assertProjectedSkillIDs(t, ctx, store, "stable")
+			assertProjectedExtensionIDs(t, ctx, store, "stable")
 
 			feed.setBody(
-				`{"manifest_version": 2,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`,
+				`{"manifest_version": 3,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`,
 			)
 			if _, err := service.Refresh(
 				ctx,
-				KindSkill,
+				KindExtension,
 			); err == nil ||
 				!strings.Contains(err.Error(), "name is required") {
 				t.Fatalf("Refresh(malformed) error = %v, want required-name validation failure", err)
 			}
-			assertProjectedSkillIDs(t, ctx, store, "stable")
+			assertProjectedExtensionIDs(t, ctx, store, "stable")
 
 			server.Close()
 			if _, err := service.Refresh(
 				ctx,
-				KindSkill,
+				KindExtension,
 			); err == nil ||
 				!strings.Contains(err.Error(), "connection refused") {
 				t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
 			}
-			result, err := service.Browse(ctx, KindSkill, "", 0, 10)
+			result, err := service.Browse(ctx, KindExtension, "", 0, 10)
 			if err != nil {
 				t.Fatalf("Browse(stale fallback) error = %v", err)
 			}
 			if !result.State.Stale || result.State.ErrorClass != errorClassNetwork {
 				t.Fatalf("Browse(stale fallback) state = %#v, want stale network state", result.State)
 			}
-			assertProjectedSkillIDs(t, ctx, store, "stable")
+			assertProjectedExtensionIDs(t, ctx, store, "stable")
 			states, err := service.Status(ctx)
 			if err != nil {
 				t.Fatalf("Status() error = %v", err)
@@ -165,21 +151,22 @@ func (f *mutableCatalogFeed) setBody(body string) {
 	f.body = body
 }
 
-func validSkillFeed(fields ...string) string {
+func validExtensionFeed(fields ...string) string {
 	entries := make([]string, 0, len(fields)/2)
 	for index := 0; index < len(fields); index += 2 {
 		entryID := fields[index]
 		name := fields[index+1]
 		entries = append(entries, `{"entry_id":"`+entryID+`","name":"`+name+`",`+
-			`"description":"Integration fixture","version":"1.0.0","install_slug":"compozy/`+entryID+`"}`)
+			`"description":"Integration fixture","version":"1.0.0","install_slug":"compozy/`+entryID+`",`+
+			`"tier":"official","artifact_url":"https://example.test/package.tgz","digest_sha256":"`+strings.Repeat("a", 64)+`"}`)
 	}
-	return `{"manifest_version": 2,"generated_at":"2026-07-13T12:00:00Z","entries":[` +
+	return `{"manifest_version": 3,"generated_at":"2026-07-13T12:00:00Z","entries":[` +
 		strings.Join(entries, ",") + `]}`
 }
 
-func assertProjectedSkillIDs(t *testing.T, ctx context.Context, store Store, wantEntryIDs ...string) {
+func assertProjectedExtensionIDs(t *testing.T, ctx context.Context, store Store, wantEntryIDs ...string) {
 	t.Helper()
-	page, err := store.ListKind(ctx, KindSkill, "", 0, 10)
+	page, err := store.ListKind(ctx, KindExtension, "", 0, 10)
 	if err != nil {
 		t.Fatalf("ListKind() error = %v", err)
 	}

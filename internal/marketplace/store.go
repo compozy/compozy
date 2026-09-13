@@ -256,8 +256,7 @@ func validateReplacement(kind Kind, document *Document) error {
 	if document == nil {
 		return fmt.Errorf("marketplace catalog %q document is required", kind)
 	}
-	if document.ManifestVersion != ManifestVersion &&
-		(document.ManifestVersion != ManifestVersionV3 || kind != KindExtension) {
+	if document.ManifestVersion != ManifestVersion {
 		return &UnsupportedManifestVersionError{Kind: kind, Version: document.ManifestVersion}
 	}
 	if document.GeneratedAt.IsZero() || document.FetchedAt.IsZero() {
