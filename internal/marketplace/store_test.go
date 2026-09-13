@@ -14,49 +14,49 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestSQLiteStoreReplaceKind(t *testing.T) {
+func TestSQLiteStoreReplaceSource(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should replace one kind atomically and prune absent entries", func(t *testing.T) {
+	t.Run("Should replace one source atomically and prune absent entries", func(t *testing.T) {
 		t.Parallel()
 
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		first := testDocument(now,
-			testEntry(KindMCP, "alpha", "Alpha server", "First server"),
-			testEntry(KindMCP, "beta", "Beta server", "Second server"),
+			testEntry(KindExtension, "alpha", "Alpha server", "First server"),
+			testEntry(KindExtension, "beta", "Beta server", "Second server"),
 		)
-		if err := store.ReplaceKind(ctx, KindMCP, first); err != nil {
-			t.Fatalf("ReplaceKind(first) error = %v", err)
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
+			t.Fatalf("ReplaceSource(first) error = %v", err)
 		}
 
 		second := testDocument(now.Add(time.Hour),
-			testEntry(KindMCP, "beta", "Beta server", "Updated description"),
+			testEntry(KindExtension, "beta", "Beta server", "Updated description"),
 		)
-		if err := store.ReplaceKind(ctx, KindMCP, second); err != nil {
-			t.Fatalf("ReplaceKind(second) error = %v", err)
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, second); err != nil {
+			t.Fatalf("ReplaceSource(second) error = %v", err)
 		}
 
-		page, err := store.ListKind(ctx, KindMCP, "", 0, 10)
+		page, err := store.BrowseSource(ctx, CompozyCatalogSource, "", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind() error = %v", err)
+			t.Fatalf("BrowseSource() error = %v", err)
 		}
 		if got, want := len(page.Entries), 1; got != want {
-			t.Fatalf("ListKind() entries = %d, want %d", got, want)
+			t.Fatalf("BrowseSource() entries = %d, want %d", got, want)
 		}
 		if got, want := page.Entries[0].EntryID, "beta"; got != want {
-			t.Fatalf("ListKind() entry id = %q, want %q", got, want)
+			t.Fatalf("BrowseSource() entry id = %q, want %q", got, want)
 		}
 		if got, want := page.Entries[0].Description, "Updated description"; got != want {
-			t.Fatalf("ListKind() description = %q, want %q", got, want)
+			t.Fatalf("BrowseSource() description = %q, want %q", got, want)
 		}
-		state, err := store.KindState(ctx, KindMCP)
+		state, err := store.SourceState(ctx, CompozyCatalogSource)
 		if err != nil {
-			t.Fatalf("KindState() error = %v", err)
+			t.Fatalf("SourceState() error = %v", err)
 		}
 		if state.Stale || state.EntryCount != 1 || !state.FetchedAt.Equal(second.FetchedAt) {
-			t.Fatalf("KindState() = %#v, want fresh state for one entry", state)
+			t.Fatalf("SourceState() = %#v, want fresh state for one entry", state)
 		}
 	})
 
@@ -66,29 +66,29 @@ func TestSQLiteStoreReplaceKind(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		if err := store.ReplaceKind(ctx, KindSkill, testDocument(
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			now,
-			testEntry(KindSkill, "stable", "Stable skill", "Preserved row"),
+			testEntry(KindExtension, "stable", "Stable skill", "Preserved row"),
 		)); err != nil {
-			t.Fatalf("ReplaceKind(valid) error = %v", err)
+			t.Fatalf("ReplaceSource(valid) error = %v", err)
 		}
 
-		invalid := testDocument(now.Add(time.Hour), testEntry(KindSkill, "", "Invalid", "Missing id"))
-		err := store.ReplaceKind(ctx, KindSkill, invalid)
+		invalid := testDocument(now.Add(time.Hour), testEntry(KindExtension, "", "Invalid", "Missing id"))
+		err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, invalid)
 		if err == nil || !strings.Contains(err.Error(), "identity fields are required") {
-			t.Fatalf("ReplaceKind(invalid) error = %v, want identity-fields validation", err)
+			t.Fatalf("ReplaceSource(invalid) error = %v, want identity-fields validation", err)
 		}
-		page, err := store.ListKind(ctx, KindSkill, "", 0, 10)
+		page, err := store.BrowseSource(ctx, CompozyCatalogSource, "", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind() error = %v", err)
+			t.Fatalf("BrowseSource() error = %v", err)
 		}
 		if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "stable" {
-			t.Fatalf("ListKind() = %#v, want preserved stable entry", page)
+			t.Fatalf("BrowseSource() = %#v, want preserved stable entry", page)
 		}
 	})
 }
 
-func TestMarketplaceKindStateRejectsUnrepresentableStoredCounts(t *testing.T) {
+func TestMarketplaceSourceStateRejectsUnrepresentableStoredCounts(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should reject negative durable fields", func(t *testing.T) {
@@ -98,8 +98,8 @@ func TestMarketplaceKindStateRejectsUnrepresentableStoredCounts(t *testing.T) {
 			{ManifestVersion: -1},
 			{ManifestVersion: 1, EntryCount: -1},
 		} {
-			if _, err := marketplaceKindStateFromRow(row); err == nil {
-				t.Fatalf("marketplaceKindStateFromRow(%#v) error = nil, want range failure", row)
+			if _, err := marketplaceSourceStateFromRow(row); err == nil {
+				t.Fatalf("marketplaceSourceStateFromRow(%#v) error = nil, want range failure", row)
 			}
 		}
 	})
@@ -120,6 +120,46 @@ func TestMarketplaceKindStateRejectsUnrepresentableStoredCounts(t *testing.T) {
 func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: equal entry IDs and freshness records remain isolated by source.
+	// Owner: catalog persistence; canonical suite: TestSQLiteStoreQueriesAndStaleState.
+	t.Run("Should scope equal entry IDs and stale state to their source", func(t *testing.T) {
+		t.Parallel()
+		catalog := openMarketplaceTestStore(t)
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		for _, source := range []string{CompozyCatalogSource, "partner"} {
+			document := testDocument(at, testEntry(KindExtension, "shared", source, "Source isolation"))
+			if err := catalog.ReplaceSource(ctx, source, 0, document); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := catalog.MarkSourceStale(ctx, "partner", 0, errorClassNetwork, "unavailable"); err != nil {
+			t.Fatal(err)
+		}
+		for _, source := range []string{CompozyCatalogSource, "partner"} {
+			entry, err := catalog.GetEntry(ctx, source, "shared")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if entry.SourceName != source || entry.Name != source {
+				t.Fatalf("GetEntry(%q) = %#v", source, entry)
+			}
+			state, err := catalog.SourceState(ctx, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Source != source || state.Stale != (source == "partner") || state.EntryCount != 1 {
+				t.Fatalf("SourceState(%q) = %#v", source, state)
+			}
+		}
+		if _, err := catalog.GetEntry(ctx, "missing", "shared"); !errors.Is(err, ErrEntryNotFound) {
+			t.Fatalf("GetEntry(missing) = %v", err)
+		}
+		if _, err := catalog.SourceState(ctx, "missing"); !errors.Is(err, ErrSourceStateMissing) {
+			t.Fatalf("SourceState(missing) = %v", err)
+		}
+	})
+
 	t.Run("Should filter name and description, honor limit, and return detail", func(t *testing.T) {
 		t.Parallel()
 
@@ -134,90 +174,90 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 			testEntry(KindExtension, "strasse", "Straße tools", "Indexes German names"),
 			testEntry(KindExtension, "cafe", "Cafe\u0301 index", "Decomposed canonical text"),
 		)
-		if err := store.ReplaceKind(ctx, KindExtension, document); err != nil {
-			t.Fatalf("ReplaceKind() error = %v", err)
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, document); err != nil {
+			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 
-		page, err := store.ListKind(ctx, KindExtension, "telemetry", 0, 1)
+		page, err := store.BrowseSource(ctx, CompozyCatalogSource, "telemetry", 0, 1)
 		if err != nil {
-			t.Fatalf("ListKind(query) error = %v", err)
+			t.Fatalf("BrowseSource(query) error = %v", err)
 		}
 		if got, want := len(page.Entries), 1; got != want {
-			t.Fatalf("ListKind(query) entries = %d, want %d", got, want)
+			t.Fatalf("BrowseSource(query) entries = %d, want %d", got, want)
 		}
 		if got, want := page.Total, 2; got != want {
-			t.Fatalf("ListKind(query) total = %d, want %d", got, want)
+			t.Fatalf("BrowseSource(query) total = %d, want %d", got, want)
 		}
 		if got, want := page.Entries[0].EntryID, "beta"; got != want {
-			t.Fatalf("ListKind(query) first id = %q, want deterministic %q", got, want)
+			t.Fatalf("BrowseSource(query) first id = %q, want deterministic %q", got, want)
 		}
-		nextPage, err := store.ListKind(ctx, KindExtension, "telemetry", 1, 1)
+		nextPage, err := store.BrowseSource(ctx, CompozyCatalogSource, "telemetry", 1, 1)
 		if err != nil {
-			t.Fatalf("ListKind(next page) error = %v", err)
+			t.Fatalf("BrowseSource(next page) error = %v", err)
 		}
 		if got, want := nextPage.Total, 2; got != want || len(nextPage.Entries) != 1 ||
 			nextPage.Entries[0].EntryID != "alpha" {
-			t.Fatalf("ListKind(next page) = %#v, want second stable match and exact total %d", nextPage, want)
+			t.Fatalf("BrowseSource(next page) = %#v, want second stable match and exact total %d", nextPage, want)
 		}
-		byName, err := store.ListKind(ctx, KindExtension, "cost guard", 0, 10)
+		byName, err := store.BrowseSource(ctx, CompozyCatalogSource, "cost guard", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(name query) error = %v", err)
+			t.Fatalf("BrowseSource(name query) error = %v", err)
 		}
 		if got, want := len(byName.Entries), 1; got != want || byName.Entries[0].EntryID != "gamma" {
-			t.Fatalf("ListKind(name query) = %#v, want gamma", byName)
+			t.Fatalf("BrowseSource(name query) = %#v, want gamma", byName)
 		}
-		byDescription, err := store.ListKind(ctx, KindExtension, "exports traces", 0, 10)
+		byDescription, err := store.BrowseSource(ctx, CompozyCatalogSource, "exports traces", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(description query) error = %v", err)
+			t.Fatalf("BrowseSource(description query) error = %v", err)
 		}
 		if got, want := len(byDescription.Entries), 1; got != want || byDescription.Entries[0].EntryID != "alpha" {
-			t.Fatalf("ListKind(description query) = %#v, want alpha", byDescription)
+			t.Fatalf("BrowseSource(description query) = %#v, want alpha", byDescription)
 		}
-		caseInsensitive, err := store.ListKind(ctx, KindExtension, "TELEMETRY", 0, 10)
+		caseInsensitive, err := store.BrowseSource(ctx, CompozyCatalogSource, "TELEMETRY", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(case-insensitive query) error = %v", err)
+			t.Fatalf("BrowseSource(case-insensitive query) error = %v", err)
 		}
 		if got, want := len(caseInsensitive.Entries), 2; got != want {
-			t.Fatalf("ListKind(case-insensitive query) = %#v, want alpha and beta", caseInsensitive)
+			t.Fatalf("BrowseSource(case-insensitive query) = %#v, want alpha and beta", caseInsensitive)
 		}
-		unicodeFolded, err := store.ListKind(ctx, KindExtension, "résumé", 0, 10)
+		unicodeFolded, err := store.BrowseSource(ctx, CompozyCatalogSource, "résumé", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(Unicode-folded query) error = %v", err)
+			t.Fatalf("BrowseSource(Unicode-folded query) error = %v", err)
 		}
 		if got, want := len(unicodeFolded.Entries), 1; got != want || unicodeFolded.Entries[0].EntryID != "resume" {
-			t.Fatalf("ListKind(Unicode-folded query) = %#v, want resume", unicodeFolded)
+			t.Fatalf("BrowseSource(Unicode-folded query) = %#v, want resume", unicodeFolded)
 		}
-		fullFolded, err := store.ListKind(ctx, KindExtension, "STRASSE", 0, 10)
+		fullFolded, err := store.BrowseSource(ctx, CompozyCatalogSource, "STRASSE", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(full-fold query) error = %v", err)
+			t.Fatalf("BrowseSource(full-fold query) error = %v", err)
 		}
 		if got, want := len(fullFolded.Entries), 1; got != want || fullFolded.Entries[0].EntryID != "strasse" {
-			t.Fatalf("ListKind(full-fold query) = %#v, want strasse", fullFolded)
+			t.Fatalf("BrowseSource(full-fold query) = %#v, want strasse", fullFolded)
 		}
-		canonicalEquivalent, err := store.ListKind(ctx, KindExtension, "Café", 0, 10)
+		canonicalEquivalent, err := store.BrowseSource(ctx, CompozyCatalogSource, "Café", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(canonical-equivalence query) error = %v", err)
+			t.Fatalf("BrowseSource(canonical-equivalence query) error = %v", err)
 		}
 		if got, want := len(canonicalEquivalent.Entries), 1; got != want ||
 			canonicalEquivalent.Entries[0].EntryID != "cafe" {
-			t.Fatalf("ListKind(canonical-equivalence query) = %#v, want cafe", canonicalEquivalent)
+			t.Fatalf("BrowseSource(canonical-equivalence query) = %#v, want cafe", canonicalEquivalent)
 		}
-		empty, err := store.ListKind(ctx, KindExtension, "not-present", 0, 10)
+		empty, err := store.BrowseSource(ctx, CompozyCatalogSource, "not-present", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind(zero-result query) error = %v", err)
+			t.Fatalf("BrowseSource(zero-result query) error = %v", err)
 		}
 		if len(empty.Entries) != 0 {
-			t.Fatalf("ListKind(zero-result query) = %#v, want empty", empty)
+			t.Fatalf("BrowseSource(zero-result query) = %#v, want empty", empty)
 		}
 
-		entry, err := store.GetEntry(ctx, KindExtension, "beta")
+		entry, err := store.GetEntry(ctx, CompozyCatalogSource, "beta")
 		if err != nil {
 			t.Fatalf("GetEntry() error = %v", err)
 		}
 		if got, want := entry.Name, "Audit log"; got != want {
 			t.Fatalf("GetEntry().Name = %q, want %q", got, want)
 		}
-		_, err = store.GetEntry(ctx, KindExtension, "missing")
+		_, err = store.GetEntry(ctx, CompozyCatalogSource, "missing")
 		if !errors.Is(err, ErrEntryNotFound) {
 			t.Fatalf("GetEntry(missing) error = %v, want ErrEntryNotFound", err)
 		}
@@ -229,29 +269,35 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		if err := store.ReplaceKind(ctx, KindMCP, testDocument(
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			now,
-			testEntry(KindMCP, "server", "MCP server", "Available while offline"),
+			testEntry(KindExtension, "server", "MCP server", "Available while offline"),
 		)); err != nil {
-			t.Fatalf("ReplaceKind() error = %v", err)
+			t.Fatalf("ReplaceSource() error = %v", err)
 		}
-		if err := store.MarkKindStale(ctx, KindMCP, errorClassNetwork, "token=[REDACTED]"); err != nil {
-			t.Fatalf("MarkKindStale() error = %v", err)
+		if err := store.MarkSourceStale(
+			ctx,
+			CompozyCatalogSource,
+			0,
+			errorClassNetwork,
+			"token=[REDACTED]",
+		); err != nil {
+			t.Fatalf("MarkSourceStale() error = %v", err)
 		}
 
-		state, err := store.KindState(ctx, KindMCP)
+		state, err := store.SourceState(ctx, CompozyCatalogSource)
 		if err != nil {
-			t.Fatalf("KindState() error = %v", err)
+			t.Fatalf("SourceState() error = %v", err)
 		}
 		if !state.Stale || state.ErrorClass != errorClassNetwork || state.LastError != "token=[REDACTED]" {
-			t.Fatalf("KindState() = %#v, want stale network state", state)
+			t.Fatalf("SourceState() = %#v, want stale network state", state)
 		}
-		page, err := store.ListKind(ctx, KindMCP, "", 0, 10)
+		page, err := store.BrowseSource(ctx, CompozyCatalogSource, "", 0, 10)
 		if err != nil {
-			t.Fatalf("ListKind() error = %v", err)
+			t.Fatalf("BrowseSource() error = %v", err)
 		}
 		if got, want := len(page.Entries), 1; got != want {
-			t.Fatalf("ListKind() entries = %d, want %d preserved", got, want)
+			t.Fatalf("BrowseSource() entries = %d, want %d preserved", got, want)
 		}
 	})
 }
@@ -267,7 +313,7 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		entry.InstallSlug = "AlexandreAkao/herdr-bridge-compozy"
 		collision := testEntry(KindExtension, "other", "Other", "Different package")
 		collision.InstallSlug, collision.Version = "compozy/herdr-bridge", "2.0.0"
-		if err := store.ReplaceKind(t.Context(), KindExtension,
+		if err := store.ReplaceSource(t.Context(), CompozyCatalogSource, 0,
 			testDocument(time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), entry, collision)); err != nil {
 			t.Fatal(err)
 		}
@@ -291,7 +337,7 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		) {
 			t.Fatalf("wrong canonical version: %v, want not found instead of another entry", err)
 		}
-		persisted, err := store.GetEntry(t.Context(), KindExtension, entry.EntryID)
+		persisted, err := store.GetEntry(t.Context(), CompozyCatalogSource, entry.EntryID)
 		if err != nil || persisted.InstallSlug != entry.InstallSlug {
 			t.Fatalf("persisted entry = %#v, %v, want unchanged feed acquisition identity", persisted, err)
 		}
@@ -304,8 +350,8 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		entry := testEntry(KindExtension, "telemetry", "Telemetry", "Exports traces")
 		entry.Version = "2.1.0"
-		if err := store.ReplaceKind(ctx, KindExtension, testDocument(now, entry)); err != nil {
-			t.Fatalf("ReplaceKind() error = %v", err)
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(now, entry)); err != nil {
+			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 
 		resolved, err := store.GetExtensionByInstallSlug(ctx, " compozy/telemetry ", " 2.1.0 ")
@@ -328,51 +374,6 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 	})
 }
 
-func TestSQLiteStoreListsCuratedSkillsByInstallSlugs(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should batch exact skill slugs without crossing marketplace kinds", func(t *testing.T) {
-		t.Parallel()
-
-		store := openMarketplaceTestStore(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		alpha := testEntry(KindSkill, "alpha", "Alpha", "Alpha skill")
-		beta := testEntry(KindSkill, "beta", "Beta", "Beta skill")
-		if err := store.ReplaceKind(ctx, KindSkill, testDocument(now, beta, alpha)); err != nil {
-			t.Fatalf("ReplaceKind(skills) error = %v", err)
-		}
-		extension := testEntry(KindExtension, "extension-alpha", "Extension Alpha", "Same slug")
-		extension.InstallSlug = alpha.InstallSlug
-		if err := store.ReplaceKind(ctx, KindExtension, testDocument(now, extension)); err != nil {
-			t.Fatalf("ReplaceKind(extension) error = %v", err)
-		}
-
-		entries, err := store.ListSkillsByInstallSlugs(ctx, []string{
-			" compozy/beta ",
-			"compozy/alpha",
-			"compozy/beta",
-			"",
-		})
-		if err != nil {
-			t.Fatalf("ListSkillsByInstallSlugs() error = %v", err)
-		}
-		if len(entries) != 2 || entries[0].EntryID != "alpha" || entries[1].EntryID != "beta" {
-			t.Fatalf("ListSkillsByInstallSlugs() = %#v, want alpha then beta", entries)
-		}
-	})
-
-	t.Run("Should reject a list with no non-blank skill slug", func(t *testing.T) {
-		t.Parallel()
-
-		store := openMarketplaceTestStore(t)
-		_, err := store.ListSkillsByInstallSlugs(testutil.Context(t), []string{"", "  "})
-		if err == nil || !strings.Contains(err.Error(), "skill install slugs are required") {
-			t.Fatalf("ListSkillsByInstallSlugs(blank) error = %v, want slug validation", err)
-		}
-	})
-}
-
 func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	t.Parallel()
 
@@ -390,46 +391,32 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		kind     Kind
 		document *Document
 		wantErr  string
 	}{
-		{
-			name: "Should reject an unsupported kind", kind: Kind("artifact"),
-			document: testDocument(now), wantErr: "unsupported kind",
-		},
-		{name: "Should reject a missing document", kind: KindSkill, wantErr: "document is required"},
+		{name: "Should reject a missing document", wantErr: "document is required"},
 		{
 			name:     "Should reject a future manifest",
-			kind:     KindSkill,
 			document: &Document{ManifestVersion: ManifestVersion + 1, GeneratedAt: now, FetchedAt: now},
 			wantErr:  "client too old",
 		},
 		{
 			name:     "Should reject missing timestamps",
-			kind:     KindSkill,
 			document: &Document{ManifestVersion: ManifestVersion},
 			wantErr:  "generated_at and fetched_at are required",
 		},
-		{
-			name:     "Should reject an entry from another kind",
-			kind:     KindSkill,
-			document: testDocument(now, testEntry(KindMCP, "wrong", "Wrong", "Wrong kind")),
-			wantErr:  "kind = \"mcp\"",
-		},
+
 		{
 			name: "Should reject duplicate entry ids",
-			kind: KindSkill,
 			document: testDocument(
 				now,
-				testEntry(KindSkill, "dupe", "One", "First"),
-				testEntry(KindSkill, "dupe", "Two", "Second"),
+				testEntry(KindExtension, "dupe", "One", "First"),
+				testEntry(KindExtension, "dupe", "Two", "Second"),
 			),
 			wantErr: "is duplicated",
 		},
 		{
 			name: "Should reject duplicate extension install slugs",
-			kind: KindExtension,
 			document: func() *Document {
 				first := testEntry(KindExtension, "first", "First", "First extension")
 				second := testEntry(KindExtension, "second", "Second", "Second extension")
@@ -438,22 +425,11 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 			}(),
 			wantErr: "install_slug \"compozy/first\" is duplicated",
 		},
-		{
-			name: "Should reject duplicate skill install slugs",
-			kind: KindSkill,
-			document: func() *Document {
-				first := testEntry(KindSkill, "first", "First", "First skill")
-				second := testEntry(KindSkill, "second", "Second", "Second skill")
-				second.InstallSlug = first.InstallSlug
-				return testDocument(now, first, second)
-			}(),
-			wantErr: "install_slug \"compozy/first\" is duplicated",
-		},
+
 		{
 			name: "Should reject invalid payload JSON",
-			kind: KindSkill,
 			document: testDocument(now, Entry{
-				Kind:        KindSkill,
+				Kind:        KindExtension,
 				EntryID:     "bad-json",
 				Name:        "Bad JSON",
 				Description: "Invalid payload",
@@ -466,9 +442,9 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := store.ReplaceKind(ctx, tc.kind, tc.document)
+			err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, tc.document)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("ReplaceKind() error = %v, want %q", err, tc.wantErr)
+				t.Fatalf("ReplaceSource() error = %v, want %q", err, tc.wantErr)
 			}
 		})
 	}
@@ -477,19 +453,9 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		t.Parallel()
 
 		store := openMarketplaceTestStore(t)
-		_, err := store.GetEntry(testutil.Context(t), KindSkill, "   ")
+		_, err := store.GetEntry(testutil.Context(t), CompozyCatalogSource, "   ")
 		if err == nil || !strings.Contains(err.Error(), "entry id is required") {
 			t.Fatalf("GetEntry(blank) error = %v, want entry-id validation", err)
-		}
-	})
-
-	t.Run("Should reject an unsupported stale kind", func(t *testing.T) {
-		t.Parallel()
-
-		store := openMarketplaceTestStore(t)
-		err := store.MarkKindStale(testutil.Context(t), Kind("artifact"), "validation", "bad kind")
-		if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
-			t.Fatalf("MarkKindStale(unsupported kind) error = %v, want kind validation", err)
 		}
 	})
 
@@ -498,9 +464,9 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 
 		store := openMarketplaceTestStore(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-		_, err := store.ListKind(nil, KindSkill, "", 0, 10)
+		_, err := store.BrowseSource(nil, CompozyCatalogSource, "", 0, 10)
 		if err == nil || !strings.Contains(err.Error(), "store context is required") {
-			t.Fatalf("ListKind(nil context) error = %v, want context validation", err)
+			t.Fatalf("BrowseSource(nil context) error = %v, want context validation", err)
 		}
 	})
 
@@ -508,9 +474,9 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		t.Parallel()
 
 		var nilStore *SQLiteStore
-		_, err := nilStore.KindState(testutil.Context(t), KindSkill)
+		_, err := nilStore.SourceState(testutil.Context(t), CompozyCatalogSource)
 		if err == nil || !strings.Contains(err.Error(), "SQLite store is required") {
-			t.Fatalf("KindState(nil store) error = %v, want store validation", err)
+			t.Fatalf("SourceState(nil store) error = %v, want store validation", err)
 		}
 	})
 }
@@ -602,7 +568,7 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
 			t.Fatal(err)
 		}
-		before, err := store.KindState(ctx, KindExtension)
+		before, err := store.SourceState(ctx, CompozyCatalogSource)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -613,7 +579,7 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
 			t.Fatal(err)
 		}
-		after, err := store.KindState(ctx, KindExtension)
+		after, err := store.SourceState(ctx, CompozyCatalogSource)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -624,7 +590,7 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
 			t.Fatal(err)
 		}
-		changed, err := store.KindState(ctx, KindExtension)
+		changed, err := store.SourceState(ctx, CompozyCatalogSource)
 		if err != nil {
 			t.Fatal(err)
 		}

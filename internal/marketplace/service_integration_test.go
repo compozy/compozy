@@ -38,16 +38,15 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sources := []Source{source}
-		service, err := NewService(openMarketplaceTestStore(t), sources, time.Hour, time.Minute)
+		service, err := NewService(openMarketplaceTestStore(t), source, time.Hour, time.Minute)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		ctx := testutil.Context(t)
 		if _, err := service.Refresh(ctx); err != nil {
-			t.Fatalf("Refresh(all kinds) error = %v", err)
+			t.Fatalf("Refresh(source) error = %v", err)
 		}
-		result, err := service.Browse(ctx, KindExtension, "", 0, 10)
+		result, err := service.Browse(ctx, "", 0, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,19 +71,19 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewHTTPSource() error = %v", err)
 			}
-			service, err := NewService(store, []Source{source}, time.Hour, time.Minute)
+			service, err := NewService(store, source, time.Hour, time.Minute)
 			if err != nil {
 				t.Fatalf("NewService() error = %v", err)
 			}
 			ctx := testutil.Context(t)
 
-			if _, err := service.Refresh(ctx, KindExtension); err != nil {
+			if _, err := service.Refresh(ctx); err != nil {
 				t.Fatalf("Refresh(valid) error = %v", err)
 			}
 			assertProjectedExtensionIDs(t, ctx, store, "pulled", "stable")
 
 			feed.setBody(validExtensionFeed("stable", "Stable extension"))
-			if _, err := service.Refresh(ctx, KindExtension); err != nil {
+			if _, err := service.Refresh(ctx); err != nil {
 				t.Fatalf("Refresh(kill switch) error = %v", err)
 			}
 			assertProjectedExtensionIDs(t, ctx, store, "stable")
@@ -94,7 +93,6 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			)
 			if _, err := service.Refresh(
 				ctx,
-				KindExtension,
 			); err == nil ||
 				!strings.Contains(err.Error(), "name is required") {
 				t.Fatalf("Refresh(malformed) error = %v, want required-name validation failure", err)
@@ -104,12 +102,11 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			server.Close()
 			if _, err := service.Refresh(
 				ctx,
-				KindExtension,
 			); err == nil ||
 				!strings.Contains(err.Error(), "connection refused") {
 				t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
 			}
-			result, err := service.Browse(ctx, KindExtension, "", 0, 10)
+			result, err := service.Browse(ctx, "", 0, 10)
 			if err != nil {
 				t.Fatalf("Browse(stale fallback) error = %v", err)
 			}
@@ -166,16 +163,16 @@ func validExtensionFeed(fields ...string) string {
 
 func assertProjectedExtensionIDs(t *testing.T, ctx context.Context, store Store, wantEntryIDs ...string) {
 	t.Helper()
-	page, err := store.ListKind(ctx, KindExtension, "", 0, 10)
+	page, err := store.BrowseSource(ctx, CompozyCatalogSource, "", 0, 10)
 	if err != nil {
-		t.Fatalf("ListKind() error = %v", err)
+		t.Fatalf("BrowseSource() error = %v", err)
 	}
 	if got, want := len(page.Entries), len(wantEntryIDs); got != want {
-		t.Fatalf("ListKind() count = %d, want %d: %#v", got, want, page)
+		t.Fatalf("BrowseSource() count = %d, want %d: %#v", got, want, page)
 	}
 	for index, wantEntryID := range wantEntryIDs {
 		if page.Entries[index].EntryID != wantEntryID {
-			t.Fatalf("ListKind()[%d].EntryID = %q, want %q", index, page.Entries[index].EntryID, wantEntryID)
+			t.Fatalf("BrowseSource()[%d].EntryID = %q, want %q", index, page.Entries[index].EntryID, wantEntryID)
 		}
 	}
 }

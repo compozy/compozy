@@ -79,7 +79,7 @@ func (s *SQLiteStore) BrowseSource(ctx context.Context, source, query string, of
 	}
 	snapshot, err := s.repository.ReadMarketplaceCatalogSnapshot(ctx, source, maxCatalogEntriesPerKind)
 	if errors.Is(err, sql.ErrNoRows) {
-		return BrowseResult{}, fmt.Errorf("%w: %s", ErrKindStateMissing, source)
+		return BrowseResult{}, fmt.Errorf("%w: %s", ErrSourceStateMissing, source)
 	}
 	if err != nil {
 		return BrowseResult{}, err
@@ -88,7 +88,7 @@ func (s *SQLiteStore) BrowseSource(ctx context.Context, source, query string, of
 	if err != nil {
 		return BrowseResult{}, err
 	}
-	state, err := marketplaceKindStateFromRow(snapshot.State)
+	state, err := marketplaceSourceStateFromRow(snapshot.State)
 	if err != nil {
 		return BrowseResult{}, err
 	}

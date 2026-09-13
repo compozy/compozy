@@ -28,7 +28,7 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 		if entryID == "" {
 			continue
 		}
-		entry, err := h.MarketplaceCatalog.Detail(ctx, marketplacepkg.KindExtension, entryID)
+		entry, err := h.MarketplaceCatalog.Detail(ctx, entryID)
 		if onlyMarketplaceEntryNotFound(err) {
 			continue
 		}

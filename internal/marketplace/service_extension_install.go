@@ -37,13 +37,13 @@ func (s *CatalogService) ResolveExtensionInstall(
 	installSlug string,
 	version string,
 ) (*Entry, error) {
-	if err := s.checkReady(ctx, KindExtension); err != nil {
+	if err := s.checkReady(ctx); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(installSlug) == "" {
 		return nil, errors.New("marketplace catalog: extension install slug is required")
 	}
-	refreshErr := s.ensureFresh(ctx, KindExtension)
+	refreshErr := s.ensureFresh(ctx)
 	entry, getErr := s.store.GetExtensionByInstallSlug(ctx, installSlug, version)
 	if getErr != nil {
 		if refreshErr != nil {

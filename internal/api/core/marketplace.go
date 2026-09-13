@@ -43,7 +43,7 @@ func (h *BaseHandlers) RefreshMarketplaceCatalog(c *gin.Context) {
 		h.respondMarketplaceError(c, errors.Join(ErrMarketplaceUnavailable, errors.New("catalog is not configured")))
 		return
 	}
-	report, refreshErr := h.MarketplaceCatalog.Refresh(c.Request.Context(), marketplacepkg.KindExtension)
+	report, refreshErr := h.MarketplaceCatalog.Refresh(c.Request.Context())
 	if refreshErr != nil && len(report.Outcomes) == 0 {
 		h.respondMarketplaceError(c, refreshErr)
 		return

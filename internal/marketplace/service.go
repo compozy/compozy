@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 )
@@ -20,13 +19,13 @@ const (
 // CatalogService coordinates TTL freshness and durable projections.
 type CatalogService struct {
 	store          Store
-	sources        map[Kind]Source
+	source         Source
 	ttl            time.Duration
 	refreshTimeout time.Duration
 	now            func() time.Time
 	notifier       Notifier
 	flightMu       sync.Mutex
-	flights        map[Kind]*refreshFlight
+	flight         *refreshFlight
 	lifecycleCtx   context.Context
 	lifecycleStop  context.CancelFunc
 	flightWG       sync.WaitGroup
@@ -61,7 +60,7 @@ func WithNotifier(notifier Notifier) ServiceOption {
 // NewService creates the internal curated catalog service.
 func NewService(
 	store Store,
-	sources []Source,
+	source Source,
 	ttl time.Duration,
 	refreshTimeout time.Duration,
 	options ...ServiceOption,
@@ -75,33 +74,18 @@ func NewService(
 	if refreshTimeout <= 0 {
 		return nil, errors.New("marketplace catalog: refresh timeout must be positive")
 	}
-	sourceByKind := make(map[Kind]Source, len(sources))
-	for _, source := range sources {
-		if source == nil {
-			return nil, errors.New("marketplace catalog: source is required")
-		}
-		kind := source.Kind()
-		if _, err := kindFilename(kind); err != nil {
-			return nil, err
-		}
-		if _, exists := sourceByKind[kind]; exists {
-			return nil, fmt.Errorf("marketplace catalog: source for %q is registered more than once", kind)
-		}
-		sourceByKind[kind] = source
-	}
-	if len(sourceByKind) == 0 {
-		return nil, errors.New("marketplace catalog: at least one source is required")
+	if source == nil {
+		return nil, errors.New("marketplace catalog: source is required")
 	}
 	lifecycleCtx, lifecycleStop := context.WithCancel(context.Background())
 	service := &CatalogService{
 		store:          store,
-		sources:        sourceByKind,
+		source:         source,
 		ttl:            ttl,
 		refreshTimeout: refreshTimeout,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		flights:       make(map[Kind]*refreshFlight),
 		lifecycleCtx:  lifecycleCtx,
 		lifecycleStop: lifecycleStop,
 		closeDone:     make(chan struct{}),
@@ -114,155 +98,74 @@ func NewService(
 	return service, nil
 }
 
-// Browse refreshes stale state on demand, then returns the durable projection.
-func (s *CatalogService) Browse(
-	ctx context.Context,
-	kind Kind,
-	query string,
-	offset int,
-	limit int,
-) (BrowseResult, error) {
-	if err := s.checkReady(ctx, kind); err != nil {
+// Browse refreshes stale state on demand, then returns one atomic projection snapshot.
+func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit int) (BrowseResult, error) {
+	if err := s.checkReady(ctx); err != nil {
 		return BrowseResult{}, err
 	}
-	refreshErr := s.ensureFresh(ctx, kind)
-	if kind == KindExtension {
-		result, err := s.store.BrowseSource(ctx, CompozyCatalogSource, query, offset, limit)
-		if err != nil {
-			return BrowseResult{}, errors.Join(refreshErr, err)
-		}
-		if len(result.Entries) == 0 {
-			return result, refreshErr
-		}
-		return result, nil
+	refreshErr := s.ensureFresh(ctx)
+	result, err := s.store.BrowseSource(ctx, CompozyCatalogSource, query, offset, limit)
+	if err != nil {
+		return BrowseResult{}, errors.Join(refreshErr, err)
 	}
-	page, listErr := s.store.ListKind(ctx, kind, query, offset, limit)
-	if listErr != nil {
-		return BrowseResult{}, errors.Join(refreshErr, listErr)
+	if len(result.Entries) == 0 {
+		return result, refreshErr
 	}
-	state, stateErr := s.store.KindState(ctx, kind)
-	if stateErr != nil {
-		return BrowseResult{}, errors.Join(refreshErr, stateErr)
-	}
-	if refreshErr != nil && len(page.Entries) == 0 {
-		return BrowseResult{Entries: page.Entries, Total: page.Total, State: *state}, refreshErr
-	}
-	return BrowseResult{Entries: page.Entries, Total: page.Total, State: *state}, nil
+	return result, nil
 }
 
 // Detail refreshes stale state on demand and resolves by immutable entry id.
-func (s *CatalogService) Detail(ctx context.Context, kind Kind, entryID string) (*Entry, error) {
-	if err := s.checkReady(ctx, kind); err != nil {
+func (s *CatalogService) Detail(ctx context.Context, entryID string) (*Entry, error) {
+	if err := s.checkReady(ctx); err != nil {
 		return nil, err
 	}
-	refreshErr := s.ensureFresh(ctx, kind)
-	entry, getErr := s.store.GetEntry(ctx, kind, entryID)
+	refreshErr := s.ensureFresh(ctx)
+	entry, getErr := s.store.GetEntry(ctx, CompozyCatalogSource, entryID)
 	if getErr != nil {
 		return nil, errors.Join(refreshErr, getErr)
 	}
 	return entry, nil
 }
 
-// Refresh force-fetches selected kinds even when their TTL is still fresh.
-func (s *CatalogService) Refresh(ctx context.Context, kinds ...Kind) (RefreshReport, error) {
+// Refresh force-fetches the curated source even while its TTL is fresh.
+func (s *CatalogService) Refresh(ctx context.Context) (RefreshReport, error) {
 	if ctx == nil {
 		return RefreshReport{}, errors.New("marketplace catalog: refresh context is required")
 	}
-	if err := s.lifecycleError(); err != nil {
+	if err := s.checkReady(ctx); err != nil {
 		return RefreshReport{}, err
 	}
-	selected, err := s.selectKinds(kinds)
+	outcome, err := s.withRefreshFlight(ctx)
 	if err != nil {
-		return RefreshReport{}, err
+		err = fmt.Errorf("refresh %s: %w", CompozyCatalogSource, err)
 	}
-	report := RefreshReport{Outcomes: make([]RefreshOutcome, 0, len(selected))}
-	refreshErrors := make([]error, 0)
-	for _, kind := range selected {
-		outcome, refreshErr := s.withRefreshFlight(ctx, kind)
-		report.Outcomes = append(report.Outcomes, outcome)
-		if refreshErr != nil {
-			refreshErrors = append(refreshErrors, fmt.Errorf("refresh %s: %w", kind, refreshErr))
-		}
-	}
-	return report, errors.Join(refreshErrors...)
+	return RefreshReport{Outcomes: []RefreshOutcome{outcome}}, err
 }
 
-// Status returns deterministic state for every configured kind.
-func (s *CatalogService) Status(ctx context.Context) ([]KindState, error) {
+// Status returns the curated source's persisted freshness state.
+func (s *CatalogService) Status(ctx context.Context) ([]SourceState, error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: status context is required")
 	}
-	if err := s.lifecycleError(); err != nil {
+	if err := s.checkReady(ctx); err != nil {
 		return nil, err
 	}
-	kinds, err := s.selectKinds(nil)
+	state, err := s.store.SourceState(ctx, CompozyCatalogSource)
+	if errors.Is(err, ErrSourceStateMissing) {
+		return []SourceState{{Source: CompozyCatalogSource}}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	states := make([]KindState, 0, len(kinds))
-	for _, kind := range kinds {
-		state, stateErr := s.store.KindState(ctx, kind)
-		if errors.Is(stateErr, ErrKindStateMissing) {
-			states = append(states, KindState{Kind: kind})
-			continue
-		}
-		if stateErr != nil {
-			return nil, stateErr
-		}
-		states = append(states, *state)
-	}
-	return states, nil
+	return []SourceState{*state}, nil
 }
 
-func (s *CatalogService) checkReady(ctx context.Context, kind Kind) error {
+func (s *CatalogService) checkReady(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("marketplace catalog: service context is required")
 	}
-	if s == nil || s.store == nil {
+	if s == nil || s.store == nil || s.source == nil {
 		return errors.New("marketplace catalog: service is required")
 	}
-	if err := s.lifecycleError(); err != nil {
-		return err
-	}
-	if _, ok := s.sources[kind]; !ok {
-		if _, err := kindFilename(kind); err != nil {
-			return err
-		}
-		return fmt.Errorf("marketplace catalog: source for %q is not configured", kind)
-	}
-	return nil
-}
-
-func (s *CatalogService) selectKinds(requested []Kind) ([]Kind, error) {
-	if s == nil || len(s.sources) == 0 {
-		return nil, errors.New("marketplace catalog: service sources are required")
-	}
-	if err := s.lifecycleError(); err != nil {
-		return nil, err
-	}
-	if len(requested) == 0 {
-		kinds := make([]Kind, 0, len(s.sources))
-		for kind := range s.sources {
-			kinds = append(kinds, kind)
-		}
-		slices.Sort(kinds)
-		return kinds, nil
-	}
-	seen := make(map[Kind]struct{}, len(requested))
-	kinds := make([]Kind, 0, len(requested))
-	for _, kind := range requested {
-		if _, err := kindFilename(kind); err != nil {
-			return nil, err
-		}
-		if _, ok := s.sources[kind]; !ok {
-			return nil, fmt.Errorf("marketplace catalog: source for %q is not configured", kind)
-		}
-		if _, exists := seen[kind]; exists {
-			continue
-		}
-		seen[kind] = struct{}{}
-		kinds = append(kinds, kind)
-	}
-	slices.Sort(kinds)
-	return kinds, nil
+	return s.lifecycleError()
 }

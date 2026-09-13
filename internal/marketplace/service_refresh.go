@@ -20,111 +20,110 @@ type refreshOnAccessSource interface {
 	refreshOnAccess() bool
 }
 
-func (s *CatalogService) ensureFresh(ctx context.Context, kind Kind) error {
-	if source, ok := s.sources[kind].(refreshOnAccessSource); ok && source.refreshOnAccess() {
-		_, err := s.withRefreshFlight(ctx, kind)
+func (s *CatalogService) ensureFresh(ctx context.Context) error {
+	if source, ok := s.source.(refreshOnAccessSource); ok && source.refreshOnAccess() {
+		_, err := s.withRefreshFlight(ctx)
 		return err
 	}
-	state, err := s.store.KindState(ctx, kind)
+	state, err := s.store.SourceState(ctx, CompozyCatalogSource)
 	switch {
-	case errors.Is(err, ErrKindStateMissing):
-		_, err = s.withRefreshFlight(ctx, kind)
+	case errors.Is(err, ErrSourceStateMissing):
+		_, err = s.withRefreshFlight(ctx)
 		return err
 	case err != nil:
 		return err
 	case state.Stale || state.FetchedAt.IsZero() || !state.FetchedAt.Add(s.ttl).After(s.now().UTC()):
-		_, err = s.withRefreshFlight(ctx, kind)
+		_, err = s.withRefreshFlight(ctx)
 		return err
 	default:
 		return nil
 	}
 }
 
-func (s *CatalogService) withRefreshFlight(ctx context.Context, kind Kind) (RefreshOutcome, error) {
+func (s *CatalogService) withRefreshFlight(ctx context.Context) (RefreshOutcome, error) {
 	if err := ctx.Err(); err != nil {
-		return canceledRefreshOutcome(kind), err
+		return canceledRefreshOutcome(), err
 	}
 	s.flightMu.Lock()
 	if s.closed {
 		s.flightMu.Unlock()
-		return canceledRefreshOutcome(kind), ErrServiceClosed
+		return canceledRefreshOutcome(), ErrServiceClosed
 	}
-	if existing := s.flights[kind]; existing != nil {
+	if existing := s.flight; existing != nil {
 		s.flightMu.Unlock()
-		return awaitRefreshFlight(ctx, kind, existing)
+		return awaitRefreshFlight(ctx, existing)
 	}
 	flight := &refreshFlight{done: make(chan struct{})}
-	s.flights[kind] = flight
+	s.flight = flight
 	s.flightWG.Add(1)
 	refreshCtx, cancel := context.WithTimeout(s.lifecycleCtx, s.refreshTimeout)
 	s.flightMu.Unlock()
 
-	// The flight map owns this goroutine until completion. Its service-level
+	// The service owns this flight until completion. Its service-level
 	// deadline bounds the lifetime independently of any individual caller.
-	go s.runRefreshFlight(refreshCtx, cancel, kind, flight)
-	return awaitRefreshFlight(ctx, kind, flight)
+	go s.runRefreshFlight(refreshCtx, cancel, flight)
+	return awaitRefreshFlight(ctx, flight)
 }
 
 func (s *CatalogService) runRefreshFlight(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	kind Kind,
 	flight *refreshFlight,
 ) {
 	defer s.flightWG.Done()
 	defer cancel()
-	flight.outcome, flight.err = s.refreshKind(ctx, kind)
+	flight.outcome, flight.err = s.refreshSource(ctx)
 	s.flightMu.Lock()
-	delete(s.flights, kind)
+	s.flight = nil
 	close(flight.done)
 	s.flightMu.Unlock()
 }
 
-func awaitRefreshFlight(ctx context.Context, kind Kind, flight *refreshFlight) (RefreshOutcome, error) {
+func awaitRefreshFlight(ctx context.Context, flight *refreshFlight) (RefreshOutcome, error) {
 	select {
 	case <-flight.done:
 		return flight.outcome, flight.err
 	case <-ctx.Done():
-		return canceledRefreshOutcome(kind), ctx.Err()
+		return canceledRefreshOutcome(), ctx.Err()
 	}
 }
 
-func canceledRefreshOutcome(kind Kind) RefreshOutcome {
+func canceledRefreshOutcome() RefreshOutcome {
 	return RefreshOutcome{
-		Source:     refreshSourceName(kind),
-		Kind:       kind,
+		Source:     CompozyCatalogSource,
+		Kind:       KindExtension,
 		Outcome:    RefreshOutcomeFailed,
 		ErrorClass: errorClassCanceled,
 	}
 }
 
-func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOutcome, error) {
-	source := s.sources[kind]
+func (s *CatalogService) refreshSource(ctx context.Context) (RefreshOutcome, error) {
+	source := s.source
 	now := s.now().UTC()
 	generation := int64(0)
-	if kind == KindExtension {
-		state, err := s.store.KindState(ctx, kind)
-		if err != nil && !errors.Is(err, ErrKindStateMissing) {
-			return canceledRefreshOutcome(kind), err
-		}
-		if state != nil {
-			generation = state.Generation
-		}
+
+	state, err := s.store.SourceState(ctx, CompozyCatalogSource)
+	if err != nil && !errors.Is(err, ErrSourceStateMissing) {
+		return canceledRefreshOutcome(), err
 	}
+	if state != nil {
+		generation = state.Generation
+	}
+
 	document, err := source.Fetch(ctx)
 	if err != nil {
 		if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
-			return canceledRefreshOutcome(kind), errors.Join(lifecycleErr, err)
+			return canceledRefreshOutcome(), errors.Join(lifecycleErr, err)
 		}
 		return s.recordFailure(
-			kind, generation,
+			generation,
 			classifyFetchError(err),
 			errors.Join(ErrSourceUnavailable, err),
 		)
 	}
 	if document == nil {
 		return s.recordFailure(
-			kind, generation,
+			generation,
 			"validation",
 			errors.Join(ErrSourceUnavailable, errors.New("marketplace catalog: source returned nil document")),
 		)
@@ -134,30 +133,27 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 		document.Entries[index].FetchedAt = now
 	}
 	if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
-		return canceledRefreshOutcome(kind), lifecycleErr
+		return canceledRefreshOutcome(), lifecycleErr
 	}
-	if kind == KindExtension {
-		err = s.store.ReplaceSource(ctx, CompozyCatalogSource, generation, document)
-	} else {
-		err = s.store.ReplaceKind(ctx, kind, document)
-	}
+
+	err = s.store.ReplaceSource(ctx, CompozyCatalogSource, generation, document)
+
 	if err != nil {
-		return s.recordFailure(kind, generation, "store", err)
+		return s.recordFailure(generation, "store", err)
 	}
 	outcome := RefreshOutcome{
-		Kind:   kind,
-		Source: refreshSourceName(kind), Generation: generation,
+		Kind:   KindExtension,
+		Source: CompozyCatalogSource, Generation: generation,
 		Outcome:    RefreshOutcomeSucceeded,
 		EntryCount: len(document.Entries),
 	}
 	if err := s.notify(outcome); err != nil {
-		return outcome, fmt.Errorf("marketplace catalog: persist %q refresh event: %w", kind, err)
+		return outcome, fmt.Errorf("marketplace catalog: persist %q refresh event: %w", CompozyCatalogSource, err)
 	}
 	return outcome, nil
 }
 
 func (s *CatalogService) recordFailure(
-	kind Kind,
 	generation int64,
 	errorClass string,
 	cause error,
@@ -168,22 +164,18 @@ func (s *CatalogService) recordFailure(
 	failureCtx, cancel := s.boundedLifecycleContext()
 	defer cancel()
 	redacted := diagnostics.RedactAndBound(cause.Error(), maxStoredErrorBytes)
-	var markErr error
-	if kind == KindExtension {
-		markErr = s.store.MarkSourceStale(failureCtx, CompozyCatalogSource, generation, errorClass, redacted)
-	} else {
-		markErr = s.store.MarkKindStale(failureCtx, kind, errorClass, redacted)
-	}
+	markErr := s.store.MarkSourceStale(failureCtx, CompozyCatalogSource, generation, errorClass, redacted)
+
 	if errors.Is(markErr, storepkg.ErrMarketplaceCatalogGenerationStale) {
-		return RefreshOutcome{Kind: kind, Source: refreshSourceName(kind), Generation: generation,
+		return RefreshOutcome{Kind: KindExtension, Source: CompozyCatalogSource, Generation: generation,
 			Outcome: RefreshOutcomeFailed, ErrorClass: "generation_stale"}, errors.Join(cause, markErr)
 	}
-	state, stateErr := s.store.KindState(failureCtx, kind)
+	state, stateErr := s.store.SourceState(failureCtx, CompozyCatalogSource)
 	outcome := RefreshOutcome{
-		Kind:    kind,
+		Kind:    KindExtension,
 		Outcome: RefreshOutcomeFailed,
 		Stale:   true,
-		Source:  refreshSourceName(kind), Generation: generation,
+		Source:  CompozyCatalogSource, Generation: generation,
 		ErrorClass: errorClass,
 	}
 	if stateErr == nil {
@@ -237,11 +229,4 @@ func classifyFetchError(err error) string {
 		return errorClassNetwork
 	}
 	return errorClassNetwork
-}
-
-func refreshSourceName(kind Kind) string {
-	if kind == KindExtension {
-		return CompozyCatalogSource
-	}
-	return ""
 }

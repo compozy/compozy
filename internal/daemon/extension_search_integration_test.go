@@ -22,17 +22,16 @@ import (
 
 type extensionSearchCatalogStub struct {
 	marketplacepkg.Service
-	browseFn func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
+	browseFn func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
 }
 
 func (s extensionSearchCatalogStub) Browse(
 	ctx context.Context,
-	kind marketplacepkg.Kind,
 	query string,
 	offset int,
 	limit int,
 ) (marketplacepkg.BrowseResult, error) {
-	return s.browseFn(ctx, kind, query, offset, limit)
+	return s.browseFn(ctx, query, offset, limit)
 }
 
 type extensionSearchSourceStub struct {
@@ -96,7 +95,6 @@ func TestExtensionSearchUnion(t *testing.T) {
 		entry.Version = "2.0.0"
 		catalog := extensionSearchCatalogStub{browseFn: func(
 			context.Context,
-			marketplacepkg.Kind,
 			string,
 			int,
 			int,
@@ -132,14 +130,13 @@ func TestExtensionSearchUnion(t *testing.T) {
 		var githubCalls atomic.Int32
 		catalog := extensionSearchCatalogStub{browseFn: func(
 			_ context.Context,
-			kind marketplacepkg.Kind,
 			query string,
 			offset int,
 			limit int,
 		) (marketplacepkg.BrowseResult, error) {
 			curatedCalls.Add(1)
-			if kind != marketplacepkg.KindExtension || query != "bridge" || offset != 0 || limit != 100 {
-				t.Fatalf("Browse() = (%q, %q, %d, %d), want extension/bridge/0/100", kind, query, offset, limit)
+			if query != "bridge" || offset != 0 || limit != 100 {
+				t.Fatalf("Browse() = (%q, %d, %d), want bridge/0/100", query, offset, limit)
 			}
 			return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{
 				curatedSearchEntry("curated-z", "acme/z", "Z bridge"),
@@ -196,7 +193,6 @@ func TestExtensionSearchUnion(t *testing.T) {
 
 		catalog := extensionSearchCatalogStub{browseFn: func(
 			context.Context,
-			marketplacepkg.Kind,
 			string,
 			int,
 			int,
@@ -230,7 +226,6 @@ func TestExtensionSearchUnion(t *testing.T) {
 
 		catalog := extensionSearchCatalogStub{browseFn: func(
 			context.Context,
-			marketplacepkg.Kind,
 			string,
 			int,
 			int,
@@ -264,7 +259,6 @@ func TestExtensionSearchUnion(t *testing.T) {
 
 		catalog := extensionSearchCatalogStub{browseFn: func(
 			context.Context,
-			marketplacepkg.Kind,
 			string,
 			int,
 			int,

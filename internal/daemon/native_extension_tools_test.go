@@ -75,7 +75,6 @@ func (nativeExtensionCatalog) Close(context.Context) error { return nil }
 
 func (c nativeExtensionCatalog) Browse(
 	context.Context,
-	marketplacepkg.Kind,
 	string,
 	int,
 	int,
@@ -83,7 +82,7 @@ func (c nativeExtensionCatalog) Browse(
 	return marketplacepkg.BrowseResult{}, errors.New("unexpected catalog browse")
 }
 
-func (c nativeExtensionCatalog) Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
+func (c nativeExtensionCatalog) Detail(context.Context, string) (*marketplacepkg.Entry, error) {
 	return nil, errors.New("unexpected catalog detail")
 }
 
@@ -95,11 +94,11 @@ func (c nativeExtensionCatalog) ResolveExtensionInstall(
 	return c.entry, c.err
 }
 
-func (c nativeExtensionCatalog) Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error) {
+func (c nativeExtensionCatalog) Refresh(context.Context) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected catalog refresh")
 }
 
-func (c nativeExtensionCatalog) Status(context.Context) ([]marketplacepkg.KindState, error) {
+func (c nativeExtensionCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
 	return nil, errors.New("unexpected catalog status")
 }
 

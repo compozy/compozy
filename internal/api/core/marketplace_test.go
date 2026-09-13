@@ -33,35 +33,33 @@ func (s marketplaceInspectionService) InspectCatalogExtension(
 }
 
 type marketplaceCatalogStub struct {
-	browseFn     func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
-	browsePageFn func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
-	detailFn     func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
-	refreshFn    func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	browseFn     func(context.Context, string, int) (marketplacepkg.BrowseResult, error)
+	browsePageFn func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
+	detailFn     func(context.Context, string) (*marketplacepkg.Entry, error)
+	refreshFn    func(context.Context) (marketplacepkg.RefreshReport, error)
 }
 
 func (s marketplaceCatalogStub) Browse(
 	ctx context.Context,
-	kind marketplacepkg.Kind,
 	query string,
 	offset int,
 	limit int,
 ) (marketplacepkg.BrowseResult, error) {
 	if s.browsePageFn != nil {
-		return s.browsePageFn(ctx, kind, query, offset, limit)
+		return s.browsePageFn(ctx, query, offset, limit)
 	}
 	if s.browseFn != nil {
-		return s.browseFn(ctx, kind, query, limit)
+		return s.browseFn(ctx, query, limit)
 	}
 	return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}}, nil
 }
 
 func (s marketplaceCatalogStub) Detail(
 	ctx context.Context,
-	kind marketplacepkg.Kind,
 	entryID string,
 ) (*marketplacepkg.Entry, error) {
 	if s.detailFn != nil {
-		return s.detailFn(ctx, kind, entryID)
+		return s.detailFn(ctx, entryID)
 	}
 	return nil, marketplacepkg.ErrEntryNotFound
 }
@@ -71,21 +69,20 @@ func (s marketplaceCatalogStub) ResolveExtensionInstall(
 	installSlug string,
 	version string,
 ) (*marketplacepkg.Entry, error) {
-	return s.Detail(ctx, marketplacepkg.KindExtension, installSlug+"@"+version)
+	return s.Detail(ctx, installSlug+"@"+version)
 }
 
 func (s marketplaceCatalogStub) Refresh(
 	ctx context.Context,
-	kinds ...marketplacepkg.Kind,
 ) (marketplacepkg.RefreshReport, error) {
 	if s.refreshFn != nil {
-		return s.refreshFn(ctx, kinds...)
+		return s.refreshFn(ctx)
 	}
 	return marketplacepkg.RefreshReport{Outcomes: []marketplacepkg.RefreshOutcome{}}, nil
 }
 
-func (marketplaceCatalogStub) Status(context.Context) ([]marketplacepkg.KindState, error) {
-	return []marketplacepkg.KindState{}, nil
+func (marketplaceCatalogStub) Status(context.Context) ([]marketplacepkg.SourceState, error) {
+	return []marketplacepkg.SourceState{}, nil
 }
 
 func marketplaceListHTTP(t *testing.T, handlers *core.BaseHandlers) contract.MarketplaceListResponse {
@@ -113,9 +110,9 @@ func marketplaceListHTTP(t *testing.T, handlers *core.BaseHandlers) contract.Mar
 }
 
 type marketplaceHandlerFixture struct {
-	catalogBrowse            func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
-	catalogRefresh           func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
-	catalogDetail            func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
+	catalogBrowse            func(context.Context, string, int) (marketplacepkg.BrowseResult, error)
+	catalogRefresh           func(context.Context) (marketplacepkg.RefreshReport, error)
+	catalogDetail            func(context.Context, string) (*marketplacepkg.Entry, error)
 	extensionTier            string
 	extensionCatalogEntryID  string
 	extensionInstalledSlug   string
@@ -129,18 +126,15 @@ type marketplaceHandlerFixture struct {
 func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture) *core.BaseHandlers {
 	t.Helper()
 
-	entries := marketplaceEntriesForTest()
+	entry := marketplaceEntryForTest()
 	if fixture.extensionTier != "" {
-		entry := entries[marketplacepkg.KindExtension]
 		entry.Tier = fixture.extensionTier
-		entries[marketplacepkg.KindExtension] = entry
 	}
 
 	catalogDetail := fixture.catalogDetail
 	if catalogDetail == nil {
-		catalogDetail = func(_ context.Context, kind marketplacepkg.Kind, entryID string) (*marketplacepkg.Entry, error) {
-			entry, ok := entries[kind]
-			if !ok || entry.EntryID != entryID {
+		catalogDetail = func(_ context.Context, entryID string) (*marketplacepkg.Entry, error) {
+			if entry.EntryID != entryID {
 				return nil, marketplacepkg.ErrEntryNotFound
 			}
 			return &entry, nil
@@ -150,12 +144,11 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 	if catalogBrowse == nil {
 		catalogBrowse = func(
 			_ context.Context,
-			kind marketplacepkg.Kind,
 			_ string,
 			_ int,
 		) (marketplacepkg.BrowseResult, error) {
 			return marketplacepkg.BrowseResult{
-				Entries: []marketplacepkg.Entry{entries[kind]}, Total: 1,
+				Entries: []marketplacepkg.Entry{entry}, Total: 1,
 			}, nil
 		}
 	}
@@ -218,22 +211,19 @@ func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMes
 	return encoded
 }
 
-func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {
-	return map[marketplacepkg.Kind]marketplacepkg.Entry{
-
-		marketplacepkg.KindExtension: {
-			Kind:         marketplacepkg.KindExtension,
-			EntryID:      "extension-entry",
-			Name:         "Extension",
-			Description:  "Extension",
-			Version:      "1.2.0",
-			InstallSlug:  "acme/extension",
-			DigestSHA256: strings.Repeat("a", 64),
-			Tier:         extensionpkg.ExtensionRegistryTierOfficial,
-			Payload: json.RawMessage(
-				`{"entry_id":"extension-entry","name":"Extension","description":"Extension","version":"1.2.0","install_slug":"acme/extension","artifact_url":"https://downloads.example.test/extension-v1.2.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
-			),
-		},
+func marketplaceEntryForTest() marketplacepkg.Entry {
+	return marketplacepkg.Entry{
+		Kind:         marketplacepkg.KindExtension,
+		EntryID:      "extension-entry",
+		Name:         "Extension",
+		Description:  "Extension",
+		Version:      "1.2.0",
+		InstallSlug:  "acme/extension",
+		DigestSHA256: strings.Repeat("a", 64),
+		Tier:         extensionpkg.ExtensionRegistryTierOfficial,
+		Payload: json.RawMessage(
+			`{"entry_id":"extension-entry","name":"Extension","description":"Extension","version":"1.2.0","install_slug":"acme/extension","artifact_url":"https://downloads.example.test/extension-v1.2.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
+		),
 	}
 }
 
@@ -248,15 +238,14 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			catalogBrowse: func(
 				_ context.Context,
-				kind marketplacepkg.Kind,
 				_ string,
 				_ int,
 			) (marketplacepkg.BrowseResult, error) {
-				entry := marketplaceEntriesForTest()[kind]
+				entry := marketplaceEntryForTest()
 				return marketplacepkg.BrowseResult{
 					Entries: []marketplacepkg.Entry{entry},
-					State: marketplacepkg.KindState{
-						Kind: kind, Stale: true, ErrorClass: "store",
+					State: marketplacepkg.SourceState{
+						Source: marketplacepkg.CompozyCatalogSource, Stale: true, ErrorClass: "store",
 						LastError: "database path /private/catalog.db unavailable",
 					},
 				}, nil
@@ -303,22 +292,16 @@ func TestMarketplaceCatalog(t *testing.T) {
 			t.Run("Should resolve the "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+				entry := marketplaceEntryForTest()
 				entry.Payload = marketplaceExtensionPayloadForTest(t, tt.feedFormat)
 				handlerFixture := marketplaceHandlerFixture{
 					extensionInstalledFormat: tt.installedFormat,
 					catalogBrowse: func(
 						_ context.Context,
-						kind marketplacepkg.Kind,
 						_ string,
 						_ int,
 					) (marketplacepkg.BrowseResult, error) {
-						if kind == marketplacepkg.KindExtension {
-							return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
-						}
-						return marketplacepkg.BrowseResult{
-							Entries: []marketplacepkg.Entry{marketplaceEntriesForTest()[kind]}, Total: 1,
-						}, nil
+						return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
 					},
 				}
 				if tt.installed {
@@ -342,7 +325,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 	t.Run("Should not satisfy a stable catalog ID lookup with an unrelated install slug", func(t *testing.T) {
 		t.Parallel()
 
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		entry.EntryID = "acme/extension"
 		entry.InstallSlug = "other/extension"
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
@@ -350,15 +333,10 @@ func TestMarketplaceCatalog(t *testing.T) {
 			extensionInstalledSlug:  "acme/extension",
 			catalogBrowse: func(
 				_ context.Context,
-				kind marketplacepkg.Kind,
 				_ string,
 				_ int,
 			) (marketplacepkg.BrowseResult, error) {
-				if kind == marketplacepkg.KindExtension {
-					return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}}, nil
-				}
-				fixtureEntry := marketplaceEntriesForTest()[kind]
-				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{fixtureEntry}}, nil
+				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}}, nil
 			},
 		})
 		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
@@ -377,7 +355,6 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			catalogBrowse: func(
 				context.Context,
-				marketplacepkg.Kind,
 				string,
 				int,
 			) (marketplacepkg.BrowseResult, error) {
@@ -410,7 +387,6 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			catalogBrowse: func(
 				context.Context,
-				marketplacepkg.Kind,
 				string,
 				int,
 			) (marketplacepkg.BrowseResult, error) {
@@ -437,7 +413,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			catalogRefresh: func(
 				context.Context,
-				...marketplacepkg.Kind,
+
 			) (marketplacepkg.RefreshReport, error) {
 				return marketplacepkg.RefreshReport{Outcomes: []marketplacepkg.RefreshOutcome{
 					{
@@ -473,7 +449,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 	t.Run("Should resolve workspace extension listings and details from one scoped projection", func(t *testing.T) {
 		t.Parallel()
 
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		resolvedActor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 			"marketplace-resolver",
 			"ws-alpha",
@@ -520,16 +496,12 @@ func TestMarketplaceCatalog(t *testing.T) {
 			MarketplaceCatalog: marketplaceCatalogStub{
 				browseFn: func(
 					_ context.Context,
-					kind marketplacepkg.Kind,
 					_ string,
 					_ int,
 				) (marketplacepkg.BrowseResult, error) {
-					if kind != marketplacepkg.KindExtension {
-						return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}}, nil
-					}
 					return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
 				},
-				detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
+				detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) {
 					return nil, marketplacepkg.ErrEntryNotFound
 				},
 			},
@@ -723,10 +695,10 @@ func TestMarketplaceCatalog(t *testing.T) {
 	t.Run("Should distinguish installed observations from pinned package declarations", func(t *testing.T) {
 		t.Parallel()
 		for _, installed := range []bool{false, true} {
-			entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+			entry := marketplaceEntryForTest()
 			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 			handlers.MarketplaceCatalog = marketplaceCatalogStub{
-				detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+				detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 			}
 			inspections := 0
 			servers := []contract.MarketplaceServerPayload{
@@ -782,10 +754,10 @@ func TestMarketplaceCatalog(t *testing.T) {
 	})
 	t.Run("Should report changed inspection bytes as a typed conflict", func(t *testing.T) {
 		t.Parallel()
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+			detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 		}
 		listed, fetched := strings.Repeat("a", 64), strings.Repeat("b", 64)
 		handlers.Extensions = marketplaceInspectionService{
@@ -815,7 +787,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 	// Owner: shared HTTP/UDS detail payload. Canonical suite: marketplace_test.go.
 	t.Run("Should expose packaged input declarations before installation", func(t *testing.T) {
 		t.Parallel()
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		var payload map[string]json.RawMessage
 		if err := json.Unmarshal(entry.Payload, &payload); err != nil {
 			t.Fatal(err)
@@ -830,7 +802,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		entry.Payload = raw
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+			detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 		}
 		engine := gin.New()
 		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
@@ -854,19 +826,19 @@ func TestMarketplaceCatalog(t *testing.T) {
 
 	t.Run("Should join only the exact origin and emit the one-catalog envelope", func(t *testing.T) {
 		t.Parallel()
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		query := strings.Repeat("é", 201)
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			browsePageFn: func(_ context.Context, kind marketplacepkg.Kind, q string, offset, limit int) (marketplacepkg.BrowseResult, error) {
-				if kind != marketplacepkg.KindExtension || q != strings.Repeat("é", 200) || offset != 0 ||
+			browsePageFn: func(_ context.Context, q string, offset, limit int) (marketplacepkg.BrowseResult, error) {
+				if q != strings.Repeat("é", 200) || offset != 0 ||
 					limit != 100 {
-					t.Fatalf("browse %q %q %d %d", kind, q, offset, limit)
+					t.Fatalf("browse %q %d %d", q, offset, limit)
 				}
 				return marketplacepkg.BrowseResult{
 					Entries: []marketplacepkg.Entry{entry},
 					Total:   1,
-					State: marketplacepkg.KindState{
+					State: marketplacepkg.SourceState{
 						Revision:   "content-a",
 						EntryCount: 9,
 						FetchedAt:  time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC),
@@ -945,12 +917,12 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		revision := "content-a"
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			browsePageFn: func(_ context.Context, _ marketplacepkg.Kind, _ string, offset, limit int) (marketplacepkg.BrowseResult, error) {
-				entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+			browsePageFn: func(_ context.Context, _ string, offset, limit int) (marketplacepkg.BrowseResult, error) {
+				entry := marketplaceEntryForTest()
 				return marketplacepkg.BrowseResult{
 					Entries: []marketplacepkg.Entry{entry},
 					Total:   2,
-					State:   marketplacepkg.KindState{Revision: revision, EntryCount: 2},
+					State:   marketplacepkg.SourceState{Revision: revision, EntryCount: 2},
 				}, nil
 			},
 		}
@@ -989,10 +961,10 @@ func TestMarketplaceCatalog(t *testing.T) {
 		t.Parallel()
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			browseFn: func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error) {
+			browseFn: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
 				return marketplacepkg.BrowseResult{
 					Entries: []marketplacepkg.Entry{},
-					State: marketplacepkg.KindState{
+					State: marketplacepkg.SourceState{
 						Stale:      true,
 						ErrorClass: "network",
 						LastError:  "source unreachable",
@@ -1054,7 +1026,7 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 	t.Parallel()
 	t.Run("Should retain both profile and workspace in a catalog continuation", func(t *testing.T) {
 		t.Parallel()
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 			"operator",
 			"ws-a",
@@ -1067,11 +1039,11 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 		actor.ReadScope = store.ReadScope{ProfileID: "profile-work"}
 		h := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		h.MarketplaceCatalog = marketplaceCatalogStub{
-			browsePageFn: func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error) {
+			browsePageFn: func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error) {
 				return marketplacepkg.BrowseResult{
 					Entries: []marketplacepkg.Entry{entry},
 					Total:   2,
-					State:   marketplacepkg.KindState{Revision: "same"},
+					State:   marketplacepkg.SourceState{Revision: "same"},
 				}, nil
 			},
 		}

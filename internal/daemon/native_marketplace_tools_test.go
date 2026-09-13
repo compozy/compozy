@@ -38,20 +38,18 @@ func lateBootMarketplaceEntry() marketplacepkg.Entry {
 
 func (c lateBootMarketplaceCatalog) Browse(
 	context.Context,
-	marketplacepkg.Kind,
 	string,
 	int,
 	int,
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{
 		Entries: []marketplacepkg.Entry{c.entry},
-		State:   marketplacepkg.KindState{Kind: marketplacepkg.KindExtension},
+		State:   marketplacepkg.SourceState{Kind: marketplacepkg.KindExtension},
 	}, nil
 }
 
 func (c lateBootMarketplaceCatalog) Detail(
 	context.Context,
-	marketplacepkg.Kind,
 	string,
 ) (*marketplacepkg.Entry, error) {
 	return &c.entry, nil
@@ -67,12 +65,11 @@ func (lateBootMarketplaceCatalog) ResolveExtensionInstall(
 
 func (lateBootMarketplaceCatalog) Refresh(
 	context.Context,
-	...marketplacepkg.Kind,
 ) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected Refresh call")
 }
 
-func (lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.KindState, error) {
+func (lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
 	return nil, errors.New("unexpected Status call")
 }
 

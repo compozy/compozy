@@ -8,7 +8,7 @@ import (
 
 // MarketplaceCatalogService exposes the daemon-owned curated feed projection.
 type MarketplaceCatalogService interface {
-	Browse(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
-	Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
-	Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	Browse(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
+	Detail(context.Context, string) (*marketplacepkg.Entry, error)
+	Refresh(context.Context) (marketplacepkg.RefreshReport, error)
 }

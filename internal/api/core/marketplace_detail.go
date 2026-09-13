@@ -20,7 +20,7 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 			ErrMarketplaceUnavailable, errors.New("catalog is not configured"),
 		)
 	}
-	entry, err := h.MarketplaceCatalog.Detail(ctx, marketplacepkg.KindExtension, entryID)
+	entry, err := h.MarketplaceCatalog.Detail(ctx, entryID)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, normalizeCuratedMarketplaceError(err)
 	}

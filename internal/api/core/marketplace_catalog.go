@@ -81,7 +81,7 @@ func (h *BaseHandlers) MarketplaceList(
 	if err != nil {
 		return contract.MarketplaceListResponse{}, err
 	}
-	page, err := h.MarketplaceCatalog.Browse(ctx, marketplacepkg.KindExtension, query, offset, limit)
+	page, err := h.MarketplaceCatalog.Browse(ctx, query, offset, limit)
 	if err != nil && !page.State.Stale {
 		return contract.MarketplaceListResponse{}, normalizeCuratedMarketplaceError(err)
 	}
@@ -173,7 +173,7 @@ func normalizeCatalogListing(listing *contract.MarketplaceListingPayload) {
 	listing.ManagePath = marketplaceExtensionsInstalledPath
 }
 
-func marketplaceSourceSummary(state marketplacepkg.KindState) contract.MarketplaceSourceSummary {
+func marketplaceSourceSummary(state marketplacepkg.SourceState) contract.MarketplaceSourceSummary {
 	source := contract.MarketplaceSourceSummary{
 		Name:  marketplacepkg.CompozyCatalogSource,
 		Kind:  "feed",

@@ -70,6 +70,5 @@ type MarketplaceCatalogRepository interface {
 	ListMarketplaceCatalogEntries(context.Context, string, int64) ([]MarketplaceCatalogEntry, error)
 	GetMarketplaceCatalogEntry(context.Context, string, string) (MarketplaceCatalogEntry, error)
 	GetMarketplaceExtensionByInstallSlug(context.Context, string, string) (MarketplaceCatalogEntry, error)
-	ListMarketplaceSkillsByInstallSlugs(context.Context, []string) ([]MarketplaceCatalogEntry, error)
 	GetMarketplaceCatalogState(context.Context, string) (MarketplaceCatalogState, error)
 }

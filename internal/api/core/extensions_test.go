@@ -39,7 +39,7 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 	t.Run("Should enrich installed extension without browsing the capped catalog", func(t *testing.T) {
 		t.Parallel()
 
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		entry := marketplaceEntryForTest()
 		browseCalled := false
 		detailEntryID := ""
 		homePaths := testutil.NewTestHomePaths(t)
@@ -67,7 +67,6 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 			MarketplaceCatalog: marketplaceCatalogStub{
 				browseFn: func(
 					context.Context,
-					marketplacepkg.Kind,
 					string,
 					int,
 				) (marketplacepkg.BrowseResult, error) {
@@ -76,12 +75,8 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 				},
 				detailFn: func(
 					_ context.Context,
-					kind marketplacepkg.Kind,
 					entryID string,
 				) (*marketplacepkg.Entry, error) {
-					if kind != marketplacepkg.KindExtension {
-						t.Fatalf("detail kind = %q, want %q", kind, marketplacepkg.KindExtension)
-					}
 					detailEntryID = entryID
 					return &entry, nil
 				},
@@ -149,7 +144,6 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 			}},
 			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
 				context.Context,
-				marketplacepkg.Kind,
 				string,
 			) (*marketplacepkg.Entry, error) {
 				return nil, errors.Join(errors.New("catalog offline"), marketplacepkg.ErrEntryNotFound)

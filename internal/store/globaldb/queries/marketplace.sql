@@ -57,13 +57,6 @@ WHERE source = 'compozy-catalog' AND kind = 'extension'
   AND install_slug = sqlc.arg(install_slug)
   AND (CAST(sqlc.arg(version) AS TEXT) = '' OR version = sqlc.arg(version));
 
--- name: ListMarketplaceSkillsByInstallSlugs :many
-SELECT *
-FROM marketplace_catalog_entries
-WHERE kind = 'skill'
-  AND install_slug IN (sqlc.slice(install_slugs))
-ORDER BY install_slug ASC, entry_id ASC;
-
 -- name: GetMarketplaceCatalogState :one
 SELECT s.source, s.generation, s.revision, s.manifest_version, s.generated_at, s.fetched_at, s.stale, s.last_error,
        CAST((SELECT COUNT(*) FROM marketplace_catalog_entries e WHERE e.source = s.source) AS INTEGER) AS entry_count

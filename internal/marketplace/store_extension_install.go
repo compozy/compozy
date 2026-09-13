@@ -23,7 +23,7 @@ func (s *SQLiteStore) GetExtensionByInstallSlug(
 	}
 	trimmedVersion := strings.TrimSpace(version)
 	if entryID, canonical := strings.CutPrefix(trimmedSlug, "compozy/"); canonical && entryID != "" {
-		entry, err := s.GetEntry(ctx, KindExtension, entryID)
+		entry, err := s.GetEntry(ctx, CompozyCatalogSource, entryID)
 		if err == nil {
 			if trimmedVersion != "" && entry.Version != trimmedVersion {
 				return nil, fmt.Errorf("%w: extension install %s@%s", ErrEntryNotFound, trimmedSlug, trimmedVersion)

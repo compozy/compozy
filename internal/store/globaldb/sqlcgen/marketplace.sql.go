@@ -8,7 +8,6 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
-	"strings"
 )
 
 const advanceMarketplaceCatalogGeneration = `-- name: AdvanceMarketplaceCatalogGeneration :one
@@ -238,66 +237,6 @@ type ListMarketplaceCatalogEntriesParams struct {
 
 func (q *Queries) ListMarketplaceCatalogEntries(ctx context.Context, arg ListMarketplaceCatalogEntriesParams) ([]MarketplaceCatalogEntry, error) {
 	rows, err := q.db.QueryContext(ctx, listMarketplaceCatalogEntries, arg.Source, arg.ResultLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []MarketplaceCatalogEntry{}
-	for rows.Next() {
-		var i MarketplaceCatalogEntry
-		if err := rows.Scan(
-			&i.Source,
-			&i.Kind,
-			&i.EntryID,
-			&i.Name,
-			&i.Description,
-			&i.Version,
-			&i.PublishedAt,
-			&i.UpdatedAt,
-			&i.DigestSha256,
-			&i.Tier,
-			&i.InstallSlug,
-			&i.PayloadJson,
-			&i.FetchedAt,
-			&i.Layout,
-			&i.Icon,
-			&i.Installable,
-			&i.InstallBlocker,
-			&i.ResolvedRef,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMarketplaceSkillsByInstallSlugs = `-- name: ListMarketplaceSkillsByInstallSlugs :many
-SELECT source, kind, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
-FROM marketplace_catalog_entries
-WHERE kind = 'skill'
-  AND install_slug IN (/*SLICE:install_slugs*/?)
-ORDER BY install_slug ASC, entry_id ASC
-`
-
-func (q *Queries) ListMarketplaceSkillsByInstallSlugs(ctx context.Context, installSlugs []sql.NullString) ([]MarketplaceCatalogEntry, error) {
-	query := listMarketplaceSkillsByInstallSlugs
-	var queryParams []any
-	if len(installSlugs) > 0 {
-		for _, v := range installSlugs {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:install_slugs*/?", strings.Repeat(",?", len(installSlugs))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:install_slugs*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}

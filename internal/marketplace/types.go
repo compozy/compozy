@@ -68,8 +68,8 @@ type Entry struct {
 	FetchedAt      time.Time
 }
 
-// KindState reports the freshness and failure state for one feed projection.
-type KindState struct {
+// SourceState reports the freshness and failure state for one feed projection.
+type SourceState struct {
 	Source          string
 	Generation      int64
 	Revision        string
@@ -87,7 +87,7 @@ type KindState struct {
 type BrowseResult struct {
 	Entries []Entry
 	Total   int
-	State   KindState
+	State   SourceState
 }
 
 // ListResult is one deterministic page from the durable catalog projection.
@@ -122,39 +122,31 @@ type RefreshReport struct {
 	Outcomes []RefreshOutcome `json:"outcomes"`
 }
 
-// Source fetches and validates one curated kind.
+// Source fetches and validates the curated extension feed.
 type Source interface {
-	Kind() Kind
 	Fetch(ctx context.Context) (*Document, error)
 }
 
 // Store persists the curated projection and freshness state.
 type Store interface {
 	AdvanceSourceGeneration(ctx context.Context, source string) (int64, error)
-	ReplaceKind(ctx context.Context, kind Kind, document *Document) error
 	ReplaceSource(ctx context.Context, source string, generation int64, document *Document) error
 	MarkSourceStale(ctx context.Context, source string, generation int64, errorClass, lastError string) error
 	BrowseSource(ctx context.Context, source, query string, offset, limit int) (BrowseResult, error)
-	MarkKindStale(ctx context.Context, kind Kind, errorClass string, lastError string) error
-	ListKind(ctx context.Context, kind Kind, query string, offset int, limit int) (ListResult, error)
-	GetEntry(ctx context.Context, kind Kind, entryID string) (*Entry, error)
+	GetEntry(ctx context.Context, source string, entryID string) (*Entry, error)
 	GetExtensionByInstallSlug(ctx context.Context, installSlug string, version string) (*Entry, error)
-	ListSkillsByInstallSlugs(ctx context.Context, installSlugs []string) ([]Entry, error)
-	KindState(ctx context.Context, kind Kind) (*KindState, error)
+	SourceState(ctx context.Context, source string) (*SourceState, error)
 }
 
 // Service exposes internal curated browse, detail, refresh, and status operations.
 type Service interface {
-	Browse(ctx context.Context, kind Kind, query string, offset int, limit int) (BrowseResult, error)
-	Detail(ctx context.Context, kind Kind, entryID string) (*Entry, error)
+	Browse(ctx context.Context, query string, offset int, limit int) (BrowseResult, error)
+	Detail(ctx context.Context, entryID string) (*Entry, error)
 	ResolveExtensionInstall(ctx context.Context, installSlug string, version string) (*Entry, error)
-	Refresh(ctx context.Context, kinds ...Kind) (RefreshReport, error)
-	Status(ctx context.Context) ([]KindState, error)
+	Refresh(ctx context.Context) (RefreshReport, error)
+	Status(ctx context.Context) ([]SourceState, error)
 	Close(ctx context.Context) error
 }
-
-// SkillInstallResolver batches curated identity reads for remote skill listings.
-type SkillInstallResolver any
 
 // Notifier persists canonical marketplace observations.
 type Notifier interface {

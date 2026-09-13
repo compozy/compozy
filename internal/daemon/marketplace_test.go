@@ -58,7 +58,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
-		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 20); err != nil {
+		if _, err := runtime.Browse(testutil.Context(t), "", 0, 20); err != nil {
 			t.Fatalf("Browse(checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "checkout")
@@ -69,7 +69,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := os.WriteFile(catalogPath, []byte(catalogDocument), 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", catalogPath, err)
 		}
-		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 20); err != nil {
+		if _, err := runtime.Browse(testutil.Context(t), "", 0, 20); err != nil {
 			t.Fatalf("Browse(edited checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "edited-checkout")
@@ -99,7 +99,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			t.Fatal("bootMarketplace() notifier = nil")
 		}
 
-		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
+		if _, err := state.marketplace.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Refresh(first) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "first")
@@ -119,7 +119,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := state.marketplace.ReconcileConfig(testutil.Context(t), &next); err != nil {
 			t.Fatalf("ReconcileConfig() error = %v", err)
 		}
-		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
+		if _, err := state.marketplace.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Refresh(second) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "second")
@@ -211,7 +211,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 
 		oldRefresh := make(chan error, 1)
 		go func() {
-			_, refreshErr := runtime.Refresh(t.Context(), marketplace.KindExtension)
+			_, refreshErr := runtime.Refresh(t.Context())
 			oldRefresh <- refreshErr
 		}()
 		<-requestStarted
@@ -224,7 +224,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := <-oldRefresh; !errors.Is(err, marketplace.ErrServiceClosed) {
 			t.Fatalf("old Refresh() error = %v, want ErrServiceClosed", err)
 		}
-		if _, err := runtime.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
+		if _, err := runtime.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Refresh(replacement) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "replacement")
@@ -261,7 +261,7 @@ func newMarketplaceFeedServer(t *testing.T, entryID string) *httptest.Server {
 
 func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wantEntryID string) {
 	t.Helper()
-	result, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 10)
+	result, err := runtime.Browse(testutil.Context(t), "", 0, 10)
 	if err != nil {
 		t.Fatalf("Browse() error = %v", err)
 	}
@@ -272,7 +272,7 @@ func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wa
 
 func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Store, fetchedAt time.Time) {
 	t.Helper()
-	if err := catalogStore.ReplaceKind(t.Context(), marketplace.KindExtension, &marketplace.Document{
+	if err := catalogStore.ReplaceSource(t.Context(), marketplace.CompozyCatalogSource, 0, &marketplace.Document{
 		ManifestVersion: marketplace.ManifestVersion,
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
@@ -288,7 +288,7 @@ func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Stor
 			FetchedAt:    fetchedAt,
 		}},
 	}); err != nil {
-		t.Fatalf("ReplaceKind(remote projection) error = %v", err)
+		t.Fatalf("ReplaceSource(remote projection) error = %v", err)
 	}
 }
 

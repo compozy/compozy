@@ -248,7 +248,6 @@ func (s *daemonExtensionService) searchCuratedExtensions(
 	}
 	result, err := s.marketplaceCatalog.Browse(
 		ctx,
-		marketplacepkg.KindExtension,
 		query,
 		0,
 		extensionSearchSnapshotLimit,

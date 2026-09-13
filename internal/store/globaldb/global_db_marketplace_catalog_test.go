@@ -141,35 +141,38 @@ func seedMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteS
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
 		Entries: []marketplace.Entry{{
-			Kind:        marketplace.KindSkill,
-			EntryID:     "migration-fixture",
-			Name:        "Migration fixture",
-			Description: "Proves the catalog projection survives restart",
-			InstallSlug: "compozy/migration-fixture",
-			Payload:     json.RawMessage(`{"entry_id":"migration-fixture"}`),
+			Kind:         marketplace.KindExtension,
+			EntryID:      "migration-fixture",
+			Name:         "Migration fixture",
+			Description:  "Proves the catalog projection survives restart",
+			InstallSlug:  "compozy/migration-fixture",
+			Version:      "1.0.0",
+			DigestSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			Tier:         "official",
+			Payload:      json.RawMessage(`{"entry_id":"migration-fixture"}`),
 		}},
 	}
-	if err := store.ReplaceKind(testutil.Context(t), marketplace.KindSkill, document); err != nil {
-		t.Fatalf("ReplaceKind() error = %v", err)
+	if err := store.ReplaceSource(testutil.Context(t), marketplace.CompozyCatalogSource, 0, document); err != nil {
+		t.Fatalf("ReplaceSource() error = %v", err)
 	}
 }
 
 func assertMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteStore) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	page, err := store.ListKind(ctx, marketplace.KindSkill, "", 0, 10)
+	page, err := store.BrowseSource(ctx, marketplace.CompozyCatalogSource, "", 0, 10)
 	if err != nil {
-		t.Fatalf("ListKind() error = %v", err)
+		t.Fatalf("BrowseSource() error = %v", err)
 	}
 	if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "migration-fixture" {
-		t.Fatalf("ListKind() = %#v, want persisted migration fixture", page)
+		t.Fatalf("BrowseSource() = %#v, want persisted migration fixture", page)
 	}
-	state, err := store.KindState(ctx, marketplace.KindSkill)
+	state, err := store.SourceState(ctx, marketplace.CompozyCatalogSource)
 	if err != nil {
-		t.Fatalf("KindState() error = %v", err)
+		t.Fatalf("SourceState() error = %v", err)
 	}
 	if state.EntryCount != 1 || state.Stale {
-		t.Fatalf("KindState() = %#v, want one fresh persisted row", state)
+		t.Fatalf("SourceState() = %#v, want one fresh persisted row", state)
 	}
 }
 

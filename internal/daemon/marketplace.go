@@ -25,19 +25,11 @@ type marketplaceRuntime struct {
 	store    marketplace.Store
 	notifier marketplace.Notifier
 	now      func() time.Time
-	service  marketplaceRuntimeService
+	service  marketplace.Service
 	stopped  bool
 }
 
-type marketplaceRuntimeService interface {
-	marketplace.Service
-	marketplace.SkillInstallResolver
-}
-
-var (
-	_ marketplace.Service              = (*marketplaceRuntime)(nil)
-	_ marketplace.SkillInstallResolver = (*marketplaceRuntime)(nil)
-)
+var _ marketplace.Service = (*marketplaceRuntime)(nil)
 
 func newMarketplaceRuntime(
 	store marketplace.Store,
@@ -65,7 +57,7 @@ func buildMarketplaceService(
 	notifier marketplace.Notifier,
 	cfg compozyconfig.MarketplaceCatalogConfig,
 	now func() time.Time,
-) (marketplaceRuntimeService, error) {
+) (marketplace.Service, error) {
 	if err := cfg.Validate("marketplace.catalog"); err != nil {
 		return nil, err
 	}
@@ -86,7 +78,7 @@ func buildMarketplaceService(
 	if now != nil {
 		options = append(options, marketplace.WithNow(now))
 	}
-	service, err := marketplace.NewService(marketplaceStore, []marketplace.Source{source}, ttl, timeout, options...)
+	service, err := marketplace.NewService(marketplaceStore, source, ttl, timeout, options...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create marketplace service: %w", err)
 	}
@@ -95,7 +87,6 @@ func buildMarketplaceService(
 
 func (r *marketplaceRuntime) Browse(
 	ctx context.Context,
-	kind marketplace.Kind,
 	query string,
 	offset int,
 	limit int,
@@ -104,19 +95,18 @@ func (r *marketplaceRuntime) Browse(
 	if err != nil {
 		return marketplace.BrowseResult{}, err
 	}
-	return service.Browse(ctx, kind, query, offset, limit)
+	return service.Browse(ctx, query, offset, limit)
 }
 
 func (r *marketplaceRuntime) Detail(
 	ctx context.Context,
-	kind marketplace.Kind,
 	entryID string,
 ) (*marketplace.Entry, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return service.Detail(ctx, kind, entryID)
+	return service.Detail(ctx, entryID)
 }
 
 func (r *marketplaceRuntime) ResolveExtensionInstall(
@@ -133,16 +123,15 @@ func (r *marketplaceRuntime) ResolveExtensionInstall(
 
 func (r *marketplaceRuntime) Refresh(
 	ctx context.Context,
-	kinds ...marketplace.Kind,
 ) (marketplace.RefreshReport, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return marketplace.RefreshReport{}, err
 	}
-	return service.Refresh(ctx, kinds...)
+	return service.Refresh(ctx)
 }
 
-func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.KindState, error) {
+func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.SourceState, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return nil, err
@@ -212,7 +201,7 @@ func (r *marketplaceRuntime) Shutdown(ctx context.Context) error {
 
 func (r *marketplaceRuntime) Close(ctx context.Context) error { return r.Shutdown(ctx) }
 
-func (r *marketplaceRuntime) currentService(ctx context.Context) (marketplaceRuntimeService, error) {
+func (r *marketplaceRuntime) currentService(ctx context.Context) (marketplace.Service, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: marketplace context is required")
 	}
