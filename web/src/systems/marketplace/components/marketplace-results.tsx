@@ -164,9 +164,14 @@ function MarketplaceResults({
             <MarketplaceCatalogSection
               count={items.length}
               gist={
-                query
-                  ? `${items.length} of ${source.count} ${items.length === 1 ? "matches" : "match"} “${query}”`
-                  : null
+                source.state === "degraded" ? (
+                  <>
+                    last read {source.last_read_at ? <Time iso={source.last_read_at} /> : "unknown"}{" "}
+                    · could not refresh
+                  </>
+                ) : query ? (
+                  `${items.length} of ${source.count} ${items.length === 1 ? "matches" : "match"} “${query}”`
+                ) : null
               }
               key={source.name}
               name={source.name}

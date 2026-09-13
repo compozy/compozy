@@ -34,6 +34,10 @@ import { MarketplaceEntryCard } from "../marketplace-entry-card";
 import { MarketplaceCatalogTrail } from "../marketplace-entry-trail";
 import { MarketplaceInstalledShelf } from "../marketplace-installed-shelf";
 import { useExtensionInstallDialog } from "../use-extension-install-dialog";
+import { Route as SkillsRoute } from "@/routes/_app/marketplace.skills";
+import { Route as MCPsRoute } from "@/routes/_app/marketplace.mcps";
+import { Route as ExtensionsRoute } from "@/routes/_app/marketplace.extensions";
+import { Route as BrowseRoute } from "@/routes/_app/marketplace.index";
 
 const mocks = vi.hoisted(() => ({
   installExtension: vi.fn(),
@@ -61,7 +65,11 @@ const server = setupServer(
     return HttpResponse.json(catalog);
   }),
   http.get("*/api/extensions", () => HttpResponse.json({ extensions })),
-  http.post("*/api/marketplace/refresh", () => HttpResponse.json({ refreshed: ["extension"] }))
+  http.post("*/api/marketplace/refresh", () =>
+    HttpResponse.json({
+      kinds: [{ kind: "extension", outcome: "refreshed", entry_count: 4, stale: false }],
+    })
+  )
 );
 const clients: QueryClient[] = [];
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -125,6 +133,9 @@ function setup(node?: ReactNode, path = "/marketplace") {
   clients.push(client);
   const root = createRootRoute({ component: Shell });
   const browse = createRoute({
+    beforeLoad: context => {
+      BrowseRoute.options.beforeLoad?.(context as never);
+    },
     getParentRoute: () => root,
     path: "/marketplace",
     validateSearch: validateMarketplaceSearch,
@@ -141,8 +152,23 @@ function setup(node?: ReactNode, path = "/marketplace") {
     path: "/marketplace/$entryId",
     component: () => <div>Entry details</div>,
   });
+  const retired = [
+    ["/marketplace/skills", SkillsRoute],
+    ["/marketplace/mcps", MCPsRoute],
+    ["/marketplace/extensions", ExtensionsRoute],
+  ] as const;
+  const redirects = retired.map(([path, route]) =>
+    createRoute({
+      beforeLoad: context => {
+        route.options.beforeLoad?.(context as never);
+      },
+      validateSearch: route.options.validateSearch,
+      getParentRoute: () => root,
+      path,
+    })
+  );
   const router = createRouter({
-    routeTree: root.addChildren([browse, installed, detail]),
+    routeTree: root.addChildren([browse, installed, detail, ...redirects]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
@@ -249,6 +275,29 @@ describe("Marketplace page and cards", () => {
       "marketplace-section-team-a",
     ]);
   });
+  it("Should preserve degraded source rows and identify their failed refresh", async () => {
+    catalog = {
+      ...catalog,
+      sources: [
+        { name: "compozy-catalog", kind: "feed", state: "ok", count: 1 },
+        {
+          name: "team",
+          kind: "plugin",
+          state: "degraded",
+          count: 1,
+          last_read_at: "2026-09-12T00:00:00Z",
+        },
+      ],
+      items: [entry, { ...entry, entry_id: "cached-team", source: "team", source_ref: "git:team" }],
+    };
+    setup();
+    const degraded = await screen.findByTestId("marketplace-section-team");
+    expect(degraded).toHaveTextContent(/last read.*could not refresh/);
+    expect(within(degraded).getByTestId("marketplace-card-cached-team")).toBeVisible();
+    expect(screen.getByTestId("marketplace-section-compozy-catalog")).not.toHaveTextContent(
+      "could not refresh"
+    );
+  });
   it("Should distinguish an empty catalog from a query with no matches", async () => {
     catalog = { ...catalog, items: [], total: 0 };
     const view = setup(undefined, "/marketplace?q=missing");
@@ -277,6 +326,29 @@ describe("Marketplace page and cards", () => {
       "Showing the catalog from"
     );
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+  });
+  // Invariant: repeated failed retries preserve the cached catalog and emit one failure toast per five seconds.
+  it("Should keep the stale catalog and throttle failed Retry notifications", async () => {
+    catalog = { ...catalog, stale: true };
+    let retries = 0;
+    server.use(
+      http.post("*/api/marketplace/refresh", () => {
+        retries++;
+        return HttpResponse.json({ error: "Feed timed out" }, { status: 503 });
+      })
+    );
+    setup();
+    await screen.findByTestId("marketplace-stale");
+    const retry = screen.getByRole("button", { name: "Retry" });
+    await userEvent.click(retry);
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("Feed timed out"));
+    await waitFor(() => expect(retry).toBeEnabled());
+    await userEvent.click(retry);
+    await waitFor(() => expect(retries).toBe(2));
+    await waitFor(() => expect(retry).toBeEnabled());
+    expect(mocks.toast).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+    expect(screen.getByTestId("marketplace-stale")).toBeVisible();
   });
   it("Should show unreachable rather than an empty catalog when no projection could be read", async () => {
     server.use(
@@ -379,6 +451,19 @@ describe("Marketplace page and cards", () => {
       if (count === 9) expect(within(shelf!).getByText("+3")).toBeVisible();
     }
   );
+  // Invariant: retained public kind URLs resolve through the shipped router options to one catalog.
+  it.each([
+    "/marketplace/skills?q=x",
+    "/marketplace/mcps?q=x",
+    "/marketplace/extensions?q=x",
+    "/marketplace?tab=market&q=x",
+  ])("Should redirect %s without losing the query", async path => {
+    const { router } = setup(undefined, path);
+    await waitFor(() => expect(router.state.status).toBe("idle"));
+    await screen.findByTestId("marketplace-page");
+    expect(router.state.location.pathname).toBe("/marketplace");
+    expect(router.state.location.search).toEqual({ q: "x" });
+  });
   it("Should fall through a failed feed image to a brand mark", async () => {
     const view = setup(
       <MarketplaceEntryLogo
@@ -391,6 +476,33 @@ describe("Marketplace page and cards", () => {
     fireEvent.error(image);
     expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
     expect(view.container.querySelector("img")).toBeNull();
+  });
+  // Invariant: logo fallback follows the package identity and retries a replacement URL.
+  it("Should recognize a known brand from the installation slug tail", () => {
+    const view = render(
+      <MarketplaceEntryLogo
+        entry={{
+          entry_id: "third-party-kit",
+          name: "Slack tools",
+          install_slug: "owner/slack-tools",
+        }}
+      />
+    );
+    expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-rung="marble"]')).toBeNull();
+  });
+  it("Should retry a new icon URL after the previous image failed", () => {
+    const item = { entry_id: "github", name: "GitHub", icon: "https://example.test/old.svg" };
+    const view = render(<MarketplaceEntryLogo entry={item} />);
+    fireEvent.error(view.container.querySelector("img")!);
+    expect(view.container.querySelector("img")).toBeNull();
+    view.rerender(
+      <MarketplaceEntryLogo entry={{ ...item, icon: "https://example.test/new.svg" }} />
+    );
+    expect(view.container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://example.test/new.svg"
+    );
   });
   it("Should render unknown-entry marbles with separate SVG ids for duplicate seeds", async () => {
     const tile = { entry_id: "unknown-package", name: "Unknown" };
@@ -511,6 +623,41 @@ describe("Marketplace page and cards", () => {
     expect(await screen.findByText("No extensions installed yet")).toBeVisible();
   });
 
+  // Invariant: Installed is a flat name-ordered inventory, including sideloads and scope metadata.
+  it("Should order installed names and show contents and workspace only where applicable", async () => {
+    const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0, bridges: 0 };
+    extensions = [
+      {
+        ...extensionFixtures[0]!,
+        name: "Zulu",
+        marketplace: null,
+        origin: null,
+        contents: emptyContents,
+        workspace_id: undefined,
+        update_available: false,
+      },
+      {
+        ...extensionFixtures[0]!,
+        name: "Alpha",
+        marketplace: null,
+        origin: null,
+        contents: { ...emptyContents, mcp_servers: 1, skills: 2 },
+        workspace_id: "ws-a",
+        update_available: false,
+      },
+    ];
+    setup(undefined, "/marketplace/installed");
+    await screen.findByTestId("marketplace-installed-card-Alpha");
+    const rows = screen.getAllByTestId(/^marketplace-installed-card-/);
+    expect(rows.map(row => row.dataset.testid)).toEqual([
+      "marketplace-installed-card-Alpha",
+      "marketplace-installed-card-Zulu",
+    ]);
+    expect(rows[0]).toHaveTextContent("1 MCP server · 2 skills");
+    expect(rows[0]).toHaveTextContent("workspace · ws-a");
+    expect(rows[1]).not.toHaveTextContent("MCP server");
+    expect(rows[1]).not.toHaveTextContent("workspace ·");
+  });
   it("Should distinguish Installed empties from filtered inventory", async () => {
     const view = setup(undefined, "/marketplace/installed");
     expect(await screen.findByText("No extensions installed yet")).toBeVisible();

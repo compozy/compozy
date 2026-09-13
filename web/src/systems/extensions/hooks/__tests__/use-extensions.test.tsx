@@ -20,15 +20,10 @@ const mocks = vi.hoisted(() => ({
   getExtensionInventory: vi.fn(),
   getExtensionProvenance: vi.fn(),
   listExtensions: vi.fn(),
-  useMarketplaceKind: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
-}));
-
-vi.mock("@/systems/marketplace", () => ({
-  useMarketplaceKind: mocks.useMarketplaceKind,
 }));
 
 vi.mock("@/systems/profiles", () => ({
@@ -101,7 +96,6 @@ describe("useExtensionInventory", () => {
       ["legacy-notes", false],
     ]);
     expect(result.current.data[0]?.listing?.description).toBe("Export session spans.");
-    expect(mocks.useMarketplaceKind).not.toHaveBeenCalled();
   });
 
   it("Should cache each workspace instance under its own key and never reuse another's rows", async () => {

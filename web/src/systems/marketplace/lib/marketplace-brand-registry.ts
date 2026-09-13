@@ -33,7 +33,7 @@ export function marketplaceBrandKeyFor(entry: {
   const candidates = [entry.entry_id, entry.install_slug?.split("/").pop()]
     .map(normalizeBrandKey)
     .filter(candidate => candidate !== "");
-  for (const candidate of candidates) {
+  for (const candidate of candidates.flatMap(value => [value, value.replace(/-tools$/, "")])) {
     if (Object.hasOwn(marketplaceBrandRegistry, candidate)) {
       return candidate as MarketplaceBrandKey;
     }

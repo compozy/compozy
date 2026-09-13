@@ -1,3 +1,6 @@
+import { useRef } from "react";
+import { toast } from "sonner";
+import { installedDisplayName } from "../lib/marketplace-installed-view";
 import { useExtensionInventory } from "@/systems/extensions";
 
 import { useMarketplaceCatalog } from "./use-marketplace";
@@ -16,6 +19,20 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     liveDataEnabled
   );
   const refresh = useRefreshMarketplaceCatalog();
+  const lastFailureToast = useRef(Number.NEGATIVE_INFINITY);
+  const refreshCatalog = async () => {
+    try {
+      const response = await refresh.mutateAsync();
+      const failed = response.kinds.find(result => result.error_class);
+      if (failed) throw new Error(`Could not refresh the catalog (${failed.error_class})`);
+    } catch (error) {
+      const now = Date.now();
+      if (now - lastFailureToast.current >= 5_000) {
+        lastFailureToast.current = now;
+        toast.error(error instanceof Error ? error.message : "Failed to refresh the marketplace");
+      }
+    }
+  };
   const pages = catalog.data?.pages ?? [];
   const first = pages[0];
   const catalogItems = pages.flatMap(page => page.items);
@@ -39,7 +56,7 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     isLoading: catalog.isPending,
     isInstalledLoading: inventory.isPending,
     isRefreshing: refresh.isPending || catalog.isRefetching,
-    refresh: () => refresh.mutateAsync("extension"),
+    refresh: refreshCatalog,
     profileName: inventory.profileName,
     workspaceId: inventory.workspaceId,
   };
@@ -49,11 +66,13 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
 export function useMarketplaceInstalledPage(query = "", liveDataEnabled = true) {
   const inventory = useExtensionInventory(liveDataEnabled);
   const needle = query.trim().normalize("NFC").toLocaleLowerCase();
-  const items = inventory.data.filter(item =>
-    [item.extension.name, item.listing?.name, item.listing?.description].some(value =>
-      value?.normalize("NFC").toLocaleLowerCase().includes(needle)
+  const items = inventory.data
+    .filter(item =>
+      [item.extension.name, item.listing?.name, item.listing?.description].some(value =>
+        value?.normalize("NFC").toLocaleLowerCase().includes(needle)
+      )
     )
-  );
+    .sort((left, right) => installedDisplayName(left).localeCompare(installedDisplayName(right)));
   return {
     ...inventory,
     items,

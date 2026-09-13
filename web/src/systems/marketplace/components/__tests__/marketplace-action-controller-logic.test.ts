@@ -4,13 +4,13 @@
 // Boundary OUT: accepted Query, mutation, and authorization executors scheduled by the store.
 import { describe, expect, it, vi } from "vitest";
 
-import { marketplaceListings } from "../../mocks";
+import { marketplaceCatalogFixture } from "../../mocks";
 import { marketplaceActionControllerLogic } from "../marketplace-action-controller-logic";
 
 describe("marketplaceActionControllerLogic", () => {
   it("Should keep a trust dialog mounted and notify after its accepted install settles", async () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const entry = marketplaceListings.extension[0]!;
+    const entry = marketplaceCatalogFixture.items[0]!;
     let resolveInstall!: (notify: boolean) => void;
     const install = new Promise<boolean>(resolve => {
       resolveInstall = resolve;
@@ -37,7 +37,7 @@ describe("marketplaceActionControllerLogic", () => {
 
   it("Should close trust consent without a success notice when network consent takes over", async () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const entry = marketplaceListings.extension[1]!;
+    const entry = marketplaceCatalogFixture.items[1]!;
     const notifySuccess = vi.fn();
     store.trigger.extensionTrustRequested({ entry });
     store.trigger.extensionTrustConfirmed({
@@ -52,8 +52,8 @@ describe("marketplaceActionControllerLogic", () => {
 
   it("Should fence stale trust completions after a newer dialog request", () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const firstTrustEntry = marketplaceListings.extension[1]!;
-    const secondTrustEntry = marketplaceListings.extension[0]!;
+    const firstTrustEntry = marketplaceCatalogFixture.items[1]!;
+    const secondTrustEntry = marketplaceCatalogFixture.items[0]!;
 
     store.trigger.extensionTrustRequested({ entry: firstTrustEntry });
     store.trigger.extensionTrustConfirmed({

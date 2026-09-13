@@ -86,7 +86,7 @@ class MarketplaceLogoBoundary extends Component<
  * the one authorized identity color on a resting row (DESIGN-NOTES Q3).
  */
 function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntryLogoProps) {
-  const [iconFailed, setIconFailed] = useState(false);
+  const [failedIcon, setFailedIcon] = useState<string>();
   const icon = entry.icon?.trim();
   const brandKey = marketplaceBrandKeyFor(entry);
   const wellClass = cn(
@@ -95,7 +95,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
     className
   );
 
-  if (icon && !iconFailed) {
+  if (icon && icon !== failedIcon) {
     return (
       <span
         aria-hidden="true"
@@ -108,7 +108,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
           className={cn("block rounded-xs object-contain", ICON_CLASS[size])}
           decoding="async"
           loading="lazy"
-          onError={() => setIconFailed(true)}
+          onError={() => setFailedIcon(icon)}
           referrerPolicy="no-referrer"
           src={icon}
         />
@@ -152,7 +152,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
   );
 
   return (
-    <MarketplaceLogoBoundary fallback={monogram}>
+    <MarketplaceLogoBoundary fallback={monogram} key={entry.entry_id}>
       <span
         aria-hidden="true"
         className={cn(wellClass, "[&>svg]:size-full")}

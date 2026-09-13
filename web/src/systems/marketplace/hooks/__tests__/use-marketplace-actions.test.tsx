@@ -1,293 +1,48 @@
+// Invariant: mutations replace pre-install reads and reconcile catalog and installed caches.
+// Owning layer: acquisition query lifecycle; canonical suite: use-marketplace-actions.test.tsx.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { toast } from "sonner";
-import { useMarketplaceKind } from "../use-marketplace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
-vi.mock("../../adapters/marketplace-actions-api", () => ({
-  installMarketplaceExtension: vi.fn(),
-  installMarketplaceMCP: vi.fn(),
-  installMarketplaceSkill: vi.fn(),
-  refreshMarketplaceCatalog: vi.fn(),
-  updateMarketplaceSkill: vi.fn(),
-}));
-vi.mock("@/systems/extensions/adapters/extensions-api", () => ({
-  updateExtension: vi.fn(),
-}));
-
+import { extensionFixtures } from "@/systems/extensions/mocks/fixtures";
+import { marketplaceCatalogFixture } from "../../mocks/fixtures";
+import { useMarketplaceCatalog } from "../use-marketplace";
 import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
-import {
-  installMarketplaceExtension,
-  installMarketplaceMCP,
-  installMarketplaceSkill,
-} from "../../adapters/marketplace-actions-api";
+import { installMarketplaceExtension } from "../../adapters/marketplace-actions-api";
 import {
   useInstallMarketplaceExtension,
-  useInstallMarketplaceMCP,
-  useInstallMarketplaceSkill,
   useUpdateMarketplaceExtension,
 } from "../use-marketplace-actions";
-
-const locationAssign = vi.fn();
-
+vi.mock("../../adapters/marketplace-actions-api", () => ({
+  installMarketplaceExtension: vi.fn(),
+  refreshMarketplaceCatalog: vi.fn(),
+  updateMarketplaceExtensions: vi.fn(),
+}));
+vi.mock("@/systems/extensions/adapters/extensions-api", () => ({ updateExtension: vi.fn() }));
+const clients: QueryClient[] = [];
 function setup() {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
+  clients.push(queryClient);
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
   return { invalidateQueries, wrapper };
 }
-
-beforeEach(() => {
-  vi.stubGlobal("location", { assign: locationAssign });
-});
-
+beforeEach(() => vi.clearAllMocks());
 afterEach(() => {
+  for (const client of clients.splice(0)) client.clear();
   vi.unstubAllGlobals();
 });
-
-describe("useInstallMarketplaceMCP", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("Should announce required authorization and invalidate discovery and settings", async () => {
-    vi.mocked(installMarketplaceMCP).mockResolvedValue({
-      apply: {
-        active_config_hash: "sha256:active-live",
-        active_generation: 42,
-        applied: true,
-        apply_record_id: "cfg_apply_mcp_live_add",
-        lifecycle: "live-add",
-        next_action: "none",
-        restart_required: false,
-        scope: "user",
-        warnings: [],
-        write_target: "global-mcp-sidecar",
-      },
-      mcp_server: {
-        name: "github",
-        scope: "user",
-        source_metadata: {
-          available_targets: [],
-          effective_source: { kind: "global-config", scope: "user" },
-          shadowed_sources: [],
-        },
-        transport: "stdio",
-      },
-      next_step: "authorize",
-    });
-    const { invalidateQueries, wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
-    const body = { entry_id: "github-mcp", scope: "user" as const, values: null };
-
-    act(() => result.current.mutate(body));
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(installMarketplaceMCP).toHaveBeenCalledWith(body);
-    expect(toast.success).toHaveBeenCalledWith("github installed · authorization pending", {
-      action: { label: "Authorize →", onClick: expect.any(Function) },
-    });
-    const authorizeToast = vi
-      .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "github installed · authorization pending");
-    const authorizeAction = authorizeToast?.[1] as
-      | { action?: { onClick?: () => void } }
-      | undefined;
-    authorizeAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/github-mcp?scope=user&installed_name=github"
-    );
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["settings", "collection", "mcp-servers"],
-    });
-  });
-
-  it("Should announce a ready server when no authorization step remains", async () => {
-    vi.mocked(installMarketplaceMCP).mockResolvedValue({
-      apply: {
-        active_config_hash: "sha256:active-live",
-        active_generation: 42,
-        applied: true,
-        apply_record_id: "cfg_apply_mcp_live_add",
-        lifecycle: "live-add",
-        next_action: "none",
-        restart_required: false,
-        scope: "user",
-        warnings: [],
-        write_target: "global-mcp-sidecar",
-      },
-      mcp_server: {
-        name: "filesystem",
-        scope: "user",
-        source_metadata: {
-          available_targets: [],
-          effective_source: { kind: "global-config", scope: "user" },
-          shadowed_sources: [],
-        },
-        transport: "stdio",
-      },
-      next_step: "none",
-    });
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
-
-    act(() => result.current.mutate({ entry_id: "filesystem", scope: "user", values: null }));
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(toast.success).toHaveBeenCalledWith("filesystem installed", {
-      action: { label: "View installed →", onClick: expect.any(Function) },
-    });
-    const manageToast = vi
-      .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "filesystem installed");
-    const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
-    manageAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/filesystem?scope=user&installed_name=filesystem"
-    );
-  });
-
-  it("Should retain workspace identity in the post-install management deep link", async () => {
-    vi.mocked(installMarketplaceMCP).mockResolvedValue({
-      apply: {
-        active_config_hash: "sha256:active-live",
-        active_generation: 42,
-        applied: true,
-        apply_record_id: "cfg_apply_mcp_live_add",
-        lifecycle: "live-add",
-        next_action: "none",
-        restart_required: false,
-        scope: "workspace",
-        warnings: [],
-        workspace_id: "ws-polybot",
-        write_target: "workspace-mcp-sidecar",
-      },
-      mcp_server: {
-        name: "github",
-        scope: "workspace",
-        workspace_id: "ws-polybot",
-        source_metadata: {
-          available_targets: [],
-          effective_source: {
-            kind: "workspace-config",
-            scope: "workspace",
-            workspace_id: "ws-polybot",
-          },
-          shadowed_sources: [],
-        },
-        transport: "stdio",
-      },
-      next_step: "authorize",
-    });
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
-
-    act(() =>
-      result.current.mutate({
-        entry_id: "github-mcp",
-        scope: "workspace",
-        workspace_id: "ws-polybot",
-        values: null,
-      })
-    );
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const authorizeToast = vi
-      .mocked(toast.success)
-      .mock.calls.find(call => String(call[0]).includes("authorization pending"));
-    const authorizeAction = authorizeToast?.[1] as
-      | { action?: { onClick?: () => void } }
-      | undefined;
-    authorizeAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/github-mcp?scope=workspace&installed_name=github&workspace_id=ws-polybot"
-    );
-  });
-
-  it("Should retain profile and workspace identity in a profile management deep link", async () => {
-    vi.mocked(installMarketplaceMCP).mockResolvedValue({
-      apply: {} as never,
-      mcp_server: {
-        name: "github",
-        profile: "marketing",
-        scope: "profile",
-        workspace_id: "ws-polybot",
-      } as never,
-      next_step: "none",
-    } as never);
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
-
-    act(() =>
-      result.current.mutate({
-        entry_id: "github-mcp",
-        profile: "marketing",
-        scope: "profile",
-        values: null,
-        workspace_id: "ws-polybot",
-      } as never)
-    );
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const manageToast = vi
-      .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "github installed");
-    const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
-    manageAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/github-mcp?scope=profile&installed_name=github&workspace_id=ws-polybot&profile=marketing"
-    );
-  });
-});
-
 describe("marketplace acquisition cache boundaries", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("Should invalidate marketplace and installed skill caches after skill install", async () => {
-    vi.mocked(installMarketplaceSkill).mockResolvedValue({
-      skill: {
-        hash: "sha256:reviewer",
-        name: "reviewer",
-        path: "/skills/reviewer",
-        registry: "compozy",
-        slug: "@compozy/reviewer",
-        status: "installed",
-        version: "1.2.0",
-      },
-    });
-    const { invalidateQueries, wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceSkill(), { wrapper });
-
-    act(() => result.current.mutate({ slug: "@compozy/reviewer", version: "1.2.0" }));
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["skills"] });
-  });
-
   it("Should replace a pre-install initial search with authoritative installed state", async () => {
     /** Builds server responses that distinguish stale and authoritative installation state. */
     const listing = (installed: boolean) =>
       Response.json({
-        kind: "skill",
-        stale: false,
-        items: [
-          {
-            kind: "skill",
-            entry_id: "reviewer",
-            name: "reviewer",
-            installed,
-            update_available: false,
-          },
-        ],
+        ...marketplaceCatalogFixture,
+        items: [{ ...marketplaceCatalogFixture.items[0], installed }],
+        total: 1,
       });
     let releaseStaleRead!: (response: Response) => void;
     const staleRead = new Promise<Response>(resolve => {
@@ -298,28 +53,18 @@ describe("marketplace acquisition cache boundaries", () => {
       .mockReturnValueOnce(staleRead)
       .mockImplementation(async () => listing(true));
     vi.stubGlobal("fetch", fetch);
-    vi.mocked(installMarketplaceSkill).mockResolvedValue({
-      skill: {
-        hash: "sha256:reviewer",
-        name: "reviewer",
-        path: "/skills/reviewer",
-        registry: "compozy",
-        slug: "@compozy/reviewer",
-        status: "installed",
-        version: "1.2.0",
-      },
-    });
+    vi.mocked(installMarketplaceExtension).mockResolvedValue({ extension: extensionFixtures[0]! });
     const { invalidateQueries, wrapper } = setup();
     const { result } = renderHook(
       () => ({
-        listing: useMarketplaceKind({ kind: "skill", q: "reviewer" }),
-        install: useInstallMarketplaceSkill(),
+        listing: useMarketplaceCatalog({ q: "otel" }),
+        install: useInstallMarketplaceExtension(),
       }),
       { wrapper }
     );
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     expect(result.current.listing.data).toBeUndefined();
-    act(() => result.current.install.mutate({ slug: "@compozy/reviewer", version: "1.2.0" }));
+    act(() => result.current.install.mutate({ ref: "compozy/otel-bridge", source: "curated" }));
     await waitFor(() =>
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] })
     );

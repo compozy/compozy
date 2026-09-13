@@ -1,16 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
-
 import { compozyApiMock } from "@/storybook/openapi-msw";
-
-import {
-  marketplaceCatalogFixture,
-  marketplaceCatalogDetailFixture,
-  marketplaceDetails,
-  marketplaceKindFixture,
-  marketplaceListings,
-  marketplaceSearchFixture,
-} from "./fixtures";
-import type { MarketplaceKind } from "../types";
+import { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "./fixtures";
 
 function queryText(request: Request): string {
   return new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
@@ -34,92 +24,16 @@ export const handlers: HttpHandler[] = [
       ? HttpResponse.json(detail)
       : HttpResponse.json({ error: "Marketplace entry not found" }, { status: 404 });
   }),
-  compozyApiMock.get("/api/marketplace/search", ({ request }) => {
-    const query = queryText(request);
-    return HttpResponse.json({
-      ...marketplaceSearchFixture,
-      query,
-      kinds: marketplaceSearchFixture.kinds.map(result => {
-        const items = result.items.filter(item => matchesQuery(item.name, item.description, query));
-        return { ...result, items, total: items.length };
-      }),
-    });
-  }),
   compozyApiMock.post("/api/marketplace/refresh", () =>
     HttpResponse.json({
       kinds: [
         {
-          entry_count: marketplaceListings.skill.length,
-          kind: "skill",
-          outcome: "refreshed",
-          stale: false,
-        },
-        {
-          entry_count: marketplaceListings.extension.length,
+          entry_count: marketplaceCatalogFixture.items.length,
           kind: "extension",
-          outcome: "refreshed",
-          stale: false,
-        },
-        {
-          entry_count: marketplaceListings.mcp.length,
-          kind: "mcp",
           outcome: "refreshed",
           stale: false,
         },
       ],
     })
   ),
-  compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", ({ params }) => {
-    const key = `${String(params.kind)}:${String(params.entry_id)}`;
-    const detail = marketplaceDetails[key];
-    return detail
-      ? HttpResponse.json(detail)
-      : HttpResponse.json({ error: `Marketplace entry not found: ${key}` }, { status: 404 });
-  }),
-  compozyApiMock.get("/api/marketplace/{kind}", ({ params, request }) => {
-    const kind = String(params.kind) as MarketplaceKind;
-    if (!(kind in marketplaceListings)) {
-      return HttpResponse.json({ error: `Marketplace kind not found: ${kind}` }, { status: 404 });
-    }
-    const query = queryText(request);
-    const fixture = marketplaceKindFixture(kind);
-    const items = fixture.items.filter(item => matchesQuery(item.name, item.description, query));
-    return HttpResponse.json({ ...fixture, items, total: items.length });
-  }),
-  compozyApiMock.post("/api/settings/mcp-servers/install", async ({ request }) => {
-    const body = (await request.json()) as { entry_id?: string; name?: string; scope?: string };
-    const remote = body.entry_id === "linear";
-    return HttpResponse.json({
-      apply: {
-        active_config_hash: "sha256:active-live",
-        active_generation: 42,
-        applied: true,
-        apply_record_id: "cfg_apply_mcp_live_add",
-        lifecycle: "live-add",
-        next_action: "none",
-        restart_required: false,
-        scope: body.scope === "workspace" ? "workspace" : "user",
-        warnings: [],
-        write_target: body.scope === "workspace" ? "workspace-mcp-sidecar" : "global-mcp-sidecar",
-      },
-      mcp_server: {
-        auth: remote ? { client_secret_configured: false, registration: "auto" } : null,
-        auth_status: null,
-        catalog_entry: body.entry_id,
-        name: body.name ?? body.entry_id ?? "mcp-server",
-        scope: body.scope === "workspace" ? "workspace" : "user",
-        source_metadata: {
-          available_targets: ["global-config", "workspace-config"],
-          effective_source: {
-            kind: body.scope === "workspace" ? "workspace-config" : "global-config",
-            scope: body.scope === "workspace" ? "workspace" : "user",
-          },
-          shadowed_sources: [],
-        },
-        transport: remote ? "http" : "stdio",
-        url: remote ? "https://mcp.linear.app/mcp" : undefined,
-      },
-      next_step: remote ? "authorize" : "none",
-    });
-  }),
 ];

@@ -9,7 +9,7 @@ interface MarketplaceCatalogSectionProps {
   /** Matching rows in this section (the count chip). */
   count: number;
   /** "n of m matches 'q'" under a query, or the source gist. */
-  gist?: string | null;
+  gist?: ReactNode;
   children: ReactNode;
 }
 
