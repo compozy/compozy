@@ -164,7 +164,6 @@ func (r *MarketplaceRepo) GetMarketplaceCatalogState(
 
 func marketplaceCatalogStateFromRow(row sqlcgen.GetMarketplaceCatalogStateRow) store.MarketplaceCatalogState {
 	return store.MarketplaceCatalogState{
-		Kind:            "extension",
 		Source:          row.Source,
 		Generation:      row.Generation,
 		Revision:        row.Revision,
@@ -189,7 +188,6 @@ func insertMarketplaceCatalogEntry(
 		Installable:    int64(boolToInt(entry.Installable)),
 		InstallBlocker: entry.InstallBlocker,
 		ResolvedRef:    entry.ResolvedRef,
-		Kind:           entry.Kind,
 		EntryID:        entry.EntryID,
 		Name:           entry.Name,
 		Description:    entry.Description,
@@ -202,7 +200,7 @@ func insertMarketplaceCatalogEntry(
 		PayloadJson:    entry.PayloadJSON,
 		FetchedAt:      entry.FetchedAt,
 	}); err != nil {
-		return fmt.Errorf("store: insert marketplace catalog %q entry %q: %w", entry.Kind, entry.EntryID, err)
+		return fmt.Errorf("store: insert marketplace catalog %q entry %q: %w", entry.Source, entry.EntryID, err)
 	}
 	return nil
 }
@@ -215,7 +213,6 @@ func marketplaceCatalogEntryFromRow(row sqlcgen.MarketplaceCatalogEntry) store.M
 		Installable:    row.Installable != 0,
 		InstallBlocker: row.InstallBlocker,
 		ResolvedRef:    row.ResolvedRef,
-		Kind:           row.Kind,
 		EntryID:        row.EntryID,
 		Name:           row.Name,
 		Description:    row.Description,

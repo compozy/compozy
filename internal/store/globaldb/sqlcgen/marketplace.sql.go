@@ -54,7 +54,7 @@ func (q *Queries) DeleteMarketplaceCatalogEntriesBySource(ctx context.Context, s
 }
 
 const getMarketplaceCatalogEntry = `-- name: GetMarketplaceCatalogEntry :one
-SELECT source, kind, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
+SELECT source, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
 FROM marketplace_catalog_entries
 WHERE source = ?1 AND entry_id = ?2
 `
@@ -69,7 +69,6 @@ func (q *Queries) GetMarketplaceCatalogEntry(ctx context.Context, arg GetMarketp
 	var i MarketplaceCatalogEntry
 	err := row.Scan(
 		&i.Source,
-		&i.Kind,
 		&i.EntryID,
 		&i.Name,
 		&i.Description,
@@ -127,9 +126,9 @@ func (q *Queries) GetMarketplaceCatalogState(ctx context.Context, source string)
 }
 
 const getMarketplaceExtensionByInstallSlug = `-- name: GetMarketplaceExtensionByInstallSlug :one
-SELECT source, kind, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
+SELECT source, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
 FROM marketplace_catalog_entries
-WHERE source = 'compozy-catalog' AND kind = 'extension'
+WHERE source = 'compozy-catalog'
   AND install_slug = ?1
   AND (CAST(?2 AS TEXT) = '' OR version = ?2)
 `
@@ -144,7 +143,6 @@ func (q *Queries) GetMarketplaceExtensionByInstallSlug(ctx context.Context, arg 
 	var i MarketplaceCatalogEntry
 	err := row.Scan(
 		&i.Source,
-		&i.Kind,
 		&i.EntryID,
 		&i.Name,
 		&i.Description,
@@ -167,19 +165,18 @@ func (q *Queries) GetMarketplaceExtensionByInstallSlug(ctx context.Context, arg 
 
 const insertMarketplaceCatalogEntry = `-- name: InsertMarketplaceCatalogEntry :exec
 INSERT INTO marketplace_catalog_entries (
-  source, kind, entry_id, name, description, version, published_at, updated_at,
+  source, entry_id, name, description, version, published_at, updated_at,
   digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14, ?15, ?16, ?17, ?18
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7,
+  ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14, ?15, ?16, ?17
 )
 `
 
 type InsertMarketplaceCatalogEntryParams struct {
 	Source         string         `json:"source"`
-	Kind           string         `json:"kind"`
 	EntryID        string         `json:"entry_id"`
 	Name           string         `json:"name"`
 	Description    string         `json:"description"`
@@ -201,7 +198,6 @@ type InsertMarketplaceCatalogEntryParams struct {
 func (q *Queries) InsertMarketplaceCatalogEntry(ctx context.Context, arg InsertMarketplaceCatalogEntryParams) error {
 	_, err := q.db.ExecContext(ctx, insertMarketplaceCatalogEntry,
 		arg.Source,
-		arg.Kind,
 		arg.EntryID,
 		arg.Name,
 		arg.Description,
@@ -223,7 +219,7 @@ func (q *Queries) InsertMarketplaceCatalogEntry(ctx context.Context, arg InsertM
 }
 
 const listMarketplaceCatalogEntries = `-- name: ListMarketplaceCatalogEntries :many
-SELECT source, kind, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
+SELECT source, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
 FROM marketplace_catalog_entries
 WHERE source = ?1
 ORDER BY entry_id ASC
@@ -246,7 +242,6 @@ func (q *Queries) ListMarketplaceCatalogEntries(ctx context.Context, arg ListMar
 		var i MarketplaceCatalogEntry
 		if err := rows.Scan(
 			&i.Source,
-			&i.Kind,
 			&i.EntryID,
 			&i.Name,
 			&i.Description,

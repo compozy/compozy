@@ -3,10 +3,10 @@ DELETE FROM marketplace_catalog_entries WHERE source = sqlc.arg(source);
 
 -- name: InsertMarketplaceCatalogEntry :exec
 INSERT INTO marketplace_catalog_entries (
-  source, kind, entry_id, name, description, version, published_at, updated_at,
+  source, entry_id, name, description, version, published_at, updated_at,
   digest_sha256, tier, install_slug, payload_json, fetched_at, layout, icon, installable, install_blocker, resolved_ref
 ) VALUES (
-  sqlc.arg(source), sqlc.arg(kind), sqlc.arg(entry_id), sqlc.arg(name), sqlc.arg(description),
+  sqlc.arg(source), sqlc.arg(entry_id), sqlc.arg(name), sqlc.arg(description),
   sqlc.arg(version), sqlc.narg(published_at), sqlc.narg(updated_at),
   sqlc.narg(digest_sha256), sqlc.narg(tier), sqlc.narg(install_slug),
   sqlc.arg(payload_json), sqlc.arg(fetched_at), sqlc.arg(layout), sqlc.arg(icon), sqlc.arg(installable), sqlc.arg(install_blocker), sqlc.arg(resolved_ref)
@@ -53,7 +53,7 @@ WHERE source = sqlc.arg(source) AND entry_id = sqlc.arg(entry_id);
 -- name: GetMarketplaceExtensionByInstallSlug :one
 SELECT *
 FROM marketplace_catalog_entries
-WHERE source = 'compozy-catalog' AND kind = 'extension'
+WHERE source = 'compozy-catalog'
   AND install_slug = sqlc.arg(install_slug)
   AND (CAST(sqlc.arg(version) AS TEXT) = '' OR version = sqlc.arg(version));
 

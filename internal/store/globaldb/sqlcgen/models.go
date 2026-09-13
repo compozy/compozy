@@ -1130,7 +1130,6 @@ type LoopUiAnnotation struct {
 
 type MarketplaceCatalogEntry struct {
 	Source         string         `json:"source"`
-	Kind           string         `json:"kind"`
 	EntryID        string         `json:"entry_id"`
 	Name           string         `json:"name"`
 	Description    string         `json:"description"`

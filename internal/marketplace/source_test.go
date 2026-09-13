@@ -25,7 +25,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 	t.Run("Should accept a valid document for the extension catalog", func(t *testing.T) {
 		t.Parallel()
 
-		document, err := DecodeDocument(KindExtension, []byte(validExtensionDocumentJSON()))
+		document, err := DecodeDocument([]byte(validExtensionDocumentJSON()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -44,7 +44,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			"http://127.0.0.1:2123/bridge-github-v1.0.0.tar.gz",
 			1,
 		)
-		if _, err := DecodeDocument(KindExtension, []byte(raw)); err != nil {
+		if _, err := DecodeDocument([]byte(raw)); err != nil {
 			t.Fatalf("DecodeDocument(loopback HTTP extension) error = %v", err)
 		}
 	})
@@ -79,7 +79,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			t.Run("Should decode a "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				document, err := DecodeDocument(KindExtension, []byte(tt.raw))
+				document, err := DecodeDocument([]byte(tt.raw))
 				if err != nil {
 					t.Fatalf("DecodeDocument(extension) error = %v", err)
 				}
@@ -107,27 +107,24 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name    string
-			kind    Kind
+			name string
+
 			raw     string
 			wantErr string
 		}{
 
 			{
 				name:    "missing manifest version",
-				kind:    KindExtension,
 				raw:     `{"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
 				wantErr: "manifest_version is required",
 			},
 			{
 				name:    "missing entries array",
-				kind:    KindExtension,
 				raw:     `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z"}`,
 				wantErr: "entries is required",
 			},
 			{
 				name: "extension without digest",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing digest",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -136,7 +133,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension without registry tier",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -146,7 +142,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension without a curated artifact URL",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -156,7 +151,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension with a non HTTPS artifact URL",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Insecure artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -167,7 +161,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension with unknown registry tier",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Unknown tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -178,7 +171,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension with unsupported format marker",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Unknown format",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
@@ -189,7 +181,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			},
 			{
 				name: "extension with invented trust field",
-				kind: KindExtension,
 				raw: `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"skill","name":"Skill","description":"Invalid trust",` +
 					`"install_slug":"compozy/skill","verified":true}]}`,
@@ -198,7 +189,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 
 			{
 				name:    "duplicate extension install slugs",
-				kind:    KindExtension,
 				raw:     duplicateExtensionInstallSlugsJSON(t),
 				wantErr: `install_slug "compozy/bridge-github" is duplicated`,
 			},
@@ -207,7 +197,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			t.Run("Should reject "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				_, err := DecodeDocument(tt.kind, []byte(tt.raw))
+				_, err := DecodeDocument([]byte(tt.raw))
 				if err == nil {
 					t.Fatal("DecodeDocument() error = nil, want validation error")
 				}
@@ -222,7 +212,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		t.Parallel()
 
 		_, err := DecodeDocument(
-			KindExtension,
 			fmt.Appendf(
 				nil,
 				`{"manifest_version":%d,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
@@ -341,7 +330,7 @@ func TestValidateCatalogDirectory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		document, err := DecodeDocument(KindExtension, raw)
+		document, err := DecodeDocument(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -473,7 +462,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fetch one kind with the injected timeout client", func(t *testing.T) {
+	t.Run("Should fetch the extension catalog with the injected timeout client", func(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -924,7 +913,7 @@ func TestDecodeExtensionTimestamps(t *testing.T) {
 		t.Parallel()
 
 		raw := extensionDocumentJSON(`,"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z"`)
-		document, err := DecodeDocument(KindExtension, []byte(raw))
+		document, err := DecodeDocument([]byte(raw))
 		if err != nil {
 			t.Fatalf("DecodeDocument(extension) error = %v", err)
 		}
@@ -941,7 +930,7 @@ func TestDecodeExtensionTimestamps(t *testing.T) {
 	t.Run("Should reject a document with trailing JSON values", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := DecodeDocument(KindExtension, []byte(validExtensionDocumentJSON()+` {}`))
+		_, err := DecodeDocument([]byte(validExtensionDocumentJSON() + ` {}`))
 		if err == nil || !strings.Contains(err.Error(), "multiple values") {
 			t.Fatalf("DecodeDocument(trailing value) error = %v, want multiple-values diagnostic", err)
 		}
@@ -968,7 +957,7 @@ func TestDecodeV3ExtensionFields(t *testing.T) {
 	t.Run("Should decode v3 inputs and validate an extension-only family [UT-001]", func(t *testing.T) {
 		t.Parallel()
 		raw := v3ExtensionJSON(t, "https://images.example.test/icon.png")
-		document, err := DecodeDocument(KindExtension, raw)
+		document, err := DecodeDocument(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -994,7 +983,7 @@ func TestDecodeV3ExtensionFields(t *testing.T) {
 	for _, icon := range []string{"http://images.example.test/icon.png", "https://images.example.test/icon.gif", "data:image/png;base64," + strings.Repeat("A", 70*1024)} {
 		t.Run("Should drop an unsafe icon with a diagnostic [UT-006]", func(t *testing.T) {
 			t.Parallel()
-			document, err := DecodeDocument(KindExtension, v3ExtensionJSON(t, icon))
+			document, err := DecodeDocument(v3ExtensionJSON(t, icon))
 			if err != nil {
 				t.Fatal(err)
 			}

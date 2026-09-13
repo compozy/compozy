@@ -81,7 +81,7 @@ func (s *DirectorySource) Fetch(ctx context.Context) (document *Document, err er
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("marketplace catalog: read extension feed canceled: %w", err)
 	}
-	document, err = DecodeDocument(KindExtension, body)
+	document, err = DecodeDocument(body)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: validate extension feed: %w", err)
 	}

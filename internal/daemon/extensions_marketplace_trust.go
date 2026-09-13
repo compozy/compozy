@@ -100,7 +100,7 @@ func (s *daemonExtensionService) resolveMarketplaceExtensionTrust(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve curated extension install: %w", err)
 	}
-	if entry == nil || entry.Kind != marketplacepkg.KindExtension {
+	if entry == nil {
 		return nil, errors.New("daemon: curated extension install resolved an invalid catalog entry")
 	}
 	if strings.TrimSpace(entry.InstallSlug) != strings.TrimSpace(installSlug) {

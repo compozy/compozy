@@ -91,7 +91,6 @@ func awaitRefreshFlight(ctx context.Context, flight *refreshFlight) (RefreshOutc
 func canceledRefreshOutcome() RefreshOutcome {
 	return RefreshOutcome{
 		Source:     CompozyCatalogSource,
-		Kind:       KindExtension,
 		Outcome:    RefreshOutcomeFailed,
 		ErrorClass: errorClassCanceled,
 	}
@@ -142,7 +141,6 @@ func (s *CatalogService) refreshSource(ctx context.Context) (RefreshOutcome, err
 		return s.recordFailure(generation, "store", err)
 	}
 	outcome := RefreshOutcome{
-		Kind:   KindExtension,
 		Source: CompozyCatalogSource, Generation: generation,
 		Outcome:    RefreshOutcomeSucceeded,
 		EntryCount: len(document.Entries),
@@ -167,12 +165,11 @@ func (s *CatalogService) recordFailure(
 	markErr := s.store.MarkSourceStale(failureCtx, CompozyCatalogSource, generation, errorClass, redacted)
 
 	if errors.Is(markErr, storepkg.ErrMarketplaceCatalogGenerationStale) {
-		return RefreshOutcome{Kind: KindExtension, Source: CompozyCatalogSource, Generation: generation,
+		return RefreshOutcome{Source: CompozyCatalogSource, Generation: generation,
 			Outcome: RefreshOutcomeFailed, ErrorClass: "generation_stale"}, errors.Join(cause, markErr)
 	}
 	state, stateErr := s.store.SourceState(failureCtx, CompozyCatalogSource)
 	outcome := RefreshOutcome{
-		Kind:    KindExtension,
 		Outcome: RefreshOutcomeFailed,
 		Stale:   true,
 		Source:  CompozyCatalogSource, Generation: generation,

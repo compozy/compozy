@@ -36,7 +36,7 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)
 	}
-	document, err := marketplace.DecodeDocument(marketplace.KindExtension, raw)
+	document, err := marketplace.DecodeDocument(raw)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: decode extension feed: %w", err)
 	}

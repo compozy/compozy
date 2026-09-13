@@ -115,7 +115,6 @@ func marketplaceSourceStateFromRow(row storepkg.MarketplaceCatalogState) (Source
 		return SourceState{}, err
 	}
 	state := SourceState{
-		Kind:            Kind(row.Kind),
 		Source:          row.Source,
 		Generation:      row.Generation,
 		Revision:        row.Revision,
@@ -126,14 +125,14 @@ func marketplaceSourceStateFromRow(row storepkg.MarketplaceCatalogState) (Source
 	if strings.TrimSpace(row.GeneratedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.GeneratedAt)
 		if err != nil {
-			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", row.Kind, err)
+			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", row.Source, err)
 		}
 		state.GeneratedAt = parsed
 	}
 	if strings.TrimSpace(row.FetchedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.FetchedAt)
 		if err != nil {
-			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", row.Kind, err)
+			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", row.Source, err)
 		}
 		state.FetchedAt = parsed
 	}
@@ -165,25 +164,21 @@ func (s *SQLiteStore) checkReady(ctx context.Context) error {
 	return nil
 }
 
-func validateReplacement(kind Kind, document *Document) error {
-	if _, err := kindFilename(kind); err != nil {
-		return err
-	}
+func validateReplacement(document *Document) error {
 	if document == nil {
-		return fmt.Errorf("marketplace catalog %q document is required", kind)
+		return errors.New("marketplace catalog document is required")
 	}
 	if document.ManifestVersion != ManifestVersion {
-		return &UnsupportedManifestVersionError{Kind: kind, Version: document.ManifestVersion}
+		return &UnsupportedManifestVersionError{Version: document.ManifestVersion}
 	}
 	if document.GeneratedAt.IsZero() || document.FetchedAt.IsZero() {
-		return fmt.Errorf("marketplace catalog %q generated_at and fetched_at are required", kind)
+		return errors.New("marketplace catalog generated_at and fetched_at are required")
 	}
-	return validateDocumentEntries(kind, document.Entries)
+	return validateDocumentEntries(document.Entries)
 }
 
 func marketplaceEntryToRow(entry Entry, fetchedAt time.Time) storepkg.MarketplaceCatalogEntry {
 	return storepkg.MarketplaceCatalogEntry{
-		Kind:           string(entry.Kind),
 		Source:         entry.SourceName,
 		Layout:         entry.Layout,
 		Icon:           entry.Icon,
@@ -206,7 +201,6 @@ func marketplaceEntryToRow(entry Entry, fetchedAt time.Time) storepkg.Marketplac
 
 func marketplaceEntryFromRow(row storepkg.MarketplaceCatalogEntry) (Entry, error) {
 	entry := Entry{
-		Kind:           Kind(row.Kind),
 		SourceName:     row.Source,
 		Layout:         row.Layout,
 		Icon:           row.Icon,

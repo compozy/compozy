@@ -15,7 +15,6 @@ var (
 
 // UnsupportedManifestVersionError reports a feed and client manifest-version mismatch.
 type UnsupportedManifestVersionError struct {
-	Kind    Kind
 	Version int
 }
 
@@ -25,23 +24,20 @@ func (e *UnsupportedManifestVersionError) Error() string {
 	}
 	if e.Version < ManifestVersion {
 		return fmt.Sprintf(
-			"marketplace catalog %q manifest_version %d is unsupported; feed too old (client supports version %d)",
-			e.Kind,
+			"marketplace catalog manifest_version %d is unsupported; feed too old (client supports version %d)",
 			e.Version,
 			ManifestVersion,
 		)
 	}
 	if e.Version > ManifestVersion {
 		return fmt.Sprintf(
-			"marketplace catalog %q manifest_version %d is unsupported; client too old (supports version %d)",
-			e.Kind,
+			"marketplace catalog manifest_version %d is unsupported; client too old (supports version %d)",
 			e.Version,
 			ManifestVersion,
 		)
 	}
 	return fmt.Sprintf(
-		"marketplace catalog %q manifest_version %d is unsupported",
-		e.Kind,
+		"marketplace catalog manifest_version %d is unsupported",
 		e.Version,
 	)
 }

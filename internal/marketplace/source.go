@@ -130,7 +130,7 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 			return nil, fmt.Errorf("marketplace catalog: read extension catalog response: %w", readErr)
 		}
 	}
-	document, err = DecodeDocument(KindExtension, body)
+	document, err = DecodeDocument(body)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: validate extension feed: %w", err)
 	}
@@ -175,8 +175,8 @@ func joinHTTPResponseErrors(primary error, additional ...error) error {
 }
 
 // DecodeDocument strictly validates the extension catalog family.
-func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
-	document, err := decodeDocument(kind, raw)
+func DecodeDocument(raw []byte) (*Document, error) {
+	document, err := decodeDocument(raw)
 	if err == nil || errors.Is(err, ErrCatalogDecode) {
 		return document, err
 	}
@@ -186,43 +186,39 @@ func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	return nil, fmt.Errorf("%w: %w", ErrCatalogValidation, err)
 }
 
-func decodeDocument(kind Kind, raw []byte) (*Document, error) {
-	if _, err := kindFilename(kind); err != nil {
-		return nil, err
-	}
+func decodeDocument(raw []byte) (*Document, error) {
 	var envelope documentEnvelope
 	if err := decodeStrict(raw, &envelope); err != nil {
-		return nil, fmt.Errorf("marketplace catalog %q document: %w", kind, err)
+		return nil, fmt.Errorf("marketplace catalog document: %w", err)
 	}
 	if envelope.ManifestVersion == nil || *envelope.ManifestVersion == 0 {
-		return nil, fmt.Errorf("marketplace catalog %q manifest_version is required", kind)
+		return nil, errors.New("marketplace catalog manifest_version is required")
 	}
 	if *envelope.ManifestVersion != ManifestVersion {
-		return nil, &UnsupportedManifestVersionError{Kind: kind, Version: *envelope.ManifestVersion}
+		return nil, &UnsupportedManifestVersionError{Version: *envelope.ManifestVersion}
 	}
 	if envelope.Entries == nil {
-		return nil, fmt.Errorf("marketplace catalog %q entries is required", kind)
+		return nil, errors.New("marketplace catalog entries is required")
 	}
-	if len(*envelope.Entries) > maxCatalogEntriesPerKind {
+	if len(*envelope.Entries) > maxCatalogEntriesPerSource {
 		return nil, fmt.Errorf(
-			"marketplace catalog %q entries exceeds limit %d",
-			kind,
-			maxCatalogEntriesPerKind,
+			"marketplace catalog entries exceeds limit %d",
+			maxCatalogEntriesPerSource,
 		)
 	}
 	generatedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(envelope.GeneratedAt))
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog %q generated_at must be RFC3339: %w", kind, err)
+		return nil, fmt.Errorf("marketplace catalog generated_at must be RFC3339: %w", err)
 	}
 	entries := make([]Entry, 0, len(*envelope.Entries))
 	for index, entryRaw := range *envelope.Entries {
 		entry, err := decodeExtensionEntry(entryRaw)
 		if err != nil {
-			return nil, fmt.Errorf("marketplace catalog %q entry %d: %w", kind, index, err)
+			return nil, fmt.Errorf("marketplace catalog entry %d: %w", index, err)
 		}
 		entries = append(entries, entry)
 	}
-	if err := validateDocumentEntries(kind, entries); err != nil {
+	if err := validateDocumentEntries(entries); err != nil {
 		return nil, err
 	}
 	return &Document{
@@ -246,13 +242,4 @@ func decodeStrict(raw []byte, destination any) error {
 		return fmt.Errorf("%w: decode JSON trailing data: %w", ErrCatalogDecode, err)
 	}
 	return nil
-}
-
-func kindFilename(kind Kind) (string, error) {
-	switch kind {
-	case KindExtension:
-		return "extensions.json", nil
-	default:
-		return "", fmt.Errorf("marketplace catalog: unsupported kind %q", kind)
-	}
 }

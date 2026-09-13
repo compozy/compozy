@@ -105,7 +105,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "first")
 		assertMarketplaceRefreshEvent(t, registry)
 		if err := state.marketplaceNotifier.NotifyInstall(testutil.Context(t), marketplace.InstallOutcome{
-			Kind:       marketplace.KindExtension,
+			Origin:     &marketplace.Origin{SourceRef: marketplace.CompozyCatalogRef, EntryID: "github"},
 			EntryID:    "github",
 			Outcome:    marketplace.InstallOutcomeSucceeded,
 			PolicyGate: marketplace.InstallPolicyGatePassed,
@@ -141,19 +141,24 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			writeTimeout: 20 * time.Millisecond,
 		}
 		var missingContext context.Context
-		if err := notifier.NotifyCatalogRefresh(missingContext, marketplace.RefreshOutcome{
-			Kind:    marketplace.KindExtension,
-			Outcome: marketplace.RefreshOutcomeSucceeded,
-		}); err == nil || !strings.Contains(err.Error(), "context is required") {
+		if err := notifier.NotifyCatalogRefresh(
+			missingContext,
+			marketplace.RefreshOutcome{Source: marketplace.CompozyCatalogSource,
+				Outcome: marketplace.RefreshOutcomeSucceeded,
+			},
+		); err == nil ||
+			!strings.Contains(err.Error(), "context is required") {
 			t.Fatalf("NotifyCatalogRefresh(nil context) error = %v", err)
 		}
 		parent, cancel := context.WithCancel(testutil.Context(t))
 		cancel()
 		started := time.Now()
-		err := notifier.NotifyCatalogRefresh(parent, marketplace.RefreshOutcome{
-			Kind:    marketplace.KindExtension,
-			Outcome: marketplace.RefreshOutcomeSucceeded,
-		})
+		err := notifier.NotifyCatalogRefresh(
+			parent,
+			marketplace.RefreshOutcome{Source: marketplace.CompozyCatalogSource,
+				Outcome: marketplace.RefreshOutcomeSucceeded,
+			},
+		)
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("NotifyCatalogRefresh() error = %v, want context deadline exceeded", err)
 		}
@@ -277,7 +282,6 @@ func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Stor
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
 		Entries: []marketplace.Entry{{
-			Kind:         marketplace.KindExtension,
 			EntryID:      "remote",
 			Version:      "1.0.0",
 			DigestSHA256: strings.Repeat("a", 64),
@@ -307,7 +311,12 @@ func assertMarketplaceRefreshEvent(t *testing.T, registry *globaldb.GlobalDB) {
 	if got, want := len(summaries), 1; got != want {
 		t.Fatalf("ListEventSummaries() count = %d, want %d", got, want)
 	}
+	var outcome marketplace.RefreshOutcome
+	if err := json.Unmarshal(summaries[0].Content, &outcome); err != nil {
+		t.Fatal(err)
+	}
 	if summaries[0].Outcome != string(eventspkg.OutcomeSuccess) ||
+		outcome.Source != marketplace.CompozyCatalogSource ||
 		summaries[0].Timestamp.IsZero() || time.Since(summaries[0].Timestamp) > time.Minute {
 		t.Fatalf("refresh summary = %#v, want recent success", summaries[0])
 	}
@@ -333,7 +342,7 @@ func assertMarketplaceInstallEvent(t *testing.T, registry *globaldb.GlobalDB) {
 		t.Fatalf("json.Unmarshal(marketplace.install) error = %v", err)
 	}
 	if summaries[0].Outcome != string(eventspkg.OutcomeSuccess) ||
-		outcome.Kind != marketplace.KindExtension ||
+		outcome.Origin == nil || outcome.Origin.SourceRef != marketplace.CompozyCatalogRef || outcome.Origin.EntryID != "github" ||
 		outcome.EntryID != "github" ||
 		outcome.Outcome != marketplace.InstallOutcomeSucceeded ||
 		outcome.PolicyGate != marketplace.InstallPolicyGatePassed {
@@ -377,7 +386,6 @@ func TestMarketplaceExtensionInstallEvent(t *testing.T) {
 		}
 		want := marketplace.Origin{SourceRef: marketplace.CompozyCatalogRef, EntryID: "published-id"}
 		if outcome.Origin == nil || *outcome.Origin != want || outcome.ResolvedRef != item.Provenance.ResolvedRef ||
-			outcome.Kind != marketplace.KindExtension ||
 			outcome.Outcome != marketplace.InstallOutcomeSucceeded {
 			t.Fatalf("install observation=%#v", outcome)
 		}

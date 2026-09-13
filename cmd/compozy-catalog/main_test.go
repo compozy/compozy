@@ -133,7 +133,7 @@ func TestPublishCatalogFamilies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		document, err := marketplace.DecodeDocument(marketplace.KindExtension, raw)
+		document, err := marketplace.DecodeDocument(raw)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,6 +1,5 @@
 CREATE TABLE marketplace_catalog_entries (
 	source         TEXT NOT NULL CHECK (trim(source) <> ''),
-	kind           TEXT NOT NULL CHECK (kind = 'extension'),
 	entry_id       TEXT NOT NULL CHECK (trim(entry_id) <> ''),
 	name           TEXT NOT NULL CHECK (trim(name) <> ''),
 	description    TEXT NOT NULL CHECK (trim(description) <> ''),

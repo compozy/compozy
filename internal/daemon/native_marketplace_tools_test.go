@@ -22,7 +22,6 @@ type lateBootMarketplaceCatalog struct {
 
 func lateBootMarketplaceEntry() marketplacepkg.Entry {
 	return marketplacepkg.Entry{
-		Kind:         marketplacepkg.KindExtension,
 		EntryID:      "late-boot-extension",
 		Name:         "Late boot extension",
 		Description:  "Attached after the native registry",
@@ -44,7 +43,7 @@ func (c lateBootMarketplaceCatalog) Browse(
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{
 		Entries: []marketplacepkg.Entry{c.entry},
-		State:   marketplacepkg.SourceState{Kind: marketplacepkg.KindExtension},
+		State:   marketplacepkg.SourceState{Source: marketplacepkg.CompozyCatalogSource},
 	}, nil
 }
 

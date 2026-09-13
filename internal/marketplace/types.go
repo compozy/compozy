@@ -9,10 +9,7 @@ import (
 
 const ManifestVersion = 3
 
-// RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
-const RemoteSkillEntryPrefix = "skill_"
-
-const maxCatalogEntriesPerKind = 50_000
+const maxCatalogEntriesPerSource = 50_000
 
 const (
 	RefreshOutcomeSucceeded = "succeeded"
@@ -22,21 +19,7 @@ const (
 	InstallPolicyGatePassed = "passed"
 )
 
-// Kind identifies one curated feed document and projection partition.
-type Kind string
-
-const (
-	KindMCP       Kind = "mcp"
-	KindExtension Kind = "extension"
-	KindSkill     Kind = "skill"
-)
-
-// AllKinds returns the curated kinds in stable display-independent order.
-func AllKinds() []Kind {
-	return []Kind{KindMCP, KindExtension, KindSkill}
-}
-
-// Document is one validated per-kind catalog snapshot.
+// Document is one validated catalog snapshot.
 type Document struct {
 	ManifestVersion int
 	GeneratedAt     time.Time
@@ -44,7 +27,7 @@ type Document struct {
 	Entries         []Entry
 }
 
-// Entry is the durable common projection plus the kind-specific payload.
+// Entry is the durable extension projection and payload.
 type Entry struct {
 	Inputs         []EntryInput
 	Diagnostics    []CatalogDiagnostic
@@ -54,7 +37,6 @@ type Entry struct {
 	Installable    bool
 	InstallBlocker string
 	ResolvedRef    string
-	Kind           Kind
 	EntryID        string
 	Name           string
 	Description    string
@@ -73,7 +55,6 @@ type SourceState struct {
 	Source          string
 	Generation      int64
 	Revision        string
-	Kind            Kind
 	ManifestVersion int
 	GeneratedAt     time.Time
 	FetchedAt       time.Time
@@ -96,11 +77,10 @@ type ListResult struct {
 	Total   int
 }
 
-// RefreshOutcome is the canonical per-kind refresh result.
+// RefreshOutcome is the canonical per-source refresh result.
 type RefreshOutcome struct {
 	Source     string `json:"source,omitempty"`
 	Generation int64  `json:"generation"`
-	Kind       Kind   `json:"kind"`
 	Outcome    string `json:"outcome"`
 	EntryCount int    `json:"entry_count"`
 	Stale      bool   `json:"stale"`
@@ -111,13 +91,12 @@ type RefreshOutcome struct {
 type InstallOutcome struct {
 	Origin      *Origin `json:"origin,omitempty"`
 	ResolvedRef string  `json:"resolved_ref,omitempty"`
-	Kind        Kind    `json:"kind"`
 	EntryID     string  `json:"entry_id"`
 	Outcome     string  `json:"outcome"`
 	PolicyGate  string  `json:"policy_gate"`
 }
 
-// RefreshReport contains deterministic per-kind refresh outcomes.
+// RefreshReport contains deterministic per-source refresh outcomes.
 type RefreshReport struct {
 	Outcomes []RefreshOutcome `json:"outcomes"`
 }

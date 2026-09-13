@@ -17,7 +17,7 @@ func (s *daemonExtensionService) notifyMarketplaceExtensionInstalled(
 		return nil
 	}
 	outcome := marketplace.InstallOutcome{
-		Kind: marketplace.KindExtension, EntryID: item.Origin.EntryID,
+		EntryID: item.Origin.EntryID,
 		Origin:  &marketplace.Origin{SourceRef: item.Origin.SourceRef, EntryID: item.Origin.EntryID},
 		Outcome: marketplace.InstallOutcomeSucceeded, PolicyGate: marketplace.InstallPolicyGatePassed,
 	}

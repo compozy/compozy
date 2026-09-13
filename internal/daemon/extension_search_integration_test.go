@@ -313,7 +313,7 @@ func curatedSearchEntry(entryID string, slug string, name string) marketplacepkg
 		panic(err)
 	}
 	return marketplacepkg.Entry{
-		Kind: marketplacepkg.KindExtension, EntryID: entryID, Name: name, Description: name,
+		EntryID: entryID, Name: name, Description: name,
 		Version: "1.0.0", DigestSHA256: strings.Repeat("a", 64), Tier: "official",
 		InstallSlug: slug, Payload: payload,
 	}

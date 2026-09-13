@@ -141,7 +141,6 @@ func seedMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteS
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
 		Entries: []marketplace.Entry{{
-			Kind:         marketplace.KindExtension,
 			EntryID:      "migration-fixture",
 			Name:         "Migration fixture",
 			Description:  "Proves the catalog projection survives restart",
@@ -180,6 +179,87 @@ func assertMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLit
 // Owner: global database upgrade; canonical suite: global_db_marketplace_catalog_test.go.
 func TestMarketplaceCatalogSourceMigration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: removing the fixed discriminator preserves every variable catalog and source-state value.
+	// Owner: global database upgrade; canonical suite: TestMarketplaceCatalogSourceMigration.
+	t.Run("Should preserve complete v113 projections while removing the fixed discriminator", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		databasePath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		previous, err := openGlobalMigrationPrefixDatabase(t, databasePath,
+			globalMigrationPrefixBefore(t, "00114_marketplace_source_identity.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := previous.Close(); err != nil {
+				t.Errorf("close previous: %v", err)
+			}
+		})
+		const entryProjection = "json_array(source,entry_id,name,description,version,published_at,updated_at,digest_sha256,tier,install_slug,payload_json,fetched_at,layout,icon,installable,install_blocker,resolved_ref)"
+		const stateProjection = "json_array(source,manifest_version,generated_at,fetched_at,stale,last_error,kind_of_source,enabled,plugins,installable,error_class,document_path,owner,revision,generation)"
+		beforeEntries, beforeStates := map[string]string{}, map[string]string{}
+		for _, source := range []string{"compozy-catalog", "partner"} {
+			if _, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_entries
+(source,kind,entry_id,name,description,version,published_at,updated_at,digest_sha256,tier,install_slug,payload_json,fetched_at,layout,icon,installable,install_blocker,resolved_ref)
+VALUES (?, 'extension', 'same', ' Original ', 'Résumé', '1.2.3', NULL, '2026-09-01T00:00:00Z', 'digest', 'community', 'owner/same', '{ "entry_id": "same" }', '2026-09-02T00:00:00Z', 'flat', 'https://example.test/icon.png', 0, 'load_failed', 'commit-123')`, source); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_state
+(source,manifest_version,generated_at,fetched_at,stale,last_error,kind_of_source,enabled,plugins,installable,error_class,document_path,owner,revision,generation)
+VALUES (?,3,'2026-09-01T00:00:00Z','2026-09-02T00:00:00Z',1,'cached error','custom',0,1,0,'validation','/fixture/marketplace.json','owner','revision-a',7)`, source); err != nil {
+				t.Fatal(err)
+			}
+			var entry, state string
+			if err := previous.QueryRowContext(ctx, "SELECT "+entryProjection+" FROM marketplace_catalog_entries WHERE source = ?", source).
+				Scan(&entry); err != nil {
+				t.Fatal(err)
+			}
+			if err := previous.QueryRowContext(ctx, "SELECT "+stateProjection+" FROM marketplace_catalog_state WHERE source = ?", source).
+				Scan(&state); err != nil {
+				t.Fatal(err)
+			}
+			beforeEntries[source], beforeStates[source] = entry, state
+		}
+		if err := previous.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, databasePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, databasePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("close upgraded: %v", err)
+			}
+		})
+		for source, before := range beforeEntries {
+			var entry, state string
+			if err := reopened.db.QueryRowContext(ctx, "SELECT "+entryProjection+" FROM marketplace_catalog_entries WHERE source = ?", source).
+				Scan(&entry); err != nil {
+				t.Fatal(err)
+			}
+			if err := reopened.db.QueryRowContext(ctx, "SELECT "+stateProjection+" FROM marketplace_catalog_state WHERE source = ?", source).
+				Scan(&state); err != nil {
+				t.Fatal(err)
+			}
+			if entry != before || state != beforeStates[source] {
+				t.Fatalf("source %q changed: entry=%s state=%s", source, entry, state)
+			}
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 	t.Run("Should upgrade a v108 catalog losslessly and preserve unclassified provenance", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -219,7 +299,7 @@ func TestMarketplaceCatalogSourceMigration(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		const projection = `json_array(kind,entry_id,name,description,version,published_at,updated_at,digest_sha256,tier,install_slug,payload_json,fetched_at)`
+		const projection = `json_array(entry_id,name,description,version,published_at,updated_at,digest_sha256,tier,install_slug,payload_json,fetched_at)`
 		var before string
 		if err := previous.QueryRowContext(ctx, "SELECT "+projection+" FROM marketplace_catalog_entries WHERE kind = 'extension'").
 			Scan(&before); err != nil {
@@ -321,7 +401,7 @@ func TestMarketplaceCatalogSourceReplacement(t *testing.T) {
 			wg.Go(func() {
 				failures <- catalog.ReplaceSource(ctx, source, 0, &marketplace.Document{
 					ManifestVersion: marketplace.ManifestVersion, GeneratedAt: at, FetchedAt: at,
-					Entries: []marketplace.Entry{{Kind: marketplace.KindExtension, EntryID: "same", Name: source, Description: "preserved", InstallSlug: source + "/same", Payload: json.RawMessage(`{"entry_id":"same"}`)}},
+					Entries: []marketplace.Entry{{EntryID: "same", Name: source, Description: "preserved", InstallSlug: source + "/same", Payload: json.RawMessage(`{"entry_id":"same"}`)}},
 				})
 			})
 		}
@@ -364,7 +444,6 @@ func TestMarketplaceCatalogSourceReplacement(t *testing.T) {
 		replacement.Entries = []store.MarketplaceCatalogEntry{
 			{
 				Source:      "compozy-catalog",
-				Kind:        "extension",
 				EntryID:     "invalid",
 				Name:        "Invalid",
 				Description: "missing JSON",
@@ -416,7 +495,7 @@ func TestMarketplaceCatalogSourceSnapshot(t *testing.T) {
 				FetchedAt:       at,
 				GeneratedAt:     at,
 				Entries: []store.MarketplaceCatalogEntry{
-					{Source: "compozy-catalog", Kind: "extension", EntryID: revision,
+					{Source: "compozy-catalog", EntryID: revision,
 						Name: revision, Description: "Snapshot", PayloadJSON: "{}", FetchedAt: at},
 				},
 			}

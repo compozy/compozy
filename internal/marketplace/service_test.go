@@ -22,7 +22,7 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 
 	store := openMarketplaceTestStore(t)
 	validSource := &recordingSource{fetch: func(context.Context) (*Document, error) {
-		return testDocument(time.Now().UTC(), testEntry(KindExtension, "extension", "Skill", "Valid source")), nil
+		return testDocument(time.Now().UTC(), testEntry("extension", "Skill", "Valid source")), nil
 	}}
 	tests := []struct {
 		name    string
@@ -83,7 +83,7 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	newService := func(t *testing.T) *CatalogService {
 		t.Helper()
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			return testDocument(now, testEntry(KindExtension, "extension", "Extension", "Detail fixture")), nil
+			return testDocument(now, testEntry("extension", "Extension", "Detail fixture")), nil
 		}}
 		service, err := NewService(
 			openMarketplaceTestStore(t),
@@ -127,7 +127,7 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		extensionSource := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			entry := testEntry(KindExtension, "telemetry", "Telemetry", "Curated extension")
+			entry := testEntry("telemetry", "Telemetry", "Curated extension")
 			entry.Version = "2.1.0"
 			return testDocument(now, entry), nil
 		}}
@@ -216,7 +216,7 @@ func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
 		{name: "Should classify oversized payload", fetchErr: ErrResponseTooLarge, wantClass: "payload_too_large"},
 		{
 			name:      "Should classify unsupported manifest",
-			fetchErr:  &UnsupportedManifestVersionError{Kind: KindExtension, Version: 2},
+			fetchErr:  &UnsupportedManifestVersionError{Version: 2},
 			wantClass: "manifest_version",
 		},
 		{name: "Should classify HTTP status", fetchErr: &httpStatusError{status: 503}, wantClass: "http_status"},
@@ -267,7 +267,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			fetchedAt,
-			testEntry(KindExtension, "fresh", "Fresh skill", "Already projected"),
+			testEntry("fresh", "Fresh skill", "Already projected"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
@@ -296,7 +296,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			fetchedAt,
-			testEntry(KindExtension, "remote", "Remote skill", "Fresh remote projection"),
+			testEntry("remote", "Remote skill", "Fresh remote projection"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
@@ -337,7 +337,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			fetchedAt,
-			testEntry(KindExtension, "old", "Old server", "Removed by refresh"),
+			testEntry("old", "Old server", "Removed by refresh"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
@@ -346,7 +346,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			time.Sleep(20 * time.Millisecond)
 			return testDocument(
 				refreshAt,
-				testEntry(KindExtension, "new", "New server", "Projected once"),
+				testEntry("new", "New server", "Projected once"),
 			), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, refreshAt, nil)
@@ -388,7 +388,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
 			close(started)
 			<-release
-			return testDocument(now, testEntry(KindExtension, "shared", "Shared", "Detached refresh")), nil
+			return testDocument(now, testEntry("shared", "Shared", "Detached refresh")), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, now, nil)
 
@@ -448,7 +448,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			<-ctx.Done()
 			close(canceled)
 			<-release
-			return testDocument(now, testEntry(KindExtension, "obsolete", "Obsolete", "Closed generation")), nil
+			return testDocument(now, testEntry("obsolete", "Obsolete", "Closed generation")), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, now, nil)
 		refreshResult := make(chan error, 1)
@@ -492,7 +492,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		now := time.Date(2026, time.August, 2, 12, 0, 0, 0, time.UTC)
 		notifier := newBlockingRefreshNotifier()
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			return testDocument(now, testEntry(KindExtension, "notified", "Notified", "Joined notification")), nil
+			return testDocument(now, testEntry("notified", "Notified", "Joined notification")), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, now, notifier)
 		t.Cleanup(func() {
@@ -562,7 +562,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		notifier := &recordingRefreshNotifier{err: notifyErr}
 		now := time.Date(2026, time.July, 17, 12, 0, 0, 0, time.UTC)
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			return testDocument(now, testEntry(KindExtension, "persisted", "Persisted", "Committed projection")), nil
+			return testDocument(now, testEntry("persisted", "Persisted", "Committed projection")), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, now, notifier)
 
@@ -583,15 +583,15 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			fetchedAt,
-			testEntry(KindExtension, "keep", "Keep", "Still curated"),
-			testEntry(KindExtension, "pulled", "Pulled", "Kill switch target"),
+			testEntry("keep", "Keep", "Still curated"),
+			testEntry("pulled", "Pulled", "Kill switch target"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
 			return testDocument(
 				fetchedAt.Add(10*time.Minute),
-				testEntry(KindExtension, "keep", "Keep", "Still curated"),
+				testEntry("keep", "Keep", "Still curated"),
 			), nil
 		}}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(10*time.Minute), nil)
@@ -624,7 +624,7 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			fetchedAt,
-			testEntry(KindExtension, "offline", "Offline server", "Survives feed outage"),
+			testEntry("offline", "Offline server", "Survives feed outage"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
@@ -787,7 +787,7 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 				if fetchFails {
 					return nil, errors.New("old source unreachable")
 				}
-				return testDocument(at, testEntry(KindExtension, "old", "Old", "Obsolete fetch")), nil
+				return testDocument(at, testEntry("old", "Old", "Obsolete fetch")), nil
 			}}
 			notifier := &recordingRefreshNotifier{}
 			service := newMarketplaceTestService(t, catalog, source, at, notifier)
@@ -802,7 +802,7 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := testDocument(at, testEntry(KindExtension, "current", "Current", "New source configuration"))
+			current := testDocument(at, testEntry("current", "Current", "New source configuration"))
 			if err := catalog.ReplaceSource(ctx, CompozyCatalogSource, generation, current); err != nil {
 				t.Fatal(err)
 			}
@@ -836,7 +836,7 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 		notifier := &recordingRefreshNotifier{}
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			return testDocument(at, testEntry(KindExtension, "current", "Current", "Published")), nil
+			return testDocument(at, testEntry("current", "Current", "Published")), nil
 		}}
 		service := newMarketplaceTestService(t, catalog, source, at, notifier)
 		if _, err := service.Refresh(ctx); err != nil {

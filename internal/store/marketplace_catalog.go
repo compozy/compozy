@@ -15,7 +15,6 @@ type MarketplaceCatalogEntry struct {
 	Installable    bool
 	InstallBlocker string
 	ResolvedRef    string
-	Kind           string
 	EntryID        string
 	Name           string
 	Description    string
@@ -29,24 +28,22 @@ type MarketplaceCatalogEntry struct {
 	FetchedAt      string
 }
 
-// MarketplaceCatalogReplacement is one validated, atomic per-kind projection.
+// MarketplaceCatalogReplacement is one validated, atomic source projection.
 type MarketplaceCatalogReplacement struct {
 	Source          string
 	Generation      int64
 	Revision        string
-	Kind            string
 	ManifestVersion int64
 	GeneratedAt     string
 	FetchedAt       string
 	Entries         []MarketplaceCatalogEntry
 }
 
-// MarketplaceCatalogState is the storage-boundary freshness record for one kind.
+// MarketplaceCatalogState is the storage-boundary freshness record for one source.
 type MarketplaceCatalogState struct {
 	Source          string
 	Generation      int64
 	Revision        string
-	Kind            string
 	ManifestVersion int64
 	GeneratedAt     string
 	FetchedAt       string

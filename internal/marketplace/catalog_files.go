@@ -16,7 +16,7 @@ func validateV3CatalogFamily(root string) error {
 	if err != nil {
 		return fmt.Errorf("read v3 extensions: %w", err)
 	}
-	document, err := DecodeDocument(KindExtension, raw)
+	document, err := DecodeDocument(raw)
 	if err != nil {
 		return err
 	}

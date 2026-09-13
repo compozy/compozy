@@ -213,7 +213,6 @@ func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMes
 
 func marketplaceEntryForTest() marketplacepkg.Entry {
 	return marketplacepkg.Entry{
-		Kind:         marketplacepkg.KindExtension,
 		EntryID:      "extension-entry",
 		Name:         "Extension",
 		Description:  "Extension",
@@ -417,7 +416,6 @@ func TestMarketplaceCatalog(t *testing.T) {
 			) (marketplacepkg.RefreshReport, error) {
 				return marketplacepkg.RefreshReport{Outcomes: []marketplacepkg.RefreshOutcome{
 					{
-						Kind:       marketplacepkg.KindExtension,
 						Source:     marketplacepkg.CompozyCatalogSource,
 						Outcome:    marketplacepkg.RefreshOutcomeFailed,
 						EntryCount: 1,

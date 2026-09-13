@@ -23,7 +23,7 @@ func (s *SQLiteStore) ReplaceSource(ctx context.Context, source string, generati
 	if strings.TrimSpace(source) == "" {
 		return fmt.Errorf("marketplace catalog: source is required")
 	}
-	if err := validateReplacement(KindExtension, document); err != nil {
+	if err := validateReplacement(document); err != nil {
 		return err
 	}
 	revision, err := sourceContentRevision(source, document.Entries)
@@ -32,10 +32,10 @@ func (s *SQLiteStore) ReplaceSource(ctx context.Context, source string, generati
 	}
 	replacement := storepkg.MarketplaceCatalogReplacement{
 		Source: source, Generation: generation, Revision: revision,
-		Kind: string(KindExtension), ManifestVersion: int64(document.ManifestVersion),
-		GeneratedAt: storepkg.FormatNullableTimestamp(document.GeneratedAt),
-		FetchedAt:   storepkg.FormatTimestamp(document.FetchedAt),
-		Entries:     make([]storepkg.MarketplaceCatalogEntry, 0, len(document.Entries)),
+		ManifestVersion: int64(document.ManifestVersion),
+		GeneratedAt:     storepkg.FormatNullableTimestamp(document.GeneratedAt),
+		FetchedAt:       storepkg.FormatTimestamp(document.FetchedAt),
+		Entries:         make([]storepkg.MarketplaceCatalogEntry, 0, len(document.Entries)),
 	}
 	for _, entry := range document.Entries {
 		entry.SourceName = source
@@ -77,7 +77,7 @@ func (s *SQLiteStore) BrowseSource(ctx context.Context, source, query string, of
 	if offset < 0 {
 		return BrowseResult{}, fmt.Errorf("marketplace catalog: list offset must be non-negative: %d", offset)
 	}
-	snapshot, err := s.repository.ReadMarketplaceCatalogSnapshot(ctx, source, maxCatalogEntriesPerKind)
+	snapshot, err := s.repository.ReadMarketplaceCatalogSnapshot(ctx, source, maxCatalogEntriesPerSource)
 	if errors.Is(err, sql.ErrNoRows) {
 		return BrowseResult{}, fmt.Errorf("%w: %s", ErrSourceStateMissing, source)
 	}

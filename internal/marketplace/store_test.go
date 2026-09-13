@@ -24,15 +24,15 @@ func TestSQLiteStoreReplaceSource(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		first := testDocument(now,
-			testEntry(KindExtension, "alpha", "Alpha server", "First server"),
-			testEntry(KindExtension, "beta", "Beta server", "Second server"),
+			testEntry("alpha", "Alpha server", "First server"),
+			testEntry("beta", "Beta server", "Second server"),
 		)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
 			t.Fatalf("ReplaceSource(first) error = %v", err)
 		}
 
 		second := testDocument(now.Add(time.Hour),
-			testEntry(KindExtension, "beta", "Beta server", "Updated description"),
+			testEntry("beta", "Beta server", "Updated description"),
 		)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, second); err != nil {
 			t.Fatalf("ReplaceSource(second) error = %v", err)
@@ -68,12 +68,12 @@ func TestSQLiteStoreReplaceSource(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			now,
-			testEntry(KindExtension, "stable", "Stable skill", "Preserved row"),
+			testEntry("stable", "Stable skill", "Preserved row"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource(valid) error = %v", err)
 		}
 
-		invalid := testDocument(now.Add(time.Hour), testEntry(KindExtension, "", "Invalid", "Missing id"))
+		invalid := testDocument(now.Add(time.Hour), testEntry("", "Invalid", "Missing id"))
 		err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, invalid)
 		if err == nil || !strings.Contains(err.Error(), "identity fields are required") {
 			t.Fatalf("ReplaceSource(invalid) error = %v, want identity-fields validation", err)
@@ -128,7 +128,7 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
 		for _, source := range []string{CompozyCatalogSource, "partner"} {
-			document := testDocument(at, testEntry(KindExtension, "shared", source, "Source isolation"))
+			document := testDocument(at, testEntry("shared", source, "Source isolation"))
 			if err := catalog.ReplaceSource(ctx, source, 0, document); err != nil {
 				t.Fatal(err)
 			}
@@ -167,12 +167,12 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		document := testDocument(now,
-			testEntry(KindExtension, "alpha", "Telemetry bridge", "Exports traces"),
-			testEntry(KindExtension, "beta", "Audit log", "Records telemetry events"),
-			testEntry(KindExtension, "gamma", "Cost guard", "Enforces budgets"),
-			testEntry(KindExtension, "resume", "RÉSUMÉ helper", "Indexes accented metadata"),
-			testEntry(KindExtension, "strasse", "Straße tools", "Indexes German names"),
-			testEntry(KindExtension, "cafe", "Cafe\u0301 index", "Decomposed canonical text"),
+			testEntry("alpha", "Telemetry bridge", "Exports traces"),
+			testEntry("beta", "Audit log", "Records telemetry events"),
+			testEntry("gamma", "Cost guard", "Enforces budgets"),
+			testEntry("resume", "RÉSUMÉ helper", "Indexes accented metadata"),
+			testEntry("strasse", "Straße tools", "Indexes German names"),
+			testEntry("cafe", "Cafe\u0301 index", "Decomposed canonical text"),
 		)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, document); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
@@ -271,7 +271,7 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
 			now,
-			testEntry(KindExtension, "server", "MCP server", "Available while offline"),
+			testEntry("server", "MCP server", "Available while offline"),
 		)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
@@ -309,9 +309,9 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 	t.Run("Should resolve canonical and retained slugs without crossing entry or version identity", func(t *testing.T) {
 		t.Parallel()
 		store := openMarketplaceTestStore(t)
-		entry := testEntry(KindExtension, "herdr-bridge", "herdr bridge", "Bridge integration")
+		entry := testEntry("herdr-bridge", "herdr bridge", "Bridge integration")
 		entry.InstallSlug = "AlexandreAkao/herdr-bridge-compozy"
-		collision := testEntry(KindExtension, "other", "Other", "Different package")
+		collision := testEntry("other", "Other", "Different package")
 		collision.InstallSlug, collision.Version = "compozy/herdr-bridge", "2.0.0"
 		if err := store.ReplaceSource(t.Context(), CompozyCatalogSource, 0,
 			testDocument(time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), entry, collision)); err != nil {
@@ -348,7 +348,7 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		entry := testEntry(KindExtension, "telemetry", "Telemetry", "Exports traces")
+		entry := testEntry("telemetry", "Telemetry", "Exports traces")
 		entry.Version = "2.1.0"
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(now, entry)); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
@@ -410,16 +410,16 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 			name: "Should reject duplicate entry ids",
 			document: testDocument(
 				now,
-				testEntry(KindExtension, "dupe", "One", "First"),
-				testEntry(KindExtension, "dupe", "Two", "Second"),
+				testEntry("dupe", "One", "First"),
+				testEntry("dupe", "Two", "Second"),
 			),
 			wantErr: "is duplicated",
 		},
 		{
 			name: "Should reject duplicate extension install slugs",
 			document: func() *Document {
-				first := testEntry(KindExtension, "first", "First", "First extension")
-				second := testEntry(KindExtension, "second", "Second", "Second extension")
+				first := testEntry("first", "First", "First extension")
+				second := testEntry("second", "Second", "Second extension")
 				second.InstallSlug = first.InstallSlug
 				return testDocument(now, first, second)
 			}(),
@@ -429,7 +429,6 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		{
 			name: "Should reject invalid payload JSON",
 			document: testDocument(now, Entry{
-				Kind:        KindExtension,
 				EntryID:     "bad-json",
 				Name:        "Bad JSON",
 				Description: "Invalid payload",
@@ -515,9 +514,8 @@ func testDocument(fetchedAt time.Time, entries ...Entry) *Document {
 	}
 }
 
-func testEntry(kind Kind, entryID string, name string, description string) Entry {
+func testEntry(entryID string, name string, description string) Entry {
 	return Entry{
-		Kind:         kind,
 		EntryID:      entryID,
 		Name:         name,
 		Description:  description,
@@ -537,7 +535,7 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 	t.Run("Should preserve v3 typed inputs and icon through the source projection", func(t *testing.T) {
 		t.Parallel()
 		store := openMarketplaceTestStore(t)
-		document, err := DecodeDocument(KindExtension, v3ExtensionJSON(t, "https://images.example.test/icon.png"))
+		document, err := DecodeDocument(v3ExtensionJSON(t, "https://images.example.test/icon.png"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -562,8 +560,8 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 		first := testDocument(
 			at,
-			testEntry(KindExtension, "b", "Beta", "Original"),
-			testEntry(KindExtension, "a", "Alpha", "Original"),
+			testEntry("b", "Beta", "Original"),
+			testEntry("a", "Alpha", "Original"),
 		)
 		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
 			t.Fatal(err)

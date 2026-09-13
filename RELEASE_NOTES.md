@@ -21,6 +21,9 @@ Migration `00113` separates stored extension packages from their profile/workspa
 installation attachments. Existing packages receive one global, all-profiles
 attachment with their original installation timestamp; enablement exceptions,
 package files, provenance, and credentials are preserved.
+Migration `00114` removes the fixed extension discriminator from catalog rows;
+source/entry identity and all catalog content and installed extension state are preserved.
+
 The Marketplace switches directly to the extension catalog contract. Retired kind routes,
 remote skill acquisition and MCP catalog installation are removed without aliases.
 Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.

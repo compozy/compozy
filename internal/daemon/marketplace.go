@@ -252,7 +252,7 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(
 		ProfileID: store.DefaultProfileID,
 		Type:      eventspkg.MarketplaceCatalogRefresh,
 		Outcome:   string(eventOutcome),
-		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
+		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Source, outcome.Outcome),
 	}, content))
 }
 
@@ -276,7 +276,7 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 		ProfileID: store.DefaultProfileID,
 		Type:      eventspkg.MarketplaceInstall,
 		Outcome:   string(eventOutcome),
-		Summary:   fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
+		Summary:   fmt.Sprintf("marketplace extension install %s", outcome.Outcome),
 	}, content))
 }
 

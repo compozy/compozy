@@ -730,7 +730,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			ContentSize: -1, ContentType: "application/gzip",
 		}
 		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
-			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			EntryID:     "extension.acme.tool-ext",
 			InstallSlug: "acme/tool-ext", Version: "1.0.0", DigestSHA256: digest, Tier: "official",
 			Payload: json.RawMessage(
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
@@ -806,7 +806,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
 		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
-			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			EntryID:     "extension.acme.tool-ext",
 			InstallSlug: "acme/tool-ext", Version: "1.0.0",
 			DigestSHA256: strings.Repeat("0", sha256.Size*2), Tier: "official",
 			Payload: json.RawMessage(

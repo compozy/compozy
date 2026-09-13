@@ -41,7 +41,7 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 	if err := decodeStrict(raw, &value); err != nil {
 		return Entry{}, err
 	}
-	if err := value.validate(KindExtension); err != nil {
+	if err := value.validate(); err != nil {
 		return Entry{}, err
 	}
 	if err := ValidateInputGrammar(value.Inputs); err != nil {
@@ -96,7 +96,7 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 		)
 		value.Icon = ""
 	}
-	entry, err := commonEntry(KindExtension, value.entryCommon, value)
+	entry, err := commonEntry(value.entryCommon, value)
 	if err != nil {
 		return Entry{}, err
 	}
