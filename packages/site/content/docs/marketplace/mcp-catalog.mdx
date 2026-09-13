@@ -28,6 +28,7 @@ make a server ready. Install through the daemon, then inspect its authorization 
 | Grafana               | Pinned uvx package `mcp-grafana==1.0.0`                   | Workspace scope; requires a Grafana URL and service-account token, and launches with `--disable-write`.                                  |
 | Cal.com               | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
 | Cloudflare Code Mode  | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| You.com               | Hosted Streamable HTTP                                    | Workspace scope; keyless `profile=free` endpoint for web search with domain/freshness filters, no credentials required.                   |
 
 Pinned local distributions are exact so a catalog refresh cannot silently select a different
 package. A Docker distribution is additionally pinned to a verified image digest. Hosted entries
@@ -65,6 +66,12 @@ default. [Yaw Labs PostgreSQL MCP](https://www.npmjs.com/package/@yawlabs/postgr
 Cloudflare's Code Mode design exposes a small progressive-discovery interface and keeps
 credentials in the host callback rather than generated code. [Cloudflare Code
 Mode](https://developers.cloudflare.com/agents/model-context-protocol/codemode/)
+
+You.com publishes a hosted Streamable HTTP endpoint and a keyless `profile=free` variant that
+serves basic web search without credentials. The catalog uses the keyless profile so the entry
+installs with no secret input; the full toolset, including page-content extraction, is available
+on the authenticated endpoint. [You.com MCP
+docs](https://you.com/docs/_mcp/server)
 
 ## Deliberate omissions
 
