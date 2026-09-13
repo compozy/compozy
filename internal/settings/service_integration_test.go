@@ -107,7 +107,7 @@ func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *t
 	}
 }
 
-func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
+func TestManualMCPPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
 	t.Run("Should persist an encrypted secret and resolve it in the MCP executor", func(t *testing.T) {
 		t.Parallel()
 
@@ -119,32 +119,22 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		if err != nil {
 			t.Fatalf("vault.NewService() error = %v", err)
 		}
-		entry := stdioMCPCatalogEntry()
-		entry.Name = "catalog-helper"
-		entry.Payload = json.RawMessage(`{
-		"launch":{"type":"npm","package":"catalog-helper","version":"1.0.0"},
-		"inputs":[
-			{"id":"helper_mode","prompt":"Helper mode","type":"string","required":false,"default":"1","binding":{"type":"env","name":"` + settingsCatalogMCPHelperEnv + `"}},
-			{"id":"catalog_token","prompt":"Catalog token","type":"secret","required":true,"binding":{"type":"env","name":"CATALOG_TOKEN"}}
-		],
-		"default_scope":"user"
-	}`)
-		service := testService(t, homePaths, Dependencies{
-			MCPCatalog:      fakeMCPCatalog{entry: entry},
-			ProviderSecrets: vaultService,
-		})
-
-		installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-			EntryID: "github",
-			Scope:   ScopeUser,
-			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
-				"catalog_token": {Value: "executor-secret"},
-			}},
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: vaultService})
+		installed, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers, Scope: ScopeUser},
+			Name:              "catalog-helper", Target: TargetAuto,
+			MCPServer: &compozyconfig.MCPServer{
+				Command: "npx", Env: map[string]string{settingsCatalogMCPHelperEnv: "1"},
+			},
+			MCPSecrets: MCPSecretValues{SecretEnv: map[string]string{"CATALOG_TOKEN": "executor-secret"}},
 		})
 		if err != nil {
-			t.Fatalf("InstallMCPCatalog() error = %v", err)
+			t.Fatalf("PutCollectionItem(manual MCP) error = %v", err)
 		}
-		assertMCPSecretKeys(t, installed.Item, "CATALOG_TOKEN")
+		if installed.MCPServer == nil {
+			t.Fatal("manual MCP result has no server")
+		}
+		assertMCPSecretKeys(t, *installed.MCPServer, "CATALOG_TOKEN")
 		ref := "vault:mcp/user/catalog-helper/env/CATALOG_TOKEN"
 		record, err := store.GetVaultSecret(ctx, ref)
 		if err != nil {
@@ -170,7 +160,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 				_ context.Context,
 				source toolspkg.SourceRef,
 			) (mcppkg.ResolvedServer, error) {
-				if source.RawServerName != installed.Item.Name {
+				if source.RawServerName != installed.MCPServer.Name {
 					return mcppkg.ResolvedServer{}, fmt.Errorf(
 						"resolve unexpected MCP server %q",
 						source.RawServerName,
@@ -183,7 +173,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 					Server: server,
 					Target: mcpauth.Target{
 						Scope:      mcpauth.ScopeUser,
-						ServerName: installed.Item.Name,
+						ServerName: installed.MCPServer.Name,
 					},
 				}, nil
 			}),
@@ -195,8 +185,8 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		}
 		source := toolspkg.SourceRef{
 			Kind:          toolspkg.SourceMCP,
-			Owner:         installed.Item.Name,
-			RawServerName: installed.Item.Name,
+			Owner:         installed.MCPServer.Name,
+			RawServerName: installed.MCPServer.Name,
 			RawToolName:   "*",
 		}
 		descriptors, err := executor.ListTools(ctx, source)

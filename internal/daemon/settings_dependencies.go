@@ -11,10 +11,3 @@ func settingsProviderVaultDependency(service *vault.Service) settingspkg.Provide
 	}
 	return service
 }
-
-func settingsMarketplaceCatalogDependency(runtime *marketplaceRuntime) settingspkg.MCPCatalog {
-	if runtime == nil {
-		return nil
-	}
-	return runtime
-}

@@ -115,22 +115,17 @@ Curated detail carries an HTTPS `artifact_url` and `digest_sha256`. The daemon i
 archive and rejects digest mismatches regardless of unverified-install consent. GitHub, Git, and
 local-folder installs have their own policy and consent gate.
 
-Install MCP catalog entries with
-`compozy mcp install <entry> --scope user|profile|workspace [--workspace <id>] -o json` or
-`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. Catalog inputs are
-typed and entry-owned. Use `--set id=value` for a non-secret value, `--secret id` for a secret
-entered through stdin or a hidden prompt, or `--vault-ref id=vault:mcp/...` to bind a present ref.
-The catalog does not accept arbitrary environment variables, command overrides, headers, or OAuth
-client-secret flags.
+Marketplace installs extension packages through the extension install API/CLI. Inspect the
+entry's digest-pinned manifest inputs before installing. Secret input refs must belong to the
+same extension instance; manual MCP credentials are not imported into extension inputs.
 
-Reads expose configured field names/OAuth-secret presence, never refs. JSON returns provenance,
-full config `apply` truth, and `next_step=authorize` only for OAuth. Failed apply means desired config
-needs its returned repair action, not that runtime is active. HTTP/UDS requires `values` (`null` when
-input-free). `mcp_install_event_persist_failed` warns that install committed but its Marketplace
-event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
-partial secret/definition restoration retains the commit and returns a residual-state warning.
+Manual MCP definitions remain managed through `GET /api/settings/mcp-servers` and
+`PUT /api/settings/mcp-servers/{name}` with their exact scope. Existing MCP sidecars and credentials
+remain in place. For extension-owned server reads, auth or override changes, pass
+`owner=extension:<installed-name>` (CLI `--owner`); omitting owner addresses a manual definition.
+Reads expose configured names and secret presence, never secret values or refs.
 
-When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
+For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
 HTTP bind. Use `--scope user` for the user layer, `--scope profile --profile <name>` for a personal
 profile layer, `--scope workspace --workspace <id>` for a workspace layer, and combine

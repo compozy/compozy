@@ -9,12 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-// InstallSettingsMCPServerRequest is the UDS-backed catalog install request.
-type InstallSettingsMCPServerRequest = contract.InstallSettingsMCPServerRequest
-
-// InstallSettingsMCPServerRecord is the UDS-backed catalog install response.
-type InstallSettingsMCPServerRecord = contract.InstallSettingsMCPServerResponse
-
 // SettingsMCPAuthTarget selects one exact daemon-owned MCP credential set.
 type SettingsMCPAuthTarget struct {
 	Owner       string
@@ -36,12 +30,8 @@ type SettingsMCPAuthExchangeRequest = contract.SettingsMCPAuthExchangeRequest
 // SettingsMCPAuthStatusRecord is the redacted daemon OAuth status.
 type SettingsMCPAuthStatusRecord = contract.SettingsMCPAuthStatusPayload
 
-// MCPSettingsClient exposes settings-owned MCP catalog installation.
+// MCPSettingsClient exposes settings-owned MCP management.
 type MCPSettingsClient interface {
-	InstallSettingsMCPServer(
-		ctx context.Context,
-		request InstallSettingsMCPServerRequest,
-	) (InstallSettingsMCPServerRecord, error)
 	ListSettingsMCPServers(
 		ctx context.Context,
 		scope contract.SettingsLayeredScopeKind,
@@ -60,24 +50,6 @@ type MCPSettingsClient interface {
 		request SettingsMCPAuthExchangeRequest,
 	) (SettingsMCPAuthStatusRecord, error)
 	LogoutSettingsMCPAuth(ctx context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-}
-
-func (c *daemonClient) InstallSettingsMCPServer(
-	ctx context.Context,
-	request InstallSettingsMCPServerRequest,
-) (InstallSettingsMCPServerRecord, error) {
-	var response InstallSettingsMCPServerRecord
-	if err := c.doJSON(
-		ctx,
-		http.MethodPost,
-		"/api/settings/mcp-servers/install",
-		nil,
-		request,
-		&response,
-	); err != nil {
-		return InstallSettingsMCPServerRecord{}, err
-	}
-	return response, nil
 }
 
 func (c *daemonClient) ListSettingsMCPServers(

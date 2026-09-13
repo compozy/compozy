@@ -124,7 +124,6 @@ type stubClient struct {
 	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
 	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
-	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsLayeredScopeKind, string, string) (contract.SettingsMCPServersResponse, error)
 	getSettingsMCPAuthStatusFn  func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	beginSettingsMCPAuthFn      func(
@@ -1260,16 +1259,6 @@ func (s *stubClient) RefreshMarketplace(ctx context.Context, kind string) (Marke
 		return s.refreshMarketplaceFn(ctx, kind)
 	}
 	return MarketplaceRefreshRecord{}, errors.New("unexpected RefreshMarketplace call")
-}
-
-func (s *stubClient) InstallSettingsMCPServer(
-	ctx context.Context,
-	request InstallSettingsMCPServerRequest,
-) (InstallSettingsMCPServerRecord, error) {
-	if s.installSettingsMCPServerFn != nil {
-		return s.installSettingsMCPServerFn(ctx, request)
-	}
-	return InstallSettingsMCPServerRecord{}, errors.New("unexpected InstallSettingsMCPServer call")
 }
 
 func (s *stubClient) ListSettingsMCPServers(

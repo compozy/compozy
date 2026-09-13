@@ -427,7 +427,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
-	settings.POST("/mcp-servers/install", privileged, handlers.InstallSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
 	settings.POST("/mcp-servers/:name/auth/begin", privileged, handlers.BeginSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/exchange", privileged, handlers.ExchangeSettingsMCPAuth)

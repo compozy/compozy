@@ -72,14 +72,6 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		assertMarketplaceRuntimeEntry(t, runtime, "edited-checkout")
 	})
 
-	t.Run("Should omit an unavailable marketplace from settings dependencies", func(t *testing.T) {
-		t.Parallel()
-
-		if dependency := settingsMarketplaceCatalogDependency(nil); dependency != nil {
-			t.Fatalf("settings marketplace dependency = %#v, want nil", dependency)
-		}
-	})
-
 	t.Run("Should boot, emit refresh events, reconcile config live, and shut down cleanly", func(t *testing.T) {
 		t.Parallel()
 

@@ -148,13 +148,13 @@ definition and returns an error. If secret restoration is partial, or the prior 
 be restored, the replacement remains committed and the mutation returns a warning describing the
 residual cleanup state.
 
-| Field               | Type         | Default     | Valid values                    | Description                                                               |
-| ------------------- | ------------ | ----------- | ------------------------------- | ------------------------------------------------------------------------- |
-| `registration`      | string       | `auto`      | `auto`, `pre_registered`.       | `auto` resolves protected-resource metadata, CIMD, then one DCR fallback. |
-| `issuer_url`        | string URL   | conditional | HTTPS URL; HTTP only on loopback. | Required with `pre_registered`; optional issuer restriction with `auto`. |
-| `client_id`         | string       | conditional | Non-empty.                      | Required with `pre_registered`.                                           |
-| `client_secret_ref` | string       | empty       | `vault:mcp/**`.                 | Optional client secret for `pre_registered` only.                         |
-| `scopes`            | string array | empty       | Unique non-empty strings.       | Requested OAuth scopes.                                                   |
+| Field               | Type         | Default     | Valid values                      | Description                                                               |
+| ------------------- | ------------ | ----------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `registration`      | string       | `auto`      | `auto`, `pre_registered`.         | `auto` resolves protected-resource metadata, CIMD, then one DCR fallback. |
+| `issuer_url`        | string URL   | conditional | HTTPS URL; HTTP only on loopback. | Required with `pre_registered`; optional issuer restriction with `auto`.  |
+| `client_id`         | string       | conditional | Non-empty.                        | Required with `pre_registered`.                                           |
+| `client_secret_ref` | string       | empty       | `vault:mcp/**`.                   | Optional client secret for `pre_registered` only.                         |
+| `scopes`            | string array | empty       | Unique non-empty strings.         | Requested OAuth scopes.                                                   |
 
 For `registration = "auto"`, CompozyOS resolves protected-resource metadata, uses the provider's
 client metadata document support when available, and otherwise makes one Dynamic Client Registration
@@ -233,36 +233,16 @@ change, CompozyOS keeps the previous token record but does not report it as auth
 revoke it against the replacement provider, or send its bearer to that provider. Authorize the new
 definition again. Tokens created before definition binding was introduced also require one new login.
 
-## Install From The Curated Catalog
+## Marketplace Packages And Manual Servers
 
-Use the catalog install command when an MCP entry comes from Marketplace:
+Marketplace distributes extension packages, which may declare MCP servers. Browse the catalog,
+inspect the extension's inputs, and install it through the [extension workflow](/docs/marketplace).
+Extension runtime names are allocated automatically; extension inputs use their own secret namespace.
 
-```bash
-compozy mcp install github --scope workspace --workspace <workspace-id> \
-  --vault-ref github_personal_access_token=vault:mcp/shared/github-token -o json
-```
-
-For workspace scope, pass both `--scope workspace` and `--workspace <workspace-id>`. The daemon
-loads the catalog entry, locks its command, URL, and auth fields, checks required values and bound
-Vault refs, writes the MCP sidecar through the serialized config-apply lifecycle, and stamps catalog
-provenance. Inspect the response's `apply` object for the record ID, lifecycle, active generation,
-and required repair action. The install does not probe the MCP server, so a successful config apply
-does not claim server readiness. OAuth entries return `next_step: "authorize"`; other entries return
-`next_step: "none"`.
-
-Direct API callers must always include the nullable `values` property: send `null` for an input-free
-entry. Omitting `values` violates the request contract and returns `400` before installation.
-
-Use `--set id=value` for a non-secret catalog input, `--secret id` to enter one through stdin or a
-hidden prompt, or `--vault-ref id=vault:mcp/...` for an existing secret. Neither secret path puts
-secret material in shell arguments or history. Management reads return configured field names, never
-bound refs or secret values.
-
-Structured JSON output returns the complete install response: the committed `mcp_server`, config
-`apply` outcome, `next_step`, and any top-level diagnostics. In particular,
-`mcp_install_event_persist_failed` means the server and config apply remain committed while the
-Marketplace install event was not persisted. Inspect `warnings` before deciding whether operator
-cleanup is required.
+Manual MCP definitions continue to use the locations and settings write API documented above.
+Existing sidecar files and credentials remain valid. Manage an extension-owned server with
+`owner=extension:<installed-name>`; omit owner for a manual server. Removing a package uses the
+extension API, while MCP settings changes affect the selected server's configuration.
 
 ## Inspect Runtime Status
 

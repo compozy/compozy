@@ -404,8 +404,9 @@ and diagnostic instead of hiding them. Do not retry a dead tool blindly or inven
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.
-Curated install remains a management surface (`compozy mcp install` or
-`POST /api/settings/mcp-servers/install`); there is no `compozy__mcp_install`.
+Acquire Marketplace MCP capabilities through extension installation. Manage manual servers
+through Settings MCP APIs; extension-owned management and diagnostics require the explicit
+extension owner. Browser/OAuth login remains a management operation.
 
 ## Observability And Bridge Tools
 

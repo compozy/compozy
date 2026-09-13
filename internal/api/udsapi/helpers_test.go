@@ -47,7 +47,6 @@ type stubSettingsService struct {
 	PutCollectionItemFn         func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionItemFn       func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
 	ApplyModelCurationFn        func(context.Context, settingspkg.ProviderModelCurationRequest) (settingspkg.ProviderModelCurationResult, error)
-	InstallMCPCatalogFn         func(context.Context, settingspkg.MCPCatalogInstallRequest) (settingspkg.MCPCatalogInstallResult, error)
 	GetMCPAuthStatusFn          func(context.Context, settingspkg.MCPAuthTargetRequest) (mcpauth.Status, error)
 	BeginMCPAuthFn              func(context.Context, settingspkg.MCPAuthBeginRequest) (mcpauth.BeginResult, error)
 	ExchangeMCPAuthFn           func(context.Context, settingspkg.MCPAuthExchangeRequest) (mcpauth.Status, error)
@@ -61,7 +60,6 @@ type stubSettingsService struct {
 	LastUpdateSectionRequest    settingspkg.SectionUpdateRequest
 	LastListCollectionRequest   settingspkg.CollectionRequest
 	LastPutCollectionRequest    settingspkg.CollectionItemPutRequest
-	LastMCPCatalogInstall       settingspkg.MCPCatalogInstallRequest
 	LastMCPAuthStatus           settingspkg.MCPAuthTargetRequest
 	LastDeleteCollectionRequest settingspkg.CollectionItemDeleteRequest
 	LastApplyRecordFilter       settingspkg.ApplyRecordFilter
@@ -153,17 +151,6 @@ func (s *stubSettingsService) ApplyProviderModelCuration(
 		return settingspkg.ProviderModelCurationResult{}, nil
 	}
 	return s.ApplyModelCurationFn(ctx, req)
-}
-
-func (s *stubSettingsService) InstallMCPCatalog(
-	ctx context.Context,
-	req settingspkg.MCPCatalogInstallRequest,
-) (settingspkg.MCPCatalogInstallResult, error) {
-	s.LastMCPCatalogInstall = req
-	if s.InstallMCPCatalogFn == nil {
-		return settingspkg.MCPCatalogInstallResult{}, nil
-	}
-	return s.InstallMCPCatalogFn(ctx, req)
 }
 
 func (s *stubSettingsService) GetMCPAuthStatus(

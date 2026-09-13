@@ -2059,61 +2059,6 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
 	})
 
-	t.Run("Should install the same catalog MCP semantics over HTTP, UDS, and CLI", func(t *testing.T) {
-		path := "/api/settings/mcp-servers/install"
-		request := compozycontract.InstallSettingsMCPServerRequest{
-			EntryID: "filesystem",
-			Name:    "filesystem-parity",
-			Scope:   compozycontract.SettingsLayeredScopeUser,
-			Values:  &compozycontract.SettingsMCPCatalogInstallValuesPayload{},
-		}
-		var httpValue compozycontract.InstallSettingsMCPServerResponse
-		var udsValue compozycontract.InstallSettingsMCPServerResponse
-		var cliValue compozycontract.InstallSettingsMCPServerResponse
-		t.Run("Should install over HTTP from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.HTTPJSON(installCtx, http.MethodPost, path, request, &httpValue); err != nil {
-				t.Fatalf("HTTPJSON(%s) error = %v", path, err)
-			}
-		})
-		t.Run("Should install over UDS from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.UDSJSON(installCtx, http.MethodPost, path, request, &udsValue); err != nil {
-				t.Fatalf("UDSJSON(%s) error = %v", path, err)
-			}
-		})
-		t.Run("Should install over CLI from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.CLI.RunJSON(
-				installCtx,
-				&cliValue,
-				"mcp",
-				"install",
-				"filesystem",
-				"--name",
-				"filesystem-parity",
-				"--scope",
-				"user",
-				"-o",
-				"json",
-			); err != nil {
-				t.Fatalf("CLI mcp install error = %v", err)
-			}
-		})
-		assertTransportMCPInstallParity(t, path, httpValue, udsValue, cliValue)
-		if httpValue.MCPServer.CatalogEntry != "filesystem" ||
-			httpValue.MCPServer.CatalogVersion != "1.0.0" ||
-			httpValue.NextStep != compozycontract.SettingsMCPInstallNextStepNone {
-			t.Fatalf("catalog MCP install response = %#v", httpValue)
-		}
-	})
-
 	t.Run("Should preserve the current extension search envelope across HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/extensions/search?q=bridge&limit=20"
 		var httpValue compozycontract.ExtensionSearchResponse
@@ -2235,34 +2180,6 @@ func assertTransportMarketplaceParity(t testing.TB, path string, values ...any) 
 			valueJSON,
 		)
 	}
-}
-
-func assertTransportMCPInstallParity(
-	t testing.TB,
-	path string,
-	values ...compozycontract.InstallSettingsMCPServerResponse,
-) {
-	t.Helper()
-
-	normalized := make([]any, 0, len(values))
-	for index, value := range values {
-		if !strings.HasPrefix(value.Apply.ApplyRecordID, "cfgapp-") {
-			t.Fatalf("%s transport %d apply_record_id = %q, want cfgapp-*", path, index, value.Apply.ApplyRecordID)
-		}
-		if len(value.Apply.ActiveConfigHash) != len("sha256:")+64 ||
-			!strings.HasPrefix(value.Apply.ActiveConfigHash, "sha256:") {
-			t.Fatalf(
-				"%s transport %d active_config_hash = %q, want sha256 digest",
-				path,
-				index,
-				value.Apply.ActiveConfigHash,
-			)
-		}
-		value.Apply.ApplyRecordID = ""
-		value.Apply.ActiveConfigHash = ""
-		normalized = append(normalized, value)
-	}
-	assertTransportMarketplaceParity(t, path, normalized...)
 }
 
 func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.T) {

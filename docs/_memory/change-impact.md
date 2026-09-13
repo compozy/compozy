@@ -399,3 +399,5 @@ No additional public, config, persistence, or Web contracts change.
   `ET-terminal-redaction-boundaries` and `ET-terminal-agent-handoff-input` scenarios gain raw-mode
   cases. Canonical PTY, session input/recording, and real HTTP/WebSocket integration suites own
   regression evidence; changes do not affect Unicode counting or shell environment setup.
+
+Task05 MCP installer removal: deleted mcp install and POST /api/settings/mcp-servers/install across transports, Settings, contracts and generated consumers. Current extension acquisition and manual MCP Settings/auth remain; the real manual-secret/executor integration passes. Official skill and MCP/vault docs are current, and retired MCP install QA scenarios link final replacement walks. Evidence and remaining removals are in marketplace-catalog/memory/task_05.md.

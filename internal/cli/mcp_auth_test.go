@@ -21,6 +21,14 @@ import (
 func TestMCPAuthCommandTreeHardCutsAuthorizeAlias(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject retired catalog installation before opening a client", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := executeRootCommand(t, commandDeps{}, "mcp", "install", "github", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "unknown command") {
+			t.Fatalf("retired mcp install: %v", err)
+		}
+	})
+
 	t.Run("Should resolve canonical login and reject the removed authorize alias", func(t *testing.T) {
 		t.Parallel()
 

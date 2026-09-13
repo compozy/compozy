@@ -19,7 +19,6 @@ func Operations() []OperationSpec {
 	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)
 	ops = append(ops, marketplaceOperations()...)
-	ops = append(ops, settingsMCPInstallOperation())
 	ops = append(ops, settingsMCPAuthOperations()...)
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, networkCoordinationOperations()...)

@@ -240,10 +240,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(contract.SettingsMCPAuthBeginModeAutomatic),
 			string(contract.SettingsMCPAuthBeginModeManual),
 		},
-		reflect.TypeFor[contract.SettingsMCPInstallNextStep](): {
-			string(contract.SettingsMCPInstallNextStepNone),
-			string(contract.SettingsMCPInstallNextStepAuthorize),
-		},
 		reflect.TypeFor[resources.ResourceScopeKind]():        resourceScopeKindValues(),
 		reflect.TypeFor[notifications.ScopeKind]():            notificationScopeKindValues(),
 		reflect.TypeFor[bridgepkg.Scope]():                    bridgeScopeValues(),

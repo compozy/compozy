@@ -6,15 +6,18 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Manifest-v2 typed inputs accept only their declared string, identifier, boolean, or secret values; secret inputs accept a typed value or present namespace=mcp Vault ref and inline creation stores without echo. Stdio launch entries and Streamable HTTP entries render only their supported fields, catalog default scope applies when omitted, and the next daemon step is announced.
 entry_points: /marketplace/mcp/$entryId; MCP Install action
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260714-keyboard-focus-invisible; BUG-20260715-mcp-install-null-values
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-github-input.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-github-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-linear-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/web-guided-github-settings.json
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-cli-mcp-install; ET-api-mcp-catalog-install; ET-web-mcp-authorize
 ---
+
+Retired by marketplace-catalog task05. The catalog MCP installer and its CLI/API entry points are removed. Marketplace acquisition now uses extension packages; manual MCP settings and credentials remain supported. Current coverage belongs to ET-web-marketplace-installed-management, ET-web-mcp-authorize-manual and ET-api-marketplace-namespace. Final tasks09/10 verify the replacement journeys and removed-route rejection. Historical evidence below does not verify the new contract.
+
 
 Passed in the 2026-07-30 final rerun: GitHub's typed stdio form installed the exact returned server,
 and Linear's hosted install stopped at the explicit Authorize handoff without beginning OAuth.

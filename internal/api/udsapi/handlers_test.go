@@ -187,6 +187,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/memory/providers/:provider_name",
 			"GET /api/memory/recall-traces/:session_id/:turn_seq",
 			"GET /api/memory/scope-show",
+			"GET /api/marketplace",
+			"GET /api/marketplace/entries/:entry_id",
 			"GET /api/marketplace/:kind",
 			"GET /api/marketplace/:kind/:entry_id",
 			"GET /api/marketplace/search",
@@ -264,8 +266,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
 			"GET /api/settings/mcp-servers",
+			"GET /api/settings/mcp-servers/:name",
 			"GET /api/settings/mcp-servers/:name/auth/status",
-			"POST /api/settings/mcp-servers/install",
 			"POST /api/settings/mcp-servers/:name/auth/begin",
 			"POST /api/settings/mcp-servers/:name/auth/exchange",
 			"POST /api/settings/mcp-servers/:name/auth/logout",
@@ -792,18 +794,6 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			}
 			return envelope, nil
 		},
-		InstallMCPCatalogFn: func(
-			_ context.Context,
-			req settingspkg.MCPCatalogInstallRequest,
-		) (settingspkg.MCPCatalogInstallResult, error) {
-			return settingspkg.MCPCatalogInstallResult{
-				Item: settingspkg.MCPServerItem{
-					Name: req.Name, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
-					CatalogEntry: req.EntryID,
-				},
-				NextStep: settingspkg.MCPCatalogInstallNextStepNone,
-			}, nil
-		},
 	}
 	restartController := &stubSettingsRestartController{}
 	handlers := newTestHandlersWithSettingsAndExtensions(
@@ -1109,28 +1099,15 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			},
 		},
 		{
-			name:       "Should install catalog MCP server",
+			name:       "Should reject retired catalog installation",
 			method:     http.MethodPost,
 			path:       "/api/settings/mcp-servers/install",
-			wantStatus: http.StatusOK,
-			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
-				EntryID:     "github",
-				Name:        "github-workspace",
-				Scope:       contract.SettingsLayeredScopeWorkspace,
-				WorkspaceID: "ws-1",
-				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
-			}),
+			body:       []byte(`{"entry_id":"github","values":{}}`),
+			wantStatus: http.StatusNotFound,
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
-				var response contract.InstallSettingsMCPServerResponse
-				decodeJSONResponse(t, recorder, &response)
-				if response.MCPServer.Name != "github-workspace" || response.NextStep != "none" {
-					t.Fatalf("response = %#v", response)
-				}
-				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
-					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
-					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
-					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
+				if !strings.Contains(recorder.Body.String(), "404") {
+					t.Fatalf("removed install body: %s", recorder.Body.String())
 				}
 			},
 		},
