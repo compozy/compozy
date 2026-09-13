@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -17,6 +16,9 @@ func (s *daemonExtensionService) RemoveScoped(
 	name string,
 	actor taskpkg.ActorContext,
 ) (contract.ManagedExtensionRemovePayload, error) {
+	if err := s.checkReady(); err != nil {
+		return contract.ManagedExtensionRemovePayload{}, err
+	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
@@ -26,6 +28,25 @@ func (s *daemonExtensionService) RemoveScoped(
 	workspaceID, err := s.developmentWorkspaceID(ctx, actor)
 	if err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
+	}
+	var item contract.ManagedExtensionRemovePayload
+	err = s.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
+		var err error
+		item, err = s.removeScopedExtensionLocked(ctx, name, actor, workspaceID)
+		return err
+	})
+	return item, err
+}
+
+func (s *daemonExtensionService) removeScopedExtensionLocked(
+	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
+) (contract.ManagedExtensionRemovePayload, error) {
+	link, err := s.snapshotDevLink(extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID})
+	if err != nil {
+		return contract.ManagedExtensionRemovePayload{}, err
+	}
+	if link == nil {
+		return s.removeInstalledExtensionLocked(ctx, name, actor, workspaceID)
 	}
 	runtime, err := s.devRuntime()
 	if err != nil {
@@ -40,41 +61,45 @@ func (s *daemonExtensionService) RemoveScoped(
 		if !actor.Scope.Operator {
 			return contract.ManagedExtensionRemovePayload{}, extensionpkg.ErrExtensionWorkspaceDenied
 		}
-		return s.Remove(ctx, name, actor)
+		return s.removeInstalledExtensionLocked(ctx, name, actor, "")
 	}
-	var item contract.ManagedExtensionRemovePayload
-	err = s.lifecycle.withInstance(ctx, key, func() error {
-		snapshot, snapshotErr := s.snapshotDevLink(key)
-		if snapshotErr != nil {
-			return snapshotErr
-		}
-		if snapshot == nil {
-			return fmt.Errorf("%w: %s", extensionpkg.ErrExtensionNotDevLinked, name)
-		}
-		retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
-		if retireErr != nil {
-			return retireErr
-		}
-		if unlinkErr := runtime.UnlinkDevelopment(ctx, key); unlinkErr != nil {
-			return errors.Join(unlinkErr, retirement.rollback(ctx, s))
-		}
-		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
-			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, syncErr)
-		}
-		item = contract.ManagedExtensionRemovePayload{
-			Name: name, Path: snapshot.OriginPath, Status: "removed",
-		}
-		event := extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
-			WorkspaceID: workspaceID, ExtensionGeneration: snapshot.BundleGeneration,
-		}
-		if err := s.commitDevMCPRetirement(ctx, actor, key, event); err != nil {
-			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, err)
-		}
-		s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
-		return nil
-	})
-	return item, err
+	snapshot := link
+	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+	if retireErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, retireErr
+	}
+	if unlinkErr := runtime.UnlinkDevelopment(ctx, key); unlinkErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, errors.Join(unlinkErr, retirement.rollback(ctx, s))
+	}
+	if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, s.rollbackDevRemoval(
+			ctx,
+			runtime,
+			key,
+			snapshot,
+			retirement,
+			syncErr,
+		)
+	}
+	item := contract.ManagedExtensionRemovePayload{
+		Name: name, Path: snapshot.OriginPath, Status: "removed",
+	}
+	event := extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
+		WorkspaceID: workspaceID, ExtensionGeneration: snapshot.BundleGeneration,
+	}
+	if err := s.commitDevMCPRetirement(ctx, actor, key, event); err != nil {
+		return contract.ManagedExtensionRemovePayload{}, s.rollbackDevRemoval(
+			ctx,
+			runtime,
+			key,
+			snapshot,
+			retirement,
+			err,
+		)
+	}
+	s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
+	return item, nil
 }
 
 func (s *daemonExtensionService) commitDevMCPRetirement(

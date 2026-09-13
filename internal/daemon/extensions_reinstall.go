@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -20,34 +22,23 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	if !actor.Scope.Operator && installed.Provenance.SourceRef == "" && prepared.published.Origin().SourceRef != "" {
 		return taskpkg.ErrPermissionDenied
 	}
-	attachment, err := s.registry.ResolveInstallation(ctx, installed.Name, extensionpkg.InstallationScope{
-		ProfileID: prepared.target.profile.ID, WorkspaceID: prepared.target.scope.WorkspaceID,
-	})
+	attachments, err := s.registry.Installations(ctx, installed.Name)
 	if err != nil {
 		return err
 	}
-	if attachment.Scope.WorkspaceID != prepared.target.scope.WorkspaceID {
-		return &extensionpkg.ExtensionNotFoundError{Name: installed.Name}
-	}
+	attach := !slices.ContainsFunc(attachments, func(item extensionpkg.Installation) bool {
+		return item.Scope == prepared.target.scope
+	})
 	update := extensionpkg.MarketplaceUpdateRequest{}
 	confirmed := s.configureUpdateNetworkGate(&update, request.ConfirmNetworkDigest, actor)
 	s.configureUpdateProfileGate(ctx, &update, actor)
 	plans := s.configureUpdateInputGate(ctx, &update, request.Inputs, prepared.target)
+	if attach {
+		s.configureReinstallAttachment(ctx, &update, prepared.target.scope)
+	}
 	_, needsConfirmation, err := candidateNetworkConfirmationRequirement(installed, prepared.manifest)
 	if err != nil {
 		return err
-	}
-	if prepared.published.MatchesInstalled(installed) && !needsConfirmation {
-		if err := update.PreflightCandidate(installed, prepared.manifest); err != nil {
-			return err
-		}
-		plan := plans[installed.Name]
-		if len(plan.rows) == 0 && len(plan.writes) == 0 {
-			*item, err = s.installedTargetStatus(ctx, installed.Name, prepared.target)
-			return err
-		}
-		// The candidate and input plan have already passed preflight under the lifecycle lock.
-		update.PreflightCandidate = nil
 	}
 	complete := func(ctx context.Context) error {
 		s.evictExtensionMCPHealth(installed.Name, "")
@@ -68,6 +59,17 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 			SourceKind: string(request.Source), DigestMatched: item.DigestMatched,
 		})
 	}
+	if prepared.published.MatchesInstalled(installed) && !needsConfirmation {
+		if err := update.PreflightCandidate(installed, prepared.manifest); err != nil {
+			return err
+		}
+		plan := plans[installed.Name]
+		if !attach && len(plan.rows) == 0 && len(plan.writes) == 0 {
+			*item, err = s.installedTargetStatus(ctx, installed.Name, prepared.target)
+			return err
+		}
+		return s.commitExistingExtensionInputs(ctx, installed, prepared.manifest, update, complete)
+	}
 	warnings, err := prepared.published.Reinstall(
 		ctx, installed, update.PreflightCandidate, update.CommitCandidate, update.RollbackCandidate, s.reload, complete,
 	)
@@ -78,4 +80,51 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 		s.logger.Warn("daemon: clean committed extension reinstall", "extension", installed.Name, "code", warning.Code)
 	}
 	return nil
+}
+
+func (s *daemonExtensionService) configureReinstallAttachment(
+	ctx context.Context, update *extensionpkg.MarketplaceUpdateRequest, scope extensionpkg.InstallationScope,
+) {
+	commit, rollback := update.CommitCandidate, update.RollbackCandidate
+	attached := false
+	update.CommitCandidate = func(info extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest) error {
+		if err := commit(info, manifest); err != nil {
+			return err
+		}
+		if err := s.registry.AttachInstallation(ctx, info.Name, scope); err != nil {
+			return err
+		}
+		attached = true
+		return nil
+	}
+	update.RollbackCandidate = func(ctx context.Context, info extensionpkg.ExtensionInfo) error {
+		var detachErr error
+		if attached {
+			detachErr = s.registry.DetachInstallation(ctx, info.Name, scope)
+			if errors.Is(detachErr, extensionpkg.ErrExtensionNotFound) {
+				detachErr = nil
+			}
+		}
+		return errors.Join(detachErr, rollback(ctx, info))
+	}
+}
+
+func (s *daemonExtensionService) commitExistingExtensionInputs(
+	ctx context.Context, installed extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest,
+	update extensionpkg.MarketplaceUpdateRequest, complete extensionpkg.MutationReload,
+) error {
+	err := update.CommitCandidate(installed, manifest)
+	if err == nil {
+		err = s.reload(ctx)
+	}
+	if err == nil {
+		err = complete(ctx)
+	}
+	if err == nil {
+		return nil
+	}
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
+	defer cancel()
+	rollbackErr := update.RollbackCandidate(rollbackCtx, installed)
+	return errors.Join(err, rollbackErr, s.reload(rollbackCtx))
 }

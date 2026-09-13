@@ -42,6 +42,10 @@ import (
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	t.Run(
+		"Should preserve published attachments through update restart and scoped removal [IT-021]",
+		testDaemonExtensionAttachments,
+	)
 	t.Run("Should isolate manual and extension OAuth through public transports [IT-021]", testDaemonExtensionMCPOwners)
 	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", testDaemonCatalogPublication)
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
@@ -1674,6 +1678,237 @@ func assertDistributionCatalogListing(
 			t.Fatalf("catalog item %s absent", id)
 		}
 	}
+}
+
+// Invariant: scoped detach preserves the other installation, inputs, enablement and package until the final removal.
+// Owner: daemon distribution lifecycle; canonical suite: IT-021.
+func testDaemonExtensionAttachments(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
+	mcp := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
+	t.Cleanup(mcp.Close)
+	catalog := newDistributionGitHubServer(t, "attachment-fixture")
+	t.Cleanup(catalog.Close)
+	entry := distributionCatalogEntry(t, extensionAuthoringE2ERepoRoot(t), "github")
+	entry["entry_id"], entry["install_slug"], entry["name"], entry["version"] = "attached", "compozy/attached", "Attached", "1.0.0"
+	entry["inputs"] = []map[string]any{{"id": "region", "prompt": "Region", "type": "identifier", "required": true,
+		"binding": map[string]string{"type": "url_query", "name": "region"}}}
+	manifest := fmt.Sprintf(`name = "attached"
+version = "1.0.0"
+min_compozy_version = "0.0.0"
+[[inputs]]
+id = "region"
+prompt = "Region"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "region" }
+[resources.mcp_servers.attached]
+transport = "http"
+url = %q
+default_scope = "global"
+`, mcp.URL+"?region=")
+	publishDistributionManifest(t, catalog, entry, manifest)
+	options := &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{
+		Mutate: func(cfg *compozyconfig.Config) { cfg.Marketplace.Catalog.BaseURL = catalog.URL },
+	}}
+	runtime := e2etest.StartRuntimeHarness(t, options)
+	refreshDistributionCatalog(t, ctx, runtime)
+	for _, scope := range []string{"global", "workspace"} {
+		request := compozycontract.InstallExtensionRequest{
+			Source: compozycontract.InstallExtensionSourceCurated, Ref: "compozy/attached", Scope: scope,
+			ExpectedDigest: entry["digest_sha256"].(string),
+			Inputs:         map[string]extensioninput.Value{"region": {Value: json.RawMessage(`"` + scope + `-team"`)}},
+		}
+		if scope == "workspace" {
+			request.WorkspaceID = runtime.WorkspaceID
+		}
+		requestDistributionInstall(
+			t,
+			ctx,
+			runtime.HTTPClient,
+			runtime.HTTPURL("/api/extensions"),
+			request,
+			http.StatusCreated,
+		)
+	}
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut,
+		runtime.HTTPURL("/api/extensions/attached/enablement"),
+		compozycontract.SetExtensionEnablementRequest{Profile: "default", Enabled: true}, http.StatusOK)
+	for _, query := range []string{"scope=user", "scope=workspace&workspace_id=" + url.QueryEscape(runtime.WorkspaceID)} {
+		var servers compozycontract.SettingsMCPServersResponse
+		if err := runtime.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers?"+query, nil, &servers); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(servers.MCPServers, func(server compozycontract.SettingsMCPServerItemPayload) bool {
+			return server.Owner == "extension:attached" && server.RuntimeName != "" &&
+				(server.Scope == "user" && query == "scope=user" || server.WorkspaceID == runtime.WorkspaceID && query != "scope=user")
+		}) {
+			t.Fatalf("attachment has no published MCP in %s: %+v", query, servers.MCPServers)
+		}
+	}
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut,
+		runtime.HTTPURL("/api/extensions/attached/enablement"),
+		compozycontract.SetExtensionEnablementRequest{Profile: "default", Enabled: false}, http.StatusOK)
+	databaseURL := url.URL{Scheme: "file", Path: runtime.HomePaths.DatabaseFile, RawQuery: "mode=rw"}
+	db, err := sql.Open("sqlite", databaseURL.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	global := distributionAttachmentState(t, ctx, db, "", "global-team")
+	workspace := distributionAttachmentState(t, ctx, db, runtime.WorkspaceID, "workspace-team")
+	entry["version"] = "2.0.0"
+	manifest = strings.Replace(manifest, `version = "1.0.0"`, `version = "2.0.0"`, 1)
+	publishDistributionManifest(t, catalog, entry, manifest)
+	refreshDistributionCatalog(t, ctx, runtime)
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPost, runtime.HTTPURL("/api/extensions/update"),
+		compozycontract.UpdateExtensionsRequest{Names: []string{"attached"}}, http.StatusOK)
+	if after := distributionAttachmentState(t, ctx, db, "", "global-team"); !slices.Equal(after, global) {
+		t.Fatal("update changed the global attachment, inputs or enablement")
+	}
+	if after := distributionAttachmentState(
+		t,
+		ctx,
+		db,
+		runtime.WorkspaceID,
+		"workspace-team",
+	); !slices.Equal(
+		after,
+		workspace,
+	) {
+		t.Fatal("update changed the workspace attachment, inputs or enablement")
+	}
+	if err := runtime.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	options.HomePaths, options.BinaryPath = runtime.HomePaths, runtime.BinaryPath
+	options.Workspace.Root = runtime.WorkspaceRoot
+	runtime = e2etest.StartRuntimeHarness(t, options)
+	if after := distributionAttachmentState(t, ctx, db, "", "global-team"); !slices.Equal(after, global) {
+		t.Fatal("restart changed global state")
+	}
+	if after := distributionAttachmentState(
+		t,
+		ctx,
+		db,
+		runtime.WorkspaceID,
+		"workspace-team",
+	); !slices.Equal(
+		after,
+		workspace,
+	) {
+		t.Fatal("restart changed workspace state")
+	}
+	// Invariant: a failed retirement event restores the attachment and leaves every allocation and input unchanged.
+	if _, err := db.ExecContext(ctx, `CREATE TRIGGER fail_attachment_retirement BEFORE INSERT ON event_summaries
+ WHEN NEW.type = 'extension.removed' BEGIN SELECT RAISE(ABORT, 'retirement event failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	detachURL := runtime.UDSURL("/api/extensions/attached?workspace=" + url.QueryEscape(runtime.WorkspaceID))
+	body := requestDistributionJSON(
+		t,
+		ctx,
+		runtime.UDSClient,
+		http.MethodDelete,
+		detachURL,
+		nil,
+		http.StatusInternalServerError,
+	)
+	if !strings.Contains(string(body), "retirement event failure") {
+		t.Fatalf("removal did not reach the event failure: %s", body)
+	}
+	if after := distributionAttachmentState(t, ctx, db, "", "global-team"); !slices.Equal(after, global) {
+		t.Fatal("failed workspace removal changed global state")
+	}
+	if after := distributionAttachmentState(
+		t,
+		ctx,
+		db,
+		runtime.WorkspaceID,
+		"workspace-team",
+	); !slices.Equal(
+		after,
+		workspace,
+	) {
+		t.Fatal("failed workspace removal changed its attachment, inputs or allocation")
+	}
+	if _, err := db.ExecContext(ctx, `DROP TRIGGER fail_attachment_retirement`); err != nil {
+		t.Fatal(err)
+	}
+	requestDistributionJSON(t, ctx, runtime.UDSClient, http.MethodDelete, detachURL, nil, http.StatusOK)
+	if after := distributionAttachmentState(t, ctx, db, "", "global-team"); !slices.Equal(after, global) {
+		t.Fatal("workspace removal changed global state")
+	}
+	path := filepath.Join(extensionpkg.ManagedInstallPath(runtime.HomePaths, "attached"), "extension.toml")
+	if data, err := os.ReadFile(path); err != nil || string(data) != manifest {
+		t.Fatalf("workspace removal changed the updated package: %v", err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM extension_installations
+ WHERE extension_name = 'attached' AND workspace_id <> ''`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("workspace attachment remained: count=%d error=%v", count, err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM extension_mcp_overrides
+ WHERE extension = 'attached' AND workspace_id <> ''`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("workspace allocation remained: count=%d error=%v", count, err)
+	}
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodDelete,
+		runtime.HTTPURL("/api/extensions/attached"), nil, http.StatusOK)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("final detach retained package: %v", err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM extensions WHERE name = 'attached'`).
+		Scan(&count); err != nil ||
+		count != 0 {
+		t.Fatalf("final detach retained registry row: count=%d error=%v", count, err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM extension_mcp_overrides
+ WHERE extension = 'attached'`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("final detach retained allocation: count=%d error=%v", count, err)
+	}
+
+}
+
+func distributionAttachmentState(t *testing.T, ctx context.Context, db *sql.DB, workspace, input string) []string {
+	t.Helper()
+	var value string
+	if err := db.QueryRowContext(ctx, `SELECT value_json FROM extension_inputs
+ WHERE extension = 'attached' AND profile = ? AND workspace_id = ? AND input_id = 'region'`,
+		store.DefaultProfileID, workspace).Scan(&value); err != nil || value != `"`+input+`"` {
+		t.Fatalf("input in workspace %q = %s, error=%v", workspace, value, err)
+	}
+	var disabled int
+	if err := db.QueryRowContext(ctx, `SELECT enabled FROM extension_profile_enablement
+ WHERE extension_name = 'attached' AND profile_id = ?`, store.DefaultProfileID).Scan(&disabled); err != nil || disabled != 0 {
+		t.Fatalf("profile enablement = %d, error=%v", disabled, err)
+	}
+	var attachment, inputs, allocations string
+	if err := db.QueryRowContext(ctx, `SELECT json_array(profile_id,workspace_id,created_at)
+ FROM extension_installations WHERE extension_name = 'attached' AND profile_id = '' AND workspace_id = ?`,
+		workspace).Scan(&attachment); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT json_group_array(json_array(profile,workspace_id,input_id,type,value_json,active,updated_at))
+ FROM (SELECT * FROM extension_inputs WHERE extension = 'attached' AND workspace_id = ? ORDER BY profile,input_id)`,
+		workspace).
+		Scan(&inputs); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT json_group_array(json_array(profile,workspace_id,server,runtime_name,env_json,headers_json,url,updated_at))
+ FROM (SELECT * FROM extension_mcp_overrides WHERE extension = 'attached' AND workspace_id = ? ORDER BY profile,server)`,
+		workspace).
+		Scan(&allocations); err != nil {
+		t.Fatal(err)
+	}
+	if allocations == "[]" {
+		t.Fatal("attached package has no retained MCP allocation")
+	}
+	return []string{attachment, inputs, strconv.Itoa(disabled), allocations}
 }
 
 // Invariant: public authorization keeps manual and extension credentials separate through registration, exchange and logout.

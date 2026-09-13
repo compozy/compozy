@@ -18,6 +18,14 @@ overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-m
 
 Marketplace catalog task 01 (2026-09-12): Use catalog, GitHub and local-folder installations. Filter the inventory, toggle an extension, inspect details, and update two entries with one download failing. The successful entry remains updated and the failed entry retains its prior version.
 
+Marketplace catalog task 04: Install one package globally and in a workspace with different input
+values. Disable it, update it, and restart the daemon: both installations, values, enablement and
+reserved MCP names survive. Remove the workspace installation: its MCP allocation is released,
+the global installation and package remain unchanged. Remove the last installation: the package
+and its remaining MCP allocations retire. Also exercise an active development link to confirm that
+workspace removal unlinks the overlay through its existing lifecycle. HTTP/UDS and SQLite failure
+compensation have focused integration coverage; this final UI walk remains untested.
+
 Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
 
 

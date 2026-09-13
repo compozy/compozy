@@ -310,19 +310,50 @@ func (s *daemonExtensionService) writeExtensionEvent(
 	if ctx == nil {
 		return errors.New("daemon: extension event context is required")
 	}
+	record, err := s.extensionEventSummary(eventType, outcome, summary, payload, actorKind, actorID)
+	if err != nil {
+		return err
+	}
+	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), record); err != nil {
+		return fmt.Errorf("daemon: record extension event: %w", err)
+	}
+	return nil
+}
+
+func (s *daemonExtensionService) extensionEventSummary(
+	eventType string, outcome eventspkg.Outcome, summary string, payload any, actorKind, actorID string,
+) (store.EventSummary, error) {
 	content, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("daemon: encode extension event: %w", err)
+		return store.EventSummary{}, fmt.Errorf("daemon: encode extension event: %w", err)
 	}
-	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), daemonEventSummary(store.EventSummary{
+	return daemonEventSummary(store.EventSummary{
 		ProfileID: store.DefaultProfileID,
 		Type:      eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: s.now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: actorKind, ActorID: actorID},
-	}, content)); err != nil {
-		return fmt.Errorf("daemon: record extension event: %w", err)
+	}, content), nil
+}
+
+func (s *daemonExtensionService) extensionRemovalSummary(
+	actor taskpkg.ActorContext, name, workspaceID string,
+) (store.EventSummary, error) {
+	payload := extensionLifecycleEventPayload{
+		Name: name, Status: "removed", WorkspaceID: workspaceID,
+		ActorKind: string(actor.Actor.Kind.Normalize()), ActorID: strings.TrimSpace(actor.Actor.Ref),
+		OriginKind: string(actor.Origin.Kind.Normalize()), OriginRef: strings.TrimSpace(actor.Origin.Ref),
 	}
-	return nil
+	return s.extensionEventSummary(
+		eventspkg.ExtensionRemoved,
+		eventspkg.OutcomeFor(eventspkg.ExtensionRemoved),
+		extensionLifecycleEventSummary(
+			eventspkg.ExtensionRemoved,
+			payload,
+		),
+		payload,
+		payload.ActorKind,
+		payload.ActorID,
+	)
 }
 
 func extensionLifecycleEventSummary(eventType string, payload extensionLifecycleEventPayload) string {

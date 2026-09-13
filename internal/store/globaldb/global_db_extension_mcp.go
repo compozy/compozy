@@ -258,28 +258,49 @@ func (r *ExtensionMCPRepo) DeleteTargets(ctx context.Context, targets []extensio
 	if err := r.checkReady(ctx, "compensate extension MCP allocations"); err != nil {
 		return err
 	}
-	normalized := make([]extensionmcp.Target, 0, len(targets))
+	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		return deleteExtensionMCPTargets(ctx, sqlcgen.New(tx), targets)
+	})
+}
+
+// RetireTargets commits exact allocation retirement and its lifecycle event together.
+func (r *ExtensionMCPRepo) RetireTargets(
+	ctx context.Context,
+	targets []extensionmcp.Target,
+	summary store.EventSummary,
+) error {
+	if err := r.checkReady(ctx, "commit scoped extension MCP retirement"); err != nil {
+		return err
+	}
+	observe := &ObserveRepo{repoBase: r.repoBase}
+	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
+		return err
+	}
+	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		if err := deleteExtensionMCPTargets(ctx, queries, targets); err != nil {
+			return err
+		}
+		return insertEventSummary(ctx, queries, summary)
+	})
+}
+
+func deleteExtensionMCPTargets(ctx context.Context, queries *sqlcgen.Queries, targets []extensionmcp.Target) error {
 	for _, target := range targets {
 		value, err := normalizeExtensionMCPTarget(target)
 		if err != nil {
 			return err
 		}
-		normalized = append(normalized, value)
-	}
-	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
-		queries := sqlcgen.New(tx)
-		for _, target := range normalized {
-			if err := queries.DeleteExtensionMCPAllocation(ctx, sqlcgen.DeleteExtensionMCPAllocationParams{
-				Extension:   target.Extension,
-				Profile:     target.ProfileID,
-				WorkspaceID: target.WorkspaceID,
-				Server:      target.ServerName,
-			}); err != nil {
-				return err
-			}
+		if err := queries.DeleteExtensionMCPAllocation(ctx, sqlcgen.DeleteExtensionMCPAllocationParams{
+			Extension:   value.Extension,
+			Profile:     value.ProfileID,
+			WorkspaceID: value.WorkspaceID,
+			Server:      value.ServerName,
+		}); err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // RetireWorkspace commits the unlink event and all profile allocations in the same transaction.

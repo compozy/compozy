@@ -50,5 +50,7 @@ type Store interface {
 	DeleteWorkspace(context.Context, string, string) error
 	// RetireWorkspace atomically releases allocations and records the completed lifecycle event.
 	RetireWorkspace(context.Context, string, string, store.EventSummary) error
+	// RetireTargets atomically releases exact allocations and records the completed scoped removal.
+	RetireTargets(context.Context, []Target, store.EventSummary) error
 	DeleteInstance(context.Context, string, string, string) error
 }

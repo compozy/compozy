@@ -105,6 +105,12 @@ installed inventory comes from `GET /api/extensions`, independent of catalog pag
 `POST /api/extensions/update` with `{"all":true}` returns per-extension outcomes: a failed item does
 not undo earlier successful updates. Inspect every status, even on HTTP 200.
 
+Installing the same extension source in another workspace adds a scoped installation. Package
+updates preserve existing installations, their inputs and profile enablement. Remove using the
+selected workspace: `DELETE /api/extensions/{name}?workspace=<id>` detaches that installation and
+keeps other installations; only the last removal retires the package. An active development link
+in that workspace follows the development unlink lifecycle.
+
 Native `compozy__marketplace_search` reads the canonical catalog with `query`, `limit`, and
 `cursor`; obsolete `kind` input fails validation. CLI discovery uses `compozy marketplace search
 [query] [--cursor <opaque>] -o json`, `compozy marketplace info <entry_id> [--source <name>]`,

@@ -544,3 +544,14 @@ override storage without package writes, owner-less manual edits, manual runtime
 override/name preservation through package update, a second same-name extension, and sticky names
 after manual removal. No wire/schema/config change; prior documentation already states this
 contract. Scoped attachment update/restart/detach acceptance remains open.
+
+Task04 published attachment lifecycle now adds a missing scope on same-origin reinstall without
+rewriting unchanged package files. Scoped removal detaches only its selected installation; final
+removal uses managed package retirement. Published and development workspace resource snapshots
+share the existing runtime projection, so published workspace MCPs receive their own inputs and
+allocations. Package locking covers selection, mutations and compensation. Allocation retirement
+and the established removal event payload commit together; a failed event restores attachments,
+enablement, inputs and allocations. Existing native/HTTP/UDS surfaces use this lifecycle; no new
+DTO, route, config, hook, SDK or database shape. Other installations, manual credentials and dev
+unlink remain protected. Install docs and the official tools-and-skills reference co-ship; final
+QA09/10 owns the installed-management UI walk. Task04 UI implementation remains pending.

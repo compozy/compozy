@@ -281,52 +281,54 @@ func (s *daemonExtensionService) Remove(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	var item contract.ManagedExtensionRemovePayload
-	err := s.lifecycle.withName(ctx, name, func() error {
-		retirement, retireErr := s.retireExtensionSecretBindings(ctx, extensionpkg.GlobalInstanceKey(name))
-		if retireErr != nil {
-			return retireErr
-		}
-		removed, removeErr := extensionpkg.RemoveManagedExtension(
-			ctx,
-			s.homePaths,
-			s.registry,
-			name,
-			func(reloadCtx context.Context) error {
-				// A restored registry row means the domain coordinator is compensating the removal.
-				// Restore credentials before consumers resolve the reinstalled declaration.
-				if _, err := s.registry.Get(name); err == nil {
-					if err := retirement.rollback(reloadCtx, s); err != nil {
-						return err
-					}
-					retirement = nil
-				} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+	return s.removeInstalledExtension(ctx, name, actor, "")
+}
+
+func (s *daemonExtensionService) removeManagedExtensionLocked(
+	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey,
+) (contract.ManagedExtensionRemovePayload, error) {
+	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+	if retireErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, retireErr
+	}
+	removed, removeErr := extensionpkg.RemoveManagedExtension(
+		ctx,
+		s.homePaths,
+		s.registry,
+		name,
+		func(reloadCtx context.Context) error {
+			// A restored registry row means the domain coordinator is compensating the removal.
+			// Restore credentials before consumers resolve the reinstalled declaration.
+			if _, err := s.registry.Get(name); err == nil {
+				if err := retirement.rollback(reloadCtx, s); err != nil {
 					return err
 				}
-				return s.reload(reloadCtx)
-			},
-			func(ctx context.Context) error {
-				if s.mcpAllocations == nil {
-					return nil
-				}
-				return s.mcpAllocations.DeleteWorkspace(ctx, name, "")
-			},
-		)
-		if removeErr != nil {
-			return errors.Join(removeErr, retirement.rollback(ctx, s))
-		}
-		s.evictExtensionMCPHealth(name, "")
-		item = contract.ManagedExtensionRemovePayload{
-			Name:           removed.Name,
-			Path:           removed.Path,
-			DataPath:       removed.DataPath,
-			QuarantinePath: removed.QuarantinePath,
-			Status:         removed.Status,
-			Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
-		}
-		return s.recordExtensionRemoveEvent(ctx, actor, item)
-	})
-	return item, err
+				retirement = nil
+			} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				return err
+			}
+			return s.reload(reloadCtx)
+		},
+		func(ctx context.Context) error {
+			if s.mcpAllocations == nil {
+				return nil
+			}
+			return s.mcpAllocations.DeleteWorkspace(ctx, name, key.WorkspaceID)
+		},
+	)
+	if removeErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
+	}
+	s.evictExtensionMCPHealth(name, key.WorkspaceID)
+	item := contract.ManagedExtensionRemovePayload{
+		Name:           removed.Name,
+		Path:           removed.Path,
+		DataPath:       removed.DataPath,
+		QuarantinePath: removed.QuarantinePath,
+		Status:         removed.Status,
+		Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
+	}
+	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 
 func (s *daemonExtensionService) rollbackFailedInstall(

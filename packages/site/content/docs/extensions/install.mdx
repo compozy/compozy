@@ -510,6 +510,17 @@ installed instance's scope. Validate the package with `compozy extension validat
 The publisher derives v3 feed inputs from the package and checks their equality. Editing a generated
 feed cannot change what a package requests; change its manifest and republish.
 
+## Install one package in several scopes
+
+Installing the same source in another workspace adds an installation for that workspace. Each
+scope retains its own input values. Updating the package preserves every installation and profile
+enablement; restarting the daemon restores the same scopes.
+
+Removing a workspace installation leaves the package and other installations in place. The last
+installation's removal retires the package. An active development link in the selected workspace
+is unlinked through the development lifecycle. MCP runtime names remain reserved while their
+installation exists, including while it is disabled.
+
 ## Inspect extension MCP servers
 
 Before installation, catalog detail downloads the listed artifact, verifies its SHA-256 digest,
