@@ -23,7 +23,7 @@ func installExtension(
 	if running {
 		return client.InstallExtension(ctx, request)
 	}
-	if request.Profile != "" || request.WorkspaceID != "" || request.Scope == "workspace" {
+	if request.Profile != "" || request.WorkspaceID != "" || request.Scope == workspaceFlagName {
 		return ExtensionRecord{}, errors.New("cli: scoped extension installation requires a running daemon")
 	}
 	if request.Source != contract.InstallExtensionSourceLocalPath {
@@ -65,7 +65,7 @@ func installExtension(
 			if err != nil {
 				return ExtensionRecord{}, err
 			}
-			return localExtensionRecord(ctx, *info, deps.now, deps.getenv)
+			return localExtensionRecord(ctx, info, deps.now, deps.getenv)
 		},
 	)
 }

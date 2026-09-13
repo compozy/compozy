@@ -33,9 +33,10 @@ func (s marketplaceInspectionService) InspectCatalogExtension(
 }
 
 type marketplaceCatalogStub struct {
+	entryFn      func(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error)
 	browseFn     func(context.Context, string, int) (marketplacepkg.BrowseResult, error)
 	browsePageFn func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error)
-	detailFn     func(context.Context, string) (*marketplacepkg.Entry, error)
+	detailFn     func(context.Context, string, string) (*marketplacepkg.Entry, error)
 	refreshFn    func(context.Context) (marketplacepkg.RefreshReport, error)
 }
 
@@ -56,10 +57,10 @@ func (s marketplaceCatalogStub) Browse(
 
 func (s marketplaceCatalogStub) Detail(
 	ctx context.Context,
-	_ string, entryID string,
+	source string, entryID string,
 ) (*marketplacepkg.Entry, error) {
 	if s.detailFn != nil {
-		return s.detailFn(ctx, entryID)
+		return s.detailFn(ctx, source, entryID)
 	}
 	return nil, marketplacepkg.ErrEntryNotFound
 }
@@ -68,6 +69,9 @@ func (s marketplaceCatalogStub) Entry(
 	ctx context.Context,
 	origin marketplacepkg.Origin,
 ) (*marketplacepkg.Entry, error) {
+	if s.entryFn != nil {
+		return s.entryFn(ctx, origin)
+	}
 	if origin.SourceRef != marketplacepkg.CompozyCatalogRef {
 		return nil, marketplacepkg.ErrEntryNotFound
 	}
@@ -163,7 +167,10 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 		}
 	}
 	catalog := marketplaceCatalogStub{
-		browseFn: catalogBrowse, detailFn: catalogDetail, refreshFn: fixture.catalogRefresh,
+		browseFn: catalogBrowse, refreshFn: fixture.catalogRefresh,
+		detailFn: func(ctx context.Context, _ string, entryID string) (*marketplacepkg.Entry, error) {
+			return catalogDetail(ctx, entryID)
+		},
 	}
 	homePaths := testutil.NewTestHomePaths(t)
 	config := testConfigWithDisabledNetwork(homePaths)
@@ -512,7 +519,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 				) (marketplacepkg.BrowseResult, error) {
 					return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
 				},
-				detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) {
+				detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) {
 					return nil, marketplacepkg.ErrEntryNotFound
 				},
 			},
@@ -675,6 +682,37 @@ func TestMarketplaceCatalog(t *testing.T) {
 		}
 	})
 
+	// Invariant: omitted and explicit source selectors reach the shared catalog owner unchanged.
+	// Owner: HTTP/UDS detail boundary; canonical catalog suite.
+	t.Run("Should preserve omitted and explicit detail source selection", func(t *testing.T) {
+		t.Parallel()
+		for _, source := range []string{"", "team"} {
+			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+			handlers.MarketplaceCatalog = marketplaceCatalogStub{
+				detailFn: func(_ context.Context, selected, id string) (*marketplacepkg.Entry, error) {
+					if selected != source || id != "extension-entry" {
+						t.Fatalf("source=%q id=%q", selected, id)
+					}
+					entry := marketplaceEntryForTest()
+					return &entry, nil
+				},
+			}
+			engine := gin.New()
+			engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/marketplace/entries/extension-entry?source="+source,
+				nil,
+			)
+			if response.Code != http.StatusOK ||
+				!strings.Contains(response.Body.String(), `"entry_id":"extension-entry"`) {
+				t.Fatalf("detail = %d %s", response.Code, response.Body.String())
+			}
+		}
+	})
+
 	// Invariant: obsolete selectors fail before catalog dispatch on canonical routes.
 	// Owner: shared Marketplace handlers; canonical suite: TestMarketplaceCatalog.
 	t.Run("Should reject kind selectors on canonical browse, detail and refresh", func(t *testing.T) {
@@ -709,7 +747,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 			entry := marketplaceEntryForTest()
 			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 			handlers.MarketplaceCatalog = marketplaceCatalogStub{
-				detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+				detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 			}
 			inspections := 0
 			servers := []contract.MarketplaceServerPayload{
@@ -768,7 +806,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		entry := marketplaceEntryForTest()
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+			detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 		}
 		listed, fetched := strings.Repeat("a", 64), strings.Repeat("b", 64)
 		handlers.Extensions = marketplaceInspectionService{
@@ -813,7 +851,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		entry.Payload = raw
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			detailFn: func(context.Context, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+			detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) { return &entry, nil },
 		}
 		engine := gin.New()
 		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
@@ -934,7 +972,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		revision := "content-a"
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
-			browsePageFn: func(_ context.Context, _ string, offset, limit int) (marketplacepkg.BrowseResult, error) {
+			browsePageFn: func(_ context.Context, _ string, _, _ int) (marketplacepkg.BrowseResult, error) {
 				entry := marketplaceEntryForTest()
 				return marketplacepkg.BrowseResult{
 					Entries:  []marketplacepkg.Entry{entry},
@@ -988,7 +1026,7 @@ func TestMarketplaceCatalog(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
 			browseFn: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
-				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}, Stale: true,
+				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}, Stale: true, Refreshing: true,
 					Sources: []marketplacepkg.SourceState{{Source: marketplacepkg.CompozyCatalogSource,
 						Kind: marketplacepkg.SourceKindFeed, Enabled: true, Stale: true}},
 				}, nil
@@ -997,6 +1035,26 @@ func TestMarketplaceCatalog(t *testing.T) {
 		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
 		if err != nil || len(response.Sources) != 1 || response.Sources[0].State != "never" || !response.Stale {
 			t.Fatalf("unrefreshed catalog = %+v, err=%v", response, err)
+		}
+	})
+	// Invariant: an expired healthy snapshot is not a failed source refresh.
+	// Owner: catalog HTTP/UDS projection; canonical suite: TestMarketplaceCatalog.
+	t.Run("Should keep an expired healthy source distinct from a failed refresh", func(t *testing.T) {
+		t.Parallel()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			browseFn: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
+				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}, Stale: true, Refreshing: true,
+					Sources: []marketplacepkg.SourceState{{Source: marketplacepkg.CompozyCatalogSource,
+						Kind: marketplacepkg.SourceKindFeed, Enabled: true, Stale: true,
+						FetchedAt: time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)}},
+				}, nil
+			},
+		}
+		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
+		if err != nil || len(response.Sources) != 1 || response.Sources[0].State != "ok" || !response.Stale ||
+			!response.Refreshing {
+			t.Fatalf("expired healthy catalog = %+v, err=%v", response, err)
 		}
 	})
 	t.Run("Should return truthful degraded source state with no cached entries", func(t *testing.T) {
@@ -1142,4 +1200,57 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 			t.Fatalf("cross-profile cursor error=%v", err)
 		}
 	})
+}
+
+// Invariant: occupied instance names are disclosed without joining a different origin as installed.
+// Owner: catalog projection over scoped inventory; canonical Marketplace HTTP handler suite.
+func TestMarketplaceNameConflict(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		plugin bool
+	}{
+		{name: "Should report a curated declared name"},
+		{name: "Should use the inspected plugin name instead of its listing label", plugin: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entry := marketplaceEntryForTest()
+			instance := entry.EntryID
+			if tc.plugin {
+				instance = "declared-instance"
+				var payload map[string]any
+				if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+					t.Fatal(err)
+				}
+				payload["source_ref"], payload["instance_name"] = "github:partner/plugins", instance
+				var err error
+				entry.Payload, err = json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				entry.SourceName = "partner"
+			}
+			origin := &contract.MarketplaceOriginPayload{
+				Source:    "team",
+				SourceRef: "github:team/plugins",
+				EntryID:   "different-entry",
+			}
+			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
+				catalogBrowse: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
+					return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
+				},
+			})
+			handlers.Extensions = extensionServiceStub{
+				listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					return []contract.ExtensionPayload{{Name: instance, Origin: origin}}, nil
+				},
+			}
+			item := marketplaceListHTTP(t, handlers).Items[0]
+			if item.Installed || item.UpdateAvailable || !item.Installable || item.NameConflict == nil ||
+				*item.NameConflict != *origin {
+				t.Fatalf("occupied name listing = %+v", item)
+			}
+		})
+	}
 }

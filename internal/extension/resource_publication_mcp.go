@@ -2,9 +2,10 @@ package extensionpkg
 
 import (
 	"fmt"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"slices"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // ResolvedManifestMCPServer keeps the install default separate from runtime transport configuration.

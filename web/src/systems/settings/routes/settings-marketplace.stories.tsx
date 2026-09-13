@@ -52,6 +52,10 @@ export const DegradedRowOpen: Story = {
     await expect(
       canvas.findByTestId("settings-page-marketplace-source-team-plugins-diagnostics")
     ).resolves.toBeDefined();
+    const reason = await canvas.findByTestId(
+      "settings-page-marketplace-source-team-plugins-reason"
+    );
+    reason.scrollIntoView({ block: "center" });
   },
 };
 

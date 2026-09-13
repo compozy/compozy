@@ -18,6 +18,7 @@ import {
 
 import { useExtensionProvenance } from "../hooks/use-extensions";
 import { useRemoveExtension } from "../hooks/use-extension-actions";
+import { extensionInstallationScope } from "../lib/extension-installation-scope";
 import { extensionSourceKindLabel } from "../lib/extension-source-kind";
 import { extensionTrustFacts } from "../lib/extension-trust-facts";
 import type { ExtensionEntry, ExtensionProvenance } from "../types";
@@ -183,7 +184,11 @@ export function RemoveExtensionDialog({
       noteTone="neutral"
       onConfirm={async () => {
         if (!extension) return;
-        await remove.mutateAsync({ dev: isDevOverlay, name: extension.name });
+        await remove.mutateAsync({
+          ...extensionInstallationScope(extension),
+          dev: isDevOverlay,
+          name: extension.name,
+        });
         onOpenChange(false);
         onRemoved?.();
       }}

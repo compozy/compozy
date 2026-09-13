@@ -98,6 +98,7 @@ type ExtensionContentsPayload struct {
 
 // MarketplaceListResponse preserves the source and cursor metadata of the catalog page.
 type MarketplaceListResponse struct {
+	Refreshing bool                        `json:"refreshing,omitzero"`
 	Total      int                         `json:"total"`
 	NextCursor string                      `json:"next_cursor,omitempty"`
 	Revision   string                      `json:"revision"`

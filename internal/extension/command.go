@@ -37,23 +37,24 @@ func (m *Manager) Commands(workspaceID string) ([]CommandDescriptor, []CommandGr
 	workspaceID = strings.TrimSpace(workspaceID)
 	commands := make([]CommandDescriptor, 0)
 	groups := make([]CommandGroupDescriptor, 0)
-	for _, info := range m.ListForWorkspace(workspaceID) {
-		if !info.Enabled {
+	infoValues := m.ListForWorkspace(workspaceID)
+	for infoIndex := range infoValues {
+		if !infoValues[infoIndex].Enabled {
 			continue
 		}
-		extension, err := m.GetForInstance(InstanceKey{Name: info.Name, WorkspaceID: workspaceID})
+		extension, err := m.GetForInstance(InstanceKey{Name: infoValues[infoIndex].Name, WorkspaceID: workspaceID})
 		if errors.Is(err, ErrExtensionNotFound) {
 			continue
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("extension: resolve command source %q: %w", info.Name, err)
+			return nil, nil, fmt.Errorf("extension: resolve command source %q: %w", infoValues[infoIndex].Name, err)
 		}
 		if !commandExtensionAvailable(extension) {
 			continue
 		}
 		extensionCommands, extensionGroups, err := projectExtensionCommands(extension.Manifest)
 		if err != nil {
-			return nil, nil, fmt.Errorf("extension: project commands for %q: %w", info.Name, err)
+			return nil, nil, fmt.Errorf("extension: project commands for %q: %w", infoValues[infoIndex].Name, err)
 		}
 		commands = append(commands, extensionCommands...)
 		groups = append(groups, extensionGroups...)

@@ -56,6 +56,7 @@ func stageCatalogPublication(ctx context.Context, source, stage string, sources 
 	}); err != nil {
 		return err
 	}
+	// #nosec G703 -- source is the explicit local catalog root selected by the publishing operator.
 	raw, err := os.ReadFile(filepath.Join(source, "marketplaces.json"))
 	if err != nil {
 		return fmt.Errorf("read marketplace presets: %w", err)
@@ -63,6 +64,7 @@ func stageCatalogPublication(ctx context.Context, source, stage string, sources 
 	if _, err := marketplace.DecodePresets(raw); err != nil {
 		return err
 	}
+	// #nosec G306 G703 -- stage is a fresh MkdirTemp directory; this fixed-name feed is public static content.
 	return os.WriteFile(filepath.Join(stage, "v3", "marketplaces.json"), raw, 0o644)
 }
 
@@ -75,6 +77,7 @@ func writePublicationJSON(directory, name string, value any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	// #nosec G306 -- generated publication JSON is public content served by the catalog host.
 	return os.WriteFile(path, append(raw, '\n'), 0o644)
 }
 

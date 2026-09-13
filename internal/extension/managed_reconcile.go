@@ -145,7 +145,7 @@ func isManagedInstallBackupName(name string) bool {
 func managedInstallOwners(root string, infos []ExtensionInfo) (map[string]*ExtensionInfo, error) {
 	owners := make(map[string]*ExtensionInfo)
 	for idx := range infos {
-		installDir, err := InstalledExtensionDir(infos[idx])
+		installDir, err := InstalledExtensionDir(&infos[idx])
 		if err != nil {
 			return nil, fmt.Errorf(
 				"extension: resolve registered install %q during reconciliation: %w",

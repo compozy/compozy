@@ -52,6 +52,8 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 
 		installed := newMarketplaceInstallIndex()
 		installation := marketplaceInstall{
+			extension:  item,
+			format:     strings.TrimSpace(item.Format),
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
 			managePath: marketplaceExtensionsInstalledPath,

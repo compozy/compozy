@@ -52,12 +52,16 @@ func (s *daemonExtensionService) scopedMarketplaceUpdateNames(
 		return nil, err
 	}
 	names := make([]string, 0, len(candidates))
-	for _, info := range candidates {
-		installation, err := s.registry.ResolveInstallation(ctx, info.Name, extensionpkg.InstallationScope{
-			ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID,
-		})
+	for infoIndex := range candidates {
+		installation, err := s.registry.ResolveInstallation(
+			ctx,
+			candidates[infoIndex].Name,
+			extensionpkg.InstallationScope{
+				ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID,
+			},
+		)
 		if err == nil && installation.Scope.WorkspaceID != target.scope.WorkspaceID {
-			err = &extensionpkg.ExtensionNotFoundError{Name: info.Name}
+			err = &extensionpkg.ExtensionNotFoundError{Name: candidates[infoIndex].Name}
 		}
 		if err != nil {
 			if request.All && errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -65,7 +69,7 @@ func (s *daemonExtensionService) scopedMarketplaceUpdateNames(
 			}
 			return nil, err
 		}
-		names = append(names, info.Name)
+		names = append(names, candidates[infoIndex].Name)
 	}
 	return normalizeLifecycleNames(names), nil
 }

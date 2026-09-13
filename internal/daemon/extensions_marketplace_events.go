@@ -11,7 +11,7 @@ import (
 // The completed install owns this observation; only persisted origin qualifies it.
 // Event persistence failure does not roll back an already committed installation.
 func (s *daemonExtensionService) notifyMarketplaceExtensionInstalled(
-	ctx context.Context, item contract.ExtensionPayload,
+	ctx context.Context, item *contract.ExtensionPayload,
 ) error {
 	if item.Origin == nil || item.Origin.SourceRef == "" || item.Origin.EntryID == "" {
 		return nil

@@ -339,11 +339,16 @@ export function marketplaceStoryHandlers(options: {
   /** Per-entry detail payload overrides (servers, inputs, contents) keyed by entry id. */
   details?: Record<string, Partial<StoryExtensionDetail>>;
   installDelayMs?: number;
+  installResult?: ExtensionEntry;
+  updateDelay?: "infinite";
+  pendingUpdates?: readonly string[];
   /** Registered sources; the catalog `sources[]` summaries derive from the enabled ones. */
   sources?: readonly MarketplaceSource[];
 }) {
   const catalog = options.catalog ?? [];
-  const extensions = options.extensions ?? [];
+  let extensions = options.extensions ?? [];
+  const installResult = options.installResult;
+  const pendingUpdates = new Set(options.pendingUpdates);
   const details = options.details ?? {};
   const sources = options.sources ?? [marketplaceSourceFixtures.feed];
   return storybookMswParameters({
@@ -386,7 +391,52 @@ export function marketplaceStoryHandlers(options: {
       }),
     ],
     extensions: [
+      ...(installResult
+        ? [
+            compozyApiMock.post("/api/extensions", () =>
+              HttpResponse.json({ extension: installResult })
+            ),
+          ]
+        : []),
       compozyApiMock.get("/api/extensions", () => HttpResponse.json({ extensions })),
+      compozyApiMock.get("/api/extensions/{name}/inventory", ({ params }) => {
+        const extension = extensions.find(item => item.name === params.name);
+        if (!extension) return HttpResponse.json({ error: "Extension not found" }, { status: 404 });
+        return HttpResponse.json({
+          extension: extension.name,
+          enabled: extension.enabled,
+          format: "compozy",
+          items: [],
+        });
+      }),
+      compozyApiMock.post("/api/extensions/update", async ({ request }) => {
+        const body = (await request.json()) as { names?: string[] };
+        const names = body.names ?? [];
+        const selectedNames = new Set(names);
+        if (options.updateDelay || names.some(name => pendingUpdates.has(name))) {
+          await delay("infinite");
+        }
+        extensions = extensions.map(extension =>
+          selectedNames.has(extension.name)
+            ? {
+                ...extension,
+                update_available: false,
+                marketplace: extension.marketplace
+                  ? { ...extension.marketplace, update_available: false }
+                  : null,
+              }
+            : extension
+        );
+        return HttpResponse.json({
+          updates: names.map(name => ({
+            name,
+            path: `/var/lib/compozy/extensions/${name}`,
+            registry: "compozy",
+            slug: name,
+            status: "updated" as const,
+          })),
+        });
+      }),
       compozyApiMock.post("/api/extensions/preview-install", async ({ request }) => {
         const body = (await request.json()) as { ref?: string };
         if (options.installDelayMs) await delay(options.installDelayMs);

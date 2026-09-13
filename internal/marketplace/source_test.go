@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1528,9 +1529,7 @@ func duplicateExtensionInstallSlugsJSON(t *testing.T) string {
 		t.Fatal(err)
 	}
 	entry := make(map[string]any)
-	for key, value := range document.Entries[0] {
-		entry[key] = value
-	}
+	maps.Copy(entry, document.Entries[0])
 	entry["entry_id"] = "second"
 	document.Entries = append(document.Entries, entry)
 	raw, err := json.Marshal(document)

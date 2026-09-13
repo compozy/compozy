@@ -2408,7 +2408,10 @@ func TestManifestCuratedMCPPackages(t *testing.T) {
 			if !reflect.DeepEqual(manifest.Inputs, entry.Inputs) {
 				t.Fatalf("%s inputs = %#v, want %#v", entry.ID, manifest.Inputs, entry.Inputs)
 			}
-			index := slices.IndexFunc(document.Entries, func(item marketplace.Entry) bool { return item.EntryID == entry.ID })
+			index := slices.IndexFunc(
+				document.Entries,
+				func(item marketplace.Entry) bool { return item.EntryID == entry.ID },
+			)
 			if index < 0 {
 				t.Fatalf("%s missing from current feed", entry.ID)
 			}

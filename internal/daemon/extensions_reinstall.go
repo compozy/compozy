@@ -13,7 +13,7 @@ import (
 
 // The install coordinator holds the package and input-cell locks before inspecting the existing record.
 func (s *daemonExtensionService) reinstallPreparedExtension(
-	ctx context.Context, prepared preparedDaemonExtensionInstall, installed extensionpkg.ExtensionInfo,
+	ctx context.Context, prepared preparedDaemonExtensionInstall, installed *extensionpkg.ExtensionInfo,
 	request contract.InstallExtensionRequest, actor taskpkg.ActorContext, item *contract.ExtensionPayload,
 ) error {
 	if err := prepared.published.ValidateReinstall(installed); err != nil {
@@ -60,7 +60,7 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 		})
 	}
 	if prepared.published.MatchesInstalled(installed) && !needsConfirmation {
-		if err := update.PreflightCandidate(installed, prepared.manifest); err != nil {
+		if err := update.PreflightCandidate(*installed, prepared.manifest); err != nil {
 			return err
 		}
 		plan := plans[installed.Name]
@@ -110,10 +110,10 @@ func (s *daemonExtensionService) configureReinstallAttachment(
 }
 
 func (s *daemonExtensionService) commitExistingExtensionInputs(
-	ctx context.Context, installed extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest,
+	ctx context.Context, installed *extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest,
 	update extensionpkg.MarketplaceUpdateRequest, complete extensionpkg.MutationReload,
 ) error {
-	err := update.CommitCandidate(installed, manifest)
+	err := update.CommitCandidate(*installed, manifest)
 	if err == nil {
 		err = s.reload(ctx)
 	}
@@ -125,6 +125,6 @@ func (s *daemonExtensionService) commitExistingExtensionInputs(
 	}
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
 	defer cancel()
-	rollbackErr := update.RollbackCandidate(rollbackCtx, installed)
+	rollbackErr := update.RollbackCandidate(rollbackCtx, *installed)
 	return errors.Join(err, rollbackErr, s.reload(rollbackCtx))
 }

@@ -75,6 +75,59 @@ describe("one catalog query lifecycle", () => {
   const staleCursor = () =>
     new MarketplaceApiError("Catalog changed", 409, "marketplace_cursor_stale", true);
 
+  // Invariant: a stale snapshot awaiting its first/background read yields to the finished revision.
+  // Owner: catalog query lifecycle; canonical suite here, HTTP I/O mocked above.
+  it.each(["never", "ok"])("Should follow a pending %s source refresh", async state => {
+    const pending = {
+      ...page("old"),
+      stale: true,
+      refreshing: true,
+      sources: [{ name: "compozy-catalog", kind: "feed", state, count: 1 }],
+    };
+    const refreshed = page("new");
+    mocks.catalog.mockResolvedValueOnce(pending).mockResolvedValue(refreshed);
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
+    try {
+      await waitFor(() => expect(result.current.data?.pages).toEqual([pending]));
+      await waitFor(() => expect(result.current.data?.pages).toEqual([refreshed]), {
+        timeout: 3000,
+      });
+      expect(mocks.catalog).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      client.clear();
+    }
+  });
+
+  it("Should follow a pending source beside a failed source and stop after it settles", async () => {
+    const pending = {
+      ...page("old"),
+      stale: true,
+      refreshing: true,
+      error_class: "source_unreachable",
+      sources: [
+        { name: "compozy-catalog", kind: "feed", state: "degraded", count: 1 },
+        { name: "team", kind: "custom", state: "never", count: 0 },
+      ],
+    };
+    const settled = { ...pending, ...page("new"), stale: true, refreshing: false };
+    mocks.catalog.mockResolvedValueOnce(pending).mockResolvedValue(settled);
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
+    try {
+      await waitFor(() => expect(result.current.data?.pages).toEqual([pending]));
+      await waitFor(() => expect(result.current.data?.pages).toEqual([settled]), { timeout: 3000 });
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      });
+      expect(mocks.catalog).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      client.clear();
+    }
+  });
+
   it("Should drain pages atomically and restart at page one without concatenating revisions", async () => {
     const old = page("old", "old-next");
     const first = page("new", "new-next");

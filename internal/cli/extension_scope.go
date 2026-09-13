@@ -13,7 +13,7 @@ func resolveExtensionCLIScope(
 	cmd *cobra.Command, deps commandDeps, scope, workspaceRef string,
 ) (extensionCLIScope, error) {
 	scope, workspaceRef = strings.TrimSpace(scope), strings.TrimSpace(workspaceRef)
-	if scope != "" && scope != "global" && scope != "workspace" {
+	if scope != "" && scope != "global" && scope != workspaceFlagName {
 		return extensionCLIScope{}, errors.New("cli: extension scope must be global or workspace")
 	}
 	if scope == "global" && workspaceRef != "" {
@@ -31,7 +31,7 @@ func resolveExtensionCLIScope(
 		profile = strings.TrimSpace(deps.getenv(profileEnvName))
 	}
 	workspaceID := ""
-	if scope == "workspace" || workspaceRef != "" {
+	if scope == workspaceFlagName || workspaceRef != "" {
 		client, running, err := daemonClientIfRunning(cmd.Context(), deps)
 		if err != nil {
 			return extensionCLIScope{}, err
@@ -43,7 +43,7 @@ func resolveExtensionCLIScope(
 		if err != nil {
 			return extensionCLIScope{}, err
 		}
-		scope = "workspace"
+		scope = workspaceFlagName
 	}
 	return extensionCLIScope{scope: scope, workspaceID: workspaceID, profile: profile}, nil
 }

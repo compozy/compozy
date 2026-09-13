@@ -9,13 +9,19 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const extensionInstallationScopeGlobal = "global"
+
 type extensionMutationTarget struct {
 	scope   extensionpkg.InstallationScope
 	profile extensionpkg.ProfileLens
 }
 
 func (target extensionMutationTarget) key(name string) extensionpkg.InstanceKey {
-	return extensionpkg.InstanceKey{Name: name, ProfileID: target.scope.ProfileID, WorkspaceID: target.scope.WorkspaceID}
+	return extensionpkg.InstanceKey{
+		Name:        name,
+		ProfileID:   target.scope.ProfileID,
+		WorkspaceID: target.scope.WorkspaceID,
+	}
 }
 
 func (s *daemonExtensionService) resolveExtensionScope(
@@ -23,10 +29,10 @@ func (s *daemonExtensionService) resolveExtensionScope(
 ) (extensionMutationTarget, error) {
 	target := extensionMutationTarget{profile: extensionDefaultProfileLens()}
 	scope, workspaceID = strings.TrimSpace(scope), strings.TrimSpace(workspaceID)
-	if scope != "" && scope != "global" && scope != "workspace" {
+	if scope != "" && scope != extensionInstallationScopeGlobal && scope != resourceScopeWorkspaceKind {
 		return target, extensionScopeError("scope", "must be global or workspace")
 	}
-	if scope == "global" && workspaceID != "" {
+	if scope == extensionInstallationScopeGlobal && workspaceID != "" {
 		return target, extensionScopeError("workspace_id", "global scope cannot select a workspace")
 	}
 	if scope == "workspace" && workspaceID == "" {
@@ -132,7 +138,7 @@ func (s *daemonExtensionService) applyManifestInstallScope(
 	for _, server := range manifest.Resources.MCPServers {
 		scope := server.DefaultScope
 		if scope == "" {
-			scope = "global"
+			scope = extensionInstallationScopeGlobal
 		}
 		if defaultScope != "" && scope != defaultScope {
 			return target, extensionScopeError("scope", "servers have different defaults; select global or workspace")

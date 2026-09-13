@@ -11,6 +11,7 @@ interface MarketplaceEntryCardProps {
   /** Row title; defaults to the entry name. */
   title?: string;
   description?: string | null;
+  query?: string;
   /** Faint mono word after the name: "community · author", a marketplace name, a scope. */
   words?: readonly string[];
   /** Quiet 12px summary after the name ("1 MCP server · 2 skills"). */
@@ -36,6 +37,7 @@ function MarketplaceEntryCard({
   entry,
   title,
   description,
+  query = "",
   words = [],
   contents,
   unverified = false,
@@ -84,7 +86,7 @@ function MarketplaceEntryCard({
               tabIndex={pending ? -1 : undefined}
               {...link}
             >
-              {name}
+              {highlightQuery(name, query)}
             </Link>
           </CatalogCard.Title>
           {contents ? (
@@ -109,7 +111,7 @@ function MarketplaceEntryCard({
             className="line-clamp-2 text-eyebrow leading-snug @min-[960px]:line-clamp-1"
             title={text}
           >
-            {text}
+            {highlightQuery(text, query)}
           </CatalogCard.Description>
         ) : (
           <CatalogCard.Description className="text-eyebrow leading-snug text-faint italic">
@@ -122,6 +124,25 @@ function MarketplaceEntryCard({
       </div>
     </CatalogCard>
   );
+}
+
+function highlightQuery(text: string, query: string): ReactNode {
+  const term = query.trim();
+  if (!term) return text;
+  const pattern = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const result: ReactNode[] = [];
+  let offset = 0;
+  for (const match of text.matchAll(pattern)) {
+    result.push(text.slice(offset, match.index));
+    result.push(
+      <mark className="rounded-xxs bg-surface-glaze text-fg-strong" key={match.index}>
+        {match[0]}
+      </mark>
+    );
+    offset = match.index + match[0].length;
+  }
+  result.push(text.slice(offset));
+  return result;
 }
 
 export { MarketplaceEntryCard };

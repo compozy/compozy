@@ -338,9 +338,9 @@ func (s *daemonExtensionService) ListScoped(
 	}
 	infos := runtime.ListForWorkspace(workspaceID)
 	items := make([]contract.ExtensionPayload, 0, len(infos))
-	for _, info := range infos {
+	for infoIndex := range infos {
 		key := extensionpkg.InstanceKey{
-			Name:        info.Name,
+			Name:        infos[infoIndex].Name,
 			WorkspaceID: workspaceID,
 		}
 		ext, getErr := s.projectExtensionReadProfile(ctx, runtime, key, profile)

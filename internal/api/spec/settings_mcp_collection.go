@@ -9,7 +9,7 @@ func getSettingsMCPServerOperationSpec() OperationSpec {
 	parameters = append(parameters, settingsLayeredParameters()...)
 	parameters = append(
 		parameters,
-		queryParam("owner", "Select manual or extension:<name>; omitted owner resolves manual first", false),
+		queryParam("owner", "Select manual or extension:<name>; omitted owner selects manual servers only", false),
 	)
 	return OperationSpec{
 		Method: httpMethodGet, Path: specAPISettingsMCPServersNamePath, OperationID: "getSettingsMCPServer",
@@ -18,7 +18,7 @@ func getSettingsMCPServerOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsMCPServerResponse{}},
 			{Status: 400, Description: "Invalid MCP server owner or scope", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: settingsMCPNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

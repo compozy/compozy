@@ -1,3 +1,12 @@
+import { delay, HttpResponse } from "msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { storybookMswParameters } from "@/storybook/msw";
+import {
+  handlers,
+  marketplaceSourcePreviewFixture,
+  marketplaceSourceHandlers,
+  marketplaceSourceFixtures,
+} from "../../mocks";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
@@ -74,7 +83,12 @@ export const AddMarketplaceEmpty: Story = {
 
 /** Leaving the field runs the dry run; the success notice restates the identity and enables Add. */
 export const AddMarketplaceFound: Story = {
-  parameters: appRouteParameters("/marketplace"),
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...storybookMswParameters({
+      marketplace: [...marketplaceSourceHandlers([marketplaceSourceFixtures.feed]), ...handlers],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -132,6 +146,24 @@ export const AddMarketplaceNameCollision: Story = {
   },
 };
 
+export const AddMarketplaceCollisionNotice: Story = {
+  parameters: appRouteParameters("/marketplace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("marketplace-add"));
+    const body = within(document.body);
+    await userEvent.click(await body.findByTestId("marketplace-add-marketplace"));
+    await userEvent.type(
+      await body.findByTestId("add-marketplace-ref"),
+      "anthropics/claude-plugins-official"
+    );
+    await userEvent.tab();
+    const failure = await body.findByTestId("add-marketplace-failure");
+    await expect(failure).toHaveAttribute("data-code", "marketplace_source_exists");
+  },
+};
+
 /** A name still carried by installed extensions is refused and the notice names them. */
 export const AddMarketplaceNameRetained: Story = {
   parameters: appRouteParameters("/marketplace"),
@@ -149,5 +181,30 @@ export const AddMarketplaceNameRetained: Story = {
       "aria-invalid",
       "true"
     );
+  },
+};
+
+/** Hold the source dry run at its HTTP boundary so validation remains visible. */
+export const AddMarketplaceValidating: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.post("/api/marketplace/sources", async () => {
+          await delay("infinite");
+          return HttpResponse.json(marketplaceSourcePreviewFixture);
+        }),
+        ...handlers,
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("marketplace-add"));
+    const body = within(document.body);
+    await userEvent.click(await body.findByTestId("marketplace-add-marketplace"));
+    await userEvent.type(await body.findByTestId("add-marketplace-ref"), "acme/team-plugins");
+    await userEvent.tab();
+    await expect(body.findByTestId("add-marketplace-checking")).resolves.toBeVisible();
   },
 };

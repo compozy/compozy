@@ -653,12 +653,11 @@ func TestMarketplaceExtensionInstallEvent(t *testing.T) {
 		item := contract.ExtensionPayload{Name: "custom-name", Origin: &contract.MarketplaceOriginPayload{
 			Source: marketplace.CompozyCatalogSource, SourceRef: marketplace.CompozyCatalogRef, EntryID: "published-id",
 		}, Provenance: &contract.ExtensionProvenancePayload{ResolvedRef: strings.Repeat("a", 40), SourceURL: "https://user:password@example.test/private"}}
-		if err := service.notifyMarketplaceExtensionInstalled(ctx, item); err != nil {
+		if err := service.notifyMarketplaceExtensionInstalled(ctx, &item); err != nil {
 			t.Fatal(err)
 		}
 		if err := service.notifyMarketplaceExtensionInstalled(
-			ctx,
-			contract.ExtensionPayload{
+			ctx, &contract.ExtensionPayload{
 				Name:       "local",
 				Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "published-id"},
 			},

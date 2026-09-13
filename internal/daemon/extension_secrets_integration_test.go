@@ -1279,7 +1279,12 @@ secret_env = { FIRST_KEY = "first", SECOND_KEY = "second" }
 	if _, err := harness.service.registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		t.Fatalf("failed install retained registry entry: %v", err)
 	}
-	if _, err := os.Stat(extensionpkg.ManagedInstallPath(harness.service.homePaths, name)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(
+		extensionpkg.ManagedInstallPath(harness.service.homePaths, name),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
 		t.Fatalf("failed install retained package files: %v", err)
 	}
 	items, err := harness.service.List(t.Context())

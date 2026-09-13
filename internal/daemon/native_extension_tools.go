@@ -38,20 +38,41 @@ type extensionNameInput struct {
 	Owner string `json:"owner"`
 }
 
-type extensionInstallInput contract.InstallExtensionRequest
-
-type extensionUpdateInput struct {
+type extensionInstallInput struct {
 	Scope                string                          `json:"scope"`
-	WorkspaceID          string                          `json:"workspace_id"`
+	Workspace            string                          `json:"workspace"`
 	Profile              string                          `json:"profile"`
-	Owner                string                          `json:"owner"`
 	Inputs               map[string]extensioninput.Value `json:"inputs"`
-	Name                 string                          `json:"name"`
-	All                  bool                            `json:"all"`
-	CheckOnly            bool                            `json:"check_only"`
+	ExpectedDigest       string                          `json:"expected_digest"`
+	Source               contract.InstallExtensionSource `json:"source"`
+	Ref                  string                          `json:"ref"`
 	Version              string                          `json:"version"`
+	Asset                string                          `json:"asset"`
 	AllowUnverified      bool                            `json:"allow_unverified"`
 	ConfirmNetworkDigest string                          `json:"confirm_network_digest"`
+}
+
+func (i extensionInstallInput) request() contract.InstallExtensionRequest {
+	return contract.InstallExtensionRequest{
+		Scope: i.Scope, WorkspaceID: i.Workspace, Profile: i.Profile,
+		Inputs: i.Inputs, ExpectedDigest: i.ExpectedDigest,
+		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
+		AllowUnverified: i.AllowUnverified, ConfirmNetworkDigest: i.ConfirmNetworkDigest,
+	}
+}
+
+type extensionUpdateInput struct {
+	Scope                string                          `json:"scope,omitempty"`
+	Workspace            string                          `json:"workspace,omitempty"`
+	Profile              string                          `json:"profile,omitempty"`
+	Owner                string                          `json:"owner,omitempty"`
+	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
+	Name                 string                          `json:"name,omitempty"`
+	All                  bool                            `json:"all,omitzero"`
+	CheckOnly            bool                            `json:"check_only,omitzero"`
+	Version              string                          `json:"version,omitempty"`
+	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
+	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
@@ -146,7 +167,7 @@ func (n *daemonNativeTools) extensionInstall(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.extensionService().Install(ctx, contract.InstallExtensionRequest(input), actor)
+	item, err := n.extensionService().Install(ctx, input.request(), actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -194,7 +215,7 @@ func (n *daemonNativeTools) extensionUpdate(
 
 	if name != "" {
 		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
-			Scope: input.Scope, WorkspaceID: input.WorkspaceID, Profile: input.Profile,
+			Scope: input.Scope, WorkspaceID: input.Workspace, Profile: input.Profile,
 			Version:              input.Version,
 			CheckOnly:            input.CheckOnly,
 			AllowUnverified:      input.AllowUnverified,
@@ -210,7 +231,7 @@ func (n *daemonNativeTools) extensionUpdate(
 		)
 	}
 	items, err := n.extensionService().UpdateBatch(ctx, contract.UpdateExtensionsRequest{
-		Scope: input.Scope, WorkspaceID: input.WorkspaceID, Profile: input.Profile,
+		Scope: input.Scope, WorkspaceID: input.Workspace, Profile: input.Profile,
 		All:             input.All,
 		CheckOnly:       input.CheckOnly,
 		Version:         input.Version,
@@ -404,7 +425,8 @@ func (i extensionInstallInput) validate() error {
 		return errors.New("extension install requires ref")
 	}
 	switch i.Source {
-	case contract.InstallExtensionSourceCurated,
+	case contract.InstallExtensionSourceMarketplace,
+		contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit,
 		contract.InstallExtensionSourceLocalPath:

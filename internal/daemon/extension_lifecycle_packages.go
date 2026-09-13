@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -43,9 +44,9 @@ func (c *extensionLifecycleCoordinator) withPackages(
 	names = normalizeLifecycleNames(names)
 	acquired := make([]*extensionPackageLock, 0, len(names))
 	defer func() {
-		for i := len(acquired) - 1; i >= 0; i-- {
-			acquired[i].semaphore.Release(weight)
-			c.releasePackage(names[i], acquired[i])
+		for i, entry := range slices.Backward(acquired) {
+			entry.semaphore.Release(weight)
+			c.releasePackage(names[i], entry)
 		}
 	}()
 	for _, name := range names {

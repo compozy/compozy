@@ -817,12 +817,6 @@ func (m *faultingSourceSessionManager) ActivateSourceSession(
 	return m.delegate.ActivateSourceSession(ctx, actor, source, sessionNonce)
 }
 
-func (m *faultingSourceSessionManager) failNextActivation(err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.activationErr = err
-}
-
 func (m *faultingSourceSessionManager) ResetSourceIfActiveSession(
 	ctx context.Context,
 	actor resources.MutationActor,

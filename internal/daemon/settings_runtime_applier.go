@@ -356,6 +356,12 @@ func (a daemonSettingsRuntimeApplier) prepareLoopTargetHealthConfigChange(
 	return nil, &failure
 }
 
+func marketplaceConfigChanged(previous, next *compozyconfig.Config) bool {
+	// Configuration application is infrequent; deep comparison includes optional source choices
+	// without treating cloned pointers as changes and replaying a stale snapshot over live sources.
+	return !reflect.DeepEqual(previous.Marketplace, next.Marketplace)
+}
+
 func modelCatalogConfigChanged(previous, next *compozyconfig.Config) bool {
 	if previous == nil || next == nil {
 		return previous != next

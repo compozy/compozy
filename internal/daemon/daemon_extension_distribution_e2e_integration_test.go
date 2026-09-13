@@ -166,7 +166,11 @@ func testDaemonPluginCatalogLifecycle(t *testing.T) {
 			}
 			refreshDistributionCatalog(t, ctx, runtime)
 			second := listing()["team/tool"]
-			body := requestDistributionInstall(t, ctx, client, target("/api/extensions"), install, http.StatusConflict)
+			// Browser approval includes the listed version as well as its digest. A new listing
+			// must retain the structured digest conflict so the client can request fresh consent.
+			stale := install
+			stale.Version = first.Version
+			body := requestDistributionInstall(t, ctx, client, target("/api/extensions"), stale, http.StatusConflict)
 			var changed compozycontract.ExtensionOperationErrorPayload
 			if err := json.Unmarshal(body, &changed); err != nil {
 				t.Fatal(err)
@@ -219,6 +223,19 @@ func testDaemonPluginCatalogLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			installed := installedResponse.Extension
+			// Invariant: native acquisition accepts the same pinned plugin origin as HTTP/UDS.
+			// Owner: real daemon distribution lifecycle; reuse the existing idempotent install journey.
+			native := invokeDistributionNativeTool(t, ctx, runtime, toolspkg.ToolIDExtensionsInstall,
+				map[string]any{"source": "marketplace", "ref": "team/tool", "scope": "global",
+					"expected_digest": second.DigestSHA256, "allow_unverified": true})
+			var nativeInstalled compozycontract.ExtensionResponse
+			if err := json.Unmarshal(native, &nativeInstalled); err != nil {
+				t.Fatal(err)
+			}
+			if nativeInstalled.Extension.Name != installed.Name || nativeInstalled.Extension.Origin == nil ||
+				nativeInstalled.Extension.Origin.SourceRef != ref {
+				t.Fatalf("native plugin install lost identity: %s", native)
+			}
 			if installed.Provenance == nil || installed.Provenance.SourceRef != ref ||
 				installed.Provenance.ArchiveDigestSHA256 != second.DigestSHA256 || !installed.Provenance.DigestMatched ||
 				installed.Provenance.ChecksumVerified {

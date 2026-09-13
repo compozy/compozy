@@ -848,10 +848,10 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
 		}
-		workspaceHealthyAInfo := cloneExtensionInfo(*healthyAInfo)
+		workspaceHealthyAInfo := cloneExtensionInfo(healthyAInfo)
 		workspaceHealthyAInfo.Name = brokenInfo.Name
 		workspaceHealthyAInfo.Source = SourceWorkspace
-		workspaceHealthyBInfo := cloneExtensionInfo(*healthyBInfo)
+		workspaceHealthyBInfo := cloneExtensionInfo(healthyBInfo)
 		workspaceHealthyBInfo.Name = brokenInfo.Name
 		workspaceHealthyBInfo.Source = SourceWorkspace
 		original, stat := readManifestContentAndMetadata(t, brokenInfo.ManifestPath)
@@ -1510,7 +1510,7 @@ func (f *fakeScopedExtensionToolRuntime) ListForWorkspace(workspaceID string) []
 	}
 	cloned := make([]ExtensionInfo, len(infos))
 	for i := range infos {
-		cloned[i] = cloneExtensionInfo(infos[i])
+		cloned[i] = cloneExtensionInfo(&infos[i])
 	}
 	return cloned
 }

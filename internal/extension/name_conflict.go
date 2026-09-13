@@ -17,7 +17,7 @@ type ExtensionNameConflictError struct {
 	SourceName      string
 }
 
-var _ error = (*ExtensionNameConflictError)(nil)
+var _ error = &ExtensionNameConflictError{}
 
 func (e *ExtensionNameConflictError) Error() string {
 	return fmt.Sprintf("%s: %q", ErrExtensionNameConflict, e.Name)

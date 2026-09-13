@@ -82,7 +82,7 @@ func (s *daemonExtensionService) removeScopedExtensionLocked(
 		)
 	}
 	item := contract.ManagedExtensionRemovePayload{
-		Name: name, Path: snapshot.OriginPath, Status: "removed",
+		Name: name, Path: snapshot.OriginPath, Status: extensionRemovalStatusRemoved,
 	}
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,

@@ -13,7 +13,7 @@ import { Fragment, createElement, useState, type ReactNode } from "react";
 import { mswLoader } from "msw-storybook-addon/csf3";
 import type { UnhandledRequestCallback } from "msw";
 import { setupWorker } from "msw/browser";
-import { configure as configureStorybookTestingLibrary } from "storybook/test";
+import { configure as configureStorybookTestingLibrary, sb } from "storybook/test";
 
 import "../src/styles.css";
 import { routeTree } from "@/routeTree.gen";
@@ -23,7 +23,10 @@ import { clearActiveWorkspaceSelection } from "@/systems/workspace";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import { resetWindowManagerSettingsMockState } from "@/systems/settings/mocks";
 import { resetAgentMockState } from "@/systems/agent/mocks";
-import { resetWindowManagerMockState } from "@/systems/os/mocks";
+import { resetWindowManagerMockState, windowManagerStreamHandler } from "@/systems/os/mocks";
+
+// Preserve the real generator except in the explicit logo-failure story.
+sb.mock(import("boring-avatars"), { spy: true });
 
 configureStorybookTestingLibrary({ asyncUtilTimeout: 5000 });
 
@@ -78,7 +81,7 @@ export const storybookUnhandledRequest: UnhandledRequestCallback = (request, pri
 };
 
 export async function createStorybookMswWorker() {
-  const worker = setupWorker();
+  const worker = setupWorker(windowManagerStreamHandler);
   await worker.start({ onUnhandledRequest: storybookUnhandledRequest });
   return worker;
 }

@@ -13,7 +13,7 @@ import (
 func ClassifyManifest(dir string) (SchemaStatus, string, error) {
 	path, layout, err := LocateManifest(dir)
 	if err != nil {
-		if _, ok := errors.AsType[*NotManifestError](err); ok {
+		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
 			return SchemaUnrelated, "", nil
 		}
 		if errors.Is(err, fileutil.ErrSymlink) || errors.Is(err, fileutil.ErrDirectory) ||

@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Puzzle, RefreshCw, SearchX } from "lucide-react";
+import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button, Empty, ListingPage, Spinner, StatusDot, useTopbarSlot } from "@compozy/ui";
 
-import type { InstalledExtensionView } from "@/systems/extensions";
+import { extensionUpdateScope, type InstalledExtensionView } from "@/systems/extensions";
 
+import type { ExtensionBatchUpdateRequest } from "../types";
 import { useUpdateMarketplaceExtensions } from "../hooks/use-marketplace-actions";
 import type { useMarketplaceInstalledPage } from "../hooks/use-marketplace-page";
 import {
@@ -116,7 +117,8 @@ function MarketplaceInstalledBody({
   page: InstalledPageModel;
   query: string;
 }) {
-  if (page.isPending) return <MarketplaceGridSkeleton count={4} />;
+  if (page.isPending)
+    return <MarketplaceGridSkeleton className="@min-[960px]:grid-cols-1" count={4} />;
 
   if (page.error && page.installedCount === 0) {
     return (
@@ -155,10 +157,12 @@ function MarketplaceInstalledBody({
         action={
           <Button
             data-testid="marketplace-browse"
+            variant="neutral"
             nativeButton={false}
             render={<Link search={{}} to="/marketplace" />}
             size="sm"
           >
+            <Store aria-hidden="true" className="size-3" />
             Browse the marketplace
           </Button>
         }
@@ -179,14 +183,18 @@ function MarketplaceInstalledBody({
   }
 
   return (
-    <MarketplaceGrid data-testid="marketplace-installed-grid">
+    <MarketplaceGrid
+      className="@min-[960px]:grid-cols-1 [&_[data-slot=catalog-card-description]]:line-clamp-2"
+      data-testid="marketplace-installed-grid"
+    >
       {page.items.map(item => {
         const pending = actions.isItemPending(item);
         return (
           <MarketplaceEntryCard
+            query={query}
             contents={formatExtensionContents(item.extension.contents)}
             data-testid={`marketplace-installed-card-${item.extension.name}`}
-            description={item.listing?.description}
+            description={item.listing?.description ?? item.extension.description}
             entry={installedLogoEntry(item)}
             flashing={actions.isItemFlashing(item)}
             key={installedExtensionKey(item)}
@@ -237,15 +245,52 @@ function MarketplaceUpdatesLine({
   updates: readonly InstalledExtensionView[];
 }) {
   const batch = useUpdateMarketplaceExtensions();
-  const [inFlight, setInFlight] = useState<ReadonlySet<string>>(() => new Set());
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const count = updates.length;
   const label = `${count} ${count === 1 ? "update" : "updates"} available`;
 
   const updateAll = async () => {
     const names = updates.map(item => item.extension.name);
-    setInFlight(new Set(names));
+    setProgress({ done: 0, total: names.length });
     try {
-      const result = await actions.trackInstalledItems(updates, () => batch.mutateAsync({ names }));
+      const groups = new Map<
+        string,
+        { request: ExtensionBatchUpdateRequest; items: InstalledExtensionView[] }
+      >();
+      for (const item of updates) {
+        const scope = extensionUpdateScope(item.extension);
+        const key = JSON.stringify([scope.profile, scope.workspace_id]);
+        const group = groups.get(key) ?? { request: { ...scope, names: [] }, items: [] };
+        group.request.names = [...(group.request.names ?? []), item.extension.name];
+        group.items.push(item);
+        groups.set(key, group);
+      }
+      const results = await Promise.allSettled(
+        [...groups.values()].map(group =>
+          actions.trackInstalledItems(group.items, async () => {
+            try {
+              const result = await batch.mutateAsync(group.request);
+              for (const update of result.updates) {
+                if (update.status !== "updated" || update.error) continue;
+                const item = group.items.find(item => item.extension.name === update.name);
+                if (item) actions.flashItem(item);
+              }
+              return result;
+            } finally {
+              setProgress(current =>
+                current ? { ...current, done: current.done + group.items.length } : current
+              );
+            }
+          })
+        )
+      );
+      const result = {
+        updates: results.flatMap(outcome => {
+          if (outcome.status === "fulfilled") return outcome.value.updates;
+          toast.error(marketplaceErrorMessage(outcome.reason, "Failed to update extensions"));
+          return [];
+        }),
+      };
       const failed = result.updates.filter(update => update.error || update.status === "failed");
       for (const update of failed) {
         toast.error(`${update.name}: ${update.error?.message ?? "update failed"}`);
@@ -257,11 +302,11 @@ function MarketplaceUpdatesLine({
     } catch (error) {
       toast.error(marketplaceErrorMessage(error, "Failed to update extensions"));
     } finally {
-      setInFlight(new Set());
+      setProgress(null);
     }
   };
 
-  const busy = batch.isPending || inFlight.size > 0;
+  const busy = batch.isPending || progress !== null;
   const pendingSomewhere = updates.some(item => actions.isItemPending(item));
 
   return (
@@ -273,8 +318,10 @@ function MarketplaceUpdatesLine({
       <b className="font-medium text-fg" data-testid="marketplace-updates-count">
         {label}
       </b>
-      {busy ? (
-        <span>Updating {inFlight.size}…</span>
+      {progress ? (
+        <span aria-live="polite">
+          {progress.done} of {progress.total} done
+        </span>
       ) : count <= 2 ? (
         <span className="min-w-0 truncate">{updates.map(updateSummary).join(" · ")}</span>
       ) : null}

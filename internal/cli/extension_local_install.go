@@ -83,12 +83,12 @@ func installPreparedExtension(
 
 func localExtensionRecord(
 	ctx context.Context,
-	info extensionpkg.ExtensionInfo,
+	info *extensionpkg.ExtensionInfo,
 	now func() time.Time,
 	getenv func(string) string,
 ) (ExtensionRecord, error) {
 	ext := &extensionpkg.Extension{
-		Info: info,
+		Info: *info,
 		Status: extensionpkg.ExtensionStatus{
 			Name:    info.Name,
 			Version: info.Version,

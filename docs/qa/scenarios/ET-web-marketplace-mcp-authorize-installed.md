@@ -6,15 +6,18 @@ persona: Bruno
 journey: J-mcp-authorize-repair
 expected: An extension MCP server exposes its own status, runtime name and owner-qualified authorization in Installed, detail and Settings. A same-name manual definition remains independent. Confirmation requires authenticated status and token presence for the selected owner and scope.
 entry_points: /marketplace/installed; /marketplace/<entry-id>; /settings/mcp
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/sentry-owned-auth.json
+last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-matrix
 ---
+
+QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
+
 
 ## Current walk — Marketplace catalog hardcut
 

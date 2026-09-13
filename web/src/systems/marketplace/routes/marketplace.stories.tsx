@@ -1,5 +1,7 @@
+import Avatar from "boring-avatars";
+import { Toaster } from "@compozy/ui";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, mocked, userEvent, within } from "storybook/test";
 
 import {
   StorybookRouteCanvas,
@@ -82,6 +84,18 @@ export const Search: Story = {
   parameters: {
     ...appRouteParameters("/marketplace?q=herdr"),
     ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The installed shelf caps its logo stack at six and names the remaining three. */
+export const FullInstalledShelf: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: defaultCatalog,
+      extensions: defaultCatalog.map(entry => installedExtension(installedListing(entry))),
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
 };
@@ -209,6 +223,16 @@ export const MultiSourceSearch: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Client-layout and blocked packages stay visible together in their owning source. */
+export const MultiSourcePackages: Story = {
+  ...MultiSource,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const grid = await within(canvasElement).findByTestId("marketplace-grid-team-plugins");
+    grid.scrollIntoView({ block: "center" });
+  },
+};
+
 /**
  * `team-plugins` failed its last refresh: its section keeps the plugins it last read and the gist
  * names the last read and that it could not refresh. The blocked package stays visibly blocked.
@@ -223,6 +247,13 @@ export const DegradedSource: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const gist = await within(canvasElement).findByTestId(
+      "marketplace-section-team-plugins-degraded"
+    );
+    gist.scrollIntoView({ block: "center" });
+  },
 };
 
 /** A registered marketplace whose document lists zero plugins earns no section. */
@@ -276,6 +307,19 @@ export const LogoLadder: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Exercise the production boundary when the external marble generator throws. */
+export const LogoGeneratorFailure: Story = {
+  ...LogoLadder,
+  beforeEach: () => {
+    mocked(Avatar).mockImplementation(() => {
+      throw new Error("Storybook marble generator failure");
+    });
+    return () => {
+      mocked(Avatar).mockReset();
+    };
+  },
+};
+
 /** Every catalog trail state on one screen: Install · Update · Installed · unverified · Blocked. */
 export const TrailStates: Story = {
   parameters: {
@@ -289,6 +333,27 @@ export const TrailStates: Story = {
         storyCatalog.policyBlocked,
       ],
       extensions: [installedExtension(herdrInstalled), installedExtension(context7Installed)],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** A source-qualified competing origin cannot replace the occupied installation. */
+export const NameInUse: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: [
+        {
+          ...storyCatalog.batuta,
+          name_conflict: {
+            source: "team-plugins",
+            source_ref: "github:acme/team-plugins",
+            entry_id: "batuta",
+          },
+        },
+      ],
+      extensions: [],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -406,6 +471,7 @@ export const InstalledUpdates: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
+      updateDelay: "infinite",
       extensions: [
         installedExtension(herdrInstalled, {
           contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
@@ -424,6 +490,18 @@ export const InstalledUpdates: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** An actual batch request remains pending at its HTTP boundary. */
+export const InstalledUpdatesInFlight: Story = {
+  ...InstalledUpdates,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("marketplace-update-all"));
+    await expect(canvas.getByTestId("marketplace-update-all")).toBeDisabled();
+    await expect(canvas.getByTestId("marketplace-updates-line")).toHaveTextContent("0 of 2 done");
+  },
+};
+
 /** A sideloaded extension with no catalog origin stays visible as itself, marble tile included. */
 export const InstalledLocalEntry: Story = {
   parameters: {
@@ -432,7 +510,11 @@ export const InstalledLocalEntry: Story = {
       catalog: defaultCatalog,
       extensions: [
         installedExtension(context7Installed),
-        localExtension("ops-notes"),
+        localExtension("ops-notes", {
+          description: "Local incident notes and handoff tools",
+          profile: "engineering",
+          installation_profile: "engineering",
+        }),
         localExtension("acme-runbooks", { workspace_id: "ws_story_fintech" }),
       ],
     }),
@@ -471,5 +553,70 @@ export const InstalledRemoveConfirm: Story = {
     const body = within(document.body);
     await userEvent.click(await body.findByTestId("marketplace-installed-remove-context7"));
     await expect(body.findByTestId("remove-extension-dialog")).resolves.toBeDefined();
+  },
+};
+
+/** Installation can finish while the returned MCP server still needs OAuth authorization. */
+export const InstallNeedsAuthorization: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: [storyCatalog.github],
+      extensions: [],
+      installResult: installedExtension(githubInstalled, {
+        mcp_servers: [storyGithubServer({ status: "needs_authorization" })],
+      }),
+    }),
+  },
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <Toaster
+        expand
+        position="top-right"
+        visibleToasts={5}
+        offset={{ top: "3rem", right: "0.75rem" }}
+        duration={Infinity}
+      />
+    </>
+  ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId("marketplace-action-github"));
+    await userEvent.click(await page.findByTestId("extension-install-summary-confirm"));
+    await expect(page.findByText("Needs authorization before it can run")).resolves.toBeVisible();
+  },
+};
+
+/** One scoped request has completed while the other is still in flight. */
+export const InstalledUpdatesPartialProgress: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/installed"),
+    ...marketplaceStoryHandlers({
+      catalog: defaultCatalog,
+      pendingUpdates: ["batuta"],
+      extensions: [
+        installedExtension(herdrInstalled),
+        installedExtension(
+          installedListing(storyCatalog.batuta, {
+            installedVersion: "0.4.0",
+            updateAvailable: true,
+          }),
+          { workspace_id: "ws_story_fintech" }
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("marketplace-update-all"));
+    await expect(canvas.findByText("1 of 2 done")).resolves.toBeVisible();
+    await expect(
+      canvas.getByTestId("marketplace-installed-switch-herdr-bridge")
+    ).not.toHaveAttribute("aria-disabled", "true");
   },
 };

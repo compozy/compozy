@@ -46,7 +46,16 @@ export function installedOriginWord(item: InstalledExtensionView): string | null
 /** Scope word only when the instance is not global. */
 export function installedScopeWord(extension: ExtensionEntry): string | null {
   const workspace = extension.workspace_id?.trim();
-  return workspace ? `workspace · ${workspace}` : null;
+  if (workspace) return `workspace · ${workspace}`;
+  const profile = extension.installation_profile?.trim();
+  if (profile) return `profile · ${profile}`;
+  const hasProfileServer = extension.placements?.some(
+    placement =>
+      placement.kind === "mcp_server" &&
+      !placement.dormant &&
+      placement.profile === extension.profile
+  );
+  return hasProfileServer ? `profile · ${extension.profile}` : null;
 }
 
 const CONTENT_NOUNS: ReadonlyArray<
@@ -72,10 +81,19 @@ export function formatExtensionContents(contents: ExtensionEntry["contents"] | u
 /** Catalog detail search that keeps the installed identity of a row. */
 export function installedDetailSearch(item: InstalledExtensionView): {
   installed_name: string;
+  scope: "user" | "workspace";
+  profile: string;
+  workspace_id?: string;
   source?: string;
 } {
   const source = item.listing?.source ?? item.extension.origin?.source;
-  return { installed_name: item.extension.name, ...(source ? { source } : {}) };
+  return {
+    installed_name: item.extension.name,
+    profile: item.extension.profile,
+    scope: item.extension.workspace_id ? "workspace" : "user",
+    ...(item.extension.workspace_id ? { workspace_id: item.extension.workspace_id } : {}),
+    ...(source ? { source } : {}),
+  };
 }
 
 /** Detail search for a catalog row: the source name, and the installed name once joined. */

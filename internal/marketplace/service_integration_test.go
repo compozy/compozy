@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,6 +59,85 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		}
 		if len(result.Entries) != 1 || result.Entries[0].EntryID != "bridge-github" {
 			t.Fatalf("Browse() = %#v, want the published extension", result)
+		}
+	})
+
+	// Invariant: an independent source failure cannot hide another flight or restart it during backoff.
+	// Owner: service refresh publication; canonical HTTP/SQLite integration suite.
+	t.Run("Should finish a healthy source beside a failed source without polling retries", func(t *testing.T) {
+		t.Parallel()
+		started, release := make(chan struct{}), make(chan struct{})
+		var failedCalls, healthyCalls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/failed/v3/extensions.json" {
+				failedCalls.Add(1)
+				http.NotFound(w, r)
+				return
+			}
+			healthyCalls.Add(1)
+			close(started)
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(validExtensionFeed("team-tool", "Team tool"))); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		failed, err := NewHTTPSource(server.URL+"/failed", &http.Client{Timeout: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		healthy, err := NewHTTPSource(server.URL+"/healthy", &http.Client{Timeout: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindings := append(marketplaceTestBindings(t, failed), SourceBinding{
+			Config:  ResolvedSource{Name: "team", Ref: "github:team/plugins", Kind: SourceKindCustom, Enabled: true},
+			Fetcher: healthy,
+		})
+		service, err := NewService(t.Context(), openMarketplaceTestStore(t), bindings, time.Hour, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context(), CompozyCatalogSource); err == nil {
+			t.Fatal("unavailable source refreshed successfully")
+		}
+		pending, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || !pending.Refreshing || !pending.Stale || pending.ErrorClass == "" {
+			t.Fatalf("pending mixed-source page = %+v, err=%v", pending, err)
+		}
+		select {
+		case <-started:
+		case <-t.Context().Done():
+			t.Fatal("healthy source did not start")
+		}
+		service.flightMu.Lock()
+		flight := service.byName["team"].flight
+		service.flightMu.Unlock()
+		close(release)
+		if _, err := awaitRefreshFlight(t.Context(), flight); err != nil {
+			t.Fatal(err)
+		}
+		settled, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || settled.Refreshing || !settled.Stale || settled.ErrorClass == "" ||
+			len(settled.Entries) != 1 || settled.Entries[0].EntryID != "team-tool" {
+			t.Fatalf("settled mixed-source page = %+v, err=%v", settled, err)
+		}
+		entry, err := service.Detail(t.Context(), "", "team-tool")
+		if err != nil || entry.SourceName != "team" {
+			t.Fatalf("unqualified plugin detail = %+v, err=%v", entry, err)
+		}
+		if failedCalls.Load() != 1 || healthyCalls.Load() != 1 {
+			t.Fatalf("read bypassed refresh backoff: failed=%d healthy=%d", failedCalls.Load(), healthyCalls.Load())
 		}
 	})
 

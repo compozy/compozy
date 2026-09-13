@@ -59,7 +59,7 @@ func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 	if isNilInterface(p.auth) {
 		return "available", true
 	}
-	status, err := p.auth.Status(ctx, source)
+	status, err := p.auth.Status(ctx, source, "")
 	if err != nil {
 		return "", false
 	}

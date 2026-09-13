@@ -22,7 +22,7 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	defer m.mu.RUnlock()
 
 	clone := &Extension{
-		Info:                  cloneExtensionInfo(ext.info),
+		Info:                  cloneExtensionInfo(&ext.info),
 		RootDir:               ext.rootDir,
 		GrantedPermissions:    slices.Clone(ext.grantedPermissions),
 		GrantedSecurity:       slices.Clone(ext.grantedSecurity),

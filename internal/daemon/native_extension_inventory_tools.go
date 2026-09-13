@@ -72,9 +72,10 @@ func (n *daemonNativeTools) extensionList(
 	}
 	if owner != "" {
 		selected := make([]contract.ExtensionPayload, 0, 1)
-		for _, item := range items {
-			if "extension:"+item.Name == owner {
-				selected = append(selected, item)
+		for itemIndex := range items {
+			if "extension:"+
+				items[itemIndex].Name == owner {
+				selected = append(selected, items[itemIndex])
 			}
 		}
 		items = selected

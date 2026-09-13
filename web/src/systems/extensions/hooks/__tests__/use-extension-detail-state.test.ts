@@ -125,6 +125,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: false,
       name: "otel-bridge",
       version: "0.6.0",
@@ -161,6 +163,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: true,
       name: "slack-notify",
       version: "1.2.0",
@@ -207,7 +211,13 @@ describe("useExtensionDetailState", () => {
     // The consent decision and the resolved target survive the refusal.
     expect(result.current.networkConfirm).toEqual({
       digest: CURRENT_DIGEST,
-      variables: { allowUnverified: true, name: "dep-kit-ops", version: "1.2.0" },
+      variables: {
+        profileName: "default",
+        scope: "global",
+        allowUnverified: true,
+        name: "dep-kit-ops",
+        version: "1.2.0",
+      },
     });
     expect(result.current.activeDialog).toBeNull();
 
@@ -216,6 +226,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: true,
       confirmNetworkDigest: CURRENT_DIGEST,
       name: "dep-kit-ops",
@@ -254,6 +266,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: false,
       name: "dep-kit-ops",
       version: "0.6.0",

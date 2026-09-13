@@ -223,7 +223,7 @@ func commandScalarType(schema *jsonschema.Schema) (extensioncontract.CommandFlag
 	switch types[0] {
 	case commandSchemaStringType:
 		return extensioncontract.CommandFlagString, nullable, nil
-	case "boolean":
+	case manifestInputTypeBoolean:
 		return extensioncontract.CommandFlagBoolean, nullable, nil
 	case "integer":
 		return extensioncontract.CommandFlagInteger, nullable, nil

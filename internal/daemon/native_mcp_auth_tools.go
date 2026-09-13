@@ -94,13 +94,14 @@ func (n *daemonNativeTools) mcpStatus(
 	}
 	workspaceID := strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID))
 	status, err := provider.Status(ctx, toolspkg.SourceRef{
-		MCPDefinitionOwner: strings.TrimSpace(input.Owner),
-		ProfileID:          scope.ProfileID,
-		Kind:               toolspkg.SourceMCP,
-		Owner:              serverName,
-		RawServerName:      serverName,
-		WorkspaceID:        workspaceID,
-	})
+
+		ProfileID:     scope.ProfileID,
+		Kind:          toolspkg.SourceMCP,
+		Owner:         serverName,
+		RawServerName: serverName,
+		WorkspaceID:   workspaceID,
+	}, strings.TrimSpace(input.Owner),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -148,16 +149,17 @@ func mcpRuntimeStatusByName(
 	var selected *settingspkg.MCPServerItem
 	for i := range servers {
 		server := &servers[i]
-		actualOwner := firstNonEmpty(server.Owner, "manual")
+		actualOwner := firstNonEmpty(server.Owner, mcpDefinitionOwnerManual)
 		if owner != "" && actualOwner != owner {
 			continue
 		}
-		if server.RuntimeName != want && (server.Name != want || (owner == "" && actualOwner != "manual")) {
+		if server.RuntimeName != want &&
+			(server.Name != want || (owner == "" && actualOwner != mcpDefinitionOwnerManual)) {
 			continue
 		}
 		if selected != nil {
-			selectedOwner := firstNonEmpty(selected.Owner, "manual")
-			if owner == "" && selectedOwner == "manual" && actualOwner != "manual" {
+			selectedOwner := firstNonEmpty(selected.Owner, mcpDefinitionOwnerManual)
+			if owner == "" && selectedOwner == mcpDefinitionOwnerManual && actualOwner != mcpDefinitionOwnerManual {
 				continue
 			}
 			if actualOwner == selectedOwner && selected.WorkspaceID != "" && server.WorkspaceID == "" {
@@ -223,13 +225,14 @@ func (n *daemonNativeTools) mcpAuthStatus(
 		)
 	}
 	status, err := provider.Status(ctx, toolspkg.SourceRef{
-		MCPDefinitionOwner: strings.TrimSpace(input.Owner),
-		ProfileID:          scope.ProfileID,
-		Kind:               toolspkg.SourceMCP,
-		Owner:              serverName,
-		RawServerName:      serverName,
-		WorkspaceID:        strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID)),
-	})
+
+		ProfileID:     scope.ProfileID,
+		Kind:          toolspkg.SourceMCP,
+		Owner:         serverName,
+		RawServerName: serverName,
+		WorkspaceID:   strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID)),
+	}, strings.TrimSpace(input.Owner),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

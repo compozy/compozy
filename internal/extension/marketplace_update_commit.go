@@ -88,7 +88,7 @@ func commitMarketplaceUpdateCandidate(
 			rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 			defer cancel()
 			return "", errors.Join(err, restoreMarketplaceUpdateCandidate(
-				rollbackCtx, input.registry, input.info, input.installDir, input.change, input.rollbackCandidate,
+				rollbackCtx, input.registry, &input.info, input.installDir, input.change, input.rollbackCandidate,
 			))
 		}
 	}
@@ -111,8 +111,14 @@ func reloadMarketplaceExtensionUpdate(ctx context.Context, input *marketplaceUpd
 	}
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()
-	restoreErr := restoreMarketplaceUpdateCandidate(rollbackCtx, input.registry, input.info,
-		input.installDir, input.change, input.rollbackCandidate)
+	restoreErr := restoreMarketplaceUpdateCandidate(
+		rollbackCtx,
+		input.registry,
+		&input.info,
+		input.installDir,
+		input.change,
+		input.rollbackCandidate,
+	)
 	if restoreErr == nil && input.reload != nil {
 		restoreErr = input.reload(rollbackCtx)
 	}
@@ -122,14 +128,14 @@ func reloadMarketplaceExtensionUpdate(ctx context.Context, input *marketplaceUpd
 // Restore the package before releasing candidate-only resources. A failed package restoration
 // retains its resources and never reloads a partially restored installation.
 func restoreMarketplaceUpdateCandidate(
-	ctx context.Context, registry LifecycleRegistry, info ExtensionInfo, installDir string,
+	ctx context.Context, registry LifecycleRegistry, info *ExtensionInfo, installDir string,
 	change *stagedExtensionDirChange, rollbackCandidate MarketplaceUpdateRollback,
 ) error {
 	if err := restoreUpdatedExtensionRecord(registry, info, installDir, change); err != nil {
 		return err
 	}
 	if rollbackCandidate != nil {
-		return rollbackCandidate(ctx, info)
+		return rollbackCandidate(ctx, *info)
 	}
 	return nil
 }

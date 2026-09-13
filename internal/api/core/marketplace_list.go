@@ -28,12 +28,14 @@ type marketplaceInstall struct {
 }
 
 type marketplaceInstallIndex struct {
-	byOrigin map[marketplacepkg.Origin]marketplaceInstall
+	byInstance map[string]marketplaceInstall
+	byOrigin   map[marketplacepkg.Origin]marketplaceInstall
 }
 
 func newMarketplaceInstallIndex() marketplaceInstallIndex {
 	return marketplaceInstallIndex{
-		byOrigin: make(map[marketplacepkg.Origin]marketplaceInstall),
+		byInstance: make(map[string]marketplaceInstall),
+		byOrigin:   make(map[marketplacepkg.Origin]marketplaceInstall),
 	}
 }
 
@@ -59,6 +61,7 @@ func (h *BaseHandlers) extensionInstallIndex(
 			format:     strings.TrimSpace(item.Format),
 		}
 		index.byOrigin[marketplacepkg.Origin{SourceRef: item.Origin.SourceRef, EntryID: item.Origin.EntryID}] = installation
+		index.byInstance[installation.name] = installation
 	}
 	return index, nil
 }
@@ -114,6 +117,9 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 	result.Installable = entry.InstallBlocker == ""
 	result.InstallBlocker = entry.InstallBlocker
 	result.Trust = &trust
+	if !isInstalled {
+		result.NameConflict = marketplaceNameConflict(entry, details, installed)
+	}
 	return result, nil
 }
 
@@ -134,4 +140,23 @@ func marketplaceListingFormat(
 		return ""
 	}
 	return strings.TrimSpace(details.Extension.Format)
+}
+
+// The publisher validates curated entry IDs against manifest names; plugin names come from dry-load.
+// This index never substitutes a name match for the installed-by-origin join.
+func marketplaceNameConflict(
+	entry marketplacepkg.Entry,
+	details marketplacepkg.EntryDetails,
+	installed marketplaceInstallIndex,
+) *contract.MarketplaceOriginPayload {
+	name := ""
+	if details.SourceRef == marketplacepkg.CompozyCatalogRef {
+		name = entry.EntryID
+	} else if details.Extension != nil {
+		name = details.Extension.InstanceName
+	}
+	if conflict, found := installed.byInstance[name]; found {
+		return conflict.extension.Origin
+	}
+	return nil
 }

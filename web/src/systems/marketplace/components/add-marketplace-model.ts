@@ -79,7 +79,7 @@ export function describeMarketplaceFailure(
       : base;
   }
   const code = error.diagnosticCode ?? null;
-  const name = normalizeMarketplaceDraft(draft).name || error.suggestedName || "";
+  const name = normalizeMarketplaceDraft(draft).name;
   switch (code) {
     case "marketplace_not_a_marketplace": {
       const checked = error.checked.length > 0 ? error.checked : [...DEFAULT_CHECKED_PATHS];
@@ -115,7 +115,9 @@ export function describeMarketplaceFailure(
         code,
         field: "name",
         suggestedName: error.suggestedName,
-        title: `A marketplace named ${name || "this"} is already registered.`,
+        title: name
+          ? `A marketplace named ${name} is already registered.`
+          : "A marketplace with this name is already registered.",
         description: error.suggestedName
           ? `Register it as ${error.suggestedName} instead, or pick another name.`
           : "Pick another name to register it again.",

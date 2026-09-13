@@ -10,6 +10,11 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 )
 
+const (
+	manifestInputTypeSecret  = "secret"
+	manifestInputTypeBoolean = "boolean"
+)
+
 // ManifestInput uses the same grammar as its published catalog entry.
 type ManifestInput = marketplace.EntryInput
 
@@ -66,7 +71,7 @@ func manifestRequiredEnv(existing []string, inputs []ManifestInput) []string {
 		seen[value] = struct{}{}
 	}
 	for _, input := range inputs {
-		if !input.Required || input.Binding.Type != "env" {
+		if !input.Required || input.Binding.Type != manifestEnvKey {
 			continue
 		}
 		if _, exists := seen[input.Binding.Name]; exists {
@@ -127,7 +132,7 @@ func manifestInputMatchesServer(input ManifestInput, server MCPServerConfig) (bo
 		if !query.Has(name) {
 			return false, nil
 		}
-		if server.Transport != "http" {
+		if server.Transport != forgeURLSchemeHTTP {
 			return false, fmt.Errorf("url_query requires http transport")
 		}
 		return true, nil
@@ -140,7 +145,7 @@ func manifestInputMatchesServer(input ManifestInput, server MCPServerConfig) (bo
 	if server.Transport != "" && server.Transport != "stdio" {
 		return false, fmt.Errorf("env requires stdio transport")
 	}
-	if input.Type == "secret" {
+	if input.Type == manifestInputTypeSecret {
 		if plain || !secret || secretValue != input.ID {
 			return false, fmt.Errorf("secret_env[%q] must name input %q", name, input.ID)
 		}

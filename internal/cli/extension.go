@@ -189,7 +189,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	}
 	inputs.register(cmd)
 	cmd.Flags().StringVar(&scope, "scope", "", "Install globally or in one workspace: global, workspace")
-	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Workspace name, path, or registered ID")
+	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(
@@ -306,7 +306,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "Select installed extensions: global, workspace")
-	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Workspace name, path, or registered ID")
+	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension in the selected scope")
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
 	cmd.Flags().StringVar(&version, versionKey, "", "Update to a specific registry version")

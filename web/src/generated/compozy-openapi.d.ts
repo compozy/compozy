@@ -36032,6 +36032,7 @@ export interface operations {
                 name: string;
                 needs_setup: boolean;
               }[];
+              description?: string;
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -36067,6 +36068,7 @@ export interface operations {
                 set: boolean;
                 type: string;
               }[];
+              installation_profile?: string;
               last_error?: string;
               layout?: string;
               marketplace?: {
@@ -36392,6 +36394,7 @@ export interface operations {
                 name: string;
                 needs_setup: boolean;
               }[];
+              description?: string;
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -36427,6 +36430,7 @@ export interface operations {
                 set: boolean;
                 type: string;
               }[];
+              installation_profile?: string;
               last_error?: string;
               layout?: string;
               marketplace?: {
@@ -37081,6 +37085,7 @@ export interface operations {
                 name: string;
                 needs_setup: boolean;
               }[];
+              description?: string;
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -37116,6 +37121,7 @@ export interface operations {
                 set: boolean;
                 type: string;
               }[];
+              installation_profile?: string;
               last_error?: string;
               layout?: string;
               marketplace?: {
@@ -38072,6 +38078,7 @@ export interface operations {
                 name: string;
                 needs_setup: boolean;
               }[];
+              description?: string;
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -38107,6 +38114,7 @@ export interface operations {
                 set: boolean;
                 type: string;
               }[];
+              installation_profile?: string;
               last_error?: string;
               layout?: string;
               marketplace?: {
@@ -39890,6 +39898,7 @@ export interface operations {
                 name: string;
                 needs_setup: boolean;
               }[];
+              description?: string;
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -39925,6 +39934,7 @@ export interface operations {
                 set: boolean;
                 type: string;
               }[];
+              installation_profile?: string;
               last_error?: string;
               layout?: string;
               marketplace?: {
@@ -43596,6 +43606,7 @@ export interface operations {
               version?: string;
             }[];
             next_cursor?: string;
+            refreshing?: boolean;
             revision: string;
             sources: {
               count: number;
@@ -43718,7 +43729,7 @@ export interface operations {
   getMarketplaceCatalogEntry: {
     parameters: {
       query?: {
-        /** @description Catalog source name; defaults to the Compozy catalog */
+        /** @description Catalog source name; omitted searches the Compozy catalog, then registration order */
         source?: string;
         /** @description Exact installed extension identity */
         installed_name?: string;
@@ -66639,7 +66650,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Select the profile layer */
         profile?: string;
-        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        /** @description Select manual or extension:<name>; omitted owner selects manual servers only */
         owner?: string;
       };
       header?: never;
@@ -66879,7 +66890,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Select the profile layer */
         profile?: string;
-        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        /** @description Select manual or extension:<name>; omitted owner selects manual servers only */
         owner?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";
@@ -67205,7 +67216,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Select the profile layer */
         profile?: string;
-        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        /** @description Select manual or extension:<name>; omitted owner selects manual servers only */
         owner?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";

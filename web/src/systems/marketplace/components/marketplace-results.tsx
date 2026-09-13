@@ -1,6 +1,6 @@
-import { AlertCircle, ClockAlert, Puzzle, SearchX } from "lucide-react";
+import { AlertCircle, ClockAlert, Puzzle, SearchX, Store } from "lucide-react";
 
-import { Button, Empty, Time } from "@compozy/ui";
+import { Button, Empty, Spinner, Time } from "@compozy/ui";
 import { GithubLogo } from "@compozy/ui/logos";
 
 import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
@@ -20,6 +20,7 @@ interface MarketplaceResultsProps {
   actions: MarketplaceActionController;
   onClearSearch: () => void;
   onInstallFromGitHub: () => void;
+  onAddMarketplace: () => void;
   page: MarketplacePageModel;
   query: string;
 }
@@ -40,6 +41,7 @@ function MarketplaceResults({
   actions,
   onClearSearch,
   onInstallFromGitHub,
+  onAddMarketplace,
   page,
   query,
 }: MarketplaceResultsProps) {
@@ -70,6 +72,7 @@ function MarketplaceResults({
           action={
             <Button
               data-testid="marketplace-retry"
+              variant="outline"
               onClick={() => void page.refresh()}
               size="sm"
               type="button"
@@ -108,13 +111,19 @@ function MarketplaceResults({
         ) : (
           <Empty
             action={
-              <Button onClick={onInstallFromGitHub} size="sm" type="button">
-                <GithubLogo aria-hidden="true" className="size-3" />
-                Install from GitHub…
-              </Button>
+              <>
+                <Button onClick={onAddMarketplace} size="sm" type="button" variant="neutral">
+                  <Store aria-hidden="true" className="size-3" />
+                  Add plugin marketplace…
+                </Button>
+                <Button onClick={onInstallFromGitHub} size="sm" type="button" variant="ghost">
+                  <GithubLogo aria-hidden="true" className="size-3" />
+                  Install from GitHub…
+                </Button>
+              </>
             }
             data-testid="marketplace-empty"
-            description="No extensions are available from your sources. Install one directly from GitHub."
+            description="No extensions are available from your sources. Add a plugin marketplace to list its plugins here, or install one directly from GitHub."
             icon={Puzzle}
             title="No extensions yet"
           />
@@ -127,6 +136,7 @@ function MarketplaceResults({
     <MarketplaceEntryCard
       data-testid={`marketplace-card-${entry.entry_id}`}
       description={entry.description}
+      query={query}
       entry={entry}
       flashing={actions.isEntryFlashing(entry)}
       key={`${entry.source_ref ?? entry.source}:${entry.entry_id}`}
@@ -214,6 +224,8 @@ function MarketplaceSectionGist({
 
 /** The last projection the daemon could load, under one 12px line that says so — never a banner. */
 function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
+  const failed =
+    page.sources.some(source => source.state === "degraded") || Boolean(page.diagnostic);
   const lastRead = page.sources
     .map(source => source.last_read_at)
     .filter((value): value is string => typeof value === "string" && value !== "")
@@ -225,20 +237,27 @@ function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
       data-testid="marketplace-stale"
       role="status"
     >
-      <ClockAlert aria-hidden="true" className="size-3 shrink-0 text-warning" />
+      {failed ? (
+        <ClockAlert aria-hidden="true" className="size-3 shrink-0 text-warning" />
+      ) : (
+        <Spinner aria-hidden="true" className="size-3 shrink-0" />
+      )}
       <span>
-        Showing the catalog from {lastRead ? <Time iso={lastRead} /> : "the last refresh"} — the
-        sources did not answer.
+        {failed ? "Showing the catalog from " : "Refreshing the catalog from "}
+        {lastRead ? <Time iso={lastRead} /> : "the last refresh"}
+        {failed ? " — the sources did not answer." : "…"}
       </span>
-      <Button
-        disabled={page.isRefreshing}
-        onClick={() => void page.refresh()}
-        size="xs"
-        type="button"
-        variant="ghost"
-      >
-        Retry
-      </Button>
+      {failed ? (
+        <Button
+          disabled={page.isRefreshing}
+          onClick={() => void page.refresh()}
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
+          Retry
+        </Button>
+      ) : null}
     </p>
   );
 }

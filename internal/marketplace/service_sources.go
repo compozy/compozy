@@ -71,35 +71,11 @@ func (s *CatalogService) configureSources(
 		ttl = s.ttl
 		timeout = s.refreshTimeout
 	}
-	definitions := make([]ResolvedSource, 0, len(bindings))
-	keys := make([]ResolvedSource, 0, len(bindings))
-	for _, source := range bindings {
-		definition := source.Config
-		acquisitionTimeout := time.Duration(0)
-		if definition.Kind == SourceKindFeed {
-			acquisitionTimeout = timeout
-		}
-		acquisitionKey, err := json.Marshal(struct {
-			Revision string
-			Timeout  time.Duration
-		}{definition.Revision, acquisitionTimeout})
-		if err != nil {
-			return err
-		}
-		acquisitionDigest := sha256.Sum256(acquisitionKey)
-		definition.Revision = hex.EncodeToString(acquisitionDigest[:])
-		definitions = append(definitions, definition)
-		keys = append(keys, source.Config)
-	}
-	encoded, err := json.Marshal(struct {
-		Sources      []ResolvedSource
-		TTL, Timeout time.Duration
-	}{keys, ttl, timeout})
+	definitions, identity, err := sourceConfigurationIdentity(bindings, ttl, timeout)
 	if err != nil {
 		return err
 	}
-	digest := sha256.Sum256(encoded)
-	configuration, err := s.store.ConfigureSources(ctx, definitions, hex.EncodeToString(digest[:]))
+	configuration, err := s.store.ConfigureSources(ctx, definitions, identity)
 	if err != nil {
 		return err
 	}
@@ -131,6 +107,41 @@ func (s *CatalogService) configureSources(
 	s.sources, s.byName = nextSources, nextByName
 	s.generation, s.ttl, s.refreshTimeout = generation, ttl, timeout
 	return nil
+}
+
+func sourceConfigurationIdentity(
+	bindings []SourceBinding,
+	ttl, timeout time.Duration,
+) ([]ResolvedSource, string, error) {
+	definitions := make([]ResolvedSource, 0, len(bindings))
+	keys := make([]ResolvedSource, 0, len(bindings))
+	for _, source := range bindings {
+		definition := source.Config
+		acquisitionTimeout := time.Duration(0)
+		if definition.Kind == SourceKindFeed {
+			acquisitionTimeout = timeout
+		}
+		acquisitionKey, err := json.Marshal(struct {
+			Revision string
+			Timeout  time.Duration
+		}{definition.Revision, acquisitionTimeout})
+		if err != nil {
+			return nil, "", err
+		}
+		acquisitionDigest := sha256.Sum256(acquisitionKey)
+		definition.Revision = hex.EncodeToString(acquisitionDigest[:])
+		definitions = append(definitions, definition)
+		keys = append(keys, source.Config)
+	}
+	encoded, err := json.Marshal(struct {
+		Sources      []ResolvedSource
+		TTL, Timeout time.Duration
+	}{keys, ttl, timeout})
+	if err != nil {
+		return nil, "", err
+	}
+	digest := sha256.Sum256(encoded)
+	return definitions, hex.EncodeToString(digest[:]), nil
 }
 
 func validateSourceBindings(sources []SourceBinding) ([]SourceBinding, error) {

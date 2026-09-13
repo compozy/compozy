@@ -179,7 +179,7 @@ func (p *ExtensionToolProvider) manifestToolSources(
 		if normalizeExtensionFormat(info.Format) == FormatAgentPlugin {
 			continue
 		}
-		key, err := p.manifestInstallationKey(ctx, info, profileID, workspaceID)
+		key, err := p.manifestInstallationKey(ctx, &info, profileID, workspaceID)
 		if errors.Is(err, ErrExtensionNotFound) {
 			continue
 		}
@@ -212,7 +212,7 @@ func (p *ExtensionToolProvider) manifestToolSources(
 
 func (p *ExtensionToolProvider) manifestInstallationKey(
 	ctx context.Context,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	profileID, workspaceID string,
 ) (InstanceKey, error) {
 	if workspaceID != "" {
@@ -310,7 +310,7 @@ func (p *ExtensionToolProvider) resolveManifestTools(
 				continue
 			}
 			manifestTools = append(manifestTools, extensionManifestTool{
-				info:       cloneExtensionInfo(source.info),
+				info:       cloneExtensionInfo(&source.info),
 				key:        source.key,
 				descriptor: cloneManifestToolDescriptor(&descriptors[j]),
 			})
@@ -466,7 +466,7 @@ func cloneExtensionManifestTools(src []extensionManifestTool) []extensionManifes
 	cloned := make([]extensionManifestTool, len(src))
 	for i := range src {
 		cloned[i] = extensionManifestTool{
-			info:       cloneExtensionInfo(src[i].info),
+			info:       cloneExtensionInfo(&src[i].info),
 			key:        src[i].key,
 			descriptor: cloneManifestToolDescriptor(&src[i].descriptor),
 		}

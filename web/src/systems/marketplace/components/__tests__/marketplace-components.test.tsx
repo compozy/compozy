@@ -231,6 +231,28 @@ function installedItems(count: number): InstalledExtensionView[] {
 }
 
 describe("Marketplace page and cards", () => {
+  it("Should highlight literal query occurrences without changing the card text or destination", async () => {
+    setup(
+      <MarketplaceEntryCard
+        entry={{ entry_id: "ops-tools", name: "Ops [tools]" }}
+        description="Use [TOOLS] alongside other tools."
+        query="[tools]"
+        link={{ to: "/marketplace/$entryId", params: { entryId: "ops-tools" } }}
+        trail={<button type="button">Install</button>}
+      />
+    );
+    const title = await screen.findByRole("link", { name: "View Ops [tools] details" });
+    expect(title).toHaveAttribute("href", "/marketplace/ops-tools");
+    expect(title).toHaveTextContent("Ops [tools]");
+    expect(screen.getAllByRole("mark").map(mark => mark.textContent)).toEqual([
+      "[tools]",
+      "[TOOLS]",
+    ]);
+    expect(screen.getByText("Use", { exact: false })).toHaveTextContent(
+      "Use [TOOLS] alongside other tools."
+    );
+  });
+
   it("Should open one flat catalog with complete count, search, Refresh, and two Add choices", async () => {
     setup();
     await screen.findByTestId(`marketplace-card-${entry.entry_id}`);
@@ -315,6 +337,8 @@ describe("Marketplace page and cards", () => {
       "could not refresh"
     );
   });
+  // Invariant: an empty catalog offers working source acquisition, independent of search recovery.
+  // Owner: Marketplace page integration; canonical suite: marketplace-components.test.tsx.
   it("Should distinguish an empty catalog from a query with no matches", async () => {
     catalog = { ...catalog, items: [], total: 0 };
     const view = setup(undefined, "/marketplace?q=missing");
@@ -322,6 +346,8 @@ describe("Marketplace page and cards", () => {
     await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() => expect(view.router.state.location.searchStr).toBe(""));
     expect(await screen.findByText("No extensions yet")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Add plugin marketplace…" }));
+    expect(await screen.findByTestId("add-marketplace-dialog")).toBeVisible();
   });
   it("Should keep a sideloaded shelf visible while the catalog is empty", async () => {
     catalog = { ...catalog, items: [], total: 0 };
@@ -334,6 +360,7 @@ describe("Marketplace page and cards", () => {
     catalog = {
       ...catalog,
       stale: true,
+      error_class: "network",
       sources: [
         { ...catalog.sources[0]!, state: "degraded", last_read_at: "2026-09-12T12:00:00Z" },
       ],
@@ -346,7 +373,12 @@ describe("Marketplace page and cards", () => {
   });
   // Invariant: repeated failed retries preserve the cached catalog and emit one failure toast per five seconds.
   it("Should keep the stale catalog and throttle failed Retry notifications", async () => {
-    catalog = { ...catalog, stale: true };
+    catalog = {
+      ...catalog,
+      stale: true,
+      error_class: "network",
+      sources: catalog.sources.map(source => ({ ...source, state: "degraded" })),
+    };
     let retries = 0;
     server.use(
       http.post("*/api/marketplace/refresh", () => {
@@ -426,6 +458,15 @@ describe("Marketplace page and cards", () => {
           onUpdate={onUpdate}
         />
         <MarketplaceCatalogTrail
+          entry={{
+            ...entry,
+            entry_id: "occupied",
+            name_conflict: { source: "team", source_ref: "github:team/plugins", entry_id: "other" },
+          }}
+          onInstall={onInstall}
+          onUpdate={onUpdate}
+        />
+        <MarketplaceCatalogTrail
           entry={{ ...entry, entry_id: "busy" }}
           pending
           onInstall={onInstall}
@@ -442,6 +483,14 @@ describe("Marketplace page and cards", () => {
       "title",
       "Catalog policy"
     );
+    expect(screen.getByTestId("marketplace-name-conflict-occupied")).toHaveTextContent(
+      "Name in use"
+    );
+    expect(screen.getByTestId("marketplace-name-conflict-occupied")).toHaveAttribute(
+      "title",
+      expect.stringContaining("team/other")
+    );
+    expect(screen.queryByTestId("marketplace-action-occupied")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketplace-action-busy")).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: `Update ${entry.name}` }));
     expect(onUpdate).toHaveBeenCalledTimes(1);
@@ -594,76 +643,110 @@ describe("Marketplace page and cards", () => {
     expect(paths[1]).toEqual(paths[0]);
     expect(paths[2]).toEqual(paths[0]);
   });
-  it("Should block installed row actions during a batch and reconcile each partial outcome", async () => {
-    const one = {
-      ...entry,
-      entry_id: "one",
-      name: "One",
-      installed_name: "one",
-      installed: true,
-      update_available: true,
-    };
-    const two = { ...one, entry_id: "two", name: "Two", installed_name: "two" };
-    extensions = [one, two].map(listing => ({
-      ...extensionFixtures[0]!,
-      name: listing.entry_id,
-      marketplace: listing,
-      update_available: true,
-    }));
-    let finish!: () => void;
-    const pending = new Promise<void>(resolve => {
-      finish = resolve;
-    });
-    const bodies: unknown[] = [];
-    server.use(
-      http.post("*/api/extensions/update", async ({ request }) => {
-        bodies.push(await request.json());
-        await pending;
-        extensions = extensions.map(extension =>
-          extension.name === "one"
-            ? {
-                ...extension,
-                update_available: false,
-                marketplace: { ...one, update_available: false },
-              }
-            : extension
-        );
-        return HttpResponse.json({
-          updates: [
-            { name: "one", status: "updated" },
-            {
-              name: "two",
-              status: "failed",
-              error: { code: "source_unavailable", message: "artifact unavailable" },
-            },
-          ],
-        });
-      })
-    );
-    setup(undefined, "/marketplace/installed");
-    const batch = await screen.findByRole("button", { name: "Update all" });
-    await userEvent.click(batch);
-    await waitFor(() => expect(bodies).toEqual([{ names: ["one", "two"] }]));
-    try {
-      expect(batch).toBeDisabled();
-      expect(screen.getByTestId("marketplace-installed-update-one")).toBeDisabled();
-      expect(screen.getByTestId("marketplace-installed-update-two")).toBeDisabled();
-      expect(screen.getByTestId("marketplace-installed-switch-two")).toHaveAttribute(
-        "aria-disabled",
-        "true"
+  it.each([undefined, "ws_selected"])(
+    "Should block batch actions and reconcile partial outcomes across scopes %s",
+    async workspaceId => {
+      const one = {
+        ...entry,
+        entry_id: "one",
+        name: "One",
+        installed_name: "one",
+        installed: true,
+        update_available: true,
+      };
+      const two = { ...one, entry_id: "two", name: "Two", installed_name: "two" };
+      extensions = [one, two].map(listing => ({
+        ...extensionFixtures[0]!,
+        name: listing.entry_id,
+        workspace_id: listing.entry_id === "two" ? workspaceId : undefined,
+        marketplace: listing,
+        update_available: true,
+      }));
+      const finishers: (() => void)[] = [];
+      const bodies: unknown[] = [];
+      server.use(
+        http.post("*/api/extensions/update", async ({ request }) => {
+          const body = (await request.json()) as { names: string[] };
+          bodies.push(body);
+          await new Promise<void>(resolve => {
+            finishers.push(resolve);
+          });
+          extensions = extensions.map(extension =>
+            extension.name === "one"
+              ? {
+                  ...extension,
+                  update_available: false,
+                  marketplace: { ...one, update_available: false },
+                }
+              : extension
+          );
+          return HttpResponse.json({
+            updates: [
+              { name: "one", status: "updated" },
+              {
+                name: "two",
+                status: "failed",
+                error: { code: "source_unavailable", message: "artifact unavailable" },
+              },
+            ].filter(update => body.names.includes(update.name)),
+          });
+        })
       );
-    } finally {
-      await act(async () => finish());
+      setup(undefined, "/marketplace/installed");
+      const batch = await screen.findByRole("button", { name: "Update all" });
+      await userEvent.click(batch);
+      await waitFor(() =>
+        expect(bodies).toEqual(
+          workspaceId
+            ? [
+                { profile: "default", scope: "global", names: ["one"] },
+                {
+                  profile: "default",
+                  scope: "workspace",
+                  workspace_id: workspaceId,
+                  names: ["two"],
+                },
+              ]
+            : [{ profile: "default", scope: "global", names: ["one", "two"] }]
+        )
+      );
+      try {
+        expect(screen.getByTestId("marketplace-updates-line")).toHaveTextContent("0 of 2 done");
+        expect(batch).toBeDisabled();
+        expect(screen.getByTestId("marketplace-installed-update-one")).toBeDisabled();
+        expect(screen.getByTestId("marketplace-installed-update-two")).toBeDisabled();
+        expect(screen.getByTestId("marketplace-installed-switch-two")).toHaveAttribute(
+          "aria-disabled",
+          "true"
+        );
+        if (workspaceId) {
+          await act(async () => finishers[0]!());
+          await waitFor(() =>
+            expect(screen.getByTestId("marketplace-updates-line")).toHaveTextContent("1 of 2 done")
+          );
+          await waitFor(() =>
+            expect(screen.getByTestId("marketplace-installed-switch-one")).not.toHaveAttribute(
+              "aria-disabled",
+              "true"
+            )
+          );
+          expect(screen.getByTestId("marketplace-installed-update-two")).toBeDisabled();
+        }
+      } finally {
+        await act(async () => {
+          finishers.forEach(finish => finish());
+        });
+      }
+      await waitFor(() =>
+        expect(screen.queryByTestId("marketplace-installed-update-one")).not.toBeInTheDocument()
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("marketplace-installed-update-two")).toBeEnabled()
+      );
+      expect(mocks.toast).toHaveBeenCalledWith("two: artifact unavailable");
+      expect(mocks.toast).toHaveBeenCalledWith("1 of 2 updated");
     }
-    await waitFor(() =>
-      expect(screen.queryByTestId("marketplace-installed-update-one")).not.toBeInTheDocument()
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("marketplace-installed-update-two")).toBeEnabled()
-    );
-    expect(mocks.toast).toHaveBeenCalledWith("two: artifact unavailable");
-    expect(mocks.toast).toHaveBeenCalledWith("1 of 2 updated");
-  });
+  );
 
   it("Should remove only after the exact installed name is confirmed and refresh the inventory", async () => {
     extensions = [{ ...extensionFixtures[0]!, name: "local-kit", marketplace: null, origin: null }];
@@ -690,8 +773,44 @@ describe("Marketplace page and cards", () => {
     expect(await screen.findByText("No extensions installed yet")).toBeVisible();
   });
 
+  // Invariant: navigation retains the selected installation's profile and workspace through the detail request.
+  it.each([undefined, "ws-owned"])(
+    "Should retain Installed row ownership when opening details in workspace %s",
+    async workspaceId => {
+      extensions = [
+        {
+          ...extensionFixtures[0]!,
+          name: "owned-kit",
+          profile: "engineering",
+          workspace_id: workspaceId,
+          marketplace: null,
+          origin: null,
+          update_available: false,
+        },
+      ];
+      const requests: URL[] = [];
+      server.use(
+        http.get("*/api/marketplace/entries/:entryId", ({ request }) => {
+          requests.push(new URL(request.url));
+          return HttpResponse.json(
+            { error: { code: "marketplace_entry_not_found", message: "Entry not found" } },
+            { status: 404 }
+          );
+        })
+      );
+      setup(undefined, "/marketplace/installed");
+      const row = await screen.findByTestId("marketplace-installed-card-owned-kit");
+      await userEvent.click(within(row).getByRole("link"));
+      await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+      const request = requests.at(-1)!;
+      expect(request.searchParams.get("installed_name")).toBe("owned-kit");
+      expect(request.searchParams.get("profile")).toBe("engineering");
+      expect(request.searchParams.get("workspace_id")).toBe(workspaceId ?? null);
+    }
+  );
+
   // Invariant: Installed is a flat name-ordered inventory, including sideloads and scope metadata.
-  it("Should order installed names and show contents and workspace only where applicable", async () => {
+  it("Should show sideload descriptions and exact installation or server scope", async () => {
     const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0, bridges: 0 };
     extensions = [
       {
@@ -706,24 +825,59 @@ describe("Marketplace page and cards", () => {
       {
         ...extensionFixtures[0]!,
         name: "Alpha",
+        description: "Local review utilities",
         marketplace: null,
         origin: null,
         contents: { ...emptyContents, mcp_servers: 1, skills: 2 },
         workspace_id: "ws-a",
         update_available: false,
       },
+      {
+        ...extensionFixtures[0]!,
+        name: "Beta",
+        marketplace: null,
+        origin: null,
+        contents: emptyContents,
+        workspace_id: undefined,
+        installation_profile: "work",
+        update_available: false,
+      },
+      {
+        ...extensionFixtures[0]!,
+        name: "Gamma",
+        marketplace: null,
+        origin: null,
+        contents: emptyContents,
+        workspace_id: undefined,
+        profile: "engineering",
+        placements: [
+          { kind: "mcp_server", resource: "review", profile: "engineering", dormant: false },
+        ],
+        update_available: false,
+      },
     ];
-    setup(undefined, "/marketplace/installed");
+    const view = setup(undefined, "/marketplace/installed");
     await screen.findByTestId("marketplace-installed-card-Alpha");
     const rows = screen.getAllByTestId(/^marketplace-installed-card-/);
     expect(rows.map(row => row.dataset.testid)).toEqual([
       "marketplace-installed-card-Alpha",
+      "marketplace-installed-card-Beta",
+      "marketplace-installed-card-Gamma",
       "marketplace-installed-card-Zulu",
     ]);
     expect(rows[0]).toHaveTextContent("1 MCP server · 2 skills");
     expect(rows[0]).toHaveTextContent("workspace · ws-a");
-    expect(rows[1]).not.toHaveTextContent("MCP server");
-    expect(rows[1]).not.toHaveTextContent("workspace ·");
+    expect(rows[0]).toHaveTextContent("Local review utilities");
+    expect(rows[1]).toHaveTextContent("profile · work");
+    expect(rows[2]).toHaveTextContent("profile · engineering");
+    expect(rows[3]).not.toHaveTextContent("MCP server");
+    expect(rows[3]).not.toHaveTextContent("workspace ·");
+    expect(rows[3]).not.toHaveTextContent("profile ·");
+    await act(async () => {
+      await view.router.navigate({ to: "/marketplace/installed", search: { q: "utilities" } });
+    });
+    expect(await screen.findByTestId("marketplace-installed-card-Alpha")).toBeVisible();
+    expect(screen.queryByTestId("marketplace-installed-card-Zulu")).not.toBeInTheDocument();
   });
   it("Should distinguish Installed empties from filtered inventory", async () => {
     const view = setup(undefined, "/marketplace/installed");

@@ -29,8 +29,9 @@ type PluginContents struct {
 }
 
 type PluginInspection struct {
-	Inputs   []EntryInput
-	Contents PluginContents
+	InstanceName string
+	Inputs       []EntryInput
+	Contents     PluginContents
 }
 
 type PluginResolver interface {
@@ -82,6 +83,7 @@ func NewPluginProjector(
 }
 
 type pluginEntry struct {
+	InstanceName string `json:"instance_name,omitempty"`
 	extensionEntry
 	SourceRef   string                          `json:"source_ref,omitempty"`
 	Homepage    string                          `json:"homepage,omitempty"`
@@ -200,6 +202,7 @@ func (p *PluginProjector) projectOne(
 	}
 	value := pluginPayload(plugin, name, doc.SourceRef)
 	value.Acquisition, value.Contents, value.Inputs = &record, inspection.Contents, inspection.Inputs
+	value.InstanceName = inspection.InstanceName
 	value.Version, value.DigestSHA256 = record.Version, record.DigestSHA256
 	entry, encodeErr := commonEntry(value.entryCommon, value)
 	if encodeErr != nil {

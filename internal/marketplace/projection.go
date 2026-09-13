@@ -19,6 +19,7 @@ type EntryDetails struct {
 }
 
 type ExtensionEntryDetails struct {
+	InstanceName string
 	Inputs       []EntryInput
 	InstallSlug  string
 	ArtifactURL  string
@@ -55,6 +56,7 @@ func ProjectEntry(entry Entry) (EntryDetails, error) {
 	return EntryDetails{
 		Author: strings.TrimSpace(value.Author), Source: source, SourceRef: sourceRef,
 		Extension: &ExtensionEntryDetails{
+			InstanceName: value.InstanceName,
 			Inputs:       value.Inputs,
 			InstallSlug:  strings.TrimSpace(value.InstallSlug),
 			ArtifactURL:  strings.TrimSpace(value.ArtifactURL),

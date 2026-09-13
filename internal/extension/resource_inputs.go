@@ -38,7 +38,7 @@ func applyManifestMCPInputs(
 		if !present {
 			continue
 		}
-		if input.Type == "secret" {
+		if input.Type == manifestInputTypeSecret {
 			if server.SecretEnv == nil {
 				server.SecretEnv = make(map[string]string)
 			}

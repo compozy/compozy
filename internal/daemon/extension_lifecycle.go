@@ -208,8 +208,8 @@ func (s *daemonExtensionService) lifecycleUpdateNames(req contract.UpdateExtensi
 		return nil, err
 	}
 	names := make([]string, 0, len(infos))
-	for _, info := range infos {
-		names = append(names, info.Name)
+	for infoIndex := range infos {
+		names = append(names, infos[infoIndex].Name)
 	}
 	return normalizeLifecycleNames(names), nil
 }

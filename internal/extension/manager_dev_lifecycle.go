@@ -278,6 +278,14 @@ func (m *Manager) Logs(key InstanceKey, cursor ExtensionLogCursor) (ExtensionLog
 	if err := key.Validate(); err != nil {
 		return ExtensionLogSnapshot{}, err
 	}
+	// A persisted dev link owns its log stream even before startup or after a failed reload.
+	if !key.IsGlobal() && m.registry != nil {
+		if _, err := m.registry.GetDevLink(key.Name, key.WorkspaceID); err == nil {
+			return m.logRingFor(key).snapshot(cursor), nil
+		} else if !errors.Is(err, ErrExtensionNotDevLinked) {
+			return ExtensionLogSnapshot{}, err
+		}
+	}
 	source, development, err := m.readInstanceSource(context.Background(), key)
 	if !key.IsGlobal() &&
 		(errors.Is(err, ErrExtensionNotFound) || (err == nil && source.WorkspaceID != key.WorkspaceID)) {

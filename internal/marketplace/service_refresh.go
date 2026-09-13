@@ -96,6 +96,7 @@ func (s *CatalogService) startRefreshFlight(source *registeredSource, force bool
 		if source.flight == flight {
 			source.flight = nil
 		}
+		s.completedRefreshes++
 		close(flight.done)
 		s.flightMu.Unlock()
 	})
@@ -270,4 +271,19 @@ func classifyFetchError(err error) string {
 		return "validation"
 	}
 	return errorClassNetwork
+}
+
+// A flight finishing during the snapshot read still requires one final read.
+func (s *CatalogService) refreshingSince(completed uint64) bool {
+	s.flightMu.Lock()
+	defer s.flightMu.Unlock()
+	if s.completedRefreshes != completed {
+		return true
+	}
+	for _, source := range s.sources {
+		if source.flight != nil {
+			return true
+		}
+	}
+	return false
 }

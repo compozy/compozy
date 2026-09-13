@@ -47,6 +47,7 @@ type publicationDocument[T any] struct {
 }
 
 func readPublicationSources(directory string) (*publicationSources, error) {
+	// #nosec G703 -- directory is the explicit local catalog root selected by the publishing operator.
 	raw, err := os.ReadFile(filepath.Join(directory, "sources.json"))
 	if err != nil {
 		return nil, fmt.Errorf("read catalog sources: %w", err)

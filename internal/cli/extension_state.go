@@ -50,8 +50,8 @@ func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef str
 			}
 
 			items := make([]ExtensionRecord, 0, len(infos))
-			for _, info := range infos {
-				item, err := localExtensionRecord(cmd.Context(), info, deps.now, deps.getenv)
+			for infoIndex := range infos {
+				item, err := localExtensionRecord(cmd.Context(), &infos[infoIndex], deps.now, deps.getenv)
 				if err != nil {
 					return nil, err
 				}

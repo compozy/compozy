@@ -124,9 +124,9 @@ skill parsing because hooks must be safe to register.
 
 Skill MCP behavior depends on skill source:
 
-| Source                                    | MCP behavior                                                                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Bundled, user, additional root, workspace | MCP servers are allowed.                                                                                                      |
+| Source                                    | MCP behavior                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Bundled, user, additional root, workspace | MCP servers are allowed.                                                                   |
 | Marketplace                               | Embedded MCP servers are blocked; installed skill content and provenance remain available. |
 
 When multiple active skills declare the same trimmed server name, the later skill in source

@@ -1060,7 +1060,7 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 			}
 			return localExtensionRecord(
 				t.Context(),
-				*getInstalledExtension(t, homePaths, "env-ext"),
+				getInstalledExtension(t, homePaths, "env-ext"),
 				deps.now,
 				deps.getenv,
 			)
@@ -1124,7 +1124,10 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			var previewed, installed *InstallExtensionRequest
 			deps, _ := newExtensionLocalDeps(t, &stubClient{
 				listProfilesFn: func(context.Context) ([]contract.Profile, error) {
-					return []contract.Profile{{ID: "default", Name: "default", State: "active"}, {ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+					return []contract.Profile{
+						{ID: "default", Name: "default", State: "active"},
+						{ID: "profile-marketing", Name: "marketing", State: "active"},
+					}, nil
 				},
 				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 					if ref != "alpha" {
@@ -1156,7 +1159,9 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, request := range []*InstallExtensionRequest{previewed, installed} {
-				if request == nil || request.Scope != scenario.wantScope || request.WorkspaceID != scenario.wantWorkspace || request.Profile != scenario.wantProfile {
+				if request == nil || request.Scope != scenario.wantScope ||
+					request.WorkspaceID != scenario.wantWorkspace ||
+					request.Profile != scenario.wantProfile {
 					t.Fatalf("forwarded request = %#v", request)
 				}
 			}

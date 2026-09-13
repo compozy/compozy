@@ -20,7 +20,10 @@ import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
-import type { InstalledExtensionView } from "@/systems/extensions";
+import { useExtensionInstanceScope, type InstalledExtensionView } from "@/systems/extensions";
+import { setActiveWorkspaceId } from "@/systems/workspace";
+import { workspaceFixtures } from "@/systems/workspace/mocks";
+import { resetProfileViews, setProfileView } from "@/systems/profiles/stores/profile-view-store";
 import { extensionFixtures } from "@/systems/extensions/mocks";
 import { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "../../mocks";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
@@ -59,6 +62,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();
+  setActiveWorkspaceId(null);
+  resetProfileViews();
   clients.splice(0).forEach(client => client.clear());
   server.resetHandlers();
 });
@@ -86,8 +91,12 @@ function Harness({
   item?: InstalledExtensionView;
 }) {
   const actions = useMarketplaceActionController();
+  const destination = useExtensionInstanceScope();
   return (
     <>
+      <output aria-label="Destination">
+        {destination.workspaceId}:{destination.profileName}
+      </output>
       {entries.map((entry, index) => (
         <div key={`${entry.source_ref}:${entry.entry_id}`}>
           <button
@@ -126,6 +135,21 @@ function setup(entries: MarketplaceCatalogListing[], item?: InstalledExtensionVi
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   clients.push(client);
+  server.use(
+    http.get("*/api/extensions", () =>
+      HttpResponse.json({
+        extensions: item
+          ? [item.extension]
+          : entries
+              .filter(entry => entry.installed_name)
+              .map(entry => ({
+                ...extensionFixtures[0]!,
+                name: entry.installed_name,
+                marketplace: entry,
+              })),
+      })
+    )
+  );
   return render(
     <QueryClientProvider client={client}>
       <Harness entries={entries} item={item} />
@@ -264,6 +288,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Update" }));
     await waitFor(() => expect(io.update).toHaveBeenCalledTimes(3));
     expect(io.update).toHaveBeenLastCalledWith("kit", {
+      profile: "default",
+      scope: "global",
       allow_unverified: false,
       version: verified.version,
       inputs: { region: { value: "eu" } },
@@ -287,6 +313,135 @@ describe("useMarketplaceActionController", () => {
     expect(io.install).not.toHaveBeenCalled();
     expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
   });
+  // Invariant: reviewed destination and secret draft cannot cross a workspace/profile switch.
+  // Invariant: the displayed destination and confirmed request follow the same captured scope/profile.
+  // Owner: acquisition controller; canonical suite here, real scope stores and mocked HTTP I/O.
+  it("Should bind acquisition to its destination and discard inputs after a profile switch", async () => {
+    const workspaceId = workspaceFixtures[0]!.id;
+    setActiveWorkspaceId(workspaceId);
+    const lens = { scope: "workspace" as const, workspaceId };
+    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    io.preview.mockResolvedValue({
+      name: "scoped-kit",
+      declared_profiles: [],
+      placements: [],
+      inputs: [
+        {
+          id: "token",
+          prompt: "Access token",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+      ],
+    });
+    setup([verified]);
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(
+        `${workspaceId}:marketing`
+      )
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
+      "Current workspace · marketing"
+    );
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: "workspace",
+        workspace_id: workspaceId,
+        profile: "marketing",
+      })
+    );
+    await user.type(screen.getByLabelText("Access token"), "discard-this-draft");
+    act(() => setProfileView(lens, { kind: "profile", profile: "consulting" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
+      "Current workspace · consulting"
+    );
+    expect(screen.getByLabelText("Access token")).toHaveValue("");
+    await user.type(screen.getByLabelText("Access token"), "current-draft");
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.install).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: "workspace",
+          workspace_id: workspaceId,
+          profile: "consulting",
+          inputs: { token: { value: "current-draft" } },
+        })
+      )
+    );
+  });
+
+  it("Should discard a late preview after switching workspaces", async () => {
+    const first = workspaceFixtures[0]!.id;
+    const second = workspaceFixtures[1]!.id;
+    setActiveWorkspaceId(first);
+    const result = { name: "late-kit", inputs: [], declared_profiles: [], placements: [] };
+    let resolvePreview!: (value: typeof result) => void;
+    io.preview.mockReturnValueOnce(
+      new Promise<typeof result>(resolve => {
+        resolvePreview = resolve;
+      })
+    );
+    setup([verified]);
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(first)
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await waitFor(() => expect(io.preview).toHaveBeenCalledOnce());
+    act(() => setActiveWorkspaceId(second));
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(second)
+    );
+    await act(async () => {
+      resolvePreview(result);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("dialog");
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspace_id: second, scope: "workspace" })
+    );
+  });
+
+  // Invariant: install success reports authorization still required by the returned server status.
+  // Owner: Marketplace action notifications; canonical suite: marketplace-action-controller.
+  it("Should explain required authorization after a successful install [US-003.AC-4]", async () => {
+    io.install.mockResolvedValueOnce({
+      extension: {
+        ...extensionFixtures[0]!,
+        mcp_servers: [
+          {
+            name: "api",
+            owner: "extension:otel-bridge",
+            transport: "http",
+            launch: "https://example.com",
+            status: "needs_authorization",
+          },
+        ],
+      },
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.success).toHaveBeenCalledWith(
+        "otel-bridge installed",
+        expect.objectContaining({
+          description: "Needs authorization before it can run",
+        })
+      )
+    );
+  });
+
   it("Should pin preview and confirmed install to the listed digest and show the installed destination", async () => {
     io.preview.mockResolvedValueOnce({
       inputs: [],
@@ -301,6 +456,8 @@ describe("useMarketplaceActionController", () => {
     expect(await screen.findByRole("heading", { name: "Install otel-bridge" })).toBeVisible();
     expect(screen.getByText("Creates profile observability")).toBeVisible();
     const request = {
+      profile: "default",
+      scope: "global",
       allow_unverified: false,
       expected_digest: verified.digest_sha256,
       ref: verified.install_slug,
@@ -519,6 +676,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
+        profile: "default",
+        scope: "global",
         allow_unverified: true,
         expected_digest: unverified.digest_sha256,
         ref: unverified.install_slug,
@@ -527,6 +686,32 @@ describe("useMarketplaceActionController", () => {
       })
     );
   });
+  it.each([undefined, "ws_selected"])(
+    "Should update the resolved installation scope %s from a workspace view",
+    async workspaceId => {
+      setActiveWorkspaceId(workspaceFixtures[0]!.id);
+      const entry = {
+        ...verified,
+        installed: true,
+        installed_name: "local-kit",
+        update_available: true,
+      };
+      const item = installed(entry);
+      item.extension = { ...item.extension, workspace_id: workspaceId, profile: "marketing" };
+      setup([entry], item);
+      await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
+      await waitFor(() =>
+        expect(io.update).toHaveBeenCalledWith("local-kit", {
+          profile: "marketing",
+          scope: workspaceId ? "workspace" : "global",
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          allow_unverified: false,
+          version: entry.version,
+        })
+      );
+    }
+  );
+
   it("Should update the installed name and gate an unverified update before granting consent", async () => {
     setup([
       { ...verified, installed: true, installed_name: "manifest-otel", update_available: true },
@@ -536,6 +721,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Run 0" }));
     await waitFor(() =>
       expect(io.update).toHaveBeenCalledWith("manifest-otel", {
+        profile: "default",
+        scope: "global",
         allow_unverified: false,
         version: verified.version,
       })
@@ -546,6 +733,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Update anyway" }));
     await waitFor(() =>
       expect(io.update).toHaveBeenLastCalledWith("manifest-slack", {
+        profile: "default",
+        scope: "global",
         allow_unverified: true,
         version: unverified.version,
       })
@@ -568,6 +757,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByTestId("extension-network-confirm-accept"));
     await waitFor(() =>
       expect(io.update).toHaveBeenLastCalledWith("manifest-otel", {
+        profile: "default",
+        scope: "global",
         allow_unverified: false,
         version: verified.version,
         confirm_network_digest: "sha256:quick-update",
@@ -597,6 +788,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(update);
     expect(io.update).toHaveBeenCalledTimes(1);
     expect(io.update).toHaveBeenCalledWith("local-kit", {
+      profile: "default",
+      scope: "global",
       allow_unverified: false,
       version: verified.version,
     });
@@ -617,6 +810,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Update anyway" }));
     await waitFor(() =>
       expect(io.update).toHaveBeenCalledWith("local-kit", {
+        profile: "default",
+        scope: "global",
         allow_unverified: true,
         version: unverified.version,
       })
@@ -695,6 +890,8 @@ describe("useMarketplaceActionController", () => {
       await user.click(screen.getByRole("button", { name: "Install" }));
       await waitFor(() =>
         expect(io.install).toHaveBeenCalledWith({
+          profile: "default",
+          scope: "global",
           allow_unverified: true,
           expected_digest: portable.digest_sha256,
           ref: portable.install_slug,

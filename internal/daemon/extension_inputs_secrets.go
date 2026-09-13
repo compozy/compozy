@@ -22,16 +22,16 @@ func (b extensionInputBinder) prepareSecret(
 ) error {
 	if !supplied {
 		prior, found := plan.state.Values[input.ID]
-		if !found || prior.Type != "secret" || prior.SecretRef == "" {
+		if !found || prior.Type != extensionInputTypeSecret || prior.SecretRef == "" {
 			return nil
 		}
 		prior.Active = true
 		plan.state.Values[input.ID] = prior
-		before, exact := plan.previous[input.Binding.Name]
-		if exact && before.SecretRef == prior.SecretRef && (before.Inactive || before.InputID != input.ID) {
-			plan.writes = append(plan.writes, preparedExtensionSecret{
-				envName: input.Binding.Name, ref: prior.SecretRef, inputID: input.ID,
-			})
+		write := preparedExtensionSecret{
+			envName: input.Binding.Name, ref: prior.SecretRef, inputID: input.ID,
+		}
+		if !inputSecretUnchanged(plan, write) {
+			plan.writes = append(plan.writes, write)
 		}
 		return nil
 	}
@@ -40,7 +40,7 @@ func (b extensionInputBinder) prepareSecret(
 	}
 	request := contract.ExtensionSecretBindingInput{EnvName: input.Binding.Name, VaultRef: value.VaultRef}
 	if value.VaultRef == nil {
-		raw, err := extensionpkg.NormalizeInputJSON("secret", value.Value)
+		raw, err := extensionpkg.NormalizeInputJSON(extensionInputTypeSecret, value.Value)
 		if err != nil {
 			return inputInvalid(input.ID, err.Error())
 		}
@@ -68,7 +68,7 @@ func (b extensionInputBinder) prepareSecret(
 		plan.writes = append(plan.writes, write)
 	}
 	plan.state.Values[input.ID] = extensionpkg.InputValueRecord{
-		Type: "secret", SecretRef: write.ref, Active: true, UpdatedAt: b.service.now().UTC(),
+		Type: extensionInputTypeSecret, SecretRef: write.ref, Active: true, UpdatedAt: b.service.now().UTC(),
 	}
 	return nil
 }
@@ -94,5 +94,6 @@ func inputSecretUnchanged(plan *extensionInputPlan, write preparedExtensionSecre
 		before.MCPServer != write.mcpServer || before.HeaderName != write.headerName {
 		return false
 	}
-	return write.value == nil || (write.snapshot != nil && write.snapshot.existed && write.snapshot.value == *write.value)
+	return write.value == nil ||
+		(write.snapshot != nil && write.snapshot.existed && write.snapshot.value == *write.value)
 }

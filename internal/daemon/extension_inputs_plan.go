@@ -62,7 +62,7 @@ func (b extensionInputBinder) Prepare(
 		if supplied && ((len(value.Value) == 0) == (value.VaultRef == nil)) {
 			return nil, inputInvalid(input.ID, "supply exactly one of value or vault_ref")
 		}
-		if input.Type == "secret" {
+		if input.Type == extensionInputTypeSecret {
 			if err := b.prepareSecret(ctx, plan, input, value, supplied); err != nil {
 				return nil, err
 			}
@@ -124,7 +124,7 @@ func (b extensionInputBinder) prepareRows(
 	}
 	for id, record := range plan.state.Values {
 		input, found := declared[id]
-		if !found || input.Type == "secret" || record.Type != input.Type || !record.Active {
+		if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
 			continue
 		}
 		after[id] = extensioninput.Record{
@@ -171,7 +171,7 @@ func (b extensionInputBinder) prepareRetiredSecrets(
 			continue
 		}
 		input, present := declared[before.InputID]
-		inactive := !present || input.Type != "secret" || input.Binding.Name != envName
+		inactive := !present || input.Type != extensionInputTypeSecret || input.Binding.Name != envName
 		if before.Inactive == inactive {
 			continue
 		}

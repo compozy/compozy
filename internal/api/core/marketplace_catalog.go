@@ -96,6 +96,7 @@ func (h *BaseHandlers) MarketplaceList(
 		Total:      page.Total,
 		Revision:   page.Revision,
 		Stale:      page.Stale,
+		Refreshing: page.Refreshing,
 		ErrorClass: page.ErrorClass,
 		Error:      h.marketplaceCatalogDiagnostic(page.LastError),
 		Items: make(
@@ -138,9 +139,6 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 	}
 
 	source := strings.TrimSpace(c.Query("source"))
-	if source == "" {
-		source = marketplacepkg.CompozyCatalogSource
-	}
 	actor, ok := h.marketplaceCatalogReadActor(c, "entry")
 	if !ok {
 		return
@@ -186,7 +184,7 @@ func marketplaceSourceSummary(state marketplacepkg.SourceState) contract.Marketp
 	}
 	if state.FetchedAt.IsZero() && state.LastError == "" {
 		source.State = "never"
-	} else if state.Stale {
+	} else if state.ErrorClass != "" || state.LastError != "" {
 		source.State = "degraded"
 	}
 	if !state.FetchedAt.IsZero() {

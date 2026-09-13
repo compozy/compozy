@@ -68,12 +68,12 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			if err := prepared.ValidateReinstall(*info); err != nil || !prepared.MatchesInstalled(*info) {
+			if err := prepared.ValidateReinstall(info); err != nil || !prepared.MatchesInstalled(info) {
 				t.Fatalf("same-origin renamed acquisition was not recognized: %v", err)
 			}
 			foreign := *info
 			foreign.Provenance.SourceRef = "github:other/marketplace"
-			if err := prepared.ValidateReinstall(foreign); !errors.Is(err, ErrExtensionNameConflict) {
+			if err := prepared.ValidateReinstall(&foreign); !errors.Is(err, ErrExtensionNameConflict) {
 				t.Fatalf("foreign origin conflict = %v", err)
 			}
 			entries, err := os.ReadDir(resolver.Sources.TempDir)
@@ -1122,7 +1122,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
-		installDir, err := InstalledExtensionDir(*installed)
+		installDir, err := InstalledExtensionDir(installed)
 		if err != nil {
 			t.Fatalf("InstalledExtensionDir() error = %v", err)
 		}
@@ -1467,12 +1467,12 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 		}
 
 		if _, err := InstalledExtensionDir(
-			ExtensionInfo{Name: "bad", ManifestPath: "relative/extension.toml"},
+			&ExtensionInfo{Name: "bad", ManifestPath: "relative/extension.toml"},
 		); err == nil {
 			t.Fatal("InstalledExtensionDir(relative) error = nil, want failure")
 		}
 		if _, err := InstalledExtensionDir(
-			ExtensionInfo{Name: "bad", ManifestPath: filepath.Join(t.TempDir(), "README.md")},
+			&ExtensionInfo{Name: "bad", ManifestPath: filepath.Join(t.TempDir(), "README.md")},
 		); err == nil {
 			t.Fatal("InstalledExtensionDir(non-manifest) error = nil, want failure")
 		}
@@ -2598,7 +2598,7 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 	})
 	candidateCommitted, restored, reloads := false, false, 0
 	completionErr := errors.New("completion persistence unavailable")
-	_, err = prepared.Reinstall(ctx, *installed, nil,
+	_, err = prepared.Reinstall(ctx, installed, nil,
 		func(ExtensionInfo, *Manifest) error { candidateCommitted = true; return nil },
 		func(context.Context, ExtensionInfo) error { restored = true; return nil },
 		func(context.Context) error { reloads++; return nil },
@@ -2610,7 +2610,8 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 		},
 	)
 	failed := scenario == "foreign source" || scenario == "foreign entry" || scenario == "completion failure"
-	if scenario == "foreign source" || scenario == "foreign entry" {
+	switch {
+	case scenario == "foreign source" || scenario == "foreign entry":
 		conflict, ok := errors.AsType[*ExtensionNameConflictError](err)
 		if !ok || !errors.Is(err, ErrExtensionNameConflict) ||
 			conflict.InstalledOrigin.SourceRef != provenance.SourceRef ||
@@ -2624,7 +2625,7 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 				reloads,
 			)
 		}
-	} else if scenario == "completion failure" {
+	case scenario == "completion failure":
 		if !errors.Is(err, completionErr) || !candidateCommitted || !restored || reloads != 2 {
 			t.Fatalf(
 				"completion rollback = %v, committed=%v restored=%v reloads=%d",
@@ -2634,7 +2635,7 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 				reloads,
 			)
 		}
-	} else if err != nil {
+	case err != nil:
 		t.Fatal(err)
 	}
 	actual, err := env.registry.Get(installed.Name)

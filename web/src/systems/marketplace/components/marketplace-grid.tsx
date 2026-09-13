@@ -35,9 +35,15 @@ const SKELETON_WIDTHS = [
 ] as const;
 
 /** Skeleton rows in the real grid: static blocks, no shimmer — the row grammar is the signal. */
-function MarketplaceGridSkeleton({ count = 6 }: { count?: number }) {
+function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; className?: string }) {
   return (
-    <MarketplaceGrid data-testid="marketplace-grid-skeleton">
+    <MarketplaceGrid
+      className={cn(
+        "[&_[data-slot=skeleton]]:animate-none [&_[data-slot=skeleton]]:bg-surface-glaze [&_[data-slot=skeleton]]:bg-none",
+        className
+      )}
+      data-testid="marketplace-grid-skeleton"
+    >
       {Array.from({ length: count }, (_, index) => {
         const [title, description] = SKELETON_WIDTHS[index % SKELETON_WIDTHS.length]!;
         return (

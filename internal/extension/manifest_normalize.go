@@ -340,7 +340,8 @@ func validateManifestMCPServerEnv(manifest *Manifest) error {
 		server := servers[name]
 		secretEnv := normalizeStringMap(server.SecretEnv)
 		for _, input := range manifest.Inputs {
-			if input.Type == "secret" && input.Binding.Type == "env" && secretEnv[input.Binding.Name] == input.ID {
+			if input.Type == "secret" && input.Binding.Type == manifestEnvKey &&
+				secretEnv[input.Binding.Name] == input.ID {
 				delete(secretEnv, input.Binding.Name)
 			}
 		}

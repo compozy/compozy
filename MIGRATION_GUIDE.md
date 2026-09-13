@@ -345,7 +345,7 @@ CompozyOS also loads client manifests under `.claude-plugin/`, `.codex-plugin/` 
 `.cursor-plugin/` through adapters. Existing client packages do not need to be rewritten
 for installation; only supported skills and MCP declarations are loaded, and unsupported
 commands, agents and hooks are reported as `client_component_ignored`.
-See [Agent Plugins interoperability](packages/site/content/docs/extensions/agent-plugins.mdx).
+See [Agent Plugins interoperability](https://compozy.com/docs/extensions/agent-plugins).
 
 ## Marketplace acquisition hard cut
 
@@ -378,5 +378,5 @@ reports a source failure rather than reading a root feed.
 Extension installation no longer accepts `runtime_name` or `--runtime-name`.
 Runtime names are allocated automatically. Extension inputs use their own credential
 namespace; manual MCP Vault references cannot be imported into extension inputs.
-See the Unreleased migration block in [release notes](RELEASE_NOTES.md) for the
+See the Unreleased migration block in [release notes](https://github.com/compozy/compozy/blob/main/RELEASE_NOTES.md) for the
 append-only database upgrades and preserved state.

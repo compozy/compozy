@@ -57,6 +57,7 @@ describe("useSettingsPage", () => {
       "memory",
       "roles",
       "skills",
+      "mcp",
       "automation",
       "network",
       "gateway",
@@ -64,6 +65,7 @@ describe("useSettingsPage", () => {
       "observability",
       "hooks",
       "extensions",
+      "marketplace",
     ]);
     expect(result.current.rootPath).toBe("/settings");
     expect(result.current.sectionPath("general")).toBe("/settings/general");

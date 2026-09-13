@@ -53,6 +53,22 @@ function MarketplaceCatalogTrail({
     );
   }
 
+  if (entry.name_conflict) {
+    const origin = entry.name_conflict;
+    return (
+      <Pill
+        className="cursor-help"
+        data-testid={`marketplace-name-conflict-${entry.entry_id}`}
+        form="hollow"
+        size="xs"
+        title={`This name is already installed from ${origin.source}/${origin.entry_id} (${origin.source_ref}).`}
+        tone="warning"
+      >
+        Name in use
+      </Pill>
+    );
+  }
+
   if (blocked) {
     return (
       <Pill

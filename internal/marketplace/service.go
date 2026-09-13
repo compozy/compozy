@@ -20,25 +20,26 @@ const (
 
 // CatalogService coordinates TTL freshness and durable projections.
 type CatalogService struct {
-	store             Store
-	ttl               time.Duration
-	refreshTimeout    time.Duration
-	now               func() time.Time
-	notifier          Notifier
-	packageCache      *pluginsource.PackageCache
-	installedPackages func(context.Context) ([]InstalledPackage, error)
-	logger            *slog.Logger
-	sourceMu          sync.RWMutex
-	sources           []*registeredSource
-	byName            map[string]*registeredSource
-	generation        int64
-	flightMu          sync.Mutex
-	lifecycleCtx      context.Context
-	lifecycleStop     context.CancelFunc
-	flightWG          sync.WaitGroup
-	closeOnce         sync.Once
-	closeDone         chan struct{}
-	closed            bool
+	store              Store
+	ttl                time.Duration
+	refreshTimeout     time.Duration
+	now                func() time.Time
+	notifier           Notifier
+	packageCache       *pluginsource.PackageCache
+	installedPackages  func(context.Context) ([]InstalledPackage, error)
+	logger             *slog.Logger
+	sourceMu           sync.RWMutex
+	sources            []*registeredSource
+	byName             map[string]*registeredSource
+	generation         int64
+	flightMu           sync.Mutex
+	completedRefreshes uint64
+	lifecycleCtx       context.Context
+	lifecycleStop      context.CancelFunc
+	flightWG           sync.WaitGroup
+	closeOnce          sync.Once
+	closeDone          chan struct{}
+	closed             bool
 }
 
 var _ Service = (*CatalogService)(nil)
@@ -109,6 +110,9 @@ func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit
 	for _, source := range s.sources {
 		names = append(names, source.binding.Config.Name)
 	}
+	s.flightMu.Lock()
+	completed := s.completedRefreshes
+	s.flightMu.Unlock()
 	page, err := s.store.BrowseSources(ctx, names, query, offset, limit)
 	if err != nil {
 		return BrowseResult{}, err
@@ -134,6 +138,7 @@ func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit
 			return BrowseResult{}, err
 		}
 	}
+	page.Refreshing = s.refreshingSince(completed)
 	return page, nil
 }
 
@@ -144,18 +149,24 @@ func (s *CatalogService) Detail(ctx context.Context, source, entryID string) (*E
 	}
 	s.sourceMu.RLock()
 	defer s.sourceMu.RUnlock()
-	registered, exists := s.byName[source]
-	if !exists || !registered.binding.Config.Enabled {
-		return nil, ErrEntryNotFound
+	for _, registered := range s.sources {
+		config := registered.binding.Config
+		if !config.Enabled || (source != "" && config.Name != source) {
+			continue
+		}
+		entry, err := s.store.GetEntry(ctx, config.Name, entryID)
+		if errors.Is(err, ErrEntryNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := s.projectPackageAvailability(ctx, entry); err != nil {
+			return nil, err
+		}
+		return entry, nil
 	}
-	entry, err := s.store.GetEntry(ctx, source, entryID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.projectPackageAvailability(ctx, entry); err != nil {
-		return nil, err
-	}
-	return entry, nil
+	return nil, ErrEntryNotFound
 }
 
 // Entry joins installed provenance to the current source name by immutable origin.

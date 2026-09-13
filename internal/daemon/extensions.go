@@ -34,8 +34,8 @@ func (s *daemonExtensionService) List(ctx context.Context) ([]contract.Extension
 	}
 
 	items := make([]contract.ExtensionPayload, 0, len(infos))
-	for _, info := range infos {
-		item, err := s.Status(ctx, info.Name)
+	for infoIndex := range infos {
+		item, err := s.Status(ctx, infos[infoIndex].Name)
 		if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			continue
 		}
@@ -227,6 +227,9 @@ func (s *daemonExtensionService) payloadFromExtension(
 		return contract.ExtensionPayload{}, errors.New("daemon: extension payload profile id and name are required")
 	}
 	payload.Profile = profile.Name
+	if err := s.populateExtensionInstallationProfile(ctx, &payload, profile.ID); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	if s.runtime == nil {
 		contents, err := extensionpkg.InspectPackageContents(ctx, ext, profile.Name)
 		if err != nil {

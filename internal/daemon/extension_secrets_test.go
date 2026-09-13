@@ -889,6 +889,92 @@ func TestExtensionTypedInputStatus(t *testing.T) {
 // Canonical suite: extension secret mutation tests.
 func TestExtensionInputBinder(t *testing.T) {
 	t.Parallel()
+	// Invariant: changing an input's env binding preserves its value across reload and rollback.
+	// Owner: daemon input persistence; canonical suite: TestExtensionInputBinder.
+	t.Run("Should retain a secret when its input binding changes [UT-058]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		service, bindings := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+		service.getenv = func(string) string { return "" }
+		binder := extensionInputBinder{service: service}
+		key := extensionpkg.GlobalInstanceKey("kit")
+		profile := extensionDefaultProfileLens()
+		instance := extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID}
+		manifest := extensionInputBinderManifest()
+		if err := service.lifecycle.withInstance(ctx, key, func() error {
+			initial, err := binder.Prepare(ctx, key, profile, manifest, map[string]extensioninput.Value{
+				"workspace": {Value: json.RawMessage(`"original-team"`)},
+				"token":     {Value: json.RawMessage(`"original-secret"`)},
+			})
+			if err != nil {
+				return err
+			}
+			if _, err := binder.Commit(ctx, initial); err != nil {
+				return err
+			}
+			before, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+			if err != nil {
+				return err
+			}
+			manifest.Inputs[1].Binding.Name = "NEW_TOKEN"
+			server := manifest.Resources.MCPServers["server"]
+			server.SecretEnv = map[string]string{"NEW_TOKEN": "token"}
+			manifest.Resources.MCPServers["server"] = server
+			update, err := binder.Prepare(ctx, key, profile, manifest, nil)
+			if err != nil {
+				return err
+			}
+			if _, err := binder.Commit(ctx, update); err != nil {
+				return err
+			}
+			reloaded, err := service.inputReader().load(ctx, instance, manifest)
+			if err != nil {
+				return err
+			}
+			if readiness := extensionpkg.InputReadiness(
+				manifest,
+				reloaded,
+				service.getenv,
+			); len(
+				readiness.MissingEnv,
+			) != 0 {
+				t.Fatalf("renamed secret input is unavailable after reload: %#v", readiness)
+			}
+			resources, err := extensionpkg.ResolveManifestMCPServerResources(
+				t.TempDir(),
+				manifest,
+				reloaded,
+				service.getenv,
+			)
+			if err != nil {
+				return err
+			}
+			for _, resource := range resources {
+				if resource.Name == "server" {
+					value, err := service.secretVault.ResolveRef(ctx, resource.SecretEnv["NEW_TOKEN"])
+					if err != nil || value != "original-secret" {
+						t.Fatal("renamed input lost its secret")
+					}
+					if _, exists := resource.SecretEnv["TOKEN"]; exists {
+						t.Fatal("retired env binding is still published")
+					}
+				}
+			}
+			if err := binder.Rollback(ctx, update); err != nil {
+				return err
+			}
+			after, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+			if err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("binding rollback = %#v, want %#v", after, before)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run(
 		"Should restore values and secrets after commit and retain dropped inputs [UT-056 UT-058]",
 		func(t *testing.T) {

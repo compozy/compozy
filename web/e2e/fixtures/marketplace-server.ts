@@ -103,7 +103,13 @@ export async function createPluginMarketplaceFixture() {
       JSON.stringify({
         name: "team",
         owner: { name: "Acme" },
-        plugins: [{ name: "tool", source: "./tool" }],
+        plugins: [
+          {
+            name: "tool",
+            description: "Loop engineering skills for daily triage",
+            source: "./tool",
+          },
+        ],
       })
     );
     return {

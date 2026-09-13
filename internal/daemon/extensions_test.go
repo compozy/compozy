@@ -958,7 +958,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if !ok {
 			t.Fatalf("runtime after update rollback = %#v/%t, want %#v", afterRunning, ok, beforeRunning)
 		}
-		assertExtensionPublicState(t, "runtime after update rollback", afterRunning, beforeRunning)
+		assertExtensionPublicState(t, "runtime after update rollback", &afterRunning, &beforeRunning)
 		reloads := runtime.reloadSnapshot()
 		if len(reloads) != 2 || reloads[0].Version != "2.0.0" ||
 			reloads[0].NetworkRequirementDigest != secondDigest ||
@@ -1540,13 +1540,13 @@ func (r *lifecycleStateRuntime) reloadSnapshot() []extensionpkg.ExtensionInfo {
 func assertExtensionPublicState(
 	t *testing.T,
 	label string,
-	got extensionpkg.ExtensionInfo,
-	want extensionpkg.ExtensionInfo,
+	got *extensionpkg.ExtensionInfo,
+	want *extensionpkg.ExtensionInfo,
 ) {
 	t.Helper()
-	infoType := reflect.TypeOf(got)
-	gotValue := reflect.ValueOf(got)
-	wantValue := reflect.ValueOf(want)
+	infoType := reflect.TypeOf(*got)
+	gotValue := reflect.ValueOf(*got)
+	wantValue := reflect.ValueOf(*want)
 	for index := range infoType.NumField() {
 		field := infoType.Field(index)
 		if !field.IsExported() {
@@ -1658,12 +1658,12 @@ func (h *lifecycleFailureHarness) assertRestored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registry.Get(after failure) error = %v", err)
 	}
-	assertExtensionPublicState(t, "registry after failure", *after, h.before)
+	assertExtensionPublicState(t, "registry after failure", after, &h.before)
 	running, ok := h.runtime.current()
 	if !ok {
 		t.Fatalf("running state after failure = %#v/%t, want %#v", running, ok, h.before)
 	}
-	assertExtensionPublicState(t, "running state after failure", running, h.before)
+	assertExtensionPublicState(t, "running state after failure", &running, &h.before)
 }
 
 func recordRuntimeHealthFailure(registry *mcppkg.RuntimeHealthRegistry, name string, generation string) {
@@ -2053,7 +2053,8 @@ binding = { type = "url_query", name = "region" }
 				// Invariant: recovery describes only missing candidate inputs before changing installed state.
 				// Owner: daemon input lifecycle; canonical suite: TestDaemonExtensionInputLifecycle.
 				required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
-				if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) || len(required.InputDefinitions) != 1 {
+				if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) ||
+					len(required.InputDefinitions) != 1 {
 					t.Fatalf("candidate recovery = %#v", err)
 				}
 				definition := required.InputDefinitions[0]
@@ -2261,10 +2262,18 @@ binding = { type = "env", name = "TOKEN" }
 		Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "1.0.0",
 		ContentSize: int64(len(archive)), ContentType: "application/gzip",
 	}
-	request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceGitHub,
-		Ref: "acme/tool-ext", AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID, Scope: scenario.scope,
+	request := contract.InstallExtensionRequest{
+		Source:          contract.InstallExtensionSourceGitHub,
+		Ref:             "acme/tool-ext",
+		AllowUnverified: true,
+		Profile:         profileName,
+		WorkspaceID:     workspaceID,
+		Scope:           scenario.scope,
 		Inputs: map[string]extensioninput.Value{
-			"workspace": {Value: json.RawMessage(`"selected-team"`)}, "token": {Value: json.RawMessage(`"scoped-secret"`)},
+			"workspace": {
+				Value: json.RawMessage(`"selected-team"`),
+			},
+			"token": {Value: json.RawMessage(`"scoped-secret"`)},
 		},
 	}
 	if local {
@@ -2297,13 +2306,21 @@ binding = { type = "env", name = "TOKEN" }
 	}
 	installed, err := service.Install(ctx, request, actor)
 	if scenario.errorField != "" {
-		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); !ok || validation.Field != scenario.errorField {
+		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](
+			err,
+		); !ok ||
+			validation.Field != scenario.errorField {
 			t.Fatalf("install error = %v, want field %s", err, scenario.errorField)
 		}
 		if _, err := registry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("failed install persisted registry row: %v", err)
 		}
-		if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext")); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(
+			extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			t.Fatalf("failed default selection left managed package: %v", err)
 		}
 		return
@@ -2325,6 +2342,13 @@ binding = { type = "env", name = "TOKEN" }
 	if request.Profile != "" || agent {
 		attachmentProfile = profileID
 	}
+	wantInstallationProfile := ""
+	if attachmentProfile != "" {
+		wantInstallationProfile = profileName
+	}
+	if installed.InstallationProfile != wantInstallationProfile {
+		t.Fatalf("installation profile = %q, want %q", installed.InstallationProfile, wantInstallationProfile)
+	}
 	wantScope := extensionpkg.InstallationScope{ProfileID: attachmentProfile, WorkspaceID: workspaceID}
 	if len(attachments) != 1 || attachments[0].Scope != wantScope {
 		t.Fatalf("attachments = %#v, want %v", attachments, wantScope)
@@ -2339,7 +2363,7 @@ binding = { type = "env", name = "TOKEN" }
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		bindings, readErr := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", cell.ProfileID, cell.WorkspaceID)
+		bindings, readErr := db.ListEnvBindings(ctx, "tool-ext", cell.ProfileID, cell.WorkspaceID)
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -2376,7 +2400,7 @@ binding = { type = "env", name = "TOKEN" }
 		if err != nil {
 			t.Fatal(err)
 		}
-		beforeBindings, err := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		beforeBindings, err := db.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2392,7 +2416,7 @@ binding = { type = "env", name = "TOKEN" }
 		if err != nil || !reflect.DeepEqual(beforeInfo, afterInfo) {
 			t.Fatalf("retry changed the registry: %v", err)
 		}
-		afterBindings, err := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		afterBindings, err := db.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
 		if err != nil || !reflect.DeepEqual(beforeBindings, afterBindings) {
 			t.Fatalf("retry changed secret bindings: %v", err)
 		}
@@ -2406,21 +2430,29 @@ binding = { type = "env", name = "TOKEN" }
 	if workspaceID != "" {
 		otherWorkspace = ""
 	}
-	otherCell := extensioninput.Instance{Extension: "tool-ext", ProfileID: store.DefaultProfileID, WorkspaceID: otherWorkspace}
+	otherCell := extensioninput.Instance{
+		Extension:   "tool-ext",
+		ProfileID:   store.DefaultProfileID,
+		WorkspaceID: otherWorkspace,
+	}
 	otherScope := extensionpkg.InstallationScope{ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID}
 	if err := registry.AttachInstallation(ctx, "tool-ext", otherScope); err != nil {
 		t.Fatal(err)
 	}
 	otherRecord := extensioninput.Record{Type: "identifier", Value: json.RawMessage(`"other-team"`), Active: true,
 		UpdatedAt: time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)}
-	if err := db.ExtensionInputs.Apply(ctx, otherCell, []extensioninput.Mutation{{InputID: "workspace", After: &otherRecord}}); err != nil {
+	if err := db.ExtensionInputs.Apply(
+		ctx,
+		otherCell,
+		[]extensioninput.Mutation{{InputID: "workspace", After: &otherRecord}},
+	); err != nil {
 		t.Fatal(err)
 	}
 	otherRef := vault.ExtensionProfileSecretRef("tool-ext", otherCell.ProfileID, otherCell.WorkspaceID, "TOKEN")
 	if _, err := secretVault.PutSecret(ctx, otherRef, extensionenv.BindingKind, "other-secret"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ExtensionEnvRepo.PutEnvBinding(ctx, extensionenv.Binding{
+	if err := db.PutEnvBinding(ctx, extensionenv.Binding{
 		ExtensionName: "tool-ext", ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID,
 		EnvName: "TOKEN", InputID: "token", SecretRef: otherRef, Kind: extensionenv.BindingKind,
 		CreatedAt: otherRecord.UpdatedAt, UpdatedAt: otherRecord.UpdatedAt,
@@ -2445,9 +2477,14 @@ binding = { type = "url_query", name = "region" }
 		if scenario.associate {
 			request.Source = contract.InstallExtensionSourceCurated
 			service.marketplaceCatalog = nativeExtensionCatalog{entry: &marketplacepkg.Entry{
-				EntryID: "tool-ext", InstallSlug: "acme/tool-ext", Version: "2.0.0",
-				DigestSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)), Tier: "official",
-				Payload: json.RawMessage(`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`),
+				EntryID:      "tool-ext",
+				InstallSlug:  "acme/tool-ext",
+				Version:      "2.0.0",
+				DigestSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)),
+				Tier:         "official",
+				Payload: json.RawMessage(
+					`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+				),
 			}}
 		}
 		source.downloads["2.0.0"] = &registrypkg.DownloadResult{
@@ -2479,7 +2516,11 @@ binding = { type = "url_query", name = "region" }
 	if err != nil || len(available) != 1 || available[0].Status != extensionpkg.MarketplaceUpdateStatusAvailable {
 		t.Fatalf("scoped update batch = %v, %v", available, err)
 	}
-	updateRequest := contract.UpdateExtensionRequest{AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID}
+	updateRequest := contract.UpdateExtensionRequest{
+		AllowUnverified: true,
+		Profile:         profileName,
+		WorkspaceID:     workspaceID,
+	}
 	if agent {
 		updateRequest.Profile, updateRequest.WorkspaceID = "", ""
 	}
@@ -2493,7 +2534,10 @@ binding = { type = "url_query", name = "region" }
 		if installErr != nil {
 			return contract.ManagedExtensionUpdatePayload{}, installErr
 		}
-		return contract.ManagedExtensionUpdatePayload{Name: reinstalled.Name, Status: extensionpkg.MarketplaceUpdateStatusUpdated}, nil
+		return contract.ManagedExtensionUpdatePayload{
+			Name:   reinstalled.Name,
+			Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+		}, nil
 	}
 	if scenario.associate && agent {
 		before, err := registry.Get("tool-ext")
@@ -2561,17 +2605,23 @@ binding = { type = "url_query", name = "region" }
 	setCandidate()
 	var updated contract.ManagedExtensionUpdatePayload
 	if scenario.native {
+		deps.Workspaces = nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, workspaceRoot, workspaceID)
 		deps.Extensions = func() apicore.ExtensionService { return service }
 		nativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
-		body, marshalErr := json.Marshal(struct {
-			Name string `json:"name"`
-			contract.UpdateExtensionRequest
-		}{"tool-ext", updateRequest})
+		body, marshalErr := json.Marshal(extensionUpdateInput{
+			Name: "tool-ext", Scope: updateRequest.Scope, Profile: updateRequest.Profile,
+			Version: updateRequest.Version, CheckOnly: updateRequest.CheckOnly,
+			Inputs: updateRequest.Inputs, AllowUnverified: updateRequest.AllowUnverified,
+			ConfirmNetworkDigest: updateRequest.ConfirmNetworkDigest,
+		})
 		if marshalErr != nil {
 			t.Fatal(marshalErr)
 		}
-		result, callErr := nativeRegistry.Call(ctx, toolspkg.Scope{Operator: true, ProfileID: profileID, WorkspaceID: workspaceID},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsUpdate, Input: body})
+		result, callErr := nativeRegistry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true, ProfileID: profileID, WorkspaceID: workspaceID},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsUpdate, Input: body},
+		)
 		if callErr != nil {
 			t.Fatal(callErr)
 		}
@@ -2593,7 +2643,8 @@ binding = { type = "url_query", name = "region" }
 	}
 	if scenario.associate {
 		associated, err := registry.Get("tool-ext")
-		if err != nil || associated.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef || associated.Provenance.EntryID != "tool-ext" {
+		if err != nil || associated.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef ||
+			associated.Provenance.EntryID != "tool-ext" {
 			t.Fatalf("operator association did not persist the catalog origin: %v", err)
 		}
 	}
@@ -2625,8 +2676,16 @@ func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
 	deps, registry, source, runtime := newNativeExtensionToolDeps(t)
 	archive := nativeExtensionTarGz(t, "1.0.0")
 	digest := fmt.Sprintf("%x", sha256.Sum256(archive))
-	first := &marketplacepkg.Entry{EntryID: "tool-ext", InstallSlug: "acme/tool-ext", Version: "1.0.0",
-		DigestSHA256: digest, Tier: "official", Payload: json.RawMessage(`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`)}
+	first := &marketplacepkg.Entry{
+		EntryID:      "tool-ext",
+		InstallSlug:  "acme/tool-ext",
+		Version:      "1.0.0",
+		DigestSHA256: digest,
+		Tier:         "official",
+		Payload: json.RawMessage(
+			`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+		),
+	}
 	second := *first
 	if foreign {
 		second.EntryID = "other-tool-ext"
@@ -2663,7 +2722,11 @@ func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
 	var workers sync.WaitGroup
 	for _, ref := range []string{first.InstallSlug, second.InstallSlug} {
 		workers.Go(func() {
-			item, err := service.Install(ctx, contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceCurated, Ref: ref}, actor)
+			item, err := service.Install(
+				ctx,
+				contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceCurated, Ref: ref},
+				actor,
+			)
 			if err == nil && item.Name != "tool-ext" {
 				err = fmt.Errorf("installed name = %q", item.Name)
 			}
@@ -2687,7 +2750,12 @@ func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
 		wantConflicts = 1
 	}
 	if conflicts != wantConflicts || acquisitions.Load() != 2 || publications.Load() != 1 {
-		t.Fatalf("concurrent install: conflicts=%d acquisitions=%d publications=%d", conflicts, acquisitions.Load(), publications.Load())
+		t.Fatalf(
+			"concurrent install: conflicts=%d acquisitions=%d publications=%d",
+			conflicts,
+			acquisitions.Load(),
+			publications.Load(),
+		)
 	}
 	installed, err := registry.Get("tool-ext")
 	if err != nil {

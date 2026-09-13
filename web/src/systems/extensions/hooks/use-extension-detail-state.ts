@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { extensionInstallationScope } from "../lib/extension-installation-scope";
 import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
 import { extensionTrustFacts } from "../lib/extension-trust-facts";
 import {
@@ -65,6 +66,8 @@ export function useExtensionDetailState(
   const updateVariables = (allowUnverified: boolean): UpdateExtensionVariables | null => {
     if (!extension) return null;
     return {
+      ...extensionInstallationScope(extension),
+      scope: extension.workspace_id ? "workspace" : "global",
       allowUnverified,
       name: extension.name,
       version: options.updateVersion?.trim() || extension.remote_version?.trim() || undefined,

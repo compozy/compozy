@@ -88,7 +88,7 @@ func ReadManifestName(dir string) (string, error) {
 func readManifestContent(root string) ([]byte, string, error) {
 	path, layout, err := LocateManifest(root)
 	if err != nil {
-		if _, ok := errors.AsType[*NotManifestError](err); ok {
+		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
 			return nil, "", err
 		}
 		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}

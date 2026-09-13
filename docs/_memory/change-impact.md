@@ -128,6 +128,8 @@ Owning spec: `.compozy/tasks/session-context/_spec.md` (Part II §Impact Analysi
 
 ## Marketplace catalog — one kind, plugin marketplaces as sources
 
+Final review refresh correction: the canonical HTTP/UDS/CLI/native catalog envelope gains optional `refreshing`, owned by the daemon flight lifecycle and independent of stale/error aggregation. Generated OpenAPI/Web types and API docs co-ship; Web follows pending work across mixed healthy/failed sources. No config, hooks, SDK extension contract, stored state, scope or secret changes. The existing service HTTP/SQLite integration and Web query suites own completion/backoff checks.
+
 Task03 input recovery: the validated candidate manifest supplies `input_definitions` with missing IDs in `extension_inputs_required`. HTTP/UDS and native tools share acquisition error mapping; native partial updates retain `operation_error` with completed results. Generated OpenAPI/Web types, Web error adapters and the install guide co-ship. Clients retry the same scoped update; no second preview, source reconstruction, compatibility decoder, config change or persistence migration. Only absent declarations are exposed, never stored values or secret refs. Final input-dialog journeys remain with tasks09/10.
 
 
@@ -684,3 +686,14 @@ Source API errors retain suggested_name/retained_by/checked in CLI structured ou
 input exits 2. Catalog section view data preserves authoritative source order/counts independently
 of query matches. QA acquisition/parity journeys and source scenarios now follow the hard cut;
 existing extension instance removal keeps baseline exclusive-secret cleanup and shared-state safety.
+
+Marketplace final-review continuation: optional ExtensionPayload description and installation_profile
+co-ship through the existing OpenAPI/TypeScript/SDK generator. Description comes from the manifest;
+installation_profile identifies a persisted attachment, separately from the viewing profile. No SQLite
+shape changes. Missing optional attachment metadata does not invalidate a runtime snapshot; genuine
+read failures still propagate. Native install/update use the existing workspace selector and accept
+the approved Marketplace source, mapping to HTTP/UDS workspace_id through the common authorization
+boundary. Installed detail links preserve the captured profile/workspace; global and workspace axes
+remain independent. Web, installed docs and the owning QA scenario include authorization feedback,
+partial batch completion, local descriptions and scope. Existing extension lifecycle, manual MCPs,
+installed skill provenance, hooks and credential ownership remain under their original owners.

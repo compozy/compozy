@@ -86,6 +86,13 @@ function TopbarIdentity({
   const mark = slot?.glyph ?? glyph;
   const { visible, hidden } = collapseCrumbs(parents);
 
+  const count =
+    slot?.count !== undefined && slot.count !== null ? (
+      <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
+        {slot.count}
+      </span>
+    ) : null;
+
   if (drillIn) {
     return (
       <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-1">
@@ -163,6 +170,7 @@ function TopbarIdentity({
             {leaf}
           </TopbarTitle>
         </nav>
+        {count}
       </div>
     );
   }
@@ -185,11 +193,7 @@ function TopbarIdentity({
         </span>
       ) : null}
       <TopbarTitle titleRef={titleRef}>{leaf}</TopbarTitle>
-      {slot?.count !== undefined && slot.count !== null ? (
-        <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
-          {slot.count}
-        </span>
-      ) : null}
+      {count}
     </div>
   );
 }

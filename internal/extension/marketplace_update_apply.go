@@ -10,7 +10,7 @@ func applyResolvedMarketplaceUpdate(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 	resolution marketplaceUpdateResolution,

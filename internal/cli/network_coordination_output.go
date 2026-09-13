@@ -48,7 +48,7 @@ func coordinationOutputBundle(payload NetworkCoordinationRecord) outputBundle {
 				automationScopeKey,
 				taskTaskIDKey,
 				networkEnabledKey,
-				"revision",
+				cliRevisionKey,
 				automationUpdatedAtKey,
 				"updated_by",
 				"invitation_eligible",

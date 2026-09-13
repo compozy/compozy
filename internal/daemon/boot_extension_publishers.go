@@ -29,12 +29,12 @@ func extensionRuntimeHasRegisteredEntries(
 		return false
 	}
 
-	for _, info := range infos {
-		if !info.Enabled {
+	for infoIndex := range infos {
+		if !infos[infoIndex].Enabled {
 			continue
 		}
 
-		ext, err := runtime.Get(info.Name)
+		ext, err := runtime.Get(infos[infoIndex].Name)
 		if err != nil || ext == nil {
 			continue
 		}

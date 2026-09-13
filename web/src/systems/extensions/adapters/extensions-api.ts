@@ -281,7 +281,7 @@ export async function getExtensionInventory(
   return envelope;
 }
 
-/** A workspace selects a dev unlink when present; an absent workspace removes the global row. */
+/** Remove the selected published or dev instance in its owning workspace and profile. */
 export async function removeExtension(
   name: string,
   scope?: ExtensionInstanceScope,

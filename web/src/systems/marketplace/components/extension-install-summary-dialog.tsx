@@ -10,7 +10,9 @@ import {
 } from "@compozy/ui";
 
 import { ExtensionInstallSummary } from "./extension-install-dialog";
-import type { ExtensionInstallPreview } from "@/systems/extensions";
+import type { ExtensionInstallPreview, ExtensionInstallRequest } from "@/systems/extensions";
+
+import type { MarketplaceCatalogListing } from "../types";
 
 import { ExtensionInputFields } from "./extension-input-fields";
 import { useExtensionInputForm } from "./use-extension-input-form";
@@ -22,7 +24,12 @@ type SummaryDialogProps = {
   onConfirm: (draft: ExtensionInputDraft) => void;
   onOpenChange: (open: boolean) => void;
 } & (
-  | { action: "install"; preview: ExtensionInstallPreview }
+  | {
+      action: "install";
+      preview: ExtensionInstallPreview;
+      entry: MarketplaceCatalogListing;
+      destination: Pick<ExtensionInstallRequest, "scope" | "profile">;
+    }
   | { action: "update"; name: string; definitions: ExtensionInputDefinitions }
 );
 
@@ -61,15 +68,41 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
               <DialogDescription>
                 Provide the required inputs to update this extension.
               </DialogDescription>
-            ) : null}
+            ) : (
+              <DialogDescription>{props.entry.description}</DialogDescription>
+            )}
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-            {props.action === "install" ? (
+            {props.action === "install" &&
+            (props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0) ? (
               <ExtensionInstallSummary preview={props.preview} />
             ) : null}
             {hasInputs ? <ExtensionInputFields disabled={pending} form={form} /> : null}
+            {definitions.some(input => input.type === "secret") ? (
+              <p className="text-form-hint text-muted">
+                Secrets are stored in your vault. You can change them later from Installed.
+              </p>
+            ) : null}
+            {props.action === "install" ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
+                <dt className="text-muted">Scope</dt>
+                <dd data-testid="extension-install-destination">
+                  {props.destination.scope === "workspace"
+                    ? "Current workspace"
+                    : "Everywhere (global)"}
+                  {" · "}
+                  {props.destination.profile}
+                </dd>
+              </dl>
+            ) : null}
           </div>
           <DialogFooter variant="ruled">
+            {props.action === "install" ? (
+              <span className="mr-auto text-form-hint text-muted">
+                {props.entry.tier === "official" ? "Official" : "Community"}
+                {props.entry.trust?.checksum_verified ? " · checksum verified" : ""}
+              </span>
+            ) : null}
             <Button
               disabled={pending}
               onClick={() => onOpenChange(false)}

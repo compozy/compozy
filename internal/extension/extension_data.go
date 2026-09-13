@@ -33,7 +33,7 @@ type stagedExtensionData struct {
 }
 
 func stageAgentPluginDataForRemoval(
-	info ExtensionInfo, homePaths compozyconfig.HomePaths, ops extensionDataRemovalOps,
+	info *ExtensionInfo, homePaths compozyconfig.HomePaths, ops extensionDataRemovalOps,
 ) (*stagedExtensionData, error) {
 	data := &stagedExtensionData{ops: ops}
 	if normalizeExtensionFormat(info.Format) != FormatAgentPlugin {

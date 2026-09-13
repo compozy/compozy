@@ -30,6 +30,7 @@ describe("settings sections metadata", () => {
       "observability",
       "hooks",
       "extensions",
+      "marketplace",
     ]);
   });
 

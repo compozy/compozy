@@ -32,7 +32,7 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
   confirmNetworkDigest?: string;
 }
 
-export interface RemoveExtensionVariables {
+export interface RemoveExtensionVariables extends ExtensionInstanceScope {
   dev: boolean;
   name: string;
 }
@@ -109,13 +109,12 @@ export function useUpdateExtension() {
   });
 }
 
-/** Explicitly separates a workspace dev unlink from removal of the published installation. */
+/** Removes the selected attachment or unlinks its dev overlay using the same instance axes. */
 export function useRemoveExtension() {
   const queryClient = useQueryClient();
-  const scope = useExtensionInstanceScope();
   return useMutation({
-    mutationFn: ({ dev, name }: RemoveExtensionVariables) =>
-      removeExtension(name, dev ? scope : {}),
+    mutationFn: ({ name, workspaceId, profileName }: RemoveExtensionVariables) =>
+      removeExtension(name, { workspaceId, profileName }),
     onSuccess: (_data, { dev, name }) =>
       toast.success(dev ? `${name} dev overlay unlinked` : `${name} removed`),
     onError: (error: Error) => toast.error(error.message),

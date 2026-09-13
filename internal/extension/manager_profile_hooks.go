@@ -76,17 +76,16 @@ func (m *Manager) HookDeclarationsForProfiles(
 
 func (m *Manager) installedHooksForProfiles(ctx context.Context, profiles []ProfileLens) ([]hookspkg.HookDecl, error) {
 	decls := make([]hookspkg.HookDecl, 0)
-	for _, info := range m.List() {
+	infoValues := m.List()
+	for infoIndex := range infoValues {
 		for _, profile := range profiles {
-			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(info.Name), profile)
+			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(infoValues[infoIndex].Name), profile)
 			if errors.Is(err, ErrExtensionNotFound) {
 				continue
 			}
 			if err != nil {
 				return nil, fmt.Errorf(
-					"extension: project hooks for %q and profile %q: %w",
-					info.Name,
-					profile.Name,
+					"extension: project hooks for %q and profile %q: %w", infoValues[infoIndex].Name, profile.Name,
 					err,
 				)
 			}
@@ -94,9 +93,7 @@ func (m *Manager) installedHooksForProfiles(ctx context.Context, profiles []Prof
 				decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, "")
 				if err != nil {
 					return nil, fmt.Errorf(
-						"extension: bind hooks for %q and profile %q: %w",
-						info.Name,
-						profile.Name,
+						"extension: bind hooks for %q and profile %q: %w", infoValues[infoIndex].Name, profile.Name,
 						err,
 					)
 				}

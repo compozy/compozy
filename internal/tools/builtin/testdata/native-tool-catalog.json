@@ -707,7 +707,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "8a78965182d6a28ad7bfa918963e8d21e78626a97f444dc2658bc13f574e3c37",
+    "input_schema_digest": "b7bd9d6dc6e3b2efa50d4d4552fde889e9cf048c8e3a9d19f5d7d5082aae74e2",
     "output_schema_digest": "e33854024c730fa5d74795c36139d92b55ff66951cdf08efc67396704c34d88f"
   },
   {
@@ -824,7 +824,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "dbd1bd3ef516ddf163f51ca45d09a592a6da399da0b511e13af2614143861d1b",
+    "input_schema_digest": "36611336250b53ad96aec909b4a24002e396cb1b7e3ecb83e375417c3ce94295",
     "output_schema_digest": "3354ff3c6159df3c84e1e99f8c7ae84f0c9145f842c00f4f689338a37e8c2f70"
   },
   {

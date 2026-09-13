@@ -12,11 +12,13 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+const mcpDefinitionOwnerManual = "manual"
+
 // mcpSourceResource resolves diagnostic calls without a previously discovered resource ID.
 func mcpSourceResource(
-	ctx context.Context, state *bootState, source toolspkg.SourceRef,
+	ctx context.Context, state *bootState, source toolspkg.SourceRef, definitionOwner string,
 ) (toolspkg.SourceRef, bool, error) {
-	owner := strings.TrimSpace(source.MCPDefinitionOwner)
+	owner := strings.TrimSpace(definitionOwner)
 	name := strings.TrimSpace(firstNonEmpty(source.RawServerName, source.Owner))
 	if err := (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name, Owner: owner}).Normalize().
 		Validate(); err != nil {
@@ -28,11 +30,11 @@ func mcpSourceResource(
 	var selected resources.Record[compozyconfig.MCPServer]
 	best := 0
 	for _, record := range state.mcpServerCatalog.Snapshot() {
-		definitionOwner := "manual"
+		definitionOwner := mcpDefinitionOwnerManual
 		if record.Owner.Normalize().Kind == extensionResourceOwnerKind {
 			definitionOwner = "extension:" + record.Owner.Normalize().ID
 		}
-		if owner == "" && definitionOwner != "manual" {
+		if owner == "" && definitionOwner != mcpDefinitionOwnerManual {
 			continue
 		}
 		if owner != "" && owner != definitionOwner {
@@ -77,7 +79,7 @@ func mcpSourceResourceRank(
 	if requestedProfile == "" {
 		requestedProfile = store.DefaultProfileID
 	}
-	if profileID == "" && owner != "manual" {
+	if profileID == "" && owner != mcpDefinitionOwnerManual {
 		profileID = store.DefaultProfileID
 	}
 	if profileID != "" && profileID != requestedProfile {

@@ -54,6 +54,7 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
       <div className="@container flex min-w-0 flex-col gap-3.5">
         <MarketplaceResults
           actions={actions}
+          onAddMarketplace={addMarketplace.open}
           onClearSearch={strip.clear}
           onInstallFromGitHub={() => install.open("github")}
           page={page}

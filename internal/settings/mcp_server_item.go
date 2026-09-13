@@ -105,9 +105,9 @@ func mcpSecretEnvKeys(secretEnv map[string]string) []string {
 
 func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 	if value.Override != nil {
-		copy := *value.Override
-		copy.Env, copy.Headers = maps.Clone(copy.Env), maps.Clone(copy.Headers)
-		value.Override = &copy
+		override := *value.Override
+		override.Env, override.Headers = maps.Clone(override.Env), maps.Clone(override.Headers)
+		value.Override = &override
 	}
 	value.Args = append([]string(nil), value.Args...)
 	value.EnvKeys = append([]string(nil), value.EnvKeys...)

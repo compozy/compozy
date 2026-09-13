@@ -66,8 +66,8 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	}
 
 	var errs []error
-	for _, info := range infos {
-		if err := m.startInstalledPackage(ctx, info); err != nil {
+	for infoIndex := range infos {
+		if err := m.startInstalledPackage(ctx, &infos[infoIndex]); err != nil {
 			errs = append(errs, err)
 		}
 	}

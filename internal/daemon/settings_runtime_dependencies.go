@@ -86,7 +86,7 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 			))
 		}
 	}
-	if a.state.marketplace != nil {
+	if a.state.marketplace != nil && marketplaceConfigChanged(previous, next) {
 		if err := a.state.marketplace.ReconcileConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"marketplace_rollback",
@@ -139,7 +139,7 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 			))
 		}
 	}
-	if a.state.marketplace != nil {
+	if a.state.marketplace != nil && marketplaceConfigChanged(previous, next) {
 		if err := a.state.marketplace.ReconcileConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"marketplace",

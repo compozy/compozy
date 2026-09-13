@@ -18,7 +18,7 @@ func (p *PreparedMarketplaceManagedInstall) Origin() marketplacepkg.Origin {
 
 // ValidateReinstall refuses another classified origin and packages outside the managed root.
 // Associating an unclassified package with a listing requires operator authorization at the caller.
-func (p *PreparedMarketplaceManagedInstall) ValidateReinstall(info ExtensionInfo) error {
+func (p *PreparedMarketplaceManagedInstall) ValidateReinstall(info *ExtensionInfo) error {
 	origin := marketplacepkg.Origin{SourceRef: info.Provenance.SourceRef, EntryID: info.Provenance.EntryID}
 	if origin != (marketplacepkg.Origin{}) && origin != p.Origin() {
 		return &ExtensionNameConflictError{
@@ -48,7 +48,7 @@ func (p *PreparedMarketplaceManagedInstall) ValidateReinstall(info ExtensionInfo
 // Reinstall reuses the staged acquisition and update transaction, preserving existing attachments.
 // The caller holds the package lifecycle lock and authorizes unclassified-origin association.
 func (p *PreparedMarketplaceManagedInstall) Reinstall(
-	ctx context.Context, info ExtensionInfo, preflight MarketplaceUpdatePreflight,
+	ctx context.Context, info *ExtensionInfo, preflight MarketplaceUpdatePreflight,
 	commit MarketplaceUpdateCommit, rollback MarketplaceUpdateRollback, reload, complete MutationReload,
 ) ([]diagnosticcontract.DiagnosticItem, error) {
 	if p.committed {
@@ -63,7 +63,7 @@ func (p *PreparedMarketplaceManagedInstall) Reinstall(
 		Version: p.install.remoteVersion,
 	}
 	out, err := applyMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry: p.registry, info: info, installDir: p.install.finalDir,
+		registry: p.registry, info: *info, installDir: p.install.finalDir,
 		result: result, manifest: p.install.manifest, slug: p.install.slug,
 		registryName: p.install.detail.Source, latestVersion: p.install.remoteVersion,
 		provenance:      marketplaceInstallProvenance(p.install, p.request),
@@ -77,7 +77,7 @@ func (p *PreparedMarketplaceManagedInstall) Reinstall(
 }
 
 // MatchesInstalled identifies a retry of the same acquisition; callers still validate input readiness.
-func (p *PreparedMarketplaceManagedInstall) MatchesInstalled(info ExtensionInfo) bool {
+func (p *PreparedMarketplaceManagedInstall) MatchesInstalled(info *ExtensionInfo) bool {
 	return info.Checksum == p.install.checksum && info.Version == p.install.manifest.Version &&
 		info.Provenance.SourceRef == p.Origin().SourceRef && info.Provenance.EntryID == p.Origin().EntryID &&
 		info.Provenance.ArchiveDigestSHA256 == p.install.archiveDigest

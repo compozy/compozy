@@ -78,7 +78,7 @@ func windowManagerChangeBundle[T any](value T, summary windowManagerChangeSummar
 		},
 		toon: func() (string, error) {
 			return renderToonObject(summary.toonName, []string{
-				windowManagerRevisionFlag,
+				cliRevisionKey,
 				summary.stateField,
 				"desktop_changes",
 				"window_changes",

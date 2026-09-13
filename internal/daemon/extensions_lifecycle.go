@@ -47,7 +47,7 @@ func (s *daemonExtensionService) Install(
 	mutation := func() error {
 		if prepared.published != nil {
 			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
-				return s.reinstallPreparedExtension(ctx, prepared, *installed, req, actor, &item)
+				return s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item)
 			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
 				return readErr
 			}
@@ -71,7 +71,8 @@ func (s *daemonExtensionService) Install(
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
-	return item, s.notifyMarketplaceExtensionInstalled(ctx, item)
+	err = s.notifyMarketplaceExtensionInstalled(ctx, &item)
+	return item, err
 }
 
 func (s *daemonExtensionService) commitPreparedInstall(

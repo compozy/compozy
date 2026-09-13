@@ -28,12 +28,12 @@ func UpdateMarketplaceManaged(
 	}
 
 	items := make([]MarketplaceUpdateResult, 0, len(targets))
-	for _, info := range targets {
-		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, info, req, reload)
+	for infoIndex := range targets {
+		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, &targets[infoIndex], req, reload)
 		if err != nil {
-			item = failedMarketplaceUpdateResult(info, item, err)
+			item = failedMarketplaceUpdateResult(&targets[infoIndex], item, err)
 			items = append(items, item)
-			return items, newMarketplaceUpdateBatchError(info.Name, items, err)
+			return items, newMarketplaceUpdateBatchError(targets[infoIndex].Name, items, err)
 		}
 		items = append(items, item)
 	}
@@ -41,7 +41,7 @@ func UpdateMarketplaceManaged(
 }
 
 func failedMarketplaceUpdateResult(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	item MarketplaceUpdateResult,
 	cause error,
 ) MarketplaceUpdateResult {
@@ -94,7 +94,7 @@ func updateMarketplaceExtension(
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) (_ MarketplaceUpdateResult, err error) {
@@ -172,7 +172,7 @@ func resolveMarketplaceUpdateTrust(
 	return resolver(ctx, slug, version)
 }
 
-func marketplaceUpdateMetadata(info ExtensionInfo) (string, string, error) {
+func marketplaceUpdateMetadata(info *ExtensionInfo) (string, string, error) {
 	slug := dereferenceOptionalString(info.RegistrySlug)
 	if slug == "" {
 		return "", "", fmt.Errorf("extension: extension %q is missing registry slug metadata", info.Name)
@@ -185,7 +185,7 @@ func marketplaceUpdateMetadata(info ExtensionInfo) (string, string, error) {
 }
 
 func newMarketplaceUpdateResult(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	slug string,
 	registryName string,
 	currentVersion string,
@@ -206,7 +206,7 @@ func applyMarketplaceExtensionUpdate(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	req MarketplaceUpdateRequest,
 	resolution marketplaceUpdateResolution,
 	reload MutationReload,
@@ -230,7 +230,7 @@ func applyMarketplaceExtensionUpdate(
 		return marketplaceUpdateApplyResult{}, err
 	}
 	return applyMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry: registry, info: info, installDir: installDir, result: result, manifest: manifest,
+		registry: registry, info: *info, installDir: installDir, result: result, manifest: manifest,
 		slug: resolution.slug, registryName: resolution.registryName, latestVersion: resolution.latestVersion,
 		provenance:      marketplaceUpdateProvenance(info, result, manifest, req, resolution),
 		commitCandidate: req.CommitCandidate, rollbackCandidate: req.RollbackCandidate, reload: reload,
@@ -278,7 +278,7 @@ func installMarketplaceUpdateArchive(
 }
 
 func marketplaceUpdateProvenance(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	result *registrypkg.InstallResult,
 	manifest *Manifest,
 	req MarketplaceUpdateRequest,
@@ -360,9 +360,9 @@ func SelectMarketplaceUpdateTargets(
 			return nil, err
 		}
 		items := make([]ExtensionInfo, 0, len(infos))
-		for _, info := range infos {
-			if marketplaceExtensionInstalled(info) {
-				items = append(items, info)
+		for infoIndex := range infos {
+			if marketplaceExtensionInstalled(&infos[infoIndex]) {
+				items = append(items, infos[infoIndex])
 			}
 		}
 		return items, nil
@@ -385,7 +385,7 @@ func SelectMarketplaceUpdateTargets(
 		if err != nil {
 			return nil, err
 		}
-		if !marketplaceExtensionInstalled(*info) {
+		if !marketplaceExtensionInstalled(info) {
 			return nil, fmt.Errorf("extension: extension %q is not a marketplace-installed extension", info.Name)
 		}
 		seen[name] = struct{}{}
@@ -394,6 +394,6 @@ func SelectMarketplaceUpdateTargets(
 	return items, nil
 }
 
-func marketplaceExtensionInstalled(info ExtensionInfo) bool {
+func marketplaceExtensionInstalled(info *ExtensionInfo) bool {
 	return info.Source == SourceMarketplace && dereferenceOptionalString(info.RegistrySlug) != ""
 }

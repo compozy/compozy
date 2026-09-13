@@ -81,7 +81,7 @@ func (s *daemonExtensionService) previewExtension(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	networkDigest, networkConfirmationRequired, err := candidateNetworkConfirmationRequirement(ext.Info, ext.Manifest)
+	networkDigest, networkConfirmationRequired, err := candidateNetworkConfirmationRequirement(&ext.Info, ext.Manifest)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}

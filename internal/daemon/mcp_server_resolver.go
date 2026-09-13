@@ -18,16 +18,16 @@ import (
 func newDaemonMCPServerResolver(state *bootState) mcppkg.ServerResolver {
 	return mcppkg.ServerResolverFunc(func(
 		ctx context.Context,
-		source toolspkg.SourceRef,
+		source toolspkg.SourceRef, definitionOwner string,
 	) (mcppkg.ResolvedServer, error) {
-		return resolveDaemonMCPServer(ctx, state, source)
+		return resolveDaemonMCPServer(ctx, state, source, definitionOwner)
 	})
 }
 
 func resolveDaemonMCPServer(
 	ctx context.Context,
 	state *bootState,
-	source toolspkg.SourceRef,
+	source toolspkg.SourceRef, definitionOwner string,
 ) (mcppkg.ResolvedServer, error) {
 	if state == nil {
 		return mcppkg.ResolvedServer{}, errors.New("daemon: MCP runtime state is unavailable")
@@ -38,20 +38,20 @@ func resolveDaemonMCPServer(
 	}
 
 	if strings.TrimSpace(source.ResourceID) == "" {
-		resolved, found, err := mcpSourceResource(ctx, state, source)
+		resolved, found, err := mcpSourceResource(ctx, state, source, definitionOwner)
 		if err != nil {
 			return mcppkg.ResolvedServer{}, err
 		}
 		if found {
-			return resolveDaemonMCPServer(ctx, state, resolved)
+			return resolveDaemonMCPServer(ctx, state, resolved, definitionOwner)
 		}
-		if owner := strings.TrimSpace(source.MCPDefinitionOwner); owner != "" && owner != "manual" {
+		if owner := strings.TrimSpace(definitionOwner); owner != "" && owner != mcpDefinitionOwnerManual {
 			return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP definition %s/%s is unavailable", owner, name)
 		}
 	}
 
 	if strings.TrimSpace(source.ResourceID) != "" {
-		return resolveDaemonMCPResource(ctx, state, source, name)
+		return resolveDaemonMCPResource(ctx, state, source, name, definitionOwner)
 	}
 
 	for _, server := range state.cfg.MCPServers {
@@ -75,7 +75,7 @@ func resolveDaemonMCPServer(
 }
 
 func resolveDaemonMCPResource(
-	ctx context.Context, state *bootState, source toolspkg.SourceRef, name string,
+	ctx context.Context, state *bootState, source toolspkg.SourceRef, name string, definitionOwner string,
 ) (mcppkg.ResolvedServer, error) {
 	resourceID := strings.TrimSpace(source.ResourceID)
 	if state.mcpServerCatalog == nil {
@@ -92,7 +92,7 @@ func resolveDaemonMCPResource(
 		if err != nil {
 			return mcppkg.ResolvedServer{}, err
 		}
-		if owner := strings.TrimSpace(source.MCPDefinitionOwner); owner != "" && owner != target.Owner {
+		if owner := strings.TrimSpace(definitionOwner); owner != "" && owner != target.Owner {
 			return mcppkg.ResolvedServer{}, errors.New("daemon: MCP resource owner does not match source")
 		}
 		server, err := projectExtensionSecretHeaders(ctx, state, record, source.ProfileID)
@@ -114,7 +114,7 @@ func projectExtensionSecretHeaders(
 ) (compozyconfig.MCPServer, error) {
 	server := cloneDaemonMCPServer(record.Spec)
 	owner := record.Owner.Normalize()
-	server.Owner = "manual"
+	server.Owner = mcpDefinitionOwnerManual
 	if owner.Kind == extensionResourceOwnerKind {
 		server.Owner = "extension:" + owner.ID
 	}

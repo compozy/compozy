@@ -69,7 +69,7 @@ func removeManagedExtensionWithDataOps(
 		return ManagedRemoveResult{}, err
 	}
 	snapshot := managedRemovalSnapshot{info: *info, state: state}
-	installDir, err := InstalledExtensionDir(*info)
+	installDir, err := InstalledExtensionDir(info)
 	if err != nil {
 		return ManagedRemoveResult{}, err
 	}
@@ -84,23 +84,21 @@ func removeManagedExtensionWithDataOps(
 	if reload != nil {
 		if err := reload(ctx); err != nil {
 			return ManagedRemoveResult{}, rollbackManagedRemoval(
-				ctx, registry, snapshot, installDir, change, reload,
+				ctx, registry, &snapshot, installDir, change, reload,
 				fmt.Errorf("extension: reload after remove %q: %w", info.Name, err),
 			)
 		}
 	}
-	data, err := stageAgentPluginDataForRemoval(*info, homePaths, dataRemovalOps)
+	data, err := stageAgentPluginDataForRemoval(info, homePaths, dataRemovalOps)
 	if err != nil {
-		return ManagedRemoveResult{}, rollbackManagedRemoval(ctx, registry, snapshot, installDir, change, reload, err)
+		return ManagedRemoveResult{}, rollbackManagedRemoval(ctx, registry, &snapshot, installDir, change, reload, err)
 	}
 	if commit != nil {
 		if err := commit(ctx); err != nil {
 			restoreDataErr := data.rollback()
 			return ManagedRemoveResult{}, rollbackManagedRemoval(
 				ctx,
-				registry,
-				snapshot,
-				installDir,
+				registry, &snapshot, installDir,
 				change,
 				reload,
 				errors.Join(err, restoreDataErr),
@@ -123,7 +121,7 @@ func removeManagedExtensionWithDataOps(
 
 // InstalledExtensionDir returns the root directory for a persisted extension
 // registry row after validating the manifest path shape.
-func InstalledExtensionDir(info ExtensionInfo) (string, error) {
+func InstalledExtensionDir(info *ExtensionInfo) (string, error) {
 	manifestPath := filepath.Clean(strings.TrimSpace(info.ManifestPath))
 	if manifestPath == "" || manifestPath == "." {
 		return "", fmt.Errorf("extension: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
@@ -148,12 +146,12 @@ func InstalledExtensionDir(info ExtensionInfo) (string, error) {
 }
 
 func rollbackManagedRemoval(
-	ctx context.Context, registry RemovalRegistry, snapshot managedRemovalSnapshot, installDir string,
+	ctx context.Context, registry RemovalRegistry, snapshot *managedRemovalSnapshot, installDir string,
 	change *stagedExtensionDirChange, reload MutationReload, cause error,
 ) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()
-	restoreErr := restoreRemovedExtensionRecord(registry, snapshot.info, installDir, change)
+	restoreErr := restoreRemovedExtensionRecord(registry, &snapshot.info, installDir, change)
 	if restoreErr == nil {
 		restoreErr = registry.RestoreRemovalState(rollbackCtx, snapshot.info.Name, snapshot.state)
 	}

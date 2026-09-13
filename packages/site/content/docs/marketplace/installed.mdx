@@ -7,14 +7,17 @@ Open the installed count in Marketplace to reach `/marketplace/installed`. This 
 extensions installed from the catalog, GitHub, and local folders. It reads your local inventory,
 so catalog search, pagination, and source failures do not hide an installed extension.
 
-Each row shows its contents and current state. Use the switch to enable or disable an extension,
+Each row shows its description, contents, and current state. Local installations keep their manifest
+description even without a catalog entry. Workspace and profile labels identify where an installation
+or server applies; the selected viewing profile alone does not make a shared installation profile-scoped. Use the switch to enable or disable an extension,
 or open its menu for the available management actions. Select the row to inspect runtime details,
 diagnostics, and provenance. Installation, authorization, and runtime health are separate signals.
 
 ## Update
 
 When updates are available, the updates line shows their count. Update all attempts the eligible
-extensions and reports each result. A failed update does not undo another extension's successful
+extensions and reports each result. The line counts completed targets as each scoped request settles,
+and successfully updated rows flash once. A failed update does not undo another extension's successful
 update; inspect the failed row and retry it after resolving the error. A failed extension retains its
 previous installed version.
 

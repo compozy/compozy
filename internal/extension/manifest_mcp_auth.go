@@ -49,7 +49,7 @@ func validateManifestMCPAuth(server MCPServerConfig, field string) error {
 		}
 		return nil
 	case "oauth":
-		if server.Transport != "http" {
+		if server.Transport != forgeURLSchemeHTTP {
 			return fmt.Errorf("OAuth requires http transport")
 		}
 	default:

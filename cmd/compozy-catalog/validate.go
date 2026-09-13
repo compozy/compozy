@@ -25,8 +25,8 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 	if err := marketplace.ValidateCatalogDirectory(directory); err != nil {
 		return err
 	}
-	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
 	feedPath := filepath.Join(directory, "v3", "extensions.json")
+	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
 	raw, err := os.ReadFile(feedPath)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)

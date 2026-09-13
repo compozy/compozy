@@ -26,7 +26,7 @@ func sessionWaitBundle(outcome SessionWaitRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session_wait", []string{
-				sessionSessionIDKey, cliOutcomeKey, sessionStateKey, "waited_ms", "revision", "resume_id",
+				sessionSessionIDKey, cliOutcomeKey, sessionStateKey, "waited_ms", cliRevisionKey, "resume_id",
 			}, []string{
 				outcome.SessionID,
 				outcome.Outcome,

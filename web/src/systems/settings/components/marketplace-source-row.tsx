@@ -125,7 +125,9 @@ export function MarketplaceSourceRow({
         <div className="flex min-w-0 flex-col gap-1 px-3 pb-2.5 pl-8.5">
           {degraded ? (
             <p className="text-small-body text-fg" data-testid={`${testId}-sentence`}>
-              {marketplaceSourceDegradedSentence(source, origin)}
+              <span className="font-medium">
+                {marketplaceSourceDegradedSentence(source, origin)}
+              </span>
               {wasRead && source.plugins > 0 ? (
                 <>
                   {" "}
@@ -199,7 +201,7 @@ export function MarketplaceSourceRow({
             ) : null}
             {onRemove ? (
               <Button
-                className="ml-auto text-danger hover:text-danger"
+                className="text-danger hover:text-danger"
                 data-testid={`${testId}-remove`}
                 disabled={pending}
                 onClick={onRemove}

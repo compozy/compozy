@@ -4674,31 +4674,6 @@ type fakeWorkspaceResolver struct {
 	listed   []workspacepkg.Workspace
 }
 
-type mcpDefinitionRetirementCall struct {
-	workspaceID string
-	serverName  string
-}
-
-type recordingMCPDefinitionRetirer struct {
-	mu    sync.Mutex
-	calls []mcpDefinitionRetirementCall
-}
-
-func (r *recordingMCPDefinitionRetirer) ForgetMCPServer(workspaceID string, serverName string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.calls = append(r.calls, mcpDefinitionRetirementCall{
-		workspaceID: workspaceID,
-		serverName:  serverName,
-	})
-}
-
-func (r *recordingMCPDefinitionRetirer) Calls() []mcpDefinitionRetirementCall {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]mcpDefinitionRetirementCall(nil), r.calls...)
-}
-
 func (f fakeWorkspaceResolver) Resolve(
 	_ context.Context,
 	idOrNameOrPath string,
@@ -4797,22 +4772,6 @@ type fakeProviderSecretStore struct {
 	putErrors      map[string]error
 	deleteErrors   map[string]error
 	deleteErr      error
-}
-
-type panicMCPRuntimeProvider struct{}
-
-func (panicMCPRuntimeProvider) MCPServerRuntimeStatus(
-	context.Context,
-	mcpauth.Target,
-	compozyconfig.MCPServer,
-) (MCPServerRuntimeStatus, error) {
-	panic("MCP runtime probe must not run during catalog install")
-}
-
-type marketplaceInstallContextObservation struct {
-	err         error
-	deadline    time.Time
-	hasDeadline bool
 }
 
 func newFakeProviderSecretStore() *fakeProviderSecretStore {

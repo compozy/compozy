@@ -6,15 +6,18 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Removing an installed extension requires confirmation by its local name, updates the Installed list and catalog marker, and leaves the catalog entry installable when its source still publishes it. A same-name entry from another origin is unaffected.
 entry_points: /marketplace/installed row overflow; installed extension detail
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status: untested
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/inventory-after-workspace-removal.json
+last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-web-marketplace-installed-management; ET-web-extensions-manage; ET-web-marketplace-skill-install
 ---
+
+QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
+
 
 Marketplace catalog task 01 (2026-09-12): Cancel once, submit an incorrect name, then confirm the exact installed name. Check the inventory and catalog after success and after a failed removal. Return navigation must stay within the single catalog and Installed routes.
 

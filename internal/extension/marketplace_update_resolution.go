@@ -24,7 +24,7 @@ type marketplaceUpdateResolution struct {
 func resolveMarketplaceUpdate(
 	ctx context.Context,
 	loader MarketplaceSourceLoader,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	slug string,
 	registryName string,
 	currentVersion string,
@@ -32,7 +32,7 @@ func resolveMarketplaceUpdate(
 ) (marketplaceUpdateResolution, error) {
 	requestedVersion := strings.TrimSpace(req.Version)
 	if info.Provenance.SourceRef != "" && info.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef {
-		return resolvePluginMarketplaceUpdate(ctx, &info, req)
+		return resolvePluginMarketplaceUpdate(ctx, info, req)
 	}
 	trust, err := resolveCurrentMarketplaceTrust(ctx, info, req.ResolveTrust, slug, requestedVersion)
 	if err != nil {
@@ -108,7 +108,7 @@ func resolvePluginMarketplaceUpdate(
 
 func resolveCurrentMarketplaceTrust(
 	ctx context.Context,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	resolver MarketplaceTrustResolver,
 	slug string,
 	requestedVersion string,

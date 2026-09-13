@@ -4,11 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/resources"
-	skillspkg "github.com/compozy/compozy/internal/skills"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,11 +11,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func TestDescribeExtension(t *testing.T) {
 	t.Parallel()
+	t.Run("Should distinguish published workspace attachments from development links", func(t *testing.T) {
+		t.Parallel()
+		for _, development := range []bool{false, true} {
+			ext := &Extension{
+				Info:   ExtensionInfo{Name: "workspace-package", Source: SourceMarketplace, Enabled: true},
+				Status: ExtensionStatus{WorkspaceID: "workspace-a"},
+			}
+			if development {
+				ext.DevLink = &DevLink{OriginPath: "/workspace/package"}
+			}
+			payload := DescribeExtension(ext, true, time.Now())
+			if payload.Dev != development || payload.WorkspaceID != "workspace-a" {
+				t.Fatalf("development=%t: Dev=%t WorkspaceID=%q", development, payload.Dev, payload.WorkspaceID)
+			}
+		}
+	})
 
 	now := time.Date(2026, 4, 10, 18, 30, 0, 0, time.UTC)
 	tests := []struct {
@@ -289,13 +306,13 @@ func TestExtensionContents(t *testing.T) {
 	})
 	t.Run("Should project loaded resources for a disabled installed extension", func(t *testing.T) {
 		t.Parallel()
-		ext := &Extension{Info: ExtensionInfo{Name: "kit"}, Manifest: &Manifest{},
+		ext := &Extension{Info: ExtensionInfo{Name: "kit"}, Manifest: &Manifest{Description: "Local review tools"},
 			Skills: []*skillspkg.Skill{{Meta: skillspkg.SkillMeta{Name: "review"}}},
 			Loops:  []looppkg.ResourceSpec{{Name: "review"}}, Agents: []compozyconfig.AgentDef{{Name: "review"}},
 		}
 		want := contract.ExtensionContentsPayload{Skills: 1, Loops: 1, Agents: 1}
 		payload := DescribeExtension(ext, true, time.Time{})
-		if payload.Contents != want || payload.Enabled {
+		if payload.Contents != want || payload.Enabled || payload.Description != "Local review tools" {
 			t.Fatalf("DescribeExtension() = %#v", payload)
 		}
 	})
@@ -473,7 +490,7 @@ path = "loops"
 			t.Fatalf("canceled error=%v", err)
 		}
 		if err := os.WriteFile(
-			filepath.Join(fixture.dir, "skills/shared/one/SKILL.md"),
+			filepath.Join(fixture.dir, "skills", "shared", "one", "SKILL.md"),
 			[]byte("invalid skill"),
 			0o644,
 		); err != nil {

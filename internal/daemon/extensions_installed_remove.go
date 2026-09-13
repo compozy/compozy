@@ -11,6 +11,8 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const extensionRemovalStatusRemoved = "removed"
+
 func (s *daemonExtensionService) removeInstalledExtension(
 	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
 ) (contract.ManagedExtensionRemovePayload, error) {
@@ -62,7 +64,7 @@ func (s *daemonExtensionService) detachInstalledExtension(
 	if err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	path, err := extensionpkg.InstalledExtensionDir(*info)
+	path, err := extensionpkg.InstalledExtensionDir(info)
 	if err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
@@ -100,7 +102,7 @@ func (s *daemonExtensionService) detachInstalledExtension(
 		)
 	}
 	s.evictExtensionMCPHealth(name, scope.WorkspaceID)
-	return contract.ManagedExtensionRemovePayload{Name: name, Path: path, Status: "removed"},
+	return contract.ManagedExtensionRemovePayload{Name: name, Path: path, Status: extensionRemovalStatusRemoved},
 		s.paletteNotifier.NotifyExtensionChanged(ctx, scope.WorkspaceID, name)
 }
 

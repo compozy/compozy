@@ -62,8 +62,8 @@ func cloneStringMap(src map[string]string) map[string]string {
 	return dst
 }
 
-func cloneExtensionInfo(info ExtensionInfo) ExtensionInfo {
-	cloned := info
+func cloneExtensionInfo(info *ExtensionInfo) ExtensionInfo {
+	cloned := *info
 	cloned.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(info.Permissions)
 	cloned.IngestDiagnostics = cloneDiagnosticItems(info.IngestDiagnostics)

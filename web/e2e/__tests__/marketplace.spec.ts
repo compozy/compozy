@@ -115,6 +115,9 @@ test.describe("Marketplace source catalog", () => {
   }) => {
     const fixture = await createPluginMarketplaceFixture();
     try {
+      if (!runtime.paths) throw new Error("Plugin acquisition requires an isolated runtime");
+      const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+      const scopeQuery = `workspace=${encodeURIComponent(workspace.id)}&profile=default`;
       await ensureProjectWorkspace(appPage, runtime);
       await completeOnboardingIfPrompted(appPage);
       await appPage.goto(runtime.url("/marketplace"));
@@ -133,6 +136,9 @@ test.describe("Marketplace source catalog", () => {
       await appPage.getByTestId("extension-trust-confirm").click();
       await expect(appPage.getByTestId("extension-install-summary-dialog")).toBeVisible();
       await fixture.changePackage();
+      // A cached approved package is immutable and remains installable. Refresh publishes the
+      // changed package before submitting the old approval, exercising the listing digest fence.
+      await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
       const rejected = appPage.waitForResponse(
         response =>
           response.request().method() === "POST" &&
@@ -143,7 +149,7 @@ test.describe("Marketplace source catalog", () => {
       expect(conflict.status()).toBe(409);
       expect(await conflict.json()).toMatchObject({ code: "extension_source_changed" });
       const before = await runtime.requestJSON<{ extensions: Array<{ name: string }> }>(
-        "/api/extensions"
+        `/api/extensions?${scopeQuery}`
       );
       expect(before.extensions.some(item => item.name === fixture.instanceName)).toBe(false);
       await expect(appPage.getByTestId("extension-trust-dialog")).toBeVisible();
@@ -156,7 +162,7 @@ test.describe("Marketplace source catalog", () => {
       await appPage.getByTestId("extension-install-summary-confirm").click();
       expect((await installed).status()).toBe(201);
       const detail = await runtime.requestJSON<{ extension: { name: string; format: string } }>(
-        `/api/extensions/${fixture.instanceName}`
+        `/api/extensions/${fixture.instanceName}?${scopeQuery}`
       );
       expect(detail.extension).toMatchObject({
         name: fixture.instanceName,

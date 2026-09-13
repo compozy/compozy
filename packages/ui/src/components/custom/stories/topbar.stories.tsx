@@ -49,6 +49,7 @@ function DetailActionsSetup() {
     onBack: () => undefined,
     crumbs: [{ id: "loops", label: "Loops", onSelect: () => undefined }],
     crumb: "implement-tasks",
+    count: 6,
     actions: (
       <div className="flex items-center gap-2">
         <Button size="sm" variant="ghost">

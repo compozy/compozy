@@ -196,7 +196,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 		jsonValue, items, "Marketplace Results",
 		[]string{authoredContextSourceValue, "Entry", versionValue, cliInstalledValue, "Description"},
 		marketplaceSkillSource,
-		[]string{automationSourceKey, "entry_id", versionKey, marketplaceInstalledKey, "description"},
+		[]string{automationSourceKey, "entry_id", versionKey, marketplaceInstalledKey, cliDescriptionKey},
 		func(item MarketplaceListingRecord) []string {
 			return []string{
 				item.Source,
@@ -281,7 +281,7 @@ func marketplaceCatalogPageToon(page marketplaceCatalogPageRecord) string {
 	return renderToonObject(
 		listPageRecordType,
 		[]string{
-			"revision", listReturnedField, listTotalField, listNextCursorField,
+			cliRevisionKey, listReturnedField, listTotalField, listNextCursorField,
 			outputStaleKey, "error_class", automationErrorKey,
 		},
 		[]string{
@@ -318,7 +318,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 				[]string{
 					"entry_id",
 					automationNameKey,
-					extensionMarketplaceDescriptionKey,
+					cliDescriptionKey,
 					versionKey,
 					automationSourceKey,
 					marketplaceInstalledKey,

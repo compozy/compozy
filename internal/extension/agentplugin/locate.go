@@ -26,7 +26,7 @@ type NotManifestError struct {
 	Checked []string
 }
 
-var _ error = (*NotManifestError)(nil)
+var _ error = &NotManifestError{}
 
 func (e *NotManifestError) Error() string {
 	return fmt.Sprintf("no plugin manifest in %q; checked %s", e.Root, strings.Join(e.Checked, ", "))

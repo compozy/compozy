@@ -203,11 +203,11 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			{"bundle.named", profile.ID, "workspace-a", ""},
 		} {
 			resolved, err := resolveDaemonMCPServer(t.Context(), adapter.state, toolspkg.SourceRef{
-				RawServerName:      tc.name,
-				ProfileID:          tc.profileID,
-				WorkspaceID:        tc.workspaceID,
-				MCPDefinitionOwner: "extension:bundle",
-			})
+				RawServerName: tc.name,
+				ProfileID:     tc.profileID,
+				WorkspaceID:   tc.workspaceID,
+			}, "extension:bundle",
+			)
 			if tc.wantScope == "" {
 				if err == nil {
 					t.Fatalf("native scope isolation failed for %#v", tc)
@@ -295,7 +295,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		}})
 		state := &bootState{profiles: profiles, mcpServerCatalog: catalog}
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "github", ResourceID: "profile-server"}
-		resolved, err := resolveDaemonMCPServer(t.Context(), state, source)
+		resolved, err := resolveDaemonMCPServer(t.Context(), state, source, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -312,7 +312,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			t.Fatalf("Settings and runtime disagree on the profile credential identity: %v", err)
 		}
 		state.profiles = nil
-		if _, err := resolveDaemonMCPServer(t.Context(), state, source); err == nil {
+		if _, err := resolveDaemonMCPServer(t.Context(), state, source, ""); err == nil {
 			t.Fatal("missing profile catalog silently became an ID-based OAuth credential target")
 		}
 	})
@@ -339,7 +339,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		for _, entry := range []struct{ id, owner string }{{"manual", "manual"}, {"extension", "extension:github"}} {
 			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 				Kind: toolspkg.SourceMCP, RawServerName: "github", ResourceID: entry.id,
-			})
+			}, "")
 			if err != nil || resolved.Target.Owner != entry.owner {
 				t.Fatalf("resource %s lost its credential owner: %v", entry.id, err)
 			}
@@ -359,8 +359,9 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			{"github.github", "manual", ""},
 		} {
 			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
-				Kind: toolspkg.SourceMCP, RawServerName: tc.name, MCPDefinitionOwner: tc.owner,
-			})
+				Kind: toolspkg.SourceMCP, RawServerName: tc.name,
+			}, tc.owner,
+			)
 			if tc.want == "" {
 				if err == nil {
 					t.Fatalf("unexpected definition for %#v", tc)
@@ -406,7 +407,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			if source.ResourceID != "extension" {
 				continue
 			}
-			resolved, err := resolveDaemonMCPServer(t.Context(), state, source)
+			resolved, err := resolveDaemonMCPServer(t.Context(), state, source, "")
 			if err != nil || source.RawServerName != "github.github" || resolved.Target.ServerName != "github" ||
 				resolved.Target.Owner != "extension:github" {
 				t.Fatalf("runtime name entered credential identity: %#v %v", resolved.Target, err)
@@ -478,7 +479,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 				Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
 				ResourceID: tc.resourceID, Scope: "workspace", WorkspaceID: tc.workspaceID,
-			})
+			}, "")
 			if err != nil {
 				t.Fatalf("resolveDaemonMCPServer(%s) error = %v", tc.workspaceID, err)
 			}
@@ -494,7 +495,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 
 		global, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("resolveDaemonMCPServer(global) error = %v", err)
 		}
@@ -571,7 +572,7 @@ func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 		resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
 			ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("resolveDaemonMCPServer() error = %v", err)
 		}
@@ -609,7 +610,7 @@ func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 			stdio, err := resolveDaemonMCPServer(t.Context(), stdioState, toolspkg.SourceRef{
 				Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
 				ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
-			})
+			}, "")
 			if err != nil {
 				t.Fatalf("resolveDaemonMCPServer(stdio) error = %v", err)
 			}

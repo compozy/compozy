@@ -1013,7 +1013,7 @@ func TestExtensionSkillInstalledFrom(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := extensionSkillInstalledFrom(tt.info); got != tt.want {
+			if got := extensionSkillInstalledFrom(&tt.info); got != tt.want {
 				t.Fatalf("extensionSkillInstalledFrom() = %q, want %q", got, tt.want)
 			}
 		})

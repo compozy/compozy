@@ -106,7 +106,7 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 			if err != nil {
 				return nil, err
 			}
-			skill.InstalledFromExtension = extensionSkillInstalledFrom(ext.info)
+			skill.InstalledFromExtension = extensionSkillInstalledFrom(&ext.info)
 			loaded[skill.Meta.Name] = skill
 		}
 	}
@@ -118,7 +118,7 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 	return skills, nil
 }
 
-func extensionSkillInstalledFrom(info ExtensionInfo) string {
+func extensionSkillInstalledFrom(info *ExtensionInfo) string {
 	if info.RegistrySlug != nil {
 		if slug := strings.TrimSpace(*info.RegistrySlug); slug != "" {
 			return slug
@@ -149,7 +149,7 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 		for _, file := range files {
 			spec, _, err := looppkg.ParseResourceFile(file, looppkg.ResourceParseOptions{
 				Source:                 source,
-				InstalledFromExtension: extensionSkillInstalledFrom(ext.info),
+				InstalledFromExtension: extensionSkillInstalledFrom(&ext.info),
 			})
 			if err != nil {
 				return nil, err

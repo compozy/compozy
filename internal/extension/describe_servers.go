@@ -27,7 +27,7 @@ func extensionServerPayloads(ext *Extension, profileName string) []contract.Mark
 		if transport == "" {
 			transport = "stdio"
 			if config.URL != "" {
-				transport = "http"
+				transport = forgeURLSchemeHTTP
 			}
 		}
 		status := "unknown"

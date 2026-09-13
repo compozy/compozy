@@ -45,11 +45,11 @@ func NewExtensionModelSources(registry *Registry, resolver ModelSourceRuntimeRes
 		return nil, fmt.Errorf("extension: list model source extensions: %w", err)
 	}
 	sources := make([]modelcatalog.Source, 0, len(infos))
-	for _, info := range infos {
-		if !providesCapability(info.Capabilities.Provides, extensionprotocol.CapabilityProvideModelSource) {
+	for infoIndex := range infos {
+		if !providesCapability(infos[infoIndex].Capabilities.Provides, extensionprotocol.CapabilityProvideModelSource) {
 			continue
 		}
-		source, err := NewExtensionModelSource(info, resolver)
+		source, err := NewExtensionModelSource(&infos[infoIndex], resolver)
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +59,7 @@ func NewExtensionModelSources(registry *Registry, resolver ModelSourceRuntimeRes
 }
 
 // NewExtensionModelSource creates a daemon model catalog source for one extension.
-func NewExtensionModelSource(info ExtensionInfo, resolver ModelSourceRuntimeResolver) (*ModelSource, error) {
+func NewExtensionModelSource(info *ExtensionInfo, resolver ModelSourceRuntimeResolver) (*ModelSource, error) {
 	sourceID, err := modelcatalog.SourceKindExtensionID(info.Name)
 	if err != nil {
 		return nil, fmt.Errorf("extension: create model source for %q: %w", info.Name, err)

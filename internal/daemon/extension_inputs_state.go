@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+const extensionInputTypeSecret = "secret"
+
 type extensionInputReader struct {
 	inputs   extensioninput.Store
 	bindings extensionpkg.EnvBindingStore
@@ -44,7 +46,7 @@ func (r extensionInputReader) load(
 		return state, err
 	}
 	for _, binding := range bindings {
-		if binding.InputID == "" || preferStoredNonSecretInput(manifest, state, binding) {
+		if binding.InputID == "" || preferStoredInput(manifest, state, binding) {
 			continue
 		}
 		if err := r.addSecretState(ctx, &state, binding.InputID, binding); err != nil {
@@ -54,7 +56,8 @@ func (r extensionInputReader) load(
 	if manifest == nil || instance.ProfileID == "" {
 		return state, nil
 	}
-	return state, r.addRequiresEnvInputs(ctx, instance, manifest, &state)
+	err = r.addRequiresEnvInputs(ctx, instance, manifest, &state)
+	return state, err
 }
 
 func (r extensionInputReader) addRequiresEnvInputs(
@@ -69,7 +72,7 @@ func (r extensionInputReader) addRequiresEnvInputs(
 		return err
 	}
 	for _, input := range manifest.Inputs {
-		if input.Type != "secret" {
+		if input.Type != extensionInputTypeSecret {
 			continue
 		}
 		if _, found := state.Values[input.ID]; found {
@@ -87,17 +90,21 @@ func (r extensionInputReader) addRequiresEnvInputs(
 	return nil
 }
 
-func preferStoredNonSecretInput(
+func preferStoredInput(
 	manifest *extensionpkg.Manifest, state extensionpkg.InputState, binding extensionpkg.EnvBinding,
 ) bool {
 	row, exists := state.Values[binding.InputID]
 	if !exists {
 		return false
 	}
+	// A retired env name must not overwrite the current binding for the same input ID.
+	if row.Type == extensionInputTypeSecret {
+		return row.Active && binding.Inactive
+	}
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
 			if input.ID == binding.InputID {
-				return input.Type != "secret"
+				return input.Type != extensionInputTypeSecret
 			}
 		}
 	}
@@ -107,7 +114,11 @@ func preferStoredNonSecretInput(
 func (r extensionInputReader) addSecretState(
 	ctx context.Context, state *extensionpkg.InputState, id string, binding extensionpkg.EnvBinding,
 ) error {
-	record := extensionpkg.InputValueRecord{Type: "secret", Active: !binding.Inactive, UpdatedAt: binding.UpdatedAt}
+	record := extensionpkg.InputValueRecord{
+		Type:      extensionInputTypeSecret,
+		Active:    !binding.Inactive,
+		UpdatedAt: binding.UpdatedAt,
+	}
 	if r.secrets != nil {
 		metadata, err := r.secrets.GetMetadata(ctx, binding.SecretRef)
 		if err != nil && !errors.Is(err, vault.ErrSecretNotFound) {

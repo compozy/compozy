@@ -36,91 +36,117 @@ import (
 func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should enrich installed extension without browsing the capped catalog", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		sourceRef string
+		version   string
+		digest    string
+		update    bool
+	}{
+		{name: "Should enrich a curated extension without browsing the capped catalog", sourceRef: marketplacepkg.CompozyCatalogRef, version: "1.0.0", update: true},
+		{name: "Should keep a plugin with the same digest current despite a newer version label", sourceRef: "github:team/plugins", version: "1.0.0", digest: strings.Repeat("a", 64)},
+		{name: "Should detect changed plugin bytes even at the same version", sourceRef: "github:team/plugins", version: "1.2.0", digest: strings.Repeat("b", 64), update: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		entry := marketplaceEntryForTest()
-		browseCalled := false
-		detailEntryID := ""
-		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName: "http",
-			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{
-					{
-						Name:    "extension",
-						Version: "1.0.0",
-						Type:    "wasm",
-						Source:  "marketplace",
-						Origin: &contract.MarketplaceOriginPayload{
-							Source:    marketplacepkg.CompozyCatalogSource,
-							SourceRef: marketplacepkg.CompozyCatalogRef,
-							EntryID:   entry.EntryID,
+			entry := marketplaceEntryForTest()
+			var payload map[string]any
+			if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			payload["source_ref"] = tc.sourceRef
+			var err error
+			entry.Payload, err = json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			browseCalled := false
+			detailEntryID := ""
+			homePaths := testutil.NewTestHomePaths(t)
+			cfg := testConfigWithDisabledNetwork(homePaths)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName: "http",
+				Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					return []contract.ExtensionPayload{
+						{
+							Name:    "extension",
+							Version: tc.version,
+							Type:    "wasm",
+							Source:  "marketplace",
+							Origin: &contract.MarketplaceOriginPayload{
+								Source:    marketplacepkg.CompozyCatalogSource,
+								SourceRef: tc.sourceRef,
+								EntryID:   entry.EntryID,
+							},
+							Provenance: &contract.ExtensionProvenancePayload{
+								Slug: "acme/extension", CatalogEntryID: entry.EntryID, ArchiveDigestSHA256: tc.digest,
+							},
 						},
-						Provenance: &contract.ExtensionProvenancePayload{
-							Slug: "acme/extension", CatalogEntryID: entry.EntryID,
-						},
+					}, nil
+				}},
+				MarketplaceCatalog: marketplaceCatalogStub{
+					browseFn: func(
+						context.Context,
+						string,
+						int,
+					) (marketplacepkg.BrowseResult, error) {
+						browseCalled = true
+						return marketplacepkg.BrowseResult{}, errors.New("capped browse must not own the join")
 					},
-				}, nil
-			}},
-			MarketplaceCatalog: marketplaceCatalogStub{
-				browseFn: func(
-					context.Context,
-					string,
-					int,
-				) (marketplacepkg.BrowseResult, error) {
-					browseCalled = true
-					return marketplacepkg.BrowseResult{}, errors.New("capped browse must not own the join")
+					entryFn: func(_ context.Context, origin marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
+						if origin.SourceRef != tc.sourceRef {
+							t.Fatalf("source ref = %q, want %q", origin.SourceRef, tc.sourceRef)
+						}
+						detailEntryID = origin.EntryID
+						return &entry, nil
+					},
 				},
-				detailFn: func(
-					_ context.Context,
-					entryID string,
-				) (*marketplacepkg.Entry, error) {
-					detailEntryID = entryID
-					return &entry, nil
-				},
-			},
-			HomePaths: homePaths,
-			Config:    cfg,
-			Logger:    testutil.DiscardLogger(),
+				HomePaths: homePaths,
+				Config:    cfg,
+				Logger:    testutil.DiscardLogger(),
+			})
+			engine := gin.New()
+			engine.GET("/extensions", handlers.ListExtensions)
+
+			response := performRequest(t, engine, http.MethodGet, "/extensions", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+			}
+			var responsePayload struct {
+				Extensions []struct {
+					Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
+					UpdateAvailable bool                                `json:"update_available"`
+					RemoteVersion   string                              `json:"remote_version"`
+				} `json:"extensions"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &responsePayload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if browseCalled {
+				t.Fatal("list extensions browsed the capped marketplace catalog")
+			}
+			if detailEntryID != entry.EntryID {
+				t.Fatalf("detail entry id = %q, want %q", detailEntryID, entry.EntryID)
+			}
+			if len(responsePayload.Extensions) != 1 || responsePayload.Extensions[0].Marketplace == nil {
+				t.Fatalf("extensions = %#v, want one exact marketplace projection", responsePayload.Extensions)
+			}
+			listing := responsePayload.Extensions[0].Marketplace
+			if listing.EntryID != entry.EntryID || listing.Description != entry.Description ||
+				!listing.Installed || listing.InstalledVersion != tc.version || listing.UpdateAvailable != tc.update {
+				t.Fatalf("marketplace listing = %#v, want exact installed update projection", listing)
+			}
+			if responsePayload.Extensions[0].UpdateAvailable != tc.update ||
+				(tc.update && responsePayload.Extensions[0].RemoteVersion != entry.Version) {
+				t.Fatalf(
+					"extension update projection = %#v, want update to %q",
+					responsePayload.Extensions[0],
+					entry.Version,
+				)
+			}
 		})
-		engine := gin.New()
-		engine.GET("/extensions", handlers.ListExtensions)
-
-		response := performRequest(t, engine, http.MethodGet, "/extensions", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload struct {
-			Extensions []struct {
-				Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
-				UpdateAvailable bool                                `json:"update_available"`
-				RemoteVersion   string                              `json:"remote_version"`
-			} `json:"extensions"`
-		}
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-		if browseCalled {
-			t.Fatal("list extensions browsed the capped marketplace catalog")
-		}
-		if detailEntryID != entry.EntryID {
-			t.Fatalf("detail entry id = %q, want %q", detailEntryID, entry.EntryID)
-		}
-		if len(payload.Extensions) != 1 || payload.Extensions[0].Marketplace == nil {
-			t.Fatalf("extensions = %#v, want one exact marketplace projection", payload.Extensions)
-		}
-		listing := payload.Extensions[0].Marketplace
-		if listing.EntryID != entry.EntryID || listing.Description != entry.Description ||
-			!listing.Installed || listing.InstalledVersion != "1.0.0" || !listing.UpdateAvailable {
-			t.Fatalf("marketplace listing = %#v, want exact installed update projection", listing)
-		}
-		if !payload.Extensions[0].UpdateAvailable || payload.Extensions[0].RemoteVersion != entry.Version {
-			t.Fatalf("extension update projection = %#v, want update to %q", payload.Extensions[0], entry.Version)
-		}
-	})
-
+	}
 	t.Run("Should retain local inventory when exact catalog enrichment is unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -144,6 +170,7 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 			}},
 			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
 				context.Context,
+				string,
 				string,
 			) (*marketplacepkg.Entry, error) {
 				return nil, errors.Join(errors.New("catalog offline"), marketplacepkg.ErrEntryNotFound)
@@ -1033,7 +1060,8 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 						t.Fatalf("installed origin = %#v", payload.InstalledOrigin)
 					}
 				case diagnosticcontract.CodeExtensionSourceChanged:
-					if payload.ListedDigest != strings.Repeat("a", 64) || payload.FetchedDigest != strings.Repeat("b", 64) {
+					if payload.ListedDigest != strings.Repeat("a", 64) ||
+						payload.FetchedDigest != strings.Repeat("b", 64) {
 						t.Fatalf("source mismatch = %#v", payload)
 					}
 				case diagnosticcontract.CodeExtensionInputsRequired:
@@ -1395,14 +1423,19 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 					if string(req.Inputs["team"].Value) != `"updated-team"` {
 						t.Fatal("update lost typed input")
 					}
-					return contract.ManagedExtensionUpdatePayload{Name: name, Status: extensionpkg.MarketplaceUpdateStatusUpdated}, nil
+					return contract.ManagedExtensionUpdatePayload{
+						Name:   name,
+						Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+					}, nil
 				},
 				updateBatchFn: func(_ context.Context, req contract.UpdateExtensionsRequest, _ taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error) {
 					assertScope(req.Scope, req.WorkspaceID, req.Profile)
 					if len(req.Names) != 1 || string(req.Inputs["team"].Value) != `"updated-team"` {
 						t.Fatal("batch lost selected input")
 					}
-					return []contract.ManagedExtensionUpdatePayload{{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated}}, nil
+					return []contract.ManagedExtensionUpdatePayload{
+						{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated},
+					}, nil
 				},
 			}
 			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
@@ -1410,7 +1443,9 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			engine.POST("/extensions/update", handlers.UpdateExtensions)
 			engine.PUT("/extensions/:name", handlers.UpdateExtension)
 			for _, route := range []string{"/extensions/tool-ext", "/extensions/update"} {
-				body := []byte(`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`)
+				body := []byte(
+					`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`,
+				)
 				method := http.MethodPost
 				if route == "/extensions/tool-ext" {
 					method = http.MethodPut
@@ -1430,7 +1465,8 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			t.Parallel()
 			assertRequest := func(request contract.InstallExtensionRequest) {
 				t.Helper()
-				if request.Scope != "workspace" || request.WorkspaceID != "ws-install" || request.Profile != "marketing" ||
+				if request.Scope != "workspace" || request.WorkspaceID != "ws-install" ||
+					request.Profile != "marketing" ||
 					string(request.Inputs["team"].Value) != `"selected-team"` {
 					t.Fatalf("scoped install request = %#v", request)
 				}
@@ -1438,7 +1474,11 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			service := extensionServiceStub{
 				installFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 					assertRequest(req)
-					return contract.ExtensionPayload{Name: "scoped-package", Profile: req.Profile, WorkspaceID: req.WorkspaceID}, nil
+					return contract.ExtensionPayload{
+						Name:        "scoped-package",
+						Profile:     req.Profile,
+						WorkspaceID: req.WorkspaceID,
+					}, nil
 				},
 				previewInstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
 					assertRequest(req)
@@ -1449,7 +1489,9 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			engine := gin.New()
 			engine.POST("/extensions", handlers.InstallExtension)
 			engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
-			body := []byte(`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`)
+			body := []byte(
+				`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`,
+			)
 			for _, route := range []string{"/extensions", "/extensions/preview-install"} {
 				response := performRequest(t, engine, http.MethodPost, route, body)
 				wantStatus := http.StatusOK

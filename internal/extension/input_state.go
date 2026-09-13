@@ -40,7 +40,7 @@ func (r Readiness) RequiredError(manifest *Manifest) error {
 	var definitions []ManifestInput
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
-			if input.Binding.Type == "env" && slices.Contains(r.MissingEnv, input.Binding.Name) {
+			if input.Binding.Type == manifestEnvKey && slices.Contains(r.MissingEnv, input.Binding.Name) {
 				missing = append(missing, input.ID)
 			}
 			if slices.Contains(missing, input.ID) {
@@ -98,7 +98,7 @@ func InputReadiness(manifest *Manifest, state InputState, getenv func(string) st
 	satisfiedEnv := make(map[string]bool)
 	for _, input := range manifest.Inputs {
 		_, _, present, err := effectiveInputValue(input, state, getenv)
-		if input.Binding.Type == "env" {
+		if input.Binding.Type == manifestEnvKey {
 			satisfiedEnv[input.Binding.Name] = present && err == nil
 			if input.Required && !satisfiedEnv[input.Binding.Name] {
 				result.MissingEnv = append(result.MissingEnv, input.Binding.Name)
@@ -130,7 +130,7 @@ func effectiveInputValue(
 		if record.Type != input.Type {
 			return "", "", false, &InputValidationError{input.ID, "stored type does not match the manifest"}
 		}
-		if input.Type == "secret" {
+		if input.Type == manifestInputTypeSecret {
 			if strings.TrimSpace(record.SecretRef) == "" {
 				return "", "", false, &InputValidationError{input.ID, "stored secret reference is empty"}
 			}
@@ -149,13 +149,13 @@ func effectiveInputValue(
 		}
 		return value, "", true, nil
 	}
-	if input.Binding.Type == "env" {
+	if input.Binding.Type == manifestEnvKey {
 		if getenv == nil {
 			getenv = os.Getenv
 		}
 		raw := getenv(input.Binding.Name)
 		if strings.TrimSpace(raw) != "" {
-			if input.Type == "secret" {
+			if input.Type == manifestInputTypeSecret {
 				return "", "env:" + input.Binding.Name, true, nil
 			}
 			value, err := marketplace.NormalizeMCPInputValue(input.Type, raw)
@@ -173,7 +173,7 @@ func typedInputValue(inputType string, raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return "", errors.New("value must be valid JSON")
 	}
-	if inputType == "boolean" {
+	if inputType == manifestInputTypeBoolean {
 		flag, ok := value.(bool)
 		if !ok {
 			return "", errors.New("value must be a boolean")
@@ -192,7 +192,7 @@ func typedInputValue(inputType string, raw json.RawMessage) (string, error) {
 
 // NormalizeInputJSON validates a supplied value and keeps booleans as JSON booleans.
 func NormalizeInputJSON(inputType string, raw json.RawMessage) (json.RawMessage, error) {
-	if inputType == "secret" {
+	if inputType == manifestInputTypeSecret {
 		var value string
 		if err := json.Unmarshal(raw, &value); err != nil || strings.TrimSpace(value) == "" {
 			return nil, errors.New("secret must be a non-empty string")
@@ -206,7 +206,7 @@ func NormalizeInputJSON(inputType string, raw json.RawMessage) (json.RawMessage,
 	if err != nil {
 		return nil, err
 	}
-	if inputType == "boolean" {
+	if inputType == manifestInputTypeBoolean {
 		return json.RawMessage(value), nil
 	}
 	return json.Marshal(value)

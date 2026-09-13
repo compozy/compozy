@@ -77,7 +77,8 @@ func TestPluginCatalogInstallability(t *testing.T) {
 					t.Fatalf("real loader projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
 				}
 				detail, err := marketplace.ProjectEntry(entries[0])
-				if err != nil || detail.Extension.Contents.Skills != tc.skills ||
+				if err != nil || detail.Extension.InstanceName != tc.name ||
+					detail.Extension.Contents.Skills != tc.skills ||
 					detail.Extension.Contents.MCPServers != tc.servers {
 					t.Fatalf("real package contents = %+v, %v", detail, err)
 				}

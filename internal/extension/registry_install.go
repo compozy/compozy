@@ -41,7 +41,7 @@ func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum s
 	if err != nil {
 		return err
 	}
-	return r.persistInstalledInfo(info, sourceText, config.replaceExisting, config.scope)
+	return r.persistInstalledInfo(&info, sourceText, config.replaceExisting, config.scope)
 }
 
 func applyInstallOptions(config *installConfig, opts ...InstallOption) {
@@ -223,7 +223,7 @@ func registryInstallInfo(
 }
 
 func (r *Registry) persistInstalledInfo(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	sourceText string,
 	replaceExisting bool,
 	scope *InstallationScope,
@@ -343,7 +343,7 @@ type installedInfoJSONFields struct {
 	provenance   []byte
 }
 
-func marshalInstalledInfoFields(info ExtensionInfo) (installedInfoJSONFields, error) {
+func marshalInstalledInfoFields(info *ExtensionInfo) (installedInfoJSONFields, error) {
 	values := installedInfoJSONFields{}
 	fields := []struct {
 		name  string

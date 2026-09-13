@@ -123,14 +123,16 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	m.mu.RLock()
-	byName := make(map[string]ExtensionInfo, len(m.extensions)+len(m.devExtensions))
+	byName := make(map[string]*ExtensionInfo, len(m.extensions)+len(m.devExtensions))
 	for name, ext := range m.extensions {
-		byName[name] = cloneExtensionInfo(ext.info)
+		snapshot := cloneExtensionInfo(&ext.info)
+		byName[name] = &snapshot
 	}
 	if workspaceID != "" {
 		for key, ext := range m.devExtensions {
 			if key.WorkspaceID == workspaceID {
-				byName[key.Name] = ext.info
+				snapshot := ext.info
+				byName[key.Name] = &snapshot
 			}
 		}
 	}
@@ -151,7 +153,7 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 				}
 			}
 		}
-		infos = append(infos, info)
+		infos = append(infos, *info)
 	}
 	slices.SortFunc(infos, func(left, right ExtensionInfo) int {
 		return strings.Compare(left.Name, right.Name)
@@ -163,8 +165,8 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 func (m *Manager) StatusesForWorkspace(workspaceID string) []ExtensionStatus {
 	infos := m.ListForWorkspace(workspaceID)
 	statuses := make([]ExtensionStatus, 0, len(infos))
-	for _, info := range infos {
-		snapshot, err := m.GetForInstance(InstanceKey{Name: info.Name, WorkspaceID: workspaceID})
+	for infoIndex := range infos {
+		snapshot, err := m.GetForInstance(InstanceKey{Name: infos[infoIndex].Name, WorkspaceID: workspaceID})
 		if err == nil {
 			statuses = append(statuses, snapshot.Status)
 		}

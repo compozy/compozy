@@ -56,7 +56,11 @@ func marketplaceCatalogEntryOperation() OperationSpec {
 		Tags:        []string{specMarketplaceKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			queryParam("source", "Catalog source name; defaults to the Compozy catalog", false),
+			queryParam(
+				"source",
+				"Catalog source name; omitted searches the Compozy catalog, then registration order",
+				false,
+			),
 			pathParam("entry_id", "Stable URL-safe marketplace entry id"),
 			queryParam(
 				"installed_name",

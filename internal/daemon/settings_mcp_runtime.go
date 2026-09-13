@@ -103,7 +103,7 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 	return mcppkg.NewMCPCallExecutor(
 		mcppkg.ServerResolverFunc(func(
 			context.Context,
-			toolspkg.SourceRef,
+			toolspkg.SourceRef, string,
 		) (mcppkg.ResolvedServer, error) {
 			return mcppkg.ResolvedServer{Server: server, Target: target}, nil
 		}),

@@ -1,6 +1,23 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-import type { MarketplaceCatalogListing } from "../types";
+import type { ExtensionInstallPreview } from "@/systems/extensions";
+import type { ExtensionInstallRequest, MarketplaceCatalogListing } from "../types";
+
+export interface MarketplaceInstallPreview {
+  entry: MarketplaceCatalogListing;
+  preview: ExtensionInstallPreview;
+  request: ExtensionInstallRequest;
+}
+
+export const marketplaceInstallPreviewLogic = createStoreLogic({
+  context: { selected: null as MarketplaceInstallPreview | null },
+  on: {
+    previewLoaded: (_context, event: { selected: MarketplaceInstallPreview }) => ({
+      selected: event.selected,
+    }),
+    previewDismissed: () => ({ selected: null }),
+  },
+});
 
 /** Explicit-consent gate for an `allowed_unverified` catalog entry, in daemon order. */
 export type MarketplaceActionControllerPhase =

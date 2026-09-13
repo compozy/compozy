@@ -1,14 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useSelector, useStore } from "@xstate/store-react";
+import { useSelector } from "@xstate/store-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   extensionTrustFacts,
+  extensionUpdateScope,
+  extensionsListOptions,
   ExtensionNetworkConfirmDialog,
   previewExtensionInstall,
-  type ExtensionInstallPreview,
+  useExtensionInstanceScope,
   type InstalledExtensionView,
   useToggleExtension,
 } from "@/systems/extensions";
@@ -22,7 +24,11 @@ import { marketplaceCatalogEntryOptions } from "../lib/query-options";
 import { marketplaceOriginKey } from "../lib/marketplace-installed-view";
 import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
-import { marketplaceActionControllerLogic } from "./marketplace-action-controller-logic";
+import { useStoreBinding } from "@/hooks/use-store-binding";
+import {
+  marketplaceActionControllerLogic,
+  marketplaceInstallPreviewLogic,
+} from "./marketplace-action-controller-logic";
 import {
   formatMarketplaceVersion,
   marketplaceEntrySlug,
@@ -44,6 +50,7 @@ interface MarketplaceActionController {
   toggleEnabled: (item: InstalledExtensionView, enabled: boolean) => void;
   endEntryFlash: (entry: MarketplaceCatalogListing) => void;
   endItemFlash: (item: InstalledExtensionView) => void;
+  flashItem: (item: InstalledExtensionView) => void;
   isEntryFlashing: (entry: MarketplaceCatalogListing) => boolean;
   isEntryPending: (entry: MarketplaceCatalogListing) => boolean;
   isItemFlashing: (item: InstalledExtensionView) => boolean;
@@ -52,12 +59,6 @@ interface MarketplaceActionController {
     items: readonly InstalledExtensionView[],
     action: () => Promise<T>
   ) => Promise<T>;
-}
-
-interface InstallPreview {
-  entry: MarketplaceCatalogListing;
-  preview: ExtensionInstallPreview;
-  request: ExtensionInstallRequest;
 }
 
 function installedName(entry: MarketplaceCatalogListing): string {
@@ -70,9 +71,13 @@ function installedName(entry: MarketplaceCatalogListing): string {
 /** Use the listed source and digest for this catalog acquisition. */
 function catalogInstallRequest(
   entry: MarketplaceCatalogListing,
-  allowUnverified: boolean
+  allowUnverified: boolean,
+  destination: ReturnType<typeof useExtensionInstanceScope>
 ): ExtensionInstallRequest {
   return {
+    profile: destination.profileName,
+    scope: destination.workspaceId ? "workspace" : "global",
+    ...(destination.workspaceId ? { workspace_id: destination.workspaceId } : {}),
     allow_unverified: allowUnverified,
     expected_digest: entry.digest_sha256,
     ref: marketplaceEntrySlug(entry),
@@ -92,6 +97,7 @@ function updatedToast(name: string, version: string | null | undefined) {
  * local installed name, never by display name.
  */
 function useMarketplaceActionController(): MarketplaceActionController {
+  const destination = useExtensionInstanceScope();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const entryActions = useRef(new Set<string>());
@@ -101,17 +107,25 @@ function useMarketplaceActionController(): MarketplaceActionController {
   const pending = useMarketplacePending();
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
   const { runUpdate } = updateFlow;
-  const [installPreview, setInstallPreview] = useState<InstallPreview | null>(null);
+  const { store: acquisition } = useStoreBinding(
+    JSON.stringify([destination.profileName, destination.workspaceId]),
+    () => ({
+      trust: marketplaceActionControllerLogic.createStore(),
+      preview: marketplaceInstallPreviewLogic.createStore(),
+    })
+  );
+  const installPreview = useSelector(acquisition.preview, snapshot => snapshot.context.selected);
   const [installedTrust, setInstalledTrust] = useState<InstalledExtensionView | null>(null);
-  const store = useStore(marketplaceActionControllerLogic);
+  const store = acquisition.trust;
   const phase = useSelector(store, snapshot => snapshot.context);
   const trustEntry =
     phase.status === "extensionTrust" || phase.status === "extensionTrustSubmitting"
       ? phase.entry
       : null;
 
-  const viewInstalledToast = (message: string) => {
+  const viewInstalledToast = (message: string, needsAuthorization: boolean) => {
     toast.success(message, {
+      ...(needsAuthorization ? { description: "Needs authorization before it can run" } : {}),
       action: {
         label: "View installed →",
         onClick: () => void navigate({ search: {}, to: "/marketplace/installed" }),
@@ -144,9 +158,9 @@ function useMarketplaceActionController(): MarketplaceActionController {
   };
 
   const loadInstallPreview = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
-    const request = catalogInstallRequest(entry, allowUnverified);
+    const request = catalogInstallRequest(entry, allowUnverified, destination);
     const preview = await previewExtensionInstall(request);
-    setInstallPreview({ entry, preview, request });
+    acquisition.preview.trigger.previewLoaded({ selected: { entry, preview, request } });
   };
 
   const previewInstall = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
@@ -154,19 +168,41 @@ function useMarketplaceActionController(): MarketplaceActionController {
       await loadInstallPreview(entry, allowUnverified);
     } catch (error) {
       if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
-      setInstallPreview(null);
+      acquisition.preview.trigger.previewDismissed();
       reportFailure(error, "The extension changed. Review the current package before installing.");
       await reopenCurrentInstall(entry);
     }
   };
 
   const install = (entry: MarketplaceCatalogListing) => {
-    if (entry.trust?.decision === "blocked" || entry.installable === false) return;
+    if (entry.name_conflict || entry.trust?.decision === "blocked" || entry.installable === false)
+      return;
     if (entry.trust?.decision === "allowed_unverified") {
       store.trigger.extensionTrustRequested({ entry });
       return;
     }
     void withPendingEntry(entry, () => previewInstall(entry, false));
+  };
+
+  const catalogUpdateRequest = async (
+    entry: MarketplaceCatalogListing,
+    allowUnverified: boolean
+  ) => {
+    const name = installedName(entry);
+    const inventory = await queryClient.fetchQuery({
+      ...extensionsListOptions(destination),
+      staleTime: 0,
+    });
+    const extension = inventory.find(item => item.name === name);
+    if (!extension) throw new Error(`Installed identity is unavailable for ${entry.name}`);
+    return {
+      name,
+      body: {
+        ...extensionUpdateScope(extension),
+        allow_unverified: allowUnverified,
+        version: entry.version,
+      },
+    };
   };
 
   const update = (entry: MarketplaceCatalogListing) => {
@@ -175,10 +211,8 @@ function useMarketplaceActionController(): MarketplaceActionController {
       return;
     }
     void withPendingEntry(entry, async () => {
-      const done = await runUpdate(
-        entry.name,
-        { body: { allow_unverified: false, version: entry.version }, name: installedName(entry) },
-        action => pending.trackEntry(entry, action)
+      const done = await runUpdate(entry.name, await catalogUpdateRequest(entry, false), action =>
+        pending.trackEntry(entry, action)
       );
       if (done) updatedToast(entry.name, entry.version);
     });
@@ -190,7 +224,14 @@ function useMarketplaceActionController(): MarketplaceActionController {
     void withPendingItem(item, async () => {
       const done = await runUpdate(
         name,
-        { body: { allow_unverified: allowUnverified, version }, name },
+        {
+          body: {
+            ...extensionUpdateScope(item.extension),
+            allow_unverified: allowUnverified,
+            version,
+          },
+          name,
+        },
         action => pending.trackItem(item, action)
       );
       setInstalledTrust(current => (current === item ? null : current));
@@ -224,13 +265,8 @@ function useMarketplaceActionController(): MarketplaceActionController {
       execute: entry =>
         pending.trackEntry(entry, async () => {
           if (entry.update_available) {
-            return runUpdate(
-              entry.name,
-              {
-                body: { allow_unverified: true, version: entry.version },
-                name: installedName(entry),
-              },
-              action => pending.trackEntry(entry, action)
+            return runUpdate(entry.name, await catalogUpdateRequest(entry, true), action =>
+              pending.trackEntry(entry, action)
             );
           }
           await previewInstall(entry, true);
@@ -243,6 +279,8 @@ function useMarketplaceActionController(): MarketplaceActionController {
     const options = marketplaceCatalogEntryOptions({
       entryId: previous.entry_id,
       source: previous.source,
+      profileName: destination.profileName,
+      workspaceId: destination.workspaceId,
     });
     await queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
     const { entry } = await queryClient.fetchQuery({ ...options, staleTime: 0 });
@@ -251,7 +289,7 @@ function useMarketplaceActionController(): MarketplaceActionController {
         "The catalog entry now belongs to another origin. Review it before installing."
       );
     }
-    if (entry.trust?.decision === "blocked" || entry.installable === false) {
+    if (entry.name_conflict || entry.trust?.decision === "blocked" || entry.installable === false) {
       throw new Error(entry.install_blocker || "This extension can no longer be installed.");
     }
     if (entry.trust?.decision === "allowed_unverified") {
@@ -268,15 +306,21 @@ function useMarketplaceActionController(): MarketplaceActionController {
     if (!prepared.valid) return;
     void withPendingEntry(selected.entry, async () => {
       try {
-        await installExtension.mutateAsync({
+        const { extension } = await installExtension.mutateAsync({
           ...selected.request,
           ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
           ...(selected.preview.network_requirement_digest
             ? { confirm_network_digest: selected.preview.network_requirement_digest }
             : {}),
         });
+        acquisition.preview.trigger.previewDismissed();
+        pending.flashEntry(selected.entry);
+        viewInstalledToast(
+          `${selected.entry.name} installed`,
+          extension.mcp_servers.some(server => server.status === "needs_authorization")
+        );
       } catch (error) {
-        setInstallPreview(null);
+        acquisition.preview.trigger.previewDismissed();
         if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
         reportFailure(
           error,
@@ -285,9 +329,6 @@ function useMarketplaceActionController(): MarketplaceActionController {
         await reopenCurrentInstall(selected.entry);
         return;
       }
-      setInstallPreview(null);
-      pending.flashEntry(selected.entry);
-      viewInstalledToast(`${selected.entry.name} installed`);
     });
   };
 
@@ -353,11 +394,13 @@ function useMarketplaceActionController(): MarketplaceActionController {
           onConfirm={confirmInstall}
           onOpenChange={open => {
             if (!open && !entryActions.current.has(marketplaceOriginKey(installPreview.entry)))
-              setInstallPreview(null);
+              acquisition.preview.trigger.previewDismissed();
           }}
           open
           pending={pending.isEntryPending(installPreview.entry)}
           preview={installPreview.preview}
+          entry={installPreview.entry}
+          destination={installPreview.request}
         />
       ) : null}
     </>
@@ -367,6 +410,7 @@ function useMarketplaceActionController(): MarketplaceActionController {
     dialogs,
     endEntryFlash: pending.endEntryFlash,
     endItemFlash: pending.endItemFlash,
+    flashItem: pending.flashItem,
     install,
     isEntryFlashing: pending.isEntryFlashing,
     isEntryPending: pending.isEntryPending,

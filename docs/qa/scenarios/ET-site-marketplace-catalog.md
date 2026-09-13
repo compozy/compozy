@@ -6,15 +6,18 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: /marketplace renders one searchable extension catalog from v3, including the 17 packaged MCP servers and three existing extensions. Direct /marketplace/<entry_id> details show actual metadata, inputs, provenance and current extension commands. Retired kind paths are not found. Bundled resources and bridge-provider setup remain separate and usable. No old feed fallback, invented runtime state, popularity or secret values appear.
 entry_points: compozy.com /marketplace; /marketplace/context7; /marketplace/herdr-bridge; /marketplace/bridges; /marketplace/bundled/spec-cycle
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status: untested
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-mcp.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-github.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/api-marketplace-mcp-final.json
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/site-readback.json
+last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-site-docs-single-tree-ia
 ---
+
+QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
+
 
 Marketplace catalog task02 (2026-09-13): validate only v3 and the actual 20 package entries.
 Verify search, direct detail links, icon fallback, typed input prompts, preserved existing

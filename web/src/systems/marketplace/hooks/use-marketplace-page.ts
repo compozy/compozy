@@ -58,7 +58,7 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     diagnostic: first?.error,
     catalogError: catalog.error ?? unavailable,
     installedError: inventory.error,
-    isLoading: catalog.isPending,
+    isLoading: catalog.isPending || Boolean(first?.refreshing && first.total === 0),
     isInstalledLoading: inventory.isPending,
     isRefreshing: refresh.isPending || catalog.isRefetching,
     refresh: refreshCatalog,
@@ -73,9 +73,12 @@ export function useMarketplaceInstalledPage(query = "", liveDataEnabled = true) 
   const needle = query.trim().normalize("NFC").toLocaleLowerCase();
   const items = inventory.data
     .filter(item =>
-      [item.extension.name, item.listing?.name, item.listing?.description].some(value =>
-        value?.normalize("NFC").toLocaleLowerCase().includes(needle)
-      )
+      [
+        item.extension.name,
+        item.extension.description,
+        item.listing?.name,
+        item.listing?.description,
+      ].some(value => value?.normalize("NFC").toLocaleLowerCase().includes(needle))
     )
     .sort((left, right) => installedDisplayName(left).localeCompare(installedDisplayName(right)));
   return {

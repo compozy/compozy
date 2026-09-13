@@ -3,6 +3,20 @@ import type { RouteStoryRegistryEntry } from "./route-story-types";
 export const settingsRouteStories = [
   {
     system: "settings",
+    routePath: "/settings/marketplace",
+    storybookPath: "/settings/marketplace",
+    title: "systems/settings/routes/SettingsMarketplace",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
+    routePath: "/settings/mcp",
+    storybookPath: "/settings/mcp",
+    title: "systems/settings/routes/McpServers",
+    storyName: "Matrix",
+  },
+  {
+    system: "settings",
     routePath: "/settings",
     storybookPath: "/settings",
     title: "systems/settings/routes/SettingsShell",

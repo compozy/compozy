@@ -408,7 +408,8 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		for range 12 {
 			wg.Go(func() {
 				page, err := service.Browse(ctx, "", 0, 10)
-				if err != nil || len(page.Entries) != 1 || page.Entries[0].EntryID != "old" || !page.Stale {
+				if err != nil || len(page.Entries) != 1 || page.Entries[0].EntryID != "old" || !page.Stale ||
+					!page.Refreshing {
 					t.Errorf("cached page = %+v, %v", page, err)
 				}
 			})
@@ -426,8 +427,46 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		page, err := service.Browse(ctx, "", 0, 10)
-		if err != nil || page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "new" {
+		if err != nil || page.Stale || page.Refreshing || len(page.Entries) != 1 || page.Entries[0].EntryID != "new" {
 			t.Fatalf("refreshed page = %+v, %v", page, err)
+		}
+	})
+
+	t.Run("Should follow a refresh that finishes while the cached snapshot is read", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		catalog := &browseInterceptStore{Store: openMarketplaceTestStore(t)}
+		started, release := make(chan struct{}), make(chan struct{})
+		source := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			close(started)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			return testDocument(at, testEntry("new", "New", "refreshed")), nil
+		}}
+		service := newMarketplaceTestService(t, catalog, source, at, nil)
+		if _, err := service.Browse(t.Context(), "", 0, 10); err != nil {
+			t.Fatal(err)
+		}
+		<-started
+		service.flightMu.Lock()
+		flight := service.byName[CompozyCatalogSource].flight
+		service.flightMu.Unlock()
+		catalog.afterBrowse = func() {
+			close(release)
+			if _, err := awaitRefreshFlight(t.Context(), flight); err != nil {
+				t.Fatal(err)
+			}
+		}
+		pending, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || !pending.Refreshing || len(pending.Entries) != 0 {
+			t.Fatalf("snapshot preceding completion = %+v, err=%v", pending, err)
+		}
+		settled, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || settled.Refreshing || len(settled.Entries) != 1 || source.calls.Load() != 1 {
+			t.Fatalf("snapshot after completion = %+v, err=%v", settled, err)
 		}
 	})
 
@@ -953,6 +992,57 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 // Owner: catalog aggregation and refresh lifecycle; canonical suite: service_test.go (UT-002/003/067/073).
 func TestCatalogServiceSources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve unqualified detail in source order and keep explicit selection exact", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		var bindings []SourceBinding
+		for _, name := range []string{CompozyCatalogSource, "z-first", "a-second"} {
+			kind, ref := SourceKindCustom, "github:team/"+name
+			if name == CompozyCatalogSource {
+				kind, ref = SourceKindFeed, CompozyCatalogRef
+			}
+			bindings = append(bindings, SourceBinding{
+				Config: ResolvedSource{Name: name, Ref: ref, Kind: kind, Enabled: true},
+				Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
+					entries := []Entry{testEntry("shared", "Shared", name)}
+					if kind != SourceKindFeed {
+						entries = append(entries, testEntry("plugin", "Plugin", name))
+					}
+					return testDocument(at, entries...), nil
+				}},
+			})
+		}
+		service, err := NewService(t.Context(), openMarketplaceTestStore(t), bindings, time.Hour, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for _, query := range []struct{ source, id, want string }{
+			{"", "shared", CompozyCatalogSource}, {"", "plugin", "z-first"},
+			{"a-second", "plugin", "a-second"},
+		} {
+			entry, err := service.Detail(t.Context(), query.source, query.id)
+			if err != nil || entry.SourceName != query.want {
+				t.Fatalf("detail(%q,%q) = %+v, %v", query.source, query.id, entry, err)
+			}
+		}
+		if _, err := service.Detail(t.Context(), CompozyCatalogSource, "plugin"); !errors.Is(err, ErrEntryNotFound) {
+			t.Fatalf("explicit source fell through: %v", err)
+		}
+		for _, binding := range bindings {
+			if binding.Fetcher.(*recordingSource).calls.Load() != 1 {
+				t.Fatal("detail performed a remote fetch")
+			}
+		}
+	})
+
 	t.Run("Should reject retained source names without changing the active projection", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -1326,4 +1416,21 @@ func TestCatalogServiceSources(t *testing.T) {
 			)
 		}
 	}
+}
+
+type browseInterceptStore struct {
+	Store
+	afterBrowse func()
+}
+
+func (s *browseInterceptStore) BrowseSources(
+	ctx context.Context, sources []string, query string, offset, limit int,
+) (BrowseResult, error) {
+	page, err := s.Store.BrowseSources(ctx, sources, query, offset, limit)
+	if s.afterBrowse != nil {
+		after := s.afterBrowse
+		s.afterBrowse = nil
+		after()
+	}
+	return page, err
 }

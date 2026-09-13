@@ -25,7 +25,7 @@ func settingsMCPAuthOperations() []OperationSpec {
 			{Status: 200, Description: "OK", Body: success},
 			{Status: 400, Description: "Invalid MCP OAuth request or session", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: settingsMCPNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "MCP OAuth runtime is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		}

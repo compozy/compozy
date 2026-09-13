@@ -6,11 +6,11 @@ import (
 	"fmt"
 )
 
-func (m *Manager) startInstalledPackage(ctx context.Context, info ExtensionInfo) error {
+func (m *Manager) startInstalledPackage(ctx context.Context, info *ExtensionInfo) error {
 	key := GlobalInstanceKey(info.Name)
 	ext := &managedExtension{
 		key:     key,
-		info:    info,
+		info:    *info,
 		phase:   ExtensionPhaseDiscover,
 		logRing: m.logRingFor(key),
 	}

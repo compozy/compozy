@@ -477,7 +477,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		resolvedRefs := make(chan string, 1)
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{Server: server, Target: target}, nil
 			}),
 			WithTokenStore(store),
@@ -605,7 +605,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		resolver := ServerResolverFunc(func(
 			_ context.Context,
-			source toolspkg.SourceRef,
+			source toolspkg.SourceRef, _ string,
 		) (ResolvedServer, error) {
 			switch source.ResourceID {
 			case "mcp-workspace-a":
@@ -2050,7 +2050,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-path-miss", ServerName: server.Name,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
@@ -2086,7 +2086,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-a", ServerName: server.Name,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
@@ -2131,7 +2131,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			Name: healthKey.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: failedURL,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				serverMu.RLock()
 				resolved := server
 				serverMu.RUnlock()
@@ -2178,7 +2178,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-input", ServerName: "fixture",
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				resolved := compozyconfig.MCPServer{
 					Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
 				}
@@ -2629,6 +2629,27 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 }
 
 func TestMCPCallExecutorHelpers(t *testing.T) {
+	t.Run("Should preserve the explicit definition owner through auth diagnostics", func(t *testing.T) {
+		t.Parallel()
+		server := compozyconfig.MCPServer{Name: "github", Owner: "extension:bundle", Command: "test-mcp"}
+		executor := newTestMCPExecutor(t, server)
+		executor.servers = ServerResolverFunc(
+			func(_ context.Context, source toolspkg.SourceRef, owner string) (ResolvedServer, error) {
+				if owner != "extension:bundle" || source.RawServerName != "github" {
+					t.Fatalf("diagnostic selection = %q/%q", owner, source.RawServerName)
+				}
+				target := userMCPExecutorTarget(server.Name)
+				target.Owner = owner
+				return ResolvedServer{Server: server, Target: target}, nil
+			},
+		)
+		status, err := executor.Status(testContext(t), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "github", RawServerName: "github",
+		}, "extension:bundle")
+		if err != nil || status.Owner != "extension:bundle" || status.ServerName != "github" {
+			t.Fatalf("diagnostic status = %#v, error = %v", status, err)
+		}
+	})
 	t.Run("Should Return Redacted Status And Use Secret Lookup Internally", func(t *testing.T) {
 		t.Parallel()
 
@@ -2663,7 +2684,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Kind:          toolspkg.SourceMCP,
 			Owner:         "secure",
 			RawServerName: "secure",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
@@ -2692,7 +2713,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Kind:          toolspkg.SourceMCP,
 			Owner:         "plain",
 			RawServerName: "plain",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("Status(unconfigured) error = %v", err)
 		}
@@ -2719,7 +2740,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			ToolID: "mcp__github__echo",
 		})
 		requireReason(t, err, toolspkg.ReasonCallCanceled)
-		_, err = executor.Status(nilContext, toolspkg.SourceRef{RawServerName: "github"})
+		_, err = executor.Status(nilContext, toolspkg.SourceRef{RawServerName: "github"}, "")
 		requireReason(t, err, toolspkg.ReasonCallCanceled)
 		_, err = executor.ListTools(testContext(t), toolspkg.SourceRef{RawServerName: "missing"})
 		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
@@ -3464,7 +3485,7 @@ func newTestMCPExecutor(
 	t.Helper()
 
 	executor, err := NewMCPCallExecutor(
-		ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+		ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 			return ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil
 		}),
 		options...,

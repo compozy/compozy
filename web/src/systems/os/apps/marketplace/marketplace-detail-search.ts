@@ -23,7 +23,7 @@ export function validateMarketplaceDetailSearch(
       ? search.scope
       : undefined;
   const workspaceId = scope !== "user" ? optionalText(search.workspace_id) : undefined;
-  const profile = scope === "profile" ? optionalText(search.profile) : undefined;
+  const profile = optionalText(search.profile);
   return {
     installed_name: optionalText(search.installed_name),
     scope,

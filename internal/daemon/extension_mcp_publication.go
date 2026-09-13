@@ -22,7 +22,7 @@ func extensionMCPPublicationPreparer(state *bootState) func(context.Context, []t
 				if item.owner != nil && item.owner.Normalize().Kind == extensionResourceOwnerKind {
 					extensions = append(extensions, item)
 				} else {
-					item.spec.Owner, item.spec.RuntimeName = "manual", item.spec.Name
+					item.spec.Owner, item.spec.RuntimeName = mcpDefinitionOwnerManual, item.spec.Name
 					manual = append(manual, item)
 				}
 			}
@@ -75,7 +75,7 @@ func prepareExtensionMCPPublication(
 		return fmt.Errorf("daemon: allocate extension MCP %s/%s: %w", target.Extension, target.ServerName, err)
 	}
 	item.spec.Owner, item.spec.RuntimeName = "extension:"+target.Extension, record.RuntimeName
-	item.spec, err = record.Override.Apply(item.spec)
+	item.spec, err = record.Apply(item.spec)
 	return err
 }
 

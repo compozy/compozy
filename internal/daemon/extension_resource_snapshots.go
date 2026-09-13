@@ -49,11 +49,11 @@ func extensionResourceSnapshots(
 		return strings.Compare(left.Name, right.Name)
 	})
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos))
-	for _, info := range infos {
-		if !info.Enabled {
+	for infoIndex := range infos {
+		if !infos[infoIndex].Enabled {
 			continue
 		}
-		snapshot, loadErr := installedDefaultProfileResourceSnapshot(registry, runtime, logger, info.Name)
+		snapshot, loadErr := installedDefaultProfileResourceSnapshot(registry, runtime, logger, infos[infoIndex].Name)
 		if errors.Is(loadErr, extensionpkg.ErrExtensionNotFound) {
 			continue
 		}
@@ -232,11 +232,11 @@ func installedExtensionProfileSnapshots(
 	profiles []extensionpkg.ProfileLens,
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos)*len(profiles))
-	for _, info := range infos {
+	for infoIndex := range infos {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
 				ctx,
-				extensionpkg.GlobalInstanceKey(info.Name),
+				extensionpkg.GlobalInstanceKey(infos[infoIndex].Name),
 				profile,
 			)
 			if errors.Is(projectErr, extensionpkg.ErrExtensionNotFound) {
@@ -244,8 +244,7 @@ func installedExtensionProfileSnapshots(
 			}
 			if projectErr != nil {
 				return nil, fmt.Errorf(
-					"daemon: project installed extension %q for profile %q: %w",
-					info.Name,
+					"daemon: project installed extension %q for profile %q: %w", infos[infoIndex].Name,
 					profile.Name,
 					projectErr,
 				)
@@ -338,14 +337,18 @@ func workspaceExtensionKeys(ctx context.Context, registry *extensionpkg.Registry
 		return nil, err
 	}
 	seen := make(map[extensionpkg.InstanceKey]bool)
-	for _, info := range infos {
-		installations, err := registry.Installations(ctx, info.Name)
+	for infoIndex := range infos {
+		installations, err := registry.Installations(ctx, infos[infoIndex].Name)
 		if err != nil {
 			return nil, err
 		}
 		for _, installation := range installations {
 			if installation.Scope.WorkspaceID != "" {
-				seen[(extensionpkg.InstanceKey{Name: info.Name, WorkspaceID: installation.Scope.WorkspaceID}).Normalize()] = true
+				key := extensionpkg.InstanceKey{
+					Name:        infos[infoIndex].Name,
+					WorkspaceID: installation.Scope.WorkspaceID,
+				}
+				seen[key.Normalize()] = true
 			}
 		}
 	}

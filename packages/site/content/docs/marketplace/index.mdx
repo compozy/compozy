@@ -31,7 +31,10 @@ GET /api/marketplace/entries/herdr-bridge?source=compozy-catalog
 A page contains `items`, the filtered `total`, `sources`, `revision`, and `stale`, plus `next_cursor`
 when more entries remain. Pass the cursor unchanged with the same query, profile, and workspace.
 If the server returns `marketplace_cursor_stale` with `restart: true`, discard the earlier pages and
-start again. Identical refreshes retain the content revision.
+start again. Identical refreshes retain the content revision. While `refreshing` is true,
+read the complete catalog again to observe pending source work; one failed source does not
+stop another source from finishing. When `refreshing` is absent or false, pending work has
+settled, even if `stale` and source errors remain.
 
 An entry is identified by `(source_ref, entry_id)`. Installed state joins on that origin, not a display
 name. Use `installed_name` when selecting a specific local installation. Entries without catalog

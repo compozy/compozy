@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/extensionmcp"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/extensionmcp"
 
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/store"
@@ -192,7 +193,7 @@ func TestMCPAuthOwnerIsolation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			secretVault, err := db.VaultRepo.vaultService()
+			secretVault, err := db.vaultService()
 			if err != nil {
 				t.Fatal(err)
 			}

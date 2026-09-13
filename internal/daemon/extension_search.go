@@ -110,11 +110,11 @@ func (s *daemonExtensionService) enrichExtensionSearchUpdates(items []contract.E
 		}
 		return
 	}
-	bySlug := make(map[string]extensionpkg.ExtensionInfo, len(installed))
-	for _, info := range installed {
-		slug := strings.TrimSpace(dereferenceDaemonExtensionString(info.RegistrySlug))
+	bySlug := make(map[string]*extensionpkg.ExtensionInfo, len(installed))
+	for infoIndex := range installed {
+		slug := strings.TrimSpace(dereferenceDaemonExtensionString(installed[infoIndex].RegistrySlug))
 		if slug != "" {
-			bySlug[slug] = info
+			bySlug[slug] = &installed[infoIndex]
 		}
 	}
 	for index := range items {

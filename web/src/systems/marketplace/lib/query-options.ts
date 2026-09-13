@@ -16,6 +16,9 @@ export function marketplaceCatalogOptions(options: MarketplaceCatalogOptions = {
   return queryOptions({
     queryKey: marketplaceKeys.catalog(options),
     queryFn: ({ signal }) => readMarketplaceSnapshot(options, signal),
+    // Follow every daemon-owned flight, including healthy sources beside degraded ones.
+    refetchInterval: query =>
+      query.state.data?.pages.some(page => page.refreshing) ? 1_000 : false,
     staleTime: MARKETPLACE_STALE_TIME,
     retry: (failures, error) =>
       !(error instanceof MarketplaceApiError && error.status < 500) && failures < 2,

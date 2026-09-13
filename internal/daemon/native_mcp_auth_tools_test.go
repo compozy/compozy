@@ -133,7 +133,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if provider.source.MCPDefinitionOwner != "extension:github" {
+			if provider.owner != "extension:github" {
 				t.Fatalf("source lost owner: %#v", provider.source)
 			}
 			var payload struct {
@@ -361,6 +361,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 type nativeMCPAuthStatusProvider struct {
 	status                  toolspkg.MCPAuthStatus
 	source                  toolspkg.SourceRef
+	owner                   string
 	err                     error
 	preserveEmptyServerName bool
 }
@@ -386,9 +387,10 @@ func (s *nativeMCPSettingsService) ListCollection(
 
 func (p *nativeMCPAuthStatusProvider) Status(
 	_ context.Context,
-	source toolspkg.SourceRef,
+	source toolspkg.SourceRef, definitionOwner string,
 ) (toolspkg.MCPAuthStatus, error) {
 	p.source = source
+	p.owner = definitionOwner
 	if p.err != nil {
 		return toolspkg.MCPAuthStatus{}, p.err
 	}

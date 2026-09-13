@@ -84,3 +84,8 @@ export {
 export { extensionsListOptions } from "./lib/query-options";
 export { previewExtensionInstall } from "./adapters/extensions-api";
 export { extensionFixtures } from "./mocks/fixtures";
+
+export {
+  extensionInstallationScope,
+  extensionUpdateScope,
+} from "./lib/extension-installation-scope";

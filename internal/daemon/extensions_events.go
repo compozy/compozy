@@ -339,7 +339,7 @@ func (s *daemonExtensionService) extensionRemovalSummary(
 	actor taskpkg.ActorContext, name, workspaceID string,
 ) (store.EventSummary, error) {
 	payload := extensionLifecycleEventPayload{
-		Name: name, Status: "removed", WorkspaceID: workspaceID,
+		Name: name, Status: extensionRemovalStatusRemoved, WorkspaceID: workspaceID,
 		ActorKind: string(actor.Actor.Kind.Normalize()), ActorID: strings.TrimSpace(actor.Actor.Ref),
 		OriginKind: string(actor.Origin.Kind.Normalize()), OriginRef: strings.TrimSpace(actor.Origin.Ref),
 	}

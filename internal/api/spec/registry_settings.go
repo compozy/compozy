@@ -3,6 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
+	settingsMCPNotFoundDescription       = "MCP server or workspace not found"
 	settingsUpdateUnavailableDescription = "Update surface unavailable"
 	specInvalidSettingsScopeDescription  = "Invalid settings scope"
 )
@@ -445,7 +446,7 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: settingsMCPNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting MCP server change", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -457,7 +458,7 @@ func settingsMCPServerParameters() []ParameterSpec {
 	parameters = append(parameters, settingsLayeredParameters()...)
 	parameters = append(
 		parameters,
-		queryParam("owner", "Select manual or extension:<name>; omitted owner resolves manual first", false),
+		queryParam("owner", "Select manual or extension:<name>; omitted owner selects manual servers only", false),
 	)
 	return append(parameters, enumQueryParam(
 		"target",

@@ -45,7 +45,7 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrInstallSlugInvalid
 		}
 		ref = strings.ToLower(name) + "/" + entryID
-		plugin, err = s.resolveMarketplacePlugin(ctx, ref, version)
+		plugin, err = s.resolveMarketplacePlugin(ctx, ref)
 		if err != nil {
 			return extensionpkg.MarketplaceInstallRequest{}, err
 		}
@@ -58,6 +58,9 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 				plugin.Record.DigestSHA256,
 			)
 			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+		if version != "" && version != plugin.Record.Version {
+			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrEntryNotFound
 		}
 	}
 	sourceFilter := string(req.Source)
@@ -153,7 +156,7 @@ func (s *daemonExtensionService) marketplaceTrustResolver() extensionpkg.Marketp
 }
 
 func (s *daemonExtensionService) resolveMarketplacePlugin(
-	ctx context.Context, slug, version string,
+	ctx context.Context, slug string,
 ) (*extensionpkg.MarketplacePluginAcquisition, error) {
 	if s == nil || s.marketplaceCatalog == nil {
 		return nil, marketplacepkg.ErrEntryNotFound
@@ -170,7 +173,7 @@ func (s *daemonExtensionService) resolveMarketplacePlugin(
 	if err != nil {
 		return nil, err
 	}
-	if entry == nil || (version != "" && version != entry.Version) {
+	if entry == nil {
 		return nil, marketplacepkg.ErrEntryNotFound
 	}
 	return s.marketplacePluginFromEntry(*entry)

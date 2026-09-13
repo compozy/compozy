@@ -158,7 +158,7 @@ func TestManualMCPPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
 		executor, err := mcppkg.NewMCPCallExecutor(
 			mcppkg.ServerResolverFunc(func(
 				_ context.Context,
-				source toolspkg.SourceRef,
+				source toolspkg.SourceRef, _ string,
 			) (mcppkg.ResolvedServer, error) {
 				if source.RawServerName != installed.MCPServer.Name {
 					return mcppkg.ResolvedServer{}, fmt.Errorf(

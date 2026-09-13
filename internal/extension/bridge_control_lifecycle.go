@@ -63,7 +63,7 @@ func (m *Manager) admitBridgeControl(
 	}
 
 	snapshot := bridgeControlExtension{
-		info:     cloneExtensionInfo(extension.info),
+		info:     cloneExtensionInfo(&extension.info),
 		rootDir:  extension.rootDir,
 		manifest: cloneManifest(extension.manifest),
 	}

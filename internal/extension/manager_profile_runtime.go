@@ -197,7 +197,7 @@ func (m *Manager) newProfileRuntime(key InstanceKey) (*managedExtension, error) 
 		m.mu.RUnlock()
 		return nil, fmt.Errorf("extension: extension %q has no loaded runtime definition", key.Name)
 	}
-	info := cloneExtensionInfo(base.info)
+	info := cloneExtensionInfo(&base.info)
 	manifest := profileRuntimeManifest(base.manifest)
 	rootDir := base.rootDir
 	generationHash := base.generationHash

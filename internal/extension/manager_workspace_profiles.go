@@ -28,7 +28,7 @@ func (m *Manager) retireWorkspaceProfileRuntimes(
 		retired = append(retired, retiredWorkspaceProfile{
 			previous: current, active: current.active,
 			definition: &managedExtension{
-				key: key, info: cloneExtensionInfo(current.info), rootDir: current.rootDir,
+				key: key, info: cloneExtensionInfo(&current.info), rootDir: current.rootDir,
 				manifest: cloneManifest(current.manifest), phase: current.phase,
 				lastError: current.lastError, failureCode: current.failureCode,
 				generation: current.generation, generationHash: current.generationHash,

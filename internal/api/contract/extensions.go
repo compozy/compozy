@@ -176,6 +176,8 @@ type ExtensionProvenancePayload struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
+	Description                 string                            `json:"description,omitempty"`
+	InstallationProfile         string                            `json:"installation_profile,omitempty"`
 	Layout                      string                            `json:"layout,omitempty"`
 	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers"`
 	Inputs                      []ExtensionInputStatePayload      `json:"inputs"`

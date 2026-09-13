@@ -264,13 +264,18 @@ describe("extension lifecycle mutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: marketplaceKeys.all });
   });
 
-  it("Should scope only a dev unlink to the active workspace instance", async () => {
+  it("Should remove the selected workspace attachment and preserve inherited global targeting", async () => {
     mocks.activeWorkspaceId = "ws_northstar";
     const { wrapper } = setup();
     const { result } = renderHook(() => useRemoveExtension(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ dev: true, name: "slack-notify" });
+      await result.current.mutateAsync({
+        dev: true,
+        name: "slack-notify",
+        profileName: "default",
+        workspaceId: "ws_northstar",
+      });
     });
 
     expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {
@@ -278,6 +283,18 @@ describe("extension lifecycle mutations", () => {
       workspaceId: "ws_northstar",
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify dev overlay unlinked");
+    await act(async () => {
+      await result.current.mutateAsync({
+        dev: false,
+        name: "workspace-kit",
+        profileName: "marketing",
+        workspaceId: "ws_selected",
+      });
+    });
+    expect(mocks.removeExtension).toHaveBeenLastCalledWith("workspace-kit", {
+      profileName: "marketing",
+      workspaceId: "ws_selected",
+    });
 
     await act(async () => {
       await result.current.mutateAsync({ dev: false, name: "otel-bridge" });
