@@ -1,6 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -22,6 +23,8 @@ import type {
   ExtensionUpdateRequest,
   MarketplaceCatalogListing,
 } from "../types";
+import { marketplaceCatalogEntryOptions } from "../lib/query-options";
+import { marketplaceOriginKey } from "../lib/marketplace-installed-view";
 import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { marketplaceActionControllerLogic } from "./marketplace-action-controller-logic";
@@ -29,6 +32,7 @@ import {
   formatMarketplaceVersion,
   marketplaceEntrySlug,
   marketplaceErrorMessage,
+  marketplaceErrorCode,
 } from "./marketplace-ui";
 import { useMarketplacePending } from "./use-marketplace-pending";
 
@@ -104,6 +108,8 @@ function updatedToast(name: string, version: string | null | undefined) {
  */
 function useMarketplaceActionController(): MarketplaceActionController {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const entryActions = useRef(new Set<string>());
   const installExtension = useInstallMarketplaceExtension();
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
@@ -148,10 +154,15 @@ function useMarketplaceActionController(): MarketplaceActionController {
     entry: MarketplaceCatalogListing,
     action: () => Promise<void>
   ) => {
+    const key = marketplaceOriginKey(entry);
+    if (entryActions.current.has(key)) return;
+    entryActions.current.add(key);
     try {
       await pending.trackEntry(entry, action);
     } catch (error) {
-      toast.error(marketplaceErrorMessage(error, `Failed to update ${entry.name}`));
+      reportFailure(error, `Failed to update ${entry.name}`);
+    } finally {
+      entryActions.current.delete(key);
     }
   };
 
@@ -163,10 +174,21 @@ function useMarketplaceActionController(): MarketplaceActionController {
     }
   };
 
-  const previewInstall = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
+  const loadInstallPreview = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
     const request = curatedInstallRequest(entry, allowUnverified);
     const preview = await previewExtensionInstall(request);
     setInstallPreview({ entry, preview, request });
+  };
+
+  const previewInstall = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
+    try {
+      await loadInstallPreview(entry, allowUnverified);
+    } catch (error) {
+      if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
+      setInstallPreview(null);
+      reportFailure(error, "The extension changed. Review the current package before installing.");
+      await reopenCurrentInstall(entry);
+    }
   };
 
   const install = (entry: MarketplaceCatalogListing) => {
@@ -270,16 +292,49 @@ function useMarketplaceActionController(): MarketplaceActionController {
       });
   };
 
+  const reopenCurrentInstall = async (previous: MarketplaceCatalogListing) => {
+    const options = marketplaceCatalogEntryOptions({
+      entryId: previous.entry_id,
+      source: previous.source,
+    });
+    await queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
+    const { entry } = await queryClient.fetchQuery({ ...options, staleTime: 0 });
+    if (marketplaceOriginKey(entry) !== marketplaceOriginKey(previous)) {
+      throw new Error(
+        "The catalog entry now belongs to another origin. Review it before installing."
+      );
+    }
+    if (entry.trust?.decision === "blocked" || entry.installable === false) {
+      throw new Error(entry.install_blocker || "This extension can no longer be installed.");
+    }
+    if (entry.trust?.decision === "allowed_unverified") {
+      store.trigger.extensionTrustRequested({ entry });
+      return;
+    }
+    await loadInstallPreview(entry, false);
+  };
+
   const confirmInstall = () => {
     const selected = installPreview;
     if (!selected) return;
     void withPendingEntry(selected.entry, async () => {
-      await installExtension.mutateAsync({
-        ...selected.request,
-        ...(selected.preview.network_requirement_digest
-          ? { confirm_network_digest: selected.preview.network_requirement_digest }
-          : {}),
-      });
+      try {
+        await installExtension.mutateAsync({
+          ...selected.request,
+          ...(selected.preview.network_requirement_digest
+            ? { confirm_network_digest: selected.preview.network_requirement_digest }
+            : {}),
+        });
+      } catch (error) {
+        setInstallPreview(null);
+        if (marketplaceErrorCode(error) !== "extension_source_changed") throw error;
+        reportFailure(
+          error,
+          "The extension changed. Review the current package before installing."
+        );
+        await reopenCurrentInstall(selected.entry);
+        return;
+      }
       setInstallPreview(null);
       pending.flashEntry(selected.entry);
       viewInstalledToast(`${selected.entry.name} installed`);
@@ -331,7 +386,8 @@ function useMarketplaceActionController(): MarketplaceActionController {
         <ExtensionInstallSummaryDialog
           onConfirm={confirmInstall}
           onOpenChange={open => {
-            if (!open) setInstallPreview(null);
+            if (!open && !entryActions.current.has(marketplaceOriginKey(installPreview.entry)))
+              setInstallPreview(null);
           }}
           open
           pending={pending.isEntryPending(installPreview.entry)}
@@ -355,6 +411,13 @@ function useMarketplaceActionController(): MarketplaceActionController {
     update,
     updateInstalled,
   };
+}
+
+function reportFailure(error: unknown, fallback: string) {
+  const message = marketplaceErrorMessage(error, fallback);
+  const code = marketplaceErrorCode(error);
+  if (code) toast.error(message, { description: code });
+  else toast.error(message);
 }
 
 export { useMarketplaceActionController };

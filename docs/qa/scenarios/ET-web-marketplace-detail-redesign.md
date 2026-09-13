@@ -31,3 +31,11 @@ head shows the auth pill plus Authorize, the body notice says tools stay unavail
 Status grid never collapses config/auth/runtime/probe into one green. Installed extension: confirm
 kit inventory, environment bindings, diagnostics, and live logs render in the body, and that Update
 appears only in the head while the rail switch enables/disables with its consequence note.
+
+QA impact 2026-09-13 (marketplace-catalog task03, UT038; final tasks09/10 own this walk): change a
+listing after opening confirmation, then attempt installation. Both preview and install refusals with
+extension_source_changed must show the daemon code, refetch the exact origin through Query, and
+reopen confirmation for the current digest without sending another install until the user confirms.
+A newly unverified entry requires fresh trust consent; a blocked or different-origin response cannot
+be installed. Duplicate preview/confirm presses, including two events before React renders, dispatch
+one request. Network failure closes the stale confirmation and returns the trail to Install.

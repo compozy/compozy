@@ -1,3 +1,5 @@
+import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
+import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { MarketplaceCatalogListing } from "../types";
 
 export function marketplaceEntrySlug(entry: MarketplaceCatalogListing): string {
@@ -13,4 +15,10 @@ export function formatMarketplaceVersion(version: string | null | undefined): st
 
 export function marketplaceErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
+}
+
+export function marketplaceErrorCode(error: unknown): string | undefined {
+  if (error instanceof MarketplaceApiError) return error.diagnosticCode;
+  if (error instanceof ExtensionsApiError) return error.code;
+  return undefined;
 }

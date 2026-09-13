@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
@@ -12,7 +13,9 @@ import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
 import type { InstalledExtensionView } from "@/systems/extensions";
 import { extensionFixtures } from "@/systems/extensions/mocks";
-import { marketplaceCatalogFixture } from "../../mocks";
+import { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "../../mocks";
+import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
+import { marketplaceCatalogEntryOptions } from "../../lib/query-options";
 import type { MarketplaceCatalogListing } from "../../types";
 import { MarketplaceInstalledTrail } from "../marketplace-entry-trail";
 import { useMarketplaceActionController } from "../use-marketplace-action-controller";
@@ -177,6 +180,180 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "End flash 0" }));
     expect(screen.getByRole("status", { name: "Flash 0" })).toHaveTextContent("idle");
   });
+  it("Should refetch a changed acquisition and require confirmation of its new digest [UT-038]", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const digest = "e".repeat(64);
+    const current = {
+      ...detail,
+      entry: { ...detail.entry, digest_sha256: digest, version: "2.0.0" },
+    };
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", ({ params, request }) => {
+        reads++;
+        expect(params.entryId).toBe(verified.entry_id);
+        expect(new URL(request.url).searchParams.get("source")).toBe(verified.source);
+        return HttpResponse.json(current);
+      })
+    );
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("The acquired package changed", 409, "extension_source_changed")
+    );
+    setup([verified]);
+    clients
+      .at(-1)!
+      .setQueryData(
+        marketplaceCatalogEntryOptions({ entryId: verified.entry_id, source: verified.source })
+          .queryKey,
+        detail
+      );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.preview).toHaveBeenCalledTimes(2));
+    expect(reads).toBe(1);
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest, version: "2.0.0" })
+    );
+    expect(io.error).toHaveBeenCalledWith("The acquired package changed", {
+      description: "extension_source_changed",
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Install" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledTimes(2));
+    expect(io.install).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest, version: "2.0.0" })
+    );
+  });
+
+  it("Should refresh a stale listing rejected during preview before any install", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const digest = "e".repeat(64);
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () => {
+        reads++;
+        return HttpResponse.json({ ...detail, entry: { ...detail.entry, digest_sha256: digest } });
+      })
+    );
+    io.preview.mockRejectedValueOnce(
+      new ExtensionsApiError("The listing changed", 409, "daemon", {
+        code: "extension_source_changed",
+      })
+    );
+    setup([verified]);
+    await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByRole("button", { name: "Install" })).toBeVisible();
+    expect(reads).toBe(1);
+    expect(io.preview).toHaveBeenCalledTimes(2);
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest })
+    );
+    expect(io.install).not.toHaveBeenCalled();
+    expect(io.error).toHaveBeenCalledWith("The listing changed", {
+      description: "extension_source_changed",
+    });
+  });
+
+  it.each(["blocked", "another origin"])(
+    "Should refuse a refreshed acquisition that is %s",
+    async reason => {
+      const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+      const entry =
+        reason === "blocked"
+          ? { ...detail.entry, installable: false, install_blocker: "Publisher blocked by policy" }
+          : { ...detail.entry, source_ref: "https://example.com/replaced-catalog" };
+      server.use(
+        http.get("*/api/marketplace/entries/:entryId", () =>
+          HttpResponse.json({ ...detail, entry })
+        )
+      );
+      io.install.mockRejectedValueOnce(
+        new MarketplaceApiError("Changed", 409, "extension_source_changed")
+      );
+      setup([verified]);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Run 0" }));
+      await user.click(await screen.findByRole("button", { name: "Install" }));
+      await waitFor(() =>
+        expect(io.error).toHaveBeenLastCalledWith(
+          reason === "blocked"
+            ? "Publisher blocked by policy"
+            : "The catalog entry now belongs to another origin. Review it before installing."
+        )
+      );
+      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+      expect(io.install).toHaveBeenCalledTimes(1);
+      expect(io.preview).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("Should reject duplicate preview and confirmation presses before a render [UT-038]", async () => {
+    let finish!: (value: unknown) => void;
+    io.install.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    setup([verified]);
+    const start = screen.getByRole("button", { name: "Run 0" });
+    act(() => {
+      start.click();
+      start.click();
+    });
+    const confirm = await screen.findByRole("button", { name: "Install" });
+    expect(io.preview).toHaveBeenCalledTimes(1);
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    await waitFor(() => expect(io.install).toHaveBeenCalledTimes(1));
+    await act(async () => finish({ extension: extensionFixtures[0] }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument()
+    );
+    expect(io.success).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should close a failed network confirmation attempt and retain its error code [UT-038]", async () => {
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("The source is unreachable", 503, "source_unreachable")
+    );
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.error).toHaveBeenCalledWith("The source is unreachable", {
+        description: "source_unreachable",
+      })
+    );
+    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Pending 0" })).toHaveTextContent("idle");
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should require new trust consent when a refreshed acquisition becomes unverified", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const entry = { ...detail.entry, digest_sha256: "e".repeat(64), trust: unverified.trust };
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () => HttpResponse.json({ ...detail, entry }))
+    );
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("Changed", 409, "extension_source_changed")
+    );
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenCalledTimes(1);
+  });
+
   it("Should require unverified consent and preserve a failed preview for retry", async () => {
     setup([unverified]);
     const user = userEvent.setup();

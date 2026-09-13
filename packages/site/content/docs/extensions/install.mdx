@@ -112,7 +112,9 @@ without a digest. The source install dialog sends that digest when you confirm t
 The CLI reads the current catalog acquisition digest and sends it as `expected_digest`. To use a
 digest reviewed earlier, pass `--expected-digest <sha256>`. A changed listing or mismatched acquired
 archive returns `409 extension_source_changed` with `listed_digest` and `fetched_digest`; review the
-current entry before retrying. `422 extension_inputs_required` names missing input IDs, and
+current entry before retrying. In the Marketplace, a changed source reloads the listing and opens a
+new confirmation; it does not install the refreshed artifact automatically. A newly unverified publisher
+requires fresh consent. `422 extension_inputs_required` names missing input IDs, and
 `422 extension_input_invalid` identifies `input_id`. Missing or invalid inputs exit with code `2`
 when reported by the daemon.
 
