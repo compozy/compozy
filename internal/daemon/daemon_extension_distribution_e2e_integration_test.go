@@ -1794,6 +1794,144 @@ scopes = ["tools.read"]
 	if after := distributionMCPOwnerState(t, ctx, db, "manual", true); !slices.Equal(manual, after) {
 		t.Fatal("extension logout changed manual credentials")
 	}
+	assertDistributionMCPOwnerUpdates(t, ctx, runtime, db, catalog, entry, manifest)
+}
+
+// Invariant: owner-qualified overrides survive package updates and competitor removal without changing package bytes or names.
+// Owner: daemon distribution integration; canonical suite: IT-021.
+func assertDistributionMCPOwnerUpdates(
+	t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, db *sql.DB,
+	catalog *distributionGitHubServer, entry map[string]any, manifest string,
+) {
+	t.Helper()
+	base := "/api/settings/mcp-servers/github?scope=user"
+	for _, path := range []string{
+		"/api/settings/mcp-servers/github.github?scope=user",
+		"/api/settings/mcp-servers/github.github?scope=user&owner=extension:github",
+		"/api/settings/mcp-servers/github.github/auth/status?scope=user",
+		"/api/settings/mcp-servers/github.github/auth/status?scope=user&owner=extension:github",
+	} {
+		body := requestDistributionJSON(
+			t,
+			ctx,
+			runtime.UDSClient,
+			http.MethodGet,
+			runtime.UDSURL(path),
+			nil,
+			http.StatusNotFound,
+		)
+		if !strings.Contains(string(body), "not found") {
+			t.Fatalf("runtime alias error = %s", body)
+		}
+	}
+	path := filepath.Join(extensionpkg.ManagedInstallPath(runtime.HomePaths, "github"), "extension.toml")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestDistributionJSON(t, ctx, runtime.UDSClient, http.MethodPut, runtime.UDSURL(base+"&owner=extension:github"),
+		compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+			Name: "github", Headers: map[string]string{"X-Workspace": "override"},
+		}}, http.StatusOK)
+	if after, err := os.ReadFile(path); err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("override changed installed package bytes: %v", err)
+	}
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github", "github.github", "override")
+	var manual compozycontract.SettingsMCPServerResponse
+	if err := runtime.HTTPJSON(ctx, http.MethodGet, base, nil, &manual); err != nil {
+		t.Fatal(err)
+	}
+	manualURL := manual.Server.URL + "?manual=1"
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut, runtime.HTTPURL(base),
+		compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+			Name: "github", Transport: "http", URL: manualURL,
+		}}, http.StatusOK)
+	if err := runtime.HTTPJSON(ctx, http.MethodGet, base, nil, &manual); err != nil {
+		t.Fatal(err)
+	}
+	if manual.Server.Owner != "manual" || manual.Server.URL != manualURL {
+		t.Fatalf(
+			"owner-less update did not target manual definition: owner=%s url=%s",
+			manual.Server.Owner,
+			manual.Server.URL,
+		)
+	}
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github", "github.github", "override")
+	body := requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut,
+		runtime.HTTPURL("/api/settings/mcp-servers/github.github?scope=user"),
+		compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+			Name: "github.github", Transport: "http", URL: manualURL,
+		}}, http.StatusUnprocessableEntity)
+	if !strings.Contains(string(body), "mcp_server_name_taken") {
+		t.Fatalf("manual name collision = %s", body)
+	}
+	entry["version"] = "2.0.0"
+	updated := strings.Replace(manifest, `version = "1.0.0"`, `version = "2.0.0"`, 1)
+	publishDistributionManifest(t, catalog, entry, updated)
+	refreshDistributionCatalog(t, ctx, runtime)
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPost, runtime.HTTPURL("/api/extensions/update"),
+		compozycontract.UpdateExtensionsRequest{Names: []string{"github"}}, http.StatusOK)
+	if after, err := os.ReadFile(path); err != nil || string(after) != updated {
+		t.Fatalf("package did not update: %v", err)
+	}
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github", "github.github", "override")
+	peer := maps.Clone(entry)
+	peer["entry_id"], peer["install_slug"], peer["name"] = "github-peer", "compozy/github-peer", "GitHub peer"
+	peerManifest := strings.Replace(updated, `name = "github"`, `name = "github-peer"`, 1)
+	publishDistributionManifest(t, catalog, peer, peerManifest)
+	refreshDistributionCatalog(t, ctx, runtime)
+	requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"),
+		compozycontract.InstallExtensionRequest{
+			Source:         compozycontract.InstallExtensionSourceCurated,
+			Ref:            "compozy/github-peer",
+			Scope:          "global",
+			ExpectedDigest: peer["digest_sha256"].(string),
+		}, http.StatusCreated)
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github-peer", "github-peer.github", "")
+	requestDistributionJSON(t, ctx, runtime.UDSClient, http.MethodDelete, runtime.UDSURL(base), nil, http.StatusOK)
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github", "github.github", "override")
+	assertDistributionMCPOverride(t, ctx, runtime, db, "github-peer", "github-peer.github", "")
+}
+
+func assertDistributionMCPOverride(
+	t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, db *sql.DB,
+	extension, runtimeName, header string,
+) {
+	t.Helper()
+	var storedName, headersJSON string
+	if err := db.QueryRowContext(ctx, `SELECT runtime_name, headers_json FROM extension_mcp_overrides
+ WHERE extension = ? AND profile = ? AND workspace_id = '' AND server = 'github'`,
+		extension, store.DefaultProfileID).Scan(&storedName, &headersJSON); err != nil {
+		t.Fatal(err)
+	}
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(headersJSON), &headers); err != nil {
+		t.Fatal(err)
+	}
+	if storedName != runtimeName || headers["X-Workspace"] != header {
+		t.Fatalf("stored override = name:%s headers:%v", storedName, headers)
+	}
+	var response compozycontract.SettingsMCPServerResponse
+	if err := runtime.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/settings/mcp-servers/github?scope=user&owner="+url.QueryEscape(
+			"extension:"+extension,
+		),
+		nil,
+		&response,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if response.Server.Owner != "extension:"+extension || response.Server.RuntimeName != runtimeName ||
+		response.Server.Override == nil || response.Server.Override.Headers["X-Workspace"] != header {
+		t.Fatalf(
+			"published override = owner:%s name:%s override:%v",
+			response.Server.Owner,
+			response.Server.RuntimeName,
+			response.Server.Override,
+		)
+	}
 }
 
 // Invariant: execution by discovered resource identity refreshes only the expired extension target.

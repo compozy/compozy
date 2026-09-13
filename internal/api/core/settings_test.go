@@ -4269,10 +4269,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		}
 	})
 
-	// Invariant: ownerless detail is manual-first; extension lookup prefers the local definition, inherits its parent, and excludes siblings.
+	// Invariant: extension detail requires owner plus logical name, prefers the local definition, inherits its parent, and excludes siblings.
 	// Owner: Settings HTTP/UDS detail boundary; canonical suite: settings_test.go.
 	t.Run(
-		"Should resolve MCP detail by owner or allocated name without crossing scope",
+		"Should resolve MCP detail by owner and logical name without crossing scope",
 		func(t *testing.T) {
 			t.Parallel()
 			for _, transport := range []string{"api-core-http", "api-core-uds"} {
@@ -4307,13 +4307,15 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 						{"github?owner=manual", "manual", "github", http.StatusOK},
 						{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
 						{"github.github", "", "", http.StatusNotFound},
-						{"github.github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
+						{"github.github?owner=extension:github", "", "", http.StatusNotFound},
 						{"github?owner=extension:other", "", "", http.StatusNotFound},
 						{"github.github?owner=manual", "", "", http.StatusNotFound},
 						{"github?owner=bad", "", "", http.StatusBadRequest},
 						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
 						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
 						{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
+						{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
+						{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
 					} {
 						result := performRequest(
 							t,

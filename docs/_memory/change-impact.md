@@ -536,3 +536,11 @@ tool execution share the existing owner and scope boundaries. The official skill
 describe refresh without another login; final10 owns the corresponding UI journey. Focused real
 daemon/SQLite/encrypted-vault evidence covers manual plus extension registration, exchange, refresh
 and logout; full IT021 override/update/detach acceptance and task04 UI remain open.
+
+Task04 GET detail follow-up removes the remaining explicit-owner runtime alias in
+`internal/api/core/settings_mcp_collection.go`; the existing HTTP/UDS handler suite retains local,
+inherited and sibling-scope checks using logical names. Real daemon IT021 now also verifies
+override storage without package writes, owner-less manual edits, manual runtime-name refusal,
+override/name preservation through package update, a second same-name extension, and sticky names
+after manual removal. No wire/schema/config change; prior documentation already states this
+contract. Scoped attachment update/restart/detach acceptance remains open.

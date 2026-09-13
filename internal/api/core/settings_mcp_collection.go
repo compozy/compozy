@@ -72,7 +72,7 @@ func findSettingsMCPServer(
 		if rank <= selectedRank {
 			continue
 		}
-		if settingsMCPRuntimeName(item) == name || item.Name == name {
+		if item.Name == name {
 			selected, selectedRank = item, rank
 		}
 	}
