@@ -15,9 +15,10 @@ import (
 // extensionLifecycleCoordinator serializes complete mutations for one extension
 // instance while allowing unrelated instances to proceed independently.
 type extensionLifecycleCoordinator struct {
-	mu      sync.Mutex
-	changed chan struct{}
-	entries map[string]*extensionLifecycleEntry
+	mu       sync.Mutex
+	changed  chan struct{}
+	entries  map[string]*extensionLifecycleEntry
+	packages map[string]*extensionPackageLock
 }
 
 type extensionLifecycleEntry struct {
@@ -45,29 +46,7 @@ func (c *extensionLifecycleCoordinator) withInstance(
 	key extensionpkg.InstanceKey,
 	fn func() error,
 ) error {
-	if c == nil {
-		return errors.New("daemon: extension lifecycle coordinator is required")
-	}
-	key = key.Normalize()
-	if err := key.Validate(); err != nil {
-		return err
-	}
-	if fn == nil {
-		return errors.New("daemon: extension lifecycle mutation is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: extension lifecycle context is required")
-	}
-	identity := lifecycleInstanceIdentity(key)
-	entry := c.retain(identity)
-	defer c.release(identity, entry)
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("daemon: wait for extension lifecycle %q: %w", identity, ctx.Err())
-	case <-entry.lock:
-	}
-	defer func() { entry.lock <- struct{}{} }()
-	return fn()
+	return c.withInstances(ctx, []extensionpkg.InstanceKey{key}, fn)
 }
 
 func (c *extensionLifecycleCoordinator) withNames(
@@ -87,6 +66,15 @@ func (c *extensionLifecycleCoordinator) withNames(
 func (c *extensionLifecycleCoordinator) withInstances(
 	ctx context.Context,
 	keys []extensionpkg.InstanceKey,
+	fn func() error,
+) error {
+	return c.withMutation(ctx, keys, 1, fn)
+}
+
+func (c *extensionLifecycleCoordinator) withMutation(
+	ctx context.Context,
+	keys []extensionpkg.InstanceKey,
+	packageWeight int64,
 	fn func() error,
 ) error {
 	if c == nil {
@@ -114,6 +102,17 @@ func (c *extensionLifecycleCoordinator) withInstances(
 			c.release(identity, entries[idx])
 		}
 	}()
+	return c.withPackages(ctx, identities, packageWeight, func() error {
+		return lockLifecycleInstances(ctx, identities, entries, fn)
+	})
+}
+
+func lockLifecycleInstances(
+	ctx context.Context,
+	identities []string,
+	entries []*extensionLifecycleEntry,
+	fn func() error,
+) error {
 	acquired := 0
 	defer func() {
 		for idx := acquired - 1; idx >= 0; idx-- {

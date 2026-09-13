@@ -90,3 +90,10 @@ catalog is unavailable. Its source/provenance must remain GitHub. Add a required
 keeps the installed package unchanged; supplying the input permits update. Dropped declarations
 retain inactive values, and re-declaring an input restores its old value. A failed publication after
 input commit restores both package and values, and the restored MCP still launches with them.
+
+Task04 package rollback follow-up (final task10): attach one package to multiple workspaces and
+profiles. Fail publication of an update that introduces a server; candidate-only runtime names
+must disappear in every attachment, while prior allocations/overrides, credentials and another
+package remain unchanged. Repeat through published reinstall. Concurrent operations on another
+workspace of the same package wait until update/rollback completes; unrelated packages can proceed.
+The focused lifecycle suite owns injected storage/publication failure and lock cancellation.

@@ -491,6 +491,78 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}
 	})
 
+	// Invariant: package replacement excludes every same-package workspace mutation; cancellation releases all acquired locks.
+	// Owner: daemon lifecycle coordinator. Canonical suite: TestExtensionLifecycleCoordinator.
+	for _, scenario := range []struct {
+		name         string
+		packageFirst bool
+	}{
+		{name: "Should wait for workspace mutations before replacing a package"},
+		{name: "Should wait for package replacement before mutating another workspace", packageFirst: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			coordinator := newExtensionLifecycleCoordinator()
+			workspace := extensionpkg.InstanceKey{Name: "shared", WorkspaceID: "workspace-b"}
+			instanceMutation := func(ctx context.Context, fn func() error) error {
+				return coordinator.withInstance(ctx, workspace, fn)
+			}
+			packageMutation := func(ctx context.Context, fn func() error) error {
+				return coordinator.withPackageMutation(ctx, []string{"shared"}, fn)
+			}
+			holder, waiter := instanceMutation, packageMutation
+			if scenario.packageFirst {
+				holder, waiter = packageMutation, instanceMutation
+			}
+			err := holder(t.Context(), func() error {
+				ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+				defer cancel()
+				ran := false
+				err := waiter(ctx, func() error { ran = true; return nil })
+				if ran || !errors.Is(err, context.DeadlineExceeded) {
+					t.Errorf("conflicting mutation ran=%v error=%v", ran, err)
+				}
+				return coordinator.withPackageMutation(t.Context(), []string{"other"}, func() error { return nil })
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := waiter(t.Context(), func() error { return nil }); err != nil {
+				t.Fatalf("mutation after release: %v", err)
+			}
+			if len(coordinator.entries) != 0 || len(coordinator.packages) != 0 {
+				t.Fatal("completed and canceled mutations retained lifecycle locks")
+			}
+		})
+	}
+
+	t.Run("Should release earlier package locks when a later acquisition is canceled", func(t *testing.T) {
+		t.Parallel()
+		coordinator := newExtensionLifecycleCoordinator()
+		workspace := extensionpkg.InstanceKey{Name: "zeta", WorkspaceID: "workspace-a"}
+		err := coordinator.withInstance(t.Context(), workspace, func() error {
+			ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+			defer cancel()
+			ran := false
+			err := coordinator.withPackageMutation(ctx, []string{"zeta", "alpha", "alpha"}, func() error {
+				ran = true
+				return nil
+			})
+			if ran || !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("batch mutation ran=%v error=%v", ran, err)
+			}
+			retryCtx, retryCancel := context.WithTimeout(t.Context(), time.Second)
+			defer retryCancel()
+			return coordinator.withPackageMutation(retryCtx, []string{"alpha"}, func() error { return nil })
+		})
+		if err != nil {
+			t.Fatalf("reuse after partial acquisition: %v", err)
+		}
+		if len(coordinator.entries) != 0 || len(coordinator.packages) != 0 {
+			t.Fatal("partial acquisition retained lifecycle locks")
+		}
+	})
+
 	t.Run("Should cancel a waiter without retaining entries or running its mutation", func(t *testing.T) {
 		t.Parallel()
 
@@ -1028,7 +1100,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if _, err := db.ExtensionMCP.Reserve(t.Context(), globalTarget, "global-name", nil); err != nil {
 			t.Fatal(err)
 		}
-		allocations, err := service.snapshotMCPAllocations(t.Context(), key)
+		allocations, err := service.snapshotMCPAllocations(t.Context(), key, extensionMCPWorkspaceAllocations)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2002,8 +2074,7 @@ binding = { type = "url_query", name = "region" }
 				ProfileID:  store.DefaultProfileID,
 				ServerName: "server",
 			}
-			priorAllocation, err := db.ExtensionMCP.Reserve(ctx, priorTarget, "original-server", nil)
-			if err != nil {
+			if _, err := db.ExtensionMCP.Reserve(ctx, priorTarget, "original-server", nil); err != nil {
 				t.Fatal(err)
 			}
 			workspaceTarget := priorTarget
@@ -2011,8 +2082,24 @@ binding = { type = "url_query", name = "region" }
 			if _, err := db.ExtensionMCP.Reserve(ctx, workspaceTarget, "workspace-server", nil); err != nil {
 				t.Fatal(err)
 			}
+			otherTarget := priorTarget
+			otherTarget.Extension = "other-ext"
+			if _, err := db.ExtensionMCP.Reserve(ctx, otherTarget, "other-server", nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.ExtensionMCP.Update(ctx, workspaceTarget, extensionmcp.Override{
+				Env: map[string]string{"REGION": "retained"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			priorAllocations, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
 			candidateTarget := priorTarget
 			candidateTarget.ServerName = "candidate-only"
+			workspaceCandidate := candidateTarget
+			workspaceCandidate.WorkspaceID = workspaceTarget.WorkspaceID
 			var observations []string
 			runtime.onReload = func(ctx context.Context) error {
 				current, err := registry.Get("tool-ext")
@@ -2024,13 +2111,15 @@ binding = { type = "url_query", name = "region" }
 					return err
 				}
 				if current.Version == "2.0.0" {
-					if _, err := db.ExtensionMCP.Reserve(ctx, candidateTarget, "candidate-server", nil); err != nil {
-						return err
+					for _, target := range []extensionmcp.Target{candidateTarget, workspaceCandidate} {
+						if _, err := db.ExtensionMCP.Reserve(ctx, target, "candidate-server", nil); err != nil {
+							return err
+						}
 					}
 				} else {
 					allocations, err := db.ExtensionMCP.ListAll(ctx)
-					if err != nil || len(allocations) != 2 {
-						t.Fatalf("rollback publication saw candidate allocation: %#v %v", allocations, err)
+					if err != nil || !reflect.DeepEqual(allocations, priorAllocations) {
+						t.Fatalf("rollback publication changed prior allocations: %#v %v", allocations, err)
 					}
 				}
 				observations = append(observations, current.Version+":"+string(rows["workspace"].Value))
@@ -2053,8 +2142,8 @@ binding = { type = "url_query", name = "region" }
 			if !slices.Equal(observations, []string{`2.0.0:"updated-team"`, `1.0.0:"original-team"`}) {
 				t.Fatalf("rollback reload order = %v", observations)
 			}
-			allocations, err := db.ExtensionMCP.List(ctx, store.DefaultProfileID, "")
-			if err != nil || len(allocations) != 1 || allocations[0].RuntimeName != priorAllocation.RuntimeName {
+			allocations, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil || !reflect.DeepEqual(allocations, priorAllocations) {
 				t.Fatalf("update rollback changed retained allocation: %#v %v", allocations, err)
 			}
 			after, err := db.ExtensionInputs.List(ctx, instance)
@@ -2080,7 +2169,7 @@ binding = { type = "url_query", name = "region" }
 				t.Fatalf("retry update = %#v error %v", updated, err)
 			}
 			allocations, err = db.ExtensionMCP.List(ctx, store.DefaultProfileID, "")
-			if err != nil || len(allocations) != 2 {
+			if err != nil || len(allocations) != 3 {
 				t.Fatalf("successful update lost allocation: %#v %v", allocations, err)
 			}
 		},
@@ -2434,17 +2523,19 @@ binding = { type = "url_query", name = "region" }
 		"token":     {Value: json.RawMessage(`"updated-secret"`)},
 	}
 	publisher := &lifecycleFailingPublisher{}
-	// The public update must hold the input cell lock through candidate and rollback publication.
+	// Package replacement must hold every workspace through candidate and rollback publication.
 	service.runtime = &fakeExtensionRuntime{onReload: func(reloadCtx context.Context) error {
-		lockCtx, cancel := context.WithTimeout(reloadCtx, 40*time.Millisecond)
-		defer cancel()
-		entered := false
-		lockErr := service.lifecycle.withInstance(lockCtx, extensionpkg.InstanceKey{Name: "tool-ext", WorkspaceID: workspaceID}, func() error {
-			entered = true
-			return nil
-		})
-		if entered || !errors.Is(lockErr, context.DeadlineExceeded) {
-			t.Errorf("update publication did not hold the selected input cell lock: %v", lockErr)
+		for _, lockedWorkspace := range []string{workspaceID, "unselected-workspace"} {
+			lockCtx, cancel := context.WithTimeout(reloadCtx, 40*time.Millisecond)
+			entered := false
+			lockErr := service.lifecycle.withInstance(
+				lockCtx, extensionpkg.InstanceKey{Name: "tool-ext", WorkspaceID: lockedWorkspace},
+				func() error { entered = true; return nil },
+			)
+			cancel()
+			if entered || !errors.Is(lockErr, context.DeadlineExceeded) {
+				t.Errorf("update publication did not hold workspace %q: %v", lockedWorkspace, lockErr)
+			}
 		}
 		return nil
 	}}

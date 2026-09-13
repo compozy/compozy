@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/extensioninput"
 )
 
-// The outer coordinator holds the package and selected input workspace locks through reload and rollback.
+// Package replacement holds exclusive access across all workspace attachments through rollback.
 func (s *daemonExtensionService) configureUpdateInputGate(
 	ctx context.Context, request *extensionpkg.MarketplaceUpdateRequest, values map[string]extensioninput.Value,
 	target extensionMutationTarget,
@@ -33,7 +33,7 @@ func (s *daemonExtensionService) configureUpdateInputGate(
 		if err != nil {
 			return err
 		}
-		snapshot, err := s.snapshotMCPAllocations(ctx, target.key(info.Name))
+		snapshot, err := s.snapshotMCPAllocations(ctx, target.key(info.Name), extensionMCPPackageAllocations)
 		if err != nil {
 			return err
 		}

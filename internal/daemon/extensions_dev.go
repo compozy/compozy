@@ -61,7 +61,7 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 	if err != nil {
 		return err
 	}
-	allocations, err := s.snapshotMCPAllocations(ctx, key)
+	allocations, err := s.snapshotMCPAllocations(ctx, key, extensionMCPWorkspaceAllocations)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (s *daemonExtensionService) applyDevReload(
 	confirmation *extensionpkg.NetworkConfirmation,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
-	allocations, err := s.snapshotMCPAllocations(ctx, key)
+	allocations, err := s.snapshotMCPAllocations(ctx, key, extensionMCPWorkspaceAllocations)
 	if err != nil {
 		return contract.ExtensionPayload{}, errors.Join(err, s.restoreDevNetworkConfirmation(key, snapshot))
 	}

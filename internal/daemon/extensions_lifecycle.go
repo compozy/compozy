@@ -57,7 +57,11 @@ func (s *daemonExtensionService) Install(
 		}
 		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
-	err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
+	if prepared.published != nil {
+		err = s.lifecycle.withPackageMutation(ctx, []string{prepared.name}, mutation)
+	} else {
+		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
+	}
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
@@ -164,7 +168,7 @@ func (s *daemonExtensionService) Update(
 		return contract.ManagedExtensionUpdatePayload{}, err
 	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{name}, target), func() error {
+	err = s.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
 		var updateErr error
 		items, updateErr = s.updateBatchUnlocked(ctx, contract.UpdateExtensionsRequest{
 			Names:           []string{name},
@@ -204,7 +208,7 @@ func (s *daemonExtensionService) UpdateBatch(
 		return nil, err
 	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err = s.lifecycle.withInstances(ctx, extensionMutationKeys(names, target), func() error {
+	err = s.lifecycle.withPackageMutation(ctx, names, func() error {
 		var updateErr error
 		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "", target)
 		return updateErr

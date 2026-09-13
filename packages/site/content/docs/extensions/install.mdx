@@ -404,10 +404,12 @@ Workspace dev unlink releases that instance's MCP names and overrides across its
 same transaction as its completion event. If either write fails, the dev link and its secret
 bindings are restored; the published installation and other workspaces retain their allocations.
 
-Failed updates release names introduced by the candidate only after the previous package, registry,
-and inputs have been restored. Existing names remain reserved, including for temporarily removed
-server declarations. A failure restoring the package preserves reservations and prevents reloading
-a partially restored installation.
+Failed updates release names introduced by the candidate across every workspace and profile only
+after the previous package, registry, and inputs have been restored. Package updates and published
+reinstalls wait for active operations on that package and retain exclusive access through rollback.
+Existing names and overrides remain reserved, including for temporarily removed server declarations;
+other packages keep their allocations. A failure restoring the package preserves reservations and
+prevents reloading a partially restored installation.
 
 For an Agent Plugins installation, removal also deletes `PLUGIN_DATA`. CompozyOS first moves the
 data into quarantine so it can restore the directory if the durable removal fails. After the

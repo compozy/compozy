@@ -7,19 +7,30 @@ import (
 	"github.com/compozy/compozy/internal/extensionmcp"
 )
 
-// The caller holds the instance lifecycle lock until publication or compensation completes.
+type extensionMCPAllocationScope uint8
+
+const (
+	extensionMCPWorkspaceAllocations extensionMCPAllocationScope = iota
+	extensionMCPPackageAllocations
+)
+
+// The lifecycle lock covers the snapshot scope through publication or compensation.
 type extensionMCPAllocationSnapshot struct {
 	key    extensionpkg.InstanceKey
+	scope  extensionMCPAllocationScope
 	before map[extensionmcp.Target]struct{}
 }
 
 func snapshotExtensionMCPAllocations(
 	key extensionpkg.InstanceKey,
+	scope extensionMCPAllocationScope,
 	records []extensionmcp.Record,
 ) *extensionMCPAllocationSnapshot {
-	snapshot := &extensionMCPAllocationSnapshot{key: key.Normalize(), before: map[extensionmcp.Target]struct{}{}}
+	snapshot := &extensionMCPAllocationSnapshot{
+		key: key.Normalize(), scope: scope, before: map[extensionmcp.Target]struct{}{},
+	}
 	for _, record := range records {
-		if record.Extension == snapshot.key.Name && record.WorkspaceID == snapshot.key.WorkspaceID {
+		if snapshot.contains(record.Target) {
 			snapshot.before[record.Target] = struct{}{}
 		}
 	}
@@ -29,6 +40,7 @@ func snapshotExtensionMCPAllocations(
 func (s *daemonExtensionService) snapshotMCPAllocations(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	scope extensionMCPAllocationScope,
 ) (*extensionMCPAllocationSnapshot, error) {
 	if s.mcpAllocations == nil {
 		return nil, nil
@@ -37,7 +49,7 @@ func (s *daemonExtensionService) snapshotMCPAllocations(
 	if err != nil {
 		return nil, err
 	}
-	return snapshotExtensionMCPAllocations(key, records), nil
+	return snapshotExtensionMCPAllocations(key, scope, records), nil
 }
 
 // Run only after the owning package/link has been restored or removed successfully.
@@ -56,7 +68,7 @@ func (s *daemonExtensionService) rollbackExtensionMCPAllocations(
 	}
 	var created []extensionmcp.Target
 	for _, record := range records {
-		if record.Extension != snapshot.key.Name || record.WorkspaceID != snapshot.key.WorkspaceID {
+		if !snapshot.contains(record.Target) {
 			continue
 		}
 		if _, existed := snapshot.before[record.Target]; !existed {
@@ -64,4 +76,9 @@ func (s *daemonExtensionService) rollbackExtensionMCPAllocations(
 		}
 	}
 	return s.mcpAllocations.DeleteTargets(rollbackCtx, created)
+}
+
+func (s *extensionMCPAllocationSnapshot) contains(target extensionmcp.Target) bool {
+	return target.Extension == s.key.Name &&
+		(s.scope == extensionMCPPackageAllocations || target.WorkspaceID == s.key.WorkspaceID)
 }

@@ -498,3 +498,13 @@ existing concurrency, startup rollback, shutdown and generation-fencing suites r
 Install docs and the final09/10 scenario reflect the behavior. No new public DTO, native tool,
 hook/config key, migration or compatibility path. Package-wide MCP allocation rollback is still
 task04 work; these runtime results do not claim final UI, QA or CI delivery.
+
+Task04 package allocation compensation: updates, batches and published reinstalls hold exclusive
+package access across workspace operations. Instance-only operations retain workspace isolation.
+Update rollback removes only newly created allocations for that package across every workspace
+and profile after package/input restoration succeeds; existing allocations/overrides and other
+packages survive. Install/dev snapshots remain workspace-scoped. This reuses the repository's
+weighted semaphore pattern and adds no public surface, migration, hook, config or compatibility
+adapter. HTTP/UDS/CLI/native updates share this lifecycle; official skill selectors stay accurate.
+The install guide and ET-extension-published-source-installs describe final task10 acceptance.
+Focused race evidence lives in marketplace-catalog/memory/task_04.md; full IT016/021 and UI remain open.
