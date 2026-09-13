@@ -41,6 +41,7 @@ import (
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", testDaemonCatalogPublication)
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
 		testDaemonCuratedCatalogLifecycle)
 	t.Run("Should install checked-in required and optional secret inputs through public transports [IT-005]",
@@ -56,6 +57,135 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		"Should install a declared profile and clear its setup requirement [E2E-008]",
 		testDaemonE2EExtensionDeclaredProfileSetup,
 	)
+}
+
+// Invariant: the daemon reads the publisher's complete v3 family and reports root-only source failure without fallback.
+// Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
+func testDaemonCatalogPublication(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
+	root := extensionAuthoringE2ERepoRoot(t)
+	published := filepath.Join(t.TempDir(), "published")
+	command := execabs.CommandContext(ctx, "go", "run", "./cmd/compozy-catalog", "publish",
+		filepath.Join(root, "catalog"), published)
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("publish catalog: %v\n%s", err, output)
+	}
+	raw, err := os.ReadFile(filepath.Join(published, "v3", "extensions.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feed struct {
+		Entries []compozycontract.MarketplaceListingPayload `json:"entries"`
+	}
+	if err := json.Unmarshal(raw, &feed); err != nil {
+		t.Fatal(err)
+	}
+	if len(feed.Entries) != 20 {
+		t.Fatalf("published entries = %d, want 3 preserved extensions and 17 packaged servers", len(feed.Entries))
+	}
+	for _, tc := range []struct {
+		name     string
+		rootOnly bool
+	}{
+		{"Should list every published extension through HTTP and UDS", false},
+		{"Should report a root-only source as failed without reading retired paths", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			directory := published
+			if tc.rootOnly {
+				directory = t.TempDir()
+				if err := os.WriteFile(filepath.Join(directory, "extensions.json"), raw, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var mu sync.Mutex
+			requests := make(map[string]int)
+			files := http.FileServer(http.Dir(directory))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				requests[r.URL.Path]++
+				mu.Unlock()
+				files.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			options := &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Marketplace.Catalog.BaseURL = server.URL
+				}},
+			}
+			runtime := e2etest.StartRuntimeHarness(t, options)
+			var refresh compozycontract.MarketplaceRefreshResponse
+			if err := runtime.HTTPJSON(
+				t.Context(),
+				http.MethodPost,
+				"/api/marketplace/refresh",
+				nil,
+				&refresh,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(refresh.Sources) != 1 {
+				t.Fatalf("refresh sources = %#v", refresh.Sources)
+			}
+			outcome := refresh.Sources[0]
+			if tc.rootOnly {
+				if outcome.Outcome != "failed" || !outcome.Stale || outcome.ErrorClass == "" ||
+					outcome.EntryCount != 0 {
+					t.Fatalf("root-only refresh = %#v", outcome)
+				}
+			} else if outcome.Outcome != "succeeded" || outcome.Stale || outcome.EntryCount != len(feed.Entries) {
+				t.Fatalf("published refresh = %#v", outcome)
+			}
+			if !tc.rootOnly {
+				if err := runtime.Stop(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				options.HomePaths, options.BinaryPath = runtime.HomePaths, runtime.BinaryPath
+				options.Workspace.Root = runtime.WorkspaceRoot
+				runtime = e2etest.StartRuntimeHarness(t, options)
+			}
+			for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+				var listing compozycontract.MarketplaceListResponse
+				if err := read(t.Context(), http.MethodGet, "/api/marketplace?limit=100", nil, &listing); err != nil {
+					t.Fatal(err)
+				}
+				if tc.rootOnly {
+					if len(listing.Items) != 0 || !listing.Stale || listing.ErrorClass == "" {
+						t.Fatalf("root-only listing = %#v", listing)
+					}
+					continue
+				}
+				if len(listing.Items) != len(feed.Entries) || listing.Stale {
+					t.Fatalf("published listing count/stale = %d/%t", len(listing.Items), listing.Stale)
+				}
+				got := make(map[string]compozycontract.MarketplaceListingPayload, len(listing.Items))
+				for _, item := range listing.Items {
+					got[item.EntryID] = item
+				}
+				for _, expected := range feed.Entries {
+					item, exists := got[expected.EntryID]
+					if !exists || item.InstallSlug != "compozy/"+expected.EntryID || item.Version != expected.Version ||
+						item.DigestSHA256 != expected.DigestSHA256 {
+						t.Fatalf("published identity %s = %#v, want %#v", expected.EntryID, item, expected)
+					}
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if requests["/v3/extensions.json"] == 0 {
+				t.Fatal("daemon never requested the v3 publication")
+			}
+			for path := range requests {
+				if path != "/v3/extensions.json" && path != "/v3/marketplaces.json" {
+					t.Fatalf("daemon requested a non-v3 catalog path: %s", path)
+				}
+			}
+		})
+	}
 }
 
 func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
@@ -845,7 +975,11 @@ default_scope = "global"
 }
 
 func assertDistributionMissingInputs(
-	t *testing.T, ctx context.Context, client *http.Client, target string, install compozycontract.InstallExtensionRequest,
+	t *testing.T,
+	ctx context.Context,
+	client *http.Client,
+	target string,
+	install compozycontract.InstallExtensionRequest,
 ) {
 	t.Helper()
 	body := requestDistributionInstall(t, ctx, client, target, install, http.StatusUnprocessableEntity)
@@ -858,7 +992,12 @@ func assertDistributionMissingInputs(
 	}
 }
 
-func assertDistributionPublishedInputs(t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, reportPath string) int {
+func assertDistributionPublishedInputs(
+	t *testing.T,
+	ctx context.Context,
+	runtime *e2etest.RuntimeHarness,
+	reportPath string,
+) int {
 	t.Helper()
 	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
 		var inventory struct {
@@ -871,7 +1010,8 @@ func assertDistributionPublishedInputs(t *testing.T, ctx context.Context, runtim
 		for _, extension := range inventory.Extensions {
 			if extension.Name == "durable-input-kit" {
 				found = true
-				if extension.Provenance == nil || extension.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
+				if extension.Provenance == nil ||
+					extension.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
 					t.Fatalf("update changed acquisition origin: %#v", extension.Provenance)
 				}
 				activeInputs := 0
@@ -975,7 +1115,13 @@ func assertDistributionUnconfiguredProfile(t *testing.T, ctx context.Context, ru
 			t.Fatal("unconfigured extension missing from profile inventory")
 		}
 		var servers compozycontract.SettingsMCPServersResponse
-		if err := read(ctx, http.MethodGet, "/api/settings/mcp-servers?scope=profile&profile=input-isolated", nil, &servers); err != nil {
+		if err := read(
+			ctx,
+			http.MethodGet,
+			"/api/settings/mcp-servers?scope=profile&profile=input-isolated",
+			nil,
+			&servers,
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, server := range servers.MCPServers {
@@ -1023,7 +1169,14 @@ func testDaemonCatalogSecretInputMode(t *testing.T, reuseRef bool) {
 		{runtime.HTTPClient, runtime.HTTPURL("/api/extensions")},
 		{runtime.UDSClient, runtime.UDSURL("/api/extensions")},
 	} {
-		payload := requestDistributionInstall(t, ctx, transport.client, transport.url, request, http.StatusUnprocessableEntity)
+		payload := requestDistributionInstall(
+			t,
+			ctx,
+			transport.client,
+			transport.url,
+			request,
+			http.StatusUnprocessableEntity,
+		)
 		var refused compozycontract.ExtensionOperationErrorPayload
 		if err := json.Unmarshal(payload, &refused); err != nil {
 			t.Fatal(err)
@@ -1052,7 +1205,14 @@ func testDaemonCatalogSecretInputMode(t *testing.T, reuseRef bool) {
 		}
 		request.Inputs = map[string]extensioninput.Value{"brave_api_key": {VaultRef: &ref}}
 	}
-	payload := requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"), request, http.StatusCreated)
+	payload := requestDistributionInstall(
+		t,
+		ctx,
+		runtime.HTTPClient,
+		runtime.HTTPURL("/api/extensions"),
+		request,
+		http.StatusCreated,
+	)
 	if bytes.Contains(payload, []byte(syntheticSecret)) || bytes.Contains(payload, []byte("vault:extensions/")) {
 		t.Fatal("install response exposed a secret or reference")
 	}
@@ -1078,7 +1238,14 @@ func testDaemonCatalogSecretInputMode(t *testing.T, reuseRef bool) {
 	}
 	request.Ref = filepath.Join(root, "catalog", "packages", "context7")
 	request.Inputs = nil
-	payload = requestDistributionInstall(t, ctx, runtime.UDSClient, runtime.UDSURL("/api/extensions"), request, http.StatusCreated)
+	payload = requestDistributionInstall(
+		t,
+		ctx,
+		runtime.UDSClient,
+		runtime.UDSURL("/api/extensions"),
+		request,
+		http.StatusCreated,
+	)
 	var response compozycontract.ExtensionResponse
 	if err := json.Unmarshal(payload, &response); err != nil {
 		t.Fatal(err)
@@ -1130,7 +1297,9 @@ func (s *distributionGitHubServer) setInputRelease(t *testing.T, version, manife
 	var buffer bytes.Buffer
 	compressed := gzip.NewWriter(&buffer)
 	archive := tar.NewWriter(compressed)
-	if err := archive.WriteHeader(&tar.Header{Name: "extension.toml", Mode: 0o600, Size: int64(len(manifest))}); err != nil {
+	if err := archive.WriteHeader(
+		&tar.Header{Name: "extension.toml", Mode: 0o600, Size: int64(len(manifest))},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := archive.Write([]byte(manifest)); err != nil {
@@ -1188,7 +1357,15 @@ binding = { type = "env", name = "REGION" }
 	catalog.setInputRelease(t, "2.0.0", second)
 	update := compozycontract.UpdateExtensionRequest{AllowUnverified: true, Scope: "global"}
 	target := runtime.HTTPURL("/api/extensions/durable-input-kit")
-	body := requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut, target, update, http.StatusUnprocessableEntity)
+	body := requestDistributionJSON(
+		t,
+		ctx,
+		runtime.HTTPClient,
+		http.MethodPut,
+		target,
+		update,
+		http.StatusUnprocessableEntity,
+	)
 	var failure compozycontract.ExtensionOperationErrorPayload
 	if err := json.Unmarshal(body, &failure); err != nil {
 		t.Fatal(err)
@@ -1196,7 +1373,10 @@ binding = { type = "env", name = "REGION" }
 	if failure.Code != "extension_inputs_required" || len(failure.Inputs) != 1 || failure.Inputs[0] != "region" {
 		t.Fatalf("candidate input refusal = %#v", failure)
 	}
-	installedPath := filepath.Join(extensionpkg.ManagedInstallPath(runtime.HomePaths, "durable-input-kit"), "extension.toml")
+	installedPath := filepath.Join(
+		extensionpkg.ManagedInstallPath(runtime.HomePaths, "durable-input-kit"),
+		"extension.toml",
+	)
 	before, err := os.ReadFile(installedPath)
 	if err != nil || string(before) != original {
 		t.Fatalf("missing-input update changed package: %v", err)
@@ -1289,14 +1469,22 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T) {
 		Source: compozycontract.InstallExtensionSourceCurated, Ref: "compozy/context7", Scope: "global",
 		ExpectedDigest: contextEntry["digest_sha256"].(string),
 	}
-	requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"), request, http.StatusCreated)
+	requestDistributionInstall(
+		t,
+		ctx,
+		runtime.HTTPClient,
+		runtime.HTTPURL("/api/extensions"),
+		request,
+		http.StatusCreated,
+	)
 	assertDistributionCatalogListing(t, ctx, runtime, "context7", "3.2.3", "3.2.3", false)
 	var servers compozycontract.SettingsMCPServersResponse
 	if err := runtime.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers", nil, &servers); err != nil {
 		t.Fatal(err)
 	}
 	for _, server := range servers.MCPServers {
-		if server.Owner == "extension:context7" && (server.RuntimeStatus == nil || server.RuntimeStatus.State != "ready") {
+		if server.Owner == "extension:context7" &&
+			(server.RuntimeStatus == nil || server.RuntimeStatus.State != "ready") {
 			t.Fatalf("Context7 fixture probe failed: %#v", server.RuntimeStatus)
 		}
 	}
@@ -1317,7 +1505,9 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T) {
 				extension.Origin.SourceRef != marketplacepkg.CompozyCatalogRef ||
 				extension.Origin.EntryID != "context7" || extension.Contents.MCPServers != 1 ||
 				len(extension.Inputs) != 1 || extension.Inputs[0].Set || !extension.Inputs[0].Active ||
-				len(extension.MissingInputs) != 0 || len(extension.MCPServers) != 1 || extension.MCPServers[0].Status != "running" {
+				len(
+					extension.MissingInputs,
+				) != 0 || len(extension.MCPServers) != 1 || extension.MCPServers[0].Status != "running" {
 				t.Fatalf("installed catalog input/runtime projection = %#v", extension)
 			}
 		}
@@ -1332,7 +1522,14 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T) {
 	catalog.mu.Unlock()
 	request.Ref = bridgeEntry["install_slug"].(string)
 	request.ExpectedDigest = bridgeEntry["digest_sha256"].(string)
-	body := requestDistributionInstall(t, ctx, runtime.UDSClient, runtime.UDSURL("/api/extensions"), request, http.StatusConflict)
+	body := requestDistributionInstall(
+		t,
+		ctx,
+		runtime.UDSClient,
+		runtime.UDSURL("/api/extensions"),
+		request,
+		http.StatusConflict,
+	)
 	var changed compozycontract.ExtensionOperationErrorPayload
 	if err := json.Unmarshal(body, &changed); err != nil {
 		t.Fatal(err)
@@ -1349,7 +1546,14 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T) {
 	corrupt.payload = bridgeArchive
 	catalog.assets[bridgeAsset] = corrupt
 	catalog.mu.Unlock()
-	requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"), request, http.StatusCreated)
+	requestDistributionInstall(
+		t,
+		ctx,
+		runtime.HTTPClient,
+		runtime.HTTPURL("/api/extensions"),
+		request,
+		http.StatusCreated,
+	)
 	assertDistributionCatalogListing(t, ctx, runtime, "herdr-bridge", "0.3.3", "0.3.3", false)
 	bridgeEntry["version"] = "0.3.4"
 	catalog.setCatalogArtifact(bridgeEntry, packageDistributionCatalog(t, ctx, root, "herdr-bridge", "0.3.4"))
@@ -1396,7 +1600,12 @@ func packageDistributionCatalog(t *testing.T, ctx context.Context, root, name, v
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = bytes.Replace(data, []byte("version = "+strconv.Quote(manifest.Version)), []byte("version = "+strconv.Quote(version)), 1)
+	data = bytes.Replace(
+		data,
+		[]byte("version = "+strconv.Quote(manifest.Version)),
+		[]byte("version = "+strconv.Quote(version)),
+		1,
+	)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1436,7 +1645,11 @@ func refreshDistributionCatalog(t *testing.T, ctx context.Context, runtime *e2et
 }
 
 func assertDistributionCatalogListing(
-	t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, id, version, installedVersion string, update bool,
+	t *testing.T,
+	ctx context.Context,
+	runtime *e2etest.RuntimeHarness,
+	id, version, installedVersion string,
+	update bool,
 ) {
 	t.Helper()
 	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
