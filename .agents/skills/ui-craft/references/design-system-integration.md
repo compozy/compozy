@@ -6,7 +6,7 @@ Read this when reading or extending DESIGN.md, working with semantic tokens, str
 
 `DESIGN.md` is a Google-Labs-originated convention: a root-level markdown file that captures a project's visual identity as durable, agent-readable context. The same role for design that `CLAUDE.md` plays for code conventions.
 
-A canonical DESIGN.md contains, in order:
+For a requested new design document, the following topics are a starting outline. Use the existing project format and include only what its consumers need:
 
 1. **Visual Theme & Atmosphere** — brand personality, target audience, emotional tone (the *why* before tokens)
 2. **Color Palette & Roles** — primary, secondary, tertiary, neutral, plus semantic (success / warning / error). Each entry: hex + role + usage rule.
@@ -24,28 +24,23 @@ The product brief (2–3 sentences) before tokens is what makes the rest legible
 
 When a UI task arrives:
 
-1. **Locate.** Check repo root for `DESIGN.md`. Also check `packages/ui/`, `apps/web/`, `docs/`, and `.ai/`. The first hit is authoritative.
-2. **Read it in full.** Don't skim. Tokens, the brief, and the don'ts all matter.
-3. **Treat it as normative.** Tokens are not suggestions. Don'ts are not preferences.
-4. **Cross-check with token files.** When DESIGN.md and `tokens.css` (or `theme.ts`, etc.) drift, DESIGN.md wins — flag the divergence for resolution.
+1. **Locate the owner.** Follow the repository's design-source pointers and applicable subtree instructions. A filename or first search hit does not establish authority.
+2. **Read the affected contract.** Load the brief, token family, component pattern, or restriction relevant to this change, including necessary dependencies. Reuse current context; a small edit does not require the whole document.
+3. **Apply project policy.** Preserve established tokens and intentional design decisions; distinguish required contracts from illustrative examples.
+4. **Resolve drift at its source.** Follow the project's canonical-source rule when documentation and runtime tokens disagree. If documentation is generated, update the owning source and regenerate instead of hand-editing the output.
 
 ### Updating DESIGN.md
 
 When a UI change introduces a new variant, token, or component pattern:
 
-1. **Propose, don't rewrite.** Append a focused diff to DESIGN.md in the same change set as the code.
+1. **Update the owning source.** Make the focused authorized change; regenerate DESIGN.md when it is derived.
 2. **Justify the addition.** One sentence on why the existing tokens didn't fit.
-3. **Update all relevant token files** to keep parity (`tokens.css`, `theme.ts`, Figma styles).
+3. **Update affected consumers** through their established synchronization or generation workflow; avoid parallel manual copies.
 4. **Surface the change** in the PR description or commit message — design-system changes are reviewed differently than feature work.
 
 ### When DESIGN.md doesn't exist
 
-If the project has no DESIGN.md and the work cannot wait:
-
-- Fall back to `references/visual-craft.md` defaults
-- Surface this as a finding in the deliverable: "Project has no DESIGN.md — recommend scaffolding before further UI work"
-- Do not bootstrap a DESIGN.md as a side effect of a UI ticket — defer authoring to a dedicated DESIGN.md workflow or skill
-- If forced to scaffold quickly, use the 9-section structure above as the template
+Use the existing tokens, components, shipped interface, and user brief. Consult the relevant `visual-craft.md` section only for an unresolved design choice. Missing an optional DESIGN.md is not itself a finding or a blocker. Create a new design document only when the requested work needs that artifact.
 
 ## Token Discipline
 

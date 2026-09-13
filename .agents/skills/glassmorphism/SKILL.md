@@ -1,6 +1,6 @@
 ---
 name: glassmorphism
-description: "Create, refine, or debug glass interfaces at the level of Apple Liquid Glass and premium frosted widgets: translucent cards and capsules over photos or wallpapers, glass navigation and toolbars, smoked media controls, lens-refracting buttons, and their solid/accessible fallbacks. Use for glass material design, CSS backdrop-filter stacks (fill, rim, sheen, shadow, grain), SVG displacement refraction, glass tokens, contrast on translucent surfaces, rendering cost, and conditional SwiftUI/visionOS/Fluent guidance. Also matches interfaces de vidro, vidro fosco, and liquid glass. Excludes unrelated frontend edits, generic redesigns without glass, and photorealistic 3D glass rendering."
+description: "Create or refine glass UI with accessible solid fallbacks. Covers frosted surfaces and Liquid Glass; excludes unrelated UI and 3D glass rendering."
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck

@@ -253,6 +253,7 @@ def main():
                     help="review uncommitted + untracked work against the base ref")
     ap.add_argument("--files", help="comma-separated subset")
     ap.add_argument("--full", action="store_true")
+    ap.add_argument("--new-round", action="store_true", help="archive an interrupted round before rebuilding changed inputs")
     args = ap.parse_args()
     if args.pr and (args.base or args.staged or args.worktree):
         ap.error("--pr conflicts with --base/--staged/--worktree")
@@ -293,6 +294,9 @@ def main():
 
     last_head, last_n = prior_head(out_dir / "state.json")
     mode, effective_base, round_n = "full", base, last_n + 1
+    if args.new_round and (out_dir / "round.json").is_file():
+        current_round = json.loads((out_dir / "round.json").read_text()).get("round", 0)
+        round_n = max(round_n, int(current_round) + 1)
     if not args.full and not args.staged and not args.worktree:
         if last_head and run(["git", "merge-base", "--is-ancestor", last_head, head],
                              repo_root, check=False).returncode == 0 and last_head != head:

@@ -261,22 +261,11 @@ Motion can make slow things feel fast.
 - **Skeleton-to-content crossfade.** Don't replace skeleton with content suddenly. 120ms opacity crossfade hides the swap.
 - **Disable transitions on entry.** When a list mounts, mount items in their final state; transitions trigger only on subsequent state changes. Otherwise every full-page reload animates.
 
-## Anti-Patterns (with severity)
+## Motion review signals
 
-| Pattern                                                           | Severity   |
-| ----------------------------------------------------------------- | ---------- |
-| Ignoring `prefers-reduced-motion`                                 | Critical   |
-| Animating layout properties (`width`, `top`, `margin`)            | Serious    |
-| Bounce / elastic in product chrome                                | Serious    |
-| Motion with no semantic meaning (decoration only)                 | Serious    |
-| Page-load reveal on a product surface                             | Serious    |
-| Animating > 1 element simultaneously on the same axis             | Moderate   |
-| Linear easing on a state entrance                                 | Moderate   |
-| Stagger past 6 children                                           | Moderate   |
-| Using `ease` keyword by default                                   | Moderate   |
-| Duration > 800ms on a functional interaction                      | Moderate   |
+Inspect the affected animation for ignored reduced-motion preferences, dropped frames, delayed input, loss of orientation, or distracting repetition. Layout animation, springs, simultaneous elements, and longer durations are investigation signals rather than categorical defects. Use the actual component, device constraints, and accepted visual direction to judge them.
 
-Severity ties back to `SKILL.md`'s Anti-slop scorecard — Critical and Serious block merge.
+Classify confirmed problems by user impact and project requirements. Easing preferences and animation counts do not establish a merge blocker. Reuse existing measurements and check only the states the change affects.
 
 ## Library Choice — Decision Matrix
 
@@ -296,7 +285,7 @@ Severity ties back to `SKILL.md`'s Anti-slop scorecard — Critical and Serious 
 
 > Motion without meaning is decoration, and decoration in UX is debt.
 
-Every animation should answer "what state changed and why does the user need to perceive it?" If you cannot answer, delete the animation.
+An animation may explain state, maintain continuity, or serve an accepted brand purpose. Remove or simplify it when its observed distraction, delay, or cost outweighs that purpose.
 
 ## Sources
 

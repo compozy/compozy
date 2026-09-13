@@ -4,42 +4,21 @@
 # Validates that merge/rebase is clean and ready for testing
 # Usage: bash validate-merge.sh
 
-set -eo pipefail
+set -e
 
 echo "🔍 Merge/Rebase Validation"
 echo "======================================"
 echo ""
 
 EXIT_CODE=0
-UNMERGED_FILES=()
-while IFS= read -r -d '' file; do
-    UNMERGED_FILES+=("$file")
-done < <(git diff --name-only --diff-filter=U -z)
-CHANGED_FILES=()
-while IFS= read -r -d '' file; do
-    CHANGED_FILES+=("$file")
-done < <(git diff HEAD --name-only --diff-filter=ACMRTUXB -z)
 
 # 1. Check for remaining conflict markers
 echo "1️⃣  Checking for conflict markers..."
-MARKER_FILES=()
-for file in "${CHANGED_FILES[@]}"; do
-    [ -f "$file" ] || continue
-    marker_status=0
-    grep -q '^<<<<<<< \|^=======$\|^>>>>>>> ' "$file" || marker_status=$?
-    if [ "$marker_status" -eq 0 ]; then
-        MARKER_FILES+=("$file")
-    elif [ "$marker_status" -gt 1 ]; then
-        exit "$marker_status"
-    fi
-done
-if [ "${#MARKER_FILES[@]}" -eq 0 ]; then
+if git grep -l '<<<<<<\|======\|>>>>>>' 2>/dev/null | wc -l | grep -q '^0$'; then
     echo "   ✓ No conflict markers found"
 else
     echo "   ❌ FOUND conflict markers:"
-    for file in "${MARKER_FILES[@]}"; do
-        printf '   - %q\n' "$file"
-    done
+    git grep -l '<<<<<<\|======\|>>>>>>' 2>/dev/null || true
     echo ""
     echo "   ⚠️  Please resolve these files before continuing"
     EXIT_CODE=1
@@ -48,13 +27,11 @@ echo ""
 
 # 2. Check for unresolved git conflicts
 echo "2️⃣  Checking git status..."
-if [ "${#UNMERGED_FILES[@]}" -eq 0 ]; then
+if [ -z "$(git diff --name-only --diff-filter=U)" ]; then
     echo "   ✓ No unresolved conflicts in git status"
 else
     echo "   ❌ Git still shows unresolved conflicts:"
-    for file in "${UNMERGED_FILES[@]}"; do
-        printf '   - %q\n' "$file"
-    done
+    git diff --name-only --diff-filter=U | sed 's/^/   - /'
     EXIT_CODE=1
 fi
 echo ""
@@ -73,12 +50,7 @@ echo ""
 
 # 4. Check for duplicate code (merged sections)
 echo "4️⃣  Checking for duplicate code patterns..."
-dupe_status=0
-COMMON_DUPES=$(git diff HEAD | grep -c '^+.*{$') || dupe_status=$?
-if [ "$dupe_status" -gt 1 ]; then
-    exit "$dupe_status"
-fi
-COMMON_DUPES=${COMMON_DUPES:-0}
+COMMON_DUPES=$(git diff HEAD | grep -c '^+.*{$' || echo 0)
 if [ "$COMMON_DUPES" -lt 10 ]; then
     echo "   ✓ No obvious code duplication detected"
 else
@@ -99,11 +71,10 @@ echo ""
 
 # 6. Show changed files
 echo "6️⃣  Changed Files Summary:"
-CHANGED_COUNT=${#CHANGED_FILES[@]}
+CHANGED=$(git diff --name-only)
+CHANGED_COUNT=$(echo "$CHANGED" | grep -c . || echo 0)
 echo "   $CHANGED_COUNT files changed:"
-for file in "${CHANGED_FILES[@]}"; do
-    printf '   - %q\n' "$file"
-done
+echo "$CHANGED" | sed 's/^/   - /'
 echo ""
 
 # 7. Show stats
@@ -117,10 +88,10 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Validation PASSED - Ready for testing!"
     echo ""
     echo "Next steps:"
-    echo "  1. Run from the repository root: make gate"
-    echo "  2. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
-    echo "  3. Run a manual smoke test if needed"
-    echo "  4. Then: git rebase --continue; after push, wait for PR CI"
+    echo "  1. Run tests: npm test"
+    echo "  2. Run linter: npm run lint"
+    echo "  3. Manual smoke test if needed"
+    echo "  4. Then: git rebase --continue"
 else
     echo "❌ Validation FAILED - Fix issues before proceeding"
     echo ""
@@ -129,7 +100,7 @@ else
     echo "  - Git shows unresolved conflicts"
     echo "  - Other validation errors above"
     echo ""
-    echo "Fix and run from the repository root: bash .agents/skills/git-rebase/scripts/validate-merge.sh"
+    echo "Fix and run: bash validate-merge.sh"
 fi
 
 exit $EXIT_CODE

@@ -1,124 +1,42 @@
 # Pre-Ship Checklist
 
-Use this reference for a new surface, substantial redesign, or requested audit. Select applicable rows; unchecked inapplicable rows are not blockers. For a localized change, check the changed state in the live surface, its keyboard/accessibility behavior, canonical primitives/tokens, and any affected layout. No full matrix, dial declaration, breakpoint quota, or report is required for that short path.
+Use for a new surface, substantial redesign, or requested audit. Select only applicable checks and reuse existing evidence. The project's requirements govern release decisions; this checklist adds no approval, report, breakpoint quota, or mandatory profiling run.
 
-## Dial settings declared
+## Design decisions and system fidelity
 
-Optional for a substantial design brief; existing product grammar remains authoritative.
+- [ ] Changed design choices follow the accepted brief, supported primitives, and canonical token/copy sources.
+- [ ] New tokens or patterns have an owning source; generated documentation is updated through its existing tool.
+- [ ] Optional scene, register, or visual-dial notes resolve an actual design choice rather than restating established decisions.
 
-- [ ] `VISUAL_VARIANCE` declared: ____ (1–10, default 6)
-- [ ] `MOTION_INTENSITY` declared: ____ (1–10, default 4)
-- [ ] `INFORMATION_DENSITY` declared: ____ (1–10, default 5)
-- [ ] **Register declared:** Product / Brand
-- [ ] **Scene sentence written:** _________________________________________
+## Behavior and state coverage
 
-## Design system fidelity
-- [ ] DESIGN.md read and respected
-- [ ] All colors reference semantic tokens — no raw hex in component code
-- [ ] All spacing snaps to the scale — no magic numbers
-- [ ] All radii drawn from the radius scale — no `border-radius: 7px`
-- [ ] All shadows drawn from the elevation scale — no ad-hoc box-shadows
-- [ ] All durations and easings drawn from the motion scale
-- [ ] New tokens added to the canonical token source; derived design docs regenerated with the project command
+- [ ] Affected controls perform their indicated actions through the real interface.
+- [ ] Relevant default, focus, disabled, loading, empty, error, success, and recovery states were exercised; inapplicable states are omitted.
+- [ ] Pending feedback settles correctly and preserves usable layout.
 
-## State completeness
-- [ ] State matrix filled for every new or changed component
-- [ ] Default, hover, active, focus-visible designed
-- [ ] Disabled state designed with ≥ 3:1 contrast and a `why` cue if non-obvious
-- [ ] Loading state designed — disables trigger, shows progress signal, preserves layout
-- [ ] Empty state designed — explains category, offers primary action
-- [ ] Error state designed — plain language, specific cause, concrete recovery
-- [ ] Success state designed (or transient confirmation per UX)
+## Accessibility and layout
 
-## Accessibility floor (WCAG 2.2 AA)
-- [ ] Body text contrast ≥ 4.5:1 at rendered RGB
-- [ ] Large text contrast ≥ 3:1
-- [ ] Non-text UI / state indicators contrast ≥ 3:1
-- [ ] Every interactive element has visible `:focus-visible` (≥ 2px outline, ≥ 3:1 contrast, offset)
-- [ ] All interactive elements reachable by Tab in reading order
-- [ ] Keyboard contracts per WAI-ARIA pattern for composite widgets (dialog, menu, combobox, tabs)
-- [ ] Touch targets ≥ 44×44 (mobile), desktop targets ≥ 24×24
-- [ ] `prefers-reduced-motion: reduce` honored — no vestibular-triggering motion
-- [ ] Headings in nested order, one `<h1>` per page
-- [ ] Landmarks present (`<header>`, `<nav>`, `<main>`, `<aside>`, `<footer>`)
-- [ ] Form inputs have programmatic labels
-- [ ] Form errors associated via `aria-describedby`, announced via `aria-live` or `role="alert"`
-- [ ] No `<div onClick>` posing as a button; no `<a>` without `href` posing as a link
-- [ ] Color never the sole carrier of meaning (always paired with icon, shape, or text)
+- [ ] The changed interaction satisfies its keyboard, focus, accessible-name, and announcement contract; use the matching `references/accessibility-floor.md` section.
+- [ ] Rendered foreground/background combinations and non-color cues remain understandable in supported themes and contrast modes.
+- [ ] Changed layout survives representative content, supported languages, and relevant widths; supported touch and reduced-motion behavior works.
 
-## Anti-slop scan
-- [ ] No VisualSameness — hierarchy clear at a squint
-- [ ] No WeakHierarchy — one primary action per view
-- [ ] No TextOverflow — tested with worst-case content + i18n
-- [ ] No FakeInteractivity — affordance matches behavior
-- [ ] No EmojiSpam — emojis absent from product chrome
-- [ ] No GradientCrutch — gradients reserved for brand moments
-- [ ] No GlassmorphismAbuse — blur on at most one elevated surface
-- [ ] No GenericIllustration — text-only or branded empty states
-- [ ] No DesignSystemDrift — no raw hex, no magic spacing
-- [ ] No StateMatrixHoles — every state designed
-- [ ] No CenteredEverything — body text left-aligned
-- [ ] No RandomRadii — radius hierarchy consistent
-- [ ] No GhostFocus — `:focus-visible` styled
-- [ ] No MagicNumbers — values snap to scales
+## Visual and copy quality
 
-## Microcopy quality
-- [ ] CTAs use verb + object (`Delete project`, not `OK`)
-- [ ] Errors say what happened, why, and how to recover
-- [ ] No banned AI vocabulary (`elevate`, `seamless`, `unleash`, `journey`, `delve`, etc.)
-- [ ] No empty greetings (`Welcome!`, `Hi there!`, `Let's get started!`)
-- [ ] No filler (`Please`, `Note that`, `In order to`)
-- [ ] No blame language pointed at the user
-- [ ] No performed delight on routine actions
-- [ ] Tone matches the stakes (neutral for routine, plain for destructive, factual for errors)
+- [ ] Hierarchy, legibility, and content emphasis suit the task; decoration does not obscure information or interaction.
+- [ ] Sample content is recognizable as sample data; metrics and claims have evidence.
+- [ ] Action labels and error recovery are understandable in context and follow the product's voice.
+- [ ] Findings from `references/ai-slop-patterns.md` or `references/anti-defaults.md` describe observed problems, not preference scores.
 
-## Responsive and platform
-- [ ] Changed layout tested at representative supported widths and its actual breakpoints
-- [ ] No horizontal scroll on body content at any supported breakpoint
-- [ ] Dark mode verified for every state (not just default)
-- [ ] Mobile touch targets and gestures verified
+## AI surfaces, when affected
 
-## Internationalization
-- [ ] Tested with strings 30–40% longer than English (German / French / Portuguese sample)
-- [ ] Numeric and date formatting via `Intl.*` APIs, not hand-rolled
-- [ ] Layout would survive RTL flip (icons mirror, content reflows)
+- [ ] Capabilities, material limitations, sources, and uncertainty are understandable where they affect decisions.
+- [ ] Users can correct, retry, dismiss, or otherwise recover through the supported flow.
 
-## AI-feature surfaces (if applicable)
-- [ ] User can tell what the AI can do (Microsoft G1)
-- [ ] User can tell how well it does it (G2)
-- [ ] Easy to trigger and dismiss (G7, G8)
-- [ ] Easy to correct or refine output (G9)
-- [ ] Sources / reasoning surfaced (G11)
-- [ ] Uncertainty visible when meaningful
-- [ ] Error recovery flow tested
-- [ ] User can disable the feature (G17)
+## Verification and readiness
 
-## Documentation
-- [ ] DESIGN.md updated if tokens / variants / patterns introduced
-- [ ] Component docs or Storybook updated if the design system layer changed
-- [ ] Rules files (`CLAUDE.md`, `.cursorrules`) still accurate after the change
+- [ ] Evidence identifies the states and inputs checked: relevant screenshots, interaction runs, accessibility checks, or existing suite results.
+- [ ] Performance-sensitive changes use the existing budget and relevant measurements; see `references/performance.md`.
+- [ ] Required project checks are satisfied or their gaps are explicit. Optional helper warnings are inspected for real defects rather than treated as automatic blockers.
+- [ ] Remaining findings are prioritized by user impact and project policy. No arithmetic over visual preferences creates a new severity or release gate.
 
-## Verification evidence
-
-Provide one or more of:
-- Screenshots at each breakpoint (default state at minimum)
-- Screenshot of each non-default state in the state matrix
-- Keyboard navigation recording or step-by-step description
-- Screen reader test result (VO / NVDA pass)
-- Contrast checker output for any state-pair changed (run `<skill-dir>/scripts/check-contrast.mjs --json tokens.json` for token batches)
-- Token-drift scan output (`<skill-dir>/scripts/detect-token-drift.mjs <source-dir>` — must exit 0)
-- Performance evidence: Lighthouse CI run, Core Web Vitals snapshot, or bundle analyzer delta
-
-## Severity rollup
-
-For a requested scored audit, classify observed defects by user impact:
-
-- Critical: ____ — **must be 0** to merge
-- Serious:  ____ — **must be 0** to pass review approval
-- Moderate: ____ — ≥ 3 on a single surface compounds to Serious (treat as such)
-
-If Critical or Serious > 0, surface is not shippable. No "we'll fix it next sprint." File the issue, do the fix, re-run the checklist.
-
----
-
-Fix material defects in the changed surface and disclose unresolved relevant gaps. Do not file exceptions or tracking issues for inapplicable checklist rows.
+Fix material defects within the authorized scope. Record real unresolved decisions or limitations; no exception record is needed for an intentional design preference or inapplicable row.

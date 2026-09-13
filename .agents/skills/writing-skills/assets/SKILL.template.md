@@ -1,6 +1,6 @@
 ---
 name: [skill-name]
-description: [Concrete task and trigger; useful exclusions; at most 1,024 characters.]
+description: [Short first sentence naming the task, trigger, and main scope boundary; exclusions only for likely overlap.]
 ---
 
 # [Skill Title]

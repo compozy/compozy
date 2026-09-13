@@ -1,222 +1,83 @@
 # Anti-Defaults
 
-Read this when the surface is heading toward a generic AI-trained default — when a request feels like it could be answered by 50 other products' average. `ai-slop-patterns.md` catalogues *modes of failure*. This file catalogues *literal artifacts* to refuse on sight.
-
-Defaults are not neutral. They are votes for what the model has seen most.
+Use this catalog when a design choice fails to express the product's purpose or creates a concrete usability problem. `ai-slop-patterns.md` covers broader failure modes. Familiar patterns are valid when they fit the audience, content, brand, and existing interface.
 
 ## How To Use This File
 
-1. **Match-and-refuse.** When you catch yourself reaching for an item below, stop. Ask: *what scene-sentence forced this choice?* If there is no scene, the choice is reflex, not intent.
-2. **Severity decides the response.** Critical = block merge. Serious = block review approval. Moderate = nit unless used together with others (three moderates compound to serious).
-3. **Defaults are allowed when justified.** "Inter" is a fine typeface. "Inter because it was the first font I thought of" is the problem. The artifact is not banned — the reflex is.
-4. **Cite this file when refusing.** Saying "this is `anti-defaults.md` #5" is faster than re-arguing every time.
+Inspect only choices relevant to the task. Explain the observed cost before recommending a change: lost hierarchy, poor legibility, misleading content, interruption, inaccessible interaction, or rendering cost. Use the project's severity policy for actual defects. Visual preferences alone do not block approval or merge, and several preferences do not add up to a defect score.
 
-## The Blocklist
+Reuse the accepted brief and design decisions. Infer routine choices from the interface; no scene interview, alternative-font exercise, or written override is required for an intentional choice. Preserve the user's direction and report only material consequences.
+
+## Patterns to inspect
 
 ### 1. Emoji as icon
 
-**Forms:** 🚀 in headings, ✨ in CTAs, 🎉 on success, ⚡ on speed claims, 🔥 in marketing copy, 📊 instead of a chart icon, ✅ instead of a checkmark.
-
-**Severity:** Critical in product chrome (nav, buttons, dialogs, settings); Moderate in marketing or user-generated content; allowed when culturally explicit (a flag picker, a reaction picker).
-
-**Why:** Emojis bypass the icon set. They render inconsistently across platforms (Apple, Google, Microsoft, Twemoji all differ). They communicate "I added decoration to feel friendly" — the opposite of craft.
-
-**Refuse with:** Heroicons / Lucide / Phosphor / Tabler / Radix — pick one icon family and stick to it. Personality comes from copy, layout, and color.
+Use the product's icon inventory for consistent controls. Emoji may fit reactions, user content, or an intentional brand. Check recognition, rendering, and accessible names instead of treating every emoji as a blocker.
 
 ### 2. "Inter" as default font
 
-**Forms:** `font-family: "Inter"` without an alternative considered. `system-ui` rejected for "looking unprofessional." Designs that say "use Inter" with no scene context.
-
-**Severity:** Moderate. Inter is a strong typeface; using it is fine. Using it because you did not consider anything else is the problem.
-
-**Why:** Inter is the unofficial AI training default for "modern product UI." It is everywhere because it was the first widely available variable sans with strong screen readability. That does not make it the right answer for your brand.
-
-**Refuse with:** Run the scene sentence. Then pick from: a system stack (fast, free, OS-native), Geist (Vercel), JetBrains Mono (for code), a brand-specific commission, or yes — Inter — *with intent*.
+Preserve the established typeface when it works. Change typography for a brand, readability, language-support, or rendering need; being common is not a defect.
 
 ### 3. Centred hero one-column
 
-**Forms:** Full-bleed hero with centred headline + centred subhead + single centred CTA. Three-tile feature row underneath. "Trusted by" logo wall. "Get started today" CTA repeat.
-
-**Severity:** Serious on a serious product or B2B page; Moderate on side projects.
-
-**Why:** This is the dominant SaaS landing-page template from ~2020–2024. Every YC batch ships it. Every AI-generated landing reaches for it first. It signals "I did not have a point of view."
-
-**Refuse with:** Asymmetric hero (left-aligned text + right-aligned visual), bento layout for features, scene-sentence-driven composition. If the brief truly is "explain the product and ask for signup," that is fine — but make the *type* and *spacing* carry character. Center-alignment is not point of view; it is the absence of one.
+A centered introduction can suit a short message. Use asymmetric composition, a product view, or a different hierarchy when the content needs comparison, explanation, or stronger emphasis. Do not require a new composition solely to avoid a familiar pattern.
 
 ### 4. Placeholder names
 
-**Forms:** "John Doe", "Jane Smith", "Acme Inc.", "Lorem ipsum", "User Name", "user@example.com" in screenshots, demos, video frames, or product UI placeholder content.
-
-**Severity:** Serious in any user-facing surface; Critical if shipped to production (real users see the placeholder).
-
-**Why:** Realistic-but-fake content makes the product feel real. Lorem ipsum makes it feel like a wireframe. "John Doe" makes it feel like a tutorial.
-
-**Refuse with:**
-- Names: domain-realistic ("Maria Souza", "Tomás Andrade", "Priya Iyengar")
-- Companies: plausible-sounding without being trademarked ("Tidepool Logistics", "Granite Robotics")
-- Emails: real-shape addresses on owned domains ("maria@yourcompany.com")
-- Copy: short, plausible product-domain sentences. Never lorem ipsum past the wireframe stage.
+Use representative fixtures that demonstrate the actual content shape and are clearly sample data where needed. Never present invented customers, metrics, endorsements, or transactions as real. Preserve intentionally anonymous or documented example identities.
 
 ### 5. 3-column equal-card pricing/feature grid
 
-**Forms:** "Basic / Pro / Enterprise" pricing cards. "Fast / Reliable / Secure" feature cards. Three icons in a row underneath any hero.
-
-**Severity:** Moderate. The pattern works occasionally; it is the *reflex* that is the problem.
-
-**Why:** Three equal cards visually communicate "we have three things of equal importance" — which is almost never true. Pricing tiers have a recommended one. Features have a primary. The visual treatment lies.
-
-**Refuse with:** Asymmetric weights (recommended tier larger), a featured row plus secondary tile, or bento grid (see `archetypes.md`). For features: lead with the strongest, support with weaker — never lock to three.
+Equal cards suit comparable options. Use unequal emphasis when the product actually recommends one option or content has different importance. Let the number of meaningful options determine the layout.
 
 ### 6. Gradient text
 
-**Forms:** `background-clip: text` on headlines. "Vibrant" gradients on h1. Animated gradient text on landing pages.
-
-**Severity:** Serious. Contrast is unpredictable across the gradient.
-
-**Why:** Part of the gradient passes contrast; part fails. You cannot verify accessibility for a single-color value because the value is a range. Reduced-color displays and high-contrast modes break it entirely.
-
-**Refuse with:** Solid color. One color. Verified contrast. Brand expression goes into the *type*, *spacing*, and *layout* — not into a Photoshop filter on the most important word.
+Check the rendered text's least legible regions and supported contrast modes. Use a solid foreground when the gradient fails those checks; retain an intentional gradient when it remains readable.
 
 ### 7. Glassmorphism as default
 
-**Forms:** `backdrop-filter: blur(...)` on every elevated surface — sidebars, headers, cards, modals. Translucent everything.
-
-**Severity:** Moderate when used on one surface; Serious when used on multiple competing surfaces.
-
-**Why:** Blur is expensive (paint cost). Text on blur is hard to verify for contrast (depends on what is behind). The aesthetic peaked around 2021 and has since become AI-default-modern.
-
-**Refuse with:** Solid surfaces with the surface-lightness elevation system (see `dark-mode.md`). Reserve blur for one surface — usually the topmost modal or command palette — and verify text contrast against worst-case backgrounds.
+Check whether revealing the backdrop helps the surface, whether text remains legible, and whether compositing meets device constraints. Use a solid reading plane where needed. For requested glass work, use the relevant `glassmorphism` guidance; a surface-count quota is not evidence of rendering cost.
 
 ### 8. Side-stripe colored border
 
-**Forms:** Cards with a 3–8px coloured left or top border indicating category. "Status indicator" stripes on alerts. Dashboard-cliché 2020.
-
-**Severity:** Moderate.
-
-**Why:** The pattern is not wrong — it is overused. Every observability dashboard, every error message, every CRM card reaches for it. It substitutes for actual visual hierarchy.
-
-**Refuse with:** Background tint (subtle, accessible), icon + label, or both. A `5px solid var(--color-warning)` strip should be the last choice, not the first.
+Keep status stripes when they reinforce a clear hierarchy and consistent status vocabulary. Add text or another non-color cue when color alone carries meaning. Replace stripes only when they add noise or contradict the design system.
 
 ### 9. Hero-metric template
 
-**Forms:** Big number with gradient background. "10x faster." "100M+ users." Marketing hero that is one giant stat over a gradient.
-
-**Severity:** Serious in serious B2B contexts; Moderate in consumer.
-
-**Why:** The pattern is exhausted. Big number + gradient = "I am pitching to investors" = "I do not have product narrative." A real number with a real source and a real consequence is more compelling than 144pt purple gradient.
-
-**Refuse with:** Smaller number + supporting prose + cited source. Or skip the metric entirely and lead with a product demo.
+Lead with a metric when its source, period, comparison, and consequence support the message. Otherwise use the concrete product behavior. Do not invent a statistic to fill a visual slot.
 
 ### 10. Modal as first thought
 
-**Forms:** Every interaction opens a modal. Edit a name → modal. Delete a row → modal. Filter a list → modal. Confirm anything → modal.
-
-**Severity:** Serious. Modals fracture the user's task into a sequence of context switches.
-
-**Why:** Modals interrupt. They cover content. They demand attention. They are the right answer when the action is destructive, irreversible, or requires substantial input. They are the wrong answer for most edits.
-
-**Refuse with:** Inline editor (see `archetypes.md` #7), expandable row, side panel, contextual menu. Reserve modals for: confirm-destructive, structured-multi-input, or context-shifting flows where the user genuinely needs to focus.
+Use a modal for a task that needs focused input or a consequential decision. Prefer inline editing or a side panel when the user needs to retain surrounding context. Preserve the existing interaction contract and verify focus, dismissal, and recovery.
 
 ### 11. Neon glow / oversaturated purple
 
-**Forms:** `box-shadow: 0 0 40px var(--purple-500)` on a hero element. Oversaturated `#8B5CF6` / `#A855F7` / `#7C3AED` accents everywhere. Purple-to-pink gradients.
-
-**Severity:** Moderate in product UI; Serious on a serious brand.
-
-**Why:** Purple-to-pink is the AI-trained default for "tech / AI / modern." The Midjourney aesthetic, Replit's first chrome, every "AI startup" cookie-cutter. It became visual hygiene to avoid.
-
-**Refuse with:** Run the scene sentence. Pick from the full hue wheel — green, amber, blue, red, teal, orange. Make the brand earn its colour. If purple is correct for your brand, make it earn the choice; do not arrive at it by default.
+Judge color by brand fit, contrast, state distinction, and visual competition. Purple, gradients, and glow can be intentional. Reduce saturation or decoration where it obscures the primary action or information.
 
 ### 12. Bounce / elastic easing in product
 
-**Forms:** `cubic-bezier(0.34, 1.56, 0.64, 1)` on buttons, dialog entries, navigation transitions. Overshoot on accordions. Spring physics on tabs.
-
-**Severity:** Serious in product chrome; Moderate as a one-off brand moment.
-
-**Why:** Bounce reads as toy-like and dated. It tells the user the interface is performing for them, not serving them. Product tasks want decisive motion.
-
-**Refuse with:** `ease-out-quart` / `ease-out-quint` for entries; `ease-in-expo` for exits. Reserve spring physics for one-off delight moments — a confetti, a celebration — never for chrome (see `motion-patterns.md`).
+Motion should explain state or continuity without delaying interaction. Tune spring or easing behavior to the component, preserve reduced-motion support, and fix measured jank or distracting repetition.
 
 ### 13. Generic 3D / isometric illustration
 
-**Forms:** Storyset / undraw / icons8 hero illustrations. Isometric "people pointing at laptops." 3D bevelled cloud + chart + checkmark composition. Same illustration that appears on 500 other products.
-
-**Severity:** Serious in product surfaces; Moderate on side projects.
-
-**Why:** Generic illustration adds nothing to the brand and clearly signals "I needed something to fill this space." See `ai-slop-patterns.md` #8 (`GenericIllustration`).
-
-**Refuse with:** Text-only empty states. Branded wordmark or symbol. Custom illustration commissioned for the brand. A single product screenshot in context. Empty space — empty space is fine.
+Keep an illustration when it explains the product or fits the brand. Remove decorative filler when it competes with content; a screenshot, specific drawing, concise text, or empty space may communicate better.
 
 ### 14. "Welcome!" / "Hi there!" / "Let's get started!"
 
-**Forms:** Empty greeting at the top of dashboards. "Hi {firstName}!" cards. "Welcome back!" toasts. Decorative greetings.
-
-**Severity:** Serious. Empty greetings waste attention and add no information.
-
-**Why:** Greetings are conversational reflex from chatbots. In a dashboard, the user is not arriving — they are working. The greeting takes a row of vertical space and gives nothing back.
-
-**Refuse with:** Lead with information. "3 workflows failed overnight." "12 new audit events." "Deployment to production is in progress." The dashboard greets through utility, not pleasantries.
+A greeting can fit onboarding or a personal surface. Remove it when it displaces the next useful action or repeats information. Match the established product voice.
 
 ### 15. Decorative skeleton
 
-**Forms:** Skeleton screens that do not match the final content shape. Generic gray-bar placeholders unrelated to what loads. Animated shimmer that runs forever even when nothing is loading.
-
-**Severity:** Moderate (CLS risk) to Serious (when shimmer never stops).
-
-**Why:** A skeleton's job is to reserve the exact final dimensions. Wrong-size skeleton = layout shift when content arrives = CLS regression = real UX harm.
-
-**Refuse with:** Skeletons drawn to the exact final shape (same row heights, same column widths). Stop the shimmer when content is ready. Skip the skeleton if the operation finishes under 100ms (see `performance.md`).
+Reserve a useful approximation of the final layout while loading. Reuse the product's loading behavior, avoid flicker for short operations, and stop animation when work settles. Follow `performance.md` for a measured loading problem.
 
 ### 16. "Click here" / "Submit" / "OK"
 
-**Forms:** CTAs with no verb-object. Generic "Submit" / "OK" / "Click here" buttons. "Learn more" with no specifics.
-
-**Severity:** Serious. Generic CTAs are a microcopy failure (see `microcopy-quality.md`) and a usability failure (the user does not know what will happen).
-
-**Why:** A button label is a promise about what happens when pressed. "OK" promises nothing. "Submit" promises nothing. "Click here" actively wastes the button.
-
-**Refuse with:** Verb + object. `Delete project` not `Delete`. `Save changes` not `OK`. `Read deployment guide` not `Learn more`.
+Use labels that clarify the action and result. Conventional short labels are fine when context makes the outcome unambiguous. Verify the accessible name and avoid relying on pointer-specific instructions.
 
 ### 17. Always-visible label on every icon
 
-**Forms:** Every icon paired with a permanent text label, even when the icon is universally recognized (close, menu, search). Sidebars where every item shows both icon + full label even in collapsed mode.
+Use visible labels where recognition or task importance benefits from them. Familiar icon-only controls can work with accessible names and appropriate focus/hover help. A tooltip does not replace a control's accessible name; touch users also need to understand the action.
 
-**Severity:** Moderate. The opposite is worse — icon-only nav that requires learning — but redundancy is also a failure.
+## Sources and further detail
 
-**Why:** A universally-recognized icon (close X, hamburger ≡, search 🔍) does not need a label in chrome. A specialty icon does. Always-on labels turn iconography into decoration.
-
-**Refuse with:** Tooltips on hover for icon-only chrome. Labels on first-use or in expanded mode. Reserve permanent labels for non-obvious icons (export, archive, sync — all icon families disagree on these).
-
-## When the User Insists
-
-The user asks for a banned default. They have authority over their own product. Your job:
-
-1. Name the anti-default. "This is the centred-hero default from `anti-defaults.md` #3."
-2. Run the scene sentence with them. If a real scene emerges, the choice is no longer default — it is intent. Proceed.
-3. If no scene emerges, document the override in the deliverable: "Shipping centred hero per explicit request. Slop debt acknowledged."
-4. Never pretend the default is correct. Never invent justifications. Refuse silently is dishonest; refuse aloud is craft.
-
-## Compounding
-
-Three Moderates compound to Serious. Three Serious compound to Critical-by-pattern. A surface that has:
-
-- "Inter" default
-- 3-column feature grid
-- Centred hero
-- Purple gradient
-- Lorem ipsum
-- Stock isometric illustration
-
-…is not six small failures. It is one big failure: the product has no point of view. Refuse on sight.
-
-## Strong Opinion
-
-> Defaults are not neutral. They are votes for what the model has seen most. Use a default with intent, or you have decided nothing.
-
-## Sources
-
-- `taste-skill` (Leonxlnx, open-design ecosystem) — explicit anti-slop literal blocklist pattern
-- `impeccable` (pbakaus/impeccable) — reflex-reject lists and scene-driven decision framework
-- `ui-ux-pro-max` (open-design ecosystem) — pre-delivery anti-pattern checklist
-- `ai-slop-patterns.md` (this skill) — categorized failure modes; this file is the literal-artifact companion
-- Refactoring UI — *Designing With Color*, *Typography*, *Visual Hierarchy*
+This catalog adapts design-review ideas from `taste-skill`, `impeccable`, `ui-ux-pro-max`, and Refactoring UI. They supply options for judgment, not repository release policy. Use the relevant sections of `component-patterns.md`, `accessibility-floor.md`, and `archetypes.md` for a specific component or design problem.

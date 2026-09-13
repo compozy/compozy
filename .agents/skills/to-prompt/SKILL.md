@@ -1,6 +1,6 @@
 ---
 name: to-prompt
-description: Turn code, issues, or context into a handoff brief for another LLM — relevant context and preserved user decisions, written to docs/prompts/. Use when packaging a bug fix, an improvement, or a feature request for an external LLM to implement. Don't use for simple one-shot questions or end-user-facing copy.
+description: "Create a handoff brief for another LLM to implement. Preserve accepted decisions and write to docs/prompts/; excludes one-shot questions and end-user copy."
 disable-model-invocation: true
 metadata:
   author: Pedro Nauck

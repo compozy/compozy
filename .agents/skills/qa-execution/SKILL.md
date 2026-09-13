@@ -1,6 +1,6 @@
 ---
 name: qa-execution
-description: "Run persona-driven dogfooding through public product interfaces using living QA docs. Use for release candidates, branch diffs, migrations, and user-facing changes. qa-report owns planning; CI and specialist test suites are outside this workflow."
+description: "Run requested dogfooding through public product interfaces. Use existing QA journeys or qa-report to plan them; excludes routine code edits and CI-only verification."
 disable-model-invocation: true
 argument-hint: "[qa-docs-path]"
 metadata:
@@ -69,8 +69,8 @@ Choose the planned smoke/targeted/full scope. Read only the relevant procedure/s
 
 **Step 8 — Close the round**
 - Re-read the round-close checklist in `references/status-and-reporting.md`; map matrix verdicts to tracker enums per `../qa-report/references/state-schema.md`.
-- Exit gate: satisfy the project's required local pre-push gate once or cite current evidence; record its result concisely. Delivery still requires exact-head PR CI; a green matrix over a red local or remote gate is not ready.
-- **Done when:** zero matrix rows are `Pending`, scenario-file verdicts and bug statuses are current, every session's debrief is in the report, and the report's Final Status states release readiness with totals by impact tier — backed by fresh evidence from the current build.
+- Close the requested QA scope with the observed findings, coverage, and limitations. After fixes, run affected checks and any project checks required for that work, reusing valid evidence. When the request also includes PR delivery or release readiness, record the applicable delivery gates and current-head CI; missing or failed required evidence prevents that readiness claim, not an honest QA report.
+- **Done when:** zero matrix rows are `Pending`, scenario-file verdicts and bug statuses are current, every session's debrief is in the report, and Final Status states the QA outcome with totals by impact tier and evidence from the inspected build. State PR/release readiness only when that decision is in scope.
 
 ## Companion skills
 

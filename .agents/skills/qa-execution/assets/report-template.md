@@ -91,9 +91,10 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Final Status
 
-<!-- Written LAST, after the exit gate. -->
+<!-- Written LAST, after the checks applicable to the requested scope. Session and tracker enums remain unchanged. -->
 
-- **Exit gates:** <required local gate evidence; current-head CI when delivering a PR>
+- **QA outcome:** <scoped round complete; findings and blocked items remain explicit>
+- **Checks:** <affected checks after fixes and required project evidence for this work>
 - **Issues by user impact:** Blocks-Completion <N> · Data-Loss <N> · Trust-Damage <N> · Friction <N> · Cosmetic <N>
 - **Coverage:** <journeys walked / in scope; skips disclosed>
-- **Verdict:** <ready | not ready | ready with blocked items> — <one actionable sentence>
+- **Delivery readiness (only when requested):** <ready | not ready | ready with blocked items> — <applicable delivery gates and current-head PR CI; omit for QA-only work>

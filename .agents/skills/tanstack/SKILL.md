@@ -1,6 +1,6 @@
 ---
 name: tanstack
-description: TanStack Query, Router, and Form patterns for React. Use when writing useQuery/queryOptions, mutations, caching, file-based routes, search params, loaders, or TanStack Form validation. Don't use for TanStack Start, TanStack DB/collections, Zustand client state, or non-TanStack routing.
+description: "Implement React data, routes, or forms with TanStack. Covers Query, Router, and Form; excludes Start, DB, and unrelated state or routing libraries."
 ---
 
 # TanStack

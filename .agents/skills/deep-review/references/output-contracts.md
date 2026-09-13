@@ -1,6 +1,6 @@
 # Output Contracts
 
-Exact templates for every artifact. Placeholders in `<angle brackets>`; keep section order and marker strings byte-stable — fingerprints and upserts depend on them. walkthrough.md is orchestrator-authored; review.md and state.json are rendered from findings.json by `scripts/render_review.py`, which implements these templates and the verdict rule — this file is the contract it must keep.
+Templates for final presentation. Placeholders in `<angle brackets>`; keep section order and marker strings stable for rendering and publication. Normal preparation records intent and plan; `render_review.py` generates walkthrough.md from those artifacts and reviewers' summaries, then renders review.md/state.json from canonical findings. Read this reference when changing presentation or diagnosing a report, not during normal bootstrap.
 
 ## Contents
 

@@ -2,7 +2,7 @@
 
 Use for new skills or substantial behavioral rewrites. Review only affected concerns for a small edit; a concise result is sufficient. This checklist is authoring guidance, not an additional gate for every task that uses the skill.
 
-- The trigger identifies a concrete need and avoids redundant automatic invocation.
+- The description's first sentence identifies the concrete need and main scope boundary even if the rest is truncated; the trigger avoids redundant automatic invocation.
 - The outcome and stopping condition are observable; required steps exist for a dependency, contract, or evidenced failure.
 - User authorization and repository policy remain authoritative; optional work does not become a permission loop.
 - Shared rules have one owner; local variants and source synchronization are explicit.
