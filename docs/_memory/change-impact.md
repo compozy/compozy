@@ -571,3 +571,12 @@ existing semantic success tone for truthful runtime status. No additional native
 hook, workspace storage or SDK contract changes. The install guide explains these entry points;
 J-mcp-authorize-repair and ET-web-marketplace-mcp-authorize-installed now target the current routes
 and remain untested for final09/10. UI integration and focused checks are still in progress.
+
+Task07 package-cache foundation adds verified content-addressed files under a configured cache root.
+Put stages and syncs approved bytes before publication, Open re-verifies the held file, and Sweep
+preserves supplied projection/installation pins while evicting older unreferenced blobs. Existing
+fileutil owns no-follow and bound publication/removal. Real-file race tests cover interruption,
+corruption repair, cancellation, capacity, pins, symlink refusal and readers surviving eviction.
+This is an internal foundation: source fetching/projection/install composition is still pending,
+so there is no new callable CLI/HTTP/UDS/native surface, config, hook, SDK, Web or installed-state
+change yet. Task07's existing audit will expand when those consumers are wired.
