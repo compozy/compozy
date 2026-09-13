@@ -3,6 +3,9 @@ package pluginsource
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -10,6 +13,175 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestFetchGitHubMarketplace(t *testing.T) {
+	t.Parallel()
+	for _, location := range []string{"marketplace.json", ".claude-plugin/marketplace.json"} {
+		t.Run("Should fetch "+location+" from the exact resolved commit", func(t *testing.T) {
+			t.Parallel()
+			commit := strings.Repeat("a", 40)
+			calls := 0
+			source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+				calls++
+				if strings.Contains(request.URL.Path, "/commits/") {
+					return marketplaceHTTPResponse(t, request, http.StatusOK, commit), nil
+				}
+				if request.URL.Query().Get("ref") != commit {
+					t.Error("document request did not retain the resolved commit")
+				}
+				if request.URL.Path == "/repos/owner/repo/contents/"+location {
+					return marketplaceHTTPResponse(t, request, http.StatusOK, `{"name":"team","plugins":[]}`), nil
+				}
+				return marketplaceHTTPResponse(t, request, http.StatusNotFound, "missing"), nil
+			})
+			doc, err := source.Fetch(t.Context())
+			wantCalls := 2
+			if location != "marketplace.json" {
+				wantCalls = 3
+			}
+			if err != nil || doc.Name != "team" || doc.Path != location || doc.SourceRef != "github:owner/repo" ||
+				doc.ResolvedRef != "github:owner/repo@"+commit || calls != wantCalls {
+				t.Fatalf("Fetch = %+v, %v, requests %d", doc, err, calls)
+			}
+		})
+	}
+	t.Run(
+		"Should report checked locations without disguising malformed or oversized root documents",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, body := range []string{"missing", `{"plugins":`, strings.Repeat("x", MaxDocumentBytes+1)} {
+				calls := 0
+				source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+					calls++
+					if strings.Contains(request.URL.Path, "/commits/") {
+						return marketplaceHTTPResponse(t, request, http.StatusOK, strings.Repeat("a", 40)), nil
+					}
+					status := http.StatusOK
+					if body == "missing" {
+						status = http.StatusNotFound
+					}
+					return marketplaceHTTPResponse(t, request, status, body), nil
+				})
+				_, err := source.Fetch(t.Context())
+				switch body {
+				case "missing":
+					missing, ok := errors.AsType[*NotMarketplaceError](err)
+					if !ok || len(missing.Checked) != 2 || calls != 3 {
+						t.Fatalf("missing documents = %v, requests %d", err, calls)
+					}
+				case `{"plugins":`:
+					if !errors.Is(err, ErrNotMarketplace) || calls != 2 {
+						t.Fatalf("malformed document = %v, requests %d", err, calls)
+					}
+				default:
+					if !errors.Is(err, ErrDocumentTooLarge) || calls != 2 {
+						t.Fatalf("oversized document = %v, requests %d", err, calls)
+					}
+				}
+			}
+		},
+	)
+	t.Run("Should expose rate limiting without recommending credentials for a public source", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+			calls++
+			response := marketplaceHTTPResponse(t, request, http.StatusForbidden, "rate limited")
+			response.Header.Set("X-RateLimit-Remaining", "0")
+			return response, nil
+		})
+		_, err := source.Fetch(t.Context())
+		failure, ok := errors.AsType[*SourceError](err)
+		if !ok || !errors.Is(err, ErrSourceUnreachable) || failure.Reason != "rate_limited" || calls != 1 ||
+			strings.Contains(err.Error(), "GITHUB_TOKEN") {
+			t.Fatalf("rate limit = %v, requests %d", err, calls)
+		}
+	})
+	t.Run("Should bound retries to three and preserve cancellation", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+			calls++
+			return marketplaceHTTPResponse(t, request, http.StatusServiceUnavailable, "unavailable"), nil
+		})
+		if _, err := source.Fetch(t.Context()); !errors.Is(err, ErrSourceUnreachable) || calls != 4 {
+			t.Fatalf("retries = %v, requests %d", err, calls)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := source.Fetch(ctx); !errors.Is(err, context.Canceled) || calls != 4 {
+			t.Fatalf("canceled request = %v, requests %d", err, calls)
+		}
+	})
+}
+
+func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
+	// not parallel: ambient credentials are set only within this serial test.
+	t.Run("Should ignore ambient tokens and cookies without mutating the supplied client", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "test-ambient-token")
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		origin := &url.URL{Scheme: "https", Host: "api.github.com"}
+		jar.SetCookies(origin, []*http.Cookie{{Name: "auth", Value: "test-cookie"}})
+		client := &http.Client{
+			Jar: jar,
+			Transport: marketplaceRoundTripper(func(request *http.Request) (*http.Response, error) {
+				if request.Header.Get("Authorization") != "" || request.Header.Get("Cookie") != "" {
+					t.Error("marketplace request carried ambient credentials")
+				}
+				if strings.Contains(request.URL.Path, "/commits/") {
+					return marketplaceHTTPResponse(t, request, http.StatusOK, strings.Repeat("a", 40)), nil
+				}
+				return marketplaceHTTPResponse(t, request, http.StatusOK, `{"plugins":[]}`), nil
+			}),
+		}
+		source, err := NewGitHubSource("owner/repo", WithGitHubHTTPClient(client))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := source.Fetch(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if client.Jar != jar || client.Timeout != 0 {
+			t.Fatal("source mutated the supplied HTTP client")
+		}
+	})
+}
+
+type marketplaceRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f marketplaceRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func githubMarketplaceSource(t *testing.T, handler marketplaceRoundTripper) *GitHubSource {
+	t.Helper()
+	source, err := NewGitHubSource("owner/repo", WithGitHubHTTPClient(&http.Client{Transport: handler}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := source.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return source
+}
+
+func marketplaceHTTPResponse(t *testing.T, request *http.Request, status int, body string) *http.Response {
+	t.Helper()
+	return &http.Response{
+		StatusCode: status, Status: http.StatusText(status), Request: request, Header: make(http.Header),
+		Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)),
+	}
+}
 
 func TestReadMarketplaceDirectory(t *testing.T) {
 	t.Parallel()

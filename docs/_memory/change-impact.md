@@ -589,3 +589,12 @@ handles without following symlinks. Existing registry installers and extension b
 The public-source/config/daemon composition remains assigned to task07/08; no new routes or native
 tools are exposed by this checkpoint. Canonical coverage: pluginsource reader_test.go (origin identity,
 metadata/source decoding, local document selection, size/cancellation and confinement).
+
+### Task07 GitHub acquisition foundation
+
+Plugin marketplace documents resolve to an exact GitHub commit and are fetched through the existing
+registry client without ambient token/cookie use, within one 10-second deadline and existing bounded
+retries. New repository read/archive methods retain the existing network and response ownership rules.
+The shared archive finalizer also removes its spool when response cleanup fails. Public routes, config
+composition, install/cache consumers and final QA remain owned by task07/08/09/10. Owning validation is
+the registry/github and pluginsource race suites; this is not a final gate/QA delivery claim.

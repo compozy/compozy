@@ -4,14 +4,75 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/registry"
 )
+
+func TestClientDownloadRevision(t *testing.T) {
+	t.Parallel()
+	t.Run("Should download the pinned repository archive without release lookup", func(t *testing.T) {
+		t.Parallel()
+		commit := strings.Repeat("b", 40)
+		client := NewClient("", WithToken(""), WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path != "/repos/acme/demo/tarball/"+commit {
+					t.Errorf("unexpected revision download path: %s", request.URL.Path)
+				}
+				response := newHTTPResponse(http.StatusOK, "archive bytes")
+				response.Header.Set("Content-Type", "application/gzip")
+				response.ContentLength = int64(len("archive bytes"))
+				return response, nil
+			}),
+		}))
+		result, err := client.DownloadRevision(t.Context(), "acme/demo", commit, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, readErr := io.ReadAll(result.Reader)
+		closeErr := result.Reader.Close()
+		if readErr != nil || closeErr != nil || string(raw) != "archive bytes" || result.Version != commit ||
+			result.ContentSize != int64(len(raw)) {
+			t.Fatalf("download = %+v, raw %q, read %v, close %v", result, raw, readErr, closeErr)
+		}
+		if _, err := client.DownloadRevision(t.Context(), "acme/demo", "main", 100); err == nil {
+			t.Fatal("accepted an unpinned archive download")
+		}
+	})
+}
+
+func TestClientDownloadResponseCloseFailure(t *testing.T) {
+	// not parallel: temporary-directory variables isolate the process-wide spool root.
+	t.Run("Should remove the completed spool when response cleanup fails", func(t *testing.T) {
+		temp := t.TempDir()
+		t.Setenv("TMPDIR", temp)
+		t.Setenv("TEMP", temp)
+		t.Setenv("TMP", temp)
+		closeFailure := errors.New("response close failed")
+		client := NewClient("", WithToken(""), WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/gzip"}},
+					Body: &errorReadCloser{Reader: strings.NewReader("archive bytes"), closeErr: closeFailure},
+				}, nil
+			}),
+		}))
+		result, err := client.DownloadRevision(t.Context(), "acme/demo", strings.Repeat("a", 40), 100)
+		if result != nil || !errors.Is(err, closeFailure) {
+			t.Fatalf("failed cleanup = %+v, %v", result, err)
+		}
+		files, err := os.ReadDir(temp)
+		if err != nil || len(files) != 0 {
+			t.Fatalf("spool files after failure = %v, %v", files, err)
+		}
+	})
+}
 
 func TestClientDownloadArchiveLimitContract(t *testing.T) {
 	t.Parallel()

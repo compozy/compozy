@@ -12,6 +12,11 @@ import (
 
 var ErrSourceUnreachable = errors.New("source_unreachable")
 
+const (
+	rootDocumentPath   = "marketplace.json"
+	clientDocumentPath = ".claude-plugin/marketplace.json"
+)
+
 type NotMarketplaceError struct {
 	Checked []string
 }
@@ -41,7 +46,7 @@ func ReadDirectory(ctx context.Context, root string) (document Document, err err
 	defer func() { err = errors.Join(err, directory.Close()) }()
 	document, err = readDirectoryDocument(ctx, directory)
 	if err == nil {
-		document.Path = "marketplace.json"
+		document.Path = rootDocumentPath
 		return document, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
@@ -60,13 +65,13 @@ func ReadDirectory(ctx context.Context, root string) (document Document, err err
 		return Document{}, missingMarketplaceDocument()
 	}
 	if err == nil {
-		document.Path = ".claude-plugin/marketplace.json"
+		document.Path = clientDocumentPath
 	}
 	return document, err
 }
 
 func readDirectoryDocument(ctx context.Context, directory *fileutil.Directory) (document Document, err error) {
-	file, err := directory.OpenRegularFile("marketplace.json")
+	file, err := directory.OpenRegularFile(rootDocumentPath)
 	if err != nil {
 		return Document{}, fmt.Errorf("%w: open marketplace document: %w", ErrSourceUnreachable, err)
 	}
@@ -82,5 +87,5 @@ func readDirectoryDocument(ctx context.Context, directory *fileutil.Directory) (
 }
 
 func missingMarketplaceDocument() error {
-	return &NotMarketplaceError{Checked: []string{"marketplace.json", ".claude-plugin/marketplace.json"}}
+	return &NotMarketplaceError{Checked: []string{rootDocumentPath, clientDocumentPath}}
 }

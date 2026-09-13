@@ -29,6 +29,8 @@ type Diagnostic struct {
 
 type Document struct {
 	Name, Owner, Path string
+	SourceRef         string
+	ResolvedRef       string
 	DigestSHA256      string
 	Plugins           []Plugin
 	Diagnostics       []Diagnostic

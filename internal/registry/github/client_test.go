@@ -1532,6 +1532,120 @@ func TestSelectReleaseDownloadErrors(t *testing.T) {
 	}
 }
 
+func TestClientRepositoryReads(t *testing.T) {
+	t.Parallel()
+	t.Run("Should pin content reads to a resolved commit and preserve literal path segments", func(t *testing.T) {
+		t.Parallel()
+		commit := strings.Repeat("a", 40)
+		paths := []string{}
+		client := NewClient("", WithToken(""), WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				paths = append(paths, request.URL.EscapedPath())
+				if request.Header.Get("Authorization") != "" {
+					t.Error("public read sent credentials")
+				}
+				if strings.HasSuffix(request.URL.Path, "/commits/HEAD") {
+					if request.Header.Get("Accept") != "application/vnd.github.sha" {
+						t.Error("commit request did not request SHA identity")
+					}
+					return newHTTPResponse(http.StatusOK, commit+"\n"), nil
+				}
+				if request.URL.Query().Get("ref") != commit ||
+					request.Header.Get("Accept") != "application/vnd.github.raw+json" {
+					t.Error("file read lost the pinned revision or raw content media type")
+				}
+				return newHTTPResponse(http.StatusOK, `{"plugins":[]}`), nil
+			}),
+		}))
+		got, err := client.ResolveCommit(t.Context(), "acme/demo", "")
+		if err != nil || got != commit {
+			t.Fatalf("ResolveCommit = %q, %v", got, err)
+		}
+		for _, path := range []string{".claude-plugin/marketplace.json", "%2e%2e/name with spaces.json"} {
+			raw, err := client.ReadFile(t.Context(), "acme/demo", got, path, 1024)
+			if err != nil || string(raw) != `{"plugins":[]}` {
+				t.Fatalf("ReadFile = %q, %v", raw, err)
+			}
+		}
+		if paths[1] != "/repos/acme/demo/contents/.claude-plugin/marketplace.json" ||
+			paths[2] != "/repos/acme/demo/contents/%252e%252e/name%20with%20spaces.json" {
+			t.Fatalf("escaped paths = %v", paths)
+		}
+	})
+	t.Run("Should reject unpinned or invalid file requests before transport", func(t *testing.T) {
+		t.Parallel()
+		client := NewClient("", WithToken(""), WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				t.Error("invalid file request reached transport")
+				return nil, errors.New("unexpected transport call")
+			}),
+		}))
+		commit := strings.Repeat("a", 40)
+		for _, path := range []string{"", ".", "../outside", "/absolute", "path\\outside"} {
+			if _, err := client.ReadFile(t.Context(), "acme/demo", commit, path, 100); err == nil {
+				t.Fatalf("accepted invalid path %q", path)
+			}
+		}
+		for _, ref := range []string{"main", "short", strings.Repeat("g", 40)} {
+			if _, err := client.ReadFile(t.Context(), "acme/demo", ref, "marketplace.json", 100); err == nil {
+				t.Fatalf("accepted unpinned ref %q", ref)
+			}
+		}
+		for _, limit := range []int64{0, -1, maxReleaseMetadataBytes + 1} {
+			if _, err := client.ReadFile(t.Context(), "acme/demo", commit, "marketplace.json", limit); err == nil {
+				t.Fatalf("accepted invalid byte limit %d", limit)
+			}
+		}
+	})
+	t.Run("Should bound advertised and streamed content and close each response", func(t *testing.T) {
+		t.Parallel()
+		for _, advertised := range []int64{-1, 101} {
+			body := &countingReadCloser{Reader: strings.NewReader(strings.Repeat("x", 101))}
+			client := NewClient("", WithToken(""), WithHTTPClient(&http.Client{
+				Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: http.StatusOK, Body: body, ContentLength: advertised}, nil
+				}),
+			}))
+			_, err := client.ReadFile(t.Context(), "acme/demo", strings.Repeat("a", 40), "marketplace.json", 100)
+			if !errors.Is(err, ErrContentTooLarge) || body.closeCalls != 1 {
+				t.Fatalf("bounded file = %v, closed %d times", err, body.closeCalls)
+			}
+		}
+	})
+	t.Run("Should preserve not-found rate-limit and invalid commit failures", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			status    int
+			body      string
+			remaining string
+			want      error
+		}{
+			{status: http.StatusNotFound, want: registry.ErrPackageNotFound},
+			{status: http.StatusTooManyRequests, want: ErrRateLimited},
+			{status: http.StatusForbidden, remaining: "0", want: ErrRateLimited},
+			{status: http.StatusOK, body: "not-a-commit"},
+		}
+		for _, test := range cases {
+			client := NewClient(
+				"",
+				WithToken(""),
+				WithRetryPolicy(time.Millisecond, time.Millisecond, 0),
+				WithHTTPClient(
+					&http.Client{Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+						response := newHTTPResponse(test.status, test.body)
+						response.Header.Set("X-RateLimit-Remaining", test.remaining)
+						return response, nil
+					})},
+				),
+			)
+			if _, err := client.ResolveCommit(t.Context(), "acme/demo", "main"); err == nil ||
+				(test.want != nil && !errors.Is(err, test.want)) {
+				t.Fatalf("status %d: ResolveCommit = %v", test.status, err)
+			}
+		}
+	})
+}
+
 func TestFirstNonEmpty(t *testing.T) {
 	t.Parallel()
 
