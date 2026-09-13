@@ -313,7 +313,6 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 		source, err := NewDirectorySource(
-			KindExtension,
 			(&url.URL{Scheme: "file", Path: directory}).String(),
 		)
 		if err != nil {

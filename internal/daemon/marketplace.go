@@ -70,7 +70,7 @@ func buildMarketplaceService(
 		return nil, fmt.Errorf("daemon: parse marketplace catalog timeout: %w", err)
 	}
 	client := &http.Client{Timeout: timeout}
-	source, err := marketplace.NewSource(marketplace.KindExtension, cfg.EffectiveBaseURL(), client)
+	source, err := marketplace.NewSource(cfg.EffectiveBaseURL(), client)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create marketplace source: %w", err)
 	}

@@ -34,7 +34,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		client := &http.Client{Timeout: time.Second}
-		source, err := NewHTTPSource(KindExtension, server.URL, client)
+		source, err := NewHTTPSource(server.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			store := openMarketplaceTestStore(t)
-			source, err := NewHTTPSource(KindExtension, server.URL, &http.Client{Timeout: time.Second})
+			source, err := NewHTTPSource(server.URL, &http.Client{Timeout: time.Second})
 			if err != nil {
 				t.Fatalf("NewHTTPSource() error = %v", err)
 			}

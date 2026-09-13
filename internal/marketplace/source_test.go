@@ -407,7 +407,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		source, err := NewDirectorySource(KindExtension, (&url.URL{Scheme: "file", Path: directory}).String())
+		source, err := NewDirectorySource((&url.URL{Scheme: "file", Path: directory}).String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -428,7 +428,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 		baseURL := (&url.URL{Scheme: "file", Path: dir}).String()
-		source, err := NewSource(KindExtension, baseURL, &http.Client{Timeout: time.Second})
+		source, err := NewSource(baseURL, &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewSource(file) error = %v", err)
 		}
@@ -463,7 +463,6 @@ func TestCatalogSourceFetch(t *testing.T) {
 			t.Fatalf("Close(%q) error = %v", path, err)
 		}
 		source, err := NewDirectorySource(
-			KindExtension,
 			(&url.URL{Scheme: "file", Path: dir}).String(),
 		)
 		if err != nil {
@@ -489,7 +488,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		client := &http.Client{Timeout: time.Second}
-		source, err := NewHTTPSource(KindExtension, server.URL, client)
+		source, err := NewHTTPSource(server.URL, client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -519,7 +518,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 				return nil, request.Context().Err()
 			}),
 		}
-		source, err := NewHTTPSource(KindExtension, "https://example.test/catalog", client)
+		source, err := NewHTTPSource("https://example.test/catalog", client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -554,7 +553,6 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		source, err := NewHTTPSource(
-			KindExtension,
 			server.URL,
 			&http.Client{Timeout: time.Second},
 			WithMaxResponseBytes(64),
@@ -571,7 +569,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject clients without an explicit timeout", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindExtension, "https://example.test/catalog", &http.Client{})
+		_, err := NewHTTPSource("https://example.test/catalog", &http.Client{})
 		if err == nil {
 			t.Fatal("NewHTTPSource() error = nil, want timeout validation error")
 		}
@@ -587,7 +585,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		}))
 		t.Cleanup(server.Close)
-		source, err := NewHTTPSource(KindExtension, server.URL, &http.Client{Timeout: time.Second})
+		source, err := NewHTTPSource(server.URL, &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -601,7 +599,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a relative catalog URL", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindExtension, "relative/catalog", &http.Client{Timeout: time.Second})
+		_, err := NewHTTPSource("relative/catalog", &http.Client{Timeout: time.Second})
 		if err == nil || !strings.Contains(err.Error(), "absolute HTTP(S) URL") {
 			t.Fatalf("NewHTTPSource(relative URL) error = %v, want absolute-URL validation", err)
 		}
@@ -610,7 +608,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a missing HTTP client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewHTTPSource(KindExtension, "https://example.test", nil)
+		_, err := NewHTTPSource("https://example.test", nil)
 		if err == nil || !strings.Contains(err.Error(), "HTTP client timeout must be positive") {
 			t.Fatalf("NewHTTPSource(nil client) error = %v, want client validation", err)
 		}
@@ -619,13 +617,11 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should reject a nil fetch context", func(t *testing.T) {
 		t.Parallel()
 
-		source, err := NewHTTPSource(KindExtension, "https://example.test", &http.Client{Timeout: time.Second})
+		source, err := NewHTTPSource("https://example.test", &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewHTTPSource(valid) error = %v", err)
 		}
-		if got := source.Kind(); got != KindExtension {
-			t.Fatalf("Kind() = %q, want %q", got, KindExtension)
-		}
+
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		if _, err := source.Fetch(nil); err == nil || !strings.Contains(err.Error(), "fetch context is required") {
 			t.Fatalf("Fetch(nil context) error = %v, want context validation", err)
@@ -636,9 +632,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Parallel()
 
 		var nilSource *HTTPSource
-		if got := nilSource.Kind(); got != "" {
-			t.Fatalf("nil Kind() = %q, want empty", got)
-		}
+
 		_, err := nilSource.Fetch(context.Background())
 		if err == nil || !strings.Contains(err.Error(), "HTTP source is required") {
 			t.Fatalf("nil Fetch() error = %v, want source validation", err)
@@ -777,7 +771,6 @@ func TestCatalogSourceFetch(t *testing.T) {
 					}),
 				}
 				source, err := NewHTTPSource(
-					KindExtension,
 					"https://example.test/catalog",
 					client,
 					WithMaxResponseBytes(tt.maxResponseBytes),
@@ -836,7 +829,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 				return &http.Response{StatusCode: http.StatusOK, ContentLength: -1, Body: body}, nil
 			}),
 		}
-		source, err := NewHTTPSource(KindExtension, "https://example.test/catalog", client)
+		source, err := NewHTTPSource("https://example.test/catalog", client)
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
@@ -1075,7 +1068,7 @@ func TestHTTPSourceV3Family(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			source, err := NewHTTPSource(KindExtension, server.URL+"/catalog", &http.Client{Timeout: time.Second})
+			source, err := NewHTTPSource(server.URL+"/catalog", &http.Client{Timeout: time.Second})
 			if err != nil {
 				t.Fatal(err)
 			}
