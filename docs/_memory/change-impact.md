@@ -526,3 +526,13 @@ name plus owner/scope remains the public identity; internal discovered-resource 
 unchanged. No DTO, generator, database, config or hook change. Existing Web queries already pass
 published.name and explicit owner. Install docs, official tools-and-skills reference and final10
 scenario co-ship. This removes a remaining alias prohibited by ADR008; full IT021 remains pending.
+
+Task04 OAuth refresh now reuses the exact target's persisted client registration after validating
+its definition, resource, issuer, scopes, auth method and secret expiry. The previous refresh path
+required a login callback and could register another client; the executor lacked that callback,
+so expired extension tools disappeared from discovery. Removed the unused internal redirect option.
+No public route/DTO, config key, hook, SDK or database shape changed. HTTP/UDS Settings and discovered
+tool execution share the existing owner and scope boundaries. The official skill and install guide
+describe refresh without another login; final10 owns the corresponding UI journey. Focused real
+daemon/SQLite/encrypted-vault evidence covers manual plus extension registration, exchange, refresh
+and logout; full IT021 override/update/detach acceptance and task04 UI remain open.

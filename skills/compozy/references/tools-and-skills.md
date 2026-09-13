@@ -150,6 +150,11 @@ invalidates pending completion, and a stored token is never sent when the transp
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
+Tool discovery and execution renew expired OAuth tokens using that target's persisted client
+registration. Refresh does not require another login callback or register a replacement client.
+If the registration no longer matches or its client secret has expired, authorize that target again.
+Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
+
 HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the
 target's redacted auth state and does not start a runtime probe. `/auth/begin`, `/auth/exchange`, and
 `/auth/logout` use explicit `scope` and optional `workspace_id`; begin requires

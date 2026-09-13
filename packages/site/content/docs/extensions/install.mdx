@@ -553,6 +553,11 @@ HTTP and UDS OAuth routes accept the same selector. For example,
 status with `owner: "extension:linear"`. The `begin`, `exchange`, and `logout` routes carry that owner
 through the complete authorization session. An explicit `owner=manual` selects the manual definition.
 
+When a token expires, tool discovery or execution renews it with that owner's saved client
+registration. This does not open another login flow or register another client. If the registration
+has changed or its client secret has expired, authorize the server again. Refreshing or logging out
+the extension's server leaves the manual server's credentials unchanged.
+
 ## Agent surfaces
 
 Extension lifecycle is agent-manageable. The `compozy__extensions` toolset reaches the same services

@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,6 +42,7 @@ import (
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	t.Run("Should isolate manual and extension OAuth through public transports [IT-021]", testDaemonExtensionMCPOwners)
 	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", testDaemonCatalogPublication)
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
 		testDaemonCuratedCatalogLifecycle)
@@ -1672,4 +1674,294 @@ func assertDistributionCatalogListing(
 			t.Fatalf("catalog item %s absent", id)
 		}
 	}
+}
+
+// Invariant: public authorization keeps manual and extension credentials separate through registration, exchange and logout.
+// Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes, IT-021.
+func testDaemonExtensionMCPOwners(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
+	authority := mcpfixture.StartOAuthHTTP(
+		t,
+		mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+		mcpfixture.OAuthConfig{},
+	)
+	catalog := newDistributionGitHubServer(t, "owner-fixture")
+	t.Cleanup(catalog.Close)
+	entry := distributionCatalogEntry(t, extensionAuthoringE2ERepoRoot(t), "github")
+	entry["version"] = "1.0.0"
+	manifest := fmt.Sprintf(`name = "github"
+version = "1.0.0"
+description = "Owner-isolated MCP fixture"
+min_compozy_version = "0.0.0"
+
+[resources.mcp_servers.github]
+transport = "http"
+url = %q
+default_scope = "global"
+[resources.mcp_servers.github.auth]
+method = "oauth"
+registration = "dynamic"
+issuer_url = %q
+scopes = ["tools.read"]
+`, authority.Endpoints.MCPURL, authority.Endpoints.IssuerURL)
+	publishDistributionManifest(t, catalog, entry, manifest)
+	runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Marketplace.Catalog.BaseURL = catalog.URL
+			cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
+		}},
+	})
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut,
+		runtime.HTTPURL("/api/settings/mcp-servers/github?scope=user"),
+		compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+			Name: "github", Transport: "http", URL: authority.Endpoints.MCPURL,
+			Auth: &compozycontract.SettingsMCPAuthConfigPayload{Registration: "auto",
+				IssuerURL: authority.Endpoints.IssuerURL, Scopes: []string{"tools.read"}},
+		}}, http.StatusOK)
+	refreshDistributionCatalog(t, ctx, runtime)
+	requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"),
+		compozycontract.InstallExtensionRequest{
+			Source:         compozycontract.InstallExtensionSourceCurated,
+			Ref:            "compozy/github",
+			Scope:          "global",
+			ExpectedDigest: entry["digest_sha256"].(string),
+		}, http.StatusCreated)
+	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+		var servers compozycontract.SettingsMCPServersResponse
+		if err := read(ctx, http.MethodGet, "/api/settings/mcp-servers?scope=user", nil, &servers); err != nil {
+			t.Fatal(err)
+		}
+		owners := map[string]bool{}
+		for _, server := range servers.MCPServers {
+			if server.Name != "github" {
+				continue
+			}
+			owners[server.Owner] = true
+			if server.Owner == "extension:github" && server.RuntimeName != "github.github" {
+				t.Fatalf("extension allocation = %q", server.RuntimeName)
+			}
+		}
+		if len(owners) != 2 || !owners["manual"] || !owners["extension:github"] {
+			t.Fatalf("same-name owner definitions = %v", owners)
+		}
+	}
+	databaseURL := url.URL{Scheme: "file", Path: runtime.HomePaths.DatabaseFile, RawQuery: "mode=rw"}
+	db, err := sql.Open("sqlite", databaseURL.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	authorizeDistributionMCP(t, ctx, runtime.HTTPJSON, authority, "")
+	manual := distributionMCPOwnerState(t, ctx, db, "manual", true)
+	authorizeDistributionMCP(t, ctx, runtime.UDSJSON, authority, "extension:github")
+	if after := distributionMCPOwnerState(t, ctx, db, "manual", true); !slices.Equal(manual, after) {
+		t.Fatal("extension authorization changed manual credentials")
+	}
+	extensionState := distributionMCPOwnerState(t, ctx, db, "extension:github", true)
+	if requests := authority.Requests(); len(requests.Registration) != 2 || len(requests.Token) != 2 {
+		t.Fatalf("OAuth exchanges/registrations = %d/%d", len(requests.Token), len(requests.Registration))
+	}
+	refreshDistributionExtensionMCP(t, ctx, runtime, db)
+	requests := authority.Requests()
+	if len(requests.Registration) != 2 || len(requests.Token) != 3 ||
+		requests.Token[2].Get("grant_type") != "refresh_token" {
+		t.Fatalf(
+			"extension invocation produced %d token requests, want two exchanges and one refresh",
+			len(requests.Token),
+		)
+	}
+	if after := distributionMCPOwnerState(t, ctx, db, "extension:github", true); after[1] != extensionState[1] {
+		t.Fatal("extension refresh changed its persisted client registration")
+	}
+	if after := distributionMCPOwnerState(t, ctx, db, "manual", true); !slices.Equal(manual, after) {
+		t.Fatal("extension refresh changed manual credentials")
+	}
+	var status compozycontract.SettingsMCPAuthStatusPayload
+	if err := runtime.HTTPJSON(ctx, http.MethodPost,
+		"/api/settings/mcp-servers/github/auth/logout?scope=user&owner=extension:github", nil, &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.Owner != "extension:github" || status.TokenPresent {
+		t.Fatalf("logout status = owner:%s token:%v", status.Owner, status.TokenPresent)
+	}
+	distributionMCPOwnerState(t, ctx, db, "extension:github", false)
+	if after := distributionMCPOwnerState(t, ctx, db, "manual", true); !slices.Equal(manual, after) {
+		t.Fatal("extension logout changed manual credentials")
+	}
+}
+
+// Invariant: execution by discovered resource identity refreshes only the expired extension target.
+// Owner: daemon distribution integration; canonical suite: IT-021.
+func refreshDistributionExtensionMCP(t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, db *sql.DB) {
+	t.Helper()
+	var inventory compozycontract.ToolsResponse
+	if err := runtime.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/tools?workspace_id="+runtime.WorkspaceID,
+		nil,
+		&inventory,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var id toolspkg.ToolID
+	for _, tool := range inventory.Tools {
+		if tool.Descriptor.Source.RawServerName == "github.github" && tool.Descriptor.Source.RawToolName == "echo" {
+			id = tool.Descriptor.ToolID
+		}
+	}
+	if id == "" {
+		t.Fatal("authorized extension echo absent from discovered tools")
+	}
+	result, err := db.ExecContext(ctx, `UPDATE mcp_auth_tokens SET expires_at = '2000-01-01T00:00:00Z'
+ WHERE scope = 'user' AND workspace_id = '' AND owner = 'extension:github' AND server_name = 'github'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		t.Fatalf("expire extension token: rows=%d error=%v", rows, err)
+	}
+	var response compozycontract.ToolInvokeResponse
+	if err := runtime.UDSJSON(
+		ctx,
+		http.MethodPost,
+		"/api/tools/"+url.PathEscape(string(id))+"/invoke",
+		compozycontract.ToolInvokeRequest{
+			WorkspaceID: runtime.WorkspaceID,
+			Input:       json.RawMessage(`{"message":"owner-isolated"}`),
+		},
+		&response,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Result.Content) != 1 || response.Result.Content[0].Text != "echo: owner-isolated" {
+		t.Fatalf("extension echo response = %#v", response.Result.Content)
+	}
+}
+
+func publishDistributionManifest(
+	t *testing.T,
+	catalog *distributionGitHubServer,
+	entry map[string]any,
+	manifest string,
+) {
+	t.Helper()
+	catalog.setInputRelease(t, entry["version"].(string), manifest)
+	catalog.mu.Lock()
+	archive := bytes.Clone(catalog.assets[catalog.nextAsset].payload)
+	catalog.mu.Unlock()
+	catalog.setCatalogArtifact(entry, archive)
+}
+
+func authorizeDistributionMCP(
+	t *testing.T, ctx context.Context, request func(context.Context, string, string, any, any) error,
+	authority *mcpfixture.OAuthHTTPServer, owner string,
+) {
+	t.Helper()
+	query := url.Values{"scope": {"user"}}
+	if owner != "" {
+		query.Set("owner", owner)
+	}
+	base := "/api/settings/mcp-servers/github/auth/"
+	var begin compozycontract.SettingsMCPAuthBeginResponse
+	if err := request(
+		ctx,
+		http.MethodPost,
+		base+"begin?"+query.Encode(),
+		compozycontract.SettingsMCPAuthBeginRequest{
+			Mode: compozycontract.SettingsMCPAuthBeginModeManual,
+		},
+		&begin,
+	); err != nil {
+		t.Fatal(err)
+	}
+	client := *authority.Server.Client()
+	client.Timeout = 10 * time.Second
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	authorize, err := http.NewRequestWithContext(ctx, http.MethodGet, begin.AuthorizationURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(authorize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(io.Discard, response.Body); err != nil {
+		t.Error(err)
+	}
+	if err := response.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusFound || response.Header.Get("Location") == "" {
+		t.Fatalf("OAuth authorization response = %d", response.StatusCode)
+	}
+	var status compozycontract.SettingsMCPAuthStatusPayload
+	if err := request(
+		ctx,
+		http.MethodPost,
+		base+"exchange?"+query.Encode(),
+		compozycontract.SettingsMCPAuthExchangeRequest{
+			RedirectURL: response.Header.Get("Location"),
+		},
+		&status,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if owner == "" {
+		owner = "manual"
+	}
+	if status.Owner != owner || status.ServerName != "github" || status.Status != "authenticated" ||
+		!status.TokenPresent {
+		t.Fatalf("authorization status = owner:%s name:%s status:%s token:%v",
+			status.Owner, status.ServerName, status.Status, status.TokenPresent)
+	}
+}
+
+func distributionMCPOwnerState(t *testing.T, ctx context.Context, db *sql.DB, owner string, present bool) []string {
+	t.Helper()
+	prefix, err := vault.MCPSecretOwnerPrefix(
+		vault.MCPSecretTarget{Owner: owner, Scope: vault.MCPUserScope, ServerName: "github"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := []struct {
+		query    string
+		argument string
+		count    int
+	}{
+		{`SELECT json_group_array(json_array(scope,workspace_id,server_name,owner,definition_fingerprint,issuer,
+ client_id,scopes_json,access_token_ref,refresh_token_ref,token_type,expires_at,obtained_at,updated_at))
+ FROM mcp_auth_tokens WHERE owner = ?`, owner, 1},
+		{`SELECT json_group_array(json_array(scope,workspace_id,server_name,owner,definition_fingerprint,resource_url,
+ issuer,client_id,token_endpoint_auth_method,client_secret_ref,registration_access_token_ref,registration_client_uri,
+ client_id_issued_at,client_secret_expires_at,redirect_uri,scopes_json,updated_at))
+ FROM mcp_oauth_registrations WHERE owner = ?`, owner, 1},
+		{`SELECT json_group_array(json_array(ref,kind,hex(encrypted_value),created_at,updated_at))
+ FROM (SELECT * FROM vault_secrets WHERE ref LIKE ? ORDER BY ref)`, prefix + "%", 4},
+	}
+	result := make([]string, len(queries))
+	for i, check := range queries {
+		if err := db.QueryRowContext(ctx, check.query, check.argument).Scan(&result[i]); err != nil {
+			t.Fatal(err)
+		}
+		var rows []json.RawMessage
+		if err := json.Unmarshal([]byte(result[i]), &rows); err != nil {
+			t.Fatal(err)
+		}
+		want := check.count
+		if !present {
+			want = 0
+		}
+		if len(rows) != want {
+			t.Fatalf("owner %s state %d has %d records, want %d", owner, i, len(rows), want)
+		}
+	}
+	return result
 }

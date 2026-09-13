@@ -102,3 +102,11 @@ Task04 public addressing follow-up (final task10): with a manual github and exte
 allocated as github.github, Settings GET/auth and native diagnostics accept owner=extension:github
 with name github. The same owner with name github.github must return not found. Discovered tools
 still execute through the extension's resource/runtime identity and retain its credential owner.
+
+Task04 OAuth refresh follow-up (final task10): authorize a manual github and the installed
+extension's github, then expire only the extension token. Invoke a discovered extension tool with
+the appropriate tool permission. It must refresh and execute without another login or client
+registration. Logout of that extension removes only its token, registration and vault secrets;
+the manual credentials remain byte-identical. An expired or changed client registration requires
+login again and must not trigger replacement registration during refresh. The focused daemon
+integration owns deterministic expiry injection and exact SQLite/vault comparisons.

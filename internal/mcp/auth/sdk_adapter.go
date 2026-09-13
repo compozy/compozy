@@ -103,27 +103,35 @@ func (s *Service) hostedRefreshConfig(
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}
-	redirectURL := strings.TrimSpace(s.defaultRedirectURL)
-	if redirectURL == "" {
+	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	if err != nil {
+		return ServerConfig{}, Metadata{}, fmt.Errorf("mcp auth: load registration for refresh: %w", err)
+	}
+	fingerprint, err := ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		return ServerConfig{}, Metadata{}, err
+	}
+	if !s.dynamicRegistrationReusable(
+		registration,
+		cfg,
+		fingerprint,
+		resourceURL,
+		registration.RedirectURL,
+		asm.Issuer,
+	) {
 		return ServerConfig{}, Metadata{}, errors.New(
-			"mcp auth: redirect URL is required to resolve client registration",
+			"mcp auth: stored registration is no longer valid; run login again",
 		)
 	}
-	clientID, clientSecret, tokenEndpointAuthMethod, err := s.resolveHostedRegistration(
-		ctx,
-		cfg,
-		resourceURL,
-		redirectURL,
-		asm,
-	)
+	clientSecret, err := s.resolveRegistrationSecret(ctx, registration.ClientSecretRef)
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}
 	resolved := cfg
 	resolved.ResourceURL = resourceURL
-	resolved.ClientID = clientID
+	resolved.ClientID = registration.ClientID
 	resolved.ClientSecret = clientSecret
-	resolved.TokenEndpointAuthMethod = tokenEndpointAuthMethod
+	resolved.TokenEndpointAuthMethod = registration.TokenEndpointAuthMethod
 	return resolved, metadataFromAuthServer(asm), nil
 }
 
