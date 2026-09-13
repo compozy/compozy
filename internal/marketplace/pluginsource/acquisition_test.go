@@ -5,16 +5,121 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/registry/gitsrc"
 )
+
+func TestGitSourceSnapshot(t *testing.T) {
+	t.Parallel()
+	t.Run("Should acquire a real pinned Git tree through an isolated repository transport", func(t *testing.T) {
+		t.Parallel()
+		executable, err := exec.LookPath("git")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := t.TempDir()
+		writeMarketplaceDocument(
+			t,
+			fixture,
+			".claude-plugin/marketplace.json",
+			[]byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`),
+		)
+		writeMarketplaceDocument(t, fixture, "tool/plugin.json", []byte(`{"name":"tool","version":"1.0.0"}`))
+		commands := [][]string{
+			{"init", "-b", "main", fixture},
+			{"-C", fixture, "add", "."},
+			{"-C", fixture, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com",
+				"-c", "core.hooksPath=" + os.DevNull, "commit", "--no-gpg-sign", "-m", "fixture"},
+		}
+		for _, args := range commands {
+			if err := runFixtureGit(t.Context(), t, executable, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		temporary := t.TempDir()
+		repository := "https://8.8.8.8/owner/repo"
+		source, err := NewGitSource("git+"+repository,
+			gitsrc.WithLookPath(func(string) (string, error) { return executable, nil }),
+			gitsrc.WithCheckoutTempDir(temporary),
+			gitsrc.WithRunner(func(ctx context.Context, executable string, args ...string) error {
+				for index, arg := range args {
+					if arg == repository {
+						args[index] = fixture
+					}
+				}
+				return runFixtureGit(
+					ctx,
+					t,
+					executable,
+					append([]string{"-c", "protocol.file.allow=always"}, args...)...)
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := source.Fetch(t.Context())
+		if err != nil || document.Path != ".claude-plugin/marketplace.json" {
+			t.Fatalf("Git document = %+v, %v", document, err)
+		}
+		entries, err := os.ReadDir(temporary)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("Fetch retained its checkout: %v, %v", entries, err)
+		}
+		snapshot, err := source.OpenSnapshot(t.Context(), document, temporary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := snapshot.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if snapshot.ResolvedRef != document.ResolvedRef {
+			t.Fatalf("snapshot revision %q differs from document %q", snapshot.ResolvedRef, document.ResolvedRef)
+		}
+		cache := &PackageCache{Root: t.TempDir()}
+		if _, err := CapturePackage(t.Context(), snapshot.Root, "tool", cache); err != nil {
+			t.Fatal(err)
+		}
+		if err := snapshot.Close(); err != nil {
+			t.Fatal(err)
+		}
+		entries, err = os.ReadDir(temporary)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("Close retained its checkout: %v, %v", entries, err)
+		}
+		unpinned := document
+		unpinned.ResolvedRef = document.SourceRef + "@main"
+		if _, err := source.OpenSnapshot(t.Context(), unpinned, temporary); err == nil {
+			t.Fatal("accepted a branch in a resolved repository revision")
+		}
+	})
+}
+
+func runFixtureGit(ctx context.Context, t *testing.T, executable string, args ...string) error {
+	t.Helper()
+	command := exec.CommandContext(ctx, executable, args...)
+	for _, item := range os.Environ() {
+		if !strings.HasPrefix(item, "GIT_") {
+			command.Env = append(command.Env, item)
+		}
+	}
+	command.Env = append(command.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_TERMINAL_PROMPT=0")
+	if output, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("fixture git: %w: %s", err, output)
+	}
+	return nil
+}
 
 func TestGitHubSnapshot(t *testing.T) {
 	t.Parallel()
@@ -99,6 +204,63 @@ func TestGitHubSnapshot(t *testing.T) {
 			if readErr != nil || len(entries) != 0 {
 				t.Fatalf("snapshot cleanup left %v, %v", entries, readErr)
 			}
+		}
+	})
+}
+
+func TestDirectorySnapshot(t *testing.T) {
+	t.Parallel()
+	t.Run("Should capture a local source without taking ownership of the operator folder", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeMarketplaceDocument(t, root, "marketplace.json", []byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`))
+		writeMarketplaceDocument(t, root, "tool/plugin.json", []byte(`{"name":"tool"}`))
+		source, err := NewDirectorySource(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := source.Fetch(t.Context())
+		if err != nil || document.SourceRef != folderRef(root) {
+			t.Fatalf("local document = %+v, %v", document, err)
+		}
+		snapshot, err := source.OpenSnapshot(t.Context(), document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cache := &PackageCache{Root: t.TempDir()}
+		if _, err := CapturePackage(t.Context(), snapshot.Root, document.Plugins[0].Source.Path, cache); err != nil {
+			t.Fatal(err)
+		}
+		if err := snapshot.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "marketplace.json")); err != nil {
+			t.Fatalf("source folder changed during snapshot close: %v", err)
+		}
+	})
+	t.Run("Should reject changed documents and mismatched source identity before capture", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeMarketplaceDocument(t, root, "marketplace.json", []byte(`{"plugins":[]}`))
+		source, err := NewDirectorySource(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := source.Fetch(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreign := document
+		foreign.SourceRef = folderRef(t.TempDir())
+		if _, err := source.OpenSnapshot(t.Context(), foreign); err == nil {
+			t.Fatal("accepted a document from a different source")
+		}
+		writeMarketplaceDocument(t, root, "marketplace.json", []byte(`{"name":"changed","plugins":[]}`))
+		if _, err := source.OpenSnapshot(t.Context(), document); err == nil {
+			t.Fatal("accepted a changed document")
+		}
+		if _, err := NewDirectorySource("github:owner/repo"); !errors.Is(err, ErrInvalidRef) {
+			t.Fatalf("directory source accepted a repository: %v", err)
 		}
 	})
 }

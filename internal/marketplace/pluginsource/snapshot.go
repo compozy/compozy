@@ -2,6 +2,7 @@ package pluginsource
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -31,12 +32,9 @@ func (s *GitHubSource) OpenSnapshot(ctx context.Context, document Document, temp
 	if ctx == nil {
 		return nil, errors.New("pluginsource: context is required")
 	}
-	if document.SourceRef != s.ref {
-		return nil, errors.New("pluginsource: document origin does not match its source")
-	}
-	commit, ok := strings.CutPrefix(document.ResolvedRef, s.ref+"@")
-	if !ok {
-		return nil, errors.New("pluginsource: document has no resolved repository revision")
+	commit, err := repositoryCommit(document, s.ref)
+	if err != nil {
+		return nil, err
 	}
 	download, err := s.client.DownloadRevision(ctx, s.repo, commit, registry.DefaultMaxArchiveSize)
 	if err != nil {
@@ -76,14 +74,36 @@ func (s *GitHubSource) OpenSnapshot(ctx context.Context, document Document, temp
 		return nil, errors.New("pluginsource: repository archive must contain one root directory")
 	}
 	snapshot.Root = filepath.Join(root, entries[0].Name())
-	captured, err := ReadDirectory(ctx, snapshot.Root)
-	if err != nil {
+	if err := validateSnapshotDocument(ctx, snapshot.Root, document); err != nil {
 		return nil, err
 	}
-	if captured.DigestSHA256 != document.DigestSHA256 || captured.Path != document.Path {
-		return nil, errors.New("pluginsource: repository snapshot differs from the fetched marketplace document")
-	}
 	return snapshot, nil
+}
+
+func repositoryCommit(document Document, sourceRef string) (string, error) {
+	if document.SourceRef != sourceRef {
+		return "", errors.New("pluginsource: document origin does not match its source")
+	}
+	commit, ok := strings.CutPrefix(document.ResolvedRef, sourceRef+"@")
+	if !ok {
+		return "", errors.New("pluginsource: document has no resolved repository revision")
+	}
+	decoded, err := hex.DecodeString(commit)
+	if err != nil || (len(decoded) != 20 && len(decoded) != 32) || hex.EncodeToString(decoded) != commit {
+		return "", errors.New("pluginsource: repository revision must be a full lowercase commit hash")
+	}
+	return commit, nil
+}
+
+func validateSnapshotDocument(ctx context.Context, root string, document Document) error {
+	captured, err := ReadDirectory(ctx, root)
+	if err != nil {
+		return err
+	}
+	if captured.DigestSHA256 != document.DigestSHA256 || captured.Path != document.Path {
+		return errors.New("pluginsource: repository snapshot differs from the fetched marketplace document")
+	}
+	return nil
 }
 
 func extractSnapshot(ctx context.Context, path string, download *registry.DownloadResult) (err error) {

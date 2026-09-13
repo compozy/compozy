@@ -636,3 +636,11 @@ manifest at the root of an entire marketplace repository. GitHubSource acquires 
 verifies its marketplace document matches the fetched document and exposes an owned snapshot for
 relative package capture. Failure and Close remove the snapshot and download spool. Extraction safety
 remains owned by registry; no second extractor or internal compatibility alias was introduced.
+
+### Task07 Git and folder source snapshots
+
+Git and folder sources now implement document acquisition and snapshot ownership alongside GitHub.
+Git snapshots require a full resolved commit and use the existing isolated Git client; a focused test
+executes real local Git operations with only the remote transport replaced by a fixture. Folder Close
+preserves operator files and rejects document changes before package capture. Source/config aggregation
+and lifecycle consumers remain pending; final live QA and delivery gates are not claimed.
