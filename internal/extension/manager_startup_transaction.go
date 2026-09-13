@@ -226,7 +226,7 @@ func (m *Manager) commitPreparedExtensionWithPublish(
 		"hook_count", hookCount,
 	)
 	if supervise {
-		go m.superviseInstance(ext.instanceKey(), generation)
+		go m.superviseInstance(ext, generation)
 	}
 	return nil
 }

@@ -68,6 +68,8 @@ Without an explicit profile, a workspace installation starts its base runtime in
 named profiles use isolated subprocesses with permissions restricted to the workspace profile.
 A development overlay takes precedence on restart. Removing it resumes the published workspace
 runtime from the existing attachment.
+Overlay transitions also replace the workspace's running profile instances. If activation or
+published-runtime restoration fails, the previous link and running definitions are restored.
 
 When both `scope` and `workspace_id` are omitted, a local operator uses the package's MCP server
 `default_scope` (an undeclared server default means `global`). A workspace default requires a

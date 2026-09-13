@@ -117,6 +117,9 @@ func (m *Manager) activateAndPublishDevCandidate(
 		return nil, errors.New("extension: prepared development candidate is required")
 	}
 	key = key.Normalize()
+	if err := m.retireWorkspaceProfileRuntimes(ctx, key, candidate.startup.transaction); err != nil {
+		return nil, candidate.startup.transaction.rollback(ctx, err)
+	}
 	var previous *managedExtension
 	err := m.commitPreparedExtensionWithPublish(ctx, candidate, candidate.startup, func() {
 		previous = m.instanceLocked(key)

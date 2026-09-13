@@ -27,6 +27,11 @@ func (m *Manager) ensureProfileRuntime(ctx context.Context, key InstanceKey) (In
 	if err := key.Validate(); err != nil {
 		return InstanceKey{}, err
 	}
+	if !key.IsGlobal() {
+		workspaceCoordinator := m.coordinatorFor(InstanceKey{Name: key.Name, WorkspaceID: key.WorkspaceID})
+		workspaceCoordinator.Lock()
+		defer workspaceCoordinator.Unlock()
+	}
 	sourceKey, _, err := m.readInstanceSource(ctx, key)
 	if err != nil {
 		return InstanceKey{}, err
@@ -68,6 +73,11 @@ func (m *Manager) ensureProfileRuntime(ctx context.Context, key InstanceKey) (In
 	if err != nil {
 		return InstanceKey{}, err
 	}
+	return m.launchProfileRuntime(ctx, profileRuntime)
+}
+
+func (m *Manager) launchProfileRuntime(ctx context.Context, profileRuntime *managedExtension) (InstanceKey, error) {
+	key := profileRuntime.instanceKey()
 	transaction := newExtensionStartupTransaction(m, profileRuntime)
 	launched, resourceSession, err := m.launchStartupRuntime(
 		ctx,
@@ -104,6 +114,11 @@ func (m *Manager) InvalidateProfileRuntime(ctx context.Context, key InstanceKey)
 	key = key.Normalize()
 	if err := key.Validate(); err != nil {
 		return err
+	}
+	if !key.IsGlobal() {
+		workspaceCoordinator := m.coordinatorFor(InstanceKey{Name: key.Name, WorkspaceID: key.WorkspaceID})
+		workspaceCoordinator.Lock()
+		defer workspaceCoordinator.Unlock()
 	}
 	if !key.IsProfileScoped() {
 		source, _, err := m.readInstanceSource(ctx, key)

@@ -32,24 +32,62 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 	// Owner: extension lifecycle; canonical suite: TestManagerDevelopmentLifecycle.
 	t.Run("Should resume a published workspace runtime after unlinking its development overlay", func(t *testing.T) {
 		t.Parallel()
+		withDaemonVersion(t, "0.5.0")
 		env := newRegistryTestEnv(t)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
 		workspace := newDevTestWorkspace(t, "workspace-published-overlay")
 		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
  (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
 			workspace.ID, workspace.RootDir, "Published overlay", env.installedAt, env.installedAt); err != nil {
 			t.Fatal(err)
 		}
-		published := createManagerTestExtension(t, devManifest("workspace-overlay", "0.1.0", ""), nil)
+		manifestText := managerTestManifest("workspace-overlay", managerManifestOptions{
+			command: helperCommand(t), args: helperArgs(), withEnv: helperEnv("default", ""),
+			capabilities: []string{"tool.provider"}, resourceFamilies: []string{"tools"}, resourceMaxScope: "user",
+		})
+		published := createManagerTestExtension(t, manifestText, nil)
 		if err := env.registry.Install(published.manifest, published.dir, published.checksum, WithInstallScope(
 			InstallationScope{WorkspaceID: workspace.ID},
 		)); err != nil {
 			t.Fatal(err)
 		}
 		origin := filepath.Join(workspace.RootDir, "overlay")
-		generation := writeDevTestGeneration(t, origin, devManifest("workspace-overlay", "0.2.0", ""))
-		manager := NewManager(env.registry, WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)))
+		generation := writeDevTestGeneration(t, origin, strings.Replace(
+			manifestText, `version = "0.2.1"`, `version = "0.3.0"`, 1,
+		))
+		sourceSessions := &faultingSourceSessionManager{delegate: &recordingSourceSessionManager{}}
+		manager := NewManager(env.registry, WithSourceSessionManager(sourceSessions),
+			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
+			WithProfileNameResolver(fixedProfileNameResolver{profileID: "marketing"}))
 		startDevTestManager(t, manager)
 		key := InstanceKey{Name: published.manifest.Name, WorkspaceID: workspace.ID}
+		profileKey := ProfileInstanceKey(key.Name, profileID, workspace.ID)
+		if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+			t.Fatal(err)
+		}
+		activationFailure := errors.New("profile overlay activation rejected")
+		sourceSessions.failNextActivation(activationFailure)
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			t.Context(),
+			workspace.ID,
+			origin,
+			generation,
+		); !errors.Is(
+			err,
+			activationFailure,
+		) {
+			t.Fatalf("failed overlay activation = %v", err)
+		}
+		for _, view := range []InstanceKey{key, profileKey} {
+			restored, err := manager.GetForInstance(view)
+			if err != nil || !restored.Status.Active || restored.Status.PID == 0 || restored.DevLink != nil ||
+				restored.Info.Version != "0.2.1" {
+				t.Fatalf("activation rollback runtime = %#v, %v", restored, err)
+			}
+		}
+		if _, err := env.registry.GetDevLink(key.Name, key.WorkspaceID); !errors.Is(err, ErrExtensionNotDevLinked) {
+			t.Fatalf("activation rollback link = %v", err)
+		}
 		for _, overlay := range []bool{true, false} {
 			if overlay {
 				if _, err := manager.LinkDevelopmentFromOrigin(
@@ -64,9 +102,9 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			current, err := manager.GetForInstance(key)
-			version := "0.1.0"
+			version := "0.2.1"
 			if overlay {
-				version = "0.2.0"
+				version = "0.3.0"
 			}
 			if err != nil || current.Info.Version != version || !current.Status.Active || !current.Status.Registered ||
 				(current.DevLink != nil) != overlay || current.Status.WorkspaceID != workspace.ID {
@@ -74,6 +112,14 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 			}
 			if _, err := manager.Get(key.Name); !errors.Is(err, ErrExtensionNotFound) {
 				t.Fatalf("workspace runtime exposed globally: %v", err)
+			}
+			if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+				t.Fatal(err)
+			}
+			profile, err := manager.GetForInstance(profileKey)
+			if err != nil || !profile.Status.Active || profile.Info.Version != version ||
+				(profile.DevLink != nil) != overlay || profile.Status.PID == current.Status.PID {
+				t.Fatalf("overlay=%t named profile = %#v, %v", overlay, profile, err)
 			}
 			if overlay {
 				if err := manager.Reload(t.Context()); err != nil {
@@ -83,6 +129,20 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 				if err != nil || restarted.DevLink == nil || !restarted.Status.Active ||
 					restarted.Info.Version != version {
 					t.Fatalf("persisted overlay restart = %#v, %v", restarted, err)
+				}
+				if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+					t.Fatal(err)
+				}
+				sourceSessions.failNextActivation(activationFailure)
+				if err := manager.UnlinkDevelopment(t.Context(), key); !errors.Is(err, activationFailure) {
+					t.Fatalf("failed published runtime restoration = %v", err)
+				}
+				for _, view := range []InstanceKey{key, profileKey} {
+					restored, err := manager.GetForInstance(view)
+					if err != nil || !restored.Status.Active || restored.Status.PID == 0 || restored.DevLink == nil ||
+						restored.Info.Version != version {
+						t.Fatalf("unlink rollback runtime = %#v, %v", restored, err)
+					}
 				}
 			}
 		}

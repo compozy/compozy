@@ -487,3 +487,14 @@ scope exclusion, default overlay restoration and shutdown interaction. Public DT
 hooks, configuration and stored data shapes are unchanged. Install docs and the final09/10 scenario
 are updated; named-profile overlay transition concurrency and package-wide MCP rollback remain
 task04 integration work before backend/data handoff or final delivery.
+
+Task04 named-profile overlay transitions now retire affected workspace/profile processes within
+the existing startup transaction. Activation failure restores their previous definitions;
+unlink restoration failure reinstates the development link, base runtime and profile runtimes.
+Workspace coordination serializes profile startup/invalidation with the transition. Supervisors
+remain bound to their original runtime object, even if a replacement reuses a numeric generation.
+Real SQLite/subprocess tests cover both transitions and injected source-activation failures;
+existing concurrency, startup rollback, shutdown and generation-fencing suites remain the owners.
+Install docs and the final09/10 scenario reflect the behavior. No new public DTO, native tool,
+hook/config key, migration or compatibility path. Package-wide MCP allocation rollback is still
+task04 work; these runtime results do not claim final UI, QA or CI delivery.

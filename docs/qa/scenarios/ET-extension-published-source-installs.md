@@ -59,6 +59,9 @@ profile uses a distinct process with a workspace-profile resource ceiling. Link 
 overlay, restart, then unlink it: the published workspace runtime must resume with its original
 version and no global publication. Include an already-running named profile during the overlay
 transition to exercise teardown and replacement across both instance keys.
+Verify the named profile changes to the overlay version and returns to the published version
+after unlink. The runtime suite owns injected activation/restoration failures and rollback; the
+final daemon walk checks successful transitions, separate processes and correct reported scope.
 
 QA impact 2026-09-13 (marketplace-catalog task03): repeat install and preview over CLI, HTTP/UDS,
 and the native tool with global/profile, workspace/all-profile, and workspace/profile selectors.

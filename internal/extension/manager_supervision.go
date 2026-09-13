@@ -103,12 +103,13 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 	return nil
 }
 
-func (m *Manager) superviseInstance(key InstanceKey, generation int64) {
+func (m *Manager) superviseInstance(expected *managedExtension, generation int64) {
 	defer m.wg.Done()
+	key := expected.instanceKey()
 
 	for {
 		owner, proc, interval, ok := m.currentSupervisedInstance(key, generation)
-		if !ok {
+		if !ok || owner != expected {
 			return
 		}
 

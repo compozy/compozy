@@ -223,20 +223,50 @@ func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error 
 	if err := operation.ensureActive(); err != nil {
 		return err
 	}
-	if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil {
+	return m.unlinkDevelopmentLocked(ctx, key)
+}
+
+func (m *Manager) unlinkDevelopmentLocked(ctx context.Context, key InstanceKey) (err error) {
+	link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
+	if err != nil {
 		return err
 	}
 	current, _ := m.lookupInstance(key)
-	m.mu.Lock()
-	m.deleteInstanceLocked(key)
-	delete(m.devLogs, key)
-	m.mu.Unlock()
+	transaction := newExtensionStartupTransaction(m, current)
+	defer func() {
+		if err != nil {
+			err = transaction.rollback(ctx, err)
+		}
+	}()
+	if err := m.retireWorkspaceProfileRuntimes(ctx, key, transaction); err != nil {
+		return err
+	}
+	restoreRuntime := false
+	transaction.add("development runtime", func(cleanupCtx context.Context) error {
+		if !restoreRuntime {
+			return nil
+		}
+		return m.restoreUnlinkedDevelopmentRuntime(cleanupCtx, key, link, current)
+	})
+	if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil {
+		return err
+	}
+	transaction.add("development link", func(context.Context) error { return m.restoreDevLink(key, link) })
+	restoreRuntime = true
 	if current != nil {
 		if err := m.stopManagedExtension(ctx, current); err != nil {
 			return err
 		}
 	}
-	return m.restoreWorkspaceInstallations(ctx, key)
+	m.mu.Lock()
+	m.deleteInstanceLocked(key)
+	delete(m.devLogs, key)
+	m.mu.Unlock()
+	if err := m.restoreWorkspaceInstallations(ctx, key); err != nil {
+		return err
+	}
+	transaction.commit()
+	return nil
 }
 
 // Logs returns retained redacted stderr entries after a cursor within the current ring identity.
