@@ -23,6 +23,8 @@ attachment with their original installation timestamp; enablement exceptions,
 package files, provenance, and credentials are preserved.
 The Marketplace switches directly to the extension catalog contract. Retired kind routes,
 remote skill acquisition and MCP catalog installation are removed without aliases.
+Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
+Refresh accepts no `kind` selector and reports `sources[]` outcomes.
 Existing extension packages, acquisition references, installed skills and manual MCPs remain.
 
 ### Features

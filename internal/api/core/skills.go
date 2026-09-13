@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -296,31 +294,4 @@ func (h *BaseHandlers) resolveSkill(
 	}
 
 	return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
-}
-
-func (h *BaseHandlers) skillMarketplaceService() SkillMarketplaceService {
-	if h.SkillMarketplace != nil {
-		return h.SkillMarketplace
-	}
-	options := []skillmarketplace.Option{
-		skillmarketplace.WithLogger(h.Logger),
-		skillmarketplace.WithNow(h.Now),
-	}
-	if h.SkillExposures != nil {
-		exposureOptions := []skills.ExposeManagerOption{skills.WithExposureLogger(h.Logger)}
-		if h.SkillExposureEvents != nil {
-			exposureOptions = append(exposureOptions, skills.WithExposureEventStore(h.SkillExposureEvents))
-		}
-		exposures := skills.NewExposeManager(
-			h.SkillExposures,
-			compozyconfig.ResolveGlobalSkillRoots(&h.Config.Skills, h.HomePaths),
-			exposureOptions...,
-		)
-		options = append(options, skillmarketplace.WithExposureLifecycle(exposures))
-	}
-	return skillmarketplace.NewService(
-		h.HomePaths,
-		h.Config.Skills,
-		options...,
-	)
 }

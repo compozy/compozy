@@ -78,7 +78,7 @@ const server = setupServer(
   http.get("*/api/extensions", () => HttpResponse.json({ extensions })),
   http.post("*/api/marketplace/refresh", () =>
     HttpResponse.json({
-      kinds: [{ kind: "extension", outcome: "refreshed", entry_count: 4, stale: false }],
+      sources: [{ source: "compozy-catalog", outcome: "refreshed", entry_count: 4, stale: false }],
     })
   )
 );

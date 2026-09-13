@@ -76,13 +76,6 @@ func (lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.Kind
 	return nil, errors.New("unexpected Status call")
 }
 
-func (lateBootMarketplaceCatalog) ResolveSkillInstalls(
-	context.Context,
-	[]string,
-) ([]marketplacepkg.Entry, error) {
-	return nil, errors.New("unexpected ResolveSkillInstalls call")
-}
-
 type lateBootExtensionService struct{}
 
 func (lateBootExtensionService) List(context.Context) ([]contract.ExtensionPayload, error) {

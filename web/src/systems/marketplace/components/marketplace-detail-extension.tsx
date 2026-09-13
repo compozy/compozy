@@ -12,7 +12,7 @@ import {
   MarketplaceRepositoryRow,
 } from "./marketplace-detail-shell";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
-import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
+import { formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionViewProps {
   data: MarketplaceCatalogEntryResponse;
@@ -118,11 +118,7 @@ function MarketplaceExtensionDetailsCard({
         <PropertyRow label="Source" mono>
           {entry.source}
         </PropertyRow>
-        {entry.downloads !== undefined && entry.downloads !== null ? (
-          <PropertyRow label="Downloads" mono>
-            {formatMarketplaceCount(entry.downloads)}
-          </PropertyRow>
-        ) : null}
+
         {entry.published_at ? (
           <PropertyRow label="Published">
             <Time iso={entry.published_at} />

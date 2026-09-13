@@ -7,7 +7,7 @@ import { ExtensionFormatBadge } from "@/systems/extensions";
 
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceEntryLogo } from "./marketplace-entry-logo";
-import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
+import { formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailLedeProps {
   data: MarketplaceCatalogEntryResponse;
@@ -88,12 +88,7 @@ function ledeMeta(data: MarketplaceCatalogEntryResponse): LedeMetaItem[] {
   const items: LedeMetaItem[] = [];
   if (entry.author) items.push({ key: "author", node: <span>{entry.author}</span> });
   items.push({ key: "source", node: <span>{entry.source}</span> });
-  if (entry.downloads !== undefined && entry.downloads !== null) {
-    items.push({
-      key: "downloads",
-      node: <span>{formatMarketplaceCount(entry.downloads)} downloads</span>,
-    });
-  }
+
   if (entry.tier) items.push({ key: "tier", node: <span>{entry.tier} tier</span> });
   if (entry.updated_at) {
     items.push({

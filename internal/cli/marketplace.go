@@ -326,23 +326,23 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 func marketplaceRefreshBundle(response MarketplaceRefreshRecord) outputBundle {
 	return listBundle(
 		response,
-		response.Kinds,
+		response.Sources,
 		"Marketplace Refresh",
-		[]string{cliKindValue, "Outcome", "Entries", outputStaleValue, "Error Class"},
+		[]string{"Source", "Outcome", "Entries", outputStaleValue, "Error Class"},
 		"marketplace_refresh",
-		[]string{networkKindKey, cliOutcomeKey, "entry_count", outputStaleKey, "error_class"},
-		func(item contract.MarketplaceRefreshKindPayload) []string {
+		[]string{"source", cliOutcomeKey, "entry_count", outputStaleKey, "error_class"},
+		func(item contract.MarketplaceRefreshSourcePayload) []string {
 			return []string{
-				item.Kind,
+				item.Source,
 				item.Outcome,
 				strconv.Itoa(item.EntryCount),
 				strconv.FormatBool(item.Stale),
 				stringOrDash(item.ErrorClass),
 			}
 		},
-		func(item contract.MarketplaceRefreshKindPayload) []string {
+		func(item contract.MarketplaceRefreshSourcePayload) []string {
 			return []string{
-				item.Kind,
+				item.Source,
 				item.Outcome,
 				strconv.Itoa(item.EntryCount),
 				strconv.FormatBool(item.Stale),

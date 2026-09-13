@@ -6,45 +6,85 @@ func marketplaceOperations() []OperationSpec {
 	return []OperationSpec{
 		marketplaceListOperation(),
 		marketplaceCatalogEntryOperation(),
-		marketplaceSearchOperation(),
-		marketplaceKindOperation(),
-		marketplaceEntryOperation(),
 		marketplaceRefreshOperation(),
 	}
 }
 
 func marketplaceListOperation() OperationSpec {
-	operation := marketplaceKindOperation()
-	operation.Path = "/api/marketplace"
-	operation.OperationID = "listMarketplace"
-	operation.Summary = "List the extension catalog with source state and a content revision"
-	operation.Parameters = operation.Parameters[1:]
-	operation.Responses = []ResponseSpec{
-		{
-			Status:      200,
-			Description: "Catalog page, including degraded cached sources",
-			Body:        contract.MarketplaceListResponse{},
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/marketplace",
+		OperationID: "listMarketplace",
+		Summary:     "List the extension catalog with source state and a content revision",
+		Tags:        []string{specMarketplaceKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("q", "Optional catalog search query", false),
+			intQueryParam("limit", "Maximum results from 1 to 100"),
+			queryParam("cursor", "Opaque next_cursor from the previous page", false),
+			enumQueryParam(
+				specScopeKey,
+				"Installed-state projection scope",
+				[]string{specGlobalKey, specProfileKey, specWorkspaceKey},
+			),
+			queryParam(specProfileKey, "Required for profile installed-state projection", false),
+			queryParam("workspace_id", "Required for workspace installed-state projection", false),
 		},
-		{Status: 400, Description: "Invalid catalog query or cursor scope", Body: contract.ErrorPayload{}},
-		{
-			Status:      409,
-			Description: "Catalog content changed; restart pagination",
-			Body:        contract.MarketplaceCursorStalePayload{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MarketplaceListResponse{}},
+			{Status: 400, Description: "Invalid marketplace browse request", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Catalog content changed; restart pagination",
+				Body:        contract.MarketplaceCursorStalePayload{},
+			},
+			{
+				Status: 503, Description: "Catalog dependency is not configured",
+				Body: contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
-		{Status: 503, Description: "Catalog is not configured", Body: contract.ErrorPayload{}},
-		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 	}
-	return operation
 }
 
 func marketplaceCatalogEntryOperation() OperationSpec {
-	operation := marketplaceEntryOperation()
-	operation.Path = "/api/marketplace/entries/{entry_id}"
-	operation.OperationID = "getMarketplaceCatalogEntry"
-	operation.Summary = "Get a catalog entry or an explicitly selected installed extension"
-	operation.Parameters = append(
-		operation.Parameters[1:],
-		queryParam("source", "Catalog source name; defaults to the Compozy catalog", false),
-	)
-	return operation
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/marketplace/entries/{entry_id}",
+		OperationID: "getMarketplaceCatalogEntry",
+		Summary:     "Get a catalog entry or an explicitly selected installed extension",
+		Tags:        []string{specMarketplaceKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("source", "Catalog source name; defaults to the Compozy catalog", false),
+			pathParam("entry_id", "Stable URL-safe marketplace entry id"),
+			queryParam(
+				"installed_name",
+				"Exact installed extension identity",
+				false,
+			),
+			enumQueryParam(
+				specScopeKey,
+				"Installed-state projection scope",
+				[]string{specGlobalKey, specProfileKey, specWorkspaceKey},
+			),
+			queryParam(specProfileKey, "Required for profile installed-state projection", false),
+			queryParam("workspace_id", "Required for workspace installed-state projection", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MarketplaceEntryResponse{}},
+			{Status: 400, Description: "Invalid marketplace detail request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Catalog entry not found", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Package bytes differ from the listed digest",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{
+				Status: 503, Description: "Marketplace detail dependency is not configured",
+				Body: contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
 }

@@ -77,7 +77,7 @@ func (h *BaseHandlers) MarketplaceList(
 	}
 	scope.actor = request.Actor
 	query := marketplacepkg.NormalizeQuery(request.Query)
-	offset, fence, err := marketplaceCursorOffset(request.Cursor, "catalog", query, scope)
+	offset, fence, err := marketplaceCursorOffset(request.Cursor, query, scope)
 	if err != nil {
 		return contract.MarketplaceListResponse{}, err
 	}
@@ -97,7 +97,7 @@ func (h *BaseHandlers) MarketplaceList(
 		Revision:   page.State.Revision,
 		Stale:      page.State.Stale,
 		ErrorClass: page.State.ErrorClass,
-		Error:      h.marketplaceKindDiagnostic(page.State.LastError),
+		Error:      h.marketplaceCatalogDiagnostic(page.State.LastError),
 		Items: make(
 			[]contract.MarketplaceListingPayload,
 			0,
@@ -114,7 +114,6 @@ func (h *BaseHandlers) MarketplaceList(
 		response.Items = append(response.Items, listing)
 	}
 	response.NextCursor, err = marketplaceNextCursor(
-		"catalog",
 		query,
 		scope,
 		page.State.Revision,
@@ -150,11 +149,10 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 	scope.actor = actor
 	var response contract.MarketplaceEntryResponse
 	if name := strings.TrimSpace(c.Query("installed_name")); name != "" {
-		response, err = h.installedExtensionMarketplaceEntryByName(c.Request.Context(), name, scope)
+		response, err = h.installedExtensionMarketplaceEntry(c.Request.Context(), name, scope)
 	} else {
 		response, err = h.curatedMarketplaceEntry(
 			c.Request.Context(),
-			marketplacepkg.KindExtension,
 			c.Param("entry_id"),
 			scope,
 		)
@@ -168,7 +166,6 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 }
 
 func normalizeCatalogListing(listing *contract.MarketplaceListingPayload) {
-	listing.Kind = ""
 	if listing.SourceRef == marketplacepkg.CompozyCatalogRef {
 		listing.Source = marketplacepkg.CompozyCatalogSource
 		listing.InstallSlug = "compozy/" + listing.EntryID

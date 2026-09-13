@@ -23,7 +23,7 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
   const refreshCatalog = async () => {
     try {
       const response = await refresh.mutateAsync();
-      const failed = response.kinds.find(result => result.error_class);
+      const failed = response.sources.find(result => result.error_class);
       if (failed) throw new Error(`Could not refresh the catalog (${failed.error_class})`);
     } catch (error) {
       const now = Date.now();

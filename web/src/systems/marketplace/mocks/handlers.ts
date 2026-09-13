@@ -26,10 +26,10 @@ export const handlers: HttpHandler[] = [
   }),
   compozyApiMock.post("/api/marketplace/refresh", () =>
     HttpResponse.json({
-      kinds: [
+      sources: [
         {
           entry_count: marketplaceCatalogFixture.items.length,
-          kind: "extension",
+          source: "compozy-catalog",
           outcome: "refreshed",
           stale: false,
         },

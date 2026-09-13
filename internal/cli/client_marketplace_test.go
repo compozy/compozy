@@ -46,7 +46,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 					if len(query) != 0 {
 						t.Fatalf("refresh query = %v", query)
 					}
-					return newHTTPResponse(http.StatusOK, `{"kinds":[]}`), nil
+					return newHTTPResponse(http.StatusOK, `{"sources":[]}`), nil
 				default:
 					t.Fatalf("unexpected marketplace request: %s %s", req.Method, req.URL.String())
 					return nil, nil
@@ -66,7 +66,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			t.Fatalf("MarketplaceInfo() = %#v, %v", detail, err)
 		}
 		refresh, err := client.RefreshMarketplace(ctx)
-		if err != nil || len(refresh.Kinds) != 0 {
+		if err != nil || len(refresh.Sources) != 0 {
 			t.Fatalf("RefreshMarketplace() = %#v, %v", refresh, err)
 		}
 	})

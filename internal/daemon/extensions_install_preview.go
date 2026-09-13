@@ -57,7 +57,7 @@ func (s *daemonExtensionService) PreviewInstall(
 		result.Inputs = append(result.Inputs, contract.MarketplaceInputPayload{
 			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
 			Default: input.Default,
-			Binding: contract.MarketplaceMCPInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+			Binding: contract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
 		})
 	}
 	for _, entry := range plan.Profiles {

@@ -139,7 +139,6 @@ const (
 	specProviderNotFoundDescription                          = "Provider not found"
 	specServiceUnavailableDependentServiceMissingDescription = "Service unavailable - dependent service missing"
 	specSessionNotFoundDescription                           = "Session not found"
-	specSkillMarketplaceIsNotConfiguredDescription           = "Skill marketplace is not configured"
 	specSkillOrScopeNotFoundDescription                      = "Skill or scope not found"
 	specSkillsRegistryIsNotConfiguredDescription             = "Skills registry is not configured"
 	specTaskNotFoundDescription                              = "Task not found"

@@ -28,12 +28,12 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		catalogDir := t.TempDir()
-		skillPath := filepath.Join(catalogDir, "skills.json")
-		skillDocument := `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
+		catalogPath := filepath.Join(catalogDir, "extensions.json")
+		catalogDocument := `{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
 			`"entry_id":"checkout","name":"checkout","description":"Local checkout fixture",` +
-			`"install_slug":"compozy/checkout"}]}`
-		if err := os.WriteFile(skillPath, []byte(skillDocument), 0o600); err != nil {
-			t.Fatalf("WriteFile(%q) error = %v", skillPath, err)
+			`"tier":"official","version":"1.0.0","install_slug":"compozy/checkout","artifact_url":"https://example.test/checkout.tgz","digest_sha256":"` + strings.Repeat("a", 64) + `"}]}`
+		if err := os.WriteFile(catalogPath, []byte(catalogDocument), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", catalogPath, err)
 		}
 
 		registry := openDaemonTestGlobalDB(t)
@@ -55,18 +55,18 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
-		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindSkill, "", 0, 20); err != nil {
+		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 20); err != nil {
 			t.Fatalf("Browse(checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "checkout")
 
-		skillDocument = `{"manifest_version":2,"generated_at":"2026-07-13T12:01:00Z","entries":[{` +
+		catalogDocument = `{"manifest_version":3,"generated_at":"2026-07-13T12:01:00Z","entries":[{` +
 			`"entry_id":"edited-checkout","name":"edited-checkout","description":"Edited fixture",` +
-			`"install_slug":"compozy/edited-checkout"}]}`
-		if err := os.WriteFile(skillPath, []byte(skillDocument), 0o600); err != nil {
-			t.Fatalf("WriteFile(%q) error = %v", skillPath, err)
+			`"tier":"official","version":"1.0.0","install_slug":"compozy/edited-checkout","artifact_url":"https://example.test/edited.tgz","digest_sha256":"` + strings.Repeat("a", 64) + `"}]}`
+		if err := os.WriteFile(catalogPath, []byte(catalogDocument), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", catalogPath, err)
 		}
-		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindSkill, "", 0, 20); err != nil {
+		if _, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 20); err != nil {
 			t.Fatalf("Browse(edited checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "edited-checkout")
@@ -96,13 +96,13 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			t.Fatal("bootMarketplace() notifier = nil")
 		}
 
-		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindSkill); err != nil {
+		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
 			t.Fatalf("Refresh(first) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "first")
 		assertMarketplaceRefreshEvent(t, registry)
 		if err := state.marketplaceNotifier.NotifyInstall(testutil.Context(t), marketplace.InstallOutcome{
-			Kind:       marketplace.KindMCP,
+			Kind:       marketplace.KindExtension,
 			EntryID:    "github",
 			Outcome:    marketplace.InstallOutcomeSucceeded,
 			PolicyGate: marketplace.InstallPolicyGatePassed,
@@ -116,7 +116,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := state.marketplace.ReconcileConfig(testutil.Context(t), &next); err != nil {
 			t.Fatalf("ReconcileConfig() error = %v", err)
 		}
-		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindSkill); err != nil {
+		if _, err := state.marketplace.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
 			t.Fatalf("Refresh(second) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "second")
@@ -139,7 +139,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		}
 		var missingContext context.Context
 		if err := notifier.NotifyCatalogRefresh(missingContext, marketplace.RefreshOutcome{
-			Kind:    marketplace.KindSkill,
+			Kind:    marketplace.KindExtension,
 			Outcome: marketplace.RefreshOutcomeSucceeded,
 		}); err == nil || !strings.Contains(err.Error(), "context is required") {
 			t.Fatalf("NotifyCatalogRefresh(nil context) error = %v", err)
@@ -148,7 +148,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		cancel()
 		started := time.Now()
 		err := notifier.NotifyCatalogRefresh(parent, marketplace.RefreshOutcome{
-			Kind:    marketplace.KindSkill,
+			Kind:    marketplace.KindExtension,
 			Outcome: marketplace.RefreshOutcomeSucceeded,
 		})
 		if !errors.Is(err, context.DeadlineExceeded) {
@@ -173,9 +173,9 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		requestStarted := make(chan struct{})
 		requestCanceled := make(chan struct{})
 		oldServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			if request.URL.Path != "/skills.json" {
+			if request.URL.Path != "/v3/extensions.json" {
 				if _, err := writer.Write([]byte(
-					`{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
+					`{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
 				)); err != nil {
 					t.Errorf("write empty feed: %v", err)
 				}
@@ -208,7 +208,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 
 		oldRefresh := make(chan error, 1)
 		go func() {
-			_, refreshErr := runtime.Refresh(t.Context(), marketplace.KindSkill)
+			_, refreshErr := runtime.Refresh(t.Context(), marketplace.KindExtension)
 			oldRefresh <- refreshErr
 		}()
 		<-requestStarted
@@ -221,7 +221,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := <-oldRefresh; !errors.Is(err, marketplace.ErrServiceClosed) {
 			t.Fatalf("old Refresh() error = %v, want ErrServiceClosed", err)
 		}
-		if _, err := runtime.Refresh(testutil.Context(t), marketplace.KindSkill); err != nil {
+		if _, err := runtime.Refresh(testutil.Context(t), marketplace.KindExtension); err != nil {
 			t.Fatalf("Refresh(replacement) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "replacement")
@@ -238,15 +238,15 @@ func (w blockingMarketplaceEventWriter) WriteEventSummary(ctx context.Context, _
 	return ctx.Err()
 }
 
-func newMarketplaceFeedServer(t *testing.T, skillID string) *httptest.Server {
+func newMarketplaceFeedServer(t *testing.T, entryID string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		body := `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`
-		if request.URL.Path == "/skills.json" {
-			body = `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
-				`"entry_id":"` + skillID + `","name":"` + skillID + `","description":"Daemon fixture",` +
-				`"install_slug":"compozy/` + skillID + `"}]}`
+		body := `{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`
+		if request.URL.Path == "/v3/extensions.json" {
+			body = `{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
+				`"entry_id":"` + entryID + `","name":"` + entryID + `","description":"Daemon fixture",` +
+				`"tier":"official","version":"1.0.0","install_slug":"compozy/` + entryID + `","artifact_url":"https://example.test/package.tgz","digest_sha256":"` + strings.Repeat("a", 64) + `"}]}`
 		}
 		if _, err := writer.Write([]byte(body)); err != nil {
 			t.Errorf("write feed response: %v", err)
@@ -258,7 +258,7 @@ func newMarketplaceFeedServer(t *testing.T, skillID string) *httptest.Server {
 
 func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wantEntryID string) {
 	t.Helper()
-	result, err := runtime.Browse(testutil.Context(t), marketplace.KindSkill, "", 0, 10)
+	result, err := runtime.Browse(testutil.Context(t), marketplace.KindExtension, "", 0, 10)
 	if err != nil {
 		t.Fatalf("Browse() error = %v", err)
 	}
@@ -269,18 +269,20 @@ func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wa
 
 func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Store, fetchedAt time.Time) {
 	t.Helper()
-	if err := catalogStore.ReplaceKind(t.Context(), marketplace.KindSkill, &marketplace.Document{
-		ManifestVersion: marketplace.ManifestVersion,
+	if err := catalogStore.ReplaceKind(t.Context(), marketplace.KindExtension, &marketplace.Document{
+		ManifestVersion: marketplace.ManifestVersionV3,
 		GeneratedAt:     fetchedAt.Add(-time.Minute),
 		FetchedAt:       fetchedAt,
 		Entries: []marketplace.Entry{{
-			Kind:        marketplace.KindSkill,
-			EntryID:     "remote",
-			Name:        "remote",
-			Description: "Fresh remote projection",
-			InstallSlug: "compozy/remote",
-			Payload:     []byte(`{"entry_id":"remote","name":"remote"}`),
-			FetchedAt:   fetchedAt,
+			Kind:         marketplace.KindExtension,
+			EntryID:      "remote",
+			Version:      "1.0.0",
+			DigestSHA256: strings.Repeat("a", 64),
+			Name:         "remote",
+			Description:  "Fresh remote projection",
+			InstallSlug:  "compozy/remote",
+			Payload:      []byte(`{"entry_id":"remote","name":"remote"}`),
+			FetchedAt:    fetchedAt,
 		}},
 	}); err != nil {
 		t.Fatalf("ReplaceKind(remote projection) error = %v", err)
@@ -328,7 +330,7 @@ func assertMarketplaceInstallEvent(t *testing.T, registry *globaldb.GlobalDB) {
 		t.Fatalf("json.Unmarshal(marketplace.install) error = %v", err)
 	}
 	if summaries[0].Outcome != string(eventspkg.OutcomeSuccess) ||
-		outcome.Kind != marketplace.KindMCP ||
+		outcome.Kind != marketplace.KindExtension ||
 		outcome.EntryID != "github" ||
 		outcome.Outcome != marketplace.InstallOutcomeSucceeded ||
 		outcome.PolicyGate != marketplace.InstallPolicyGatePassed {

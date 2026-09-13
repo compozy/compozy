@@ -4,8 +4,8 @@ area: ET
 title: Operate the unified marketplace API namespace
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: GET /api/marketplace and /api/marketplace/entries/{entry_id} have matching HTTP and UDS contracts, origin-only installed joins, source state and revision-fenced pagination. Retained kind routes continue to work. Batch update reports each committed or failed extension without losing progress.
-entry_points: GET /api/marketplace; GET /api/marketplace/entries/{entry_id}; POST /api/marketplace/refresh; POST /api/extensions/update; retained Marketplace discovery routes
+expected: GET /api/marketplace and /api/marketplace/entries/{entry_id} have matching HTTP and UDS contracts, origin-only installed joins, source state and revision-fenced pagination. Retired kind/grouped-search routes return 404 and any kind query on canonical browse/detail/refresh returns 400. Refresh reports sources, outcomes and stale state. Batch update reports each committed or failed extension without losing progress.
+entry_points: GET /api/marketplace; GET /api/marketplace/entries/{entry_id}; POST /api/marketplace/refresh; POST /api/extensions/update
 qa_status: untested
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-007; ET-008; ET-016
 ---
 
-Marketplace catalog task 01 (2026-09-12): Compare HTTP and UDS responses in the same profile and workspace. Exercise stale cursors, unchanged refresh revisions, same-name different-origin records, installed_name selection and cached source failure. Attempt two updates with the second artifact returning 404 and inspect both persisted versions.
+Marketplace catalog tasks01/05 (2026-09-13): Compare HTTP and UDS responses in the same profile and workspace, plus canonical CLI search/info/refresh and native discovery. Exercise stale cursors, unchanged refresh revisions, same-name different-origin records, exact installed_name selection and cached source failure. Refresh has no kind argument and returns sources[]. Verify old /search, /mcp, /extension, /skill and their detail paths return ordinary404 with no dispatch. Reject kind even when empty on canonical endpoints. Preserve non-loopback HTTP refresh denial and the UDS mutation contract. Attempt two updates with the second artifact returning404 and inspect both persisted versions.
 
 Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
 

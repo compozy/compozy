@@ -45,7 +45,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.TerminalInputResolutionOutcome](): contract.TerminalInputResolutionOutcomeValues(),
 		reflect.TypeFor[contract.TerminalErrorCode]():              contract.TerminalErrorCodeValues(),
 		reflect.TypeFor[contract.IssueSeverity]():                  contract.IssueSeverityValues(),
-		reflect.TypeFor[contract.MarketplaceKind]():                contract.MarketplaceKindValues(),
 		reflect.TypeFor[contract.DrainState]():                     drainStateValues(),
 		reflect.TypeFor[contract.SettingsShellSessionSort]():       settingsShellSessionSortValues(),
 		reflect.TypeFor[contract.SettingsShellSessionScope]():      settingsShellSessionScopeValues(),

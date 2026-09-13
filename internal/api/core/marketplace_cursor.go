@@ -7,11 +7,10 @@ import (
 	"strings"
 )
 
-const marketplaceCursorVersion = 2
+const marketplaceCursorVersion = 3
 
 type marketplaceCursor struct {
 	Version     int    `json:"v"`
-	Kind        string `json:"kind"`
 	Query       string `json:"query,omitempty"`
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -21,7 +20,6 @@ type marketplaceCursor struct {
 }
 
 func marketplaceNextCursor(
-	kind string,
 	query string,
 	scope marketplaceReadScope,
 	fence string,
@@ -32,7 +30,7 @@ func marketplaceNextCursor(
 		return "", nil
 	}
 	payload, err := json.Marshal(marketplaceCursor{
-		Version: marketplaceCursorVersion, Kind: kind, Query: strings.TrimSpace(query),
+		Version: marketplaceCursorVersion, Query: strings.TrimSpace(query),
 		Scope: string(scope.scope), WorkspaceID: scope.workspaceID, ProfileName: scope.profileName,
 		Fence: fence, Offset: nextOffset,
 	})
@@ -44,7 +42,6 @@ func marketplaceNextCursor(
 
 func marketplaceCursorOffset(
 	raw string,
-	kind string,
 	query string,
 	scope marketplaceReadScope,
 ) (int, string, error) {
@@ -61,7 +58,7 @@ func marketplaceCursorOffset(
 		return 0, "", marketplaceValidationf("cursor is invalid")
 	}
 	if cursor.Version != marketplaceCursorVersion || cursor.Offset < 0 || cursor.Fence == "" ||
-		cursor.Kind != kind || cursor.Query != strings.TrimSpace(query) ||
+		cursor.Query != strings.TrimSpace(query) ||
 		cursor.Scope != string(scope.scope) || cursor.WorkspaceID != scope.workspaceID ||
 		cursor.ProfileName != scope.profileName {
 		return 0, "", marketplaceValidationf("cursor does not match the marketplace request")
@@ -70,11 +67,4 @@ func marketplaceCursorOffset(
 		return 0, "", fmt.Errorf("%w: cursor offset must be positive", ErrMarketplaceValidation)
 	}
 	return cursor.Offset, cursor.Fence, nil
-}
-
-func validateMarketplaceCursorFence(expected string, actual string) error {
-	if expected == "" || expected == actual {
-		return nil
-	}
-	return marketplaceValidationf("cursor catalog revision has changed; restart from the first page")
 }

@@ -299,8 +299,8 @@ func TestMarketplaceCommands(t *testing.T) {
 	t.Run("Should refresh the catalog", func(t *testing.T) {
 		t.Parallel()
 
-		want := MarketplaceRefreshRecord{Kinds: []contract.MarketplaceRefreshKindPayload{{
-			Kind: "extension", Outcome: "updated", EntryCount: 3,
+		want := MarketplaceRefreshRecord{Sources: []contract.MarketplaceRefreshSourcePayload{{
+			Source: "compozy-catalog", Outcome: "updated", EntryCount: 3,
 		}}}
 		deps := newWorkspaceTestDeps(t, &stubClient{
 			refreshMarketplaceFn: func(_ context.Context) (MarketplaceRefreshRecord, error) {

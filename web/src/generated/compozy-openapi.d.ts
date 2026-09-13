@@ -1858,59 +1858,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Refresh all or one feed-backed marketplace kind */
+    /** Refresh the extension catalog */
     post: operations["refreshMarketplaceCatalog"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/marketplace/search": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Search the grouped marketplace catalog */
-    get: operations["searchMarketplace"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/marketplace/{kind}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Browse or search one marketplace kind */
-    get: operations["browseMarketplaceKind"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/marketplace/{kind}/{entry_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one marketplace entry by stable entry id */
-    get: operations["getMarketplaceEntry"];
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -36052,7 +36001,6 @@ export interface operations {
                 author?: string;
                 description: string;
                 digest_sha256: string;
-                downloads?: number | null;
                 entry_id: string;
                 format?: string;
                 icon?: string;
@@ -36062,8 +36010,6 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
                 layout?: string;
                 manage_path?: string;
                 name: string;
@@ -36077,7 +36023,6 @@ export interface operations {
                 source: string;
                 source_ref?: string;
                 tier?: string;
-                transport?: string;
                 trust?: {
                   allow_unverified: boolean;
                   checksum_verified: boolean;
@@ -36402,7 +36347,6 @@ export interface operations {
                 author?: string;
                 description: string;
                 digest_sha256: string;
-                downloads?: number | null;
                 entry_id: string;
                 format?: string;
                 icon?: string;
@@ -36412,8 +36356,6 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
                 layout?: string;
                 manage_path?: string;
                 name: string;
@@ -36427,7 +36369,6 @@ export interface operations {
                 source: string;
                 source_ref?: string;
                 tier?: string;
-                transport?: string;
                 trust?: {
                   allow_unverified: boolean;
                   checksum_verified: boolean;
@@ -37062,7 +37003,6 @@ export interface operations {
                 author?: string;
                 description: string;
                 digest_sha256: string;
-                downloads?: number | null;
                 entry_id: string;
                 format?: string;
                 icon?: string;
@@ -37072,8 +37012,6 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
                 layout?: string;
                 manage_path?: string;
                 name: string;
@@ -37087,7 +37025,6 @@ export interface operations {
                 source: string;
                 source_ref?: string;
                 tier?: string;
-                transport?: string;
                 trust?: {
                   allow_unverified: boolean;
                   checksum_verified: boolean;
@@ -37987,7 +37924,6 @@ export interface operations {
                 author?: string;
                 description: string;
                 digest_sha256: string;
-                downloads?: number | null;
                 entry_id: string;
                 format?: string;
                 icon?: string;
@@ -37997,8 +37933,6 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
                 layout?: string;
                 manage_path?: string;
                 name: string;
@@ -38012,7 +37946,6 @@ export interface operations {
                 source: string;
                 source_ref?: string;
                 tier?: string;
-                transport?: string;
                 trust?: {
                   allow_unverified: boolean;
                   checksum_verified: boolean;
@@ -39752,7 +39685,6 @@ export interface operations {
                 author?: string;
                 description: string;
                 digest_sha256: string;
-                downloads?: number | null;
                 entry_id: string;
                 format?: string;
                 icon?: string;
@@ -39762,8 +39694,6 @@ export interface operations {
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
                 layout?: string;
                 manage_path?: string;
                 name: string;
@@ -39777,7 +39707,6 @@ export interface operations {
                 source: string;
                 source_ref?: string;
                 tier?: string;
-                transport?: string;
                 trust?: {
                   allow_unverified: boolean;
                   checksum_verified: boolean;
@@ -43293,7 +43222,7 @@ export interface operations {
   listMarketplace: {
     parameters: {
       query?: {
-        /** @description Optional kind search query */
+        /** @description Optional catalog search query */
         q?: string;
         /** @description Maximum results from 1 to 100 */
         limit?: number;
@@ -43312,7 +43241,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Catalog page, including degraded cached sources */
+      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
@@ -43325,7 +43254,6 @@ export interface operations {
               author?: string;
               description: string;
               digest_sha256: string;
-              downloads?: number | null;
               entry_id: string;
               format?: string;
               icon?: string;
@@ -43335,8 +43263,6 @@ export interface operations {
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
-              /** @enum {string} */
-              kind?: "mcp" | "extension" | "skill";
               layout?: string;
               manage_path?: string;
               name: string;
@@ -43350,7 +43276,6 @@ export interface operations {
               source: string;
               source_ref?: string;
               tier?: string;
-              transport?: string;
               trust?: {
                 allow_unverified: boolean;
                 checksum_verified: boolean;
@@ -43391,7 +43316,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid catalog query or cursor scope */
+      /** @description Invalid marketplace browse request */
       400: {
         headers: {
           [name: string]: unknown;
@@ -43464,7 +43389,7 @@ export interface operations {
           };
         };
       };
-      /** @description Catalog is not configured */
+      /** @description Catalog dependency is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -43499,7 +43424,9 @@ export interface operations {
   getMarketplaceCatalogEntry: {
     parameters: {
       query?: {
-        /** @description Exact installed MCP, extension, or skill identity */
+        /** @description Catalog source name; defaults to the Compozy catalog */
+        source?: string;
+        /** @description Exact installed extension identity */
         installed_name?: string;
         /** @description Installed-state projection scope */
         scope?: "global" | "profile" | "workspace";
@@ -43507,8 +43434,6 @@ export interface operations {
         profile?: string;
         /** @description Required for workspace installed-state projection */
         workspace_id?: string;
-        /** @description Catalog source name; defaults to the Compozy catalog */
-        source?: string;
       };
       header?: never;
       path: {
@@ -43530,7 +43455,6 @@ export interface operations {
               author?: string;
               description: string;
               digest_sha256: string;
-              downloads?: number | null;
               entry_id: string;
               format?: string;
               icon?: string;
@@ -43540,8 +43464,6 @@ export interface operations {
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
-              /** @enum {string} */
-              kind?: "mcp" | "extension" | "skill";
               layout?: string;
               manage_path?: string;
               name: string;
@@ -43555,7 +43477,6 @@ export interface operations {
               source: string;
               source_ref?: string;
               tier?: string;
-              transport?: string;
               trust?: {
                 allow_unverified: boolean;
                 checksum_verified: boolean;
@@ -43639,43 +43560,6 @@ export interface operations {
               repository?: string;
               resolved_ref?: string;
             } | null;
-            mcp?: {
-              auth?: {
-                method: string;
-                registration: string;
-                scopes?: string[];
-              } | null;
-              default_scope: string;
-              inputs?: {
-                binding: {
-                  name: string;
-                  type: string;
-                };
-                default?: unknown;
-                id: string;
-                prompt: string;
-                required: boolean;
-                type: string;
-              }[];
-              launch: {
-                args?: string[];
-                digest?: string;
-                image?: string;
-                package?: string;
-                type: string;
-                url?: string;
-                version?: string;
-              };
-            } | null;
-            skill?: {
-              display_name?: string;
-              install_slug: string;
-              license?: string;
-              readme?: string;
-              repository?: string;
-              tags?: string[];
-              versions?: string[];
-            } | null;
           };
         };
       };
@@ -43709,7 +43593,7 @@ export interface operations {
           };
         };
       };
-      /** @description Marketplace kind or entry not found */
+      /** @description Catalog entry not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -43838,10 +43722,7 @@ export interface operations {
   };
   refreshMarketplaceCatalog: {
     parameters: {
-      query?: {
-        /** @description Optional feed-backed kind */
-        kind?: "mcp" | "extension" | "skill";
-      };
+      query?: never;
       header?: never;
       path?: never;
       cookie?: never;
@@ -43855,17 +43736,17 @@ export interface operations {
         };
         content: {
           "application/json": {
-            kinds: {
+            sources: {
               entry_count: number;
               error_class?: string;
-              kind: string;
               outcome: string;
+              source: string;
               stale: boolean;
             }[];
           };
         };
       };
-      /** @description Invalid or derived refresh kind */
+      /** @description Unsupported catalog selector */
       400: {
         headers: {
           [name: string]: unknown;
@@ -43956,752 +43837,6 @@ export interface operations {
         };
       };
       /** @description Marketplace catalog is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  searchMarketplace: {
-    parameters: {
-      query?: {
-        /** @description Search query; empty returns curated idle slices */
-        q?: string;
-        /** @description Maximum results per kind from 1 to 100 */
-        limit?: number;
-        /** @description Installed-state projection scope */
-        scope?: "global" | "profile" | "workspace";
-        /** @description Required for profile installed-state projection */
-        profile?: string;
-        /** @description Required for workspace installed-state projection */
-        workspace_id?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK; individual source failures are returned in kind.error */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            kinds: {
-              error?: string;
-              error_class?: string;
-              items: {
-                author?: string;
-                description: string;
-                digest_sha256: string;
-                downloads?: number | null;
-                entry_id: string;
-                format?: string;
-                icon?: string;
-                install_blocker?: string;
-                install_slug?: string;
-                installable: boolean;
-                installed: boolean;
-                installed_name?: string;
-                installed_version?: string;
-                /** @enum {string} */
-                kind?: "mcp" | "extension" | "skill";
-                layout?: string;
-                manage_path?: string;
-                name: string;
-                name_conflict?: {
-                  entry_id: string;
-                  source: string;
-                  source_ref: string;
-                } | null;
-                /** Format: date-time */
-                published_at?: string | null;
-                source: string;
-                source_ref?: string;
-                tier?: string;
-                transport?: string;
-                trust?: {
-                  allow_unverified: boolean;
-                  checksum_verified: boolean;
-                  decision: string;
-                  registry_tier: string;
-                  warnings?: {
-                    category: string;
-                    code: string;
-                    data_freshness: string;
-                    doc_url?: string;
-                    evidence?: {
-                      [key: string]: unknown;
-                    };
-                    id: string;
-                    message: string;
-                    severity: string;
-                    suggested_command?: string;
-                    title: string;
-                  }[];
-                } | null;
-                update_available: boolean;
-                /** Format: date-time */
-                updated_at?: string | null;
-                version?: string;
-              }[];
-              /** @enum {string} */
-              kind: "mcp" | "extension" | "skill";
-              next_cursor?: string;
-              stale: boolean;
-              total?: number | null;
-            }[];
-            query: string;
-          };
-        };
-      };
-      /** @description Invalid marketplace search request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Marketplace discovery dependencies are not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  browseMarketplaceKind: {
-    parameters: {
-      query?: {
-        /** @description Optional kind search query */
-        q?: string;
-        /** @description Maximum results from 1 to 100 */
-        limit?: number;
-        /** @description Opaque next_cursor from the previous page */
-        cursor?: string;
-        /** @description Installed-state projection scope */
-        scope?: "global" | "profile" | "workspace";
-        /** @description Required for profile installed-state projection */
-        profile?: string;
-        /** @description Required for workspace installed-state projection */
-        workspace_id?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Marketplace kind */
-        kind: "mcp" | "extension" | "skill";
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error?: string;
-            error_class?: string;
-            items: {
-              author?: string;
-              description: string;
-              digest_sha256: string;
-              downloads?: number | null;
-              entry_id: string;
-              format?: string;
-              icon?: string;
-              install_blocker?: string;
-              install_slug?: string;
-              installable: boolean;
-              installed: boolean;
-              installed_name?: string;
-              installed_version?: string;
-              /** @enum {string} */
-              kind?: "mcp" | "extension" | "skill";
-              layout?: string;
-              manage_path?: string;
-              name: string;
-              name_conflict?: {
-                entry_id: string;
-                source: string;
-                source_ref: string;
-              } | null;
-              /** Format: date-time */
-              published_at?: string | null;
-              source: string;
-              source_ref?: string;
-              tier?: string;
-              transport?: string;
-              trust?: {
-                allow_unverified: boolean;
-                checksum_verified: boolean;
-                decision: string;
-                registry_tier: string;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              update_available: boolean;
-              /** Format: date-time */
-              updated_at?: string | null;
-              version?: string;
-            }[];
-            /** @enum {string} */
-            kind: "mcp" | "extension" | "skill";
-            next_cursor?: string;
-            stale: boolean;
-            total?: number | null;
-          };
-        };
-      };
-      /** @description Invalid marketplace browse request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Marketplace kind not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Marketplace kind dependency is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  getMarketplaceEntry: {
-    parameters: {
-      query?: {
-        /** @description Exact installed MCP, extension, or skill identity */
-        installed_name?: string;
-        /** @description Installed-state projection scope */
-        scope?: "global" | "profile" | "workspace";
-        /** @description Required for profile installed-state projection */
-        profile?: string;
-        /** @description Required for workspace installed-state projection */
-        workspace_id?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Marketplace kind */
-        kind: "mcp" | "extension" | "skill";
-        /** @description Stable URL-safe marketplace entry id */
-        entry_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            entry: {
-              author?: string;
-              description: string;
-              digest_sha256: string;
-              downloads?: number | null;
-              entry_id: string;
-              format?: string;
-              icon?: string;
-              install_blocker?: string;
-              install_slug?: string;
-              installable: boolean;
-              installed: boolean;
-              installed_name?: string;
-              installed_version?: string;
-              /** @enum {string} */
-              kind?: "mcp" | "extension" | "skill";
-              layout?: string;
-              manage_path?: string;
-              name: string;
-              name_conflict?: {
-                entry_id: string;
-                source: string;
-                source_ref: string;
-              } | null;
-              /** Format: date-time */
-              published_at?: string | null;
-              source: string;
-              source_ref?: string;
-              tier?: string;
-              transport?: string;
-              trust?: {
-                allow_unverified: boolean;
-                checksum_verified: boolean;
-                decision: string;
-                registry_tier: string;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              update_available: boolean;
-              /** Format: date-time */
-              updated_at?: string | null;
-              version?: string;
-            };
-            extension?: {
-              artifact_url: string;
-              contents: {
-                agents: number;
-                bridges: number;
-                hooks: number;
-                loops: number;
-                mcp_servers: number;
-                skills: number;
-              };
-              diagnostics?: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              }[];
-              digest_sha256: string;
-              inputs: {
-                binding: {
-                  name: string;
-                  type: string;
-                };
-                default?: unknown;
-                id: string;
-                prompt: string;
-                required: boolean;
-                type: string;
-              }[];
-              install_slug: string;
-              layout?: string;
-              mcp_servers: {
-                auth?: {
-                  issuer_url?: string;
-                  method: string;
-                  registration?: string;
-                  scopes?: string[];
-                } | null;
-                launch: string;
-                name: string;
-                owner: string;
-                profile?: string;
-                runtime_name?: string;
-                scope?: string;
-                status?: string;
-                transport: string;
-                workspace_id?: string;
-              }[];
-              repository?: string;
-              resolved_ref?: string;
-            } | null;
-            mcp?: {
-              auth?: {
-                method: string;
-                registration: string;
-                scopes?: string[];
-              } | null;
-              default_scope: string;
-              inputs?: {
-                binding: {
-                  name: string;
-                  type: string;
-                };
-                default?: unknown;
-                id: string;
-                prompt: string;
-                required: boolean;
-                type: string;
-              }[];
-              launch: {
-                args?: string[];
-                digest?: string;
-                image?: string;
-                package?: string;
-                type: string;
-                url?: string;
-                version?: string;
-              };
-            } | null;
-            skill?: {
-              display_name?: string;
-              install_slug: string;
-              license?: string;
-              readme?: string;
-              repository?: string;
-              tags?: string[];
-              versions?: string[];
-            } | null;
-          };
-        };
-      };
-      /** @description Invalid marketplace detail request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Marketplace kind or entry not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Package bytes differ from the listed digest */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            agents?: string[];
-            code: string;
-            current_digest?: string;
-            declared_env?: string[];
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            env_name?: string;
-            error: string;
-            fetched_digest?: string;
-            input_id?: string;
-            inputs?: string[];
-            listed_digest?: string;
-            missing_env?: string[];
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Marketplace detail dependency is not configured */
       503: {
         headers: {
           [name: string]: unknown;

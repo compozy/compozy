@@ -13,7 +13,6 @@ export async function refreshMarketplaceCatalog(
   signal?: AbortSignal
 ): Promise<MarketplaceRefreshResponse> {
   const { data, error, response } = await apiClient.POST("/api/marketplace/refresh", {
-    params: { query: { kind: "extension" } },
     signal,
   });
 

@@ -91,6 +91,7 @@ func awaitRefreshFlight(ctx context.Context, kind Kind, flight *refreshFlight) (
 
 func canceledRefreshOutcome(kind Kind) RefreshOutcome {
 	return RefreshOutcome{
+		Source:     refreshSourceName(kind),
 		Kind:       kind,
 		Outcome:    RefreshOutcomeFailed,
 		ErrorClass: errorClassCanceled,

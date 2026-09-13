@@ -10,7 +10,6 @@ import (
 )
 
 // Catalog instances combine the workspace overlay with the selected profile lens.
-// Retained kind endpoints keep their original mutually exclusive selectors.
 func parseMarketplaceCatalogScope(rawScope, rawWorkspaceID, rawProfileName string) (marketplaceReadScope, error) {
 	scope := strings.ToLower(strings.TrimSpace(rawScope))
 	workspaceID, profileName := strings.TrimSpace(rawWorkspaceID), strings.TrimSpace(rawProfileName)

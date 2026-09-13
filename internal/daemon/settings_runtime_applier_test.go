@@ -658,7 +658,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}
-		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+		if _, err := runtime.Refresh(t.Context(), marketplace.KindExtension); err != nil {
 			t.Fatalf("Refresh(seed) error = %v", err)
 		}
 
@@ -671,7 +671,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				toolMCPResources: toolMCPPublisherFunc(func(ctx context.Context) error {
 					syncCalls++
 					if syncCalls == 1 {
-						if _, err := runtime.Refresh(ctx, marketplace.KindSkill); err != nil {
+						if _, err := runtime.Refresh(ctx, marketplace.KindExtension); err != nil {
 							return errors.Join(errors.New("verify active marketplace source"), err)
 						}
 						assertMarketplaceRuntimeEntry(t, runtime, "rollback-second")
@@ -684,7 +684,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if len(failures) != 1 || failures[0].Subsystem != "mcp" {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want one mcp failure", failures)
 		}
-		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+		if _, err := runtime.Refresh(t.Context(), marketplace.KindExtension); err != nil {
 			t.Fatalf("Refresh(after rollback) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")

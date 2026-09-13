@@ -2,12 +2,10 @@ package core_test
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,10 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
-	registrypkg "github.com/compozy/compozy/internal/registry"
-	settingspkg "github.com/compozy/compozy/internal/settings"
-	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -80,27 +74,6 @@ func (s marketplaceCatalogStub) ResolveExtensionInstall(
 	return s.Detail(ctx, marketplacepkg.KindExtension, installSlug+"@"+version)
 }
 
-func (s marketplaceCatalogStub) ResolveSkillInstalls(
-	ctx context.Context,
-	installSlugs []string,
-) ([]marketplacepkg.Entry, error) {
-	result, err := s.Browse(ctx, marketplacepkg.KindSkill, "", 0, len(installSlugs))
-	if err != nil {
-		return nil, err
-	}
-	requested := make(map[string]struct{}, len(installSlugs))
-	for _, slug := range installSlugs {
-		requested[strings.TrimSpace(slug)] = struct{}{}
-	}
-	entries := make([]marketplacepkg.Entry, 0, len(result.Entries))
-	for _, entry := range result.Entries {
-		if _, ok := requested[entry.InstallSlug]; ok {
-			entries = append(entries, entry)
-		}
-	}
-	return entries, nil
-}
-
 func (s marketplaceCatalogStub) Refresh(
 	ctx context.Context,
 	kinds ...marketplacepkg.Kind,
@@ -115,89 +88,159 @@ func (marketplaceCatalogStub) Status(context.Context) ([]marketplacepkg.KindStat
 	return []marketplacepkg.KindState{}, nil
 }
 
-type installedSkillMarketplaceStub struct {
-	items []skillmarketplace.InstalledSkill
-	err   error
+func marketplaceListHTTP(t *testing.T, handlers *core.BaseHandlers) contract.MarketplaceListResponse {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, "/api/marketplace", http.NoBody,
+	)
+	handlers.ListMarketplace(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"GET /api/marketplace status = %d, want %d; body=%s",
+			recorder.Code,
+			http.StatusOK,
+			recorder.Body.String(),
+		)
+	}
+	var response contract.MarketplaceListResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode GET /api/marketplace response error = %v; body=%s", err, recorder.Body.String())
+	}
+	return response
 }
 
-func (s installedSkillMarketplaceStub) ListInstalled(context.Context) ([]skillmarketplace.InstalledSkill, error) {
-	return s.items, s.err
+type marketplaceHandlerFixture struct {
+	catalogBrowse            func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
+	catalogRefresh           func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	catalogDetail            func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
+	extensionTier            string
+	extensionCatalogEntryID  string
+	extensionInstalledSlug   string
+	extensionInstalledFormat string
+	extensionTrust           func(
+		context.Context,
+		extensionpkg.MarketplaceTrustEvidence,
+	) (contract.ExtensionTrustReportPayload, error)
 }
 
-func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) {
-	t.Parallel()
+func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture) *core.BaseHandlers {
+	t.Helper()
 
-	t.Run("Should isolate kind failures and preserve installed truth", func(t *testing.T) {
-		t.Parallel()
+	entries := marketplaceEntriesForTest()
+	if fixture.extensionTier != "" {
+		entry := entries[marketplacepkg.KindExtension]
+		entry.Tier = fixture.extensionTier
+		entries[marketplacepkg.KindExtension] = entry
+	}
 
-		remoteSearchCalls := 0
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteSearch: func(context.Context, string, int) ([]registrypkg.Listing, error) {
-				remoteSearchCalls++
-				return nil, nil
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/search", handlers.SearchMarketplace)
-
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/search", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload contract.MarketplaceSearchResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if remoteSearchCalls != 0 {
-			t.Fatalf("remote skill search calls = %d, want 0 for idle browse", remoteSearchCalls)
-		}
-		wantKinds := []contract.MarketplaceKind{
-			contract.MarketplaceKindMCP,
-			contract.MarketplaceKindExtension,
-			contract.MarketplaceKindSkill,
-		}
-		if len(payload.Kinds) != len(wantKinds) {
-			t.Fatalf("len(kinds) = %d, want %d", len(payload.Kinds), len(wantKinds))
-		}
-		for index, want := range wantKinds {
-			if payload.Kinds[index].Kind != want {
-				t.Fatalf("kinds[%d].kind = %q, want %q", index, payload.Kinds[index].Kind, want)
+	catalogDetail := fixture.catalogDetail
+	if catalogDetail == nil {
+		catalogDetail = func(_ context.Context, kind marketplacepkg.Kind, entryID string) (*marketplacepkg.Entry, error) {
+			entry, ok := entries[kind]
+			if !ok || entry.EntryID != entryID {
+				return nil, marketplacepkg.ErrEntryNotFound
 			}
+			return &entry, nil
 		}
-		if len(payload.Kinds[0].Items) != 1 || !payload.Kinds[0].Items[0].Installed {
-			t.Fatalf("MCP items = %#v, want installed catalog provenance join", payload.Kinds[0].Items)
+	}
+	catalogBrowse := fixture.catalogBrowse
+	if catalogBrowse == nil {
+		catalogBrowse = func(
+			_ context.Context,
+			kind marketplacepkg.Kind,
+			_ string,
+			_ int,
+		) (marketplacepkg.BrowseResult, error) {
+			return marketplacepkg.BrowseResult{
+				Entries: []marketplacepkg.Entry{entries[kind]}, Total: 1,
+			}, nil
 		}
-		if payload.Kinds[0].Items[0].InstalledVersion != "" || payload.Kinds[0].Items[0].UpdateAvailable {
-			t.Fatalf("MCP update fields = %#v, want install-state only", payload.Kinds[0].Items[0])
-		}
-		for _, index := range []int{1, 2} {
-			if len(payload.Kinds[index].Items) != 1 || !payload.Kinds[index].Items[0].Installed ||
-				!payload.Kinds[index].Items[0].UpdateAvailable {
-				t.Fatalf("kinds[%d].items = %#v, want truthful semver update join", index, payload.Kinds[index].Items)
-			}
-			if payload.Kinds[index].Items[0].InstallSlug == "" {
-				t.Fatalf("kinds[%d].items[0].install_slug = empty, want acquisition identity", index)
-			}
-			if payload.Kinds[index].Total == nil || *payload.Kinds[index].Total != 1 {
-				t.Fatalf("kinds[%d].total = %v, want exact curated total 1", index, payload.Kinds[index].Total)
-			}
-		}
-		if got := payload.Kinds[2].Items[0].ManagePath; got != "/marketplace/skills" {
-			t.Fatalf("skill manage path = %q, want %q", got, "/marketplace/skills")
-		}
-		if got := payload.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
-			t.Fatalf("mcp manage path = %q, want %q", got, "/marketplace/mcps")
-		}
-		for _, want := range []string{
-			`"installed_name":"github"`,
-			`"installed_name":"extension"`,
-			`"installed_name":"skill"`,
-		} {
-			if !strings.Contains(response.Body.String(), want) {
-				t.Fatalf("response body = %s, want canonical installed identity %s", response.Body.String(), want)
-			}
-		}
+	}
+	catalog := marketplaceCatalogStub{
+		browseFn: catalogBrowse, detailFn: catalogDetail, refreshFn: fixture.catalogRefresh,
+	}
+	homePaths := testutil.NewTestHomePaths(t)
+	config := testConfigWithDisabledNetwork(homePaths)
+	installedSlug := fixture.extensionInstalledSlug
+	if installedSlug == "" && fixture.extensionCatalogEntryID == "" {
+		installedSlug = "acme/extension"
+	}
+	// The fixture represents an installation with persisted acquisition evidence.
+	// Origin is explicit; tests for unclassified records construct a payload without it.
+	originEntryID := fixture.extensionCatalogEntryID
+	if originEntryID == "" && installedSlug == "acme/extension" {
+		originEntryID = "extension-entry"
+	}
+	var origin *contract.MarketplaceOriginPayload
+	if originEntryID != "" {
+		origin = &contract.MarketplaceOriginPayload{Source: marketplacepkg.CompozyCatalogSource,
+			SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: originEntryID}
+	}
+	return core.NewBaseHandlers(&core.BaseHandlerConfig{
+		MarketplaceCatalog: catalog,
+		Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+			return []contract.ExtensionPayload{{
+				Name: "extension", Version: "1.0.0", Format: fixture.extensionInstalledFormat, Origin: origin,
+				Provenance: &contract.ExtensionProvenancePayload{
+					Slug: installedSlug, CatalogEntryID: fixture.extensionCatalogEntryID,
+				},
+			}}, nil
+		}, marketplaceTrustFn: fixture.extensionTrust},
+		HomePaths: homePaths,
+		Config:    config,
+		Logger:    testutil.DiscardLogger(),
 	})
+}
+
+// marketplaceExtensionPayloadForTest rebuilds the curated extension payload with an optional format
+// marker, matching what the feed reader stores after a strict decode.
+func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMessage {
+	t.Helper()
+	payload := map[string]string{
+		"entry_id":      "extension-entry",
+		"name":          "Extension",
+		"description":   "Extension",
+		"version":       "1.2.0",
+		"install_slug":  "acme/extension",
+		"artifact_url":  "https://downloads.example.test/extension-v1.2.0.tar.gz",
+		"digest_sha256": strings.Repeat("a", 64),
+	}
+	if format != "" {
+		payload["format"] = format
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(extension marketplace payload) error = %v", err)
+	}
+	return encoded
+}
+
+func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {
+	return map[marketplacepkg.Kind]marketplacepkg.Entry{
+
+		marketplacepkg.KindExtension: {
+			Kind:         marketplacepkg.KindExtension,
+			EntryID:      "extension-entry",
+			Name:         "Extension",
+			Description:  "Extension",
+			Version:      "1.2.0",
+			InstallSlug:  "acme/extension",
+			DigestSHA256: strings.Repeat("a", 64),
+			Tier:         extensionpkg.ExtensionRegistryTierOfficial,
+			Payload: json.RawMessage(
+				`{"entry_id":"extension-entry","name":"Extension","description":"Extension","version":"1.2.0","install_slug":"acme/extension","artifact_url":"https://downloads.example.test/extension-v1.2.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
+			),
+		},
+	}
+}
+
+// Invariant: catalog pages join installed state only by origin and retain exact source/cursor metadata.
+// Owner: API core catalog projection; canonical suite: marketplace_test.go (UT-004, UT-011, UT-068).
+func TestMarketplaceCatalog(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Should mask persisted stale diagnostics when internal error masking is enabled", func(t *testing.T) {
 		t.Parallel()
@@ -220,207 +263,15 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			},
 		})
 		handlers.MaskInternalErrors = true
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{})
+		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
 		if err != nil {
-			t.Fatalf("MarketplaceSearch() error = %v", err)
+			t.Fatalf("MarketplaceList() error = %v", err)
 		}
-		if got := response.Kinds[0].Error; got != http.StatusText(http.StatusInternalServerError) {
+		if got := response.Error; got != http.StatusText(http.StatusInternalServerError) {
 			t.Fatalf("persisted stale error = %q, want masked %q", got, http.StatusText(http.StatusInternalServerError))
 		}
 	})
 
-	t.Run("Should include workspace identity in MCP manage links", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{
-			Scope: "workspace", WorkspaceID: "ws-a",
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceSearch(workspace) error = %v", err)
-		}
-		if got := response.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
-			t.Fatalf("workspace MCP manage path = %q", got)
-		}
-	})
-
-	t.Run("Should project MCP installed state from the requested profile layer", func(t *testing.T) {
-		t.Parallel()
-
-		var captured settingspkg.CollectionRequest
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			settingsList: func(
-				_ context.Context,
-				request settingspkg.CollectionRequest,
-			) (settingspkg.CollectionEnvelope, error) {
-				captured = request
-				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
-					Name: "github", CatalogEntry: "mcp-entry", CatalogVersion: "1.0.0",
-				}}}, nil
-			},
-		})
-		response, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Scope: "profile", ProfileName: "marketing",
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceKind(profile) error = %v", err)
-		}
-		if captured.Scope != settingspkg.ScopeProfile || captured.ProfileName != "marketing" ||
-			captured.WorkspaceID != "" {
-			t.Fatalf("profile marketplace collection request = %#v", captured)
-		}
-		if len(response.Items) != 1 || !response.Items[0].Installed {
-			t.Fatalf("profile marketplace items = %#v, want installed MCP", response.Items)
-		}
-	})
-
-	t.Run("Should omit continuation cursors from grouped search", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			catalogBrowse: func(
-				_ context.Context,
-				kind marketplacepkg.Kind,
-				_ string,
-				_ int,
-			) (marketplacepkg.BrowseResult, error) {
-				entry := marketplaceEntriesForTest()[kind]
-				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entry},
-					Total:   2,
-					State: marketplacepkg.KindState{
-						Kind: kind, FetchedAt: time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC),
-					},
-				}, nil
-			},
-		})
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{Limit: 1})
-		if err != nil {
-			t.Fatalf("MarketplaceSearch() error = %v", err)
-		}
-		for _, result := range response.Kinds {
-			if result.NextCursor != "" {
-				t.Fatalf("kind %q next_cursor = %q, want omitted for grouped search", result.Kind, result.NextCursor)
-			}
-		}
-	})
-
-	t.Run("Should page one kind with an opaque cursor bound to its filters and scope", func(t *testing.T) {
-		t.Parallel()
-
-		entries := []marketplacepkg.Entry{
-			marketplaceEntriesForTest()[marketplacepkg.KindMCP],
-			marketplaceEntriesForTest()[marketplacepkg.KindMCP],
-		}
-		entries[0].EntryID = "mcp-alpha"
-		entries[0].Name = "Alpha"
-		entries[0].Payload = json.RawMessage(
-			`{"entry_id":"mcp-alpha","name":"Alpha","description":"Alpha MCP","transport":"stdio","command":"alpha"}`,
-		)
-		entries[1].EntryID = "mcp-beta"
-		entries[1].Name = "Beta"
-		entries[1].Payload = json.RawMessage(
-			`{"entry_id":"mcp-beta","name":"Beta","description":"Beta MCP","transport":"stdio","command":"beta"}`,
-		)
-		offsets := make([]int, 0, 3)
-		generatedAt := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
-		fetchedAt := generatedAt.Add(time.Minute)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			MarketplaceCatalog: marketplaceCatalogStub{browsePageFn: func(
-				_ context.Context,
-				kind marketplacepkg.Kind,
-				query string,
-				offset int,
-				limit int,
-			) (marketplacepkg.BrowseResult, error) {
-				if kind != marketplacepkg.KindMCP || query != "server" || limit != 1 {
-					t.Fatalf("Browse() = (%q, %q, %d, %d), want MCP/server/offset/1", kind, query, offset, limit)
-				}
-				offsets = append(offsets, offset)
-				return marketplacepkg.BrowseResult{
-					Entries: entries[offset : offset+1], Total: len(entries),
-					State: marketplacepkg.KindState{
-						Kind: marketplacepkg.KindMCP, ManifestVersion: 1,
-						GeneratedAt: generatedAt, FetchedAt: fetchedAt, EntryCount: len(entries),
-					},
-				}, nil
-			}},
-			Settings: &stubSettingsService{ListCollectionFn: func(
-				context.Context,
-				settingspkg.CollectionRequest,
-			) (settingspkg.CollectionEnvelope, error) {
-				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{}}, nil
-			}},
-			Logger: testutil.DiscardLogger(),
-		})
-
-		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Query: " server ", Limit: 1, Scope: "workspace", WorkspaceID: "ws-a",
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceKind(first) error = %v", err)
-		}
-		if first.Total == nil || *first.Total != 2 || len(first.Items) != 1 ||
-			first.Items[0].EntryID != "mcp-alpha" || first.NextCursor == "" {
-			t.Fatalf("MarketplaceKind(first) = %#v, want first row, exact total, and cursor", first)
-		}
-		second, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
-			Scope: "workspace", WorkspaceID: "ws-a",
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceKind(second) error = %v", err)
-		}
-		if len(second.Items) != 1 || second.Items[0].EntryID != "mcp-beta" || second.NextCursor != "" {
-			t.Fatalf("MarketplaceKind(second) = %#v, want final non-overlapping row", second)
-		}
-		if !slices.Equal(offsets, []int{0, 1}) {
-			t.Fatalf("Browse() offsets = %v, want [0 1]", offsets)
-		}
-		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Query: "different", Cursor: first.NextCursor, Limit: 1,
-			Scope: "workspace", WorkspaceID: "ws-a",
-		})
-		if !errors.Is(err, core.ErrMarketplaceValidation) {
-			t.Fatalf("MarketplaceKind(mismatched cursor) error = %v, want validation", err)
-		}
-
-		fetchedAt = fetchedAt.Add(time.Second)
-		if _, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
-			Scope: "workspace", WorkspaceID: "ws-a",
-		}); err != nil {
-			t.Fatalf("MarketplaceKind(refetched unchanged catalog) error = %v, want valid cursor", err)
-		}
-
-		generatedAt = generatedAt.Add(time.Second)
-		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
-			Scope: "workspace", WorkspaceID: "ws-a",
-		})
-		if !errors.Is(err, core.ErrMarketplaceValidation) {
-			t.Fatalf("MarketplaceKind(changed catalog revision) error = %v, want validation", err)
-		}
-	})
-
-	t.Run("Should join an installed extension by stable catalog entry identity", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			extensionCatalogEntryID: "extension-entry",
-			extensionInstalledSlug:  "",
-		})
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{})
-		if err != nil {
-			t.Fatalf("MarketplaceSearch() error = %v", err)
-		}
-		if item := response.Kinds[1].Items[0]; !item.Installed || item.InstalledName != "extension" {
-			t.Fatalf("extension item = %#v, want installed catalog identity join", item)
-		}
-	})
-
-	// IT-015: the curated marker is display metadata; ingestion decides what a package actually is,
-	// so an installed instance's recorded format overrides whatever the feed claimed.
 	t.Run("Should project the curated format marker and let an installed instance override it", func(t *testing.T) {
 		t.Parallel()
 
@@ -476,18 +327,13 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 					handlerFixture.extensionInstalledSlug = "unrelated/extension"
 				}
 				handlers := marketplaceHandlersForTest(t, handlerFixture)
-				response := marketplaceSearchHTTP(t, handlers)
-				item := response.Kinds[1].Items[0]
+				response := marketplaceListHTTP(t, handlers)
+				item := response.Items[0]
 				if item.Installed != tt.installed {
 					t.Fatalf("extension item installed = %t, want %t: %#v", item.Installed, tt.installed, item)
 				}
 				if item.Format != tt.wantFormat {
 					t.Fatalf("extension item format = %q, want %q", item.Format, tt.wantFormat)
-				}
-				for _, other := range append(response.Kinds[0].Items, response.Kinds[2].Items...) {
-					if other.Format != "" {
-						t.Fatalf("%s item format = %q, want no format signal", other.Kind, other.Format)
-					}
 				}
 			})
 		}
@@ -515,259 +361,14 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{fixtureEntry}}, nil
 			},
 		})
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{})
+		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
 		if err != nil {
-			t.Fatalf("MarketplaceSearch() error = %v", err)
+			t.Fatalf("MarketplaceList() error = %v", err)
 		}
-		if item := response.Kinds[1].Items[0]; item.Installed {
+		if item := response.Items[0]; item.Installed {
 			t.Fatalf("extension item = %#v, want unrelated slug collision ignored", item)
 		}
 	})
-
-	t.Run("Should expose stale feed state while serving durable rows", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			catalogBrowse: func(
-				_ context.Context,
-				kind marketplacepkg.Kind,
-				_ string,
-				_ int,
-			) (marketplacepkg.BrowseResult, error) {
-				entries := marketplaceEntriesForTest()
-				state := marketplacepkg.KindState{Kind: kind}
-				if kind == marketplacepkg.KindMCP {
-					state.Stale = true
-					state.ErrorClass = "network"
-					state.LastError = "catalog feed unavailable"
-				}
-				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entries[kind]},
-					State:   state,
-				}, nil
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/search", handlers.SearchMarketplace)
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-
-		search := performRequest(t, engine, http.MethodGet, "/marketplace/search", nil)
-		if search.Code != http.StatusOK {
-			t.Fatalf("search status = %d, want %d; body=%s", search.Code, http.StatusOK, search.Body.String())
-		}
-		var searchPayload struct {
-			Kinds []struct {
-				Kind       string                               `json:"kind"`
-				Stale      bool                                 `json:"stale"`
-				ErrorClass string                               `json:"error_class"`
-				Error      string                               `json:"error"`
-				Items      []contract.MarketplaceListingPayload `json:"items"`
-			} `json:"kinds"`
-		}
-		if err := json.Unmarshal(search.Body.Bytes(), &searchPayload); err != nil {
-			t.Fatalf("json.Unmarshal(search) error = %v", err)
-		}
-		if len(searchPayload.Kinds) == 0 || !searchPayload.Kinds[0].Stale ||
-			searchPayload.Kinds[0].ErrorClass != "network" ||
-			searchPayload.Kinds[0].Error != "catalog feed unavailable" ||
-			len(searchPayload.Kinds[0].Items) != 1 {
-			t.Fatalf("stale search kind = %#v, want marked stale row with redacted diagnostic", searchPayload.Kinds)
-		}
-
-		browse := performRequest(t, engine, http.MethodGet, "/marketplace/mcp", nil)
-		if browse.Code != http.StatusOK {
-			t.Fatalf("browse status = %d, want %d; body=%s", browse.Code, http.StatusOK, browse.Body.String())
-		}
-		var browsePayload struct {
-			Stale      bool                                 `json:"stale"`
-			ErrorClass string                               `json:"error_class"`
-			Error      string                               `json:"error"`
-			Items      []contract.MarketplaceListingPayload `json:"items"`
-		}
-		if err := json.Unmarshal(browse.Body.Bytes(), &browsePayload); err != nil {
-			t.Fatalf("json.Unmarshal(browse) error = %v", err)
-		}
-		if !browsePayload.Stale || browsePayload.ErrorClass != "network" ||
-			browsePayload.Error != "catalog feed unavailable" || len(browsePayload.Items) != 1 {
-			t.Fatalf("stale browse = %#v, want marked stale row with redacted diagnostic", browsePayload)
-		}
-	})
-}
-
-func marketplaceSearchHTTP(t *testing.T, handlers *core.BaseHandlers) contract.MarketplaceSearchResponse {
-	t.Helper()
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequestWithContext(
-		t.Context(), http.MethodGet, "/api/marketplace/search", http.NoBody,
-	)
-	handlers.SearchMarketplace(ctx)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"GET /api/marketplace/search status = %d, want %d; body=%s",
-			recorder.Code,
-			http.StatusOK,
-			recorder.Body.String(),
-		)
-	}
-	var response contract.MarketplaceSearchResponse
-	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-		t.Fatalf("decode GET /api/marketplace/search response error = %v; body=%s", err, recorder.Body.String())
-	}
-	return response
-}
-
-func TestMarketplaceContinuationRejectsChangedProjection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject a remote skill continuation when its boundary changes", func(t *testing.T) {
-		t.Parallel()
-
-		listings := []registrypkg.Listing{
-			{Slug: "@acme/alpha", Name: "Alpha", Version: "1.0.0", Source: "clawhub"},
-			{Slug: "@acme/beta", Name: "Beta", Version: "1.0.0", Source: "clawhub"},
-			{Slug: "@acme/gamma", Name: "Gamma", Version: "1.0.0", Source: "clawhub"},
-		}
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			MarketplaceCatalog: marketplaceCatalogStub{},
-			SkillMarketplace: stubSkillMarketplaceService{SearchPageFn: func(
-				_ context.Context,
-				query string,
-				offset int,
-				limit int,
-			) ([]registrypkg.Listing, error) {
-				if query != "review" || offset != 0 {
-					t.Fatalf("Search() = (%q, %d, %d), want review/0/limit", query, offset, limit)
-				}
-				return slices.Clone(listings[offset:min(offset+limit, len(listings))]), nil
-			}},
-			InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{}},
-			Logger:                    testutil.DiscardLogger(),
-		})
-
-		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "skill", Query: "review", Limit: 1,
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceKind(first) error = %v", err)
-		}
-		if first.NextCursor == "" {
-			t.Fatal("MarketplaceKind(first) next_cursor = empty, want continuation")
-		}
-
-		listings[0].Version = "2.0.0"
-		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "skill", Query: "review", Cursor: first.NextCursor, Limit: 1,
-		})
-		if !errors.Is(err, core.ErrMarketplaceValidation) {
-			t.Fatalf("MarketplaceKind(changed remote boundary) error = %v, want validation", err)
-		}
-	})
-
-	t.Run("Should page remote skills with bounded look-behind requests", func(t *testing.T) {
-		t.Parallel()
-
-		listings := []registrypkg.Listing{
-			{Slug: "@acme/alpha", Name: "Alpha", Source: "clawhub"},
-			{Slug: "@acme/beta", Name: "Beta", Source: "clawhub"},
-			{Slug: "@acme/gamma", Name: "Gamma", Source: "clawhub"},
-			{Slug: "@acme/delta", Name: "Delta", Source: "clawhub"},
-		}
-		type searchRequest struct {
-			offset int
-			limit  int
-		}
-		requests := make([]searchRequest, 0, 3)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			MarketplaceCatalog: marketplaceCatalogStub{},
-			SkillMarketplace: stubSkillMarketplaceService{SearchPageFn: func(
-				_ context.Context,
-				query string,
-				offset int,
-				limit int,
-			) ([]registrypkg.Listing, error) {
-				if query != "review" {
-					t.Fatalf("Search() query = %q, want review", query)
-				}
-				requests = append(requests, searchRequest{offset: offset, limit: limit})
-				return slices.Clone(listings[offset:min(offset+limit, len(listings))]), nil
-			}},
-			InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{}},
-			Logger:                    testutil.DiscardLogger(),
-		})
-
-		cursor := ""
-		gotSlugs := make([]string, 0, len(listings))
-		for cursor != "" || len(gotSlugs) == 0 {
-			page, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-				Kind: "skill", Query: "review", Cursor: cursor, Limit: 1,
-			})
-			if err != nil {
-				t.Fatalf("MarketplaceKind() error = %v", err)
-			}
-			if len(page.Items) != 1 {
-				t.Fatalf("len(items) = %d, want 1", len(page.Items))
-			}
-			gotSlugs = append(gotSlugs, page.Items[0].Name)
-			cursor = page.NextCursor
-		}
-		if diff := cmp.Diff([]string{"Alpha", "Beta", "Gamma", "Delta"}, gotSlugs); diff != "" {
-			t.Fatalf("paged names mismatch (-want +got):\n%s", diff)
-		}
-		wantRequests := []searchRequest{
-			{offset: 0, limit: 2},
-			{offset: 0, limit: 3},
-			{offset: 1, limit: 3},
-			{offset: 2, limit: 3},
-		}
-		if diff := cmp.Diff(wantRequests, requests, cmp.AllowUnexported(searchRequest{})); diff != "" {
-			t.Fatalf("Search() requests mismatch (-want +got):\n%s", diff)
-		}
-	})
-}
-
-func TestMarketplaceSearchUsesRemoteSkillsOnlyForQueries(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should use remote skill search only for non-empty queries", func(t *testing.T) {
-		t.Parallel()
-
-		remoteSearchCalls := 0
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteSearch: func(_ context.Context, query string, limit int) ([]registrypkg.Listing, error) {
-				remoteSearchCalls++
-				if query != "review" || limit != 8 {
-					t.Fatalf("remote search = (%q, %d), want (review, 8 sentinel page)", query, limit)
-				}
-				return nil, errors.New("clawhub unavailable")
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/search", handlers.SearchMarketplace)
-
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/search?q=review&limit=7", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload contract.MarketplaceSearchResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if remoteSearchCalls != 1 {
-			t.Fatalf("remote skill search calls = %d, want 1", remoteSearchCalls)
-		}
-		if got := payload.Kinds[2].Error; got != "clawhub unavailable" {
-			t.Fatalf("skill error = %q, want %q", got, "clawhub unavailable")
-		}
-		if len(payload.Kinds[0].Items) != 1 || len(payload.Kinds[1].Items) != 1 {
-			t.Fatalf("grouped response = %#v, want skill-only failure", payload.Kinds)
-		}
-	})
-}
-
-func TestMarketplaceNormalizesSourceErrors(t *testing.T) {
-	t.Parallel()
 
 	t.Run("Should map a curated catalog failure to service unavailable", func(t *testing.T) {
 		t.Parallel()
@@ -787,9 +388,9 @@ func TestMarketplaceNormalizesSourceErrors(t *testing.T) {
 			},
 		})
 		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
+		engine.GET("/marketplace", handlers.ListMarketplace)
 
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/extension", nil)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace", nil)
 		if response.Code != http.StatusServiceUnavailable {
 			t.Fatalf(
 				"status = %d, want %d; body=%s",
@@ -817,203 +418,15 @@ func TestMarketplaceNormalizesSourceErrors(t *testing.T) {
 			},
 		})
 		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
+		engine.GET("/marketplace", handlers.ListMarketplace)
 
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/extension", nil)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace", nil)
 		if response.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"status = %d, want %d; body=%s",
 				response.Code,
 				http.StatusInternalServerError,
 				response.Body.String(),
-			)
-		}
-	})
-
-	t.Run("Should map remote search validation and availability errors", func(t *testing.T) {
-		t.Parallel()
-
-		tests := []struct {
-			name       string
-			err        error
-			wantStatus int
-		}{
-			{name: "Should map validation", err: skillmarketplace.ErrValidation, wantStatus: http.StatusBadRequest},
-			{
-				name: "Should map unavailable", err: skillmarketplace.ErrUnavailable,
-				wantStatus: http.StatusServiceUnavailable,
-			},
-			{
-				name: "Should map unconfigured", err: skillmarketplace.ErrNotConfigured,
-				wantStatus: http.StatusServiceUnavailable,
-			},
-		}
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-					remoteSearch: func(context.Context, string, int) ([]registrypkg.Listing, error) {
-						return nil, tc.err
-					},
-				})
-				engine := gin.New()
-				engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-				response := performRequest(t, engine, http.MethodGet, "/marketplace/skill?q=remote", nil)
-				if response.Code != tc.wantStatus {
-					t.Fatalf("status = %d, want %d; body=%s", response.Code, tc.wantStatus, response.Body.String())
-				}
-				if !strings.Contains(response.Body.String(), tc.err.Error()) {
-					t.Fatalf("body = %s, want normalized cause %q", response.Body.String(), tc.err.Error())
-				}
-			})
-		}
-	})
-
-	t.Run("Should map a missing remote detail to not found", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteInfo: func(context.Context, string) (*registrypkg.Detail, error) {
-				return nil, skillmarketplace.ErrNotFound
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-		entryID := "skill_" + base64.RawURLEncoding.EncodeToString([]byte("@acme/missing"))
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/skill/"+entryID, nil)
-		if response.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusNotFound, response.Body.String())
-		}
-		if !strings.Contains(response.Body.String(), skillmarketplace.ErrNotFound.Error()) {
-			t.Fatalf("body = %s, want normalized not-found cause", response.Body.String())
-		}
-	})
-}
-
-func TestMarketplaceWorkspaceScopeDoesNotLeakMCPInstallations(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should isolate workspace-owned MCP installation state", func(t *testing.T) {
-		t.Parallel()
-
-		settingsRequests := make([]settingspkg.CollectionRequest, 0, 2)
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			settingsList: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-				settingsRequests = append(settingsRequests, req)
-				items := []settingspkg.MCPServerItem{}
-				if req.WorkspaceID == "ws-a" {
-					items = append(items, settingspkg.MCPServerItem{Name: "github", CatalogEntry: "mcp-entry"})
-				}
-				return settingspkg.CollectionEnvelope{MCPServers: items}, nil
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/search", handlers.SearchMarketplace)
-
-		wsA := performRequest(
-			t, engine, http.MethodGet, "/marketplace/search?scope=workspace&workspace_id=ws-a", nil,
-		)
-		wsB := performRequest(
-			t, engine, http.MethodGet, "/marketplace/search?scope=workspace&workspace_id=ws-b", nil,
-		)
-		for _, response := range []*httptest.ResponseRecorder{wsA, wsB} {
-			if response.Code != http.StatusOK {
-				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-			}
-		}
-		var payloadA, payloadB contract.MarketplaceSearchResponse
-		if err := json.Unmarshal(wsA.Body.Bytes(), &payloadA); err != nil {
-			t.Fatalf("json.Unmarshal(wsA) error = %v", err)
-		}
-		if err := json.Unmarshal(wsB.Body.Bytes(), &payloadB); err != nil {
-			t.Fatalf("json.Unmarshal(wsB) error = %v", err)
-		}
-		if !payloadA.Kinds[0].Items[0].Installed || payloadB.Kinds[0].Items[0].Installed {
-			t.Fatalf(
-				"MCP installed A/B = %v/%v, want true/false",
-				payloadA.Kinds[0].Items[0].Installed,
-				payloadB.Kinds[0].Items[0].Installed,
-			)
-		}
-		if got := payloadA.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps" {
-			t.Fatalf(
-				"workspace mcp manage path = %q, want %q",
-				got,
-				"/marketplace/mcps",
-			)
-		}
-		if len(settingsRequests) != 2 ||
-			settingsRequests[0].WorkspaceID != "ws-a" ||
-			settingsRequests[1].WorkspaceID != "ws-b" {
-			t.Fatalf("settings requests = %#v, want isolated ws-a/ws-b reads", settingsRequests)
-		}
-	})
-}
-
-func TestMarketplaceSkillJoinRejectsNonSemverUpdateClaims(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should keep update_available false when the catalog version is not semver", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			skillCatalogVersion: "rolling",
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/skill", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf(
-				"status = %d, want %d; body=%s",
-				response.Code,
-				http.StatusOK,
-				response.Body.String(),
-			)
-		}
-		var payload contract.MarketplaceKindResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if len(payload.Items) != 1 || !payload.Items[0].Installed || payload.Items[0].UpdateAvailable {
-			t.Fatalf("skill items = %#v, want installed without an update claim", payload.Items)
-		}
-	})
-}
-
-func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should resolve stable IDs and reject unknown entries and refresh kinds", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-		engine.POST("/marketplace/refresh", handlers.RefreshMarketplaceCatalog)
-
-		missing := performRequest(t, engine, http.MethodGet, "/marketplace/mcp/missing", nil)
-		if missing.Code != http.StatusNotFound {
-			t.Fatalf("missing status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
-		}
-		unknownKind := performRequest(t, engine, http.MethodGet, "/marketplace/unknown", nil)
-		if unknownKind.Code != http.StatusNotFound {
-			t.Fatalf(
-				"unknown kind status = %d, want %d; body=%s",
-				unknownKind.Code,
-				http.StatusNotFound,
-				unknownKind.Body.String(),
-			)
-		}
-		refresh := performRequest(t, engine, http.MethodPost, "/marketplace/refresh?kind=unknown", nil)
-		if refresh.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"unknown refresh status = %d, want %d; body=%s",
-				refresh.Code,
-				http.StatusBadRequest,
-				refresh.Body.String(),
 			)
 		}
 	})
@@ -1026,16 +439,22 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 				context.Context,
 				...marketplacepkg.Kind,
 			) (marketplacepkg.RefreshReport, error) {
-				return marketplacepkg.RefreshReport{Outcomes: []marketplacepkg.RefreshOutcome{{
-					Kind: marketplacepkg.KindMCP, Outcome: marketplacepkg.RefreshOutcomeFailed,
-					EntryCount: 1, Stale: true, ErrorClass: "network",
-				}}}, errors.New("catalog feed unavailable")
+				return marketplacepkg.RefreshReport{Outcomes: []marketplacepkg.RefreshOutcome{
+					{
+						Kind:       marketplacepkg.KindExtension,
+						Source:     marketplacepkg.CompozyCatalogSource,
+						Outcome:    marketplacepkg.RefreshOutcomeFailed,
+						EntryCount: 1,
+						Stale:      true,
+						ErrorClass: "network",
+					},
+				}}, errors.New("catalog feed unavailable")
 			},
 		})
 		engine := gin.New()
 		engine.POST("/marketplace/refresh", handlers.RefreshMarketplaceCatalog)
 
-		response := performRequest(t, engine, http.MethodPost, "/marketplace/refresh?kind=mcp", nil)
+		response := performRequest(t, engine, http.MethodPost, "/marketplace/refresh", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
 		}
@@ -1043,99 +462,11 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if len(payload.Kinds) != 1 || payload.Kinds[0].Kind != "mcp" ||
-			payload.Kinds[0].Outcome != string(marketplacepkg.RefreshOutcomeFailed) ||
-			payload.Kinds[0].EntryCount != 1 || !payload.Kinds[0].Stale ||
-			payload.Kinds[0].ErrorClass != "network" {
+		if len(payload.Sources) != 1 || payload.Sources[0].Source != marketplacepkg.CompozyCatalogSource ||
+			payload.Sources[0].Outcome != string(marketplacepkg.RefreshOutcomeFailed) ||
+			payload.Sources[0].EntryCount != 1 || !payload.Sources[0].Stale ||
+			payload.Sources[0].ErrorClass != "network" {
 			t.Fatalf("refresh payload = %#v, want stale failure report", payload)
-		}
-	})
-
-	t.Run("Should resolve installed-only items through unified detail routes", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
-				context.Context,
-				marketplacepkg.Kind,
-				string,
-			) (*marketplacepkg.Entry, error) {
-				return nil, marketplacepkg.ErrEntryNotFound
-			}},
-			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{{
-					Name: "local-extension", Version: "1.4.0", Source: "local", Enabled: true,
-					Format: "agent-plugin",
-				}}, nil
-			}},
-			Settings: &stubSettingsService{ListCollectionFn: func(
-				context.Context,
-				settingspkg.CollectionRequest,
-			) (settingspkg.CollectionEnvelope, error) {
-				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
-					Name: "local-mcp", Transport: "http", URL: "https://mcp.example.test",
-				}}}, nil
-			}},
-			SkillsRegistry: testutil.StubSkillsRegistry{ListFn: func() []*skills.Skill {
-				return []*skills.Skill{{
-					Meta: skills.SkillMeta{
-						Name: "local-skill", Description: "Local skill", Version: "2.0.0",
-					},
-					Source: skills.SourceUser,
-				}}
-			}},
-			Logger: testutil.DiscardLogger(),
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-
-		tests := []struct {
-			name       string
-			path       string
-			kind       contract.MarketplaceKind
-			entryName  string
-			managePath string
-			format     string
-		}{
-			{
-				name: "skill", path: "/marketplace/skill/local-skill",
-				kind: contract.MarketplaceKindSkill, entryName: "local-skill",
-				managePath: "/marketplace/skills",
-			},
-			{
-				name: "extension", path: "/marketplace/extension/local-extension",
-				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
-				managePath: "/marketplace/installed", format: "agent-plugin",
-			},
-			{
-				name: "mcp", path: "/marketplace/mcp/local-mcp",
-				kind: contract.MarketplaceKindMCP, entryName: "local-mcp",
-				managePath: "/marketplace/mcps",
-			},
-		}
-		for _, test := range tests {
-			t.Run("Should resolve installed "+test.name, func(t *testing.T) {
-				t.Parallel()
-
-				response := performRequest(t, engine, http.MethodGet, test.path, nil)
-				if response.Code != http.StatusOK {
-					t.Fatalf(
-						"status = %d, want %d; body=%s",
-						response.Code,
-						http.StatusOK,
-						response.Body.String(),
-					)
-				}
-				var payload contract.MarketplaceEntryResponse
-				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-					t.Fatalf("json.Unmarshal() error = %v", err)
-				}
-				if payload.Entry.Kind != test.kind || payload.Entry.Name != test.entryName ||
-					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath ||
-					payload.Entry.Format != test.format {
-					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path/format", payload.Entry)
-				}
-			})
 		}
 	})
 
@@ -1210,14 +541,14 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			},
 		})
 		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 
 		workspaceResponse := performRequest(
 			t,
 			engine,
 			http.MethodGet,
-			"/marketplace/extension?scope=workspace&workspace_id=ws-alpha",
+			"/marketplace?scope=workspace&workspace_id=ws-alpha",
 			nil,
 		)
 		if workspaceResponse.Code != http.StatusOK {
@@ -1228,7 +559,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 				workspaceResponse.Body.String(),
 			)
 		}
-		var workspace contract.MarketplaceKindResponse
+		var workspace contract.MarketplaceListResponse
 		if err := json.Unmarshal(workspaceResponse.Body.Bytes(), &workspace); err != nil {
 			t.Fatalf("json.Unmarshal(workspace listing) error = %v", err)
 		}
@@ -1241,7 +572,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			t,
 			engine,
 			http.MethodGet,
-			"/marketplace/extension?scope=global",
+			"/marketplace?scope=global",
 			nil,
 		)
 		if globalResponse.Code != http.StatusOK {
@@ -1252,7 +583,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 				globalResponse.Body.String(),
 			)
 		}
-		var global contract.MarketplaceKindResponse
+		var global contract.MarketplaceListResponse
 		if err := json.Unmarshal(globalResponse.Body.Bytes(), &global); err != nil {
 			t.Fatalf("json.Unmarshal(global listing) error = %v", err)
 		}
@@ -1264,7 +595,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			t,
 			engine,
 			http.MethodGet,
-			"/marketplace/extension/"+entry.EntryID+
+			"/marketplace/entries/"+entry.EntryID+
 				"?installed_name=epoch-probe&scope=workspace&workspace_id=ws-alpha",
 			nil,
 		)
@@ -1294,151 +625,6 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		}
 	})
 
-	t.Run("Should resolve exact installed identity before a colliding curated entry", func(t *testing.T) {
-		t.Parallel()
-
-		curated := marketplaceEntriesForTest()[marketplacepkg.KindMCP]
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
-				context.Context,
-				marketplacepkg.Kind,
-				string,
-			) (*marketplacepkg.Entry, error) {
-				return &curated, nil
-			}},
-			Settings: &stubSettingsService{ListCollectionFn: func(
-				context.Context,
-				settingspkg.CollectionRequest,
-			) (settingspkg.CollectionEnvelope, error) {
-				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
-					Name: "mcp-entry", Transport: "http", URL: "https://custom.example.test/mcp",
-				}}}, nil
-			}},
-			Logger: testutil.DiscardLogger(),
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-
-		response := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/marketplace/mcp/mcp-entry?installed_name=mcp-entry",
-			nil,
-		)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload contract.MarketplaceEntryResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if payload.Entry.Name != "mcp-entry" || payload.Entry.Source != "installed" || payload.MCP != nil {
-			t.Fatalf("installed detail = %#v, want installed identity without fabricated catalog fields", payload)
-		}
-	})
-
-	t.Run("Should resolve remote skill IDs without consulting the curated catalog", func(t *testing.T) {
-		t.Parallel()
-
-		catalogDetailCalls := 0
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteSearch: func(context.Context, string, int) ([]registrypkg.Listing, error) {
-				return []registrypkg.Listing{{
-					Slug: "@acme/remote", Name: "Remote", Description: "Remote skill", Source: "clawhub",
-				}}, nil
-			},
-			remoteInfo: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-				return &registrypkg.Detail{Listing: registrypkg.Listing{
-					Slug: slug, Name: "Remote", Description: "Remote skill", Source: "clawhub",
-				}}, nil
-			},
-			catalogDetail: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
-				catalogDetailCalls++
-				return nil, errors.New("catalog unavailable")
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-
-		browse := performRequest(t, engine, http.MethodGet, "/marketplace/skill?q=remote", nil)
-		if browse.Code != http.StatusOK {
-			t.Fatalf("browse status = %d, want %d; body=%s", browse.Code, http.StatusOK, browse.Body.String())
-		}
-		var kind contract.MarketplaceKindResponse
-		if err := json.Unmarshal(browse.Body.Bytes(), &kind); err != nil {
-			t.Fatalf("json.Unmarshal(browse) error = %v", err)
-		}
-		if len(kind.Items) != 1 {
-			t.Fatalf("remote browse items = %#v, want one", kind.Items)
-		}
-		detail := performRequest(
-			t, engine, http.MethodGet, "/marketplace/skill/"+kind.Items[0].EntryID, nil,
-		)
-		if detail.Code != http.StatusOK {
-			t.Fatalf("detail status = %d, want %d; body=%s", detail.Code, http.StatusOK, detail.Body.String())
-		}
-		if catalogDetailCalls != 0 {
-			t.Fatalf("catalog detail calls = %d, want 0 for remote ID", catalogDetailCalls)
-		}
-	})
-
-	t.Run("Should preserve curated skill identity across remote search", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteSearch: func(context.Context, string, int) ([]registrypkg.Listing, error) {
-				return []registrypkg.Listing{{
-					Slug: "@acme/skill", Name: "Remote match", Description: "Remote skill", Source: "clawhub",
-				}}, nil
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/skill?q=remote", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf(
-				"status = %d, want %d; body=%s",
-				response.Code,
-				http.StatusOK,
-				response.Body.String(),
-			)
-		}
-		var kind contract.MarketplaceKindResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &kind); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if len(kind.Items) != 1 || kind.Items[0].EntryID != "skill-entry" {
-			t.Fatalf("remote browse items = %#v, want curated entry_id skill-entry", kind.Items)
-		}
-	})
-
-	t.Run("Should retain curated skill detail when remote enrichment fails", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			remoteInfo: func(context.Context, string) (*registrypkg.Detail, error) {
-				return nil, errors.New("clawhub unavailable")
-			},
-		})
-		engine := gin.New()
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
-
-		response := performRequest(t, engine, http.MethodGet, "/marketplace/skill/skill-entry", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var detail contract.MarketplaceEntryResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if detail.Skill == nil || detail.Skill.InstallSlug != "@acme/skill" {
-			t.Fatalf("curated skill detail = %#v, want catalog acquisition detail", detail.Skill)
-		}
-	})
-
 	t.Run("Should expose daemon-derived extension trust on browse and detail", func(t *testing.T) {
 		t.Parallel()
 
@@ -1460,14 +646,14 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			},
 		})
 		engine := gin.New()
-		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
-		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 
-		browse := performRequest(t, engine, http.MethodGet, "/marketplace/extension", nil)
+		browse := performRequest(t, engine, http.MethodGet, "/marketplace", nil)
 		if browse.Code != http.StatusOK {
 			t.Fatalf("browse status = %d, want %d; body=%s", browse.Code, http.StatusOK, browse.Body.String())
 		}
-		var kind contract.MarketplaceKindResponse
+		var kind contract.MarketplaceListResponse
 		if err := json.Unmarshal(browse.Body.Bytes(), &kind); err != nil {
 			t.Fatalf("json.Unmarshal(browse) error = %v", err)
 		}
@@ -1481,7 +667,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			t,
 			engine,
 			http.MethodGet,
-			"/marketplace/extension/extension-entry",
+			"/marketplace/entries/extension-entry",
 			nil,
 		)
 		if detailResponse.Code != http.StatusOK {
@@ -1505,204 +691,28 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			t.Fatalf("MarketplaceTrust() calls = %d, want 2", trustCalls)
 		}
 	})
-}
-
-type marketplaceHandlerFixture struct {
-	catalogBrowse            func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
-	catalogRefresh           func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
-	remoteSearch             func(context.Context, string, int) ([]registrypkg.Listing, error)
-	remoteInfo               func(context.Context, string) (*registrypkg.Detail, error)
-	catalogDetail            func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
-	settingsList             func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
-	skillCatalogVersion      string
-	installedSkillVersion    string
-	extensionTier            string
-	extensionCatalogEntryID  string
-	extensionInstalledSlug   string
-	extensionInstalledFormat string
-	extensionTrust           func(
-		context.Context,
-		extensionpkg.MarketplaceTrustEvidence,
-	) (contract.ExtensionTrustReportPayload, error)
-}
-
-func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture) *core.BaseHandlers {
-	t.Helper()
-
-	entries := marketplaceEntriesForTest()
-	if fixture.extensionTier != "" {
-		entry := entries[marketplacepkg.KindExtension]
-		entry.Tier = fixture.extensionTier
-		entries[marketplacepkg.KindExtension] = entry
-	}
-	if fixture.skillCatalogVersion != "" {
-		entry := entries[marketplacepkg.KindSkill]
-		entry.Version = fixture.skillCatalogVersion
-		entries[marketplacepkg.KindSkill] = entry
-	}
-	catalogDetail := fixture.catalogDetail
-	if catalogDetail == nil {
-		catalogDetail = func(_ context.Context, kind marketplacepkg.Kind, entryID string) (*marketplacepkg.Entry, error) {
-			entry, ok := entries[kind]
-			if !ok || entry.EntryID != entryID {
-				return nil, marketplacepkg.ErrEntryNotFound
-			}
-			return &entry, nil
-		}
-	}
-	catalogBrowse := fixture.catalogBrowse
-	if catalogBrowse == nil {
-		catalogBrowse = func(
-			_ context.Context,
-			kind marketplacepkg.Kind,
-			_ string,
-			_ int,
-		) (marketplacepkg.BrowseResult, error) {
-			return marketplacepkg.BrowseResult{
-				Entries: []marketplacepkg.Entry{entries[kind]}, Total: 1,
-			}, nil
-		}
-	}
-	catalog := marketplaceCatalogStub{
-		browseFn: catalogBrowse, detailFn: catalogDetail, refreshFn: fixture.catalogRefresh,
-	}
-	settingsList := fixture.settingsList
-	if settingsList == nil {
-		settingsList = func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-			return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
-				Name: "github", CatalogEntry: "mcp-entry", CatalogVersion: "1.0.0",
-			}}}, nil
-		}
-	}
-	remoteSearch := fixture.remoteSearch
-	if remoteSearch == nil {
-		remoteSearch = func(context.Context, string, int) ([]registrypkg.Listing, error) {
-			return []registrypkg.Listing{}, nil
-		}
-	}
-	installedSkillVersion := fixture.installedSkillVersion
-	if installedSkillVersion == "" {
-		installedSkillVersion = "1.0.0"
-	}
-	homePaths := testutil.NewTestHomePaths(t)
-	config := testConfigWithDisabledNetwork(homePaths)
-	installedSlug := fixture.extensionInstalledSlug
-	if installedSlug == "" && fixture.extensionCatalogEntryID == "" {
-		installedSlug = "acme/extension"
-	}
-	// The fixture represents an installation with persisted acquisition evidence.
-	// Origin is explicit; tests for unclassified records construct a payload without it.
-	originEntryID := fixture.extensionCatalogEntryID
-	if originEntryID == "" && installedSlug == "acme/extension" {
-		originEntryID = "extension-entry"
-	}
-	var origin *contract.MarketplaceOriginPayload
-	if originEntryID != "" {
-		origin = &contract.MarketplaceOriginPayload{Source: marketplacepkg.CompozyCatalogSource,
-			SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: originEntryID}
-	}
-	return core.NewBaseHandlers(&core.BaseHandlerConfig{
-		MarketplaceCatalog: catalog,
-		Settings:           &stubSettingsService{ListCollectionFn: settingsList},
-		Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-			return []contract.ExtensionPayload{{
-				Name: "extension", Version: "1.0.0", Format: fixture.extensionInstalledFormat, Origin: origin,
-				Provenance: &contract.ExtensionProvenancePayload{
-					Slug: installedSlug, CatalogEntryID: fixture.extensionCatalogEntryID,
-				},
-			}}, nil
-		}, marketplaceTrustFn: fixture.extensionTrust},
-		SkillMarketplace: stubSkillMarketplaceService{SearchFn: remoteSearch, InfoFn: fixture.remoteInfo},
-		InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{{
-			Name: "skill", Provenance: skills.Provenance{Slug: "@acme/skill", Version: installedSkillVersion},
-		}}},
-		HomePaths: homePaths,
-		Config:    config,
-		Logger:    testutil.DiscardLogger(),
-	})
-}
-
-// marketplaceExtensionPayloadForTest rebuilds the curated extension payload with an optional format
-// marker, matching what the feed reader stores after a strict decode.
-func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMessage {
-	t.Helper()
-	payload := map[string]string{
-		"entry_id":      "extension-entry",
-		"name":          "Extension",
-		"description":   "Extension",
-		"version":       "1.2.0",
-		"install_slug":  "acme/extension",
-		"artifact_url":  "https://downloads.example.test/extension-v1.2.0.tar.gz",
-		"digest_sha256": strings.Repeat("a", 64),
-	}
-	if format != "" {
-		payload["format"] = format
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal(extension marketplace payload) error = %v", err)
-	}
-	return encoded
-}
-
-func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {
-	return map[marketplacepkg.Kind]marketplacepkg.Entry{
-		marketplacepkg.KindMCP: {
-			Kind:        marketplacepkg.KindMCP,
-			EntryID:     "mcp-entry",
-			Name:        "GitHub",
-			Description: "GitHub MCP",
-			Version:     "2.0.0",
-			Payload: json.RawMessage(
-				`{"entry_id":"mcp-entry","name":"GitHub","description":"GitHub MCP","version":"2.0.0","transport":"stdio","command":"github"}`,
-			),
-		},
-		marketplacepkg.KindExtension: {
-			Kind:         marketplacepkg.KindExtension,
-			EntryID:      "extension-entry",
-			Name:         "Extension",
-			Description:  "Extension",
-			Version:      "1.2.0",
-			InstallSlug:  "acme/extension",
-			DigestSHA256: strings.Repeat("a", 64),
-			Tier:         extensionpkg.ExtensionRegistryTierOfficial,
-			Payload: json.RawMessage(
-				`{"entry_id":"extension-entry","name":"Extension","description":"Extension","version":"1.2.0","install_slug":"acme/extension","artifact_url":"https://downloads.example.test/extension-v1.2.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
-			),
-		},
-		marketplacepkg.KindSkill: {
-			Kind:        marketplacepkg.KindSkill,
-			EntryID:     "skill-entry",
-			Name:        "Skill",
-			Description: "Skill",
-			Version:     "1.2.0",
-			InstallSlug: "@acme/skill",
-			Payload: json.RawMessage(
-				`{"entry_id":"skill-entry","name":"Skill","description":"Skill","version":"1.2.0","install_slug":"@acme/skill"}`,
-			),
-		},
-	}
-}
-
-// Invariant: catalog pages join installed state only by origin and retain exact source/cursor metadata.
-// Owner: API core catalog projection; canonical suite: marketplace_test.go (UT-004, UT-011, UT-068).
-func TestMarketplaceCatalog(t *testing.T) {
-	t.Parallel()
 
 	// Invariant: obsolete selectors fail before catalog dispatch on canonical routes.
 	// Owner: shared Marketplace handlers; canonical suite: TestMarketplaceCatalog.
-	t.Run("Should reject kind selectors on canonical browse and detail", func(t *testing.T) {
+	t.Run("Should reject kind selectors on canonical browse, detail and refresh", func(t *testing.T) {
 		t.Parallel()
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
 		engine := gin.New()
 		engine.GET("/marketplace", handlers.ListMarketplace)
 		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
-		for _, path := range []string{"/marketplace", "/marketplace/entries/review"} {
+		engine.POST("/marketplace/refresh", handlers.RefreshMarketplaceCatalog)
+		for _, request := range []struct{ method, path string }{{http.MethodGet, "/marketplace"}, {http.MethodGet, "/marketplace/entries/review"}, {http.MethodPost, "/marketplace/refresh"}} {
 			for _, value := range []string{"", "extension"} {
-				response := performRequest(t, engine, http.MethodGet, path+"?kind="+value, nil)
+				response := performRequest(t, engine, request.method, request.path+"?kind="+value, nil)
 				if response.Code != http.StatusBadRequest ||
 					!strings.Contains(response.Body.String(), "kind is not supported") {
-					t.Fatalf("obsolete selector %s kind=%q: %d %s", path, value, response.Code, response.Body.String())
+					t.Fatalf(
+						"obsolete selector %s kind=%q: %d %s",
+						request.path,
+						value,
+						response.Code,
+						response.Body.String(),
+					)
 				}
 			}
 		}

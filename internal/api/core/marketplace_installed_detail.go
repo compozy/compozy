@@ -7,52 +7,15 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
-	settingspkg "github.com/compozy/compozy/internal/settings"
 )
-
-func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
-	ctx context.Context,
-	kind marketplacepkg.Kind,
-	entryID string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	curated, curatedErr := h.curatedMarketplaceEntry(ctx, kind, entryID, scope)
-	if curatedErr == nil {
-		return curated, nil
-	}
-
-	var installed contract.MarketplaceEntryResponse
-	var installedErr error
-	switch kind {
-	case marketplacepkg.KindExtension:
-		installed, installedErr = h.installedExtensionMarketplaceEntry(ctx, entryID, scope, false)
-	case marketplacepkg.KindMCP:
-		installed, installedErr = h.installedMCPMarketplaceEntry(ctx, entryID, scope, false)
-	default:
-		installedErr = errors.Join(
-			ErrMarketplaceNotFound,
-			fmt.Errorf("installed marketplace %s entry %q not found", kind, entryID),
-		)
-	}
-	if installedErr == nil {
-		return installed, nil
-	}
-	if !errors.Is(installedErr, ErrMarketplaceNotFound) {
-		return contract.MarketplaceEntryResponse{}, installedErr
-	}
-	return contract.MarketplaceEntryResponse{}, curatedErr
-}
 
 func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	ctx context.Context,
 	entryID string,
 	scope marketplaceReadScope,
-	exactName bool,
 ) (contract.MarketplaceEntryResponse, error) {
 	if h == nil {
 		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-			contract.MarketplaceKindExtension,
 			entryID,
 		)
 	}
@@ -62,12 +25,8 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	}
 	for index := range items {
 		item := &items[index]
-		catalogEntryID := ""
-		if item.Origin != nil && item.Origin.SourceRef == marketplacepkg.CompozyCatalogRef {
-			catalogEntryID = strings.TrimSpace(item.Origin.EntryID)
-		}
 		name := strings.TrimSpace(item.Name)
-		if name != entryID && (exactName || catalogEntryID != entryID) {
+		if name != entryID {
 			continue
 		}
 		source := strings.TrimSpace(item.Source)
@@ -75,7 +34,6 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 			source = strings.TrimSpace(item.Provenance.InstalledFrom)
 		}
 		listing := contract.MarketplaceListingPayload{
-			Kind:    contract.MarketplaceKindExtension,
 			EntryID: entryID,
 			Name:    name,
 			Version: strings.TrimSpace(
@@ -112,122 +70,13 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 		return contract.MarketplaceEntryResponse{Entry: listing, Extension: detail}, nil
 	}
 	return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-		contract.MarketplaceKindExtension,
 		entryID,
 	)
 }
 
-func (h *BaseHandlers) installedExtensionMarketplaceEntryByName(
-	ctx context.Context,
-	name string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	return h.installedExtensionMarketplaceEntry(ctx, name, scope, true)
-}
-
-func (h *BaseHandlers) installedMCPMarketplaceEntry(
-	ctx context.Context,
-	entryID string,
-	scope marketplaceReadScope,
-	exactName bool,
-) (contract.MarketplaceEntryResponse, error) {
-	if h == nil || h.Settings == nil {
-		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-			contract.MarketplaceKindMCP,
-			entryID,
-		)
-	}
-	envelope, err := h.Settings.ListCollection(ctx, settingspkg.CollectionRequest{
-		Collection:  settingspkg.CollectionMCPServers,
-		Scope:       scope.scope,
-		WorkspaceID: scope.workspaceID,
-		ProfileName: scope.profileName,
-	})
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	for _, item := range envelope.MCPServers {
-		name := strings.TrimSpace(item.Name)
-		catalogEntryID := strings.TrimSpace(item.CatalogEntry)
-		if name != entryID && (exactName || catalogEntryID != entryID) {
-			continue
-		}
-		version := strings.TrimSpace(item.CatalogVersion)
-		return contract.MarketplaceEntryResponse{
-			Entry: contract.MarketplaceListingPayload{
-				Kind: contract.MarketplaceKindMCP, EntryID: entryID, Name: name,
-				Version: version, Source: "installed", Transport: string(item.Transport),
-				Installed: true, InstalledName: name, InstalledVersion: version,
-				ManagePath: marketplaceMCPsInstalledPath,
-			},
-		}, nil
-	}
-	return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-		contract.MarketplaceKindMCP,
-		entryID,
-	)
-}
-
-func (h *BaseHandlers) installedMCPMarketplaceEntryByName(
-	ctx context.Context,
-	name string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	return h.installedMCPMarketplaceEntry(ctx, name, scope, true)
-}
-
-func (h *BaseHandlers) installedSkillMarketplaceEntry(
-	ctx context.Context,
-	entryID string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	if h == nil || h.SkillsRegistry == nil {
-		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-			contract.MarketplaceKindSkill,
-			entryID,
-		)
-	}
-	skillList, err := h.marketplaceScopedSkills(ctx, scope)
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	for _, item := range skillList {
-		if item == nil || strings.TrimSpace(item.Meta.Name) != entryID {
-			continue
-		}
-		payload := SkillPayloadFromSkill(item)
-		installSlug := ""
-		if item.Provenance != nil {
-			installSlug = strings.TrimSpace(item.Provenance.Slug)
-		}
-		return contract.MarketplaceEntryResponse{
-			Entry: contract.MarketplaceListingPayload{
-				Kind: contract.MarketplaceKindSkill, EntryID: entryID,
-				Name: payload.Name, Description: payload.Description, Version: payload.Version,
-				Source: payload.Source, InstallSlug: installSlug, Installed: true,
-				InstalledName: payload.Name, InstalledVersion: payload.Version,
-				ManagePath: marketplaceSkillsInstalledPath,
-			},
-			Skill: &contract.MarketplaceSkillDetailPayload{InstallSlug: installSlug},
-		}, nil
-	}
-	return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
-		contract.MarketplaceKindSkill,
-		entryID,
-	)
-}
-
-func (h *BaseHandlers) installedSkillMarketplaceEntryByName(
-	ctx context.Context,
-	name string,
-	scope marketplaceReadScope,
-) (contract.MarketplaceEntryResponse, error) {
-	return h.installedSkillMarketplaceEntry(ctx, name, scope)
-}
-
-func marketplaceInstalledEntryNotFound(kind contract.MarketplaceKind, entryID string) error {
+func marketplaceInstalledEntryNotFound(entryID string) error {
 	return errors.Join(
 		ErrMarketplaceNotFound,
-		fmt.Errorf("installed marketplace %s entry %q not found", kind, entryID),
+		fmt.Errorf("installed extension %q not found", entryID),
 	)
 }

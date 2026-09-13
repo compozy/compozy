@@ -212,9 +212,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/memory/scope-show",
 		"GET /api/marketplace",
 		"GET /api/marketplace/entries/:entry_id",
-		"GET /api/marketplace/:kind",
-		"GET /api/marketplace/:kind/:entry_id",
-		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
 		"GET /api/workspaces/:workspace_id/network/usage",
@@ -633,6 +630,13 @@ func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
 		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 	)
 	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/marketplace/search"},
+		{http.MethodGet, "/api/marketplace/mcp"},
+		{http.MethodGet, "/api/marketplace/skill"},
+		{http.MethodGet, "/api/marketplace/extension"},
+		{http.MethodGet, "/api/marketplace/mcp/github"},
+		{http.MethodGet, "/api/marketplace/skill/review"},
+		{http.MethodGet, "/api/marketplace/extension/review"},
 		{http.MethodGet, "/api/skills/marketplace/search"},
 		{http.MethodGet, "/api/skills/marketplace/info"},
 		{http.MethodGet, "/api/extensions/marketplace"},

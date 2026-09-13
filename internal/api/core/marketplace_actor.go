@@ -11,18 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *BaseHandlers) marketplaceReadActorContext(
-	c *gin.Context,
-	action string,
-) (*taskpkg.ActorContext, bool) {
-	scope, err := parseMarketplaceReadScope(c.Query("scope"), c.Query("workspace_id"), c.Query("profile"))
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return nil, false
-	}
-	return h.marketplaceReadActorForScope(c, action, scope)
-}
-
 func (h *BaseHandlers) marketplaceReadActorForScope(
 	c *gin.Context, action string, scope marketplaceReadScope,
 ) (*taskpkg.ActorContext, bool) {

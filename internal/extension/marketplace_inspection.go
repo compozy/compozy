@@ -69,7 +69,7 @@ func InspectMarketplacePackage(
 				Type:     input.Type,
 				Required: input.Required,
 				Default:  input.Default,
-				Binding: contract.MarketplaceMCPInputBindingPayload{
+				Binding: contract.MarketplaceInputBindingPayload{
 					Type: input.Binding.Type,
 					Name: input.Binding.Name,
 				},

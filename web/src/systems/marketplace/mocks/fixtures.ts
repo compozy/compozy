@@ -29,7 +29,6 @@ const entries: MarketplaceCatalogListing[] = [
   {
     author: "@compozy",
     description: "Export session and tool spans to an OpenTelemetry collector.",
-    downloads: 1200,
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "otel-bridge",
@@ -53,7 +52,6 @@ const entries: MarketplaceCatalogListing[] = [
   {
     author: "@community",
     description: "Post run summaries to a Slack channel when a loop finishes.",
-    downloads: 840,
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "slack-notify",
@@ -77,7 +75,6 @@ const entries: MarketplaceCatalogListing[] = [
   {
     author: "@community",
     description: "An unverified extension blocked by the active daemon policy.",
-    downloads: 210,
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "policy-blocked",
@@ -102,7 +99,6 @@ const entries: MarketplaceCatalogListing[] = [
   {
     author: "@acme",
     description: "Deploy checks and a tools API server, packaged in the Agent Plugins format.",
-    downloads: 320,
     digest_sha256: "a".repeat(64),
     installable: true,
     entry_id: "acme-tools",

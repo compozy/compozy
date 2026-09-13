@@ -23,14 +23,14 @@ afterEach(() => {
 describe("marketplace acquisition transport", () => {
   it("Should refresh the unified feed catalog", async () => {
     mockJsonResponse({
-      kinds: [{ entry_count: 4, kind: "extension", outcome: "refreshed", stale: false }],
+      sources: [{ entry_count: 4, source: "compozy-catalog", outcome: "refreshed", stale: false }],
     });
 
     await refreshMarketplaceCatalog();
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/marketplace/refresh?kind=extension",
+      path: "/api/marketplace/refresh",
     });
   });
 

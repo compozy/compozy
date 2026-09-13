@@ -49,7 +49,6 @@ const otelMarketplace: NonNullable<ExtensionEntry["marketplace"]> = {
   description: "Export session spans.",
   entry_id: "otel-bridge",
   installed: true,
-  kind: "extension",
   name: "otel-bridge",
   source: "marketplace_registry",
   update_available: true,

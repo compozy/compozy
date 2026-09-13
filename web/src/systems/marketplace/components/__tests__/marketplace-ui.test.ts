@@ -1,15 +1,10 @@
-// Invariant: the marketplace formats counts and versions consistently and strips retired query controls.
+// Invariant: the marketplace formats versions consistently and strips retired query controls.
 // Owner: marketplace presentation helpers; canonical suite: marketplace-ui.test.ts.
 import { describe, expect, it } from "vitest";
-import { formatMarketplaceCount, formatMarketplaceVersion } from "../marketplace-ui";
+import { formatMarketplaceVersion } from "../marketplace-ui";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
 
 describe("marketplace UI helpers", () => {
-  it("Should keep compact count formatting deterministic", () => {
-    expect(formatMarketplaceCount(840)).toBe("840");
-    expect(formatMarketplaceCount(3400)).toBe("3.4K");
-  });
-
   it.each([
     ["1.8.0", "v1.8.0"],
     ["v1.8.0", "v1.8.0"],

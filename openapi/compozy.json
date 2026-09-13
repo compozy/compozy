@@ -81458,10 +81458,6 @@
                               "digest_sha256": {
                                 "type": "string"
                               },
-                              "downloads": {
-                                "nullable": true,
-                                "type": "integer"
-                              },
                               "entry_id": {
                                 "type": "string"
                               },
@@ -81487,14 +81483,6 @@
                                 "type": "string"
                               },
                               "installed_version": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "mcp",
-                                  "extension",
-                                  "skill"
-                                ],
                                 "type": "string"
                               },
                               "layout": {
@@ -81538,9 +81526,6 @@
                                 "type": "string"
                               },
                               "tier": {
-                                "type": "string"
-                              },
-                              "transport": {
                                 "type": "string"
                               },
                               "trust": {
@@ -82632,10 +82617,6 @@
                             "digest_sha256": {
                               "type": "string"
                             },
-                            "downloads": {
-                              "nullable": true,
-                              "type": "integer"
-                            },
                             "entry_id": {
                               "type": "string"
                             },
@@ -82661,14 +82642,6 @@
                               "type": "string"
                             },
                             "installed_version": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "enum": [
-                                "mcp",
-                                "extension",
-                                "skill"
-                              ],
                               "type": "string"
                             },
                             "layout": {
@@ -82712,9 +82685,6 @@
                               "type": "string"
                             },
                             "tier": {
-                              "type": "string"
-                            },
-                            "transport": {
                               "type": "string"
                             },
                             "trust": {
@@ -84702,10 +84672,6 @@
                             "digest_sha256": {
                               "type": "string"
                             },
-                            "downloads": {
-                              "nullable": true,
-                              "type": "integer"
-                            },
                             "entry_id": {
                               "type": "string"
                             },
@@ -84731,14 +84697,6 @@
                               "type": "string"
                             },
                             "installed_version": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "enum": [
-                                "mcp",
-                                "extension",
-                                "skill"
-                              ],
                               "type": "string"
                             },
                             "layout": {
@@ -84782,9 +84740,6 @@
                               "type": "string"
                             },
                             "tier": {
-                              "type": "string"
-                            },
-                            "transport": {
                               "type": "string"
                             },
                             "trust": {
@@ -87993,10 +87948,6 @@
                             "digest_sha256": {
                               "type": "string"
                             },
-                            "downloads": {
-                              "nullable": true,
-                              "type": "integer"
-                            },
                             "entry_id": {
                               "type": "string"
                             },
@@ -88022,14 +87973,6 @@
                               "type": "string"
                             },
                             "installed_version": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "enum": [
-                                "mcp",
-                                "extension",
-                                "skill"
-                              ],
                               "type": "string"
                             },
                             "layout": {
@@ -88073,9 +88016,6 @@
                               "type": "string"
                             },
                             "tier": {
-                              "type": "string"
-                            },
-                            "transport": {
                               "type": "string"
                             },
                             "trust": {
@@ -92368,10 +92308,6 @@
                             "digest_sha256": {
                               "type": "string"
                             },
-                            "downloads": {
-                              "nullable": true,
-                              "type": "integer"
-                            },
                             "entry_id": {
                               "type": "string"
                             },
@@ -92397,14 +92333,6 @@
                               "type": "string"
                             },
                             "installed_version": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "enum": [
-                                "mcp",
-                                "extension",
-                                "skill"
-                              ],
                               "type": "string"
                             },
                             "layout": {
@@ -92448,9 +92376,6 @@
                               "type": "string"
                             },
                             "tier": {
-                              "type": "string"
-                            },
-                            "transport": {
                               "type": "string"
                             },
                             "trust": {
@@ -101947,7 +101872,7 @@
         "operationId": "listMarketplace",
         "parameters": [
           {
-            "description": "Optional kind search query",
+            "description": "Optional catalog search query",
             "in": "query",
             "name": "q",
             "schema": {
@@ -102025,10 +101950,6 @@
                           "digest_sha256": {
                             "type": "string"
                           },
-                          "downloads": {
-                            "nullable": true,
-                            "type": "integer"
-                          },
                           "entry_id": {
                             "type": "string"
                           },
@@ -102054,14 +101975,6 @@
                             "type": "string"
                           },
                           "installed_version": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "enum": [
-                              "mcp",
-                              "extension",
-                              "skill"
-                            ],
                             "type": "string"
                           },
                           "layout": {
@@ -102105,9 +102018,6 @@
                             "type": "string"
                           },
                           "tier": {
-                            "type": "string"
-                          },
-                          "transport": {
                             "type": "string"
                           },
                           "trust": {
@@ -102263,7 +102173,7 @@
                 }
               }
             },
-            "description": "Catalog page, including degraded cached sources"
+            "description": "OK"
           },
           "400": {
             "content": {
@@ -102339,7 +102249,7 @@
                 }
               }
             },
-            "description": "Invalid catalog query or cursor scope"
+            "description": "Invalid marketplace browse request"
           },
           "409": {
             "content": {
@@ -102517,7 +102427,7 @@
                 }
               }
             },
-            "description": "Catalog is not configured"
+            "description": "Catalog dependency is not configured"
           }
         },
         "summary": "List the extension catalog with source state and a content revision",
@@ -102535,6 +102445,14 @@
         "operationId": "getMarketplaceCatalogEntry",
         "parameters": [
           {
+            "description": "Catalog source name; defaults to the Compozy catalog",
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Stable URL-safe marketplace entry id",
             "in": "path",
             "name": "entry_id",
@@ -102544,7 +102462,7 @@
             }
           },
           {
-            "description": "Exact installed MCP, extension, or skill identity",
+            "description": "Exact installed extension identity",
             "in": "query",
             "name": "installed_name",
             "schema": {
@@ -102579,14 +102497,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "description": "Catalog source name; defaults to the Compozy catalog",
-            "in": "query",
-            "name": "source",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -102605,10 +102515,6 @@
                         },
                         "digest_sha256": {
                           "type": "string"
-                        },
-                        "downloads": {
-                          "nullable": true,
-                          "type": "integer"
                         },
                         "entry_id": {
                           "type": "string"
@@ -102635,14 +102541,6 @@
                           "type": "string"
                         },
                         "installed_version": {
-                          "type": "string"
-                        },
-                        "kind": {
-                          "enum": [
-                            "mcp",
-                            "extension",
-                            "skill"
-                          ],
                           "type": "string"
                         },
                         "layout": {
@@ -102686,9 +102584,6 @@
                           "type": "string"
                         },
                         "tier": {
-                          "type": "string"
-                        },
-                        "transport": {
                           "type": "string"
                         },
                         "trust": {
@@ -103005,152 +102900,6 @@
                         "mcp_servers"
                       ],
                       "type": "object"
-                    },
-                    "mcp": {
-                      "nullable": true,
-                      "properties": {
-                        "auth": {
-                          "nullable": true,
-                          "properties": {
-                            "method": {
-                              "type": "string"
-                            },
-                            "registration": {
-                              "type": "string"
-                            },
-                            "scopes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            }
-                          },
-                          "required": [
-                            "method",
-                            "registration"
-                          ],
-                          "type": "object"
-                        },
-                        "default_scope": {
-                          "type": "string"
-                        },
-                        "inputs": {
-                          "items": {
-                            "properties": {
-                              "binding": {
-                                "properties": {
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "name",
-                                  "type"
-                                ],
-                                "type": "object"
-                              },
-                              "default": {},
-                              "id": {
-                                "type": "string"
-                              },
-                              "prompt": {
-                                "type": "string"
-                              },
-                              "required": {
-                                "type": "boolean"
-                              },
-                              "type": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "binding",
-                              "id",
-                              "prompt",
-                              "required",
-                              "type"
-                            ],
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "launch": {
-                          "properties": {
-                            "args": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "digest": {
-                              "type": "string"
-                            },
-                            "image": {
-                              "type": "string"
-                            },
-                            "package": {
-                              "type": "string"
-                            },
-                            "type": {
-                              "type": "string"
-                            },
-                            "url": {
-                              "type": "string"
-                            },
-                            "version": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type"
-                          ],
-                          "type": "object"
-                        }
-                      },
-                      "required": [
-                        "default_scope",
-                        "launch"
-                      ],
-                      "type": "object"
-                    },
-                    "skill": {
-                      "nullable": true,
-                      "properties": {
-                        "display_name": {
-                          "type": "string"
-                        },
-                        "install_slug": {
-                          "type": "string"
-                        },
-                        "license": {
-                          "type": "string"
-                        },
-                        "readme": {
-                          "type": "string"
-                        },
-                        "repository": {
-                          "type": "string"
-                        },
-                        "tags": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "versions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        }
-                      },
-                      "required": [
-                        "install_slug"
-                      ],
-                      "type": "object"
                     }
                   },
                   "required": [
@@ -103312,7 +103061,7 @@
                 }
               }
             },
-            "description": "Marketplace kind or entry not found"
+            "description": "Catalog entry not found"
           },
           "409": {
             "content": {
@@ -103587,28 +103336,13 @@
     "/api/marketplace/refresh": {
       "post": {
         "operationId": "refreshMarketplaceCatalog",
-        "parameters": [
-          {
-            "description": "Optional feed-backed kind",
-            "in": "query",
-            "name": "kind",
-            "schema": {
-              "enum": [
-                "mcp",
-                "extension",
-                "skill"
-              ],
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
-                    "kinds": {
+                    "sources": {
                       "items": {
                         "properties": {
                           "entry_count": {
@@ -103617,10 +103351,10 @@
                           "error_class": {
                             "type": "string"
                           },
-                          "kind": {
+                          "outcome": {
                             "type": "string"
                           },
-                          "outcome": {
+                          "source": {
                             "type": "string"
                           },
                           "stale": {
@@ -103629,8 +103363,8 @@
                         },
                         "required": [
                           "entry_count",
-                          "kind",
                           "outcome",
+                          "source",
                           "stale"
                         ],
                         "type": "object"
@@ -103639,7 +103373,7 @@
                     }
                   },
                   "required": [
-                    "kinds"
+                    "sources"
                   ],
                   "type": "object"
                 }
@@ -103721,7 +103455,7 @@
                 }
               }
             },
-            "description": "Invalid or derived refresh kind"
+            "description": "Unsupported catalog selector"
           },
           "403": {
             "content": {
@@ -103952,2234 +103686,7 @@
             "description": "Marketplace catalog is not configured"
           }
         },
-        "summary": "Refresh all or one feed-backed marketplace kind",
-        "tags": [
-          "marketplace"
-        ],
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/marketplace/search": {
-      "get": {
-        "operationId": "searchMarketplace",
-        "parameters": [
-          {
-            "description": "Search query; empty returns curated idle slices",
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum results per kind from 1 to 100",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "format": "int32",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Installed-state projection scope",
-            "in": "query",
-            "name": "scope",
-            "schema": {
-              "enum": [
-                "global",
-                "profile",
-                "workspace"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for profile installed-state projection",
-            "in": "query",
-            "name": "profile",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for workspace installed-state projection",
-            "in": "query",
-            "name": "workspace_id",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "kinds": {
-                      "items": {
-                        "properties": {
-                          "error": {
-                            "type": "string"
-                          },
-                          "error_class": {
-                            "type": "string"
-                          },
-                          "items": {
-                            "items": {
-                              "properties": {
-                                "author": {
-                                  "type": "string"
-                                },
-                                "description": {
-                                  "type": "string"
-                                },
-                                "digest_sha256": {
-                                  "type": "string"
-                                },
-                                "downloads": {
-                                  "nullable": true,
-                                  "type": "integer"
-                                },
-                                "entry_id": {
-                                  "type": "string"
-                                },
-                                "format": {
-                                  "type": "string"
-                                },
-                                "icon": {
-                                  "type": "string"
-                                },
-                                "install_blocker": {
-                                  "type": "string"
-                                },
-                                "install_slug": {
-                                  "type": "string"
-                                },
-                                "installable": {
-                                  "type": "boolean"
-                                },
-                                "installed": {
-                                  "type": "boolean"
-                                },
-                                "installed_name": {
-                                  "type": "string"
-                                },
-                                "installed_version": {
-                                  "type": "string"
-                                },
-                                "kind": {
-                                  "enum": [
-                                    "mcp",
-                                    "extension",
-                                    "skill"
-                                  ],
-                                  "type": "string"
-                                },
-                                "layout": {
-                                  "type": "string"
-                                },
-                                "manage_path": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "name_conflict": {
-                                  "nullable": true,
-                                  "properties": {
-                                    "entry_id": {
-                                      "type": "string"
-                                    },
-                                    "source": {
-                                      "type": "string"
-                                    },
-                                    "source_ref": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "entry_id",
-                                    "source",
-                                    "source_ref"
-                                  ],
-                                  "type": "object"
-                                },
-                                "published_at": {
-                                  "format": "date-time",
-                                  "nullable": true,
-                                  "type": "string"
-                                },
-                                "source": {
-                                  "type": "string"
-                                },
-                                "source_ref": {
-                                  "type": "string"
-                                },
-                                "tier": {
-                                  "type": "string"
-                                },
-                                "transport": {
-                                  "type": "string"
-                                },
-                                "trust": {
-                                  "nullable": true,
-                                  "properties": {
-                                    "allow_unverified": {
-                                      "type": "boolean"
-                                    },
-                                    "checksum_verified": {
-                                      "type": "boolean"
-                                    },
-                                    "decision": {
-                                      "type": "string"
-                                    },
-                                    "registry_tier": {
-                                      "type": "string"
-                                    },
-                                    "warnings": {
-                                      "items": {
-                                        "properties": {
-                                          "category": {
-                                            "type": "string"
-                                          },
-                                          "code": {
-                                            "type": "string"
-                                          },
-                                          "data_freshness": {
-                                            "type": "string"
-                                          },
-                                          "doc_url": {
-                                            "type": "string"
-                                          },
-                                          "evidence": {
-                                            "additionalProperties": {},
-                                            "type": "object"
-                                          },
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "message": {
-                                            "type": "string"
-                                          },
-                                          "severity": {
-                                            "type": "string"
-                                          },
-                                          "suggested_command": {
-                                            "type": "string"
-                                          },
-                                          "title": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "category",
-                                          "code",
-                                          "data_freshness",
-                                          "id",
-                                          "message",
-                                          "severity",
-                                          "title"
-                                        ],
-                                        "type": "object"
-                                      },
-                                      "type": "array"
-                                    }
-                                  },
-                                  "required": [
-                                    "allow_unverified",
-                                    "checksum_verified",
-                                    "decision",
-                                    "registry_tier"
-                                  ],
-                                  "type": "object"
-                                },
-                                "update_available": {
-                                  "type": "boolean"
-                                },
-                                "updated_at": {
-                                  "format": "date-time",
-                                  "nullable": true,
-                                  "type": "string"
-                                },
-                                "version": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "description",
-                                "digest_sha256",
-                                "entry_id",
-                                "installable",
-                                "installed",
-                                "name",
-                                "source",
-                                "update_available"
-                              ],
-                              "type": "object"
-                            },
-                            "type": "array"
-                          },
-                          "kind": {
-                            "enum": [
-                              "mcp",
-                              "extension",
-                              "skill"
-                            ],
-                            "type": "string"
-                          },
-                          "next_cursor": {
-                            "type": "string"
-                          },
-                          "stale": {
-                            "type": "boolean"
-                          },
-                          "total": {
-                            "nullable": true,
-                            "type": "integer"
-                          }
-                        },
-                        "required": [
-                          "items",
-                          "kind",
-                          "stale"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "query": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "kinds",
-                    "query"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK; individual source failures are returned in kind.error"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid marketplace search request"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Marketplace discovery dependencies are not configured"
-          }
-        },
-        "summary": "Search the grouped marketplace catalog",
-        "tags": [
-          "marketplace"
-        ],
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/marketplace/{kind}": {
-      "get": {
-        "operationId": "browseMarketplaceKind",
-        "parameters": [
-          {
-            "description": "Marketplace kind",
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "enum": [
-                "mcp",
-                "extension",
-                "skill"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional kind search query",
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum results from 1 to 100",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "format": "int32",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Opaque next_cursor from the previous page",
-            "in": "query",
-            "name": "cursor",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Installed-state projection scope",
-            "in": "query",
-            "name": "scope",
-            "schema": {
-              "enum": [
-                "global",
-                "profile",
-                "workspace"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for profile installed-state projection",
-            "in": "query",
-            "name": "profile",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for workspace installed-state projection",
-            "in": "query",
-            "name": "workspace_id",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "error_class": {
-                      "type": "string"
-                    },
-                    "items": {
-                      "items": {
-                        "properties": {
-                          "author": {
-                            "type": "string"
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "digest_sha256": {
-                            "type": "string"
-                          },
-                          "downloads": {
-                            "nullable": true,
-                            "type": "integer"
-                          },
-                          "entry_id": {
-                            "type": "string"
-                          },
-                          "format": {
-                            "type": "string"
-                          },
-                          "icon": {
-                            "type": "string"
-                          },
-                          "install_blocker": {
-                            "type": "string"
-                          },
-                          "install_slug": {
-                            "type": "string"
-                          },
-                          "installable": {
-                            "type": "boolean"
-                          },
-                          "installed": {
-                            "type": "boolean"
-                          },
-                          "installed_name": {
-                            "type": "string"
-                          },
-                          "installed_version": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "enum": [
-                              "mcp",
-                              "extension",
-                              "skill"
-                            ],
-                            "type": "string"
-                          },
-                          "layout": {
-                            "type": "string"
-                          },
-                          "manage_path": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "name_conflict": {
-                            "nullable": true,
-                            "properties": {
-                              "entry_id": {
-                                "type": "string"
-                              },
-                              "source": {
-                                "type": "string"
-                              },
-                              "source_ref": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "entry_id",
-                              "source",
-                              "source_ref"
-                            ],
-                            "type": "object"
-                          },
-                          "published_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "source": {
-                            "type": "string"
-                          },
-                          "source_ref": {
-                            "type": "string"
-                          },
-                          "tier": {
-                            "type": "string"
-                          },
-                          "transport": {
-                            "type": "string"
-                          },
-                          "trust": {
-                            "nullable": true,
-                            "properties": {
-                              "allow_unverified": {
-                                "type": "boolean"
-                              },
-                              "checksum_verified": {
-                                "type": "boolean"
-                              },
-                              "decision": {
-                                "type": "string"
-                              },
-                              "registry_tier": {
-                                "type": "string"
-                              },
-                              "warnings": {
-                                "items": {
-                                  "properties": {
-                                    "category": {
-                                      "type": "string"
-                                    },
-                                    "code": {
-                                      "type": "string"
-                                    },
-                                    "data_freshness": {
-                                      "type": "string"
-                                    },
-                                    "doc_url": {
-                                      "type": "string"
-                                    },
-                                    "evidence": {
-                                      "additionalProperties": {},
-                                      "type": "object"
-                                    },
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "message": {
-                                      "type": "string"
-                                    },
-                                    "severity": {
-                                      "type": "string"
-                                    },
-                                    "suggested_command": {
-                                      "type": "string"
-                                    },
-                                    "title": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "category",
-                                    "code",
-                                    "data_freshness",
-                                    "id",
-                                    "message",
-                                    "severity",
-                                    "title"
-                                  ],
-                                  "type": "object"
-                                },
-                                "type": "array"
-                              }
-                            },
-                            "required": [
-                              "allow_unverified",
-                              "checksum_verified",
-                              "decision",
-                              "registry_tier"
-                            ],
-                            "type": "object"
-                          },
-                          "update_available": {
-                            "type": "boolean"
-                          },
-                          "updated_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "description",
-                          "digest_sha256",
-                          "entry_id",
-                          "installable",
-                          "installed",
-                          "name",
-                          "source",
-                          "update_available"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "kind": {
-                      "enum": [
-                        "mcp",
-                        "extension",
-                        "skill"
-                      ],
-                      "type": "string"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "stale": {
-                      "type": "boolean"
-                    },
-                    "total": {
-                      "nullable": true,
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "items",
-                    "kind",
-                    "stale"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid marketplace browse request"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Marketplace kind not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Marketplace kind dependency is not configured"
-          }
-        },
-        "summary": "Browse or search one marketplace kind",
-        "tags": [
-          "marketplace"
-        ],
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/marketplace/{kind}/{entry_id}": {
-      "get": {
-        "operationId": "getMarketplaceEntry",
-        "parameters": [
-          {
-            "description": "Marketplace kind",
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "enum": [
-                "mcp",
-                "extension",
-                "skill"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Stable URL-safe marketplace entry id",
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Exact installed MCP, extension, or skill identity",
-            "in": "query",
-            "name": "installed_name",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Installed-state projection scope",
-            "in": "query",
-            "name": "scope",
-            "schema": {
-              "enum": [
-                "global",
-                "profile",
-                "workspace"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for profile installed-state projection",
-            "in": "query",
-            "name": "profile",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required for workspace installed-state projection",
-            "in": "query",
-            "name": "workspace_id",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "entry": {
-                      "properties": {
-                        "author": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        },
-                        "digest_sha256": {
-                          "type": "string"
-                        },
-                        "downloads": {
-                          "nullable": true,
-                          "type": "integer"
-                        },
-                        "entry_id": {
-                          "type": "string"
-                        },
-                        "format": {
-                          "type": "string"
-                        },
-                        "icon": {
-                          "type": "string"
-                        },
-                        "install_blocker": {
-                          "type": "string"
-                        },
-                        "install_slug": {
-                          "type": "string"
-                        },
-                        "installable": {
-                          "type": "boolean"
-                        },
-                        "installed": {
-                          "type": "boolean"
-                        },
-                        "installed_name": {
-                          "type": "string"
-                        },
-                        "installed_version": {
-                          "type": "string"
-                        },
-                        "kind": {
-                          "enum": [
-                            "mcp",
-                            "extension",
-                            "skill"
-                          ],
-                          "type": "string"
-                        },
-                        "layout": {
-                          "type": "string"
-                        },
-                        "manage_path": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "name_conflict": {
-                          "nullable": true,
-                          "properties": {
-                            "entry_id": {
-                              "type": "string"
-                            },
-                            "source": {
-                              "type": "string"
-                            },
-                            "source_ref": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "entry_id",
-                            "source",
-                            "source_ref"
-                          ],
-                          "type": "object"
-                        },
-                        "published_at": {
-                          "format": "date-time",
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "source": {
-                          "type": "string"
-                        },
-                        "source_ref": {
-                          "type": "string"
-                        },
-                        "tier": {
-                          "type": "string"
-                        },
-                        "transport": {
-                          "type": "string"
-                        },
-                        "trust": {
-                          "nullable": true,
-                          "properties": {
-                            "allow_unverified": {
-                              "type": "boolean"
-                            },
-                            "checksum_verified": {
-                              "type": "boolean"
-                            },
-                            "decision": {
-                              "type": "string"
-                            },
-                            "registry_tier": {
-                              "type": "string"
-                            },
-                            "warnings": {
-                              "items": {
-                                "properties": {
-                                  "category": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "data_freshness": {
-                                    "type": "string"
-                                  },
-                                  "doc_url": {
-                                    "type": "string"
-                                  },
-                                  "evidence": {
-                                    "additionalProperties": {},
-                                    "type": "object"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "message": {
-                                    "type": "string"
-                                  },
-                                  "severity": {
-                                    "type": "string"
-                                  },
-                                  "suggested_command": {
-                                    "type": "string"
-                                  },
-                                  "title": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "category",
-                                  "code",
-                                  "data_freshness",
-                                  "id",
-                                  "message",
-                                  "severity",
-                                  "title"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            }
-                          },
-                          "required": [
-                            "allow_unverified",
-                            "checksum_verified",
-                            "decision",
-                            "registry_tier"
-                          ],
-                          "type": "object"
-                        },
-                        "update_available": {
-                          "type": "boolean"
-                        },
-                        "updated_at": {
-                          "format": "date-time",
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "description",
-                        "digest_sha256",
-                        "entry_id",
-                        "installable",
-                        "installed",
-                        "name",
-                        "source",
-                        "update_available"
-                      ],
-                      "type": "object"
-                    },
-                    "extension": {
-                      "nullable": true,
-                      "properties": {
-                        "artifact_url": {
-                          "type": "string"
-                        },
-                        "contents": {
-                          "properties": {
-                            "agents": {
-                              "type": "integer"
-                            },
-                            "bridges": {
-                              "type": "integer"
-                            },
-                            "hooks": {
-                              "type": "integer"
-                            },
-                            "loops": {
-                              "type": "integer"
-                            },
-                            "mcp_servers": {
-                              "type": "integer"
-                            },
-                            "skills": {
-                              "type": "integer"
-                            }
-                          },
-                          "required": [
-                            "agents",
-                            "bridges",
-                            "hooks",
-                            "loops",
-                            "mcp_servers",
-                            "skills"
-                          ],
-                          "type": "object"
-                        },
-                        "diagnostics": {
-                          "items": {
-                            "properties": {
-                              "category": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "data_freshness": {
-                                "type": "string"
-                              },
-                              "doc_url": {
-                                "type": "string"
-                              },
-                              "evidence": {
-                                "additionalProperties": {},
-                                "type": "object"
-                              },
-                              "id": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              },
-                              "severity": {
-                                "type": "string"
-                              },
-                              "suggested_command": {
-                                "type": "string"
-                              },
-                              "title": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "category",
-                              "code",
-                              "data_freshness",
-                              "id",
-                              "message",
-                              "severity",
-                              "title"
-                            ],
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "digest_sha256": {
-                          "type": "string"
-                        },
-                        "inputs": {
-                          "items": {
-                            "properties": {
-                              "binding": {
-                                "properties": {
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "name",
-                                  "type"
-                                ],
-                                "type": "object"
-                              },
-                              "default": {},
-                              "id": {
-                                "type": "string"
-                              },
-                              "prompt": {
-                                "type": "string"
-                              },
-                              "required": {
-                                "type": "boolean"
-                              },
-                              "type": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "binding",
-                              "id",
-                              "prompt",
-                              "required",
-                              "type"
-                            ],
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "install_slug": {
-                          "type": "string"
-                        },
-                        "layout": {
-                          "type": "string"
-                        },
-                        "mcp_servers": {
-                          "items": {
-                            "properties": {
-                              "auth": {
-                                "nullable": true,
-                                "properties": {
-                                  "issuer_url": {
-                                    "type": "string"
-                                  },
-                                  "method": {
-                                    "type": "string"
-                                  },
-                                  "registration": {
-                                    "type": "string"
-                                  },
-                                  "scopes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "method"
-                                ],
-                                "type": "object"
-                              },
-                              "launch": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "owner": {
-                                "type": "string"
-                              },
-                              "profile": {
-                                "type": "string"
-                              },
-                              "runtime_name": {
-                                "type": "string"
-                              },
-                              "scope": {
-                                "type": "string"
-                              },
-                              "status": {
-                                "type": "string"
-                              },
-                              "transport": {
-                                "type": "string"
-                              },
-                              "workspace_id": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "launch",
-                              "name",
-                              "owner",
-                              "transport"
-                            ],
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "repository": {
-                          "type": "string"
-                        },
-                        "resolved_ref": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "artifact_url",
-                        "contents",
-                        "digest_sha256",
-                        "inputs",
-                        "install_slug",
-                        "mcp_servers"
-                      ],
-                      "type": "object"
-                    },
-                    "mcp": {
-                      "nullable": true,
-                      "properties": {
-                        "auth": {
-                          "nullable": true,
-                          "properties": {
-                            "method": {
-                              "type": "string"
-                            },
-                            "registration": {
-                              "type": "string"
-                            },
-                            "scopes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            }
-                          },
-                          "required": [
-                            "method",
-                            "registration"
-                          ],
-                          "type": "object"
-                        },
-                        "default_scope": {
-                          "type": "string"
-                        },
-                        "inputs": {
-                          "items": {
-                            "properties": {
-                              "binding": {
-                                "properties": {
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "name",
-                                  "type"
-                                ],
-                                "type": "object"
-                              },
-                              "default": {},
-                              "id": {
-                                "type": "string"
-                              },
-                              "prompt": {
-                                "type": "string"
-                              },
-                              "required": {
-                                "type": "boolean"
-                              },
-                              "type": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "binding",
-                              "id",
-                              "prompt",
-                              "required",
-                              "type"
-                            ],
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "launch": {
-                          "properties": {
-                            "args": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "digest": {
-                              "type": "string"
-                            },
-                            "image": {
-                              "type": "string"
-                            },
-                            "package": {
-                              "type": "string"
-                            },
-                            "type": {
-                              "type": "string"
-                            },
-                            "url": {
-                              "type": "string"
-                            },
-                            "version": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type"
-                          ],
-                          "type": "object"
-                        }
-                      },
-                      "required": [
-                        "default_scope",
-                        "launch"
-                      ],
-                      "type": "object"
-                    },
-                    "skill": {
-                      "nullable": true,
-                      "properties": {
-                        "display_name": {
-                          "type": "string"
-                        },
-                        "install_slug": {
-                          "type": "string"
-                        },
-                        "license": {
-                          "type": "string"
-                        },
-                        "readme": {
-                          "type": "string"
-                        },
-                        "repository": {
-                          "type": "string"
-                        },
-                        "tags": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "versions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        }
-                      },
-                      "required": [
-                        "install_slug"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "entry"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid marketplace detail request"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Marketplace kind or entry not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "agents": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_digest": {
-                      "type": "string"
-                    },
-                    "declared_env": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "env_name": {
-                      "type": "string"
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "fetched_digest": {
-                      "type": "string"
-                    },
-                    "input_id": {
-                      "type": "string"
-                    },
-                    "inputs": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "listed_digest": {
-                      "type": "string"
-                    },
-                    "missing_env": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Package bytes differ from the listed digest"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
-                      "properties": {
-                        "category": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
-                      ],
-                      "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Marketplace detail dependency is not configured"
-          }
-        },
-        "summary": "Get one marketplace entry by stable entry id",
+        "summary": "Refresh the extension catalog",
         "tags": [
           "marketplace"
         ],

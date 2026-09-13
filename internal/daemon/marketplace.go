@@ -78,19 +78,15 @@ func buildMarketplaceService(
 		return nil, fmt.Errorf("daemon: parse marketplace catalog timeout: %w", err)
 	}
 	client := &http.Client{Timeout: timeout}
-	sources := make([]marketplace.Source, 0, len(marketplace.AllKinds()))
-	for _, kind := range marketplace.AllKinds() {
-		source, err := marketplace.NewSource(kind, cfg.EffectiveBaseURL(), client)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: create %q marketplace source: %w", kind, err)
-		}
-		sources = append(sources, source)
+	source, err := marketplace.NewSource(marketplace.KindExtension, cfg.EffectiveBaseURL(), client)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create marketplace source: %w", err)
 	}
 	options := []marketplace.ServiceOption{marketplace.WithNotifier(notifier)}
 	if now != nil {
 		options = append(options, marketplace.WithNow(now))
 	}
-	service, err := marketplace.NewService(marketplaceStore, sources, ttl, timeout, options...)
+	service, err := marketplace.NewService(marketplaceStore, []marketplace.Source{source}, ttl, timeout, options...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create marketplace service: %w", err)
 	}
@@ -133,17 +129,6 @@ func (r *marketplaceRuntime) ResolveExtensionInstall(
 		return nil, err
 	}
 	return service.ResolveExtensionInstall(ctx, installSlug, version)
-}
-
-func (r *marketplaceRuntime) ResolveSkillInstalls(
-	ctx context.Context,
-	installSlugs []string,
-) ([]marketplace.Entry, error) {
-	service, err := r.currentService(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return service.ResolveSkillInstalls(ctx, installSlugs)
 }
 
 func (r *marketplaceRuntime) Refresh(

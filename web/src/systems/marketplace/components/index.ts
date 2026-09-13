@@ -47,7 +47,6 @@ export type { MarketplaceInstalledShelfProps } from "./marketplace-installed-she
 export { MarketplacePage } from "./marketplace-page";
 export type { MarketplacePageProps } from "./marketplace-page";
 export {
-  formatMarketplaceCount,
   formatMarketplaceVersion,
   marketplaceEntrySlug,
   marketplaceErrorMessage,

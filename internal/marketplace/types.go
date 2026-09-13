@@ -157,9 +157,7 @@ type Service interface {
 }
 
 // SkillInstallResolver batches curated identity reads for remote skill listings.
-type SkillInstallResolver interface {
-	ResolveSkillInstalls(ctx context.Context, installSlugs []string) ([]Entry, error)
-}
+type SkillInstallResolver any
 
 // Notifier persists canonical marketplace observations.
 type Notifier interface {

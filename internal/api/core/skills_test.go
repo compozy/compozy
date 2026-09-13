@@ -19,10 +19,8 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -143,25 +141,6 @@ func newSkillsHandlerFixture(
 	registry core.SkillsRegistry,
 	workspaces testutil.StubWorkspaceService,
 ) *gin.Engine {
-	return newSkillsHandlerFixtureWithMarketplace(t, registry, workspaces, nil)
-}
-
-func newSkillsHandlerFixtureWithMarketplace(
-	t *testing.T,
-	registry core.SkillsRegistry,
-	workspaces testutil.StubWorkspaceService,
-	marketplace core.SkillMarketplaceService,
-) *gin.Engine {
-	return newSkillsHandlerFixtureWithMarketplaceAndResources(t, registry, workspaces, marketplace, nil)
-}
-
-func newSkillsHandlerFixtureWithMarketplaceAndResources(
-	t *testing.T,
-	registry core.SkillsRegistry,
-	workspaces testutil.StubWorkspaceService,
-	marketplace core.SkillMarketplaceService,
-	skillResources core.SkillResourceSyncer,
-) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -172,20 +151,18 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 	cfg.Daemon.Socket = "/tmp/skills-test.sock"
 
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:    "skills-test",
-		Sessions:         testutil.StubSessionManager{},
-		Observer:         testutil.StubObserver{},
-		Workspaces:       workspaces,
-		SkillsRegistry:   registry,
-		SkillResources:   skillResources,
-		SkillMarketplace: marketplace,
-		HomePaths:        homePaths,
-		Config:           cfg,
-		Logger:           testutil.DiscardLogger(),
-		StartedAt:        time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Now:              func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		PollInterval:     5 * time.Millisecond,
-		HTTPPort:         cfg.HTTP.Port,
+		TransportName:  "skills-test",
+		Sessions:       testutil.StubSessionManager{},
+		Observer:       testutil.StubObserver{},
+		Workspaces:     workspaces,
+		SkillsRegistry: registry,
+		HomePaths:      homePaths,
+		Config:         cfg,
+		Logger:         testutil.DiscardLogger(),
+		StartedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		Now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		PollInterval:   5 * time.Millisecond,
+		HTTPPort:       cfg.HTTP.Port,
 	})
 
 	engine := gin.New()
@@ -198,86 +175,6 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 
 	return engine
 }
-
-type stubSkillMarketplaceService struct {
-	SearchFn     func(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
-	SearchPageFn func(ctx context.Context, query string, offset int, limit int) ([]registrypkg.Listing, error)
-	InfoFn       func(ctx context.Context, slug string) (*registrypkg.Detail, error)
-	InstallFn    func(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
-	UpdateFn     func(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
-	RemoveFn     func(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
-}
-
-func (s stubSkillMarketplaceService) Search(
-	ctx context.Context,
-	query string,
-	offset int,
-	limit int,
-) ([]registrypkg.Listing, error) {
-	if s.SearchPageFn != nil {
-		return s.SearchPageFn(ctx, query, offset, limit)
-	}
-	if s.SearchFn != nil {
-		return s.SearchFn(ctx, query, limit)
-	}
-	return nil, nil
-}
-
-func (s stubSkillMarketplaceService) Info(
-	ctx context.Context,
-	slug string,
-) (*registrypkg.Detail, error) {
-	if s.InfoFn != nil {
-		return s.InfoFn(ctx, slug)
-	}
-	return nil, nil
-}
-
-func (s stubSkillMarketplaceService) Install(
-	ctx context.Context,
-	slug string,
-	version string,
-) (skillmarketplace.InstallResult, error) {
-	if s.InstallFn != nil {
-		return s.InstallFn(ctx, slug, version)
-	}
-	return skillmarketplace.InstallResult{}, nil
-}
-
-func (s stubSkillMarketplaceService) Update(
-	ctx context.Context,
-	req skillmarketplace.UpdateRequest,
-) ([]skillmarketplace.UpdateResult, error) {
-	if s.UpdateFn != nil {
-		return s.UpdateFn(ctx, req)
-	}
-	return nil, nil
-}
-
-func (s stubSkillMarketplaceService) Remove(
-	ctx context.Context,
-	name string,
-) (skillmarketplace.RemoveResult, error) {
-	if s.RemoveFn != nil {
-		return s.RemoveFn(ctx, name)
-	}
-	return skillmarketplace.RemoveResult{}, nil
-}
-
-var _ core.SkillMarketplaceService = (*stubSkillMarketplaceService)(nil)
-
-type stubSkillResourceSyncer struct {
-	SyncSkillsFn func(ctx context.Context) error
-}
-
-func (s stubSkillResourceSyncer) SyncSkills(ctx context.Context) error {
-	if s.SyncSkillsFn != nil {
-		return s.SyncSkillsFn(ctx)
-	}
-	return nil
-}
-
-var _ core.SkillResourceSyncer = (*stubSkillResourceSyncer)(nil)
 
 func testSkill() *skills.Skill {
 	return &skills.Skill{
