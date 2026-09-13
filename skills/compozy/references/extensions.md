@@ -42,8 +42,15 @@ the protected resource. `default_scope` supplies the installation default and ne
 existing installation. Validate the package with `compozy extension validate <directory>`.
 
 `compozy-catalog publish` derives version, inputs, archive and digest from the package. It emits
-v3 extensions and presets plus the retained v2 family; change `catalog/sources.json` or the package,
-not generated feed JSON. The site validates both families and reads its extensions from v3.
+v3 extensions and presets only; change `catalog/sources.json` or the package, not generated feed JSON.
+The site reads the same v3 catalog. Root feeds and v2 fallback are removed.
+
+Install selectors are `scope = global|workspace`, `workspace_id` (registered ID), and `profile`
+(name) in HTTP/UDS/native requests. CLI equivalents are `--scope`, `--workspace <name|path|id>`,
+and `--profile`; the explicit flag wins over `COMPOZY_PROFILE`. An operator omitting the profile
+keeps all-profile installation. Agents remain bound to their trusted workspace/profile.
+Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
+extension/profile/workspace under `vault:extensions/`; manual MCP references are not imported.
 
 ## Built-in Open Design
 

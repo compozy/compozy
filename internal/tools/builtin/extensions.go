@@ -298,6 +298,9 @@ const extensionInstallInputSchema = `{
 	"properties":{
 		"source":{"type":"string","enum":["curated","github","git","local_path"]},
 		"ref":{"type":"string","minLength":1},
+		"scope":{"type":"string","enum":["global","workspace"]},
+		"workspace_id":{"type":"string"},
+		"profile":{"type":"string"},
 		"version":{"type":"string"},
 		"asset":{"type":"string"},
 		"inputs":` + extensionValuesInputSchema + `,
@@ -331,7 +334,8 @@ const extensionValuesInputSchema = `{
 			{"type":"object","required":["value"],
 			 "properties":{"value":{"type":["string","boolean"]}},"additionalProperties":false},
 			{"type":"object","required":["vault_ref"],
-			 "properties":{"vault_ref":{"type":"string","minLength":1}},"additionalProperties":false}
+			 "properties":{"vault_ref":{"type":"string","minLength":1,"pattern":"^vault:extensions/.+$"}},
+			 "additionalProperties":false}
 		]
 	}
 }`

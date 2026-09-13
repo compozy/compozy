@@ -1357,6 +1357,48 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 
 func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
+	// Invariant: shared HTTP/UDS decoding preserves scoped install selectors and typed inputs.
+	// Owner: transport request boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
+	for _, transport := range []string{"http", "uds"} {
+		t.Run("Should forward scoped install and preview over "+transport, func(t *testing.T) {
+			t.Parallel()
+			assertRequest := func(request contract.InstallExtensionRequest) {
+				t.Helper()
+				if request.Scope != "workspace" || request.WorkspaceID != "ws-install" || request.Profile != "marketing" ||
+					string(request.Inputs["team"].Value) != `"selected-team"` {
+					t.Fatalf("scoped install request = %#v", request)
+				}
+			}
+			service := extensionServiceStub{
+				installFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					assertRequest(req)
+					return contract.ExtensionPayload{Name: "scoped-package", Profile: req.Profile, WorkspaceID: req.WorkspaceID}, nil
+				},
+				previewInstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
+					assertRequest(req)
+					return contract.ExtensionInstallPreviewPayload{Name: "scoped-package"}, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+			body := []byte(`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`)
+			for _, route := range []string{"/extensions", "/extensions/preview-install"} {
+				response := performRequest(t, engine, http.MethodPost, route, body)
+				wantStatus := http.StatusOK
+				if route == "/extensions" {
+					wantStatus = http.StatusCreated
+				}
+				if response.Code != wantStatus {
+					t.Fatalf("status = %d, want %d: %s", response.Code, wantStatus, response.Body.String())
+				}
+				if !strings.Contains(response.Body.String(), `"name":"scoped-package"`) {
+					t.Fatalf("response = %s", response.Body.String())
+				}
+			}
+		})
+	}
 
 	const (
 		apiWorkspaceRootCanary = "/private/API-WORKSPACE-ROOT-CANARY"

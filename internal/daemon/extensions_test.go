@@ -30,6 +30,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
@@ -1651,6 +1652,79 @@ func lifecycleNetworkDigest(t *testing.T, channelScope string) string {
 // Owner: daemon lifecycle orchestration. Canonical suite: extensions_test.go.
 func TestDaemonExtensionInputLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: install attachment, inputs, secret ownership and response address the selected cell.
+	// Owner: daemon install coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+	for _, scenario := range []struct {
+		name        string
+		workspaceID string
+		profile     string
+		agent       bool
+		local       bool
+	}{
+		{name: "Should retain global all-profile installation by default"},
+		{name: "Should install for an explicit global profile", profile: "marketing"},
+		{name: "Should install for an explicit default profile", profile: "default"},
+		{name: "Should install for all profiles in a workspace", workspaceID: "ws-install"},
+		{name: "Should install for one profile in a workspace", workspaceID: "ws-install", profile: "marketing"},
+		{name: "Should bind an agent install to its trusted cell", workspaceID: "ws-install", profile: "marketing", agent: true},
+		{name: "Should scope local package installation", workspaceID: "ws-install", profile: "marketing", local: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			testDaemonScopedInstall(t, scenario.workspaceID, scenario.profile, scenario.agent, scenario.local)
+		})
+	}
+	t.Run("Should reject invalid selectors and cross-scope writes before acquisition", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		marketing, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+			Logger: discardLogger(),
+		}, withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: t.TempDir()}, WorkspaceID: "ws-install",
+		}})).(*daemonExtensionService)
+		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "scope validation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("session-install", "ws-install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent.ReadScope = store.ReadScope{ProfileID: marketing.ID}
+		for _, scenario := range []struct {
+			name    string
+			request contract.InstallExtensionRequest
+			actor   taskpkg.ActorContext
+			field   string
+		}{
+			{name: "Should reject unknown scope", request: contract.InstallExtensionRequest{Scope: "other"}, actor: operator, field: "scope"},
+			{name: "Should reject contradictory workspace", request: contract.InstallExtensionRequest{Scope: "global", WorkspaceID: "ws-install"}, actor: operator, field: "workspace_id"},
+			{name: "Should require a workspace", request: contract.InstallExtensionRequest{Scope: "workspace"}, actor: operator, field: "workspace_id"},
+			{name: "Should require an existing profile", request: contract.InstallExtensionRequest{Profile: "absent"}, actor: operator, field: "profile"},
+			{name: "Should forbid another workspace", request: contract.InstallExtensionRequest{WorkspaceID: "ws-other"}, actor: agent},
+			{name: "Should forbid global escape", request: contract.InstallExtensionRequest{Scope: "global"}, actor: agent},
+			{name: "Should forbid another profile", request: contract.InstallExtensionRequest{Profile: "default"}, actor: agent},
+		} {
+			t.Run(scenario.name, func(t *testing.T) {
+				t.Parallel()
+				// Invalid source deliberately cannot reach acquisition; the selector error must win.
+				_, err := service.Install(t.Context(), scenario.request, scenario.actor)
+				if scenario.field == "" {
+					if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+						t.Fatalf("install error = %v", err)
+					}
+				} else if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); !ok || validation.Field != scenario.field {
+					t.Fatalf("install error = %v, want selector %s", err, scenario.field)
+				}
+			})
+		}
+	})
+
 	// Invariant: automatic allocations survive success and only new allocations are removed on failed installation.
 	// Owner: daemon install coordinator; canonical suite: TestDaemonExtensionInputLifecycle with real SQLite.
 	for _, scenario := range []string{"success", "publication failure", "completion failure"} {
@@ -1972,4 +2046,150 @@ binding = { type = "url_query", name = "region" }
 			}
 		},
 	)
+}
+
+func testDaemonScopedInstall(t *testing.T, workspaceID, profileName string, agent, local bool) {
+	t.Helper()
+	ctx := t.Context()
+	deps, registry, source, _ := newNativeExtensionToolDeps(t)
+	db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+	workspaceRoot := t.TempDir()
+	stamp := store.FormatTimestamp(time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC))
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces
+		(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		"ws-install", workspaceRoot, "Install workspace", stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+
+	marketing, err := deps.ProfileManager.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileID := store.DefaultProfileID
+	if profileName == "marketing" {
+		profileID = marketing.ID
+	}
+	secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+		Logger: discardLogger(), Getenv: func(string) string { return "" },
+	}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+		withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
+		withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: workspaceRoot}, WorkspaceID: "ws-install",
+		}}),
+	).(*daemonExtensionService)
+	sections := `[resources.mcp_servers.server]
+command = "server"
+secret_env = { TOKEN = "token" }
+[resources.mcp_servers.remote]
+transport = "http"
+url = "https://example.com/mcp?ws="
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "ws" }
+[[inputs]]
+id = "token"
+prompt = "Token"
+type = "secret"
+required = true
+binding = { type = "env", name = "TOKEN" }
+`
+	archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
+	source.latestVersion = "1.0.0"
+	source.downloads["1.0.0"] = &registrypkg.DownloadResult{
+		Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "1.0.0",
+		ContentSize: int64(len(archive)), ContentType: "application/gzip",
+	}
+	request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceGitHub,
+		Ref: "acme/tool-ext", AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID,
+		Inputs: map[string]extensioninput.Value{
+			"workspace": {Value: json.RawMessage(`"selected-team"`)}, "token": {Value: json.RawMessage(`"scoped-secret"`)},
+		},
+	}
+	if local {
+		request.Source = contract.InstallExtensionSourceLocalPath
+		request.Ref = writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0")
+		manifestPath := filepath.Join(request.Ref, "extension.toml")
+		manifest, readErr := os.ReadFile(manifestPath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if writeErr := os.WriteFile(manifestPath, append(manifest, []byte("\n"+sections)...), 0o600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "scoped install")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent {
+		actor, err = taskpkg.DeriveAgentSessionActorContext("session-install", workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: profileID}
+		request.Profile, request.WorkspaceID = "", ""
+	}
+	installed, err := service.Install(ctx, request, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	if installed.Profile != profileName || installed.WorkspaceID != workspaceID || len(installed.MissingInputs) != 0 {
+		t.Fatalf("installed scope/readiness = %#v", installed)
+	}
+	attachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachmentProfile := ""
+	if request.Profile != "" || agent {
+		attachmentProfile = profileID
+	}
+	wantScope := extensionpkg.InstallationScope{ProfileID: attachmentProfile, WorkspaceID: workspaceID}
+	if len(attachments) != 1 || attachments[0].Scope != wantScope {
+		t.Fatalf("attachments = %#v, want %v", attachments, wantScope)
+	}
+	for _, cell := range []extensioninput.Instance{
+		{Extension: "tool-ext", ProfileID: store.DefaultProfileID},
+		{Extension: "tool-ext", ProfileID: marketing.ID},
+		{Extension: "tool-ext", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-install"},
+		{Extension: "tool-ext", ProfileID: marketing.ID, WorkspaceID: "ws-install"},
+	} {
+		rows, readErr := db.ExtensionInputs.List(ctx, cell)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		bindings, readErr := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", cell.ProfileID, cell.WorkspaceID)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if cell.ProfileID != profileID || cell.WorkspaceID != workspaceID {
+			if len(rows) != 0 || len(bindings) != 0 {
+				t.Fatalf("install leaked to %v: %v, %v", cell, rows, bindings)
+			}
+			continue
+		}
+		if len(rows) != 1 || string(rows["workspace"].Value) != `"selected-team"` || !rows["workspace"].Active {
+			t.Fatalf("selected inputs = %v", rows)
+		}
+		wantRef := vault.ExtensionProfileSecretRef("tool-ext", profileID, workspaceID, "TOKEN")
+		secret, resolveErr := secretVault.ResolveRef(ctx, wantRef)
+		if resolveErr != nil || secret != "scoped-secret" {
+			t.Fatal("selected vault secret was not persisted", resolveErr)
+		}
+
+		if len(bindings) != 1 || bindings[0].SecretRef != wantRef || bindings[0].Inactive {
+			t.Fatalf("selected secret bindings = %v, want %s", bindings, wantRef)
+		}
+	}
 }

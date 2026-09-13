@@ -42,6 +42,24 @@ submit the structured union directly; the shorthand is a CLI convenience.
 
 `--version` and `--asset` select a specific registry version or archive for published sources.
 
+## Choose an installation scope
+
+Use `--scope global` for a global installation or `--scope workspace --workspace <name|path|id>`
+for one registered workspace. `--workspace` alone selects workspace scope. Add `--profile <name>`
+to attach the package to one profile; `COMPOZY_PROFILE` is used when the flag is absent.
+Without a profile selector, a local operator installs for all profiles. Scoped installation requires
+a running daemon.
+
+```bash
+compozy extension install compozy/context7 --scope workspace --workspace my-project --profile engineering
+```
+
+HTTP, UDS, and `compozy__extensions_install` accept `scope`, `workspace_id`, and `profile`.
+Use a registered ID for `workspace_id` and a profile name for `profile`. A workspace-bound agent
+uses its trusted workspace and profile when selectors are omitted; it cannot select another
+workspace or profile. Preview and installation use the same selectors. Inputs and secret bindings
+belong to the selected profile/workspace cell.
+
 ## Supply package inputs
 
 The package declares its input IDs, types, prompts, defaults, and required values. Pass repeatable
@@ -60,13 +78,15 @@ secret reference:
 ```json
 {
   "grafana_url": { "value": "https://grafana.example.com" },
-  "grafana_service_account_token": { "vault_ref": "vault:mcp/shared/GRAFANA_TOKEN" }
+  "grafana_service_account_token": {
+    "vault_ref": "vault:extensions/global/grafana/profiles/default/env/GRAFANA_TOKEN"
+  }
 }
 ```
 
 Each entry accepts exactly one `value` or `vault_ref`. Secret values go to the vault; other values
-stay with the extension instance. Vault references must already exist and be accessible to every
-server receiving the binding. Flags override matching IDs from the file. Inputs are limited to
+stay with the extension instance. Vault references must already exist in the same extension, profile, and workspace namespace.
+A manual MCP server reference cannot be imported as an extension input. Flags override matching IDs from the file. Inputs are limited to
 8 KiB each; the JSON file is limited to 1 MiB. Installing a package with inputs requires a running
 daemon, including local-path packages.
 

@@ -22,7 +22,7 @@ func (s *daemonExtensionService) prepareInstallMCPAllocations(
 	if err != nil {
 		return nil, err
 	}
-	return snapshotExtensionMCPAllocations(extensionpkg.GlobalInstanceKey(prepared.name), records), nil
+	return snapshotExtensionMCPAllocations(prepared.target.key(prepared.name), records), nil
 }
 
 func (s *daemonExtensionService) rollbackInstallMCPAllocations(

@@ -36269,9 +36269,15 @@ export interface operations {
                   vault_ref: string;
                 };
           };
+          /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
+          profile?: string;
           ref: string;
+          /** @enum {string} */
+          scope?: "global" | "workspace";
           source: string;
           version?: string;
+          /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
+          workspace_id?: string;
         };
       };
     };
@@ -37303,9 +37309,15 @@ export interface operations {
                   vault_ref: string;
                 };
           };
+          /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
+          profile?: string;
           ref: string;
+          /** @enum {string} */
+          scope?: "global" | "workspace";
           source: string;
           version?: string;
+          /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
+          workspace_id?: string;
         };
       };
     };

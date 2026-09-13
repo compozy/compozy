@@ -6,10 +6,10 @@ persona: Ada
 journey: J-extension-distribution
 expected: A GitHub release shorthand or public HTTPS git URL installs the requested immutable extension in one command with at most one unverified-source consent; matching GitHub sidecars record digest integrity without elevating trust, mismatches leave no installed state, unsafe destinations are rejected before clone, and missing or outdated Git failures identify the required dependency deterministically.
 entry_points: `compozy extension install github:owner/repo[@ref]`; `compozy extension install git:<url>[@ref]`; `POST /api/extensions`; `compozy__extensions_install`
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: untested
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/extensions-closeout.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/external-extension-blocker.md;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-targeted-f5-f8-20260804-134807-481811-lab/qa-artifacts/qa/evidence/extension-distribution.json
 last_report: docs/qa/reports/2026-08-04-go-modernization-closeout.md
@@ -49,3 +49,10 @@ reported `installed_from = git_url` and invoked the `v0.1.0` probe. Temporarily 
 sidecar with a zero digest produced `extension_archive_digest_mismatch` before registry or extension
 directory mutation. The original sidecar was restored, a fresh daemon installed the release again,
 and the final remove left the fixture absent.
+
+QA impact 2026-09-13 (marketplace-catalog task03): repeat install and preview over CLI, HTTP/UDS,
+and the native tool with global/profile, workspace/all-profile, and workspace/profile selectors.
+Read back exact attachment and input ownership, verify a secret never appears in another cell,
+and reject cross-workspace/profile agent writes before acquisition. Include the local-path variant
+and explicit `COMPOZY_PROFILE` selection. Task09/10 owns the remaining live runtime/restart walks;
+focused daemon SQLite/vault and transport tests do not settle this scenario.

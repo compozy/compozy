@@ -10,13 +10,24 @@ func customizeExtensionInputValueSchema(schema *openapi3.Schema) {
 	valueVariant := openapi3.NewObjectSchema().WithProperty("value", value).
 		WithRequired([]string{"value"}).WithoutAdditionalProperties()
 	ref := openapi3.NewStringSchema().WithMinLength(1)
-	ref.Pattern = `^vault:(extensions|mcp)/.+$`
+	ref.Pattern = `^vault:extensions/.+$`
 	refVariant := openapi3.NewObjectSchema().WithProperty("vault_ref", ref).
 		WithRequired([]string{"vault_ref"}).WithoutAdditionalProperties()
 	*schema = openapi3.Schema{OneOf: []*openapi3.SchemaRef{{Value: valueVariant}, {Value: refVariant}}}
 }
 
 func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
+	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
+		scope.Value.Enum = []any{"global", "workspace"}
+	}
+	if profile := schema.Properties["profile"]; profile != nil && profile.Value != nil {
+		profile.Value.Description = "Profile name. Omitted for a local operator keeps the installation " +
+			"available to all profiles."
+	}
+	if workspace := schema.Properties["workspace_id"]; workspace != nil && workspace.Value != nil {
+		workspace.Value.Description = "Registered workspace ID. Required for workspace scope " +
+			"unless the caller is already workspace-bound."
+	}
 	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}

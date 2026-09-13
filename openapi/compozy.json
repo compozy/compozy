@@ -82336,7 +82336,7 @@
                           "properties": {
                             "vault_ref": {
                               "minLength": 1,
-                              "pattern": "^vault:(extensions|mcp)/.+$",
+                              "pattern": "^vault:extensions/.+$",
                               "type": "string"
                             }
                           },
@@ -82349,13 +82349,28 @@
                     },
                     "type": "object"
                   },
+                  "profile": {
+                    "description": "Profile name. Omitted for a local operator keeps the installation available to all profiles.",
+                    "type": "string"
+                  },
                   "ref": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
                     "type": "string"
                   },
                   "source": {
                     "type": "string"
                   },
                   "version": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
+                    "description": "Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.",
                     "type": "string"
                   }
                 },
@@ -85632,7 +85647,7 @@
                           "properties": {
                             "vault_ref": {
                               "minLength": 1,
-                              "pattern": "^vault:(extensions|mcp)/.+$",
+                              "pattern": "^vault:extensions/.+$",
                               "type": "string"
                             }
                           },
@@ -85645,13 +85660,28 @@
                     },
                     "type": "object"
                   },
+                  "profile": {
+                    "description": "Profile name. Omitted for a local operator keeps the installation available to all profiles.",
+                    "type": "string"
+                  },
                   "ref": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
                     "type": "string"
                   },
                   "source": {
                     "type": "string"
                   },
                   "version": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
+                    "description": "Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.",
                     "type": "string"
                   }
                 },
@@ -86315,7 +86345,7 @@
                           "properties": {
                             "vault_ref": {
                               "minLength": 1,
-                              "pattern": "^vault:(extensions|mcp)/.+$",
+                              "pattern": "^vault:extensions/.+$",
                               "type": "string"
                             }
                           },
@@ -88914,7 +88944,7 @@
                           "properties": {
                             "vault_ref": {
                               "minLength": 1,
-                              "pattern": "^vault:(extensions|mcp)/.+$",
+                              "pattern": "^vault:extensions/.+$",
                               "type": "string"
                             }
                           },

@@ -132,6 +132,7 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
+	var scope, workspaceRef string
 	var inputs extensionInputFlags
 	var version string
 	var asset string
@@ -145,6 +146,10 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			plan, err := parseExtensionInstallPlan(args[0], version, asset, allowUnverified)
+			if err != nil {
+				return err
+			}
+			plan, err = selectExtensionInstallScope(cmd, deps, plan, scope, workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -176,6 +181,8 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	inputs.register(cmd)
+	cmd.Flags().StringVar(&scope, "scope", "", "Install globally or in one workspace: global, workspace")
+	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Workspace name, path, or registered ID")
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(

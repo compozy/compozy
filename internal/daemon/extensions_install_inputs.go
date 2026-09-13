@@ -22,8 +22,8 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 	binder := extensionInputBinder{service: s}
 	plan, err := binder.Prepare(
 		ctx,
-		extensionpkg.GlobalInstanceKey(prepared.name),
-		extensionDefaultProfileLens(),
+		prepared.target.key(prepared.name),
+		prepared.target.profile,
 		prepared.manifest,
 		req.Inputs,
 	)

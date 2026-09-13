@@ -21,6 +21,9 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
+	Scope                string                          `json:"scope,omitempty"`
+	WorkspaceID          string                          `json:"workspace_id,omitempty"`
+	Profile              string                          `json:"profile,omitempty"`
 	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
 	ExpectedDigest       string                          `json:"expected_digest,omitempty"`
 	Source               InstallExtensionSource          `json:"source"`

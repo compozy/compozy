@@ -24,11 +24,15 @@ func (s *daemonExtensionService) Install(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	target, err := s.resolveExtensionInstallTarget(ctx, req, actor)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
 	}
 	installedBy := extensionInstalledBy(actor)
-	prepared, err := s.prepareExtensionInstall(ctx, req, actor, installedBy)
+	prepared, err := s.prepareExtensionInstall(ctx, req, actor, installedBy, target)
 	if err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
@@ -104,7 +108,7 @@ func (s *daemonExtensionService) commitPreparedInstall(
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	var err error
-	*item, err = s.Status(ctx, prepared.name)
+	*item, err = s.installedTargetStatus(ctx, prepared.name, prepared.target)
 	if err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}

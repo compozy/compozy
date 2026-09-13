@@ -1103,6 +1103,65 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 
 func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	t.Parallel()
+	// Invariant: preview and install receive the same explicit scope and resolved workspace ID.
+	// Owner: CLI request construction; canonical suite: TestExtensionInstallUsesDaemonClientWhenRunning.
+	for _, scenario := range []struct {
+		name          string
+		flags         []string
+		envProfile    string
+		wantScope     string
+		wantWorkspace string
+		wantProfile   string
+	}{
+		{name: "Should preserve omitted selectors"},
+		{name: "Should forward an explicit global profile", flags: []string{"--scope", "global", "--profile", "marketing"}, wantScope: "global", wantProfile: "marketing"},
+		{name: "Should resolve workspace and profile for both requests", flags: []string{"--workspace", "alpha", "--profile", "marketing"}, wantScope: "workspace", wantWorkspace: "ws-alpha", wantProfile: "marketing"},
+		{name: "Should honor explicit environment profile", envProfile: "marketing", wantProfile: "marketing"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			dir := writeExtensionFixture(t, "scope-install-ext", extensionFixtureOptions{})
+			var previewed, installed *InstallExtensionRequest
+			deps, _ := newExtensionLocalDeps(t, &stubClient{
+				listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+					return []contract.Profile{{ID: "default", Name: "default", State: "active"}, {ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+				},
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					if ref != "alpha" {
+						t.Fatalf("workspace lookup = %q", ref)
+					}
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+				},
+				previewExtensionInstallFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+					previewed = &request
+					return ExtensionInstallPreviewRecord{Name: "scope-install-ext"}, nil
+				},
+				installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+					installed = &request
+					return ExtensionRecord{Name: "scope-install-ext"}, nil
+				},
+			})
+			deps.getenv = func(key string) string {
+				if key == profileEnvName {
+					return scenario.envProfile
+				}
+				return ""
+			}
+			deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+				return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+			}
+			deps.processAlive = func(int) bool { return true }
+			args := append([]string{"extension", "install", dir, "--allow-unverified", "--yes"}, scenario.flags...)
+			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+				t.Fatal(err)
+			}
+			for _, request := range []*InstallExtensionRequest{previewed, installed} {
+				if request == nil || request.Scope != scenario.wantScope || request.WorkspaceID != scenario.wantWorkspace || request.Profile != scenario.wantProfile {
+					t.Fatalf("forwarded request = %#v", request)
+				}
+			}
+		})
+	}
 
 	dir := writeExtensionFixture(t, "online-install-ext", extensionFixtureOptions{})
 	var captured InstallExtensionRequest

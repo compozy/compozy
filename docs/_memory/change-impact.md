@@ -421,3 +421,13 @@ Task02 site data and docs cut: the public catalog reads the single v3 extension/
 Task03 input ownership naming: requires_env bindings and optional expected_digest remain current supported extension behavior. Reader/helper comments now name those mechanisms directly rather than marking them legacy. No public DTO, config, persistence, runtime behavior or QA contract changes in this editorial/refactor slice; focused binder, lifecycle, readiness and SQLite input suites pass. Public scoped-install propagation remains pending in task03/04.
 
 Task03 managed acquisition scope: MarketplaceInstallRequest carries the existing InstallationScope into registry persistence. Actual archive/SQLite install/update cases prove exact attachment retention (including created_at) and package/row cleanup for a nonexistent profile. Empty scope retains existing global/all-profiles installation. No public DTO/native tool, config, credential, generated client or Web change yet; daemon request/binder/status propagation remains pending. This reuses migration00113 attachment authority and creates no new storage shape.
+
+Task03 public install scope: CLI install/preview, HTTP/UDS InstallExtensionRequest and the native
+extensions_install schema now forward scope/workspace_id/profile to the existing attachment,
+input binder and status owners. Explicit CLI profile overrides COMPOZY_PROFILE; omitted operator
+profile preserves all-profile attachment, while agents stay in their trusted workspace/profile.
+Input schemas and docs accept only owned vault:extensions references, removing the retired manual
+MCP import promise. OpenAPI, Web DTOs, native catalog, CLI help and official skill co-ship. No
+config, hook, SDK extension protocol or database shape changes. ET-extension-published-source-installs
+is untested for final09/10. Manifest default_scope selection, scoped updates, workspace runtime and
+UI remain task03/04 work; this slice proves explicit install selectors, not those remaining outcomes.

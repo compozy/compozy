@@ -13,6 +13,7 @@ import (
 )
 
 type preparedDaemonExtensionInstall struct {
+	target   extensionInstallTarget
 	name     string
 	digest   string
 	manifest *extensionpkg.Manifest
@@ -32,6 +33,7 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 	installedBy string,
+	target extensionInstallTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
@@ -42,11 +44,11 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 
 	switch req.Source {
 	case contract.InstallExtensionSourceLocalPath:
-		return s.prepareLocalExtensionInstall(req, installedBy)
+		return s.prepareLocalExtensionInstall(req, installedBy, target)
 	case contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit:
-		return s.preparePublishedExtensionInstall(ctx, req, actor, installedBy)
+		return s.preparePublishedExtensionInstall(ctx, req, actor, installedBy, target)
 	default:
 		return preparedDaemonExtensionInstall{}, fmt.Errorf(
 			"daemon: unsupported extension install source %q",
@@ -62,6 +64,7 @@ func normalizedInstallSource(source contract.InstallExtensionSource) contract.In
 func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	req contract.InstallExtensionRequest,
 	installedBy string,
+	target extensionInstallTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	manifest, err := extensionpkg.LoadManifest(req.Ref)
 	if err != nil {
@@ -86,7 +89,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
 	return preparedDaemonExtensionInstall{
-		name: manifest.Name, manifest: manifest, digest: checksum,
+		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
 		commit: func() error {
 			return extensionpkg.InstallLocalManaged(
 				s.homePaths,
@@ -95,6 +98,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 				req.Ref,
 				checksum,
 				extensionpkg.WithInstallProvenance(provenance),
+				extensionpkg.WithInstallScope(target.scope),
 			)
 		},
 	}, nil
@@ -105,6 +109,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 	installedBy string,
+	target extensionInstallTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	if req.Source == contract.InstallExtensionSourceGit {
 		if err := validateDaemonGitInstallRef(req.Ref); err != nil {
@@ -115,6 +120,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	installReq.Scope = target.scope
 	installReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
 		verificationErr error,
@@ -136,7 +142,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 		digest = installReq.Trust.ArchiveDigestSHA256
 	}
 	return preparedDaemonExtensionInstall{
-		name: prepared.Name(), manifest: prepared.Manifest(),
+		name: prepared.Name(), manifest: prepared.Manifest(), target: target,
 		digest: digest,
 		commit: func() error {
 			_, commitErr := prepared.Commit()
