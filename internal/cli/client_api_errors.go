@@ -273,6 +273,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseProfileAPIError,
 			parseSkillExposureAPIError,
 			parseSkillSourceAPIError,
+			parseMarketplaceSourceAPIError,
 			parseCmdPaletteMutationAPIError,
 			parseCmdPaletteAPIError,
 			parseExtensionValidationAPIError,

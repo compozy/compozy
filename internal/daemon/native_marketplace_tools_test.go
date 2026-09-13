@@ -17,7 +17,8 @@ import (
 )
 
 type lateBootMarketplaceCatalog struct {
-	entry marketplacepkg.Entry
+	states []marketplacepkg.SourceState
+	entry  marketplacepkg.Entry
 }
 
 func lateBootMarketplaceEntry() marketplacepkg.Entry {
@@ -76,7 +77,10 @@ func (lateBootMarketplaceCatalog) Refresh(
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected Refresh call")
 }
 
-func (lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
+func (c lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
+	if c.states != nil {
+		return c.states, nil
+	}
 	return nil, errors.New("unexpected Status call")
 }
 
@@ -225,6 +229,30 @@ func (scopedLateBootExtensionService) StatusScoped(
 
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
+	t.Run("Should list experimental sources with diagnostics through the native registry", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MarketplaceCatalog: lateBootMarketplaceCatalog{states: []marketplacepkg.SourceState{
+				{Source: "compozy-catalog", SourceRef: "catalog:compozy", Kind: "feed", Enabled: true},
+				{Source: "team", SourceRef: "github:team/plugins", Kind: "custom", Enabled: false},
+			}},
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDMarketplaceSources, Input: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := result.Structured
+		var response contract.MarketplaceSourcesResponse
+		if err := json.Unmarshal(raw, &response); err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Sources) != 2 || response.Sources[1].State != "off" || response.Sources[1].Diagnostics == nil ||
+			response.Sources[0].Stability != "experimental" {
+			t.Fatalf("native sources = %s", raw)
+		}
+	})
 
 	t.Run("Should reject obsolete kind before catalog discovery", func(t *testing.T) {
 		t.Parallel()

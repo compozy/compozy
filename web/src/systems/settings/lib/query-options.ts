@@ -9,6 +9,7 @@ import {
   getSettingsHooksExtensions,
   getSettingsMemory,
   getSettingsNetwork,
+  getSettingsMarketplace,
   listSettingsNotificationPresets,
   getSettingsObservability,
   getSettingsPersona,
@@ -159,6 +160,16 @@ export function settingsNetworkOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("network"),
     queryFn: ({ signal }) => getSettingsNetwork(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsMarketplaceOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("marketplace"),
+    queryFn: ({ signal }) => getSettingsMarketplace(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

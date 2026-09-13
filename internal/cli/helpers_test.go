@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	listMarketplaceSourcesFn           func(context.Context) (contract.MarketplaceSourcesResponse, error)
 	searchSessionTranscriptFn          func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
 	getSessionOutlineFn                func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
 	statusFn                           func(context.Context) (StatusRecord, error)
@@ -4546,4 +4547,13 @@ func (s *stubClient) GetSessionOutline(
 		return s.getSessionOutlineFn(ctx, id)
 	}
 	return contract.SessionTranscriptOutlineResponse{}, errors.New("unexpected GetSessionOutline call")
+}
+
+func (s *stubClient) ListMarketplaceSources(ctx context.Context) (contract.MarketplaceSourcesResponse, error) {
+	if s.listMarketplaceSourcesFn != nil {
+		return s.listMarketplaceSourcesFn(ctx)
+	}
+	return contract.MarketplaceSourcesResponse{Sources: []contract.MarketplaceSourcePayload{{
+		Name: "compozy-catalog", Source: "catalog:compozy", Kind: "feed", Enabled: true,
+	}}}, nil
 }

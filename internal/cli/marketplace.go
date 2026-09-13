@@ -26,6 +26,7 @@ func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMarketplaceSearchCommand(deps))
 	cmd.AddCommand(newMarketplaceInfoCommand(deps))
 	cmd.AddCommand(newMarketplaceRefreshCommand(deps))
+	cmd.AddCommand(newMarketplaceSourcesCommand(deps))
 	return cmd
 }
 
@@ -172,7 +173,19 @@ func newMarketplaceRefreshCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, marketplaceRefreshBundle(response))
+			if err := writeCommandOutput(cmd, marketplaceRefreshBundle(response)); err != nil {
+				return err
+			}
+			failed := 0
+			for _, source := range response.Sources {
+				if source.Outcome == "failed" {
+					failed++
+				}
+			}
+			if failed > 0 && failed == len(response.Sources) {
+				return withCommandExitCode(1, errors.New("all marketplace sources failed to refresh"))
+			}
+			return nil
 		},
 	}
 	return cmd

@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
+export type SettingsMarketplaceSection = OperationResponse<"getSettingsMarketplace", 200>;
+export type SettingsUpdateMarketplaceRequest = OperationRequestBody<"updateSettingsMarketplace">;
 export type SettingsGeneralSection = OperationResponse<"getSettingsGeneral", 200>;
 export type SettingsPersonaSection = OperationResponse<"getSettingsPersona", 200>;
 export type SettingsPersonaFilter = NonNullable<OperationQuery<"getSettingsPersona">>;

@@ -40,9 +40,14 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     first?.error_class && catalogItems.length === 0
       ? new Error(first.error || `Catalog unavailable (${first.error_class})`)
       : null;
+  const catalogSections = (first?.sources ?? []).map(source => ({
+    ...source,
+    items: catalogItems.filter(item => item.source === source.name),
+  }));
   const updates = inventory.data.filter(item => item.updateAvailable);
   return {
     catalogItems,
+    catalogSections,
     installedItems: inventory.data,
     installedCount: inventory.data.length,
     updates,

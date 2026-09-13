@@ -4,6 +4,14 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 
 var marketplaceTools = []toolspkg.Descriptor{
 	nativeDescriptor(
+		toolspkg.ToolIDMarketplaceSources, "marketplace_sources", "Marketplace Sources",
+		"List configured plugin marketplace sources, enablement, counts, and diagnostics. Stability: experimental.",
+		`{"type":"object","properties":{},"additionalProperties":false}`,
+		toolspkg.RiskRead, true, false, false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMarketplace},
+		[]string{"marketplace", "sources", "plugins"}, []string{"marketplace sources", "list plugin sources"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDMarketplaceSearch,
 		"marketplace_search",
 		"Marketplace Search",

@@ -1,0 +1,39 @@
+{
+    "total": 1,
+    "revision": "catalog:42",
+    "stale": false,
+    "sources": [
+        {
+            "name": "team",
+            "kind": "custom",
+            "state": "ok",
+            "count": 1,
+            "last_read_at": "2026-09-13T00:00:00Z"
+        }
+    ],
+    "items": [
+        {
+            "source_ref": "github:acme/plugins",
+            "layout": "claude-plugin",
+            "installable": true,
+            "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "entry_id": "tool",
+            "name": "Tool",
+            "description": "Team engineering tools",
+            "version": "1.0.0",
+            "author": "acme",
+            "install_slug": "team/tool",
+            "source": "team",
+            "tier": "unverified",
+            "format": "declarative",
+            "installed": false,
+            "update_available": false,
+            "trust": {
+                "decision": "allowed_unverified",
+                "registry_tier": "unverified",
+                "checksum_verified": false,
+                "allow_unverified": true
+            }
+        }
+    ]
+}

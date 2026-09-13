@@ -10,3 +10,5 @@ export * from "./lib/marketplace-search";
 export * from "./lib/marketplace-installed-view";
 export * from "./types";
 export * from "./components";
+export * from "./adapters/marketplace-sources-api";
+export * from "./hooks/use-marketplace-sources";

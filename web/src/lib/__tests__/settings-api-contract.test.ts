@@ -31,6 +31,7 @@ describe("settings openapi contract", () => {
     expectTypeOf<GetSettingsGeneralResponse["section"]>().toEqualTypeOf<
       | "general"
       | "persona"
+      | "marketplace"
       | "memory"
       | "roles"
       | "skills"

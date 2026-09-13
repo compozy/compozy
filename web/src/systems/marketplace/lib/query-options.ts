@@ -1,3 +1,8 @@
+import {
+  listMarketplaceSources,
+  previewMarketplaceSource,
+} from "../adapters/marketplace-sources-api";
+import type { AddMarketplaceSourceRequest } from "../types";
 import { queryOptions } from "@tanstack/react-query";
 import { getMarketplaceCatalogEntry } from "../adapters/marketplace-api";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
@@ -27,5 +32,23 @@ export function marketplaceCatalogEntryOptions(
     queryFn: ({ signal }) => getMarketplaceCatalogEntry(options, signal),
     staleTime: MARKETPLACE_STALE_TIME,
     enabled: enabled && options.entryId.trim() !== "",
+  });
+}
+
+export function marketplaceSourcesOptions() {
+  return queryOptions({
+    queryKey: marketplaceKeys.sources(),
+    queryFn: ({ signal }) => listMarketplaceSources(signal),
+    staleTime: MARKETPLACE_STALE_TIME,
+  });
+}
+
+export function marketplaceSourcePreviewOptions(body: AddMarketplaceSourceRequest, enabled = true) {
+  return queryOptions({
+    queryKey: marketplaceKeys.sourcePreview(body.ref, body.name),
+    queryFn: ({ signal }) => previewMarketplaceSource(body, signal),
+    enabled: enabled && body.ref.trim() !== "",
+    retry: false,
+    staleTime: 0,
   });
 }

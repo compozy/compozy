@@ -29,6 +29,7 @@ type marketplaceRuntime struct {
 	config     compozyconfig.MarketplaceRuntimeConfig
 	presets    *marketplace.PresetDocument
 	presetPath string
+	homePaths  compozyconfig.HomePaths
 	stopped    bool
 }
 

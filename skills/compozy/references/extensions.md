@@ -320,3 +320,10 @@ acquisition and inputs preserves package and input/secret before-images without 
 A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
 display names do not participate in identity. Only an operator may associate an unclassified managed
 installation with a catalog entry. Publication failure restores the old package and selected input cell.
+
+
+For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
+selects the source index and pins the listed digest before preview and installation. Existing curated
+acquisition refs keep priority if the same spelling collides; `marketplace:team/tool` explicitly selects
+the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
+as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.

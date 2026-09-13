@@ -43,7 +43,9 @@ func prepareExtensionCLIInputs(
 	selected, err := runExtensionInstallAttempts(
 		plan.Attempts,
 		func(request InstallExtensionRequest) (InstallExtensionRequest, error) {
-			request.ExpectedDigest = strings.ToLower(strings.TrimSpace(flags.digest))
+			if strings.TrimSpace(flags.digest) != "" {
+				request.ExpectedDigest = strings.ToLower(strings.TrimSpace(flags.digest))
+			}
 			preview, types, err := extensionCLIInputMetadata(ctx, deps, request, len(flags.values) > 0)
 			if err != nil {
 				return InstallExtensionRequest{}, err
@@ -51,7 +53,9 @@ func prepareExtensionCLIInputs(
 			if preview != nil && request.ExpectedDigest == "" {
 				request.ExpectedDigest = preview.DigestSHA256
 			}
-			if request.Source == contract.InstallExtensionSourceCurated && request.ExpectedDigest == "" {
+			catalogInstall := request.Source == contract.InstallExtensionSourceCurated ||
+				request.Source == contract.InstallExtensionSourceMarketplace
+			if catalogInstall && request.ExpectedDigest == "" {
 				return InstallExtensionRequest{}, errors.New("cli: current extension listing has no acquisition digest")
 			}
 			request.Inputs, err = mergeExtensionInputFlags(values, flags.values, types)
@@ -85,7 +89,9 @@ func extensionCLIInputMetadata(
 		}
 		return &ExtensionInstallPreviewRecord{Name: prepared.Manifest.Name, DigestSHA256: prepared.Checksum}, types, nil
 	}
-	if request.Source != contract.InstallExtensionSourceCurated && !needsTypes {
+	if request.Source != contract.InstallExtensionSourceCurated &&
+		request.Source != contract.InstallExtensionSourceMarketplace &&
+		!needsTypes {
 		return nil, nil, nil
 	}
 	client, err := requireExtensionDaemonClient(ctx, deps)

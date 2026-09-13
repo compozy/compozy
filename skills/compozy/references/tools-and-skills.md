@@ -90,6 +90,21 @@ extension-provided MCP servers retain their existing behavior.
 
 ## Marketplace Discovery
 
+Source management is experimental: `compozy marketplace sources list|add|remove|refresh -o json`,
+`GET/POST/PATCH/DELETE /api/marketplace/sources`, and per-source `POST .../{name}/refresh` share the
+same daemon-owned global configuration. Add accepts `{ref, name?}`; `?dry_run=true` inspects without
+registering. PATCH takes `{enabled: boolean}`. Presets may be disabled but not removed; the Compozy
+feed stays enabled. The read-only `compozy__marketplace_sources` tool takes `{}` and returns the
+source list with state, counts, `stability: experimental`, and a `diagnostics` array.
+
+On `marketplace_source_exists`, use `suggested_name`; on `marketplace_source_name_retained`, inspect
+`retained_by` and choose another name or re-add the original ref. Reserved names cannot be reused.
+`marketplace_not_a_marketplace` includes `checked` paths. Sources above2MiB return
+`marketplace_document_too_large`; an unknown source returns `marketplace_source_not_found`.
+Disabling/removing a source never removes its installed extensions. A failed refresh returns the
+source's degraded state. CLI aggregate refresh fails only when all attempted sources fail.
+
+
 Marketplace in the app is one extension catalog at `/marketplace`; its installed shelf opens
 `/marketplace/installed`. Extension contents describe the included MCP servers, skills, tools, and
 other resources. Do not reconstruct kind-specific app paths.

@@ -3,11 +3,11 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func marketplaceOperations() []OperationSpec {
-	return []OperationSpec{
+	return append([]OperationSpec{
 		marketplaceListOperation(),
 		marketplaceCatalogEntryOperation(),
 		marketplaceRefreshOperation(),
-	}
+	}, marketplaceSourceOperations()...)
 }
 
 func marketplaceListOperation() OperationSpec {

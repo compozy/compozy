@@ -1,9 +1,11 @@
-# CH-agent-marketplace-parity: An agent acquires everything a human can, and the planes agree field-for-field
+# CH-agent-marketplace-parity: Manage sources and acquire extensions across structured planes
+
+Mission updated for the approved Marketplace hard cut. Historical debriefs stay in their dated reports; task_10 owns the next run.
 
 ```yaml
 charter:
   id: CH-agent-marketplace-parity
-  mission: "As Ada — no web UI, no TTY, no browser — walk discovery and acquisition through their supported structured planes: CLI JSON, HTTP, and UDS for lifecycle operations, plus compozy__marketplace_search for discovery. Prove those planes report the same daemon-owned state, every error is deterministic, and a rejected install provably writes nothing (the born-valid anchor on the agent plane)."
+  mission: "Manage sources and acquire extensions across structured planes, with truthful origin, destination and persisted state."
   mode: charter-with-tour
   persona:
     name: Ada
@@ -11,25 +13,14 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-agent-marketplace-parity
-  scenarios: [ET-api-marketplace-namespace, ET-cli-marketplace-search, ET-cli-marketplace-info, ET-cli-marketplace-refresh, ET-cli-mcp-install, ET-api-mcp-catalog-install, ET-cli-mcp-authorize, ET-002, ET-007, ET-008, ET-016, ET-ext-inventory, ET-ext-preview, ET-049]
+  scenarios: [ET-cli-marketplace-sources, ET-api-marketplace-sources, ET-cli-marketplace-search, ET-cli-marketplace-info, ET-cli-marketplace-refresh]
   tour: Feature Tour
-  time_box_minutes: 90
+  time_box_minutes: 60
   guidance:
     must_try:
-      - "For one daemon state, capture `compozy marketplace search -o json` (idle and queried), the HTTP and UDS responses, and the compozy__marketplace_search result: grouped kind order fixed (mcp/extension/skill), totals only where real, installed/update fields identical across the four discovery planes. Do not infer native mutation support from this read-only tool."
-      - "Resolve info by an entry whose display name differs from entry_id; then probe unknown kind, unknown entry, blank segments, invalid limit — each error deterministic (400/404) and identical across CLI/HTTP/UDS; confirm the deleted legacy browse routes return 404."
-      - "Exercise the focused projections explicitly: `compozy skill search <query> -o json`, resolve the selected entry with `compozy skill info <entry_id> -o json`, install it and read effective metadata with `compozy skill inspect <installed-name> -o json`, then run `compozy extension search <query> -o json`. Compare each response with its unified namespace or installed-lifecycle owner."
-      - "Install a curated MCP entry twice: once complete (typed + vault-ref values, next_step correct, provenance stamped, refs visible without values) and once missing a required value or overriding a locked template field — the rejection must leave config, vault, and provenance provably untouched on fresh reads."
-      - "Install the same entry into two workspaces and authorize both via `compozy mcp auth login`: distinct scoped tokens AND distinct canonical secret_env refs per workspace; each login command exits non-zero unless its exact target reaches authenticated && token_present."
-      - "Run `compozy extension inventory` and `compozy extension preview` against the same installed extension exercised through HTTP, UDS, and native tools: shipped/live inventory agrees and preview writes nothing."
-      - "Refresh with an isolated feed: per-kind structured outcomes for MCP, extension, and skill; an unsupported kind is rejected without projection mutation; a downed feed is stale-marked while installed-item management still works."
-      - "Confirm `compozy__marketplace_search` is registered and callable with search behavior mirroring HTTP/UDS, verify every other compozy__* ID explicitly named by an in-scope scenario is registered and callable for its own documented contract (ET-049), and scan all structured output, events, and logs for plaintext secrets or OAuth material."
+      - "Compare source list and catalog discovery on CLI, HTTP, UDS and their read-only native tools; validate experimental metadata and arrays."
+      - "Dry-run, add, toggle, refresh and remove a local fixture source; compare structured errors and prove rejected requests leave registration and installation unchanged."
+      - "Install a source plugin with its listed digest and compare inventory and origin across supported planes; retain baseline curated owner/repo selection and reject source-name takeover."
     must_avoid:
-      - "Web surfaces entirely; extension policy administration beyond reading diagnostics (CH-extension-policy-admin-gates); manual paste-back completion (CH-remote-operator-manual-auth)."
-  evidence_expectations:
-    - "Field-level diff artifacts by supported plane: CLI vs HTTP vs UDS vs native for search and extension kit reads; CLI vs HTTP vs UDS for info, install result, and auth status — the SD-011 parity proof."
-    - "For each rejected install: the deterministic error payload plus fresh config/vault/provenance reads proving zero residue — the agent-plane born-valid capture."
-    - "The two-workspace isolation reads (tokens and secret_env refs) and the redaction scan notes."
+      - "Do not use retired per-kind Marketplace acquisition as a fallback or expose credentials in evidence."
 ```
-
-<!-- The charter is durable and immutable: each run's debrief belongs in that run's dated report. -->

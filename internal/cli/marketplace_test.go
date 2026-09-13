@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,6 +14,42 @@ import (
 
 func TestMarketplaceCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose experimental help and fail refresh only when every source failed", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{{"marketplace", "sources", "--help"}, {"marketplace", "sources", "add", "--help"}} {
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...)
+			if err != nil || !strings.Contains(stdout, "Stability: experimental") {
+				t.Fatalf("source help = %q, %v", stdout, err)
+			}
+		}
+		for _, success := range []bool{false, true} {
+			rows := []contract.MarketplaceRefreshSourcePayload{{Source: "team", Outcome: "failed"}}
+			if success {
+				rows = append(
+					rows,
+					contract.MarketplaceRefreshSourcePayload{Source: "compozy-catalog", Outcome: "succeeded"},
+				)
+			}
+			deps := newWorkspaceTestDeps(
+				t,
+				&stubClient{refreshMarketplaceFn: func(context.Context) (MarketplaceRefreshRecord, error) {
+					return MarketplaceRefreshRecord{Sources: rows}, nil
+				}},
+			)
+			stdout, _, err := executeRootCommand(t, deps, "marketplace", "refresh", "-o", "json")
+			if (err == nil) != success {
+				t.Fatalf("refresh success=%v: %v", success, err)
+			}
+			var response contract.MarketplaceRefreshResponse
+			if decodeErr := json.Unmarshal(
+				[]byte(stdout),
+				&response,
+			); decodeErr != nil ||
+				len(response.Sources) != len(rows) {
+				t.Fatalf("refresh lost outcomes: %s, %v", stdout, decodeErr)
+			}
+		}
+	})
 
 	t.Run("Should render catalog search as the shared JSON contract", func(t *testing.T) {
 		t.Parallel()
@@ -412,6 +450,68 @@ func TestMarketplaceCommands(t *testing.T) {
 			}
 			if err == nil || !strings.Contains(err.Error(), want) {
 				t.Fatalf("retired command error = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
+// Invariant: source failures retain actionable wire fields and invalid input exits 2.
+// Owner: CLI API decoding and error output; canonical Marketplace suite.
+func TestMarketplaceSourceErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"Should render a suggested name", http.StatusConflict, `{"error":"Name exists","code":"marketplace_source_exists","suggested_name":"team-2"}`},
+		{"Should render retained instances", http.StatusConflict, `{"error":"Name retained","code":"marketplace_source_name_retained","retained_by":["tool"]}`},
+		{"Should render checked document paths", http.StatusUnprocessableEntity, `{"error":"Not a marketplace","code":"marketplace_not_a_marketplace","checked":["marketplace.json",".claude-plugin/marketplace.json"]}`},
+		{"Should reject an invalid source name", http.StatusUnprocessableEntity, `{"error":"Invalid name","code":"marketplace_source_name_invalid"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			matched, err := parseMarketplaceSourceAPIError(tc.status, http.StatusText(tc.status), []byte(tc.body))
+			if !matched || err == nil {
+				t.Fatal("source error not recognized")
+			}
+			var output bytes.Buffer
+			if code := writeExecutionError(
+				&output,
+				[]string{"marketplace", "sources", "add", "fixture", "-o", "json"},
+				err,
+			); code != 2 {
+				t.Fatalf("exit = %d, output = %s", code, &output)
+			}
+			var got, want contract.MarketplaceSourceErrorPayload
+			if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("error metadata lost: %+v", got)
+			}
+		})
+	}
+}
+
+// Invariant: config source addressing preserves the full registered name, including dots.
+// Owner: CLI config path decoder; canonical Marketplace CLI suite.
+func TestMarketplaceSourceConfigPath(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"team", "team.plugins"} {
+		t.Run("Should preserve "+name, func(t *testing.T) {
+			t.Parallel()
+			path, kind, redacted, err := configMutationPath("marketplace.plugin_sources." + name + ".enabled")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(path, []string{"marketplace", "plugin_sources", name, "enabled"}) ||
+				kind != configSetBool ||
+				redacted {
+				t.Fatalf("source config path = %#v, %v, %v", path, kind, redacted)
 			}
 		})
 	}

@@ -440,3 +440,13 @@ export type {
 } from "./lib/mcp-override-model";
 
 export { useMCPDefinitionAuthorization } from "./hooks/use-mcp-definition-authorization";
+
+export {
+  getSettingsMarketplace,
+  updateSettingsMarketplace,
+} from "./adapters/settings-marketplace-api";
+export {
+  useSettingsMarketplace,
+  useUpdateSettingsMarketplace,
+} from "./hooks/use-settings-marketplace";
+export { settingsMarketplaceOptions } from "./lib/query-options";

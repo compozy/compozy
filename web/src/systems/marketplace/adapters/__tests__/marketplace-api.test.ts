@@ -1,3 +1,11 @@
+import {
+  listMarketplaceSources,
+  previewMarketplaceSource,
+  addMarketplaceSource,
+  updateMarketplaceSource,
+  removeMarketplaceSource,
+  refreshMarketplaceSource,
+} from "../marketplace-sources-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
@@ -282,5 +290,94 @@ describe("marketplace batch update transport", () => {
     mockJsonResponse(response);
     await expect(updateMarketplaceExtensions(body)).resolves.toEqual(response);
     await expectFetchRequest({ path: "/api/extensions/update", method: "POST", body });
+  });
+});
+
+// Invariant: global source requests retain the server envelope and actionable error metadata.
+// Owner: Marketplace API adapter; canonical acquisition transport suite.
+describe("marketplace source transport", () => {
+  const source = {
+    name: "team",
+    kind: "custom",
+    source: "github:team/plugins",
+    enabled: true,
+    state: "ok",
+    plugins: 2,
+    installable: 1,
+    stability: "experimental",
+    diagnostics: [],
+  };
+  it("Should preserve source ordering and diagnostics without adding workspace scope", async () => {
+    const body = { sources: [source] };
+    mockJsonResponse(body);
+    const controller = new AbortController();
+    await expect(listMarketplaceSources(controller.signal)).resolves.toEqual(body);
+    await expectFetchRequest({ method: "GET", path: "/api/marketplace/sources" });
+  });
+  it("Should keep preview and registration responses distinct", async () => {
+    const body = { ref: "team/plugins", name: "team" };
+    const preview = {
+      name: "team",
+      plugins: 2,
+      installable: 1,
+      diagnostics: [],
+      document_path: "marketplace.json",
+    };
+    mockJsonResponse(preview);
+    await expect(previewMarketplaceSource(body)).resolves.toEqual(preview);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/marketplace/sources?dry_run=true",
+      body,
+    });
+    mockJsonResponse({ source }, { status: 201 });
+    await expect(addMarketplaceSource(body)).resolves.toEqual({ source });
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: "/api/marketplace/sources",
+      body,
+    });
+  });
+  it("Should send an explicit false toggle and support refresh and removal", async () => {
+    mockJsonResponse({ source: { ...source, enabled: false, state: "off" } });
+    await updateMarketplaceSource("team", { enabled: false });
+    await expectFetchRequest({
+      method: "PATCH",
+      path: "/api/marketplace/sources/team",
+      body: { enabled: false },
+    });
+    mockJsonResponse({ source });
+    await refreshMarketplaceSource("team");
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: "/api/marketplace/sources/team/refresh",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(removeMarketplaceSource("team")).resolves.toBeUndefined();
+    await expectFetchRequest({
+      callIndex: 2,
+      method: "DELETE",
+      path: "/api/marketplace/sources/team",
+    });
+  });
+  it.each([
+    [{ code: "marketplace_source_name_retained", retained_by: ["tool"] }, { retainedBy: ["tool"] }],
+    [{ code: "marketplace_source_exists", suggested_name: "team-2" }, { suggestedName: "team-2" }],
+    [
+      {
+        code: "marketplace_not_a_marketplace",
+        checked: ["marketplace.json", ".claude-plugin/marketplace.json"],
+      },
+      { checked: ["marketplace.json", ".claude-plugin/marketplace.json"] },
+    ],
+  ])("Should retain structured source errors: %s", async (body, expected) => {
+    mockJsonResponse({ error: "Source rejected", ...body }, { status: 409 });
+    await expect(addMarketplaceSource({ ref: "team/plugins" })).rejects.toMatchObject({
+      status: 409,
+      diagnosticCode: body.code,
+      ...expected,
+    });
   });
 });

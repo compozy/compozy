@@ -20,6 +20,20 @@ type registeredSource struct {
 	lastAttempt time.Time
 }
 
+// ValidateSources checks a candidate without publishing source membership or changing generations.
+func (s *CatalogService) ValidateSources(ctx context.Context, sources []SourceBinding) error {
+	if err := s.checkReady(ctx); err != nil {
+		return err
+	}
+	bindings, err := validateSourceBindings(sources)
+	if err != nil {
+		return err
+	}
+	s.sourceMu.RLock()
+	defer s.sourceMu.RUnlock()
+	return s.checkRetainedSourceNames(ctx, bindings)
+}
+
 // SetSources serializes configuration publication with every refresh commit and projection read.
 func (s *CatalogService) SetSources(ctx context.Context, sources []SourceBinding) error {
 	return s.configureSources(ctx, sources, 0, 0)

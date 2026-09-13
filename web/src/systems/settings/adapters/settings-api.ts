@@ -56,3 +56,5 @@ export {
   triggerSettingsRestart,
 } from "./settings-operations-api";
 export { getRolesStatus, getSettingsRoles, updateSettingsRoles } from "./settings-roles-api";
+
+export { getSettingsMarketplace, updateSettingsMarketplace } from "./settings-marketplace-api";

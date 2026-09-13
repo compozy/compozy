@@ -665,3 +665,22 @@ those holds release, retains every pin and reports capacity pressure. Browse/det
 availability; blocked detail retains projected contents without reacquiring. No public DTO, schema or
 manual-state change. Refresh, eviction, budget and acquisition mismatch logs use existing structured
 logging, separate from canonical notifier events. Task10 owns the remaining live/visual QA.
+
+
+Marketplace task08 sources: experimental HTTP/UDS source list/add/preview/toggle/remove/refresh,
+CLI sources commands and aggregate failure semantics, read-only compozy__marketplace_sources.
+Runtime owns global comment-preserving config edits, source-name retention, loader preview and
+refresh diagnostics. Native tools and Web share source payload conversion; generated OpenAPI/TS
+and tool catalog co-ship. Web adapters/query envelopes preserve global order and detailed errors.
+Existing extension acquisition refs keep priority; explicit marketplace: CLI refs select plugins.
+No hook/bridge SDK change; manual MCPs, installed skills, extension lifecycle/credentials/rollback
+remain protected. Source UI and final QA scenarios are task08/task10; API docs use the existing
+OpenAPI-generated marketplace page rather than introducing a duplicate hand-maintained API reference.
+
+Task08 catalog Settings co-ships GET/PATCH /api/settings/marketplace, global catalog URL/TTL/timeout
+editing through the existing Settings apply owner, and generated lifecycle metadata for live source
+changes. CLI config set marketplace.plugin_sources.<name>.enabled uses the source mutation owner.
+Source API errors retain suggested_name/retained_by/checked in CLI structured output; invalid source
+input exits 2. Catalog section view data preserves authoritative source order/counts independently
+of query matches. QA acquisition/parity journeys and source scenarios now follow the hard cut;
+existing extension instance removal keeps baseline exclusive-secret cleanup and shared-state safety.

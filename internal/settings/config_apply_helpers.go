@@ -75,6 +75,8 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 			return lifecycle.Live
 		}
 		return s.classifyAttentionRequest(ctx, req)
+	case SectionMarketplace:
+		return lifecycle.Live
 	case SectionShell:
 		return lifecycleForChangedPaths([]string{"shell.sessions.sort", "shell.sessions.scope"}, lifecycle.Live)
 	default:

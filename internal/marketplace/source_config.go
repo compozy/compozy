@@ -16,6 +16,16 @@ const (
 
 var ErrSourceExists = errors.New("marketplace_source_exists")
 
+var ErrSourcePresetReadonly = errors.New("marketplace_source_preset_readonly")
+
+type SourceExistsError struct {
+	Name          string
+	SuggestedName string
+}
+
+func (e *SourceExistsError) Error() string { return fmt.Sprintf("%s: %s", ErrSourceExists, e.Name) }
+func (e *SourceExistsError) Unwrap() error { return ErrSourceExists }
+
 type ResolvedSource struct {
 	Revision    string
 	Name        string

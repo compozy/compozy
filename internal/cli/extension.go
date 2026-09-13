@@ -159,6 +159,10 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 				plan.Attempts[index].Profile = selected.profile
 				plan.Attempts[index].ConfirmNetworkDigest = strings.TrimSpace(confirmNetworkDigest)
 			}
+			plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
+			if err != nil {
+				return err
+			}
 			plan, preview, err := prepareExtensionCLIInputs(cmd.Context(), deps, plan, inputs)
 			if err != nil {
 				return err

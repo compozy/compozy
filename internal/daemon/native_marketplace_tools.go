@@ -23,6 +23,7 @@ func (n *daemonNativeTools) marketplaceToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDMarketplaceSources: {call: n.marketplaceSources, availability: availability},
 		toolspkg.ToolIDMarketplaceSearch: {
 			call:         n.marketplaceSearch,
 			availability: availability,
@@ -145,4 +146,31 @@ func marketplaceNativeError(id toolspkg.ToolID, err error) error {
 	default:
 		return err
 	}
+}
+
+func (n *daemonNativeTools) marketplaceSources(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if n == nil || n.deps == nil {
+		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, core.ErrMarketplaceUnavailable)
+	}
+	service, ok := n.deps.MarketplaceCatalog.(core.MarketplaceSourcesReader)
+	if !ok {
+		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, core.ErrMarketplaceUnavailable)
+	}
+	states, err := service.Status(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
+	}
+	response := contract.MarketplaceSourcesResponse{Sources: make([]contract.MarketplaceSourcePayload, 0, len(states))}
+	for _, state := range states {
+		response.Sources = append(response.Sources, core.MarketplaceSourcePayloadFromState(state))
+	}
+	return structuredResult(response, fmt.Sprintf("%d marketplace sources (experimental)", len(states)))
 }

@@ -16,6 +16,9 @@ function scopeIdentity(
 
 export const marketplaceKeys = {
   all: ["marketplace"] as const,
+  sources: () => [...marketplaceKeys.all, "sources"] as const,
+  sourcePreview: (ref: string, name?: string) =>
+    [...marketplaceKeys.all, "source-preview", ref.trim(), name?.trim() ?? ""] as const,
   catalog: (options: MarketplaceCatalogOptions = {}) =>
     [
       ...marketplaceKeys.all,

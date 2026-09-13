@@ -104545,6 +104545,2225 @@
         ]
       }
     },
+    "/api/marketplace/sources": {
+      "get": {
+        "operationId": "listMarketplaceSources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "sources": {
+                      "items": {
+                        "properties": {
+                          "diagnostics": {
+                            "items": {
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "data_freshness": {
+                                  "type": "string"
+                                },
+                                "doc_url": {
+                                  "type": "string"
+                                },
+                                "evidence": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                },
+                                "severity": {
+                                  "type": "string"
+                                },
+                                "suggested_command": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "category",
+                                "code",
+                                "data_freshness",
+                                "id",
+                                "message",
+                                "severity",
+                                "title"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "document_path": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "error_class": {
+                            "type": "string"
+                          },
+                          "installable": {
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "last_read_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "owner": {
+                            "type": "string"
+                          },
+                          "plugins": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "stability": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "diagnostics",
+                          "enabled",
+                          "installable",
+                          "kind",
+                          "name",
+                          "plugins",
+                          "source",
+                          "stability",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "sources"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Configured sources"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Mutation forbidden or preset removal refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source name already exists or is retained by installed extensions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source reference, name, or document rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source unavailable"
+          }
+        },
+        "summary": "List global plugin marketplace sources",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      },
+      "post": {
+        "operationId": "addMarketplaceSource",
+        "parameters": [
+          {
+            "description": "Inspect packages without registering the source",
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostics": {
+                      "items": {
+                        "properties": {
+                          "category": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "data_freshness": {
+                            "type": "string"
+                          },
+                          "doc_url": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string"
+                          },
+                          "suggested_command": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "code",
+                          "data_freshness",
+                          "id",
+                          "message",
+                          "severity",
+                          "title"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "document_path": {
+                      "type": "string"
+                    },
+                    "installable": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string"
+                    },
+                    "plugins": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "diagnostics",
+                    "document_path",
+                    "installable",
+                    "name",
+                    "plugins"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source preview"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "source": {
+                      "properties": {
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "document_path": {
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "error_class": {
+                          "type": "string"
+                        },
+                        "installable": {
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "last_read_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string"
+                        },
+                        "plugins": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "stability": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "diagnostics",
+                        "enabled",
+                        "installable",
+                        "kind",
+                        "name",
+                        "plugins",
+                        "source",
+                        "stability",
+                        "state"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Registered source"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Mutation forbidden or preset removal refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source name already exists or is retained by installed extensions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source reference, name, or document rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source unavailable"
+          }
+        },
+        "summary": "Validate or register a plugin marketplace source",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
+    "/api/marketplace/sources/{name}": {
+      "delete": {
+        "operationId": "removeMarketplaceSource",
+        "parameters": [
+          {
+            "description": "Custom source name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Source removed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Mutation forbidden or preset removal refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source name already exists or is retained by installed extensions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source reference, name, or document rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source unavailable"
+          }
+        },
+        "summary": "Remove a custom source without removing installed extensions",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      },
+      "patch": {
+        "operationId": "updateMarketplaceSource",
+        "parameters": [
+          {
+            "description": "Registered source name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "enabled": {
+                    "nullable": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "source": {
+                      "properties": {
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "document_path": {
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "error_class": {
+                          "type": "string"
+                        },
+                        "installable": {
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "last_read_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string"
+                        },
+                        "plugins": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "stability": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "diagnostics",
+                        "enabled",
+                        "installable",
+                        "kind",
+                        "name",
+                        "plugins",
+                        "source",
+                        "stability",
+                        "state"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Updated source"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Mutation forbidden or preset removal refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source name already exists or is retained by installed extensions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source reference, name, or document rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source unavailable"
+          }
+        },
+        "summary": "Enable or disable a plugin marketplace source",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
+    "/api/marketplace/sources/{name}/refresh": {
+      "post": {
+        "operationId": "refreshMarketplaceSource",
+        "parameters": [
+          {
+            "description": "Registered source name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "source": {
+                      "properties": {
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "document_path": {
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "error_class": {
+                          "type": "string"
+                        },
+                        "installable": {
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "last_read_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string"
+                        },
+                        "plugins": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "stability": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "diagnostics",
+                        "enabled",
+                        "installable",
+                        "kind",
+                        "name",
+                        "plugins",
+                        "source",
+                        "stability",
+                        "state"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Current source state, including degraded refresh"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Mutation forbidden or preset removal refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source name already exists or is retained by installed extensions"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source reference, name, or document rejected"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "checked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "retained_by": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Source unavailable"
+          }
+        },
+        "summary": "Refresh one enabled marketplace source",
+        "tags": [
+          "marketplace"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
     "/api/mcp/oauth/callback": {
       "get": {
         "operationId": "completeMCPAuthCallback",
@@ -115473,6 +117692,7 @@
                             "shell",
                             "observability",
                             "hooks-extensions",
+                            "marketplace",
                             "providers",
                             "mcp-servers",
                             "sandboxes",
@@ -151149,7 +153369,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -151684,6 +153905,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -152261,7 +154483,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -152552,6 +154775,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -153006,7 +155230,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -153383,7 +155608,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -154108,7 +156334,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -154530,6 +156757,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -156265,7 +158493,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -156676,6 +158905,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -157218,6 +159448,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -158020,6 +160251,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -158376,6 +160608,704 @@
           }
         },
         "summary": "Create or replace one settings-backed hook declaration",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/marketplace": {
+      "get": {
+        "operationId": "getSettingsMarketplace",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "available_scopes": {
+                      "items": {
+                        "enum": [
+                          "user"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "config": {
+                      "properties": {
+                        "base_url": {
+                          "type": "string"
+                        },
+                        "timeout": {
+                          "type": "string"
+                        },
+                        "ttl": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "base_url",
+                        "timeout",
+                        "ttl"
+                      ],
+                      "type": "object"
+                    },
+                    "scope": {
+                      "enum": [
+                        "user"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "persona",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "cmd-palette",
+                        "attention",
+                        "shell",
+                        "observability",
+                        "hooks-extensions",
+                        "marketplace"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "available_scopes",
+                    "config",
+                    "scope",
+                    "section"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Catalog settings"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read global marketplace catalog settings",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSettingsMarketplace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "config": {
+                    "properties": {
+                      "base_url": {
+                        "type": "string"
+                      },
+                      "timeout": {
+                        "type": "string"
+                      },
+                      "ttl": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "base_url",
+                      "timeout",
+                      "ttl"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "config"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "active_config_hash": {
+                      "type": "string"
+                    },
+                    "active_generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "agent_name": {
+                      "type": "string"
+                    },
+                    "applied": {
+                      "type": "boolean"
+                    },
+                    "apply_record_id": {
+                      "type": "string"
+                    },
+                    "lifecycle": {
+                      "enum": [
+                        "live",
+                        "live-add",
+                        "live-remove-if-unused",
+                        "restart-required",
+                        "session-rebind"
+                      ],
+                      "type": "string"
+                    },
+                    "next_action": {
+                      "enum": [
+                        "none",
+                        "restart-daemon",
+                        "new-session",
+                        "retry"
+                      ],
+                      "type": "string"
+                    },
+                    "partial_failures": {
+                      "items": {
+                        "properties": {
+                          "diagnostic": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "subsystem": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "diagnostic",
+                          "subsystem"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "profile": {
+                      "type": "string"
+                    },
+                    "restart_required": {
+                      "type": "boolean"
+                    },
+                    "restart_scope": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "enum": [
+                        "user",
+                        "profile",
+                        "workspace",
+                        "agent"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "persona",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "cmd-palette",
+                        "attention",
+                        "shell",
+                        "observability",
+                        "hooks-extensions",
+                        "marketplace",
+                        "providers",
+                        "mcp-servers",
+                        "sandboxes",
+                        "hooks"
+                      ],
+                      "type": "string"
+                    },
+                    "skipped": {
+                      "type": "boolean"
+                    },
+                    "skipped_reason": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    },
+                    "write_target": {
+                      "enum": [
+                        "global-config",
+                        "profile-config",
+                        "workspace-config",
+                        "global-mcp-sidecar",
+                        "profile-mcp-sidecar",
+                        "workspace-mcp-sidecar",
+                        "global-agent-file",
+                        "workspace-agent-file"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "active_config_hash",
+                    "active_generation",
+                    "applied",
+                    "apply_record_id",
+                    "lifecycle",
+                    "next_action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Applied settings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid settings payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflicting settings change"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Apply global marketplace catalog URL, TTL, and timeout",
         "tags": [
           "settings"
         ],
@@ -159250,6 +162180,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -160650,6 +163581,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -163791,7 +166723,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -164488,6 +167421,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -165053,7 +167987,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -165412,6 +168347,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -165913,7 +168849,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -166211,6 +169148,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -166765,7 +169703,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -167225,6 +170164,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -168675,6 +171615,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -170314,6 +173255,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -170816,6 +173758,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -171850,7 +174793,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -172813,6 +175757,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -173681,6 +176626,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -174628,6 +177574,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -175065,7 +178012,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     }
@@ -175354,6 +178302,7 @@
                         "shell",
                         "observability",
                         "hooks-extensions",
+                        "marketplace",
                         "providers",
                         "mcp-servers",
                         "sandboxes",
@@ -176018,7 +178967,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -176974,7 +179924,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -179291,7 +182242,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },
@@ -179970,6 +182922,7 @@
                             "shell",
                             "observability",
                             "hooks-extensions",
+                            "marketplace",
                             "providers",
                             "mcp-servers",
                             "sandboxes",
@@ -180379,7 +183332,8 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions"
+                        "hooks-extensions",
+                        "marketplace"
                       ],
                       "type": "string"
                     },

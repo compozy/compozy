@@ -1,0 +1,50 @@
+---
+title: "compozy marketplace sources add"
+description: "Add a GitHub repository, HTTPS git source, or absolute folder"
+---
+
+## compozy marketplace sources add
+
+Add a GitHub repository, HTTPS git source, or absolute folder
+
+### Synopsis
+
+Validate and add a plugin marketplace.
+
+Stability: experimental through v0.6.0.
+
+```
+compozy marketplace sources add <ref> [flags]
+```
+
+### Options
+
+```
+  -h, --help          help for add
+      --name string   Choose a source name
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy marketplace sources add <ref> -o json
+```

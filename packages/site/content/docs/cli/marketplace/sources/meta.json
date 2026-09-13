@@ -1,0 +1,4 @@
+{
+    "title": "Sources",
+    "pages": ["index", "add", "list", "refresh", "remove"]
+}

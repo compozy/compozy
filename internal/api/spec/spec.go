@@ -242,6 +242,7 @@ const (
 
 // OperationSpec describes one canonical REST operation.
 type OperationSpec struct {
+	Stability   string
 	Method      string
 	Path        string
 	OperationID string

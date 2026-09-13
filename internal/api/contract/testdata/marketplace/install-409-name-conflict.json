@@ -1,0 +1,9 @@
+{
+    "installed_origin": {
+        "source": "team",
+        "source_ref": "github:acme/plugins",
+        "entry_id": "tool"
+    },
+    "error": "Extension name is already in use",
+    "code": "extension_name_conflict"
+}

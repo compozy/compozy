@@ -350,6 +350,10 @@ func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) 
 			segments[1] == configWindowManagerGlobalShortcutsKey) {
 		segments = []string{segments[0], segments[1], strings.Join(segments[2:], ".")}
 	}
+	if len(segments) > 4 && segments[0] == "marketplace" && segments[1] == "plugin_sources" &&
+		segments[len(segments)-1] == configEnabledKey {
+		segments = []string{segments[0], segments[1], strings.Join(segments[2:len(segments)-1], "."), configEnabledKey}
+	}
 	kind, redacted, err := classifyConfigMutationPath(segments)
 	if err != nil {
 		return nil, configSetString, false, err

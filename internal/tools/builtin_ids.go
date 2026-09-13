@@ -385,6 +385,8 @@ const (
 	ToolIDAutomationSuggestionsDismiss ToolID = "compozy__automation_suggestions_dismiss"
 	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
 	ToolIDMarketplaceSearch ToolID = "compozy__marketplace_search"
+	// ToolIDMarketplaceSources lists global experimental marketplace sources.
+	ToolIDMarketplaceSources ToolID = "compozy__marketplace_sources"
 	// ToolIDResourcesList lists desired-state resource records.
 	ToolIDResourcesList ToolID = "compozy__resources_list"
 	// ToolIDResourcesInfo reads one desired-state resource record.

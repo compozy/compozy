@@ -7,6 +7,8 @@ import {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   getSettingsGeneral,
+  getSettingsMarketplace,
+  updateSettingsMarketplace,
   getSettingsMCPServer,
   getSettingsCmdPalette,
   getSettingsObservability,
@@ -108,6 +110,32 @@ describe("SettingsApiError", () => {
 });
 
 describe("section reads and updates", () => {
+  // Invariant: catalog settings requests preserve the global payload and cancellation.
+  // Owner: settings adapter; canonical settings API suite.
+  it("reads and updates marketplace catalog settings", async () => {
+    const config = { base_url: "https://catalog.example", ttl: "2h", timeout: "17s" };
+    const envelope = { ...generalSectionFixture, section: "marketplace", config };
+    const signal = new AbortController().signal;
+    mockJsonResponse(envelope);
+    expect(await getSettingsMarketplace(signal)).toEqual(envelope);
+    await expectFetchRequest({ path: "/api/settings/marketplace", signal, callIndex: 0 });
+    const result = {
+      ...mutationFixture,
+      section: "marketplace",
+      applied: true,
+      restart_required: false,
+    };
+    mockJsonResponse(result);
+    expect(await updateSettingsMarketplace({ config }, signal)).toEqual(result);
+    await expectFetchRequest({
+      path: "/api/settings/marketplace",
+      method: "PATCH",
+      body: { config },
+      signal,
+      callIndex: 1,
+    });
+  });
+
   it("loads the general section envelope", async () => {
     mockJsonResponse(generalSectionFixture);
 

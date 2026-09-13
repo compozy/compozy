@@ -3,6 +3,8 @@ package contract_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -2421,5 +2423,48 @@ func assertJSONFieldAbsent(t *testing.T, payload map[string]any, field string) {
 
 	if _, exists := payload[field]; exists {
 		t.Fatalf("payload should not include %q: %#v", field, payload)
+	}
+}
+
+// Invariant: complete public Marketplace wire fixtures survive strict decoding and encoding byte-for-byte after JSON whitespace normalization.
+// Owner: API contract; canonical contract suite. Retired MCP acquisition has no success contract.
+func TestMarketplaceWireFixtures(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload any
+	}{
+		{"list.json", &contract.MarketplaceListResponse{}},
+		{"entry.json", &contract.MarketplaceEntryResponse{}},
+		{"sources.json", &contract.MarketplaceSourcesResponse{}},
+		{"install-request.json", &contract.InstallExtensionRequest{}},
+		{"install-201.json", &contract.ExtensionPayload{}},
+		{"install-409-source-changed.json", &contract.ExtensionOperationErrorPayload{}},
+		{"install-409-name-conflict.json", &contract.ExtensionOperationErrorPayload{}},
+		{"install-422-inputs.json", &contract.ExtensionOperationErrorPayload{}},
+	} {
+		t.Run("Should preserve "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(filepath.Join("testdata", "marketplace", tc.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(raw))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(tc.payload); err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var expected bytes.Buffer
+			if err := json.Compact(&expected, raw); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(encoded, expected.Bytes()) {
+				t.Fatalf("wire fixture changed: %s\n%s", tc.name, encoded)
+			}
+		})
 	}
 }

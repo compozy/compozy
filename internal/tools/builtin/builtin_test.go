@@ -1605,6 +1605,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__marketplace_search", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__marketplace_sources", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
@@ -3582,8 +3584,11 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(marketplace) error = %v", err)
 		}
-		if !slices.Equal(marketplace, []toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch}) {
-			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search", marketplace)
+		if !slices.Equal(
+			marketplace,
+			[]toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch, toolspkg.ToolIDMarketplaceSources},
+		) {
+			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search and sources", marketplace)
 		}
 
 		resourceTools, err := catalog.Expand(toolspkg.ToolsetIDResources, universe)

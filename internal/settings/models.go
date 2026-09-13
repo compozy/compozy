@@ -105,6 +105,7 @@ const (
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
 	SectionHooksExtensions SectionName = "hooks-extensions"
+	SectionMarketplace     SectionName = "marketplace"
 )
 
 // CollectionName names one collection-oriented settings resource.
@@ -207,6 +208,7 @@ type SectionRequest struct {
 
 // SectionUpdateRequest identifies one section mutation.
 type SectionUpdateRequest struct {
+	Marketplace *compozyconfig.MarketplaceCatalogConfig
 	SectionRequest
 	General                        *GeneralSettings
 	Persona                        *compozyconfig.DefaultsConfig
@@ -278,6 +280,7 @@ type CollectionItemDeleteRequest struct {
 
 // SectionEnvelope returns one typed section payload.
 type SectionEnvelope struct {
+	Marketplace     *compozyconfig.MarketplaceCatalogConfig
 	Section         SectionName
 	Scope           ScopeKind
 	WorkspaceID     string

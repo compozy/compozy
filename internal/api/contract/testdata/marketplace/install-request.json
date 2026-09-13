@@ -1,0 +1,9 @@
+{
+    "scope": "workspace",
+    "workspace_id": "workspace-1",
+    "profile": "default",
+    "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source": "marketplace",
+    "ref": "team/tool",
+    "allow_unverified": true
+}

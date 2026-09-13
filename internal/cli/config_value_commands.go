@@ -261,6 +261,9 @@ func runConfigSetCommand(
 	if err := validateSkillSourceConfigValue(target.Scope(), path, value); err != nil {
 		return err
 	}
+	if isMarketplaceSourceEnabledPath(path) {
+		return runMarketplaceSourceConfigSet(cmd, deps, target, path, value)
+	}
 	if kind == configSetLoopInput {
 		return runLoopInputConfigSet(cmd, deps, target, workspaceRoot, path, value)
 	}
@@ -278,16 +281,7 @@ func runConfigSetCommand(
 		workspace,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if kind == configSetTable || kind == configSetLoopInput {
-				table, ok := value.(map[string]any)
-				if ok {
-					return editor.SetTable(path, table)
-				}
-				if kind == configSetTable {
-					return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
-				}
-			}
-			return editor.SetValue(path, value)
+			return setConfigOverlayValue(editor, path, kind, value)
 		},
 	); err != nil {
 		return err
@@ -386,4 +380,22 @@ func configSetRecordForLocalWrite(
 		RestartRequired: lifecycle.RestartRequired,
 		RestartScope:    lifecycle.RestartScope,
 	}
+}
+
+func setConfigOverlayValue(
+	editor *compozyconfig.OverlayEditor,
+	path []string,
+	kind configSetValueKind,
+	value any,
+) error {
+	if kind == configSetTable || kind == configSetLoopInput {
+		table, ok := value.(map[string]any)
+		if ok {
+			return editor.SetTable(path, table)
+		}
+		if kind == configSetTable {
+			return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
+		}
+	}
+	return editor.SetValue(path, value)
 }

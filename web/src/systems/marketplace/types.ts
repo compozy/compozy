@@ -34,3 +34,10 @@ export interface MarketplaceCatalogEntryOptions extends MarketplaceScopeOptions 
 export type MarketplaceCatalogListing = MarketplaceCatalogResponse["items"][number];
 export type ExtensionBatchUpdateRequest = OperationRequestBody<"updateExtensions">;
 export type ExtensionBatchUpdateResponse = OperationResponse<"updateExtensions", 200>;
+
+export type MarketplaceSourcesResponse = OperationResponse<"listMarketplaceSources", 200>;
+export type MarketplaceSource = MarketplaceSourcesResponse["sources"][number];
+export type MarketplaceSourceResponse = OperationResponse<"addMarketplaceSource", 201>;
+export type MarketplaceSourcePreview = OperationResponse<"addMarketplaceSource", 200>;
+export type AddMarketplaceSourceRequest = OperationRequestBody<"addMarketplaceSource">;
+export type UpdateMarketplaceSourceRequest = OperationRequestBody<"updateMarketplaceSource">;

@@ -51,6 +51,10 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		testDaemonExtensionAttachments,
 	)
 	t.Run("Should isolate manual and extension OAuth through public transports [IT-021]", testDaemonExtensionMCPOwners)
+	t.Run(
+		"Should manage marketplace sources through public transports [IT-012 IT-013 IT-014]",
+		testDaemonMarketplaceSources,
+	)
 	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", testDaemonCatalogPublication)
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
 		testDaemonCuratedCatalogLifecycle)
@@ -868,6 +872,7 @@ type distributionGitHubServer struct {
 	releases       []*distributionGitHubRelease
 	assets         map[int64]distributionGitHubAsset
 	catalogEntries map[string]map[string]any
+	presets        []marketplacepkg.Preset
 }
 
 type distributionGitHubRelease struct {
@@ -924,10 +929,14 @@ func (s *distributionGitHubServer) handle(t *testing.T, writer http.ResponseWrit
 			"manifest_version": 3, "generated_at": "2026-09-13T00:00:00Z", "entries": entries,
 		}, http.StatusOK)
 	case request.Method == http.MethodGet && path == "/v3/marketplaces.json":
+		presets := s.presets
+		if presets == nil {
+			presets = []marketplacepkg.Preset{}
+		}
 		writeDistributionGitHubJSON(t, writer, map[string]any{
 			"manifest_version": 3,
 			"generated_at":     "2026-08-17T00:00:00Z",
-			"entries":          []any{},
+			"entries":          presets,
 		}, http.StatusOK)
 	case request.Method == http.MethodGet && path == "/repos/acme/hello/releases/latest":
 		s.writeLatest(t, writer)
@@ -2564,4 +2573,465 @@ func distributionMCPOwnerState(t *testing.T, ctx context.Context, db *sql.DB, ow
 		}
 	}
 	return result
+}
+
+// Invariant: source mutations persist and reconcile globally, while preview and rejected names never register.
+// Owner: public HTTP/UDS source management; canonical daemon distribution integration suite.
+func testDaemonMarketplaceSources(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"HTTP", "UDS"} {
+		t.Run("Should validate and persist sources through "+transport, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+			defer cancel()
+			source := filepath.Join(t.TempDir(), "source")
+			fixture := filepath.Join(
+				extensionAuthoringE2ERepoRoot(t),
+				"internal",
+				"extension",
+				"testdata",
+				"client-plugins",
+				"loop-engineering",
+			)
+			if err := os.CopyFS(filepath.Join(source, "tool"), os.DirFS(fixture)); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(source, "marketplace.json"),
+				[]byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			feed := newDistributionGitHubServer(t, "sources-fixture")
+			t.Cleanup(feed.Close)
+			presetOn, presetOff := t.TempDir(), t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(presetOn, "marketplace.json"),
+				[]byte(`{"plugins":[]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			// The disabled preset deliberately lacks a document; reading it would fail.
+			feed.presets = []marketplacepkg.Preset{
+				{Name: "preset-on", Source: presetOn, Description: "Enabled preset", Default: "on"},
+				{Name: "preset-off", Source: presetOff, Description: "Disabled preset", Default: "off"},
+			}
+
+			runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Marketplace.Catalog.BaseURL = feed.URL
+					cfg.Extensions.Trust.AllowUnverified = true
+				}},
+			})
+			client, target, read := runtime.HTTPClient, runtime.HTTPURL, runtime.HTTPJSON
+			if transport == "UDS" {
+				client, target, read = runtime.UDSClient, runtime.UDSURL, runtime.UDSJSON
+			}
+			readSources := func() compozycontract.MarketplaceSourcesResponse {
+				t.Helper()
+				var result compozycontract.MarketplaceSourcesResponse
+				if err := read(ctx, http.MethodGet, "/api/marketplace/sources", nil, &result); err != nil {
+					t.Fatal(err)
+				}
+				return result
+			}
+
+			var initialRefresh compozycontract.MarketplaceRefreshResponse
+			if err := read(ctx, http.MethodPost, "/api/marketplace/refresh", nil, &initialRefresh); err != nil {
+				t.Fatal(err)
+			}
+			beforeConfig, err := os.ReadFile(runtime.HomePaths.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := readSources()
+			for _, name := range []string{"preset-on", "preset-off"} {
+				var preset compozycontract.MarketplaceSourceResponse
+				if err := read(
+					ctx,
+					http.MethodPost,
+					"/api/marketplace/sources/"+name+"/refresh",
+					nil,
+					&preset,
+				); err != nil {
+					t.Fatal(err)
+				}
+				wantState := "ok"
+				if name == "preset-off" {
+					wantState = "off"
+				}
+				if preset.Source.Kind != "preset" || preset.Source.State != wantState || preset.Source.Error != "" {
+					t.Fatalf("preset state = %+v", preset)
+				}
+				requestDistributionJSON(
+					t,
+					ctx,
+					client,
+					http.MethodDelete,
+					target("/api/marketplace/sources/"+name),
+					nil,
+					http.StatusForbidden,
+				)
+			}
+			var presetDisabled compozycontract.MarketplaceSourceResponse
+			if err := read(ctx, http.MethodPatch, "/api/marketplace/sources/preset-on",
+				compozycontract.UpdateMarketplaceSourceRequest{Enabled: new(false)}, &presetDisabled); err != nil {
+				t.Fatal(err)
+			}
+			if presetDisabled.Source.Enabled || presetDisabled.Source.State != "off" {
+				t.Fatalf("preset toggle = %+v", presetDisabled)
+			}
+			beforeConfig, err = os.ReadFile(runtime.HomePaths.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			request := compozycontract.AddMarketplaceSourceRequest{Ref: source, Name: "team"}
+			var preview compozycontract.MarketplaceSourcePreviewPayload
+			if err := read(
+				ctx,
+				http.MethodPost,
+				"/api/marketplace/sources?dry_run=true",
+				request,
+				&preview,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if preview.Name != "team" || preview.Plugins != 1 || preview.Installable != 1 ||
+				preview.Diagnostics == nil {
+				t.Fatalf("preview = %+v", preview)
+			}
+			afterConfig, err := os.ReadFile(runtime.HomePaths.ConfigFile)
+			if err != nil || !bytes.Equal(beforeConfig, afterConfig) ||
+				len(readSources().Sources) != len(before.Sources) {
+				t.Fatalf("preview persisted registration: %v", err)
+			}
+			var added compozycontract.MarketplaceSourceResponse
+			if err := read(ctx, http.MethodPost, "/api/marketplace/sources", request, &added); err != nil {
+				t.Fatal(err)
+			}
+			if added.Source.Name != "team" || added.Source.Kind != "custom" || added.Source.State != "ok" ||
+				added.Source.Plugins != 1 || added.Source.Stability != "experimental" || added.Source.Diagnostics == nil {
+				t.Fatalf("added source = %+v", added.Source)
+			}
+			var cliInstalled compozycontract.ExtensionPayload
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&cliInstalled,
+				"extension",
+				"install",
+				"team/tool",
+				"--allow-unverified",
+				"--yes",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if cliInstalled.Provenance == nil || cliInstalled.Provenance.SourceRef != added.Source.Source ||
+				cliInstalled.Provenance.ChecksumVerified {
+				t.Fatalf("CLI plugin origin = %+v", cliInstalled)
+			}
+			var cliSources compozycontract.MarketplaceSourcesResponse
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&cliSources,
+				"marketplace",
+				"sources",
+				"list",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(cliSources.Sources) != len(before.Sources)+1 {
+				t.Fatalf("CLI sources = %+v", cliSources)
+			}
+			var cliAdded compozycontract.MarketplaceSourceResponse
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&cliAdded,
+				"marketplace",
+				"sources",
+				"add",
+				source,
+				"--name",
+				"cli-alias",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if cliAdded.Source.Source != added.Source.Source {
+				t.Fatalf("CLI alias changed origin: %+v", cliAdded)
+			}
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&cliAdded,
+				"marketplace",
+				"sources",
+				"refresh",
+				"cli-alias",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			var cliRemoved map[string]string
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&cliRemoved,
+				"marketplace",
+				"sources",
+				"remove",
+				"cli-alias",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if cliRemoved["removed"] != "cli-alias" {
+				t.Fatalf("CLI removal = %+v", cliRemoved)
+			}
+
+			body := requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodPost,
+				target("/api/marketplace/sources"),
+				request,
+				http.StatusConflict,
+			)
+			var duplicate compozycontract.MarketplaceSourceErrorPayload
+			if err := json.Unmarshal(body, &duplicate); err != nil {
+				t.Fatal(err)
+			}
+			if duplicate.Code != "marketplace_source_exists" || duplicate.SuggestedName == "" {
+				t.Fatalf("duplicate = %s", body)
+			}
+
+			// Settings uses the canonical apply pipeline without replacing named sources.
+			var catalogSettings compozycontract.SettingsMarketplaceResponse
+			if err := read(ctx, http.MethodGet, "/api/settings/marketplace", nil, &catalogSettings); err != nil {
+				t.Fatal(err)
+			}
+			desiredCatalog := catalogSettings.Config
+			desiredCatalog.TTL = "2h"
+			desiredCatalog.Timeout = "17s"
+			var settingsResult compozycontract.SettingsUserSectionMutationResult
+			if err := read(ctx, http.MethodPatch, "/api/settings/marketplace",
+				compozycontract.UpdateSettingsMarketplaceRequest{Config: desiredCatalog}, &settingsResult); err != nil {
+				t.Fatal(err)
+			}
+			if settingsResult.RestartRequired {
+				t.Fatalf("catalog settings unexpectedly require restart: %+v", settingsResult)
+			}
+			if err := read(ctx, http.MethodGet, "/api/settings/marketplace", nil, &catalogSettings); err != nil {
+				t.Fatal(err)
+			}
+			if catalogSettings.Config != desiredCatalog || len(readSources().Sources) != len(before.Sources)+1 {
+				t.Fatalf("catalog update lost config or sources: %+v", catalogSettings)
+			}
+			invalidCatalog := desiredCatalog
+			invalidCatalog.TTL = "not-a-duration"
+			requestDistributionJSON(t, ctx, client, http.MethodPatch, target("/api/settings/marketplace"),
+				compozycontract.UpdateSettingsMarketplaceRequest{Config: invalidCatalog}, http.StatusBadRequest)
+			var configSet map[string]any
+			if err := runtime.CLI.RunJSON(
+				ctx,
+				&configSet,
+				"config",
+				"set",
+				"marketplace.plugin_sources.team.enabled",
+				"false",
+				"--scope",
+				"user",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			var cliDisabled compozycontract.MarketplaceSourcesResponse
+			if err := read(ctx, http.MethodGet, "/api/marketplace/sources", nil, &cliDisabled); err != nil {
+				t.Fatal(err)
+			}
+			for _, state := range cliDisabled.Sources {
+				if state.Name == "team" && (state.Enabled || state.State != "off") {
+					t.Fatalf("CLI config did not disable source: %+v", state)
+				}
+			}
+			var disabled compozycontract.MarketplaceSourceResponse
+			if err := read(
+				ctx,
+				http.MethodPatch,
+				"/api/marketplace/sources/team",
+				compozycontract.UpdateMarketplaceSourceRequest{Enabled: new(false)},
+				&disabled,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if disabled.Source.Enabled || disabled.Source.State != "off" {
+				t.Fatalf("disabled = %+v", disabled)
+			}
+			if err := os.Rename(source, source+".offline"); err != nil {
+				t.Fatal(err)
+			}
+			var off compozycontract.MarketplaceSourceResponse
+			if err := read(ctx, http.MethodPost, "/api/marketplace/sources/team/refresh", nil, &off); err != nil {
+				t.Fatal(err)
+			}
+			if off.Source.State != "off" || off.Source.Error != "" {
+				t.Fatalf("disabled source was fetched: %+v", off)
+			}
+			var degraded compozycontract.MarketplaceSourceResponse
+			if err := read(
+				ctx,
+				http.MethodPatch,
+				"/api/marketplace/sources/team",
+				compozycontract.UpdateMarketplaceSourceRequest{Enabled: new(true)},
+				&degraded,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if degraded.Source.State != "degraded" || degraded.Source.ErrorClass != "source_unreachable" ||
+				degraded.Source.Diagnostics == nil {
+				t.Fatalf("degraded = %+v", degraded)
+			}
+			requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodDelete,
+				target("/api/marketplace/sources/compozy-catalog"),
+				nil,
+				http.StatusForbidden,
+			)
+			requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodDelete,
+				target("/api/marketplace/sources/team"),
+				nil,
+				http.StatusNoContent,
+			)
+			requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodPost,
+				target("/api/marketplace/sources/team/refresh"),
+				nil,
+				http.StatusNotFound,
+			)
+			afterConfig, err = os.ReadFile(runtime.HomePaths.ConfigFile)
+			if err != nil || bytes.Contains(afterConfig, []byte(`name = "team"`)) ||
+				len(readSources().Sources) != len(before.Sources) {
+				t.Fatalf("removal did not persist: %s, %v", afterConfig, err)
+			}
+
+			// Removing registration cannot let a new origin take over an installed source name.
+			retainedBody := requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodPost,
+				target("/api/marketplace/sources"),
+				compozycontract.AddMarketplaceSourceRequest{
+					Ref:  source + ".offline",
+					Name: "team",
+				},
+				http.StatusConflict,
+			)
+			var retained compozycontract.MarketplaceSourceErrorPayload
+			if err := json.Unmarshal(retainedBody, &retained); err != nil {
+				t.Fatal(err)
+			}
+			if retained.Code != "marketplace_source_name_retained" || len(retained.RetainedBy) != 1 {
+				t.Fatalf("retained source = %s", retainedBody)
+			}
+			if err := os.Rename(source+".offline", source); err != nil {
+				t.Fatal(err)
+			}
+			var readded compozycontract.MarketplaceSourceResponse
+			if err := read(ctx, http.MethodPost, "/api/marketplace/sources", request, &readded); err != nil {
+				t.Fatal(err)
+			}
+			if readded.Source.Source != added.Source.Source {
+				t.Fatalf("same-origin re-add changed identity: %+v", readded)
+			}
+			requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodDelete,
+				target("/api/marketplace/sources/team"),
+				nil,
+				http.StatusNoContent,
+			)
+
+			// Independent concurrent registrations must both survive config reconciliation.
+			registrationErrors := make(chan error, 2)
+			for _, name := range []string{"parallel-a", "parallel-b"} {
+				go func() {
+					var result compozycontract.MarketplaceSourceResponse
+					registrationErrors <- read(ctx, http.MethodPost, "/api/marketplace/sources",
+						compozycontract.AddMarketplaceSourceRequest{Ref: source, Name: name}, &result)
+				}()
+			}
+			for range 2 {
+				if err := <-registrationErrors; err != nil {
+					t.Fatal(err)
+				}
+			}
+			persisted, err := os.ReadFile(runtime.HomePaths.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(readSources().Sources) != len(before.Sources)+2 ||
+				!bytes.Contains(persisted, []byte("parallel-a")) ||
+				!bytes.Contains(persisted, []byte("parallel-b")) {
+				t.Fatalf("concurrent registrations lost: %s", persisted)
+			}
+			tooLarge := t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(tooLarge, "marketplace.json"),
+				bytes.Repeat([]byte(" "), (2<<20)+1),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			invalid := t.TempDir()
+			for _, tc := range []struct{ ref, name, code string }{
+				{source, "compozy", "marketplace_source_name_reserved"},
+				{invalid, "empty", "marketplace_not_a_marketplace"},
+				{tooLarge, "large", "marketplace_document_too_large"},
+				{"ssh://example.com/repo", "remote", "marketplace_source_invalid_ref"},
+			} {
+				body := requestDistributionJSON(
+					t,
+					ctx,
+					client,
+					http.MethodPost,
+					target("/api/marketplace/sources"),
+					compozycontract.AddMarketplaceSourceRequest{
+						Ref:  tc.ref,
+						Name: tc.name,
+					},
+					http.StatusUnprocessableEntity,
+				)
+				var rejected compozycontract.MarketplaceSourceErrorPayload
+				if err := json.Unmarshal(body, &rejected); err != nil {
+					t.Fatal(err)
+				}
+				if rejected.Code != tc.code ||
+					(tc.code == "marketplace_not_a_marketplace" && len(rejected.Checked) != 2) {
+					t.Fatalf("rejected source = %s", body)
+				}
+			}
+		})
+	}
 }

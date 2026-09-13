@@ -9,6 +9,39 @@ import (
 
 func TestMarketplaceOperations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish experimental source operations with complete diagnostic arrays", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, request := range []struct{ path, method string }{
+			{"/api/marketplace/sources", "GET"}, {"/api/marketplace/sources", "POST"},
+			{"/api/marketplace/sources/{name}", "PATCH"}, {"/api/marketplace/sources/{name}", "DELETE"},
+			{"/api/marketplace/sources/{name}/refresh", "POST"},
+		} {
+			operation := operationFor(t, doc, request.path, request.method)
+			if operation.Extensions["x-stability"] != "experimental" {
+				t.Fatalf("missing stability on %s %s", request.method, request.path)
+			}
+		}
+		schema := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/sources", "GET"), 200)
+		assertRequired(t, schema, "sources")
+		source := schema.Properties["sources"].Value.Items.Value
+		assertRequired(
+			t,
+			source,
+			"name",
+			"kind",
+			"source",
+			"enabled",
+			"state",
+			"plugins",
+			"installable",
+			"stability",
+			"diagnostics",
+		)
+	})
 
 	operations := make(map[string]OperationSpec)
 	for _, operation := range Operations() {

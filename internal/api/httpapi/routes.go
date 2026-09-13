@@ -261,6 +261,11 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace.GET("", handlers.ListMarketplace)
 	marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 	marketplace.POST("/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceCatalog)
+	marketplace.GET("/sources", handlers.ListMarketplaceSources)
+	marketplace.POST("/sources", handlers.privilegedMutationGuard(), handlers.AddMarketplaceSource)
+	marketplace.PATCH("/sources/:name", handlers.privilegedMutationGuard(), handlers.UpdateMarketplaceSource)
+	marketplace.DELETE("/sources/:name", handlers.privilegedMutationGuard(), handlers.RemoveMarketplaceSource)
+	marketplace.POST("/sources/:name/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceSource)
 }
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
@@ -411,6 +416,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	observability.GET("/log-tail", privileged, handlers.StreamSettingsObservabilityLogTail)
 
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
+	settings.GET("/marketplace", handlers.GetSettingsMarketplace)
+	settings.PATCH("/marketplace", privileged, handlers.UpdateSettingsMarketplace)
 	settings.PATCH("/hooks-extensions", privileged, handlers.UpdateSettingsHooksExtensions)
 
 	settings.GET("/providers", handlers.ListSettingsProviders)

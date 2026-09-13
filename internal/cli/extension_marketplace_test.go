@@ -451,7 +451,17 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 				},
 			})
 			markExtensionDaemonRunning(&deps)
-			args := []string{"extension", "update", "--check", "--workspace", "alpha", "--profile", "marketing", "-o", "json"}
+			args := []string{
+				"extension",
+				"update",
+				"--check",
+				"--workspace",
+				"alpha",
+				"--profile",
+				"marketing",
+				"-o",
+				"json",
+			}
 			if all {
 				args = append(args, "--all")
 			} else {
@@ -626,4 +636,64 @@ func markExtensionDaemonRunning(deps *commandDeps) {
 		return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
+}
+
+// Invariant: named plugin sources cannot take over curated references or activate GitHub fallback.
+// Owner: CLI acquisition selection; canonical extension marketplace suite.
+func TestPluginSourceInstallSelection(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, ref  string
+		curated    bool
+		wantSource contract.InstallExtensionSource
+		wantErr    bool
+	}{
+		{"Should preserve curated reference priority", "team/tool", true, contract.InstallExtensionSourceCurated, false},
+		{"Should explicitly select a plugin", "marketplace:team/tool", false, contract.InstallExtensionSourceMarketplace, false},
+		{"Should reject an unknown explicit source", "marketplace:missing/tool", false, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{
+				listMarketplaceSourcesFn: func(context.Context) (contract.MarketplaceSourcesResponse, error) {
+					return contract.MarketplaceSourcesResponse{Sources: []contract.MarketplaceSourcePayload{
+						{Name: "team", Source: "github:acme/plugins"},
+					}}, nil
+				},
+				previewExtensionInstallFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+					if !tc.curated || request.Source != contract.InstallExtensionSourceCurated {
+						t.Fatal("unexpected curated preview")
+					}
+					return ExtensionInstallPreviewRecord{DigestSHA256: strings.Repeat("a", 64)}, nil
+				},
+				marketplaceInfoFn: func(_ context.Context, entry, source, _ string, _ MarketplaceReadScope) (MarketplaceEntryRecord, error) {
+					if tc.curated || entry != "tool" || source != "team" {
+						t.Fatal("unexpected plugin lookup")
+					}
+					return MarketplaceEntryRecord{
+						Entry: contract.MarketplaceListingPayload{DigestSHA256: strings.Repeat("b", 64)},
+					}, nil
+				},
+			}
+			deps, _ := newExtensionLocalDeps(t, client)
+			plan, err := parseExtensionInstallPlan(tc.ref, "", "", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selected, err := resolvePluginInstallPlan(t.Context(), deps, plan)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("unknown source accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(selected.Attempts) != 1 || selected.Attempts[0].Source != tc.wantSource ||
+				selected.Attempts[0].ExpectedDigest == "" {
+				t.Fatalf("selection = %+v", selected)
+			}
+		})
+	}
 }

@@ -32,6 +32,7 @@ func newMarketplaceRuntime(
 	runtime := &marketplaceRuntime{store: store, resolver: resolver,
 		config:     compozyconfig.CloneConfig(&compozyconfig.Config{Marketplace: cfg}).Marketplace,
 		presetPath: filepath.Join(home.HomeDir, "marketplace", "presets.json"),
+		homePaths:  home,
 	}
 	presets, err := readMarketplacePresets(runtime.presetPath, cfg.Catalog.EffectiveBaseURL())
 	if err != nil {

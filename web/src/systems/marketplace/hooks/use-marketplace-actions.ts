@@ -14,7 +14,7 @@ import type {
 } from "../types";
 
 /** Replaces in-flight pre-mutation reads before refreshing authoritative marketplace pages. */
-async function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
+export async function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
   await queryClient.cancelQueries({ queryKey: marketplaceKeys.all });
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
 }

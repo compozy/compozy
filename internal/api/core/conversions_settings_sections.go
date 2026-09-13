@@ -39,6 +39,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsObservabilitySectionResponse(envelope)
 	case settingspkg.SectionHooksExtensions:
 		return settingsHooksExtensionsSectionResponse(envelope)
+	case settingspkg.SectionMarketplace:
+		return settingsMarketplaceSectionResponse(envelope)
 	default:
 		return nil, fmt.Errorf("unknown settings section %q", envelope.Section)
 	}
@@ -206,7 +208,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 		settingspkg.SectionNetwork,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,
-		settingspkg.SectionHooksExtensions:
+		settingspkg.SectionHooksExtensions, settingspkg.SectionMarketplace:
 		return contract.SettingsUserSectionMutationResult{
 			Section:         contract.SettingsSectionName(result.Section),
 			Scope:           contract.SettingsUserScopeKind(result.Scope),

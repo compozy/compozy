@@ -1,0 +1,41 @@
+{
+    "sources": [
+        {
+            "name": "compozy-catalog",
+            "kind": "feed",
+            "source": "catalog:compozy",
+            "enabled": true,
+            "state": "ok",
+            "plugins": 3,
+            "installable": 3,
+            "last_read_at": "2026-09-13T00:00:00Z",
+            "stability": "experimental",
+            "diagnostics": []
+        },
+        {
+            "name": "team",
+            "kind": "custom",
+            "source": "github:acme/plugins",
+            "enabled": true,
+            "state": "ok",
+            "plugins": 1,
+            "installable": 1,
+            "last_read_at": "2026-09-13T00:00:00Z",
+            "document_path": ".claude-plugin/marketplace.json",
+            "owner": "acme",
+            "stability": "experimental",
+            "diagnostics": []
+        },
+        {
+            "name": "optional",
+            "kind": "preset",
+            "source": "github:acme/optional",
+            "enabled": false,
+            "state": "off",
+            "plugins": 0,
+            "installable": 0,
+            "stability": "experimental",
+            "diagnostics": []
+        }
+    ]
+}

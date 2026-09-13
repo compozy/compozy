@@ -43,6 +43,8 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `log.*`                                            | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `loops.*`                                          | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `marketplace.catalog.*`                            | `live`             | `live`             | `none`                                  |
+| `marketplace.plugin_sources`                       | `live`             | `live`             | `none`                                  |
+| `marketplace.plugin_sources.*`                     | `live`             | `live`             | `none`                                  |
 | `mcp-servers.*`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `mcp.oauth.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `memory.*`                                         | `restart-required` | `restart-required` | `restart-daemon`                        |
