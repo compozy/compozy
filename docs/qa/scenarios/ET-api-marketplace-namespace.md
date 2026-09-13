@@ -21,6 +21,8 @@ Marketplace catalog tasks01/05 (2026-09-13): Compare HTTP and UDS responses in t
 Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
 
 
+## Historical evidence
+
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no equivalent HTTP and UDS API read was retained.
 
 Historical QA note: authored parameter, enum, and status contract verification remains pending.

@@ -10,7 +10,8 @@ Search narrows the catalog. Installed entries stay marked in place, and the inst
 
 <OperatorNote>
   Start the daemon before using Marketplace in the app or through the CLI and API. The public
-  [catalog](/marketplace) is a build-time snapshot; your daemon owns the active catalog and installed state.
+  [catalog](/marketplace) is a build-time snapshot; your daemon owns the active catalog and
+  installed state.
 </OperatorNote>
 
 ## Browse And Inspect
@@ -69,10 +70,11 @@ or authorization. MCP configuration and authorization are described in [MCP cata
 The existing CLI verbs remain available. Inspect their structured output before choosing an install target:
 
 ```bash
-compozy marketplace search "herdr" --kind extension -o json
-compozy marketplace info extension herdr-bridge -o json
-compozy marketplace refresh --kind extension -o json
+compozy marketplace search "herdr" -o json
+compozy marketplace info herdr-bridge --source compozy-catalog -o json
+compozy marketplace refresh -o json
 ```
 
-The retained CLI accepts kind selectors; the app has one catalog and a separate Installed page.
+CLI discovery uses the same catalog as the app. Continue with the returned cursor and the same
+query and scope; obsolete kind selectors and two-argument info requests fail validation.
 For route parameters and response shapes, use the generated [Marketplace API reference](/docs/api/marketplace).

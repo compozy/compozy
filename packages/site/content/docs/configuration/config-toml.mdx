@@ -78,7 +78,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                     |
 | `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
 | `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
-| `[skills]`                           | Skill discovery, source roots, polling, disable list, and marketplace trust gates.   | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
+| `[skills]`                           | Skill discovery, source roots, polling, disable list, and installed-skill trust gates.   | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
 | `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                  | `allow_unverified = true`; per-install consent still required                                         |
 | `[extensions.sources.*]`             | Published extension source availability and endpoints.                               | GitHub and git enabled, `https://api.github.com`                                                      |
 | `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                            | `watch_interval = "2s"`                                                                               |
@@ -620,10 +620,6 @@ disabled_skills = ["experimental-skill"]
 poll_interval = "3s"
 allowed_marketplace_mcp = ["clawhub:@team/search-skill"]
 allowed_marketplace_hooks = ["clawhub:@team/format-hook"]
-
-[skills.marketplace]
-registry = "clawhub"
-base_url = "https://registry.example.com"
 
 [extensions.trust]
 allow_unverified = true
@@ -1769,24 +1765,20 @@ Cursor's discovery command defaults to `cursor-agent models`; its session launch
 
 ## `[marketplace.catalog]`
 
-CompozyOS reads the extension catalog from `<base_url>/v3/extensions.json`. A mirror that returns
-404 or 410 for v3 falls back to the root `extensions.json` with one
-`marketplace.feed.root_family` warning. Other HTTP failures and invalid v3 documents do not fall
-back. The configured base URL is never rewritten. Failed refreshes retain the last valid projection
-and mark it stale.
-
-The publisher also emits the retained root `extensions.json`, `mcp.json`, and `skills.json` for
-existing consumers. Keep both families when hosting a mirror; v3 carries extension icons and typed
-inputs, and `v3/marketplaces.json` carries plugin marketplace presets.
+CompozyOS reads the extension catalog from `<base_url>/v3/extensions.json` and presets from
+`<base_url>/v3/marketplaces.json`. HTTP(S) and file mirrors must provide the v3 family.
+Missing or invalid v3 documents report a source failure. The daemon never reads root feeds
+as a fallback and never rewrites the configured base URL. Failed refreshes retain the last
+valid projection and mark it stale.
 
 This section is global-only because the projection and refresh service are global. Put it in
 `$COMPOZY_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
 
-| Key        | Type     | Default                                                          | Validation                                     | Effect                                                                              |
-| ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for the v3 and retained root feed families; applies live.            |
-| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | HTTP(S) cache age before browse refreshes that kind; local files refresh on access. |
-| `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                        |
+| Key        | Type     | Default                                                          | Validation                                     | Effect                                                                            |
+| ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for the v3 feed family; applies live.                              |
+| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | HTTP(S) catalog cache age before browse refreshes; local files refresh on access. |
+| `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                      |
 
 ```toml
 [marketplace.catalog]
@@ -2069,7 +2061,7 @@ fallback (see [Extensions](/docs/extensions)).
 
 ## `[skills]`
 
-If `enabled = false`, skill polling and marketplace validation are skipped.
+If `enabled = false`, local skill discovery and polling are disabled.
 
 | Field                       | Type         | Default      | Valid values                                          | Description                                                                                       |
 | --------------------------- | ------------ | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -2097,12 +2089,17 @@ rejected with `invalid_source_path`.
 
 Walkthrough with expected output: [Use skills from your other tools](/docs/skills/sources).
 
-## `[skills.marketplace]`
+## Removed skill acquisition settings
 
-| Field      | Type       | Default | Valid values                                         | Description                         |
-| ---------- | ---------- | ------- | ---------------------------------------------------- | ----------------------------------- |
-| `registry` | string     | empty   | Empty or `clawhub`. Required when `base_url` is set. | Skill marketplace registry adapter. |
-| `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.            | Registry base URL override.         |
+`skills.marketplace.registry` and `skills.marketplace.base_url` are no longer active
+settings. On load, CompozyOS removes those keys and archives their values as inactive TOML
+comments in the same file. The archive and active configuration share one atomic write;
+repeated loads leave the migrated file unchanged. Unrelated comments, settings, installed
+skills and extension configuration are preserved. Settings and `compozy config set` reject
+new writes to the removed acquisition keys.
+
+The installed-skill MCP and hook allowlists above govern existing declarations; they do
+not enable remote skill acquisition.
 
 ## `[extensions.trust]`
 

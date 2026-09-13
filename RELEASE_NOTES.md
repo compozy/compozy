@@ -29,6 +29,10 @@ remote skill acquisition and MCP catalog installation are removed without aliase
 Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
 Refresh accepts no `kind` selector and reports `sources[]` outcomes.
 Existing extension packages, acquisition references, installed skills and manual MCPs remain.
+CLI callers remove `--kind` and the first kind argument to `marketplace info`.
+`compozy mcp install` and remote `compozy skill search|install|update|remove` are removed;
+local skill inspection and management remain. Native `compozy__marketplace_search`
+rejects the removed `kind` argument. See [migration steps](MIGRATION_GUIDE.md#marketplace-acquisition-hard-cut).
 Retired `skills.marketplace.registry` and `skills.marketplace.base_url` settings
 are archived as inactive comments in the same config file on load. The archive
 and active configuration are written atomically, once; unrelated settings and

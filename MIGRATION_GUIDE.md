@@ -346,3 +346,32 @@ CompozyOS also loads client manifests under `.claude-plugin/`, `.codex-plugin/` 
 for installation; only supported skills and MCP declarations are loaded, and unsupported
 commands, agents and hooks are reported as `client_component_ignored`.
 See [Agent Plugins interoperability](packages/site/content/docs/extensions/agent-plugins.mdx).
+
+## Marketplace acquisition hard cut
+
+Marketplace discovery now uses `compozy marketplace search [query]`,
+`compozy marketplace info <entry_id>` and `compozy marketplace refresh`.
+Remove `--kind` and the kind argument previously passed to `info`. HTTP and UDS clients
+use `GET /api/marketplace`, `GET /api/marketplace/entries/{entry_id}` and
+`POST /api/marketplace/refresh`; old kind and grouped-search routes are removed.
+Native `compozy__marketplace_search` no longer accepts `kind`.
+
+Install packaged resources through the existing extension install surfaces. The old
+`compozy mcp install`, remote `compozy skill search|install|update|remove` commands and
+`POST /api/settings/mcp-servers/install` are removed. Existing extension packages,
+identities, acquisition references, credentials and management remain supported.
+Installed skill files and provenance remain readable through local skill commands;
+manual MCP configuration and authorization remain supported.
+
+Remove active `skills.marketplace.registry` and `skills.marketplace.base_url` settings
+from configuration templates. Existing files are migrated once by archiving those values
+as inactive comments in the same atomic config write; unrelated settings are preserved.
+The active runtime and `config set` no longer consume these acquisition settings.
+Catalog mirrors must serve `v3/extensions.json` and `v3/marketplaces.json`; missing v3
+reports a source failure rather than reading a root feed.
+
+Extension installation no longer accepts `runtime_name` or `--runtime-name`.
+Runtime names are allocated automatically. Extension inputs use their own credential
+namespace; manual MCP Vault references cannot be imported into extension inputs.
+See the Unreleased migration block in [release notes](RELEASE_NOTES.md) for the
+append-only database upgrades and preserved state.
