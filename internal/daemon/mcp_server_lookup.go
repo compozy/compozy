@@ -38,7 +38,7 @@ func mcpSourceResource(
 		if owner != "" && owner != definitionOwner {
 			continue
 		}
-		if name != record.Spec.EffectiveRuntimeName() && (owner == "" || name != record.Spec.Name) {
+		if name != strings.TrimSpace(record.Spec.Name) {
 			continue
 		}
 		rank, err := mcpSourceResourceRank(ctx, state, source, record, definitionOwner)

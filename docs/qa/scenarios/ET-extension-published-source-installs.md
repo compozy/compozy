@@ -97,3 +97,8 @@ must disappear in every attachment, while prior allocations/overrides, credentia
 package remain unchanged. Repeat through published reinstall. Concurrent operations on another
 workspace of the same package wait until update/rollback completes; unrelated packages can proceed.
 The focused lifecycle suite owns injected storage/publication failure and lock cancellation.
+
+Task04 public addressing follow-up (final task10): with a manual github and extension-owned github
+allocated as github.github, Settings GET/auth and native diagnostics accept owner=extension:github
+with name github. The same owner with name github.github must return not found. Discovered tools
+still execute through the extension's resource/runtime identity and retain its credential owner.

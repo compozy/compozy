@@ -544,6 +544,7 @@ compozy mcp auth logout linear --scope user --owner extension:linear
 ```
 
 Use the manifest server name as the positional argument and `extension:<extension-name>` as the owner.
+An allocated runtime name is not a management or authorization alias, even with an explicit owner.
 For a named profile, pass `--profile <name> --scope profile`; for a workspace definition, pass
 `--scope workspace --workspace <id>`. Logging out removes only the selected definition's credentials.
 

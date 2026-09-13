@@ -104,8 +104,8 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		reset, err := service.ApplyCollectionDelete(
 			ctx,
 			CollectionItemDeleteRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              "linear.linear",
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers, Owner: "extension:linear"},
+				Name:              "linear",
 			},
 		)
 		if err != nil || !reset.Applied || reset.RestartRequired || reset.MCPServer == nil ||

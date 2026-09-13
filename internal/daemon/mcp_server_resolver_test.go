@@ -168,9 +168,11 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			scope                    settingspkg.ScopeKind
 			found                    bool
 		}{
-			{"bundle.global", "workspace-a", "", settingspkg.ScopeWorkspace, true},
-			{"bundle.local", "workspace-b", "", settingspkg.ScopeWorkspace, false},
-			{"bundle.named", "workspace-a", "marketing", settingspkg.ScopeProfile, true},
+			{"global", "workspace-a", "", settingspkg.ScopeWorkspace, true},
+			{"local", "workspace-b", "", settingspkg.ScopeWorkspace, false},
+			{"named", "workspace-a", "marketing", settingspkg.ScopeProfile, true},
+			{"bundle.global", "workspace-a", "", settingspkg.ScopeWorkspace, false},
+			{"bundle.named", "workspace-a", "marketing", settingspkg.ScopeProfile, false},
 		} {
 			target, _, found, err := adapter.ResolveMCPExtensionDefinition(
 				t.Context(),
@@ -192,11 +194,13 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		}
 		// Invariant: native source selectors cannot borrow a sibling workspace or foreign profile definition.
 		for _, tc := range []struct{ name, profileID, workspaceID, wantScope string }{
-			{"bundle.global", store.DefaultProfileID, "workspace-a", "user"},
-			{"bundle.local", store.DefaultProfileID, "workspace-b", ""},
-			{"bundle.named", profile.ID, "workspace-a", "profile"},
-			{"bundle.global", profile.ID, "workspace-a", ""},
-			{"bundle.named", store.DefaultProfileID, "workspace-a", ""},
+			{"global", store.DefaultProfileID, "workspace-a", "user"},
+			{"local", store.DefaultProfileID, "workspace-b", ""},
+			{"named", profile.ID, "workspace-a", "profile"},
+			{"global", profile.ID, "workspace-a", ""},
+			{"named", store.DefaultProfileID, "workspace-a", ""},
+			{"bundle.global", store.DefaultProfileID, "workspace-a", ""},
+			{"bundle.named", profile.ID, "workspace-a", ""},
 		} {
 			resolved, err := resolveDaemonMCPServer(t.Context(), adapter.state, toolspkg.SourceRef{
 				RawServerName:      tc.name,
@@ -350,7 +354,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		for _, tc := range []struct{ name, owner, want string }{
 			{"github", "", "manual"}, {"github", "manual", "manual"},
 			{"github", "extension:github", "extension:github"},
-			{"github.github", "", ""},
+			{"github.github", "", ""}, {"github.github", "extension:github", ""},
 			{"github", "extension:other", ""},
 			{"github.github", "manual", ""},
 		} {
@@ -367,13 +371,13 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 				t.Fatalf("native lookup %#v = %#v, %v", tc, resolved.Target, err)
 			}
 		}
-		// Invariant: Settings requires an owner for logical and runtime extension names.
+		// Invariant: public Settings requires the explicit extension owner and logical manifest name.
 		// Owner: daemon Settings catalog adapter; canonical suite: mcp_server_resolver_test.go.
 		for _, tc := range []struct {
 			name, owner string
 			found       bool
 		}{
-			{"github", "extension:github", true}, {"github.github", "extension:github", true}, {"github.github", "", false},
+			{"github", "extension:github", true}, {"github.github", "extension:github", false}, {"github.github", "", false},
 			{"github", "", false}, {"github.github", "manual", false},
 			{"github", "extension:other", false},
 		} {

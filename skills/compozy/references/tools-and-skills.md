@@ -128,7 +128,9 @@ metadata in `operation_error` alongside completed updates; retry the failed targ
 Manual MCP definitions remain managed through `GET /api/settings/mcp-servers` and
 `PUT /api/settings/mcp-servers/{name}` with their exact scope. Existing MCP sidecars and credentials
 remain in place. For extension-owned server reads, auth or override changes, pass
-`owner=extension:<installed-name>` (CLI `--owner`); omitting owner addresses a manual definition.
+`owner=extension:<installed-name>` (CLI `--owner`) plus the logical manifest server name. Allocated
+runtime names are not aliases for management, authorization or diagnostic calls. Omitting owner
+addresses a manual definition.
 Reads expose configured names and secret presence, never secret values or refs.
 
 For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.

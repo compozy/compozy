@@ -519,3 +519,10 @@ The IT016 generation reference is corrected from1 to0, matching fresh source ini
 existing store tests and immutable00110; generation fencing is unchanged. No SQL history,
 public interface, hook, config, native tool, extension SDK or UI behavior changed in this slice.
 Final task10 still owns the live upgrade/operator journey; focused receipts are in task04 memory.
+
+Task04 public MCP addressing now rejects allocated runtime-name aliases even with an explicit
+extension owner, at both Settings/auth resolution and native diagnostic lookup. Logical manifest
+name plus owner/scope remains the public identity; internal discovered-resource execution is
+unchanged. No DTO, generator, database, config or hook change. Existing Web queries already pass
+published.name and explicit owner. Install docs, official tools-and-skills reference and final10
+scenario co-ship. This removes a remaining alias prohibited by ADR008; full IT021 remains pending.

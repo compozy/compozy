@@ -4149,7 +4149,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 					AllowedMarketplaceHooks: []string{"market"},
 				},
 			},
-			want: `base_url = "https://skills-updated.example"`,
+			want: `poll_interval = "45m0s"`,
 		},
 		{
 			name: "automation",
@@ -5243,10 +5243,6 @@ disabled_skills = ["alpha", "beta"]
 poll_interval = "30m"
 allowed_marketplace_mcp = ["ctx"]
 allowed_marketplace_hooks = ["market"]
-
-[skills.marketplace]
-registry = "clawhub"
-base_url = "https://skills.example"
 
 [automation]
 enabled = true
