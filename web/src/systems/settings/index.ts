@@ -252,7 +252,13 @@ export {
   MCPSelectionStrip,
   MCPServerDeleteDialog,
   MCPServerEditor,
+  MCPOverrideEditor,
   MCPServersTable,
+  mcpServerRowTestId,
+  isExtensionOwnedMCPServer,
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
   ProviderCard,
   ProviderEditForm,
   ProviderDetailDialog,
@@ -309,7 +315,7 @@ export {
   LayoutStage,
   WindowManagerConfigEditor,
 } from "./components";
-export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
+export type { MCPOverrideEditorProps, MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 export { settingsProviderToOption } from "./lib/provider-runtime-option";

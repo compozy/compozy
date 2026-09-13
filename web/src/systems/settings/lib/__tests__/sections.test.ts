@@ -22,6 +22,7 @@ describe("settings sections metadata", () => {
       "memory",
       "roles",
       "skills",
+      "mcp",
       "automation",
       "network",
       "gateway",

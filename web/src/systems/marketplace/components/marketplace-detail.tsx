@@ -8,6 +8,7 @@ import { MarketplaceDetailLede } from "./marketplace-detail-lede";
 
 interface MarketplaceDetailProps {
   data: MarketplaceCatalogEntryResponse;
+  liveDataEnabled?: boolean;
 }
 
 /**
@@ -15,12 +16,12 @@ interface MarketplaceDetailProps {
  * provenance and trust when browsing, the kit and its runtime once installed. Window identity
  * and the primary action live in the OS head.
  */
-function MarketplaceDetail({ data }: MarketplaceDetailProps) {
+function MarketplaceDetail({ data, liveDataEnabled = true }: MarketplaceDetailProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pt-6 pb-20")}>
         <MarketplaceDetailLede data={data} />
-        <MarketplaceDetailExtensionView data={data} />
+        <MarketplaceDetailExtensionView data={data} liveDataEnabled={liveDataEnabled} />
       </div>
     </div>
   );

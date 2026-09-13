@@ -18,6 +18,7 @@ import {
   MarketplaceExtensionProvenanceCard,
   MarketplaceExtensionRuntimeCard,
 } from "./marketplace-detail-extension-rail";
+import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   ExtensionDiagnostics,
   ExtensionEnvironmentState,
@@ -47,12 +48,18 @@ import {
 interface MarketplaceDetailExtensionInstalledProps {
   data: MarketplaceCatalogEntryResponse;
   logEventSourceFactory?: (url: string) => ExtensionLogEventSource;
+  /** Server cards poll their live Settings definition only while this is on. */
+  liveDataEnabled?: boolean;
 }
 
-/** Installed extension detail: the kit and its runtime are the body; the rail manages it. */
+/**
+ * Installed extension detail: the kit and its runtime are the body; the rail manages it, with a
+ * Server card per provided MCP server right under Manage.
+ */
 function MarketplaceDetailExtensionInstalled({
   data,
   logEventSourceFactory,
+  liveDataEnabled = true,
 }: MarketplaceDetailExtensionInstalledProps) {
   const entry = data.entry;
   const name = entry.installed_name?.trim() || entry.name;
@@ -78,6 +85,10 @@ function MarketplaceDetailExtensionInstalled({
                   ? "marketplace-extension-manage-loading"
                   : "marketplace-extension-manage-error"
               }
+            />
+            <MarketplaceExtensionServerSection
+              inputs={data.extension?.inputs ?? []}
+              servers={data.extension?.mcp_servers ?? []}
             />
             <MarketplaceExtensionDetailsCard data={data} />
             <MarketplaceExtensionTrustCard trust={entry.trust} />
@@ -120,6 +131,13 @@ function MarketplaceDetailExtensionInstalled({
               onRequestRemoval={state.requestRemoval}
               onToggleEnabled={state.requestToggle}
               togglePending={state.toggle.isPending}
+            />
+            <MarketplaceExtensionServerSection
+              inputs={data.extension?.inputs ?? extension.inputs}
+              installed
+              liveDataEnabled={liveDataEnabled}
+              missingInputs={extension.missing_inputs}
+              servers={extension.mcp_servers}
             />
             <MarketplaceExtensionRuntimeCard extension={extension} facts={facts} />
             <MarketplaceExtensionTrustCard trust={entry.trust} />

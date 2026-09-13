@@ -3,7 +3,12 @@ import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import { extensionFixtures, type ExtensionEntry } from "@/systems/extensions";
-import type { MarketplaceCatalogListing, MarketplaceCatalogResponse } from "@/systems/marketplace";
+import type {
+  MarketplaceCatalogEntryResponse,
+  MarketplaceCatalogListing,
+  MarketplaceCatalogResponse,
+  MarketplaceExtensionServer,
+} from "@/systems/marketplace";
 import { marketplaceCatalogFixture } from "@/systems/marketplace/mocks";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
@@ -176,6 +181,72 @@ function matchesQuery(entry: MarketplaceCatalogListing, query: string): boolean 
   );
 }
 
+type StoryExtensionDetail = NonNullable<MarketplaceCatalogEntryResponse["extension"]>;
+
+/** The GitHub server as the daemon publishes it for the `compozy/github` extension (ADR-008). */
+export function storyGithubServer(
+  overrides: Partial<MarketplaceExtensionServer> = {}
+): MarketplaceExtensionServer {
+  return {
+    auth: {
+      issuer_url: "https://github.com/login/oauth",
+      method: "oauth",
+      registration: "dynamic",
+      scopes: ["repo", "read:org"],
+    },
+    launch: "https://api.githubcopilot.com",
+    name: "github",
+    owner: "extension:github",
+    profile: "default",
+    scope: "global",
+    transport: "http",
+    ...overrides,
+  };
+}
+
+/** The Context7 server: no auth, running once installed. */
+export function storyContext7Server(
+  overrides: Partial<MarketplaceExtensionServer> = {}
+): MarketplaceExtensionServer {
+  return {
+    auth: { method: "none" },
+    launch: "https://mcp.context7.com",
+    name: "context7",
+    owner: "extension:context7",
+    profile: "default",
+    scope: "global",
+    transport: "http",
+    ...overrides,
+  };
+}
+
+/** The Postgres server: a local process with one required secret input. */
+export function storyPostgresServer(
+  overrides: Partial<MarketplaceExtensionServer> = {}
+): MarketplaceExtensionServer {
+  return {
+    auth: { method: "none" },
+    launch: "postgres-mcp",
+    name: "postgres",
+    owner: "extension:postgres",
+    profile: "default",
+    scope: "workspace",
+    transport: "stdio",
+    workspace_id: "ws_story_fintech",
+    ...overrides,
+  };
+}
+
+export const storyPostgresInputs: StoryExtensionDetail["inputs"] = [
+  {
+    binding: { name: "DATABASE_URL", type: "env" },
+    id: "database_url",
+    prompt: "Connection string",
+    required: true,
+    type: "secret",
+  },
+];
+
 /** One MSW group set per story: a second `storybookMswParameters` spread would replace the first. */
 export function marketplaceStoryHandlers(options: {
   catalog?: MarketplaceCatalogListing[];
@@ -183,10 +254,13 @@ export function marketplaceStoryHandlers(options: {
   catalogStatus?: number;
   catalogDelay?: "infinite";
   extensions?: ExtensionEntry[];
+  /** Per-entry detail payload overrides (servers, inputs, contents) keyed by entry id. */
+  details?: Record<string, Partial<StoryExtensionDetail>>;
   installDelayMs?: number;
 }) {
   const catalog = options.catalog ?? [];
   const extensions = options.extensions ?? [];
+  const details = options.details ?? {};
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace", async ({ request }) => {
@@ -222,6 +296,7 @@ export function marketplaceStoryHandlers(options: {
             inputs: [],
             install_slug: entry.install_slug ?? "",
             mcp_servers: [],
+            ...details[entry.entry_id],
           },
         });
       }),

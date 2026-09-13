@@ -9,8 +9,17 @@ export type { MCPSelectionStripProps } from "./mcp-selection-strip";
 export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
 export { MCPServerEditor } from "./mcp-server-editor";
 export type { MCPServerEditorProps } from "./mcp-server-editor";
+export { MCPOverrideEditor } from "./mcp-override-editor";
+export type { MCPOverrideEditorProps } from "./mcp-override-editor";
 export { MCPServersTable } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
+export {
+  isExtensionOwnedMCPServer,
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
+  mcpServerRowTestId,
+} from "./mcp-server-labels";
 export { ProviderCard } from "./provider-card";
 export { ProviderRow } from "./provider-row";
 export { ProvidersToolbar } from "./providers-toolbar";

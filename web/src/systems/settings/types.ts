@@ -265,6 +265,7 @@ export type SettingsSectionSlug =
   | "memory"
   | "roles"
   | "skills"
+  | "mcp"
   | "automation"
   | "network"
   | "gateway"

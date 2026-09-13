@@ -1,78 +1,86 @@
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@compozy/ui";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleCheck, Pencil, Trash2 } from "lucide-react";
 
-import type { SettingsLayeredScope, SettingsMCPServerEntry } from "../types";
+import type { SettingsMCPServerEntry } from "../types";
 
-import { mcpProvenanceLine } from "./mcp-server-labels";
+import {
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
+} from "./mcp-server-labels";
 
 export interface MCPSelectionStripProps {
-  selectedName: string;
-  server: SettingsMCPServerEntry | null;
-  scope: SettingsLayeredScope;
-  onClear: () => void;
+  /** The selected definition — full identity, so a same-name row never stands in for it. */
+  server: SettingsMCPServerEntry;
+  onEdit: (entry: SettingsMCPServerEntry) => void;
+  /** Present for manual definitions only; extension-provided servers leave through the extension. */
+  onRemove?: (entry: SettingsMCPServerEntry) => void;
+  /** Clears the selection when the page model can drop it. */
+  onClear?: () => void;
 }
 
 /**
- * Provenance + selection surface shown when a row is preselected (Marketplace
- * `Manage ->` or a name click). Catalog-installed servers link back to the
- * marketplace detail; hand-configured servers invent nothing.
+ * Selection surface for the row a name click chose: its provenance sentence and the actions
+ * that act on exactly that definition. Delete is offered for manual definitions only; an
+ * extension-provided server is removed by removing the extension.
  */
-export function MCPSelectionStrip({
-  selectedName,
-  server,
-  scope,
-  onClear,
-}: MCPSelectionStripProps) {
-  if (!selectedName) return null;
-
-  if (!server) {
-    return (
-      <Alert variant="warning" data-testid="settings-page-mcp-selection-missing">
-        <CircleAlert />
-        <AlertTitle>Server not found in this scope</AlertTitle>
-        <AlertDescription>
-          No server named {selectedName} was returned for {scope}.
-        </AlertDescription>
-        <AlertActions>
-          <Button variant="ghost" size="sm" onClick={onClear}>
-            Clear
-          </Button>
-        </AlertActions>
-      </Alert>
-    );
-  }
-
-  const provenance = mcpProvenanceLine(server.catalog_entry, server.catalog_version);
-  const catalogEntry = server.catalog_entry?.trim();
-
+export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSelectionStripProps) {
+  const extension = mcpOwnerExtensionName(server.owner);
+  const runtimeName = mcpAllocatedRuntimeName(server);
   return (
     <Alert variant="info" data-testid="settings-page-mcp-selection">
       <CircleCheck />
-      <AlertTitle>{server.name} selected</AlertTitle>
-      <AlertDescription>
-        {provenance ?? "Hand-configured server"}
-        {catalogEntry ? (
-          <>
-            {" · "}
-            <a
-              className="text-fg underline underline-offset-[3px]"
-              href={`/marketplace/mcp/${encodeURIComponent(catalogEntry)}`}
-              data-testid="settings-page-mcp-selection-marketplace-link"
-            >
-              View in marketplace
-            </a>
-          </>
-        ) : null}
+      <AlertTitle>
+        <span className="font-mono">{server.name}</span>
+        {extension ? (
+          <span className="ml-1.5 font-mono text-mono-id font-normal text-muted">
+            {server.owner}
+          </span>
+        ) : null}{" "}
+        selected
+      </AlertTitle>
+      <AlertDescription data-testid="settings-page-mcp-selection-provenance">
+        {mcpServerProvenanceLine(server)}
+        {runtimeName ? ` · runs as ${runtimeName}` : null}
+        {extension
+          ? " · edits are stored as an override; remove the extension to remove the server."
+          : null}
       </AlertDescription>
       <AlertActions>
         <Button
-          variant="ghost"
+          data-testid="settings-page-mcp-selection-edit"
+          onClick={() => onEdit(server)}
           size="sm"
-          onClick={onClear}
-          data-testid="settings-page-mcp-selection-clear"
+          type="button"
+          variant="ghost"
         >
-          Clear
+          <Pencil aria-hidden="true" className="size-3" />
+          Edit
         </Button>
+        {onRemove ? (
+          <Button
+            className="text-danger"
+            data-testid="settings-page-mcp-selection-delete"
+            onClick={() => onRemove(server)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" className="size-3" />
+            Delete
+          </Button>
+        ) : null}
+        {onClear ? (
+          <Button
+            data-testid="settings-page-mcp-selection-clear"
+            onClick={onClear}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Clear
+          </Button>
+        ) : null}
       </AlertActions>
     </Alert>
   );

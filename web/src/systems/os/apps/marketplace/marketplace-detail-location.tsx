@@ -83,7 +83,7 @@ export function MarketplaceDetailLocation({
   }
   return (
     <>
-      <MarketplaceDetail data={query.data} />
+      <MarketplaceDetail data={query.data} liveDataEnabled={liveDataEnabled} />
       {actions.dialogs}
     </>
   );

@@ -1,29 +1,30 @@
 import { Trash2 } from "lucide-react";
 
-import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
-import { ConfirmDialog, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { ConfirmDialog } from "@compozy/ui";
+
+import { deriveMCPManagementFilter, mcpManagementScopeLabel } from "../lib/mcp-management-target";
+import type { SettingsMCPServerEntry } from "../types";
 
 import { mcpTargetLabel } from "./mcp-server-labels";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 interface MCPServerDeleteDialogProps {
+  /** A manual definition only; extension-provided servers are never deleted here. */
   target: SettingsMCPServerEntry | null;
-  selectedTarget: SettingsMCPServerTarget;
-  availableTargets: SettingsMCPServerTarget[];
   error: string | null;
   isDeleting: boolean;
-  onTargetChange: (target: SettingsMCPServerTarget) => void;
   onClose: () => void;
   onConfirm: () => void;
 }
 
+/**
+ * Deletes exactly the definition the daemon resolved for the row — its effective source and
+ * scope, not the scope selected on the page — and names what becomes effective afterwards.
+ */
 export function MCPServerDeleteDialog({
   target,
-  selectedTarget,
-  availableTargets,
   error,
   isDeleting,
-  onTargetChange,
   onClose,
   onConfirm,
 }: MCPServerDeleteDialogProps) {
@@ -31,6 +32,9 @@ export function MCPServerDeleteDialog({
   const shadowed = target?.source_metadata.shadowed_sources ?? [];
   const hasShadowed = shadowed.length > 0;
   const effective = target?.source_metadata.effective_source;
+  const management = target ? deriveMCPManagementFilter(target) : null;
+  const scopeLabel = target ? mcpManagementScopeLabel(target) : null;
+  const writeTarget = management?.target ? mcpTargetLabel(management.target) : null;
 
   return (
     <ConfirmDialog
@@ -38,9 +42,9 @@ export function MCPServerDeleteDialog({
       title={target ? `Delete MCP server "${target.name}"?` : "Delete MCP server"}
       description={
         target
-          ? selectedTarget === "auto"
-            ? "Removes the highest-precedence definition in the selected scope. Lower-precedence definitions may become effective again."
-            : `Removes the definition from the selected target (${mcpTargetLabel(selectedTarget)}). Other sources for this server remain untouched.`
+          ? `Removes the definition from ${writeTarget ?? "its effective source"}${
+              scopeLabel ? ` in ${scopeLabel}` : ""
+            }. Other sources for this server remain untouched.`
           : null
       }
       note={
@@ -74,30 +78,6 @@ export function MCPServerDeleteDialog({
                 No other sources define this server -- it will be fully removed after delete.
               </span>
             )}
-            <div
-              className="flex items-center gap-2"
-              data-testid="settings-mcp-servers-delete-target"
-            >
-              <label
-                htmlFor="settings-mcp-servers-delete-target-input"
-                className="eyebrow text-muted"
-              >
-                target
-              </label>
-              <NativeSelect
-                id="settings-mcp-servers-delete-target-input"
-                className="w-56 font-mono"
-                data-testid="settings-mcp-servers-delete-target-input"
-                value={selectedTarget}
-                onChange={event => onTargetChange(event.target.value as SettingsMCPServerTarget)}
-              >
-                {availableTargets.map(candidate => (
-                  <NativeSelectOption key={candidate} value={candidate}>
-                    {mcpTargetLabel(candidate)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
           </div>
         ) : null
       }

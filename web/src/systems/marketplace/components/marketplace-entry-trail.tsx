@@ -1,28 +1,13 @@
-import { Link } from "@tanstack/react-router";
-import { Check, MoreHorizontal } from "lucide-react";
-import { useState } from "react";
+import { Check } from "lucide-react";
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Pill,
-  Spinner,
-  StatusDot,
-  Switch,
-} from "@compozy/ui";
+import { Button, Pill, Spinner } from "@compozy/ui";
 
-import { RemoveExtensionDialog, type InstalledExtensionView } from "@/systems/extensions";
-
-import {
-  installedDetailSearch,
-  installedDisplayName,
-  installedEntryId,
-} from "../lib/marketplace-installed-view";
 import type { MarketplaceCatalogListing } from "../types";
+import { MarketplaceInstalledServerTrail } from "./marketplace-installed-server-trail";
+import {
+  MarketplaceInstalledTrailControls,
+  type MarketplaceInstalledTrailProps,
+} from "./marketplace-installed-trail-controls";
 import { formatMarketplaceVersion } from "./marketplace-ui";
 
 const DEFAULT_INSTALL_BLOCKER =
@@ -129,110 +114,18 @@ function MarketplaceCatalogTrail({
   );
 }
 
-interface MarketplaceInstalledTrailProps {
-  item: InstalledExtensionView;
-  pending?: boolean;
-  /** Search kept on the detail link so Back returns here with the query intact. */
-  query?: string;
-  onUpdate: (item: InstalledExtensionView) => void;
-  onToggleEnabled: (item: InstalledExtensionView, enabled: boolean) => void;
-}
-
 /**
  * Installed trail: the readiness word first, then update, the enable switch and the overflow. A
  * dev overlay shadows the published row without owning it, so enable/update stay on the published
  * extension. "Needs configuration" is daemon truth (`missing_inputs`), never inferred from the
- * listing.
+ * listing. Rows whose extension provides an MCP server add the server's status word, Authorize
+ * and Edit configuration on top of the same controls.
  */
-function MarketplaceInstalledTrail({
-  item,
-  pending = false,
-  query,
-  onUpdate,
-  onToggleEnabled,
-}: MarketplaceInstalledTrailProps) {
-  const [removing, setRemoving] = useState(false);
-  const { extension } = item;
-  const name = installedDisplayName(item);
-  const isDevOverlay = extension.dev === true;
-  const targetVersion = formatMarketplaceVersion(item.listing?.version ?? extension.remote_version);
-  const detailLink = {
-    params: { entryId: installedEntryId(item) },
-    search: { ...installedDetailSearch(item), from: "installed" as const, q: query || undefined },
-    to: "/marketplace/$entryId" as const,
-  };
-
-  return (
-    <>
-      {extension.missing_inputs.length > 0 ? (
-        <span
-          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-warning"
-          data-testid={`marketplace-installed-needs-configuration-${extension.name}`}
-        >
-          <StatusDot aria-hidden="true" size="sm" tone="warning" />
-          Needs configuration
-        </span>
-      ) : null}
-      {item.updateAvailable && !isDevOverlay ? (
-        <>
-          {targetVersion ? (
-            <span className="font-mono text-mono-id text-faint tabular-nums">{targetVersion}</span>
-          ) : null}
-          <Button
-            aria-label={`Update ${name}`}
-            data-testid={`marketplace-installed-update-${extension.name}`}
-            disabled={pending}
-            onClick={() => onUpdate(item)}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending ? "Updating…" : "Update"}
-          </Button>
-        </>
-      ) : null}
-      <Switch
-        aria-label={
-          isDevOverlay ? `Enable ${name} · managed on the published extension` : `Enable ${name}`
-        }
-        checked={extension.enabled}
-        data-testid={`marketplace-installed-switch-${extension.name}`}
-        disabled={pending || isDevOverlay}
-        onCheckedChange={checked => onToggleEnabled(item, checked)}
-        size="sm"
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              aria-haspopup="menu"
-              aria-label={`More for ${name}`}
-              data-testid={`marketplace-installed-more-${extension.name}`}
-              disabled={pending}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden="true" className="size-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem render={<Link {...detailLink} />}>View details</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-danger"
-            data-testid={`marketplace-installed-remove-${extension.name}`}
-            onClick={() => setRemoving(true)}
-          >
-            {isDevOverlay ? "Unlink dev overlay…" : "Remove…"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <RemoveExtensionDialog extension={extension} onOpenChange={setRemoving} open={removing} />
-    </>
-  );
+function MarketplaceInstalledTrail(props: MarketplaceInstalledTrailProps) {
+  if (props.item.extension.mcp_servers.length > 0) {
+    return <MarketplaceInstalledServerTrail {...props} />;
+  }
+  return <MarketplaceInstalledTrailControls {...props} />;
 }
 
 export { MarketplaceCatalogTrail, MarketplaceInstalledTrail };

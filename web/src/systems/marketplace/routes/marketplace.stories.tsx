@@ -13,6 +13,10 @@ import {
   localExtension,
   marketplaceStoryHandlers,
   storyCatalog,
+  storyContext7Server,
+  storyGithubServer,
+  storyPostgresInputs,
+  storyPostgresServer,
 } from "./marketplace-story-data";
 
 const herdrInstalled = installedListing(storyCatalog.herdrBridge, {
@@ -243,6 +247,72 @@ export const Installed: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Rows whose extension provides an MCP server carry the daemon's status word: Needs
+ * configuration (missing inputs) wins, Needs authorization adds Authorize on the row, Running,
+ * and Disabled. GitHub also shows its allocated runtime name because a manual `github` exists.
+ */
+export const InstalledServerStatus: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/installed"),
+    ...marketplaceStoryHandlers({
+      catalog: defaultCatalog,
+      extensions: [
+        installedExtension(githubInstalled, {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        }),
+        installedExtension(context7Installed, {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [storyContext7Server({ runtime_name: "context7", status: "running" })],
+        }),
+        installedExtension(installedListing(storyCatalog.postgres), {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          inputs: [{ active: false, id: "database_url", set: false, type: "secret" }],
+          mcp_servers: [storyPostgresServer({ status: "stopped" })],
+          missing_inputs: ["database_url"],
+          workspace_id: "ws_story_fintech",
+        }),
+        installedExtension(herdrInstalled, {
+          contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
+        }),
+      ],
+      details: { postgres: { inputs: storyPostgresInputs } },
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Authorize on the Installed row starts the owner-qualified login for the extension's own server. */
+export const InstalledAuthorize: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    ...appRouteParameters("/marketplace/installed"),
+    ...marketplaceStoryHandlers({
+      catalog: defaultCatalog,
+      extensions: [
+        installedExtension(githubInstalled, {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const authorize = await canvas.findByTestId("marketplace-installed-authorize-github");
+    await expect(authorize).toBeEnabled();
+    await userEvent.click(authorize);
+    await page.findByTestId("settings-page-mcp-authorize-url");
+  },
 };
 
 /** Two updates waiting: the line names them and Update all runs the batch. */

@@ -11,7 +11,10 @@ import {
 } from "@/storybook/route-story-meta";
 import { MCPServerEditor } from "@/systems/settings/components/mcp-server-editor";
 import { emptyDraft } from "@/systems/settings/lib/mcp-editor-model";
-import { mcpManagementCollectionFixture } from "@/systems/settings/mocks";
+import {
+  mcpManagementCollectionFixture,
+  mcpOwnerCollectionFixture,
+} from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/McpServers",
@@ -21,7 +24,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Marketplace MCP management: composed status matrix, authorize/repair flow, and the stdio/HTTP editor. Stories back the Task 08 Visual Contract capture set.",
+          "Settings › MCP servers: the canonical management page. Manual and extension-provided definitions coexist under their owner with the composed status matrix, the authorize/repair flow, the manual editor and the extension override editor.",
       },
     },
   },
@@ -30,11 +33,13 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// The nine-server reference matrix, plus a selectable Vault inventory entry.
-const managementMsw = storybookMswParameters({
+const ROUTE = "/settings/mcp";
+
+// The reference matrix (nine manual servers) plus the owner-aware rows from task_04.
+const ownerMsw = storybookMswParameters({
   settings: [
     compozyApiMock.get("/api/settings/mcp-servers", () =>
-      HttpResponse.json(mcpManagementCollectionFixture)
+      HttpResponse.json(mcpOwnerCollectionFixture)
     ),
     compozyApiMock.get("/api/vault/secrets", () =>
       HttpResponse.json({
@@ -52,102 +57,65 @@ const managementMsw = storybookMswParameters({
   ],
 });
 
-function managementParams(path: string) {
-  return { ...appRouteParameters(path), ...managementMsw };
+function ownerParams(path = ROUTE) {
+  return { ...appRouteParameters(path), ...ownerMsw };
 }
 
-async function clickLinearAuthorize(canvasElement: HTMLElement) {
+const EXTENSION_GITHUB_ROW = "settings-page-mcp-servers-row-github--github";
+const MANUAL_GITHUB_ROW = "settings-page-mcp-servers-row-github";
+
+async function clickExtensionGithubAuthorize(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
   const page = within(canvasElement.ownerDocument.body);
-  const linearCard = within(await canvas.findByTestId("marketplace-installed-card-linear"));
-  await userEvent.click(linearCard.getByRole("button", { name: "Authorize" }));
+  await userEvent.click(await canvas.findByTestId(`${EXTENSION_GITHUB_ROW}-authorize`));
   return page;
 }
 
 async function openAuthorizeWaiting(canvasElement: HTMLElement) {
-  const page = await clickLinearAuthorize(canvasElement);
+  const page = await clickExtensionGithubAuthorize(canvasElement);
   await page.findByTestId("settings-page-mcp-authorize-url");
   return page;
 }
 
-async function openInstalledServerEditor(
-  canvasElement: HTMLElement,
-  serverName: string,
-  editorTestId: "settings-mcp-editor-stdio" | "settings-mcp-editor-remote"
-) {
-  const canvas = within(canvasElement);
-  const page = within(canvasElement.ownerDocument.body);
-  const card = within(await canvas.findByTestId(`marketplace-installed-card-${serverName}`));
-  await userEvent.click(card.getByRole("button", { name: `More for ${serverName}` }));
-  await userEvent.click(await page.findByRole("menuitem", { name: "Edit configuration" }));
-  await page.findByTestId(editorTestId);
-}
-
-/** matrix-desktop / matrix-mobile */
+/** matrix-desktop / matrix-mobile: manual `github` and `extension:github` (runs as github.github) side by side. */
 export const Matrix: Story = {
   args: {},
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Workspace-scoped dead sidecar rendered as unavailable with its redacted daemon diagnostic. */
-export const Unavailable: Story = {
+/** Selecting a name picks that exact definition; the strip offers Delete for manual rows only. */
+export const SelectedManualRow: Story = {
   args: {},
-  parameters: {
-    ...appRouteParameters("/mcp?scope=workspace"),
-    ...storybookMswParameters({
-      settings: [
-        compozyApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json({
-            ...mcpManagementCollectionFixture,
-            mcp_servers: [
-              {
-                name: "postgres",
-                transport: "stdio",
-                command: "npx",
-                args: ["-y", "@modelcontextprotocol/server-postgres"],
-                scope: "workspace",
-                workspace_id: "ws-platform",
-                runtime_status: {
-                  configured: true,
-                  initialized: false,
-                  state: "dead",
-                  probe: "skipped",
-                  tool_count: 0,
-                  reason: "backend_dead",
-                  diagnostic: "process exited during initialize",
-                },
-                source_metadata: {
-                  available_targets: ["workspace-mcp-sidecar"],
-                  effective_source: {
-                    kind: "workspace-mcp-sidecar",
-                    scope: "workspace",
-                    workspace_id: "ws-platform",
-                  },
-                },
-              },
-              ...mcpManagementCollectionFixture.mcp_servers,
-            ],
-          })
-        ),
-      ],
-    }),
+  tags: ["play-fn"],
+  parameters: ownerParams(),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId(`${MANUAL_GITHUB_ROW}-name`));
+    await canvas.findByTestId("settings-page-mcp-selection-delete");
   },
-  render: () => <StorybookWorkspaceSetup />,
 };
 
-/** selected-needs-login-desktop */
-export const SelectedNeedsLogin: Story = {
+/** An extension-provided row selected: no Delete — the server leaves with its extension. */
+export const SelectedExtensionRow: Story = {
   args: {},
-  parameters: managementParams("/marketplace/mcps"),
+  tags: ["play-fn"],
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId(`${EXTENSION_GITHUB_ROW}-name`));
+    await canvas.findByTestId("settings-page-mcp-selection");
+    await expect(canvas.queryByTestId("settings-page-mcp-selection-delete")).toBeNull();
+  },
 };
 
-/** authorize-waiting-desktop / authorize-mobile */
+/** authorize-waiting-desktop / authorize-mobile: the extension's own token, not the manual one. */
 export const AuthorizeWaiting: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -159,7 +127,7 @@ export const AuthorizeWaiting: Story = {
 export const AuthorizeManual: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -173,19 +141,19 @@ export const AuthFailure: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters(ROUTE),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json(mcpManagementCollectionFixture)
+          HttpResponse.json(mcpOwnerCollectionFixture)
         ),
         compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
         // Exchange returns without a confirmed token -> the UI stays failed.
         compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
           HttpResponse.json({
-            server_name: "linear",
-            owner: "manual",
-            scope: "workspace",
+            server_name: "github",
+            owner: "extension:github",
+            scope: "user",
             status: "needs_login",
             token_present: false,
             refreshable: true,
@@ -212,11 +180,11 @@ export const AuthBeginFailure: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters(ROUTE),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json(mcpManagementCollectionFixture)
+          HttpResponse.json(mcpOwnerCollectionFixture)
         ),
         compozyApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
         compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
@@ -227,7 +195,7 @@ export const AuthBeginFailure: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const page = await clickLinearAuthorize(canvasElement);
+    const page = await clickExtensionGithubAuthorize(canvasElement);
     await page.findByText("Authorization could not be started");
     await page.findByTestId("settings-page-mcp-authorize-retry");
   },
@@ -237,7 +205,7 @@ export const AuthBeginFailure: Story = {
 export const Authenticated: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
@@ -251,16 +219,16 @@ export const Authenticated: Story = {
   },
 };
 
-/** editor-stdio-desktop */
+/** editor-stdio-desktop: Add MCP server opens the manual editor. */
 export const EditorStdio: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByRole("button", { name: "Add MCP server" }));
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-create"));
     await page.findByTestId("settings-mcp-editor-stdio");
   },
 };
@@ -303,41 +271,48 @@ export const EditorStdioIncompleteSecret: Story = {
   ),
 };
 
-/** editor-http-desktop / remote-editor-mobile */
+/** editor-http-desktop / remote-editor-mobile: a manual remote definition edited in place. */
 export const EditorHttp: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
+  parameters: ownerParams(),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    await openInstalledServerEditor(canvasElement, "linear", "settings-mcp-editor-remote");
-  },
-};
-
-/** editor-remote-status-desktop */
-export const EditorRemoteStatus: Story = {
-  args: {},
-  tags: ["play-fn"],
-  parameters: managementParams("/marketplace/mcps"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    await openInstalledServerEditor(canvasElement, "sentry", "settings-mcp-editor-remote");
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-linear-edit"));
+    await page.findByTestId("settings-mcp-editor-remote");
   },
 };
 
 /**
- * loading-desktop. Driven at global scope so the route's workspace-scope loader
- * resolves and the mounted matrix shows its in-component skeleton for the pending
- * global query.
+ * override-editor-desktop: Edit on an extension-provided row opens the override editor — package
+ * fields read-only, headers and endpoint editable, Reset override offered because one is stored.
  */
+export const OverrideEditor: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: ownerParams(),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId(`${EXTENSION_GITHUB_ROW}-edit`));
+    await page.findByTestId("settings-mcp-override-editor");
+    await page.findByTestId("settings-mcp-override-editor-reset");
+    await expect(page.getByTestId("settings-mcp-override-editor-url")).toHaveValue("");
+  },
+};
+
+/** loading-desktop */
 export const Loading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters(ROUTE),
     ...storybookMswParameters({
       settings: [
-        compozyApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
-          if (new URL(request.url).searchParams.get("scope") === "global") await delay("infinite");
+        compozyApiMock.get("/api/settings/mcp-servers", async () => {
+          await delay("infinite");
           return HttpResponse.json(mcpManagementCollectionFixture);
         }),
       ],
@@ -350,7 +325,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters(ROUTE),
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
@@ -362,22 +337,29 @@ export const Empty: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/**
- * error-desktop. Global scope so the workspace-scope loader resolves; the mounted
- * matrix then renders its in-component retry block for the failing global query.
- */
+/** query-empty-desktop */
+export const QueryEmpty: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: ownerParams(),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(await canvas.findByTestId("settings-page-mcp-search"), "tailscale");
+    await canvas.findByTestId("settings-page-mcp-query-empty");
+  },
+};
+
+/** error-desktop */
 export const Error: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/mcps"),
+    ...appRouteParameters(ROUTE),
     ...storybookMswParameters({
       settings: [
-        compozyApiMock.get("/api/settings/mcp-servers", ({ request }) => {
-          if (new URL(request.url).searchParams.get("scope") === "global") {
-            return HttpResponse.json({ error: "Failed to load MCP servers" }, { status: 500 });
-          }
-          return HttpResponse.json(mcpManagementCollectionFixture);
-        }),
+        compozyApiMock.get("/api/settings/mcp-servers", () =>
+          HttpResponse.json({ error: "Failed to load MCP servers" }, { status: 500 })
+        ),
       ],
     }),
   },

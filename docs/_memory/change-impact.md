@@ -563,3 +563,11 @@ captured definition independently of page selection. Existing adapters and Query
 HTTP/UDS mutation envelopes; no new backend, wire, config, hook, schema or SDK changes. The Settings
 route and Marketplace/Settings presentation remain the next UI slice; final09/10 owns visual QA.
 Canonical editor-model, mutation, authorization and Marketplace-hook suites verify these boundaries.
+
+Task04 presentation integrates Server details and Installed authorization with the prepared exact-owner
+controllers, restores /settings/mcp and Settings window navigation, and limits extension edits to
+overrides. Manual definitions keep their separate editor/removal path. Shared StatusDot gains its
+existing semantic success tone for truthful runtime status. No additional native, HTTP/UDS, config,
+hook, workspace storage or SDK contract changes. The install guide explains these entry points;
+J-mcp-authorize-repair and ET-web-marketplace-mcp-authorize-installed now target the current routes
+and remain untested for final09/10. UI integration and focused checks are still in progress.

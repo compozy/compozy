@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Brain,
+  Cable,
   Command,
   Cpu,
   Network,
@@ -111,6 +112,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     group: "runtime",
     keywords:
       "registry marketplace policy disabled install sources folders agents claude custom directories origin expose",
+  },
+  {
+    slug: "mcp",
+    label: "MCP servers",
+    icon: Cable,
+    group: "runtime",
+    keywords:
+      "mcp servers tools transport stdio http oauth authorize extension override runtime name workspace",
   },
   {
     slug: "automation",

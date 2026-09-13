@@ -82,6 +82,7 @@ function MarketplaceInstalledPage({
         ) : null}
         <MarketplaceInstalledBody
           actions={actions}
+          liveDataEnabled={liveDataEnabled}
           onClearSearch={strip.clear}
           page={page}
           query={query}
@@ -100,11 +101,13 @@ type InstalledPageModel = ReturnType<typeof useMarketplaceInstalledPage>;
 
 function MarketplaceInstalledBody({
   actions,
+  liveDataEnabled,
   onClearSearch,
   page,
   query,
 }: {
   actions: ReturnType<typeof useMarketplaceActionController>;
+  liveDataEnabled: boolean;
   onClearSearch: () => void;
   page: InstalledPageModel;
   query: string;
@@ -194,6 +197,7 @@ function MarketplaceInstalledBody({
             trail={
               <MarketplaceInstalledTrail
                 item={item}
+                liveDataEnabled={liveDataEnabled}
                 onToggleEnabled={actions.toggleEnabled}
                 onUpdate={actions.updateInstalled}
                 pending={pending}

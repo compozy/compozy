@@ -4,6 +4,7 @@ import { MonoId, PropertyRow, Time } from "@compozy/ui";
 
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionInstalled } from "./marketplace-detail-extension-installed";
+import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   MarketplaceDetailColumns,
   MarketplaceDetailKvRow,
@@ -16,15 +17,21 @@ import { formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionViewProps {
   data: MarketplaceCatalogEntryResponse;
+  liveDataEnabled?: boolean;
 }
 
 /**
  * Extension detail: installed entries put the kit and its runtime in the body;
- * browse entries lead with the pinned artifact provenance.
+ * browse entries lead with the pinned artifact provenance. An entry whose manifest
+ * provides MCP servers opens the rail with a Server card per server (summaries only
+ * until installed).
  */
-function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionViewProps) {
+function MarketplaceDetailExtensionView({
+  data,
+  liveDataEnabled = true,
+}: MarketplaceDetailExtensionViewProps) {
   if (data.entry.installed) {
-    return <MarketplaceDetailExtensionInstalled data={data} />;
+    return <MarketplaceDetailExtensionInstalled data={data} liveDataEnabled={liveDataEnabled} />;
   }
   return (
     <MarketplaceDetailColumns
@@ -36,6 +43,10 @@ function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionView
       }
       rail={
         <>
+          <MarketplaceExtensionServerSection
+            inputs={data.extension?.inputs ?? []}
+            servers={data.extension?.mcp_servers ?? []}
+          />
           <MarketplaceExtensionDetailsCard data={data} />
           <MarketplaceExtensionTrustCard trust={data.entry.trust} />
         </>

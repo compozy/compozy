@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateMCPState } from "./use-settings-mutations";
 import { useEffect } from "react";
 
 import { useMCPAuthorize } from "./use-mcp-authorize";
@@ -5,7 +7,14 @@ import { useSettingsMCPServer } from "./use-settings-collections";
 
 /** Poll the authorizing definition, even when another same-name row or workspace is selected. */
 export function useMCPDefinitionAuthorization() {
-  const authorize = useMCPAuthorize();
+  const queryClient = useQueryClient();
+  const authorize = useMCPAuthorize({
+    // Browser callbacks complete outside this window's exchange mutation. Confirmation must
+    // refresh every projection of the captured owner, including the Installed inventory.
+    onConfirmed: (_server, filter) => {
+      void invalidateMCPState(queryClient, filter.owner);
+    },
+  });
   const filter = authorize.filter;
   const query = useSettingsMCPServer(authorize.server ?? "", filter ?? {}, {
     enabled: filter !== null && authorize.server !== null,

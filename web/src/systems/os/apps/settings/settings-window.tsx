@@ -73,6 +73,11 @@ const SECTION_PAGES = {
       default: m.SkillsSettingsPage,
     }))
   ),
+  mcp: lazy(() =>
+    import("@/routes/_app/settings/-mcp-settings-page").then(m => ({
+      default: m.MCPSettingsPage,
+    }))
+  ),
   automation: lazy(() =>
     import("@/routes/_app/settings/-automation-settings-page").then(m => ({
       default: m.AutomationSettingsPage,

@@ -545,6 +545,12 @@ attention. Unreachable or unpublished enabled servers report `stopped`. A disabl
 
 ## Authorize extension MCP servers
 
+In the web app, open **Marketplace → Installed**, then choose **Authorize** on the extension's
+server row. You can also open its detail and expand **Server**, or open **Settings → MCP servers**.
+Settings shows manual and extension-provided definitions separately, including their owner and
+allocated runtime name. Select the definition in the intended profile or workspace before authorizing.
+The dialog reports success only after the selected definition has authenticated status and a token.
+
 An extension's MCP server uses its own OAuth credentials. A manually configured server with the same
 name keeps a separate token and client registration. Select the extension explicitly with `--owner`:
 
@@ -568,6 +574,17 @@ When a token expires, tool discovery or execution renews it with that owner's sa
 registration. This does not open another login flow or register another client. If the registration
 has changed or its client secret has expired, authorize the server again. Refreshing or logging out
 the extension's server leaves the manual server's credentials unchanged.
+
+## Edit extension MCP configuration
+
+Choose **Edit configuration** in the detail's **Server** section, **Edit server configuration**
+from the Installed row's menu, or the edit action on its Settings row. The editor keeps the
+server name, owner, launch command and authorization declaration read-only. It accepts environment
+variables for a local server, or headers and an optional endpoint for a remote server.
+
+Saved values override the extension's declaration in the selected definition's scope. A blank endpoint
+uses the package URL. **Reset override** removes the stored override and restores the package values;
+it does not uninstall the extension. Manual servers use their own editor and removal action in Settings.
 
 ## Agent surfaces
 

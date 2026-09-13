@@ -33,6 +33,9 @@ import { marketplaceCatalogFixture } from "../../mocks";
 import type { MarketplaceCatalogResponse } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
+import { mcpExtensionServerFixtures, mcpAuthBeginFixture } from "@/systems/settings/mocks/fixtures";
+import { settingsKeys } from "@/systems/settings/lib/query-keys";
+import { MarketplaceExtensionServerSection } from "../marketplace-detail-extension-server";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
 import { MarketplaceEntryLogo } from "../marketplace-entry-logo";
@@ -1038,5 +1041,142 @@ describe("Extension input form", () => {
     { token: "secret", enabled: false, note: "nul\0value" },
   ])("Should refuse invalid typed input %#", draft => {
     expect(prepareExtensionInputs(definitions, draft).valid).toBe(false);
+  });
+});
+
+// Invariant UT047/049: declared facts never imply runtime readiness; authorization captures the
+// extension owner and refreshes Installed after a real status observation. HTTP is the I/O boundary.
+describe("Marketplace extension MCP controls", () => {
+  const published = {
+    name: "github",
+    owner: "extension:github",
+    runtime_name: "github.github",
+    scope: "global",
+    transport: "http",
+    launch: "https://api.githubcopilot.com",
+    status: "needs_authorization",
+    auth: { method: "oauth", registration: "dynamic", scopes: ["repo"] },
+  };
+
+  it("Should show manifest facts before installation without observed status or management actions", async () => {
+    const user = userEvent.setup();
+    setup(
+      <MarketplaceExtensionServerSection
+        servers={[published]}
+        inputs={[{ id: "region", required: true }]}
+      />
+    );
+    const toggle = await screen.findByRole("button", { name: /^Server/ });
+    if (toggle.getAttribute("aria-expanded") === "false") await user.click(toggle);
+    const section = screen.getByTestId("marketplace-extension-server-github");
+    for (const label of ["Launch", "Auth", "Inputs", "Scope", "Owner"])
+      expect(within(section).getByText(label)).toBeVisible();
+    expect(within(section).getByText("extension:github")).toBeVisible();
+    expect(within(section).queryByText("Runtime name")).not.toBeInTheDocument();
+    expect(within(section).queryByText("Status")).not.toBeInTheDocument();
+    expect(
+      within(section).queryByRole("button", { name: /Authorize|Edit configuration/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should omit the Server section when the extension declares no MCP server", async () => {
+    const { router } = setup(<MarketplaceExtensionServerSection servers={[]} inputs={[]} />);
+    await waitFor(() => expect(router.state.status).toBe("idle"));
+    expect(screen.queryByRole("button", { name: /^Server/ })).not.toBeInTheDocument();
+  });
+
+  it("Should prioritize missing inputs over authorization on the installed Server card", async () => {
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", () =>
+        HttpResponse.json({ server: mcpExtensionServerFixtures[1]! })
+      )
+    );
+    setup(
+      <MarketplaceExtensionServerSection
+        servers={[published]}
+        inputs={[{ id: "token", required: true }]}
+        missingInputs={["token"]}
+        installed
+      />
+    );
+    await screen.findByRole("button", { name: "Edit configuration" });
+    expect(screen.getByTestId("marketplace-extension-server-status-github")).toHaveTextContent(
+      "Needs configuration"
+    );
+    expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+  });
+
+  it("Should authorize the extension owner and refresh Installed after callback confirmation", async () => {
+    const user = userEvent.setup();
+    let authorized = false;
+    const requests: URL[] = [];
+    const definition = mcpExtensionServerFixtures[1]!;
+    extensions = [
+      {
+        ...extensionFixtures[0]!,
+        name: "github",
+        marketplace: null,
+        origin: null,
+        missing_inputs: [],
+        mcp_servers: [published],
+      },
+    ];
+    server.use(
+      http.get("*/api/settings/mcp-servers/:name", ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.pathname).toBe("/api/settings/mcp-servers/github");
+        expect(url.searchParams.get("owner")).toBe("extension:github");
+        expect(url.searchParams.get("scope")).toBe("user");
+        return HttpResponse.json({
+          server: authorized
+            ? {
+                ...definition,
+                auth_status: {
+                  ...definition.auth_status!,
+                  status: "authenticated",
+                  token_present: true,
+                },
+                runtime_status: {
+                  ...definition.runtime_status!,
+                  state: "ready",
+                  initialized: true,
+                  probe: "succeeded",
+                },
+              }
+            : definition,
+        });
+      }),
+      http.post("*/api/settings/mcp-servers/:name/auth/begin", ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json(mcpAuthBeginFixture);
+      })
+    );
+    const { client } = setup(undefined, "/marketplace/installed");
+    const authorize = await screen.findByRole("button", { name: "Authorize github for github" });
+    await waitFor(() => expect(authorize).toBeEnabled());
+    expect(screen.getByTestId("marketplace-installed-runtime-name-github")).toHaveTextContent(
+      "github.github"
+    );
+    await user.click(authorize);
+    await screen.findByRole("dialog", { name: "Authorize github" });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]!.searchParams.get("owner")).toBe("extension:github");
+    expect(requests[0]!.searchParams.get("scope")).toBe("user");
+    authorized = true;
+    extensions = extensions.map(extension => ({
+      ...extension,
+      mcp_servers: [{ ...published, status: "running" }],
+    }));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: settingsKeys.mcpRoot() });
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("marketplace-installed-server-status-github")).toHaveTextContent(
+        "Running"
+      )
+    );
+    expect(
+      screen.queryByRole("button", { name: "Authorize github for github" })
+    ).not.toBeInTheDocument();
   });
 });

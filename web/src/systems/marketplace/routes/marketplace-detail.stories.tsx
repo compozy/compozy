@@ -17,6 +17,13 @@ import {
   kitExtensionFixture,
   kitInventoryItems,
 } from "./marketplace-detail-story-fixtures";
+import {
+  installedExtension,
+  installedListing,
+  marketplaceStoryHandlers,
+  storyCatalog,
+  storyGithubServer,
+} from "./marketplace-story-data";
 
 const slackNotifyDetail = marketplaceCatalogDetailFixture("slack-notify")!;
 
@@ -51,6 +58,62 @@ export const DetailExtensionBrowse: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/** An MCP-backed entry, not installed: the Server card summarises the manifest, no status or actions. */
+export const DetailExtensionServerBrowse: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog"),
+    ...marketplaceStoryHandlers({
+      catalog: [storyCatalog.github],
+      details: {
+        github: {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [storyGithubServer()],
+        },
+      },
+      extensions: [],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Installed beside a manual `github`: the Server card reads Needs authorization, shows the
+ * allocated runtime name `github.github`, and offers Authorize and Edit configuration on the
+ * extension's own definition (owner `extension:github`).
+ */
+export const DetailExtensionServerInstalled: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog&installed_name=github"),
+    ...marketplaceStoryHandlers({
+      catalog: [installedListing(storyCatalog.github)],
+      details: {
+        github: {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        },
+      },
+      extensions: [
+        installedExtension(installedListing(storyCatalog.github), {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("marketplace-extension-server-runtime-name-github");
+    await canvas.findByTestId("marketplace-extension-server-authorize-github");
+  },
 };
 
 export const DetailExtensionInstalled: Story = {

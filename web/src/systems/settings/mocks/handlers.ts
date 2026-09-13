@@ -19,6 +19,9 @@ import {
   settingsHooksExtensionsSectionFixture,
   mcpAuthBeginFixture,
   mcpAuthStatusAuthenticatedFixture,
+  mcpExtensionServerFixtures,
+  mcpManagementServerFixtures,
+  settingsMCPServerFixtures,
   settingsMCPServersCollectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
@@ -427,6 +430,24 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json(settingsMCPServersCollectionFixture);
+  }),
+  // Public management resolves a logical name and explicit owner; omitted owner is manual.
+  compozyApiMock.get("/api/settings/mcp-servers/{name}", ({ request, params }) => {
+    const url = new URL(request.url);
+    const name = String(params.name);
+    const owner = url.searchParams.get("owner")?.trim();
+    const known = [
+      ...mcpExtensionServerFixtures,
+      ...settingsMCPServerFixtures,
+      ...mcpManagementServerFixtures,
+    ];
+    const server = known.find(
+      entry => entry.name === name && (entry.owner ?? "manual") === (owner || "manual")
+    );
+    if (!server) {
+      return HttpResponse.json({ error: `MCP server ${name} not found` }, { status: 404 });
+    }
+    return HttpResponse.json({ server });
   }),
   compozyApiMock.put("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))

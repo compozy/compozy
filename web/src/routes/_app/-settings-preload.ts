@@ -10,6 +10,7 @@ import {
   settingsPersonaFilterForProfile,
   settingsPersonaOptions,
   settingsHooksExtensionsOptions,
+  settingsMCPServersListOptions,
   settingsMemoryOptions,
   settingsAttentionOptions,
   settingsAttentionFilterForProfile,
@@ -96,4 +97,16 @@ export function preloadSettingsHooksRoute(queryClient: QueryClient): Promise<voi
 
 export function preloadSettingsExtensionsRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([queryClient.ensureQueryData(settingsHooksExtensionsOptions())]);
+}
+
+export function preloadSettingsMCPRoute(queryClient: QueryClient): Promise<void> {
+  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  return settleRouteQueries([
+    queryClient.ensureQueryData(workspacesListOptions()),
+    queryClient.ensureQueryData(
+      settingsMCPServersListOptions(
+        profile === "default" ? { scope: "user" } : { scope: "profile", profile }
+      )
+    ),
+  ]);
 }

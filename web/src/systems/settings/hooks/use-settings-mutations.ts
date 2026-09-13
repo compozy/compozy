@@ -115,7 +115,7 @@ function invalidateHooks(queryClient: ReturnType<typeof useQueryClient>) {
   ]);
 }
 
-function invalidateMCPState(queryClient: ReturnType<typeof useQueryClient>, owner?: string) {
+export function invalidateMCPState(queryClient: ReturnType<typeof useQueryClient>, owner?: string) {
   const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() })];
   if (owner?.startsWith("extension:")) {
     tasks.push(

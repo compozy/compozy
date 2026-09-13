@@ -234,7 +234,7 @@ describe("useMCPAuthorize", () => {
     unmount();
     resolveExchange(authenticatedStatus());
 
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith("linear"));
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith("linear", filter));
   });
 
   it("accepts a full redirect URL for the exchange", async () => {
@@ -315,7 +315,7 @@ describe("useMCPAuthorize", () => {
     expect(result.current.phase).toBe("idle");
     expect(firstConfirmed).not.toHaveBeenCalled();
     expect(latestConfirmed).toHaveBeenCalledOnce();
-    expect(latestConfirmed).toHaveBeenCalledWith("linear");
+    expect(latestConfirmed).toHaveBeenCalledWith("linear", filter);
   });
 
   it("cancels back to idle", async () => {
