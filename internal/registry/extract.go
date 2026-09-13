@@ -75,8 +75,15 @@ func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLi
 			err = errors.Join(err, fmt.Errorf("close gzip stream: %w", closeErr))
 		}
 	}()
+	return extractTar(gzipReader, root, limits)
+}
 
-	decompressed := newDecompressedArchiveReader(gzipReader, limits.maxDecompressedSize)
+func extractTar(reader io.Reader, root *fileutil.Directory, limits extractLimits) error {
+	if root == nil {
+		return ErrArchiveRootRequired
+	}
+	limits = limits.normalized()
+	decompressed := newDecompressedArchiveReader(reader, limits.maxDecompressedSize)
 	tarReader := tar.NewReader(decompressed)
 	seenEntries := make(map[string]struct{})
 	treeBudget := newArchiveTreeBudget(limits.maxFileCount, limits.maxDepth)

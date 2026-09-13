@@ -614,3 +614,10 @@ use the renamed internal errors directly. The serializer refuses a file replaced
 reading, preventing external bytes from entering a marketplace package. Existing gzip bytes, limits
 and cancellation remain covered by the same suite; no extension package/state migration is introduced.
 Scoped race checks pass. Final gate still owns baseline formatting/coverage gaps and integrated QA.
+
+### Task07 raw package installation boundary
+
+Explicit application/x-tar downloads now pass through the same registry digest, extraction safety,
+manifest/content validation and publication pipeline as gzip downloads. Canonical raw package bytes
+are verified before extraction and retained as the archive digest in the result. Existing gzip behavior
+is covered by unchanged suites. Public Marketplace install/source composition is still pending task07/08.

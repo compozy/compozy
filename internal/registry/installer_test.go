@@ -181,6 +181,41 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 
 func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
 	t.Parallel()
+	t.Run("Should install canonical raw tar through the same verified package pipeline", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		manifest := []byte("name = \"raw-package\"\nversion = \"1.0.0\"\n")
+		if err := os.WriteFile(filepath.Join(root, "extension.toml"), manifest, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		if _, err := fileutil.WriteTarDirectory(t.Context(), &archive, root, nil, fileutil.TarLimits{}); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(archive.Bytes())
+		expected := hex.EncodeToString(digest[:])
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: TarContentType, Reader: io.NopCloser(bytes.NewReader(archive.Bytes())),
+				}, nil
+			},
+		}
+		target := filepath.Join(t.TempDir(), "raw-package")
+		result, err := NewInstaller(downloader).Install(t.Context(), "team/raw-package", DownloadOpts{
+			ExpectedSHA256: expected,
+		}, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ArchiveDigestSHA256 != expected || result.Name != "raw-package" || result.Checksum == expected {
+			t.Fatalf("raw package provenance = %+v", result)
+		}
+		got, err := os.ReadFile(filepath.Join(target, "extension.toml"))
+		if err != nil || !bytes.Equal(got, manifest) {
+			t.Fatalf("installed manifest = %q, %v", got, err)
+		}
+	})
 
 	t.Run("Should persist the verified archive digest separately from the tree checksum", func(t *testing.T) {
 		t.Parallel()

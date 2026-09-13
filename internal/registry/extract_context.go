@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"io"
+	"mime"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
@@ -12,11 +13,20 @@ func extractArchiveWithContext(
 	reader io.Reader,
 	root *fileutil.Directory,
 	limits extractLimits,
+	contentType string,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return extractArchive(&contextArchiveReader{ctx: ctx, reader: reader}, root, limits)
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return err
+	}
+	bounded := &contextArchiveReader{ctx: ctx, reader: reader}
+	if mediaType == TarContentType {
+		return extractTar(bounded, root, limits)
+	}
+	return extractArchive(bounded, root, limits)
 }
 
 type contextArchiveReader struct {
