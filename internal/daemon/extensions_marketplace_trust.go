@@ -40,8 +40,23 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 		}
 	}
 	if req.Source == contract.InstallExtensionSourceMarketplace {
+		name, entryID, ok := strings.Cut(ref, "/")
+		if !ok {
+			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrInstallSlugInvalid
+		}
+		ref = strings.ToLower(name) + "/" + entryID
 		plugin, err = s.resolveMarketplacePlugin(ctx, ref, version)
 		if err != nil {
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+		if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, plugin.Record.DigestSHA256); err != nil {
+			logMarketplaceAcquisitionMismatch(
+				ctx,
+				s.logger,
+				plugin.Record,
+				req.ExpectedDigest,
+				plugin.Record.DigestSHA256,
+			)
 			return extensionpkg.MarketplaceInstallRequest{}, err
 		}
 	}
@@ -143,11 +158,19 @@ func (s *daemonExtensionService) resolveMarketplacePlugin(
 	if s == nil || s.marketplaceCatalog == nil {
 		return nil, marketplacepkg.ErrEntryNotFound
 	}
-	entry, err := s.marketplaceCatalog.ResolveExtensionInstall(ctx, slug, version)
+	sources, err := s.marketplaceCatalog.Status(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if entry == nil {
+	if _, err := marketplacepkg.ParseInstallSlug(slug, sources); err != nil {
+		return nil, err
+	}
+	sourceName, entryID, _ := strings.Cut(slug, "/")
+	entry, err := s.marketplaceCatalog.Detail(ctx, sourceName, entryID)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil || (version != "" && version != entry.Version) {
 		return nil, marketplacepkg.ErrEntryNotFound
 	}
 	return s.marketplacePluginFromEntry(*entry)

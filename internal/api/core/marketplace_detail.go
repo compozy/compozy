@@ -62,6 +62,11 @@ func marketplaceExtensionDetail(
 		ArtifactURL:  details.Extension.ArtifactURL,
 		DigestSHA256: details.Extension.DigestSHA256,
 		Repository:   details.Extension.Repository,
+		Contents: contract.ExtensionContentsPayload{
+			Skills: details.Extension.Contents.Skills, MCPServers: details.Extension.Contents.MCPServers,
+			Hooks: details.Extension.Contents.Hooks, Loops: details.Extension.Contents.Loops,
+			Agents: details.Extension.Contents.Agents, Bridges: details.Extension.Contents.Bridges,
+		},
 	}
 	for _, input := range details.Extension.Inputs {
 		result.Inputs = append(result.Inputs, contract.MarketplaceInputPayload{

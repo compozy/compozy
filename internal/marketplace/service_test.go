@@ -7,11 +7,15 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -220,6 +224,31 @@ func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
 		wantClass string
 	}{
 		{name: "Should classify cancellation", fetchErr: context.Canceled, wantClass: errorClassCanceled},
+		{
+			name:      "Should classify plugin rate limits",
+			fetchErr:  &pluginsource.SourceError{Reason: "rate_limited"},
+			wantClass: "rate_limited",
+		},
+		{
+			name:      "Should classify unreachable plugin sources",
+			fetchErr:  pluginsource.ErrSourceUnreachable,
+			wantClass: "source_unreachable",
+		},
+		{
+			name:      "Should classify oversized plugin documents",
+			fetchErr:  pluginsource.ErrDocumentTooLarge,
+			wantClass: "marketplace_document_too_large",
+		},
+		{
+			name:      "Should classify invalid plugin documents",
+			fetchErr:  pluginsource.ErrNotMarketplace,
+			wantClass: "marketplace_not_a_marketplace",
+		},
+		{
+			name:      "Should classify the plugin refresh budget",
+			fetchErr:  errors.Join(ErrRefreshBudgetExhausted, context.DeadlineExceeded),
+			wantClass: budgetExhausted,
+		},
 		{name: "Should classify timeout", fetchErr: context.DeadlineExceeded, wantClass: "timeout"},
 		{name: "Should classify oversized payload", fetchErr: ErrResponseTooLarge, wantClass: "payload_too_large"},
 		{
@@ -924,6 +953,99 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 // Owner: catalog aggregation and refresh lifecycle; canonical suite: service_test.go (UT-002/003/067/073).
 func TestCatalogServiceSources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject retained source names without changing the active projection", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		fetcher := &recordingSource{fetch: func(context.Context) (*Document, error) {
+			return testDocument(at, testEntry("tool", "Tool", "Retained origin")), nil
+		}}
+		service := newMarketplaceTestService(t, openMarketplaceTestStore(t), fetcher, at, nil)
+		service.installedPackages = func(context.Context) ([]InstalledPackage, error) {
+			return []InstalledPackage{
+				{Name: "second", SourceName: "team", SourceRef: "github:team/plugins"},
+				{Name: "first", SourceName: "team", SourceRef: "github:team/plugins"},
+			}, nil
+		}
+		feed := marketplaceTestBindings(t, fetcher)
+		team := SourceBinding{Config: ResolvedSource{
+			Name: "team", Ref: "github:team/plugins", Kind: SourceKindCustom, Enabled: true,
+		}, Fetcher: fetcher}
+		if err := service.SetSources(ctx, append(slices.Clone(feed), team)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		before, err := service.Browse(ctx, "", 0, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement := team
+		replacement.Config.Ref = "github:other/plugins"
+		err = service.SetSources(ctx, append(slices.Clone(feed), replacement))
+		var retained *SourceNameRetainedError
+		if !errors.Is(err, ErrSourceNameRetained) || !errors.As(err, &retained) ||
+			retained.Name != "team" || !slices.Equal(retained.RetainedBy, []string{"first", "second"}) {
+			t.Fatalf("retained name = %v", err)
+		}
+		after, err := service.Browse(ctx, "", 0, 10)
+		if err != nil || after.Revision != before.Revision || after.Total != before.Total {
+			t.Fatalf("rejected configuration changed projection: %+v, %v", after, err)
+		}
+		if err := service.SetSources(ctx, feed); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.SetSources(
+			ctx,
+			append(slices.Clone(feed), replacement),
+		); !errors.Is(
+			err,
+			ErrSourceNameRetained,
+		) {
+			t.Fatalf("removed name lost retention: %v", err)
+		}
+		team.Config.Name = "renamed"
+		if err := service.SetSources(ctx, append(slices.Clone(feed), team)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Refresh(ctx, "renamed"); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := service.Entry(ctx, Origin{SourceRef: team.Config.Ref, EntryID: "tool"})
+		if err != nil || entry.SourceName != "renamed" {
+			t.Fatalf("renamed origin = %+v, %v", entry, err)
+		}
+	})
+	t.Run("Should keep curated acquisition refs distinct from plugin source slugs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
+			entry := testEntry("tool", "Tool", "Same slug in separate acquisition namespaces")
+			entry.InstallSlug = "team/tool"
+			return testDocument(at, entry), nil
+		}}
+		service := newMarketplaceTestService(t, openMarketplaceTestStore(t), source, at, nil)
+		bindings := append(marketplaceTestBindings(t, source), SourceBinding{
+			Config:  ResolvedSource{Name: "team", Ref: "github:team/plugins", Kind: SourceKindCustom, Enabled: true},
+			Fetcher: source,
+		})
+		if err := service.SetSources(ctx, bindings); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		curated, err := service.ResolveExtensionInstall(ctx, "team/tool", "1.0.0")
+		if err != nil || curated.SourceName != CompozyCatalogSource {
+			t.Fatalf("curated acquisition = %+v, %v", curated, err)
+		}
+		plugin, err := service.Detail(ctx, "team", "tool")
+		if err != nil || plugin.SourceName != "team" {
+			t.Fatalf("plugin acquisition = %+v, %v", plugin, err)
+		}
+	})
 	t.Run(
 		"Should page across enabled sources and join renamed origins without fetching during lookup",
 		func(t *testing.T) {
@@ -995,7 +1117,7 @@ func TestCatalogServiceSources(t *testing.T) {
 			if _, err := service.Detail(ctx, "off", "same"); !errors.Is(err, ErrEntryNotFound) {
 				t.Fatalf("disabled detail = %v", err)
 			}
-			entry, err := service.ResolveExtensionInstall(ctx, "team/same", "1.0.0")
+			entry, err := service.Detail(ctx, "team", "same")
 			if err != nil || entry.SourceName != "team" {
 				t.Fatalf("install lookup = %+v, %v", entry, err)
 			}

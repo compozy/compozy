@@ -3,8 +3,11 @@ package marketplace
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 const maxStoredErrorBytes = 1024
@@ -17,22 +20,25 @@ const (
 
 // CatalogService coordinates TTL freshness and durable projections.
 type CatalogService struct {
-	store          Store
-	ttl            time.Duration
-	refreshTimeout time.Duration
-	now            func() time.Time
-	notifier       Notifier
-	sourceMu       sync.RWMutex
-	sources        []*registeredSource
-	byName         map[string]*registeredSource
-	generation     int64
-	flightMu       sync.Mutex
-	lifecycleCtx   context.Context
-	lifecycleStop  context.CancelFunc
-	flightWG       sync.WaitGroup
-	closeOnce      sync.Once
-	closeDone      chan struct{}
-	closed         bool
+	store             Store
+	ttl               time.Duration
+	refreshTimeout    time.Duration
+	now               func() time.Time
+	notifier          Notifier
+	packageCache      *pluginsource.PackageCache
+	installedPackages func(context.Context) ([]InstalledPackage, error)
+	logger            *slog.Logger
+	sourceMu          sync.RWMutex
+	sources           []*registeredSource
+	byName            map[string]*registeredSource
+	generation        int64
+	flightMu          sync.Mutex
+	lifecycleCtx      context.Context
+	lifecycleStop     context.CancelFunc
+	flightWG          sync.WaitGroup
+	closeOnce         sync.Once
+	closeDone         chan struct{}
+	closed            bool
 }
 
 var _ Service = (*CatalogService)(nil)
@@ -123,6 +129,11 @@ func (s *CatalogService) Browse(ctx context.Context, query string, offset, limit
 			}
 		}
 	}
+	for index := range page.Entries {
+		if err := s.projectPackageAvailability(ctx, &page.Entries[index]); err != nil {
+			return BrowseResult{}, err
+		}
+	}
 	return page, nil
 }
 
@@ -137,7 +148,14 @@ func (s *CatalogService) Detail(ctx context.Context, source, entryID string) (*E
 	if !exists || !registered.binding.Config.Enabled {
 		return nil, ErrEntryNotFound
 	}
-	return s.store.GetEntry(ctx, source, entryID)
+	entry, err := s.store.GetEntry(ctx, source, entryID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.projectPackageAvailability(ctx, entry); err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // Entry joins installed provenance to the current source name by immutable origin.

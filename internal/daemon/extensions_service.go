@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -40,6 +41,7 @@ type daemonExtensionService struct {
 	marketplaceLoader   extensionMarketplaceSourceLoader
 	marketplaceCatalog  marketplacepkg.Service
 	marketplaceAcquirer extensionpkg.MarketplacePackageAcquirer
+	marketplaceCache    *pluginsource.PackageCache
 	eventWriter         extensionLifecycleEventWriter
 	workspaceResolver   workspacepkg.RuntimeResolver
 	envBindings         extensionpkg.EnvBindingLifecycleStore
@@ -96,6 +98,10 @@ func withDaemonMarketplacePackageAcquirer(
 	acquirer extensionpkg.MarketplacePackageAcquirer,
 ) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) { service.marketplaceAcquirer = acquirer }
+}
+
+func withDaemonMarketplacePackageCache(cache *pluginsource.PackageCache) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.marketplaceCache = cache }
 }
 
 func withDaemonExtensionEventWriter(writer extensionLifecycleEventWriter) daemonExtensionServiceOption {

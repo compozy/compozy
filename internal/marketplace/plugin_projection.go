@@ -17,6 +17,8 @@ const (
 	budgetExhausted     = "refresh_budget_exhausted"
 )
 
+var ErrRefreshBudgetExhausted = errors.New(budgetExhausted)
+
 type PluginContents struct {
 	Skills     int `json:"skills"`
 	MCPServers int `json:"mcp_servers"`
@@ -263,7 +265,7 @@ func pluginPayload(plugin pluginsource.Plugin, name, sourceRef string) pluginEnt
 				Version:     plugin.Version,
 			},
 			Icon:        icon,
-			InstallSlug: name + "/" + plugin.Name,
+			InstallSlug: (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
 			Tier:        extensionTierUnverified,
 			Author: strings.TrimSpace(
 				plugin.Author,

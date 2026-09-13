@@ -10,6 +10,25 @@ import (
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
+func (s *SQLiteStore) PackageDigests(ctx context.Context, sources []string) (map[string]struct{}, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return nil, err
+	}
+	pins := make(map[string]struct{})
+	for _, source := range sources {
+		rows, err := s.repository.ListMarketplaceCatalogEntries(ctx, source, maxCatalogEntriesPerSource)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if row.DigestSHA256 != "" {
+				pins[row.DigestSHA256] = struct{}{}
+			}
+		}
+	}
+	return pins, nil
+}
+
 func (s *SQLiteStore) ConfigureSources(
 	ctx context.Context,
 	sources []ResolvedSource,

@@ -128,6 +128,47 @@ func TestPackageCache(t *testing.T) {
 			t.Fatalf("evicted Open = %v, %v", reader, err)
 		}
 	})
+	t.Run("Should wait for publication before reading pins and sweeping", func(t *testing.T) {
+		t.Parallel()
+		cache := &PackageCache{Root: t.TempDir(), MaxBytes: 6}
+		old, candidate := []byte("oldest"), []byte("newest")
+		putCacheBlob(t, cache, old)
+		release := sync.OnceFunc(cache.Hold())
+		t.Cleanup(release)
+		putCacheBlob(t, cache, candidate)
+		started, loaded := make(chan struct{}), make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			close(started)
+			report, err := cache.SweepCurrent(t.Context(), func(context.Context) (map[string]struct{}, error) {
+				close(loaded)
+				return map[string]struct{}{cacheDigest(candidate): {}}, nil
+			})
+			if err == nil && (report.EvictedCount != 1 || report.EvictedBytes != 6) {
+				err = errors.New("sweep did not report the unreferenced package eviction")
+			}
+			done <- err
+		}()
+		<-started
+		select {
+		case <-loaded:
+			t.Fatal("sweep read references before the held publication finished")
+		case <-time.After(20 * time.Millisecond):
+		}
+		release()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
+		if reader, err := cache.Open(
+			t.Context(),
+			cacheDigest(old),
+		); reader != nil ||
+			!errors.Is(err, ErrPackageUnavailable) {
+			t.Fatalf("unreferenced package = %v, %v", reader, err)
+		}
+	})
+
 	t.Run("Should preserve every pin even when the pinned set exceeds the budget", func(t *testing.T) {
 		t.Parallel()
 		cache := &PackageCache{Root: t.TempDir(), MaxBytes: 6}

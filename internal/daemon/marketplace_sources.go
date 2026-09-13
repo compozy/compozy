@@ -21,6 +21,7 @@ func newMarketplaceRuntime(
 	cfg compozyconfig.MarketplaceRuntimeConfig,
 	home compozyconfig.HomePaths,
 	now func() time.Time,
+	options ...marketplace.ServiceOption,
 ) (*marketplaceRuntime, error) {
 	if store == nil || home.HomeDir == "" {
 		return nil, errors.New("daemon: marketplace store and home are required")
@@ -41,7 +42,7 @@ func newMarketplaceRuntime(
 	if err != nil {
 		return nil, err
 	}
-	options := []marketplace.ServiceOption{marketplace.WithNotifier(notifier)}
+	options = append(options, marketplace.WithNotifier(notifier), marketplace.WithPackageCache(resolver.Cache))
 	if now != nil {
 		options = append(options, marketplace.WithNow(now))
 	}

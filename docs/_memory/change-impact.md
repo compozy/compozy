@@ -658,3 +658,10 @@ unreachable source returns503 source_unreachable. Web action data selects the so
 OpenAPI, TS, native catalog, site sources docs and official extension skill co-ship. CLI source-index
 selection and source-management UI remain task08-owned. No hook or manual MCP policy changes.
 QA: ET-agent-plugin-marketplace-install and CH-agent-plugin-marketplace remain pending task10 live walk.
+
+Task07 cache completion: service-owned refresh flights and daemon plugin install/preview/update/inspection
+hold packages through publication. Sweep reads current projection and installed-provenance pins after
+those holds release, retains every pin and reports capacity pressure. Browse/detail expose local blob
+availability; blocked detail retains projected contents without reacquiring. No public DTO, schema or
+manual-state change. Refresh, eviction, budget and acquisition mismatch logs use existing structured
+logging, separate from canonical notifier events. Task10 owns the remaining live/visual QA.

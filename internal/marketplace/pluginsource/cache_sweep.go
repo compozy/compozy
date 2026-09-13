@@ -19,8 +19,42 @@ type cacheBlob struct {
 	modified time.Time
 }
 
+type CacheSweepReport struct {
+	EvictedCount int
+	EvictedBytes int64
+}
+
+// SweepCurrent reads references after in-flight acquisitions and publications release their holds.
+func (c *PackageCache) SweepCurrent(
+	ctx context.Context, loadPins func(context.Context) (map[string]struct{}, error),
+) (CacheSweepReport, error) {
+	if _, err := c.validate(ctx); err != nil {
+		return CacheSweepReport{}, err
+	}
+	if loadPins == nil {
+		return CacheSweepReport{}, errors.New("marketplace package cache: pin loader is required")
+	}
+	c.useMu.Lock()
+	defer c.useMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return CacheSweepReport{}, err
+	}
+	pins, err := loadPins(ctx)
+	if err != nil {
+		return CacheSweepReport{}, err
+	}
+	var report CacheSweepReport
+	err = c.sweep(ctx, pins, &report)
+	return report, err
+}
+
 // Sweep preserves pinned blobs and evicts unreferenced blobs oldest-first to the configured budget.
-func (c *PackageCache) Sweep(ctx context.Context, pinned map[string]struct{}) (err error) {
+func (c *PackageCache) Sweep(ctx context.Context, pinned map[string]struct{}) error {
+	_, err := c.SweepCurrent(ctx, func(context.Context) (map[string]struct{}, error) { return pinned, nil })
+	return err
+}
+
+func (c *PackageCache) sweep(ctx context.Context, pinned map[string]struct{}, report *CacheSweepReport) (err error) {
 	limit, err := c.validate(ctx)
 	if err != nil {
 		return err
@@ -64,6 +98,8 @@ func (c *PackageCache) Sweep(ctx context.Context, pinned map[string]struct{}) (e
 			return err
 		}
 		total -= blob.size
+		report.EvictedCount++
+		report.EvictedBytes += blob.size
 	}
 	if total > limit {
 		return fmt.Errorf("%w: pinned bytes exceed the budget", ErrCacheCapacity)

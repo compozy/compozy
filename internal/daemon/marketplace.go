@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
@@ -324,7 +325,39 @@ func (d *Daemon) bootMarketplace(ctx context.Context, state *bootState, cleanup 
 		return fmt.Errorf("daemon: create marketplace store: %w", err)
 	}
 	notifier := &daemonMarketplaceNotifier{writer: state.registry, logger: state.logger, now: d.now}
-	runtime, err := newMarketplaceRuntime(ctx, marketplaceStore, notifier, state.cfg.Marketplace, d.homePaths, d.now)
+	options := []marketplace.ServiceOption{marketplace.WithLogger(state.logger)}
+	if dbSource, ok := state.registry.(extensionDBSource); ok && dbSource.DB() != nil {
+		registry := extensionpkg.NewRegistry(dbSource.DB())
+		options = append(
+			options,
+			marketplace.WithInstalledPackages(func(ctx context.Context) ([]marketplace.InstalledPackage, error) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				installed, err := registry.List()
+				if err != nil {
+					return nil, err
+				}
+				packages := make([]marketplace.InstalledPackage, 0, len(installed))
+				for index := range installed {
+					item := &installed[index]
+					packages = append(packages, marketplace.InstalledPackage{
+						Name: item.Name, SourceName: item.Provenance.SourceName,
+						SourceRef: item.Provenance.SourceRef, DigestSHA256: item.Provenance.ArchiveDigestSHA256,
+					})
+				}
+				return packages, nil
+			}),
+		)
+	}
+	runtime, err := newMarketplaceRuntime(
+		ctx,
+		marketplaceStore,
+		notifier,
+		state.cfg.Marketplace,
+		d.homePaths,
+		d.now,
+		options...)
 	if err != nil {
 		return err
 	}

@@ -21,6 +21,9 @@ func (s *daemonExtensionService) PreviewInstall(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
+	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
+		defer s.marketplaceCache.Hold()()
+	}
 	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err

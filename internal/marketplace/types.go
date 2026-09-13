@@ -145,6 +145,7 @@ type Source interface {
 
 // Store persists the curated projection and freshness state.
 type Store interface {
+	PackageDigests(context.Context, []string) (map[string]struct{}, error)
 	ConfigureSources(context.Context, []ResolvedSource, string) (SourceConfiguration, error)
 	BrowseSources(context.Context, []string, string, int, int) (BrowseResult, error)
 	ReplaceSource(ctx context.Context, source string, generation int64, document *Document) error

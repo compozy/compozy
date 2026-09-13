@@ -50,6 +50,9 @@ func (s *CatalogService) configureSources(
 	if err := s.lifecycleError(); err != nil {
 		return err
 	}
+	if err := s.checkRetainedSourceNames(ctx, bindings); err != nil {
+		return err
+	}
 	if ttl == 0 {
 		ttl = s.ttl
 		timeout = s.refreshTimeout

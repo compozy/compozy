@@ -23,6 +23,9 @@ func (s *daemonExtensionService) InspectCatalogExtension(
 	if err != nil {
 		return contract.MarketplaceExtensionDetailPayload{}, err
 	}
+	if s.marketplaceCache != nil && details.SourceRef != marketplacepkg.CompozyCatalogRef {
+		defer s.marketplaceCache.Hold()()
+	}
 	if details.Extension == nil {
 		return contract.MarketplaceExtensionDetailPayload{}, errors.New(
 			"daemon: catalog inspection requires an extension entry",

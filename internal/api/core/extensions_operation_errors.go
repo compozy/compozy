@@ -27,8 +27,12 @@ func extensionOperationErrorPayload(
 	switch kind {
 	case extensionErrorMCPNameTaken:
 		payload.Code = "mcp_server_name_taken"
-	case extensionErrorNameConflict, extensionErrorSourceChanged, extensionErrorSourceUnreachable,
-		extensionErrorInputsRequired, extensionErrorInputInvalid:
+	case extensionErrorNameConflict,
+		extensionErrorSourceChanged,
+		extensionErrorSourceUnreachable,
+		extensionErrorMarketplaceSourceNotFound,
+		extensionErrorInputsRequired,
+		extensionErrorInputInvalid:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorNetworkConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
@@ -137,6 +141,8 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
 	payload := contract.ExtensionOperationErrorPayload{}
 	switch classifyExtensionError(err) {
+	case extensionErrorMarketplaceSourceNotFound:
+		payload.Code = "marketplace_source_not_found"
 	case extensionErrorSourceUnreachable:
 		payload.Code = "source_unreachable"
 	case extensionErrorNameConflict:

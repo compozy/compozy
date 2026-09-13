@@ -37,6 +37,9 @@ func (h *BaseHandlers) populateMarketplaceExtensionDetail(
 		}
 		return nil
 	}
+	if entry.InstallBlocker != "" {
+		return nil
+	}
 	if inspector, ok := h.Extensions.(marketplaceExtensionInspector); ok {
 		inspected, err := inspector.InspectCatalogExtension(ctx, entry, scope.profileName)
 		if err != nil {

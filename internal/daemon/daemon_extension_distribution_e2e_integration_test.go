@@ -139,6 +139,23 @@ func testDaemonPluginCatalogLifecycle(t *testing.T) {
 				Source: compozycontract.InstallExtensionSourceMarketplace, Ref: "team/tool", Scope: "global",
 				ExpectedDigest: first.DigestSHA256, AllowUnverified: true,
 			}
+			missing := install
+			missing.Ref = "unknown/tool"
+			missingBody := requestDistributionInstall(
+				t,
+				ctx,
+				client,
+				target("/api/extensions"),
+				missing,
+				http.StatusNotFound,
+			)
+			var missingSource compozycontract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(missingBody, &missingSource); err != nil {
+				t.Fatal(err)
+			}
+			if missingSource.Code != "marketplace_source_not_found" {
+				t.Fatalf("unknown source = %s", missingBody)
+			}
 			readme := filepath.Join(source, "tool", "README.md")
 			if err := os.WriteFile(readme, []byte("Approved bytes B"), 0o600); err != nil {
 				t.Fatal(err)

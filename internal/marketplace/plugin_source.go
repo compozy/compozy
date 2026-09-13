@@ -51,6 +51,11 @@ func (s *PluginSource) Fetch(ctx context.Context) (_ *Document, err error) {
 	}
 	workCtx, cancel := context.WithTimeout(ctx, s.projector.budget)
 	defer cancel()
+	defer func() {
+		if err != nil && errors.Is(workCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			err = errors.Join(ErrRefreshBudgetExhausted, err)
+		}
+	}()
 	doc, err := s.reader.Fetch(workCtx, s.config.Ref)
 	if err != nil {
 		return nil, err

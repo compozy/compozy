@@ -25,6 +25,7 @@ const (
 	extensionErrorMCPNameTaken
 	extensionErrorSourceChanged
 	extensionErrorSourceUnreachable
+	extensionErrorMarketplaceSourceNotFound
 	extensionErrorNameConflict
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
@@ -50,7 +51,7 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusOK
 	}
 	switch classifyExtensionError(err) {
-	case extensionErrorNotFound:
+	case extensionErrorNotFound, extensionErrorMarketplaceSourceNotFound:
 		return http.StatusNotFound
 	case extensionErrorConflict,
 		extensionErrorNetworkConfirmationRequired,
@@ -107,7 +108,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified),
 		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
 		return extensionErrorUnprocessable
-	case errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
+	case errors.Is(err, marketplacepkg.ErrInstallSlugInvalid),
+		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
 		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch),
 		errors.Is(err, extensionpkg.ErrManifestInvalid),
 		errors.Is(err, extensionpkg.ErrManifestIncompatible),
@@ -132,6 +134,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 
 func classifyExtensionAcquisitionError(err error) extensionErrorKind {
 	switch {
+	case errors.Is(err, marketplacepkg.ErrSourceNotFound):
+		return extensionErrorMarketplaceSourceNotFound
 	case errors.Is(err, pluginsource.ErrSourceUnreachable):
 		return extensionErrorSourceUnreachable
 	case errors.Is(err, extensionmcp.ErrNameTaken):

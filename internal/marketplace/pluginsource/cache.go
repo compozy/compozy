@@ -28,6 +28,13 @@ type PackageCache struct {
 	// Zero selects the 1 GiB default; Sweep applies the aggregate budget at refresh commit.
 	MaxBytes int64
 	mu       sync.RWMutex
+	useMu    sync.RWMutex
+}
+
+// Hold keeps packages available until a refresh or installation publishes its references.
+func (c *PackageCache) Hold() func() {
+	c.useMu.RLock()
+	return c.useMu.RUnlock
 }
 
 // Put verifies the stream before publishing one complete blob under its digest.

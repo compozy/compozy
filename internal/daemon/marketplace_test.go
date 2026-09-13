@@ -1,9 +1,12 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -159,9 +162,27 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			runtime, err := newMarketplaceRuntime(t.Context(), store, nil, cfg.Marketplace, home, time.Now)
+			installedBytes := bytes.Repeat([]byte("p"), 32<<10)
+			unusedBytes := bytes.Repeat([]byte("u"), 32<<10)
+			installedDigest, unusedDigest := fmt.Sprintf(
+				"%x",
+				sha256.Sum256(installedBytes),
+			), fmt.Sprintf(
+				"%x",
+				sha256.Sum256(unusedBytes),
+			)
+			runtime, err := newMarketplaceRuntime(t.Context(), store, nil, cfg.Marketplace, home, time.Now,
+				marketplace.WithInstalledPackages(func(context.Context) ([]marketplace.InstalledPackage, error) {
+					return []marketplace.InstalledPackage{{DigestSHA256: installedDigest}}, nil
+				}))
 			if err != nil {
 				t.Fatal(err)
+			}
+			runtime.resolver.Cache.MaxBytes = 64 << 10
+			for digest, data := range map[string][]byte{installedDigest: installedBytes, unusedDigest: unusedBytes} {
+				if err := runtime.resolver.Cache.Put(t.Context(), digest, bytes.NewReader(data)); err != nil {
+					t.Fatal(err)
+				}
 			}
 			runtime.resolver.Sources.GitHubOptions = []pluginsource.GitHubOption{
 				pluginsource.WithGitHubBaseURL(disabled.URL),
@@ -175,6 +196,20 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			if err != nil || len(report.Outcomes) != 2 || disabledRequests.Load() != 0 {
 				t.Fatalf("refresh=%+v err=%v disabled requests=%d", report, err, disabledRequests.Load())
 			}
+			kept, err := runtime.resolver.Cache.Open(t.Context(), installedDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := kept.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if reader, err := runtime.resolver.Cache.Open(
+				t.Context(),
+				unusedDigest,
+			); reader != nil ||
+				!errors.Is(err, pluginsource.ErrPackageUnavailable) {
+				t.Fatalf("unreferenced cache blob survived refresh: %v, %v", reader, err)
+			}
 			page, err := runtime.Browse(t.Context(), "", 0, 20)
 			if err != nil || page.Total != 2 || len(page.Sources) != 3 ||
 				page.Entries[0].SourceName != marketplace.CompozyCatalogSource {
@@ -187,6 +222,36 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 				projected.Extension.Acquisition == nil ||
 				projected.SourceRef != cfg.Marketplace.PluginSources[0].Source {
 				t.Fatalf("projected plugin=%+v entry=%+v err=%v", projected, entry, err)
+			}
+			blob := filepath.Join(runtime.resolver.Cache.Root, entry.DigestSHA256+".tar")
+			for _, corrupt := range []bool{false, true} {
+				if corrupt {
+					if err := os.WriteFile(blob, []byte("corrupt cached package"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Remove(blob); err != nil {
+					t.Fatal(err)
+				}
+				unavailable, err := runtime.Browse(t.Context(), "", 0, 20)
+				if err != nil || unavailable.Total != 2 || unavailable.Entries[1].Installable ||
+					unavailable.Entries[1].InstallBlocker != "package_unavailable" {
+					t.Fatalf("cache availability = %+v, %v", unavailable, err)
+				}
+				detail, err := runtime.Detail(t.Context(), "team", "design")
+				if err != nil || detail.InstallBlocker != "package_unavailable" {
+					t.Fatalf("unavailable detail = %+v, %v", detail, err)
+				}
+				repaired, err := runtime.resolver.Acquire(
+					t.Context(),
+					*projected.Extension.Acquisition,
+					entry.DigestSHA256,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := repaired.Close(); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := os.Rename(
 				filepath.Join(root, "marketplace.json"),

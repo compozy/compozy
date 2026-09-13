@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 func (d *Daemon) attachExtensionRuntime(
@@ -27,8 +28,10 @@ func (d *Daemon) newBootExtensionService(
 		envBindings = store
 	}
 	var acquirer extensionpkg.MarketplacePackageAcquirer
+	var packageCache *pluginsource.PackageCache
 	if state.marketplace != nil {
-		acquirer = state.marketplace.resolver
+		acquirer = &marketplacePackageAcquirer{resolver: state.marketplace.resolver, logger: state.logger}
+		packageCache = state.marketplace.resolver.Cache
 	}
 	return newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:     extRegistry,
@@ -47,6 +50,7 @@ func (d *Daemon) newBootExtensionService(
 		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
 		withDaemonMarketplacePackageAcquirer(acquirer),
+		withDaemonMarketplacePackageCache(packageCache),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
 		withDaemonExtensionKitPublisher(state.extensionKitResources),

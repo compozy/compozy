@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"slices"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -91,7 +91,7 @@ func (s *CatalogService) startRefreshFlight(source *registeredSource, force bool
 	source.flight = flight
 	s.flightWG.Go(func() {
 		defer cancel()
-		flight.outcome, flight.err = s.refreshSource(ctx, source)
+		flight.outcome, flight.err = s.refreshWithPackageCache(ctx, source)
 		s.flightMu.Lock()
 		if source.flight == flight {
 			source.flight = nil
@@ -158,6 +158,18 @@ func (s *CatalogService) refreshSource(ctx context.Context, source *registeredSo
 	s.sourceMu.RUnlock()
 	if err != nil {
 		return s.recordFailure(source, "store", err)
+	}
+	if s.logger != nil {
+		skipped := 0
+		for _, entry := range fetched.Entries {
+			if entry.InstallBlocker == budgetExhausted {
+				skipped++
+			}
+		}
+		if skipped > 0 {
+			s.logger.WarnContext(ctx, "marketplace.source.budget_exhausted",
+				"source", name, "listed", len(fetched.Entries), "skipped", skipped)
+		}
 	}
 	outcome := RefreshOutcome{
 		Source:     name,
@@ -228,10 +240,22 @@ func classifyFetchError(err error) string {
 		return ""
 	case errors.Is(err, context.Canceled):
 		return errorClassCanceled
+	case errors.Is(err, ErrRefreshBudgetExhausted):
+		return budgetExhausted
 	case errors.Is(err, context.DeadlineExceeded):
 		return errorClassTimeout
 	case errors.Is(err, ErrResponseTooLarge):
 		return "payload_too_large"
+	case errors.Is(err, pluginsource.ErrDocumentTooLarge):
+		return "marketplace_document_too_large"
+	case errors.Is(err, pluginsource.ErrNotMarketplace):
+		return "marketplace_not_a_marketplace"
+	}
+	if sourceErr, ok := errors.AsType[*pluginsource.SourceError](err); ok {
+		return sourceErr.Reason
+	}
+	if errors.Is(err, pluginsource.ErrSourceUnreachable) {
+		return "source_unreachable"
 	}
 	if matched, ok := errors.AsType[*UnsupportedManifestVersionError](err); ok && matched != nil {
 		return "manifest_version"
@@ -244,9 +268,6 @@ func classifyFetchError(err error) string {
 	}
 	if errors.Is(err, ErrCatalogValidation) {
 		return "validation"
-	}
-	if matched, ok := errors.AsType[*url.Error](err); ok && matched != nil {
-		return errorClassNetwork
 	}
 	return errorClassNetwork
 }

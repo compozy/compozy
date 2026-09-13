@@ -24,6 +24,38 @@ import (
 
 func TestResolveMarketplaceSources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should parse listing slugs against the source index and preserve origin aliases", func(t *testing.T) {
+		t.Parallel()
+		sources := []SourceState{
+			{Source: CompozyCatalogSource, SourceRef: CompozyCatalogRef},
+			{Source: "team", SourceRef: "github:team/plugins"},
+			{Source: "alias", SourceRef: "github:team/plugins"},
+		}
+		for _, tc := range []struct {
+			slug, name, ref string
+			wantErr         error
+		}{
+			{slug: "compozy/context7", name: CompozyCatalogSource, ref: CompozyCatalogRef},
+			{slug: "team/context7", name: "team", ref: "github:team/plugins"},
+			{slug: "alias/context7", name: "alias", ref: "github:team/plugins"},
+			{slug: "unknown/context7", wantErr: ErrSourceNotFound},
+			{slug: "compozy-catalog/context7", wantErr: ErrSourceNotFound},
+			{slug: "team/nested/tool", wantErr: ErrInstallSlugInvalid},
+			{slug: "team/..", wantErr: ErrInstallSlugInvalid},
+		} {
+			t.Run("Should resolve "+tc.slug, func(t *testing.T) {
+				t.Parallel()
+				origin, err := ParseInstallSlug(tc.slug, sources)
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("parse = %+v, %v", origin, err)
+				}
+				if tc.wantErr == nil &&
+					(origin != (Origin{SourceRef: tc.ref, EntryID: "context7"}) || origin.InstallSlug(tc.name) != tc.slug) {
+					t.Fatalf("origin round trip = %+v", origin)
+				}
+			})
+		}
+	})
 	t.Run("Should preserve aliases of one origin and consume only its preset override", func(t *testing.T) {
 		t.Parallel()
 		cfg := config.DefaultMarketplaceRuntimeConfig()

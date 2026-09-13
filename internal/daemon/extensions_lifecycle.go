@@ -24,6 +24,9 @@ func (s *daemonExtensionService) Install(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
+		defer s.marketplaceCache.Hold()()
+	}
 	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
@@ -163,6 +166,9 @@ func (s *daemonExtensionService) Update(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionUpdatePayload{}, err
 	}
+	if s.marketplaceCache != nil {
+		defer s.marketplaceCache.Hold()()
+	}
 	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {
 		return contract.ManagedExtensionUpdatePayload{}, err
@@ -198,6 +204,9 @@ func (s *daemonExtensionService) UpdateBatch(
 	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return nil, err
+	}
+	if s.marketplaceCache != nil {
+		defer s.marketplaceCache.Hold()()
 	}
 	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {

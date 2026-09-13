@@ -49,11 +49,16 @@ confirmation flow. A different origin that declares an already installed instanc
 `409 extension_name_conflict`.
 
 The daemon captures the listed package in its home-owned cache and verifies its digest when reading
-it. Installation uses those bytes even if the source later changes or goes offline. If the blob is
-missing or corrupt, the daemon reacquires it and proceeds only if the digest still matches.
+it. Refresh sweeps unreferenced packages oldest first toward a 1 GiB budget. Current catalog rows and
+installed provenance keep their packages pinned; in-flight publication finishes before pins are read.
+If pins alone exceed the budget, refresh reports the capacity error and preserves those packages.
+Installation uses cached bytes even if the source later changes or goes offline. Missing or corrupt
+blobs appear with `install_blocker: package_unavailable` in the catalog. The daemon can reacquire a
+missing or corrupt blob and proceed only if the digest still matches.
 
 | Response | Next step |
 | --- | --- |
+| `404 marketplace_source_not_found` | Choose a source currently registered in the catalog. |
 | `409 extension_source_changed` | Refresh, inspect the new package, and approve its new digest. |
 | `503 source_unreachable` | Restore source access and retry the approved package. |
 | `422 extension_checksum_unverified` | Review the unverified package and provide explicit consent. |
