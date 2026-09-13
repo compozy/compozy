@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-route-chrome-topbar
 ---
 
-Retired by marketplace-catalog task 01 (2026-09-12). One catalog and a separate Installed page replace kind navigation. Redirect coverage belongs to ET-web-marketplace-landing-browse; inventory management belongs to ET-web-marketplace-installed-management. The contract and evidence below are historical.
+Retired by marketplace-catalog task 01 (2026-09-12). One catalog and a separate Installed page replace kind navigation. Retired-location not-found and Back coverage belongs to ET-web-marketplace-landing-browse; inventory management belongs to ET-web-marketplace-installed-management. The contract and evidence below are historical.
 
 
 Added by the unified Marketplace hard cut. Walk redirect-mediated entry, every kind link, a detail

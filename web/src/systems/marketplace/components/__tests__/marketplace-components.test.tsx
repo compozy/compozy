@@ -10,6 +10,7 @@ import {
   Outlet,
   RouterProvider,
   useSearch,
+  useParams,
 } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -34,9 +35,13 @@ import { MarketplaceEntryCard } from "../marketplace-entry-card";
 import { MarketplaceCatalogTrail } from "../marketplace-entry-trail";
 import { MarketplaceInstalledShelf } from "../marketplace-installed-shelf";
 import { useExtensionInstallDialog } from "../use-extension-install-dialog";
-import { Route as SkillsRoute } from "@/routes/_app/marketplace.skills";
-import { Route as MCPsRoute } from "@/routes/_app/marketplace.mcps";
-import { Route as ExtensionsRoute } from "@/routes/_app/marketplace.extensions";
+import { MarketplaceDetailLocation } from "@/systems/os/apps/marketplace/marketplace-detail-location";
+import { MarketplaceWindow } from "@/systems/os/apps/marketplace/marketplace-window";
+import type { OsWindow } from "@/systems/os/lib/os-types";
+import { OsShellContext } from "@/systems/os/contexts/os-shell-context";
+import { WindowManagerRuntime } from "@/systems/os/runtime/window-manager-runtime";
+import { RoutingCoordinator } from "@/systems/os/lib/routing-coordinator";
+import { validateMarketplaceDetailSearch } from "@/systems/os/apps/marketplace/marketplace-detail-search";
 import { Route as BrowseRoute } from "@/routes/_app/marketplace.index";
 
 const mocks = vi.hoisted(() => ({
@@ -64,6 +69,12 @@ const server = setupServer(
     mocks.readCatalog(new URL(request.url).searchParams);
     return HttpResponse.json(catalog);
   }),
+  http.get("*/api/marketplace/entries/:entryId", () =>
+    HttpResponse.json(
+      { error: { code: "marketplace_entry_not_found", message: "Entry not found" } },
+      { status: 404 }
+    )
+  ),
   http.get("*/api/extensions", () => HttpResponse.json({ extensions })),
   http.post("*/api/marketplace/refresh", () =>
     HttpResponse.json({
@@ -72,10 +83,12 @@ const server = setupServer(
   )
 );
 const clients: QueryClient[] = [];
+const managers: WindowManagerRuntime[] = [];
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();
+  managers.splice(0).forEach(manager => manager.destroy());
   clients.splice(0).forEach(client => client.clear());
   server.resetHandlers();
 });
@@ -126,6 +139,18 @@ function Installed() {
     />
   );
 }
+function Detail() {
+  const { entryId } = useParams({ strict: false });
+  return (
+    <MarketplaceDetailLocation
+      entryId={entryId!}
+      search={validateMarketplaceDetailSearch(
+        useSearch({ strict: false, structuralSharing: false })
+      )}
+      liveDataEnabled
+    />
+  );
+}
 function setup(node?: ReactNode, path = "/marketplace") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -133,12 +158,9 @@ function setup(node?: ReactNode, path = "/marketplace") {
   clients.push(client);
   const root = createRootRoute({ component: Shell });
   const browse = createRoute({
-    beforeLoad: context => {
-      BrowseRoute.options.beforeLoad?.(context as never);
-    },
     getParentRoute: () => root,
     path: "/marketplace",
-    validateSearch: validateMarketplaceSearch,
+    validateSearch: BrowseRoute.options.validateSearch,
     component: node === undefined ? Browse : () => node,
   });
   const installed = createRoute({
@@ -150,25 +172,10 @@ function setup(node?: ReactNode, path = "/marketplace") {
   const detail = createRoute({
     getParentRoute: () => root,
     path: "/marketplace/$entryId",
-    component: () => <div>Entry details</div>,
+    component: node === undefined ? Detail : () => node,
   });
-  const retired = [
-    ["/marketplace/skills", SkillsRoute],
-    ["/marketplace/mcps", MCPsRoute],
-    ["/marketplace/extensions", ExtensionsRoute],
-  ] as const;
-  const redirects = retired.map(([path, route]) =>
-    createRoute({
-      beforeLoad: context => {
-        route.options.beforeLoad?.(context as never);
-      },
-      validateSearch: route.options.validateSearch,
-      getParentRoute: () => root,
-      path,
-    })
-  );
   const router = createRouter({
-    routeTree: root.addChildren([browse, installed, detail, ...redirects]),
+    routeTree: root.addChildren([browse, installed, detail]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
@@ -451,19 +458,69 @@ describe("Marketplace page and cards", () => {
       if (count === 9) expect(within(shelf!).getByText("+3")).toBeVisible();
     }
   );
-  // Invariant: retained public kind URLs resolve through the shipped router options to one catalog.
-  it.each([
-    "/marketplace/skills?q=x",
-    "/marketplace/mcps?q=x",
-    "/marketplace/extensions?q=x",
-    "/marketplace?tab=market&q=x",
-  ])("Should redirect %s without losing the query", async path => {
-    const { router } = setup(undefined, path);
-    await waitFor(() => expect(router.state.status).toBe("idle"));
+  // UT-033: retired paths never redirect; normal not-found provides a deliberate recovery action.
+  it.each(["skills", "mcps", "extensions"])(
+    "Should keep the retired %s location until Back is selected",
+    async segment => {
+      const { router } = setup(undefined, `/marketplace/${segment}?q=x`);
+      const back = await screen.findByRole("button", { name: "Back to marketplace" });
+      expect(router.state.location.pathname).toBe(`/marketplace/${segment}`);
+      await userEvent.click(back);
+      await screen.findByTestId("marketplace-page");
+      expect(router.state.location.pathname).toBe("/marketplace");
+      expect(router.state.location.search).toEqual({ q: "x" });
+    }
+  );
+  it("Should render Browse without interpreting the retired tab query", async () => {
+    const { router } = setup(undefined, "/marketplace?tab=market&q=x");
     await screen.findByTestId("marketplace-page");
     expect(router.state.location.pathname).toBe("/marketplace");
-    expect(router.state.location.search).toEqual({ q: "x" });
+    expect(screen.getByRole("searchbox", { name: "Search extensions" })).toHaveValue("x");
   });
+  it.each(["/marketplace/skills", "/marketplace/mcp/github"])(
+    "Should reopen %s without rewriting window state",
+    async pathname => {
+      const manager = new WindowManagerRuntime(new QueryClient());
+      managers.push(manager);
+      const initial = manager.projectionAtom.get();
+      const window: OsWindow = {
+        id: "catalog-window",
+        app: "marketplace" as const,
+        instanceKey: null,
+        route: { pathname, search: { q: "saved" } },
+        navStack: [],
+        pinned: false,
+        desktopId: "saved-desktop",
+        placement: "floating" as const,
+        rect: { x: 80, y: 90, w: 900, h: 600 },
+        layer: 2,
+        minimized: false,
+        zoomed: false,
+        groupId: null,
+        nodeId: null,
+        stackId: null,
+        stackActive: true,
+        parentAxis: null,
+      };
+      manager.projectionAtom.set({ ...initial, windows: { [window.id]: window } });
+      const shell = {
+        projection: manager.projectionAtom,
+        manager,
+        coordinator: new RoutingCoordinator(manager, { navigate: () => {}, replace: () => {} }),
+      };
+      const { router } = setup(
+        <OsShellContext value={shell}>
+          <MarketplaceWindow windowId={window.id} />
+        </OsShellContext>,
+        "/marketplace/saved"
+      );
+      const back = await screen.findByRole("button", { name: "Back to marketplace" });
+      expect(manager.projectionAtom.get().windows[window.id]).toEqual(window);
+      await userEvent.click(back);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/marketplace"));
+      expect(router.state.location.search).toEqual({ q: "saved" });
+    }
+  );
   it("Should fall through a failed feed image to a brand mark", async () => {
     const view = setup(
       <MarketplaceEntryLogo

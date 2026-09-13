@@ -1,10 +1,11 @@
+import { useNavigate } from "@tanstack/react-router";
+
 import { useDesktop } from "../../hooks/use-desktop";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { MarketplaceDetailLocation } from "./marketplace-detail-location";
 import { validateMarketplaceDetailSearch } from "./marketplace-detail-search";
 import {
-  isRetiredMarketplaceDetailKind,
-  isRetiredMarketplaceKindSegment,
+  MarketplaceDetailNotFound,
   MarketplaceInstalledPage,
   MarketplacePage,
   validateMarketplaceSearch,
@@ -23,14 +24,23 @@ function decodePathSegment(value: string): string {
 /**
  * Marketplace app controller driven exclusively by the logical window's WM location:
  * `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail).
- * Retired kind locations still held by persisted layouts resolve to the same three views for
- * one release, mirroring the route-layer redirects.
  */
 export function MarketplaceWindow({ windowId }: { windowId: string }) {
+  const navigate = useNavigate();
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_MARKETPLACE_ROUTE);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const segments = location.pathname.split("/").filter(Boolean);
-  const [, second, third] = segments;
+  const [, second] = segments;
+
+  if (segments[0] !== "marketplace" || segments.length > 2) {
+    return (
+      <MarketplaceDetailNotFound
+        onBack={() =>
+          void navigate({ to: "/marketplace", search: validateMarketplaceSearch(location.search) })
+        }
+      />
+    );
+  }
 
   if (second === "installed") {
     return (
@@ -41,17 +51,7 @@ export function MarketplaceWindow({ windowId }: { windowId: string }) {
     );
   }
 
-  if (third && isRetiredMarketplaceDetailKind(second)) {
-    return (
-      <MarketplaceDetailLocation
-        entryId={decodePathSegment(third)}
-        liveDataEnabled={liveDataEnabled}
-        search={validateMarketplaceDetailSearch(location.search)}
-      />
-    );
-  }
-
-  if (second && !isRetiredMarketplaceKindSegment(second)) {
+  if (second) {
     return (
       <MarketplaceDetailLocation
         entryId={decodePathSegment(second)}

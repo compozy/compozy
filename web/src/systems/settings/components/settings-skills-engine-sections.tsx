@@ -80,7 +80,7 @@ export function SettingsSkillsManageSection() {
       <SettingLinkRow
         data-testid="settings-page-skills-link-skills"
         label="Manage installed skills"
-        render={<Link to="/marketplace/skills" />}
+        render={<Link to="/marketplace" />}
       />
     </SettingsGroup>
   );

@@ -1,7 +1,7 @@
 ---
 id: ET-web-marketplace-search-fanout
 area: ET
-title: Search the active marketplace kind
+title: Search the extension catalog across sources
 persona: Bruno
 journey: J-marketplace-acquisition
 expected: Search filters the single catalog across its sources. Source diagnostics distinguish unavailable data from an empty match; clearing search restores the catalog. Pagination restarts after a content-revision change without mixing old and new pages.

@@ -318,37 +318,3 @@ export const InstalledRemoveConfirm: Story = {
     await expect(body.findByTestId("remove-extension-dialog")).resolves.toBeDefined();
   },
 };
-
-/** Retired kind paths redirect to Browse for one release. */
-export const RedirectSkills: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace/skills"),
-    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const RedirectMcps: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace/mcps?tab=market"),
-    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const RedirectExtensions: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace/extensions?q=herdr"),
-    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-/** A retired kind detail path lands on the one-catalog entry with its installed identity. */
-export const RedirectKindDetail: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace/extension/herdr-bridge?installed_name=herdr-bridge"),
-    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensions: defaultExtensions }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};

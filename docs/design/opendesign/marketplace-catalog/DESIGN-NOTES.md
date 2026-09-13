@@ -26,12 +26,13 @@ when this set was delivered there was no spec yet; the spec now lives at
   accepted as loader aliases; the layout blocker state is retired from board
   02 §03 and board 05 §04. `inputs[]` lands on extension entries and manifests.
   No open decisions remain; next step is `cy-create-spec`.
-- **2026-09-10 — spec peer review round 2 incorporated.** Compatibility table
+- **2026-09-12 — Marketplace hard cut approved by Pedro.** ADR-005/007 supersede the compatibility-only decisions below. Remove old Marketplace endpoints, acquisition verbs, redirects, dual feeds and compatibility-only installer behavior in this release. Preserve existing extension packages, lifecycle and installed state. Historical boards remain visual references; the revised spec owns executable contracts.
+- **2026-09-10 — spec peer review round 2 incorporated (historical).** Compatibility table
   refined: the retained MCP install keeps `name`, scope selectors, vault refs,
   and HTTP 200; runtime names are allocated once and persisted; ref-based
   origin identity; package cache for marketplace plugins; approved digest on
   install. Boards unchanged.
-- **2026-09-10 — spec peer review round 1 incorporated.** Compatibility notes
+- **2026-09-10 — spec peer review round 1 incorporated (historical).** Compatibility notes
   rewritten to SD-013 letter: retained routes, verbs, keys, and tool arguments
   keep performing their operations one release through boundary translations
   (ClawHub fenced behind the retained skills routes, deleted v0.6.0); the feed
@@ -61,9 +62,8 @@ when this set was delivered there was no spec yet; the spec now lives at
 
 - Routes: `/marketplace` (browse) · `/marketplace/installed` ·
   `/marketplace/$entryId` (detail). Search state: `?q=` only. The kind
-  segment is gone; `/marketplace/{skills,mcps,extensions}` redirect to
-  `/marketplace` for one release, then 404 like any retired route.
-- `?tab=market` is accepted and dropped for one release, then rejected.
+  segment and old redirects are gone; retired kind paths use normal not-found behavior.
+- `?tab=market` has no mode or redirect adapter.
   `manage_path` on the listing points to `/marketplace/installed`.
 - Head: Store glyph · “Marketplace” · mono count of listed entries · Refresh
   (ghost sm) · **Add ▾** (outline sm: install from GitHub · from a local build
@@ -166,25 +166,7 @@ skill-sources set unchanged). Documentation Writer leaves the catalog.
 
 ### The cut — delete targets (S4 §04)
 
-Board 04 §04 is the table. Summary: the one-kind feed ships at `catalog/v3/`;
-`catalog/mcp.json` + `catalog/skills.json` + v2 `extensions.json` stay
-published from the same generator one release for released daemons, then stop
-(ADR-007); projection rows for `kind ∈ mcp, skill` deleted by migration (user
-state); `GET /api/marketplace` + `/api/marketplace/entries/{id}` are the new
-routes, kind routes retained one release with `Deprecation` + `Link`
-(`extension` delegates, `mcp` projects the extensions that provide servers into
-the released MCP shape, `skill` answers from the fenced skills marketplace),
-then deleted; `POST /api/settings/mcp-servers/install` is translated to the
-extension install and `/api/skills/marketplace/*` keeps working through the
-fenced path one release, then deleted; CLI `--kind` projects with a warning,
-`mcp install` translates to `extension install compozy/<entry>`, skill
-marketplace verbs keep working with a warning one release; `skills.marketplace.*`
-and `skills.allowed_marketplace_mcp` consumed and warned one release;
-`internal/registry/clawhub` + `internal/skills/marketplace` reachable only
-through the retained routes/verbs and deleted in v0.6.0 with them; web kind
-surfaces, `MCPInstallDialog`, MCP/skill detail bodies deleted outright;
-`compozy__*` tools that take a kind keep selecting a projection one release
-and are audited in the spec.
+The revised ADR-005/007 contract supersedes the historical cut board's compatibility copy. Ship only catalog/v3; remove root v2 publication/fallback, old Marketplace kind/MCP-install/remote-skills routes, flags, verbs, tool arguments and obsolete config consumers. No compatibility package or later removal release. Preserve existing extension packages, refs, lifecycle and installed state; manual MCP and installed skills remain usable. The spec's hardcut-removal-plan.md owns observed branch debt and task assignments.
 
 ### Plugin marketplaces as sources (S5)
 
@@ -234,26 +216,21 @@ and are audited in the spec.
   alternatives: DiceBear 16 CC0 styles, Boring Avatars 6 variants, Jdenticon,
   Minidenticons, Bauhaus, Avvvatars).
 
-## Compatibility notes (SD-013 · L-040)
+## Marketplace hard-cut notes (Pedro, 2026-09-12; ADR-005/007)
 
-| Surface | Regime | Treatment |
-| --- | --- | --- |
-| `/marketplace/*` kind paths, `?tab=market` | web (internal) | Kind paths redirect to `/marketplace` one release; `tab` dropped silently one release. |
-| `GET /api/marketplace/{kind}`, `/{kind}/{entry_id}`, `?kind=` | public · HTTP/UDS | New `GET /api/marketplace`, `/api/marketplace/entries/{id}`. Old routes retained one release with `Deprecation` + `Link`: `extension` delegates; `mcp` projects the extensions that provide servers into the released MCP shape; `skill` answers from the fenced skills marketplace. Deleted v0.6.0. |
-| `POST /api/settings/mcp-servers/install`, `/api/skills/marketplace/*` | public · HTTP/UDS | Keep working one release: MCP install translated losslessly to `POST /api/extensions` (`name` → runtime name, scope/workspace/profile and `vault:mcp/**` refs pass through; HTTP 200 + released response shape + `deprecated_route` warning; owner-less follow-up calls resolve by runtime name); skills marketplace routes served by the fenced path. Deleted v0.6.0. |
-| `POST /api/extensions` `source`, `inputs`; `GET /api/extensions` payload | public · HTTP/UDS · tool | `marketplace` joins the `source` union (`curated` = Compozy catalog); `inputs` map added; payload gains `origin`, `contents`, `mcp_servers` (owner, status, runtime name), `inputs` (id/type/set). Additive. |
-| Settings MCP routes, auth routes, `compozy__mcp_*` | public · HTTP/UDS · tool | `{name}` resolves by runtime name over the effective registry (released behavior for manual servers); optional `owner` selects the definition; tokens and OAuth registrations backfilled `owner = manual`; extension owners use a disjoint vault namespace; additive `mcp_server_name_taken` when a manual name would collide with an allocated runtime name (ADR-008). |
-| `manage_path` on `MarketplaceListingPayload` | public · HTTP/UDS | Value changes to `/marketplace/installed`; field kept. |
-| `icon`, `layout`, `inputs` on the listing; `icon` on feed entries | public · HTTP/UDS · feed | Additive, `omitempty`; OpenAPI + generated TS co-ship. |
-| `catalog/mcp.json`, `catalog/skills.json`, v2 `extensions.json` | feed | `catalog/v3/` carries the one-kind feed (`manifest_version: 3`, `icon`, `inputs`, `marketplaces.json`); the root family stays published from the same generator one release for released daemons; upgraded daemons read `v3/` and fall back to the root with a warning (ADR-007). Root publication stops v0.6.0. |
-| `marketplace_catalog_entries` rows with `kind ∈ mcp, skill` | user state · SQLite | Deleted by Goose migration `00109`; installed extensions and MCP servers untouched. |
-| `extension_inputs`, `extension_mcp_overrides`, provenance origin columns, auth token `owner` | user state · SQLite | New tables/columns in `00109`; existing rows backfilled losslessly (`source_name = compozy-catalog`, `owner = manual`). |
-| `skills.marketplace.registry`, `.base_url`, `skills.allowed_marketplace_mcp` | public · config | Consumed by the fenced skills marketplace path + deprecation warning one release (`config set` succeeds with the warning); rejected v0.6.0. |
-| `compozy marketplace search --kind`, `marketplace info <kind> <id>`, `compozy skill search/install/update/remove`, `compozy mcp install` | public · CLI | `--kind mcp|skill` project with a warning; old `info` shape accepted; `mcp install` translates to `extension install compozy/<entry>`; skill marketplace verbs keep working with a warning; all one release, deleted v0.6.0. |
-| `compozy__*` tools taking a kind | public · tool IDs | `kind` keeps selecting a projection one release; descriptors deprecate it; audited in `change-impact.md`. |
-| `marketplace.plugin_sources`, `/api/marketplace/sources`, `compozy marketplace sources` | public · new | Ship as `experimental` for one release. |
-| `internal/registry/clawhub`, `internal/skills/marketplace` | internal · fenced | Reachable only through the retained skills routes/verbs one release; deleted v0.6.0 with them. |
-| `MarketplaceCard`, `MarketplaceInstalledCard`, kind helpers, `MCPInstallDialog`, MCP/skill detail bodies, `catalog/entry_mcp*.go`, `entry_skill.go` | internal | Delete now; every consumer renamed together (public consumers served by `compat` projections). |
+| Surface | Treatment |
+| --- | --- |
+| Old Web kind paths and tab adapters | Delete with redirects; canonical Browse/Installed/detail remain. |
+| Old kind/grouped-search, MCP catalog install and remote skills acquisition | Remove routes/CLI/tool/schema consumers now; no translations or deprecation window. |
+| Root v2 feeds and fallback | Remove; daemon, publisher and site consume only v3. |
+| Existing extension packages, acquisition refs, lifecycle and installed data | Preserve. Input/digest/source capabilities remain additive. |
+| Manual MCP and installed skills | Preserve definitions, auth, files and local loading; no remote acquisition dependency. |
+| Extension-server management | Explicit owner plus logical name; retain automatic sticky runtime allocation and isolated auth/overrides, no requested install runtime_name. |
+| Obsolete skills Marketplace config | Remove runtime support; one-time migration archives values and preserves unrelated config. |
+| SQLite/provenance/auth | Lossless upgrades; only the already-approved retired derived catalog rows may be dropped. |
+| Source API stability | The existing experimental label remains independent of the removed compatibility window. |
+
+The visual HTML boards are historical design references. Their old compatibility copy does not reintroduce executable requirements superseded by the user's amendment.
 
 ## Canonical data story
 
@@ -314,3 +291,7 @@ lede. Later runs append after the append point; never renumber.
 | 05 sources | S5 | 5 |
 
 Iterate on these files — never regenerate a delivered board from scratch.
+
+## Round-3 contract alignment
+
+The amended spec and qa/peer-review-incorporation-round3.md own the execution order (01 → 05 → 02 → 03 → 04), schema/attachment preservation and complete removal inventory. Old saved Marketplace locations preserve their window state and show a normal not-found detail with Back; no redirect or hydration alias is added. Canonical listing slugs are derived independently of preserved extension acquisition refs. These are behavior/ownership clarifications; the accepted visual references remain unchanged.

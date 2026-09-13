@@ -67,13 +67,6 @@ export const appRouteStories = [
     storyName: "DetailExtensionBrowse",
   },
   {
-    system: "marketplace",
-    routePath: "/marketplace/$kind/$entryId",
-    storybookPath: "/marketplace/extension/herdr-bridge",
-    title: "systems/marketplace/routes/Marketplace",
-    storyName: "RedirectKindDetail",
-  },
-  {
     system: "automation",
     routePath: "/triggers",
     storybookPath: "/triggers",
@@ -86,20 +79,6 @@ export const appRouteStories = [
     storybookPath: "/tasks",
     title: "systems/tasks/routes/Tasks",
     storyName: "DefaultList",
-  },
-  {
-    system: "marketplace",
-    routePath: "/marketplace/skills",
-    storybookPath: "/marketplace/skills",
-    title: "systems/marketplace/routes/Marketplace",
-    storyName: "RedirectSkills",
-  },
-  {
-    system: "marketplace",
-    routePath: "/marketplace/mcps",
-    storybookPath: "/marketplace/mcps",
-    title: "systems/marketplace/routes/Marketplace",
-    storyName: "RedirectMcps",
   },
   {
     system: "network",
@@ -177,13 +156,6 @@ export const appRouteStories = [
     storybookPath: `/tasks/${storyTaskId}`,
     title: "systems/tasks/routes/TaskDetail",
     storyName: "Overview",
-  },
-  {
-    system: "marketplace",
-    routePath: "/marketplace/extensions",
-    storybookPath: "/marketplace/extensions",
-    title: "systems/marketplace/routes/Marketplace",
-    storyName: "RedirectExtensions",
   },
   {
     system: "session",

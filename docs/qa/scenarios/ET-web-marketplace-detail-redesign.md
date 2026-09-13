@@ -1,7 +1,7 @@
 ---
 id: ET-web-marketplace-detail-redesign
 area: ET
-title: Marketplace detail anatomy per kind (body-first redesign)
+title: Inspect and manage a Marketplace extension
 persona: Bruno
 journey: J-marketplace-acquisition
 expected: The single extension detail route shows the large entry logo and the existing extension body with contents, lifecycle state, diagnostics and provenance. Installed selection uses source and installed_name; controls report daemon truth. Task 04 adds the extension-owned Server section.

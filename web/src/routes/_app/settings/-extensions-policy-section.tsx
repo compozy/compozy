@@ -126,7 +126,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
         <SettingLinkRow
           data-testid="settings-page-extensions-link-installed"
           label="Installed extensions"
-          render={<Link to="/marketplace/extensions" />}
+          render={<Link to="/marketplace" />}
         />
       </SettingsGroup>
     </>

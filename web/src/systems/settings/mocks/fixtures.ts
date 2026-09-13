@@ -558,7 +558,7 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     custom_sources: ["~/team-skills"],
   },
   sources: settingsSkillSourcesFixture,
-  links: [{ label: "skills", path: "/marketplace/skills" }],
+  links: [{ label: "skills", path: "/marketplace" }],
 };
 
 export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSection = {

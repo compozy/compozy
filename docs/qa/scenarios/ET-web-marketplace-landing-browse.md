@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
 
-Marketplace catalog task 01 (2026-09-12): Browse the default catalog, narrow search, refresh a cached unavailable source, open the shelf, and check the one-column layout. Verify old kind links redirect without restoring a kind control.
+Marketplace catalog task 01 (2026-09-12): Browse the default catalog, narrow search, refresh a cached unavailable source, open the shelf, and check the one-column layout. Verify retired kind links show not-found with Back to Marketplace. Reopen a saved retired location and verify its location, geometry, desktop and unrelated windows remain intact until deliberate navigation.
 
 Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
 
