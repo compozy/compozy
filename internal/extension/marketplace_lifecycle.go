@@ -61,6 +61,7 @@ type MarketplaceUpdateRollback func(context.Context, ExtensionInfo) error
 
 // MarketplaceInstallRequest describes one marketplace-backed extension install.
 type MarketplaceInstallRequest struct {
+	Plugin                    *MarketplacePluginAcquisition
 	Scope                     InstallationScope
 	ExpectedDigest            string
 	Slug                      string
@@ -178,13 +179,24 @@ func prepareMarketplacePackage(ctx context.Context, homePaths compozyconfig.Home
 	var downloader registrypkg.Downloader
 	var closeDownloader func() error
 	var detail *registrypkg.Detail
-	if hasCuratedMarketplaceArtifact(req.Trust) {
+	switch {
+	case req.Plugin != nil:
+		downloader = &pluginMarketplaceDownloader{acquisition: req.Plugin}
+		detail = &registrypkg.Detail{
+			Listing: registrypkg.Listing{
+				Slug:    slug,
+				Source:  req.Plugin.SourceName,
+				Version: req.Plugin.Record.Version,
+			},
+			Repository: req.Plugin.Record.SourceRef,
+		}
+	case hasCuratedMarketplaceArtifact(req.Trust):
 		downloader, err = newCuratedMarketplaceArtifactDownloader(req.Trust, req.ArtifactHTTPClient)
 		if err != nil {
 			return marketplaceManagedInstall{}, err
 		}
 		detail = curatedMarketplaceArtifactDetail(slug, req.Trust)
-	} else {
+	default:
 		multi, registryErr := newExtensionMarketplaceRegistry(ctx, loader, req.SourceFilter)
 		if registryErr != nil {
 			return marketplaceManagedInstall{}, registryErr
@@ -247,6 +259,11 @@ func prepareMarketplacePackage(ctx context.Context, homePaths compozyconfig.Home
 func validateMarketplaceManagedInstallRequest(req MarketplaceInstallRequest) (string, error) {
 	if err := ValidateExpectedDigest(req.ExpectedDigest); err != nil {
 		return "", err
+	}
+	if req.Plugin != nil {
+		if err := req.Plugin.validate(req); err != nil {
+			return "", err
+		}
 	}
 	if req.Trust != nil {
 		if err := CheckExpectedDigest(req.ExpectedDigest, req.Trust.ArchiveDigestSHA256); err != nil {
@@ -377,6 +394,14 @@ func marketplaceInstallProvenance(
 				extensionChecksumUnverifiedDiagnostic(prepared.slug, prepared.detail.Source, true),
 			},
 		}
+	}
+	if req.Plugin != nil {
+		provenance.SourceName = req.Plugin.SourceName
+		provenance.SourceRef = req.Plugin.Record.SourceRef
+		provenance.EntryID = req.Plugin.Record.EntryID
+		provenance.ResolvedRef = req.Plugin.Record.ResolvedRef
+		provenance.Layout = req.Plugin.Record.Layout
+		provenance.InstalledFrom = ExtensionInstalledFromMarketplace
 	}
 	provenance.Warnings = appendExtensionInstallCleanupWarnings(
 		provenance.Warnings,

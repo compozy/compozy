@@ -25,9 +25,152 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/store"
 )
+
+func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should install approved cached bytes offline and retain unverified origin across a source rename",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, resolver, root := pluginAcquisitionRequest(t)
+			if err := os.RemoveAll(root); err != nil {
+				t.Fatal(err)
+			}
+			info, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := req.Plugin.Record
+			if info.Provenance.SourceName != "team" || info.Provenance.SourceRef != record.SourceRef ||
+				info.Provenance.EntryID != record.EntryID || info.Provenance.ResolvedRef != record.ResolvedRef ||
+				info.Provenance.ArchiveDigestSHA256 != record.DigestSHA256 || info.Provenance.Layout != "claude-plugin" ||
+				info.Provenance.ChecksumVerified || !info.Provenance.DigestMatched || !info.Provenance.AllowUnverified ||
+				info.Provenance.RegistryTier != ExtensionRegistryTierUnverified {
+				t.Fatalf("plugin provenance = %+v", info.Provenance)
+			}
+			req.Plugin.SourceName, req.Slug = "renamed-team", "renamed-team/tool"
+			prepared, err := PrepareMarketplaceManagedInstall(t.Context(), homePaths, env.registry, nil, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := prepared.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := prepared.ValidateReinstall(*info); err != nil || !prepared.MatchesInstalled(*info) {
+				t.Fatalf("same-origin renamed acquisition was not recognized: %v", err)
+			}
+			foreign := *info
+			foreign.Provenance.SourceRef = "github:other/marketplace"
+			if err := prepared.ValidateReinstall(foreign); !errors.Is(err, ErrExtensionNameConflict) {
+				t.Fatalf("foreign origin conflict = %v", err)
+			}
+			entries, err := os.ReadDir(resolver.Sources.TempDir)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("acquisition staging = %v, %v", entries, err)
+			}
+		},
+	)
+	t.Run("Should report changed live bytes without installing or caching them", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, resolver, root := pluginAcquisitionRequest(t)
+		if err := os.Remove(filepath.Join(resolver.Cache.Root, req.ExpectedDigest+".tar")); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(root, "tool", "README.md"), "Changed after listing")
+		_, err = InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
+		changed, ok := errors.AsType[*SourceChangedError](err)
+		if !ok || changed.ListedDigest != req.ExpectedDigest || changed.FetchedDigest == req.ExpectedDigest ||
+			len(changed.FetchedDigest) != 64 || !errors.Is(err, ErrExtensionSourceChanged) {
+			t.Fatalf("changed live acquisition = %v", err)
+		}
+		installed, err := env.registry.List()
+		if err != nil || len(installed) != 0 {
+			t.Fatalf("changed source was installed: %v, %v", installed, err)
+		}
+		entries, err := os.ReadDir(resolver.Cache.Root)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("changed bytes were cached: %v, %v", entries, err)
+		}
+	})
+	for _, scenario := range []string{"policy", "consent", "approval", "curated trust"} {
+		t.Run("Should reject invalid "+scenario+" before creating managed staging", func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			home := filepath.Join(t.TempDir(), "home")
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, _, _ := pluginAcquisitionRequest(t)
+			var expected error
+			switch scenario {
+			case "policy":
+				req.PolicyAllowsUnverified, expected = false, ErrExtensionUnverifiedPolicyBlocked
+			case "consent":
+				req.AllowUnverified, expected = false, ErrExtensionChecksumUnverified
+			case "approval":
+				req.ExpectedDigest, expected = strings.Repeat("0", 64), ErrExtensionSourceChanged
+			case "curated trust":
+				req.Trust = &MarketplaceTrustEvidence{RegistryTier: ExtensionRegistryTierOfficial}
+			}
+			_, err = PrepareMarketplaceManagedInstall(t.Context(), homePaths, env.registry, nil, req)
+			if err == nil || (expected != nil && !errors.Is(err, expected)) {
+				t.Fatalf("%s refusal = %v", scenario, err)
+			}
+			if _, err := os.Stat(home); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("refused acquisition wrote the managed home: %v", err)
+			}
+		})
+	}
+}
+
+func pluginAcquisitionRequest(t *testing.T) (MarketplaceInstallRequest, *pluginsource.Resolver, string) {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(
+		filepath.Join(root, "tool"),
+		os.DirFS(filepath.Join("testdata", "client-plugins", "open-design")),
+	); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"tool","source":"./tool"}]}`)
+	resolver := &pluginsource.Resolver{
+		Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
+		Sources: pluginsource.Sources{TempDir: t.TempDir()},
+	}
+	doc, err := resolver.Sources.Fetch(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := resolver.Resolve(t.Context(), doc, snapshot, doc.Plugins[0])
+	if err := errors.Join(err, snapshot.Close()); err != nil {
+		t.Fatal(err)
+	}
+	return MarketplaceInstallRequest{
+		Plugin: &MarketplacePluginAcquisition{SourceName: "team", Record: record, Acquirer: resolver},
+		Slug:   "team/tool", ExpectedDigest: record.DigestSHA256, PolicyAllowsUnverified: true, AllowUnverified: true,
+	}, resolver, root
+}
 
 type lifecycleSource struct {
 	name          string
@@ -498,11 +641,17 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		{}, {ProfileID: "marketing"}, {WorkspaceID: "ws-scoped-install"},
 		{ProfileID: "marketing", WorkspaceID: "ws-scoped-install"}, {ProfileID: "missing"},
 	} {
-		t.Run(fmt.Sprintf("Should retain only the requested installation scope %s/%s", scope.ProfileID, scope.WorkspaceID),
+		t.Run(
+			fmt.Sprintf(
+				"Should retain only the requested installation scope %s/%s",
+				scope.ProfileID,
+				scope.WorkspaceID,
+			),
 			func(t *testing.T) {
 				t.Parallel()
 				testMarketplaceInstallationScope(t, scope)
-			})
+			},
+		)
 	}
 	t.Run(
 		"Should refresh a data-named package while preserving its isolated data and reject unsupported schemas",
@@ -1015,7 +1164,12 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 				homePaths,
 				env.registry,
 				loader,
-				MarketplaceUpdateRequest{All: selection.all, Names: selection.names, PolicyAllowsUnverified: true, AllowUnverified: true},
+				MarketplaceUpdateRequest{
+					All:                    selection.all,
+					Names:                  selection.names,
+					PolicyAllowsUnverified: true,
+					AllowUnverified:        true,
+				},
 				nil,
 			)
 
@@ -2349,13 +2503,27 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 	failed := scenario == "foreign source" || scenario == "foreign entry" || scenario == "completion failure"
 	if scenario == "foreign source" || scenario == "foreign entry" {
 		conflict, ok := errors.AsType[*ExtensionNameConflictError](err)
-		if !ok || !errors.Is(err, ErrExtensionNameConflict) || conflict.InstalledOrigin.SourceRef != provenance.SourceRef ||
-			conflict.InstalledOrigin.EntryID != provenance.EntryID || candidateCommitted || reloads != 0 {
-			t.Fatalf("foreign acquisition reached mutation: %v, committed=%v reloads=%d", err, candidateCommitted, reloads)
+		if !ok || !errors.Is(err, ErrExtensionNameConflict) ||
+			conflict.InstalledOrigin.SourceRef != provenance.SourceRef ||
+			conflict.InstalledOrigin.EntryID != provenance.EntryID ||
+			candidateCommitted ||
+			reloads != 0 {
+			t.Fatalf(
+				"foreign acquisition reached mutation: %v, committed=%v reloads=%d",
+				err,
+				candidateCommitted,
+				reloads,
+			)
 		}
 	} else if scenario == "completion failure" {
 		if !errors.Is(err, completionErr) || !candidateCommitted || !restored || reloads != 2 {
-			t.Fatalf("completion rollback = %v, committed=%v restored=%v reloads=%d", err, candidateCommitted, restored, reloads)
+			t.Fatalf(
+				"completion rollback = %v, committed=%v restored=%v reloads=%d",
+				err,
+				candidateCommitted,
+				restored,
+				reloads,
+			)
 		}
 	} else if err != nil {
 		t.Fatal(err)
