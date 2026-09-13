@@ -89,11 +89,8 @@ type SkillActionRecord = contract.SkillActionResponse
 // MarketplaceListingRecord is one shared marketplace discovery row.
 type MarketplaceListingRecord = contract.MarketplaceListingPayload
 
-// MarketplaceSearchRecord is one grouped marketplace discovery response.
-type MarketplaceSearchRecord = contract.MarketplaceSearchResponse
-
-// MarketplaceKindRecord is one marketplace kind response.
-type MarketplaceKindRecord = contract.MarketplaceKindResponse
+// MarketplaceListRecord is one canonical catalog discovery response.
+type MarketplaceListRecord = contract.MarketplaceListResponse
 
 // MarketplaceEntryRecord is one exact marketplace detail response.
 type MarketplaceEntryRecord = contract.MarketplaceEntryResponse

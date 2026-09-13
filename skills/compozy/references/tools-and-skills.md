@@ -104,10 +104,10 @@ installed inventory comes from `GET /api/extensions`, independent of catalog pag
 not undo earlier successful updates. Inspect every status, even on HTTP 200.
 
 Native `compozy__marketplace_search` reads the canonical catalog with `query`, `limit`, and
-`cursor`; obsolete `kind` input fails validation. CLI discovery verbs currently use: `compozy marketplace search [query] --kind extension -o json`,
-`compozy marketplace info extension <entry_id> [--installed-name <name>]`, and
-`compozy marketplace refresh --kind extension`. Consult their returned envelope for continuation
-metadata; do not interpret the retained CLI kind selector as an app navigation control.
+`cursor`; obsolete `kind` input fails validation. CLI discovery uses `compozy marketplace search
+[query] [--cursor <opaque>] -o json`, `compozy marketplace info <entry_id> [--source <name>]`,
+and `compozy marketplace refresh`. Use the returned revision and continuation cursor when paging.
+Installed-skill metadata stays local through `compozy skill info <name>`.
 
 Entries carry the daemon's pre-install `trust` report. Read `decision`, `registry_tier`,
 `allow_unverified`, and `warnings`; `checksum_verified` remains false until download verification.

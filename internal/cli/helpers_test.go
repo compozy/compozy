@@ -120,10 +120,9 @@ type stubClient struct {
 	listExtensionsScopedFn      func(context.Context, string) ([]ExtensionRecord, error)
 	searchExtensionsFn          func(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	listExtensionCommandsFn     func(context.Context, string, string) (ExtensionCommandsRecord, error)
-	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
-	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
+	searchMarketplaceFn         func(context.Context, string, int, string, MarketplaceReadScope) (MarketplaceListRecord, error)
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
-	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
+	refreshMarketplaceFn        func(context.Context) (MarketplaceRefreshRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsLayeredScopeKind, string, string) (contract.SettingsMCPServersResponse, error)
 	getSettingsMCPAuthStatusFn  func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	beginSettingsMCPAuthFn      func(
@@ -1216,44 +1215,31 @@ func (s *stubClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
 	limit int,
-	scope MarketplaceReadScope,
-) (MarketplaceSearchRecord, error) {
-	if s.searchMarketplaceFn != nil {
-		return s.searchMarketplaceFn(ctx, query, limit, scope)
-	}
-	return MarketplaceSearchRecord{}, errors.New("unexpected SearchMarketplace call")
-}
-
-func (s *stubClient) BrowseMarketplace(
-	ctx context.Context,
-	kind string,
-	query string,
-	limit int,
 	cursor string,
 	scope MarketplaceReadScope,
-) (MarketplaceKindRecord, error) {
-	if s.browseMarketplaceFn != nil {
-		return s.browseMarketplaceFn(ctx, kind, query, limit, cursor, scope)
+) (MarketplaceListRecord, error) {
+	if s.searchMarketplaceFn != nil {
+		return s.searchMarketplaceFn(ctx, query, limit, cursor, scope)
 	}
-	return MarketplaceKindRecord{}, errors.New("unexpected BrowseMarketplace call")
+	return MarketplaceListRecord{}, errors.New("unexpected SearchMarketplace call")
 }
 
 func (s *stubClient) MarketplaceInfo(
 	ctx context.Context,
-	kind string,
 	entryID string,
+	source string,
 	installedName string,
 	scope MarketplaceReadScope,
 ) (MarketplaceEntryRecord, error) {
 	if s.marketplaceInfoFn != nil {
-		return s.marketplaceInfoFn(ctx, kind, entryID, installedName, scope)
+		return s.marketplaceInfoFn(ctx, entryID, source, installedName, scope)
 	}
 	return MarketplaceEntryRecord{}, errors.New("unexpected MarketplaceInfo call")
 }
 
-func (s *stubClient) RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error) {
+func (s *stubClient) RefreshMarketplace(ctx context.Context) (MarketplaceRefreshRecord, error) {
 	if s.refreshMarketplaceFn != nil {
-		return s.refreshMarketplaceFn(ctx, kind)
+		return s.refreshMarketplaceFn(ctx)
 	}
 	return MarketplaceRefreshRecord{}, errors.New("unexpected RefreshMarketplace call")
 }

@@ -12,51 +12,39 @@ import (
 func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should map all marketplace namespace requests", func(t *testing.T) {
+	t.Run("Should map canonical catalog pagination detail and refresh requests", func(t *testing.T) {
 		t.Parallel()
-
 		client := &daemonClient{
 			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method == http.MethodGet {
-					if got, want := req.URL.Query().Get("scope"), "workspace"; got != want {
-						t.Fatalf("marketplace scope = %q, want %q", got, want)
-					}
-					if got, want := req.URL.Query().Get("workspace_id"), "ws-alpha"; got != want {
-						t.Fatalf("marketplace workspace_id = %q, want %q", got, want)
-					}
+				query := req.URL.Query()
+				if query.Has("kind") {
+					t.Fatal("canonical request carried an obsolete kind")
+				}
+				if req.Method == http.MethodGet &&
+					(query.Get("scope") != "workspace" || query.Get("workspace_id") != "ws-alpha") {
+					t.Fatalf("read scope = %v", query)
 				}
 				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace/search":
-					if got := req.URL.Query().Get("q"); got != "review" {
-						t.Fatalf("search q = %q, want review", got)
-					}
-					if got := req.URL.Query().Get("limit"); got != "7" {
-						t.Fatalf("search limit = %q, want 7", got)
-					}
-					return newHTTPResponse(http.StatusOK, `{"kinds":[]}`), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace/skill":
-					if got := req.URL.Query().Get("q"); got != "review" {
-						t.Fatalf("browse q = %q, want review", got)
-					}
-					if got := req.URL.Query().Get("limit"); got != "5" {
-						t.Fatalf("browse limit = %q, want 5", got)
-					}
-					if got := req.URL.Query().Get("cursor"); got != "next-page" {
-						t.Fatalf("browse cursor = %q, want next-page", got)
-					}
-					return newHTTPResponse(http.StatusOK, `{"kind":"skill","items":[]}`), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace/skill/skill-entry":
-					if got := req.URL.Query().Get("installed_name"); got != "local-skill" {
-						t.Fatalf("detail installed_name = %q, want local-skill", got)
+				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace":
+					if query.Get("q") != "review" || query.Get("limit") != "7" || query.Get("cursor") != "page-two" {
+						t.Fatalf("catalog query = %v", query)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"entry":{"kind":"skill","entry_id":"skill-entry","name":"Review","description":"Review helper","installed":false,"source":"curated"}}`,
+						`{"total":4,"revision":"revision-a","stale":true,"error_class":"network","next_cursor":"page-three","sources":[],"items":[]}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace/entries/review":
+					if query.Get("installed_name") != "local-review" || query.Get("source") != "compozy-catalog" {
+						t.Fatalf("detail query = %v", query)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"entry":{"entry_id":"review","name":"Review","description":"Review helper","installed":true,"source":"compozy-catalog"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/marketplace/refresh":
-					if got := req.URL.Query().Get("kind"); got != "skill" {
-						t.Fatalf("refresh kind = %q, want skill", got)
+					if len(query) != 0 {
+						t.Fatalf("refresh query = %v", query)
 					}
 					return newHTTPResponse(http.StatusOK, `{"kinds":[]}`), nil
 				default:
@@ -65,130 +53,80 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 				}
 			})},
 		}
-
-		ctx := context.Background()
-		readScope := MarketplaceReadScope{Scope: "workspace", WorkspaceID: "ws-alpha"}
-		search, err := client.SearchMarketplace(ctx, " review ", 7, readScope)
-		if err != nil {
-			t.Fatalf("SearchMarketplace() error = %v", err)
+		ctx := t.Context()
+		scope := MarketplaceReadScope{Scope: "workspace", WorkspaceID: "ws-alpha"}
+		page, err := client.SearchMarketplace(ctx, " review ", 7, " page-two ", scope)
+		if err != nil || page.Total != 4 || page.Revision != "revision-a" || page.NextCursor != "page-three" ||
+			!page.Stale ||
+			page.ErrorClass != "network" {
+			t.Fatalf("SearchMarketplace() = %#v, %v", page, err)
 		}
-		if len(search.Kinds) != 0 {
-			t.Fatalf("SearchMarketplace().Kinds = %#v, want empty", search.Kinds)
+		detail, err := client.MarketplaceInfo(ctx, "review", " compozy-catalog ", " local-review ", scope)
+		if err != nil || detail.Entry.EntryID != "review" || !detail.Entry.Installed {
+			t.Fatalf("MarketplaceInfo() = %#v, %v", detail, err)
 		}
-
-		browse, err := client.BrowseMarketplace(ctx, "skill", " review ", 5, " next-page ", readScope)
-		if err != nil {
-			t.Fatalf("BrowseMarketplace() error = %v", err)
-		}
-		if browse.Kind != "skill" {
-			t.Fatalf("BrowseMarketplace().Kind = %q, want skill", browse.Kind)
-		}
-
-		detail, err := client.MarketplaceInfo(ctx, "skill", "skill-entry", " local-skill ", readScope)
-		if err != nil {
-			t.Fatalf("MarketplaceInfo() error = %v", err)
-		}
-		if detail.Entry.EntryID != "skill-entry" {
-			t.Fatalf("MarketplaceInfo().Entry.EntryID = %q, want skill-entry", detail.Entry.EntryID)
-		}
-
-		refresh, err := client.RefreshMarketplace(ctx, " skill ")
-		if err != nil {
-			t.Fatalf("RefreshMarketplace() error = %v", err)
-		}
-		if len(refresh.Kinds) != 0 {
-			t.Fatalf("RefreshMarketplace().Kinds = %#v, want empty", refresh.Kinds)
+		refresh, err := client.RefreshMarketplace(ctx)
+		if err != nil || len(refresh.Kinds) != 0 {
+			t.Fatalf("RefreshMarketplace() = %#v, %v", refresh, err)
 		}
 	})
 
-	t.Run("Should reject blank marketplace path segments before transport", func(t *testing.T) {
+	t.Run("Should reject invalid identity and scope before transport", func(t *testing.T) {
 		t.Parallel()
-
 		client := &daemonClient{}
-		ctx := context.Background()
-		userScope := MarketplaceReadScope{Scope: "user"}
-		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, "", userScope); err == nil ||
-			!strings.Contains(err.Error(), "marketplace kind is required") {
-			t.Fatalf("BrowseMarketplace(blank kind) error = %v", err)
-		}
-		if _, err := client.MarketplaceInfo(ctx, "   ", "entry", "", userScope); err == nil ||
-			!strings.Contains(err.Error(), "marketplace kind is required") {
-			t.Fatalf("MarketplaceInfo(blank kind) error = %v", err)
-		}
-		if _, err := client.MarketplaceInfo(ctx, "skill", "   ", "", userScope); err == nil ||
-			!strings.Contains(err.Error(), "marketplace entry ID is required") {
-			t.Fatalf("MarketplaceInfo(blank entry ID) error = %v", err)
-		}
-		if _, err := client.SearchMarketplace(
-			ctx,
-			"",
-			20,
-			MarketplaceReadScope{Scope: "workspace"},
-		); err == nil || !strings.Contains(err.Error(), "--scope workspace requires --workspace") {
-			t.Fatalf("SearchMarketplace(workspace without ID) error = %v", err)
-		}
+		ctx := t.Context()
 		if _, err := client.MarketplaceInfo(
 			ctx,
-			"skill",
-			"entry",
+			"   ",
 			"",
-			MarketplaceReadScope{Scope: "user", WorkspaceID: "ws-alpha"},
-		); err == nil || !strings.Contains(err.Error(), "--workspace requires --scope workspace") {
-			t.Fatalf("MarketplaceInfo(global with workspace) error = %v", err)
-		}
-		if _, err := client.SearchMarketplace(
-			ctx,
 			"",
-			20,
-			MarketplaceReadScope{Scope: "user", Profile: "marketing"},
-		); err == nil || !strings.Contains(err.Error(), "--profile requires --scope profile") {
-			t.Fatalf("SearchMarketplace(user with profile) error = %v", err)
-		}
-	})
-
-	t.Run("Should reject installed identity for an unsupported detail kind before transport", func(t *testing.T) {
-		t.Parallel()
-
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				t.Fatalf("unexpected marketplace request: %s %s", req.Method, req.URL.String())
-				return nil, nil
-			})},
-		}
-
-		_, err := client.MarketplaceInfo(
-			t.Context(),
-			"artifact",
-			"review-kit",
-			"activation-review-kit",
 			MarketplaceReadScope{Scope: "user"},
-		)
-		if err == nil || !strings.Contains(err.Error(), "--installed-name is only supported") {
-			t.Fatalf("MarketplaceInfo(unsupported installed identity) error = %v, want local validation", err)
+		); err == nil ||
+			!strings.Contains(err.Error(), "marketplace entry ID is required") {
+			t.Fatalf("MarketplaceInfo(blank entry) = %v", err)
+		}
+		for _, tc := range []struct {
+			scope   MarketplaceReadScope
+			message string
+		}{
+			{MarketplaceReadScope{Scope: "workspace"}, "--scope workspace requires --workspace"},
+			{MarketplaceReadScope{Scope: "user", WorkspaceID: "ws-alpha"}, "--workspace requires --scope workspace"},
+			{MarketplaceReadScope{Scope: "user", Profile: "marketing"}, "--profile requires --scope profile"},
+			{MarketplaceReadScope{Scope: "profile"}, "--scope profile requires an active non-default profile"},
+		} {
+			if _, err := client.SearchMarketplace(
+				ctx,
+				"",
+				20,
+				"",
+				tc.scope,
+			); err == nil ||
+				!strings.Contains(err.Error(), tc.message) {
+				t.Fatalf("SearchMarketplace(%#v) = %v, want %q", tc.scope, err, tc.message)
+			}
 		}
 	})
 
 	t.Run("Should carry profile identity in installed-state reads", func(t *testing.T) {
 		t.Parallel()
-
 		client := &daemonClient{
 			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if got := req.URL.Query().Get("scope"); got != "profile" {
-					t.Fatalf("profile marketplace scope = %q", got)
+				if req.URL.Path != "/api/marketplace" || req.URL.Query().Get("scope") != "profile" ||
+					req.URL.Query().Get("profile") != "marketing" {
+					t.Fatalf("profile catalog request = %s", req.URL)
 				}
-				if got := req.URL.Query().Get("profile"); got != "marketing" {
-					t.Fatalf("profile marketplace identity = %q", got)
-				}
-				return newHTTPResponse(http.StatusOK, `{"kinds":[]}`), nil
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"total":0,"revision":"revision-a","stale":false,"items":[],"sources":[]}`,
+				), nil
 			})},
 		}
-		_, err := client.SearchMarketplace(t.Context(), "", 20, MarketplaceReadScope{
+		_, err := client.SearchMarketplace(context.Background(), "", 20, "", MarketplaceReadScope{
 			Scope: contract.SettingsLayeredScopeProfile, Profile: "marketing",
 		})
 		if err != nil {
-			t.Fatalf("SearchMarketplace(profile) error = %v", err)
+			t.Fatalf("SearchMarketplace(profile) = %v", err)
 		}
 	})
 }

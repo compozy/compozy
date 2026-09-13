@@ -24,64 +24,29 @@ type MarketplaceClient interface {
 		ctx context.Context,
 		query string,
 		limit int,
-		scope MarketplaceReadScope,
-	) (MarketplaceSearchRecord, error)
-	BrowseMarketplace(
-		ctx context.Context,
-		kind string,
-		query string,
-		limit int,
 		cursor string,
 		scope MarketplaceReadScope,
-	) (MarketplaceKindRecord, error)
+	) (MarketplaceListRecord, error)
 	MarketplaceInfo(
 		ctx context.Context,
-		kind string,
 		entryID string,
+		source string,
 		installedName string,
 		scope MarketplaceReadScope,
 	) (MarketplaceEntryRecord, error)
-	RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error)
+	RefreshMarketplace(ctx context.Context) (MarketplaceRefreshRecord, error)
 }
 
 func (c *daemonClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
 	limit int,
-	scope MarketplaceReadScope,
-) (MarketplaceSearchRecord, error) {
-	values, err := scope.queryValues()
-	if err != nil {
-		return MarketplaceSearchRecord{}, err
-	}
-	if trimmed := strings.TrimSpace(query); trimmed != "" {
-		values.Set("q", trimmed)
-	}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var response MarketplaceSearchRecord
-	if err := c.doJSON(ctx, http.MethodGet, "/api/marketplace/search", values, nil, &response); err != nil {
-		return MarketplaceSearchRecord{}, err
-	}
-	return response, nil
-}
-
-func (c *daemonClient) BrowseMarketplace(
-	ctx context.Context,
-	kind string,
-	query string,
-	limit int,
 	cursor string,
 	scope MarketplaceReadScope,
-) (MarketplaceKindRecord, error) {
-	trimmedKind := strings.TrimSpace(kind)
-	if trimmedKind == "" {
-		return MarketplaceKindRecord{}, errors.New("cli: marketplace kind is required")
-	}
+) (MarketplaceListRecord, error) {
 	values, err := scope.queryValues()
 	if err != nil {
-		return MarketplaceKindRecord{}, err
+		return MarketplaceListRecord{}, err
 	}
 	if trimmed := strings.TrimSpace(query); trimmed != "" {
 		values.Set("q", trimmed)
@@ -92,25 +57,20 @@ func (c *daemonClient) BrowseMarketplace(
 	if trimmed := strings.TrimSpace(cursor); trimmed != "" {
 		values.Set("cursor", trimmed)
 	}
-	var response MarketplaceKindRecord
-	path := "/api/marketplace/" + url.PathEscape(trimmedKind)
-	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
-		return MarketplaceKindRecord{}, err
+	var response MarketplaceListRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/marketplace", values, nil, &response); err != nil {
+		return MarketplaceListRecord{}, err
 	}
 	return response, nil
 }
 
 func (c *daemonClient) MarketplaceInfo(
 	ctx context.Context,
-	kind string,
 	entryID string,
+	source string,
 	installedName string,
 	scope MarketplaceReadScope,
 ) (MarketplaceEntryRecord, error) {
-	trimmedKind := strings.TrimSpace(kind)
-	if trimmedKind == "" {
-		return MarketplaceEntryRecord{}, errors.New("cli: marketplace kind is required")
-	}
 	trimmedEntryID := strings.TrimSpace(entryID)
 	if trimmedEntryID == "" {
 		return MarketplaceEntryRecord{}, errors.New("cli: marketplace entry ID is required")
@@ -120,20 +80,13 @@ func (c *daemonClient) MarketplaceInfo(
 		return MarketplaceEntryRecord{}, err
 	}
 	if trimmed := strings.TrimSpace(installedName); trimmed != "" {
-		switch trimmedKind {
-		case string(contract.MarketplaceKindMCP),
-			string(contract.MarketplaceKindExtension),
-			string(contract.MarketplaceKindSkill):
-			values.Set("installed_name", trimmed)
-		default:
-			return MarketplaceEntryRecord{}, errors.New(
-				"cli: --installed-name is only supported for mcp, extension, or skill marketplace entries",
-			)
-		}
+		values.Set("installed_name", trimmed)
+	}
+	if trimmed := strings.TrimSpace(source); trimmed != "" {
+		values.Set("source", trimmed)
 	}
 	var response MarketplaceEntryRecord
-	path := "/api/marketplace/" + url.PathEscape(trimmedKind) +
-		"/" + url.PathEscape(trimmedEntryID)
+	path := "/api/marketplace/entries/" + url.PathEscape(trimmedEntryID)
 	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
 		return MarketplaceEntryRecord{}, err
 	}
@@ -179,12 +132,8 @@ func (s MarketplaceReadScope) queryValues() (url.Values, error) {
 
 func (c *daemonClient) RefreshMarketplace(
 	ctx context.Context,
-	kind string,
 ) (MarketplaceRefreshRecord, error) {
 	values := url.Values{}
-	if trimmed := strings.TrimSpace(kind); trimmed != "" {
-		values.Set("kind", trimmed)
-	}
 	var response MarketplaceRefreshRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/marketplace/refresh", values, nil, &response); err != nil {
 		return MarketplaceRefreshRecord{}, err

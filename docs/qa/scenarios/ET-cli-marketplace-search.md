@@ -4,17 +4,21 @@ area: ET
 title: Search the marketplace through structured CLI output
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `compozy marketplace search` returns fixed-order grouped output for exactly mcp, extension, and skill, supports single-kind browse in every structured mode, rejects bundle, and preserves truthful installed and update fields from the daemon.
-entry_points: compozy marketplace search [query] -o json|jsonl|toon; compozy marketplace search [query] --kind <mcp|extension|skill> -o json|jsonl|toon; unsupported --kind bundle; compozy.com/docs/marketplace
-qa_status: pass
+expected: `compozy marketplace search` returns the canonical catalog envelope with truthful installed state, revision and pagination. JSON matches the daemon response; JSONL, human and TOON retain page metadata. Retired --kind flags and two-argument info fail before transport.
+entry_points: compozy marketplace search [query] [--cursor <opaque>] -o json|jsonl|toon; compozy marketplace info <entry_id> [--source <name>]; compozy marketplace refresh
+qa_status: untested
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-json-parity; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
-retest_status: pass
+retest_status: ""
 fix_commits: 8eeb8a38;351f3535
 evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-007; ET-016
 ---
+
+Current contract (2026-09-13): compare CLI canonical browse/detail with HTTP and UDS for the same source and installed-state scope. Continue without a kind selector, verify revision/cursor fencing and source identity, and verify old flags/arity cannot query or mutate. Final tasks09/10 own this walk. The historical grouped-kind evidence below does not validate the amended contract.
+
+## Historical evidence
 
 Historical QA note: opaque cursor continuation through structured CLI output remains pending.
 

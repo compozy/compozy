@@ -30,7 +30,6 @@ func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 }
 
 func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
-	var kind string
 	var cursor string
 	var readScope marketplaceReadFlagValues
 	limit := marketplaceDefaultLimit
@@ -41,9 +40,6 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if limit <= 0 {
 				return fmt.Errorf("cli: marketplace limit must be positive: %d", limit)
-			}
-			if strings.TrimSpace(kind) == "" && strings.TrimSpace(cursor) != "" {
-				return errors.New("cli: --cursor requires --kind")
 			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -57,34 +53,27 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			if len(args) > 0 {
 				query = args[0]
 			}
-			if strings.TrimSpace(kind) == "" {
-				response, err := client.SearchMarketplace(cmd.Context(), query, limit, scope)
-				if err != nil {
-					return err
-				}
-				return writeCommandOutput(cmd, marketplaceGroupedBundle(response))
-			}
-			response, err := client.BrowseMarketplace(cmd.Context(), kind, query, limit, cursor, scope)
+			response, err := client.SearchMarketplace(cmd.Context(), query, limit, cursor, scope)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, marketplaceKindBundle(response))
+			return writeCommandOutput(cmd, marketplaceCatalogBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "", "Limit results to mcp, extension, or skill")
-	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue a single-kind search from an opaque cursor")
-	cmd.Flags().IntVar(&limit, "limit", marketplaceDefaultLimit, "Maximum results per marketplace kind")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue catalog search from an opaque cursor")
+	cmd.Flags().IntVar(&limit, "limit", marketplaceDefaultLimit, "Maximum catalog results")
 	addMarketplaceReadFlags(cmd, &readScope)
 	return cmd
 }
 
 func newMarketplaceInfoCommand(deps commandDeps) *cobra.Command {
 	var installedName string
+	var source string
 	var readScope marketplaceReadFlagValues
 	cmd := &cobra.Command{
-		Use:   "info <kind> <entry_id>",
+		Use:   "info <entry_id>",
 		Short: "Show one marketplace entry",
-		Args:  cobra.ExactArgs(2),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -95,7 +84,7 @@ func newMarketplaceInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			response, err := client.MarketplaceInfo(
-				cmd.Context(), args[0], args[1], installedName, scope,
+				cmd.Context(), args[0], source, installedName, scope,
 			)
 			if err != nil {
 				return err
@@ -107,8 +96,9 @@ func newMarketplaceInfoCommand(deps commandDeps) *cobra.Command {
 		&installedName,
 		"installed-name",
 		"",
-		"Resolve an exact installed MCP, extension, or skill identity",
+		"Resolve an exact installed extension identity",
 	)
+	cmd.Flags().StringVar(&source, "source", "", "Catalog source name")
 	addMarketplaceReadFlags(cmd, &readScope)
 	return cmd
 }
@@ -169,79 +159,47 @@ func addMarketplaceReadFlags(cmd *cobra.Command, values *marketplaceReadFlagValu
 }
 
 func newMarketplaceRefreshCommand(deps commandDeps) *cobra.Command {
-	var kind string
 	cmd := &cobra.Command{
 		Use:   "refresh",
-		Short: "Refresh curated marketplace catalogs",
+		Short: "Refresh the Marketplace catalog",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			response, err := client.RefreshMarketplace(cmd.Context(), kind)
+			response, err := client.RefreshMarketplace(cmd.Context())
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, marketplaceRefreshBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "", "Refresh only mcp, extension, or skill")
 	return cmd
-}
-
-func marketplaceGroupedBundle(response MarketplaceSearchRecord) outputBundle {
-	items := make([]MarketplaceListingRecord, 0)
-	for _, result := range response.Kinds {
-		items = append(items, result.Items...)
-	}
-	bundle := marketplaceListingsBundle(response, items)
-	bundle.jsonl = func(cmd *cobra.Command) error {
-		return writeJSONLines(cmd, response.Kinds)
-	}
-	return bundle
 }
 
 func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) outputBundle {
 	bundle := listBundle(
-		jsonValue,
-		items,
-		"Marketplace Results",
-		[]string{
-			cliKindValue,
-			"Entry ID",
-			automationNameValue,
-			versionValue,
-			cliInstalledValue,
-			authoredContextSourceValue,
-		},
+		jsonValue, items, "Marketplace Results",
+		[]string{authoredContextSourceValue, "Entry", versionValue, cliInstalledValue, "Description"},
 		marketplaceSkillSource,
-		[]string{
-			networkKindKey,
-			"entry_id",
-			automationNameKey,
-			versionKey,
-			marketplaceInstalledKey,
-			automationSourceKey,
-		},
+		[]string{automationSourceKey, "entry_id", versionKey, marketplaceInstalledKey, "description"},
 		func(item MarketplaceListingRecord) []string {
 			return []string{
-				string(item.Kind),
+				item.Source,
 				item.EntryID,
-				item.Name,
 				stringOrDash(item.Version),
 				strconv.FormatBool(item.Installed),
-				item.Source,
+				item.Description,
 			}
 		},
 		func(item MarketplaceListingRecord) []string {
 			return []string{
-				string(item.Kind),
+				item.Source,
 				item.EntryID,
-				item.Name,
 				item.Version,
 				strconv.FormatBool(item.Installed),
-				item.Source,
+				item.Description,
 			}
 		},
 	)
@@ -251,21 +209,21 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 	return bundle
 }
 
-type marketplaceKindPageRecord struct {
+type marketplaceCatalogPageRecord struct {
 	Type       string `json:"type"`
-	Kind       string `json:"kind"`
+	Revision   string `json:"revision"`
 	Returned   int    `json:"returned"`
-	Total      *int   `json:"total,omitempty"`
+	Total      int    `json:"total"`
 	NextCursor string `json:"next_cursor,omitempty"`
 	Stale      bool   `json:"stale"`
 	ErrorClass string `json:"error_class,omitempty"`
 	Error      string `json:"error,omitempty"`
 }
 
-func marketplaceKindBundle(response MarketplaceKindRecord) outputBundle {
+func marketplaceCatalogBundle(response MarketplaceListRecord) outputBundle {
 	bundle := marketplaceListingsBundle(response, response.Items)
-	page := marketplaceKindPageRecord{
-		Type: listPageRecordType, Kind: string(response.Kind), Returned: len(response.Items),
+	page := marketplaceCatalogPageRecord{
+		Type: listPageRecordType, Revision: response.Revision, Returned: len(response.Items),
 		Total: response.Total, NextCursor: response.NextCursor, Stale: response.Stale,
 		ErrorClass: response.ErrorClass, Error: response.Error,
 	}
@@ -281,7 +239,7 @@ func marketplaceKindBundle(response MarketplaceKindRecord) outputBundle {
 		if err != nil {
 			return "", err
 		}
-		return renderHumanBlocks(table, marketplaceKindPageHuman(page)), nil
+		return renderHumanBlocks(table, marketplaceCatalogPageHuman(page)), nil
 	}
 	baseToon := bundle.toon
 	bundle.toon = func() (string, error) {
@@ -289,16 +247,16 @@ func marketplaceKindBundle(response MarketplaceKindRecord) outputBundle {
 		if err != nil {
 			return "", err
 		}
-		return items + "\n" + marketplaceKindPageToon(page), nil
+		return items + "\n" + marketplaceCatalogPageToon(page), nil
 	}
 	return bundle
 }
 
-func marketplaceKindPageHuman(page marketplaceKindPageRecord) string {
+func marketplaceCatalogPageHuman(page marketplaceCatalogPageRecord) string {
 	return renderHumanSection("Page", []keyValue{
-		{Label: cliKindValue, Value: page.Kind},
+		{Label: "Revision", Value: page.Revision},
 		{Label: "Returned", Value: strconv.Itoa(page.Returned)},
-		{Label: listTotalLabel, Value: optionalMarketplaceTotal(page.Total)},
+		{Label: listTotalLabel, Value: strconv.Itoa(page.Total)},
 		{Label: listNextCursorLabel, Value: stringOrDash(page.NextCursor)},
 		{Label: outputStaleValue, Value: strconv.FormatBool(page.Stale)},
 		{Label: "Error Class", Value: stringOrDash(page.ErrorClass)},
@@ -306,25 +264,18 @@ func marketplaceKindPageHuman(page marketplaceKindPageRecord) string {
 	})
 }
 
-func marketplaceKindPageToon(page marketplaceKindPageRecord) string {
+func marketplaceCatalogPageToon(page marketplaceCatalogPageRecord) string {
 	return renderToonObject(
 		listPageRecordType,
 		[]string{
-			networkKindKey, listReturnedField, listTotalField, listNextCursorField,
+			"revision", listReturnedField, listTotalField, listNextCursorField,
 			outputStaleKey, "error_class", automationErrorKey,
 		},
 		[]string{
-			page.Kind, strconv.Itoa(page.Returned), optionalMarketplaceTotal(page.Total), page.NextCursor,
+			page.Revision, strconv.Itoa(page.Returned), strconv.Itoa(page.Total), page.NextCursor,
 			strconv.FormatBool(page.Stale), page.ErrorClass, page.Error,
 		},
 	)
-}
-
-func optionalMarketplaceTotal(total *int) string {
-	if total == nil {
-		return "-"
-	}
-	return strconv.Itoa(*total)
 }
 
 func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
@@ -339,7 +290,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Marketplace Entry", []keyValue{
-				{Label: cliKindValue, Value: string(entry.Kind)},
+
 				{Label: "Entry ID", Value: entry.EntryID},
 				{Label: automationNameValue, Value: entry.Name},
 				{Label: "Description", Value: entry.Description},
@@ -352,7 +303,6 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 			return renderToonObject(
 				"marketplace_entry",
 				[]string{
-					networkKindKey,
 					"entry_id",
 					automationNameKey,
 					extensionMarketplaceDescriptionKey,
@@ -361,7 +311,6 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 					marketplaceInstalledKey,
 				},
 				[]string{
-					string(entry.Kind),
 					entry.EntryID,
 					entry.Name,
 					entry.Description,
