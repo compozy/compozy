@@ -598,3 +598,11 @@ retries. New repository read/archive methods retain the existing network and res
 The shared archive finalizer also removes its spool when response cleanup fails. Public routes, config
 composition, install/cache consumers and final QA remain owned by task07/08/09/10. Owning validation is
 the registry/github and pluginsource race suites; this is not a final gate/QA delivery claim.
+
+### Task07 owned Git checkout acquisition
+
+The registry Git client now offers an owned checkout with verified commit identity and reuses its clone
+acquisition for existing archive downloads. Failed acquisition releases the complete temporary tree;
+archive callers still receive the same gzip format. New source composition will use the checkout parent
+under the marketplace home. Focused registry/gitsrc race tests, lint and Windows compilation pass;
+live Git source acquisition and public source integration remain pending in task07/final QA.
