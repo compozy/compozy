@@ -5,39 +5,39 @@ import {
   MetadataListValue,
   Pill,
 } from "@compozy/ui";
-import { Clock, Lock, Plug, Settings2, ShieldCheck, Tag } from "lucide-react";
+import { Clock, Lock, Settings2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import {
   installCommand,
   marketplaceSearchCommand,
   type ExtensionEntry,
-  type MarketplaceEntry,
-  type MarketplaceKind,
-  type MCPEntry,
-  type SkillEntry,
 } from "@/lib/marketplace-catalog";
 import { MarketplaceCrumbs } from "./marketplace-crumbs";
-import { MarketplaceInstallCommand } from "./marketplace-install-command";
+import { MarketplaceEntryInputs } from "./marketplace-entry-inputs";
+import { MarketplaceEntryLogo } from "./marketplace-entry-logo";
 import {
   extensionTierLabel,
+  feedDateLine,
+  FORMAT_LABELS,
   formatFeedDate,
-  kindMeta,
-  type LucideIcon,
-} from "./marketplace-kind-meta";
+  TIER_HINTS,
+  versionLabel,
+} from "./marketplace-entry-meta";
+import { MarketplaceInstallCommand } from "./marketplace-install-command";
 
-const TIER_HINTS: Record<ExtensionEntry["tier"], string> = {
-  official: "First-party, shipped from the CompozyOS repository.",
-  community: "Community-published; review the repository before installing.",
-  unverified: "Not reviewed by CompozyOS; verify the artifact yourself.",
-};
+/**
+ * Detail for one v3 extension entry. Everything on the page is a feed field or a command derived
+ * from one: the static site has no daemon behind it, so there is no install state, server status,
+ * or authorization readiness to show — those live in the runtime's own Marketplace window.
+ */
 
-function SectionHead({
+export function MarketplaceDetailSectionHead({
   id,
   icon: Icon,
   children,
 }: {
   id: string;
-  icon: LucideIcon;
+  icon: typeof ShieldCheck;
   children: string;
 }) {
   return (
@@ -51,47 +51,27 @@ function SectionHead({
   );
 }
 
-function SkillDetail({ entry }: { entry: SkillEntry }) {
-  const published = formatFeedDate(entry.published_at);
+function ExternalLink({ href, children }: { href: string; children: string }) {
   return (
-    <section aria-labelledby="skill-details" className="mt-10">
-      <SectionHead id="skill-details" icon={Tag}>
-        Details
-      </SectionHead>
-      <MetadataList className="mt-4">
-        <MetadataListRow>
-          <MetadataListTerm>Install slug</MetadataListTerm>
-          <MetadataListValue className="font-mono">{entry.install_slug}</MetadataListValue>
-        </MetadataListRow>
-        {published ? (
-          <MetadataListRow>
-            <MetadataListTerm>Published</MetadataListTerm>
-            <MetadataListValue>{published}</MetadataListValue>
-          </MetadataListRow>
-        ) : null}
-        {entry.tags?.length ? (
-          <MetadataListRow>
-            <MetadataListTerm>Tags</MetadataListTerm>
-            <MetadataListValue className="flex flex-wrap gap-1.5">
-              {entry.tags.map(tag => (
-                <Pill key={tag} size="sm" className="font-mono">
-                  {tag}
-                </Pill>
-              ))}
-            </MetadataListValue>
-          </MetadataListRow>
-        ) : null}
-      </MetadataList>
-    </section>
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+    >
+      {children}
+    </a>
   );
 }
 
-function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
+function Provenance({ entry }: { entry: ExtensionEntry }) {
+  const published = formatFeedDate(entry.published_at);
+  const updated = formatFeedDate(entry.updated_at);
   return (
     <section aria-labelledby="provenance" className="mt-10">
-      <SectionHead id="provenance" icon={ShieldCheck}>
+      <MarketplaceDetailSectionHead id="provenance" icon={ShieldCheck}>
         Provenance
-      </SectionHead>
+      </MarketplaceDetailSectionHead>
       <MetadataList className="mt-4">
         <MetadataListRow>
           <MetadataListTerm>Tier</MetadataListTerm>
@@ -103,25 +83,52 @@ function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
             <span className="text-subtle">{TIER_HINTS[entry.tier]}</span>
           </MetadataListValue>
         </MetadataListRow>
+        {entry.author ? (
+          <MetadataListRow>
+            <MetadataListTerm>Author</MetadataListTerm>
+            <MetadataListValue>{entry.author}</MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        <MetadataListRow>
+          <MetadataListTerm>Version</MetadataListTerm>
+          <MetadataListValue className="font-mono">{versionLabel(entry.version)}</MetadataListValue>
+        </MetadataListRow>
+        {entry.format ? (
+          <MetadataListRow>
+            <MetadataListTerm>Format</MetadataListTerm>
+            <MetadataListValue>{FORMAT_LABELS[entry.format]}</MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        {published ? (
+          <MetadataListRow>
+            <MetadataListTerm>Published</MetadataListTerm>
+            <MetadataListValue>{published}</MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        {updated ? (
+          <MetadataListRow>
+            <MetadataListTerm>Updated</MetadataListTerm>
+            <MetadataListValue>{updated}</MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        <MetadataListRow>
+          <MetadataListTerm>Install slug</MetadataListTerm>
+          <MetadataListValue className="font-mono">{entry.install_slug}</MetadataListValue>
+        </MetadataListRow>
         {entry.repository ? (
           <MetadataListRow>
             <MetadataListTerm>Repository</MetadataListTerm>
             <MetadataListValue className="font-mono">
-              <a
-                href={entry.repository}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
-              >
+              <ExternalLink href={entry.repository}>
                 {entry.repository.replace(/^https:\/\//, "")}
-              </a>
+              </ExternalLink>
             </MetadataListValue>
           </MetadataListRow>
         ) : null}
         <MetadataListRow>
           <MetadataListTerm>Artifact</MetadataListTerm>
           <MetadataListValue className="break-all font-mono">
-            {entry.artifact_url}
+            <ExternalLink href={entry.artifact_url}>{entry.artifact_url}</ExternalLink>
           </MetadataListValue>
         </MetadataListRow>
         <MetadataListRow>
@@ -139,155 +146,16 @@ function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
   );
 }
 
-function launchHint(type: MCPEntry["launch"]["type"]): string {
-  if (type === "remote") return "Hosted server the daemon connects to over Streamable HTTP.";
-  return "Pinned local distribution the daemon launches as a supervised child process.";
-}
-
-function MCPDetail({ entry }: { entry: MCPEntry }) {
-  const launch = entry.launch;
-  const launchValue =
-    launch.type === "remote"
-      ? launch.url
-      : launch.type === "docker"
-        ? `${launch.image}@${launch.digest}${launch.args?.length ? ` ${launch.args.join(" ")}` : ""}`
-        : `${launch.package}@${launch.version}${launch.args?.length ? ` ${launch.args.join(" ")}` : ""}`;
-  return (
-    <>
-      <section aria-labelledby="runtime-config" className="mt-10">
-        <SectionHead id="runtime-config" icon={Plug}>
-          Runtime configuration
-        </SectionHead>
-        <MetadataList className="mt-4">
-          <MetadataListRow>
-            <MetadataListTerm>Launch</MetadataListTerm>
-            <MetadataListValue className="flex flex-wrap items-center gap-2">
-              <Pill size="sm" className="font-mono">
-                {launch.type}
-              </Pill>
-              <span className="text-subtle">{launchHint(launch.type)}</span>
-            </MetadataListValue>
-          </MetadataListRow>
-          <MetadataListRow>
-            <MetadataListTerm>{launch.type === "remote" ? "URL" : "Distribution"}</MetadataListTerm>
-            <MetadataListValue className="break-all font-mono">{launchValue}</MetadataListValue>
-          </MetadataListRow>
-          <MetadataListRow>
-            <MetadataListTerm>Default scope</MetadataListTerm>
-            <MetadataListValue>
-              {entry.default_scope === "global" ? "Global" : "Workspace"}{" "}
-              <span className="ms-2 text-subtle">
-                {entry.default_scope === "global"
-                  ? "Available to every workspace after install."
-                  : "Installed into the workspace you run the command from."}
-                {" The feed sets the default; the runtime owns the scope at install."}
-              </span>
-            </MetadataListValue>
-          </MetadataListRow>
-        </MetadataList>
-      </section>
-
-      {entry.inputs?.length ? (
-        <section aria-labelledby="inputs" className="mt-10">
-          <SectionHead id="inputs" icon={Settings2}>
-            Inputs
-          </SectionHead>
-          <div className="mt-4 overflow-x-auto rounded-lg border border-line">
-            <table className="w-full text-start text-small-body">
-              <thead>
-                <tr className="border-b border-line text-start">
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">Input</th>
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">Value</th>
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">Required</th>
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">
-                    <span className="sr-only">Sensitivity</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {entry.inputs.map(input => (
-                  <tr key={input.id} className="border-b border-line-soft last:border-b-0">
-                    <td className="px-4 py-2.5 font-mono text-fg">{input.id}</td>
-                    <td className="px-4 py-2.5 text-muted">{input.prompt}</td>
-                    <td className="px-4 py-2.5 text-muted">
-                      {input.required ? "Required" : "Optional"}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {input.type === "secret" ? (
-                        <Pill size="sm">
-                          <Lock aria-hidden className="size-3" />
-                          Secret
-                        </Pill>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-small-body leading-relaxed text-subtle">
-            When installing with <code>{installCommand("mcp", entry)}</code>, use{" "}
-            <code>--secret id</code> or <code>--vault-ref id=vault:mcp/...</code> for secrets and{" "}
-            <code>--set id=value</code>
-            {". Secret values are never stored in the catalog or rendered on this page."}
-          </p>
-        </section>
-      ) : null}
-
-      {entry.auth ? (
-        <section aria-labelledby="oauth" className="mt-10">
-          <SectionHead id="oauth" icon={Lock}>
-            OAuth
-          </SectionHead>
-          <MetadataList className="mt-4">
-            <MetadataListRow>
-              <MetadataListTerm>Registration</MetadataListTerm>
-              <MetadataListValue className="font-mono">{entry.auth.registration}</MetadataListValue>
-            </MetadataListRow>
-            {entry.auth.scopes?.length ? (
-              <MetadataListRow>
-                <MetadataListTerm>Scopes</MetadataListTerm>
-                <MetadataListValue className="flex flex-wrap gap-1.5">
-                  {entry.auth.scopes.map(scope => (
-                    <Pill key={scope} size="sm" className="font-mono">
-                      {scope}
-                    </Pill>
-                  ))}
-                </MetadataListValue>
-              </MetadataListRow>
-            ) : null}
-          </MetadataList>
-        </section>
-      ) : null}
-    </>
-  );
-}
-
-export function MarketplaceEntryDetail({
-  kind,
-  entry,
-}: {
-  kind: MarketplaceKind;
-  entry: MarketplaceEntry;
-}) {
-  const meta = kindMeta(kind);
-  const Icon = meta.icon;
-  const extension = kind === "extensions" ? (entry as ExtensionEntry) : undefined;
-  const mcp = kind === "mcp" ? (entry as MCPEntry) : undefined;
-  const author = "author" in entry ? entry.author : undefined;
-  const date = formatFeedDate(entry.updated_at ?? entry.published_at);
+export function MarketplaceEntryDetail({ entry }: { entry: ExtensionEntry }) {
+  const dateLine = feedDateLine(entry);
+  const inputs = entry.inputs ?? [];
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl px-4 pt-12 pb-20">
-      <MarketplaceCrumbs
-        trail={[{ name: meta.title, href: `/marketplace/${kind}` }]}
-        leaf={entry.name}
-      />
+      <MarketplaceCrumbs leaf={entry.name} />
 
       <header className="mt-6 flex items-start gap-4">
-        <span className="mt-1 inline-flex size-11.5 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-elevated text-fg">
-          <Icon aria-hidden className="size-5" />
-        </span>
+        <MarketplaceEntryLogo entry={entry} size="lg" className="mt-1" />
         <div className="min-w-0">
           <h1 className="text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
@@ -297,43 +165,57 @@ export function MarketplaceEntryDetail({
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
-        {entry.version ? (
-          <code className="font-mono text-badge text-subtle">
-            {entry.version.startsWith("v") ? entry.version : `v${entry.version}`}
-          </code>
-        ) : null}
-        {extension ? (
-          <Pill size="sm">
-            <ShieldCheck aria-hidden className="size-3" />
-            {extensionTierLabel(extension.tier)}
-          </Pill>
-        ) : null}
-        {mcp ? (
-          <Pill size="sm" mono>
-            {mcp.launch.type}
-          </Pill>
-        ) : null}
-        {author ? (
+        <code className="font-mono text-badge text-subtle">{versionLabel(entry.version)}</code>
+        <Pill size="sm">
+          <ShieldCheck aria-hidden className="size-3" />
+          {extensionTierLabel(entry.tier)}
+        </Pill>
+        {entry.author ? (
           <span>
-            By <strong className="font-medium text-fg">{author}</strong>
+            By <strong className="font-medium text-fg">{entry.author}</strong>
           </span>
         ) : null}
-        {date ? (
+        {dateLine ? (
           <span className="inline-flex items-center gap-1.5">
             <Clock aria-hidden className="size-3.5 text-subtle" />
-            {entry.updated_at ? "Updated" : "Published"} {date}
+            {dateLine.verb} {dateLine.date}
           </span>
         ) : null}
       </div>
 
-      <MarketplaceInstallCommand
-        command={marketplaceSearchCommand(kind, entry)}
-        className="mt-7 border-accent/35 bg-canvas-soft"
-      />
+      <div className="mt-7 flex flex-col gap-3">
+        <MarketplaceInstallCommand
+          command={marketplaceSearchCommand(entry)}
+          className="border-accent/35 bg-canvas-soft"
+        />
+        <MarketplaceInstallCommand command={installCommand(entry)} />
+        <p className="text-small-body leading-relaxed text-subtle">
+          Search confirms the entry exists in your daemon&apos;s active catalog; install fetches the
+          artifact, verifies its digest, and enrolls the extension.
+          {inputs.length > 0
+            ? " This package declares inputs — see below for the values it needs."
+            : null}
+        </p>
+      </div>
 
-      {kind === "skills" ? <SkillDetail entry={entry as SkillEntry} /> : null}
-      {kind === "extensions" ? <ExtensionDetail entry={entry as ExtensionEntry} /> : null}
-      {kind === "mcp" ? <MCPDetail entry={entry as MCPEntry} /> : null}
+      {inputs.length > 0 ? (
+        <section aria-labelledby="inputs" className="mt-10">
+          <MarketplaceDetailSectionHead id="inputs" icon={Settings2}>
+            Inputs
+          </MarketplaceDetailSectionHead>
+          <MarketplaceEntryInputs inputs={inputs} />
+          <p className="mt-3 flex items-start gap-2 text-small-body leading-relaxed text-subtle">
+            <Lock aria-hidden className="mt-1 size-3.5 shrink-0" />
+            <span>
+              Secret values are never stored in the catalog or rendered on this page. Whether the
+              server is running or authorized is runtime state — your daemon&apos;s Marketplace
+              window shows it after install.
+            </span>
+          </p>
+        </section>
+      ) : null}
+
+      <Provenance entry={entry} />
 
       <p className="mt-12 border-t border-line pt-6 text-small-body leading-relaxed text-subtle">
         New to the marketplace? The{" "}
@@ -343,7 +225,7 @@ export function MarketplaceEntryDetail({
         >
           concept docs
         </Link>{" "}
-        explain how installs, trust tiers, and registries fit the runtime.
+        explain how installs, trust tiers, and plugin marketplaces fit the runtime.
       </p>
     </main>
   );

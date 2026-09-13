@@ -33,10 +33,10 @@ only when it needs it.
     meta="Authoring"
   />
   <RouteRow
-    href="/docs/skills/marketplace"
-    label="Marketplace"
-    title="Discover and install community skills"
-    description="Use this page to install, update, and remove ClawHub-sourced skills with `compozy skill`."
+    href="/docs/extensions/install"
+    label="Distribution"
+    title="Install skills packaged with extensions"
+    description="Install versioned extension resources, then inspect and manage the included skills locally."
     meta="Distribution"
   />
   <RouteRow
@@ -389,12 +389,24 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 | Critical verification finding | The skill is blocked from loading.                                                                                                                      |
 | Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |
 
+## Installed skill provenance
+
+Existing skills installed from a registry keep their `.compozy-meta.json` sidecar. It records
+`hash`, `registry`, `slug`, `version` and `installed_at`. CompozyOS verifies the installed
+directory hash on load; a mismatch blocks the skill. The ordinary content scanner still applies.
+Local skill list, info, view and exposure operations continue to work without contacting ClawHub.
+The sidecar is provenance for installed content; it does not enable remote acquisition.
+
+Standalone registry search, install, update and removal commands are retired. Acquire new packaged
+skills through extensions, and manage their package through the extension lifecycle. Existing
+installed-skill MCP and hook declarations remain subject to their configured consent allowlists.
+
 ## Related Pages
 
 - [Use skills from your other tools](/docs/skills/sources) walks through source configuration, origin
   labels, and exposing a skill back to another tool.
 - [SKILL.md Format](/docs/skills/skill-md) documents the file format and schema.
-- [Marketplace](/docs/skills/marketplace) shows how to search, install, update, and remove skills.
+- [Extension installation](/docs/extensions/install) explains how to acquire packaged skills.
 - [Bundled Skill](/docs/skills/bundled) documents the `compozy` skill shipped in the CompozyOS binary.
 - [Agent Definitions](/docs/agents/definitions) explains how agents and skill-aware MCP servers meet at session start.
 - [Spawning](/docs/agents/spawning) follows the ACP startup path that receives skill MCP servers.

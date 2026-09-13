@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it, vi } from "vitest";
@@ -31,6 +31,7 @@ vi.mock("@/lib/source", () => ({
   },
 }));
 
+import { MarketplaceCatalogBrowser } from "@/components/marketplace/marketplace-catalog-browser";
 import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
 import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
 import { MarketplaceBundledSection } from "@/components/marketplace/marketplace-bundled-section";
@@ -211,6 +212,79 @@ describe("marketplace catalog", () => {
   });
 });
 
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+
+function bridgeManifests() {
+  const bridgesRoot = resolve(repoRoot, "extensions", "bridges");
+  const manifests: Array<{
+    platform: string;
+    displayName: string;
+    version: string;
+    description: string;
+    requiredSecrets: number;
+    totalSecrets: number;
+  }> = [];
+  for (const entry of readdirSync(bridgesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = resolve(bridgesRoot, entry.name, "extension.toml");
+    if (!existsSync(manifestPath)) continue;
+    const manifest = parseToml(readFileSync(manifestPath, "utf8")) as {
+      bridge: {
+        platform: string;
+        display_name: string;
+        secret_slots: Array<{ required: boolean }>;
+      };
+      extension: { version: string; description: string };
+    };
+    manifests.push({
+      platform: manifest.bridge.platform,
+      displayName: manifest.bridge.display_name,
+      version: manifest.extension.version,
+      description: manifest.extension.description,
+      requiredSecrets: manifest.bridge.secret_slots.filter(slot => slot.required).length,
+      totalSecrets: manifest.bridge.secret_slots.length,
+    });
+  }
+  return manifests;
+}
+
+function manifestDirectories(root: string, directories: string[]): string[] {
+  return directories
+    .flatMap(directory => {
+      const path = resolve(root, directory);
+      if (statSync(path).isFile()) return [basename(dirname(path))];
+      return readdirSync(path, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name);
+    })
+    .sort();
+}
+
+function writeBridgeManifest(root: string, directory: string, platform: string): void {
+  const manifestRoot = resolve(root, directory);
+  mkdirSync(manifestRoot, { recursive: true });
+  writeFileSync(
+    resolve(manifestRoot, "extension.toml"),
+    `[extension]
+name = "${directory}"
+version = "0.1.0"
+description = "${directory} bridge"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "${platform}"
+display_name = "${directory}"
+
+[[bridge.secret_slots]]
+name = "token"
+description = "Bridge token"
+required = true
+`
+  );
+}
+
 describe("marketplace bridge providers", () => {
   it("derives one provider per in-tree bridge manifest", () => {
     const manifests = bridgeManifests();
@@ -364,7 +438,7 @@ describe("marketplace bundled resources", () => {
         screen.getByRole("link", { name: new RegExp(extension.displayName) }).getAttribute("href")
       ).toBe(extension.path);
       expect(extension.statusCommand).toBe(`compozy extension status ${extension.name}`);
-      expect(findEntry("extensions", extension.name)).toBeUndefined();
+      expect(findEntry(extension.name)).toBeUndefined();
       const detail = render(
         await BundledExtensionPage({ params: Promise.resolve({ name: extension.name }) })
       );
@@ -413,6 +487,23 @@ description: body content must not override metadata
 });
 
 describe("marketplace rendering boundary", () => {
+  // Invariant: catalog search filters current entries and recovers from an empty result.
+  // Owner: public catalog browser. Canonical suite: marketplace-catalog.test.tsx.
+  it("Should filter the current catalog and restore all entries when search is cleared", () => {
+    render(<MarketplaceCatalogBrowser entries={extensionEntries} />);
+    const search = screen.getByRole("searchbox", { name: "Search extensions" });
+    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(20);
+    fireEvent.change(search, { target: { value: "  CONTEXT7  " } });
+    expect(screen.getByRole("link", { name: "View details" }).getAttribute("href")).toBe(
+      "/marketplace/context7"
+    );
+    fireEvent.change(search, { target: { value: "no-such-package" } });
+    expect(screen.queryByRole("link", { name: "View details" })).toBeNull();
+    expect(screen.getByText(/No extensions match/)).toBeTruthy();
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(20);
+  });
+
   it("Should render truthful dates and current detail links without invented trust signals", () => {
     const entry = {
       ...extensionEntries[0],

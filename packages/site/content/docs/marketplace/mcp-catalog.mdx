@@ -1,13 +1,23 @@
 ---
-title: Curated MCP catalog
-description: Reference for the MCP servers CompozyOS curates, their safe defaults, and deliberate omissions.
+title: Packaged MCP servers
+description: The 17 MCP servers packaged as extensions, their authored inputs and authorization.
 ---
 
-This is a reference for operators choosing a curated MCP server. The catalog supplies a pinned
-launch definition or an official hosted endpoint; it does not grant access, approve tool calls, or
-make a server ready. Install through the daemon, then inspect its authorization and runtime status.
+The Marketplace publishes these 17 MCP integrations as extension packages in
+`v3/extensions.json`. Each has an extension manifest, typed inputs and a digest-pinned
+artifact. Installation uses the existing extension lifecycle and preserves separate
+manual MCP configuration and credentials.
 
-## Curated entries
+```bash
+compozy marketplace search context7 -o json
+compozy marketplace info context7 -o json
+compozy extension install compozy/context7
+```
+
+Inspect the active daemon catalog before installing; this page describes the checked-in
+package set. A package can require configuration or OAuth after installation.
+
+## Packaged entries
 
 | Entry                 | Delivery                                                  | Default boundary                                                                                                                         |
 | --------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,23 +40,23 @@ make a server ready. Install through the daemon, then inspect its authorization 
 | Cloudflare Code Mode  | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
 
 Pinned local distributions are exact so a catalog refresh cannot silently select a different
-package. A Docker distribution is additionally pinned to a verified image digest. Hosted entries
-intentionally omit a catalog version because the provider owns the running service version.
+package. A Docker distribution is additionally pinned to a verified image digest. Hosted integrations carry a package version for the authored configuration; the provider owns
+the running service version.
 
 ## Inputs and authorization
 
-The catalog declares typed inputs rather than arbitrary environment maps. A secret input can be
+Package manifests declare typed inputs rather than arbitrary environment maps. A secret input can be
 entered securely or bound to an existing Vault ref. Non-secret inputs can only populate a local
 server environment or a hosted URL query parameter; secret query values are never accepted.
 
 Use the catalog default scope unless you have a concrete reason to choose another one. Every new
 vendor entry defaults to `workspace`; Context7 is the global exception. For a hosted entry with
-OAuth, install first and then use the daemon-owned login flow. The catalog's `registration: auto`
+OAuth, install first and then use the daemon-owned login flow. The manifest's `registration = "dynamic"`
 does not accept a copied client secret or a manual OAuth endpoint template.
 
 ## Curation sources
 
-The catalog uses direct provider documentation and maintained upstream packages. For example,
+The package definitions retain the curated provider endpoints and pinned distributions. For example,
 Linear documents its Streamable HTTP endpoint; Notion recommends its hosted Streamable HTTP endpoint;
 Supabase documents hosted OAuth and a project-scoped URL; and Grafana documents its open-source
 server. [Linear](https://linear.app/docs/mcp),
@@ -69,7 +79,7 @@ Mode](https://developers.cloudflare.com/agents/model-context-protocol/codemode/)
 ## Deliberate omissions
 
 Figma is not a curated entry by product decision. Figma limits its remote server to clients in its
-own MCP Catalog; this v2 catalog does not ship that Figma-specific client integration.
+own MCP Catalog; the package set does not ship that Figma-specific client integration.
 [Figma MCP server introduction](https://developers.figma.com/docs/figma-mcp-server/)
 
 Shopify is not a generic entry. Shopify publishes multiple UCP MCP interfaces: a global endpoint,

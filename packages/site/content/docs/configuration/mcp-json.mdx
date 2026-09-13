@@ -246,7 +246,7 @@ extension API, while MCP settings changes affect the selected server's configura
 
 ## Inspect Runtime Status
 
-The MCP Installed scope at `/marketplace/mcps` and
+Settings > MCP servers and
 `GET /api/settings/mcp-servers` keep configuration, authorization, runtime, and probe state
 separate. A configured server is not automatically ready.
 
@@ -266,8 +266,8 @@ compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o j
 
 Inside a CompozyOS session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
 redacted status. Both accept `server_name` and an optional `owner`, such as
-`{"server_name":"github","owner":"extension:github"}`. Without an owner, use the
-allocated runtime name; a manual definition takes precedence. The caller's
+`{"server_name":"github","owner":"extension:github"}`. Without an owner, diagnostics select manual servers. Include the extension owner when
+addressing an extension-provided server. The caller's
 profile and workspace determine the effective registry. Returned auth diagnostics
 include the owning scope and owner, and CLI repair commands preserve those
 selectors. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
@@ -278,8 +278,8 @@ both `authenticated` and `token_present=true`; runtime and probe state remain in
 
 ## Edit A Configured Server
 
-Open `/marketplace/mcps` to inspect the effective user, active-profile, and workspace definitions,
-then open the matching Marketplace detail. MCP configuration supports:
+Open Settings > MCP servers to inspect the effective user, active-profile and workspace definitions,
+then select the server to edit. MCP configuration supports:
 
 - stdio `command`, `args`, literal `env`, and bound `secret_env` refs;
 - remote `http` transport and absolute `url`;

@@ -307,11 +307,11 @@ For marketplace-installed skills, the MCP server above would be blocked until th
 | `metadata.compozy.when` parse error | `when` has an unknown key, non-array value, non-string item, or blank item.        | Use only the four documented gates with non-empty strings.    |
 | MCP server skipped                  | One `metadata.compozy.mcp_servers` entry is malformed or missing `name`/`command`. | Fix that entry or move the server into `mcp.json`.            |
 | Hook parse failure                  | A hook has an unknown field, invalid event, or missing command.                    | Use current dot-form hook events and supported hook fields.   |
-| Skill blocked                       | Verification found critical content or marketplace hash verification failed.       | Remove the unsafe content or reinstall the marketplace skill. |
+| Skill blocked                       | Verification found critical content or marketplace hash verification failed.       | Restore trusted skill content or update its owning extension. |
 
 ## Related Pages
 
 - [Skills Overview](/docs/skills) explains how this file is discovered and injected.
-- [Marketplace](/docs/skills/marketplace) explains `.compozy-meta.json` provenance.
+- [Installed skill provenance](/docs/skills#installed-skill-provenance) explains `.compozy-meta.json`.
 - [Hooks CLI Reference](/docs/cli/hooks) lists hook inspection commands.
 - [Skill CLI Reference](/docs/cli/skill) lists every generated skill command.

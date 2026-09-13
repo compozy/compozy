@@ -1,16 +1,16 @@
 import { Eyebrow, Pill, PillDot } from "@compozy/ui";
+import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { MarketplaceBridgeGrid } from "@/components/marketplace/marketplace-bridge-grid";
 import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
-import { MarketplaceKindTabs } from "@/components/marketplace/marketplace-kind-tabs";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { marketplaceBridgesDescription } from "@/lib/marketplace-copy";
 import { createPageMetadata } from "@/lib/site-config";
 
 /**
- * A static segment, so it wins over `[kind]` — bridges are deliberately not a catalog kind. The feed
- * kinds stay capped at three (`internal/marketplace/types.go`), and this page reads the in-repo
- * provider manifests instead.
+ * A static segment beside `[entryId]`: bridges are deliberately not catalog entries. Each provider
+ * builds from source, so this page reads the in-repo provider manifests instead of the v3 feed.
  */
 export const metadata: Metadata = createPageMetadata({
   title: "Bridges — Marketplace",
@@ -50,8 +50,20 @@ export default function MarketplaceBridgesPage() {
       </header>
 
       <div className="mx-auto w-full max-w-site-layout-width px-4 pt-11">
-        <div className="flex flex-wrap items-end border-b border-line">
-          <MarketplaceKindTabs active="bridges" />
+        <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line pb-4">
+          <h2 className="flex items-baseline gap-2.5 text-xl font-semibold tracking-[-0.015em] text-fg">
+            Providers
+            <span className="font-mono text-small-body font-normal text-subtle">
+              {bridgeProviders.length}
+            </span>
+          </h2>
+          <Link
+            href="/marketplace#catalog"
+            className="inline-flex items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-accent"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" />
+            Back to the extension catalog
+          </Link>
         </div>
 
         <div className="mt-7">

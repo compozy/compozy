@@ -4,8 +4,8 @@ area: ET
 title: Public /marketplace renders the checked-in catalog snapshot with daemon-search CTAs
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: /marketplace identifies itself as a checked-in catalog snapshot, shows one section per kind (Skills, Extensions, MCP servers — no bundles) with every entry from catalog/*.json, and offers a Contribute card pointing at the catalog PR flow. /marketplace/[kind] lists that kind; /marketplace/[kind]/[entryId] shows metadata plus a copyable `compozy marketplace search <entry-id> --kind <kind>` command so the daemon resolves the entry against its configured active source before installation. Kind-specific blocks show extension tier + digest + repository, or MCP transport, env fields with secrets flagged but never valued, and default scope. No ratings, downloads, featured flags, or other invented fields appear anywhere.
-entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcp/context7; /marketplace/bridges; /marketplace/bundled/spec-cycle
+expected: /marketplace renders one searchable extension catalog from v3, including the 17 packaged MCP servers and three existing extensions. Direct /marketplace/<entry_id> details show actual metadata, inputs, provenance and current extension commands. Retired kind paths are not found. Bundled resources and bridge-provider setup remain separate and usable. No old feed fallback, invented runtime state, popularity or secret values appear.
+entry_points: compozy.com /marketplace; /marketplace/context7; /marketplace/herdr-bridge; /marketplace/bridges; /marketplace/bundled/spec-cycle
 qa_status: untested
 bug_ids:
 fix_status:
@@ -16,8 +16,14 @@ last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-site-docs-single-tree-ia
 ---
 
-Marketplace catalog task 02 (2026-09-12): The site now reads 20 extensions from catalog/v3/extensions.json, validates typed inputs, icons and presets, and validates the retained root family separately. Confirm GitHub/Linear packaged servers and same-brand bridge setup links remain distinct. Documentation Writer stays only in retained skill discovery. Final execution belongs to tasks 09/10; earlier evidence does not validate these changes.
+Marketplace catalog task02 (2026-09-13): validate only v3 and the actual 20 package entries.
+Verify search, direct detail links, icon fallback, typed input prompts, preserved existing
+extension refs/digests, and distinct GitHub/Linear bridge setup. Retired skill/MCP/kind URLs
+must return not-found without redirects. Documentation Writer has no standalone listing.
+Final tasks09/10 own live rendering, keyboard/narrow-screen and visual evidence; focused
+schema/index tests do not close this row.
 
+## Historical evidence
 
 Added 2026-07-29 with the site IA restructure (spec `.compozy/tasks/site-docs-ia/_spec.md`
 Phase B): `/marketplace` is a build-time render of `catalog/skills.json`, `catalog/extensions.json`,

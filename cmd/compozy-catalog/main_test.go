@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/marketplace"
 )
@@ -51,7 +54,7 @@ func TestRun(t *testing.T) {
 	})
 }
 
-// Invariant: one v3 publication validates authored inputs and preserves existing extension identities and bytes.
+// Invariant: one v3 publication is readable by the runtime source and preserves extension identities and bytes.
 // Owner: catalog publisher. Canonical suite: main_test.go.
 func TestPublishCatalog(t *testing.T) {
 	t.Parallel()
@@ -69,11 +72,13 @@ func TestPublishCatalog(t *testing.T) {
 		if len(files) != 2 || files[0].Name() != "artifacts" || files[1].Name() != "v3" {
 			t.Fatalf("publication roots = %v, want artifacts and v3", files)
 		}
-		raw, err := os.ReadFile(filepath.Join(output, "v3", "extensions.json"))
+		server := httptest.NewServer(http.StripPrefix("/catalog/", http.FileServer(http.Dir(output))))
+		t.Cleanup(server.Close)
+		source, err := marketplace.NewHTTPSource(server.URL+"/catalog", &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatal(err)
 		}
-		document, err := marketplace.DecodeDocument(raw)
+		document, err := source.Fetch(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,6 +141,15 @@ func TestPublishCatalog(t *testing.T) {
 		err = run(t.Context(), []string{"validate", rootOnly}, io.Discard)
 		if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "v3") {
 			t.Fatalf("root-only validation = %v, want missing v3", err)
+		}
+		server := httptest.NewServer(http.FileServer(http.Dir(rootOnly)))
+		t.Cleanup(server.Close)
+		source, err := marketplace.NewHTTPSource(server.URL, &http.Client{Timeout: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.Fetch(t.Context()); err == nil || !strings.Contains(err.Error(), "404") {
+			t.Fatalf("root-only runtime fetch = %v, want missing v3", err)
 		}
 	})
 	t.Run("Should reject a published input declaration that disagrees with package bytes", func(t *testing.T) {

@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-033; ET-marketplace-kill-switch
 ---
 
-Marketplace catalog task 02 (2026-09-12): Exercise v3 preference, root fallback only after 404/410 with one marketplace.feed.root_family warning, unchanged configured base_url, and failure without fallback for invalid v3/503. A live source switch must preserve these family rules. Final execution belongs to tasks 09/10; earlier evidence does not validate these changes.
+Marketplace catalog task02 (2026-09-13): HTTP(S) and file roots read only v3/extensions.json and v3/marketplaces.json. Missing or malformed v3 fails without root fallback, retaining last-good data as stale when available. Configured base_url stays unchanged. Apply a live source change and confirm these rules without restarting. Final tasks09/10 own the walk; earlier evidence below is historical.
 
 
 QA impact 2026-08-22: the public scope vocabulary hard-cut from `global` to `user`, and profile

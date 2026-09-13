@@ -3,19 +3,21 @@ import { Globe, GitBranch, Terminal } from "lucide-react";
 import {
   MARKETPLACE_FEED_FILENAMES,
   MARKETPLACE_SEARCH_COMMAND,
-  skillEntries,
+  extensionEntries,
 } from "@/lib/marketplace-catalog";
 
 /**
- * The JSON shown is the first real entry in `catalog/skills.json`, so the static-site figure cannot
- * describe a feed shape the repository does not have. The daemon independently loads its active
- * catalog from configuration, which can differ from this build-time snapshot.
+ * The JSON shown is a real entry from `catalog/v3/extensions.json` — preferably one that declares
+ * inputs, so the figure shows the shape a configured package carries — and the tab strip lists the
+ * v3 feed family the site validates. The static figure therefore cannot describe a feed the
+ * repository does not have. The daemon independently loads its active catalog from configuration,
+ * which can differ from this build-time snapshot.
  */
 
 function feedPreview(): string {
-  const entry = skillEntries[0];
+  const entry = extensionEntries.find(candidate => candidate.inputs?.length) ?? extensionEntries[0];
   if (!entry) {
-    throw new Error("catalog/skills.json must contain at least one entry");
+    throw new Error("catalog/v3/extensions.json must contain at least one entry");
   }
   return JSON.stringify(
     {
@@ -23,6 +25,16 @@ function feedPreview(): string {
       name: entry.name,
       version: entry.version,
       install_slug: entry.install_slug,
+      tier: entry.tier,
+      ...(entry.inputs?.length
+        ? {
+            inputs: entry.inputs.map(input => ({
+              id: input.id,
+              type: input.type,
+              required: input.required,
+            })),
+          }
+        : {}),
     },
     null,
     2
