@@ -2402,6 +2402,83 @@ func TestMarketplaceCatalogConfigValidatesDefaultsAndOverrides(t *testing.T) {
 	}
 }
 
+func TestMarketplacePluginSourceValidation(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should accept public repository and local sources with explicit or inherited enabled state",
+		func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultMarketplaceRuntimeConfig()
+			cfg.PluginSources = []MarketplacePluginSourceConfig{
+				{Name: "github", Source: "github:team/plugins"},
+				{Name: "git", Source: "git+https://example.com/plugins.git", Enabled: new(false)},
+				{Name: "local", Source: "file:///tmp/plugins", Enabled: new(true)},
+			}
+			if err := cfg.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.PluginSources[0].EffectiveEnabled(true) || cfg.PluginSources[0].EffectiveEnabled(false) ||
+				cfg.PluginSources[1].EffectiveEnabled(true) || !cfg.PluginSources[2].EffectiveEnabled(false) {
+				t.Fatal("source enabled precedence changed")
+			}
+		},
+	)
+	tests := []struct {
+		name         string
+		rows         []MarketplacePluginSourceConfig
+		path, reason string
+	}{
+		{
+			name:   "Should reject malformed names with their row position",
+			rows:   []MarketplacePluginSourceConfig{{Name: "Team Plugins", Source: "github:team/plugins"}},
+			path:   "[0].name",
+			reason: "match",
+		},
+		{
+			name:   "Should reject reserved feed names",
+			rows:   []MarketplacePluginSourceConfig{{Name: "compozy", Source: "github:team/plugins"}},
+			path:   "[0].name",
+			reason: "marketplace_source_name_reserved",
+		},
+		{
+			name:   "Should reject unsupported source schemes",
+			rows:   []MarketplacePluginSourceConfig{{Name: "team", Source: "ftp://example.com"}},
+			path:   "[0].source",
+			reason: "marketplace_source_invalid_ref",
+		},
+		{
+			name: "Should reject duplicate configured names",
+			rows: []MarketplacePluginSourceConfig{
+				{Name: "team", Source: "github:team/plugins"},
+				{Name: "team", Source: "github:other/plugins"},
+			},
+			path:   "[1].name",
+			reason: "marketplace_source_exists",
+		},
+		{
+			name: "Should reject duplicate acquisition identities",
+			rows: []MarketplacePluginSourceConfig{
+				{Name: "team", Source: "github:team/plugins"},
+				{Name: "renamed", Source: "github:TEAM/Plugins"},
+			},
+			path:   "[1].source",
+			reason: "marketplace_source_exists",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultMarketplaceRuntimeConfig()
+			cfg.PluginSources = tc.rows
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), "marketplace.plugin_sources"+tc.path) ||
+				!strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("source validation = %v", err)
+			}
+		})
+	}
+}
+
 func TestProviderModelsDiscoveryConfigRejectsUnsafeConfiguration(t *testing.T) {
 	t.Parallel()
 

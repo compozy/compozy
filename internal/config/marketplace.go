@@ -17,7 +17,8 @@ const (
 
 // MarketplaceRuntimeConfig contains shared curated-marketplace runtime settings.
 type MarketplaceRuntimeConfig struct {
-	Catalog MarketplaceCatalogConfig `toml:"catalog"`
+	Catalog       MarketplaceCatalogConfig        `toml:"catalog"`
+	PluginSources []MarketplacePluginSourceConfig `toml:"plugin_sources"`
 }
 
 // MarketplaceCatalogConfig controls curated feed fetching and projection freshness.
@@ -28,7 +29,8 @@ type MarketplaceCatalogConfig struct {
 }
 
 type marketplaceRuntimeOverlay struct {
-	Catalog marketplaceCatalogOverlay `toml:"catalog"`
+	Catalog       marketplaceCatalogOverlay        `toml:"catalog"`
+	PluginSources *[]MarketplacePluginSourceConfig `toml:"plugin_sources"`
 }
 
 type marketplaceCatalogOverlay struct {
@@ -50,7 +52,10 @@ func DefaultMarketplaceRuntimeConfig() MarketplaceRuntimeConfig {
 
 // Validate reports whether the curated marketplace config is usable.
 func (c MarketplaceRuntimeConfig) Validate() error {
-	return c.Catalog.Validate("marketplace.catalog")
+	if err := c.Catalog.Validate("marketplace.catalog"); err != nil {
+		return err
+	}
+	return ValidateMarketplacePluginSources(c.PluginSources)
 }
 
 // Validate reports whether the curated catalog fetch settings are usable.
@@ -118,6 +123,9 @@ func (c MarketplaceCatalogConfig) EffectiveTimeout() string {
 
 func (o marketplaceRuntimeOverlay) Apply(dst *MarketplaceRuntimeConfig) {
 	o.Catalog.Apply(&dst.Catalog)
+	if o.PluginSources != nil {
+		dst.PluginSources = cloneMarketplacePluginSources(*o.PluginSources)
+	}
 }
 
 func (o marketplaceCatalogOverlay) Apply(dst *MarketplaceCatalogConfig) {

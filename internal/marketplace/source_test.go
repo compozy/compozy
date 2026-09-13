@@ -18,8 +18,80 @@ import (
 	"testing/iotest"
 	"time"
 
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
+
+func TestResolveMarketplaceSources(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should retain an enabled choice when a preset is renamed and order feed presets then custom sources",
+		func(t *testing.T) {
+			t.Parallel()
+			cfg := config.DefaultMarketplaceRuntimeConfig()
+			cfg.PluginSources = []config.MarketplacePluginSourceConfig{
+				{Name: "custom-z", Source: "file:///tmp/custom-z"},
+				{Name: "old-preset-name", Source: "github:OPENAI/Plugins", Enabled: new(true)},
+				{Name: "custom-a", Source: "github:team/custom", Enabled: new(false)},
+			}
+			presets := []Preset{
+				{Name: "renamed-preset", Source: "github:openai/plugins", Default: "off"},
+				{Name: "second-preset", Source: "github:team/preset", Default: "on"},
+			}
+			sources, err := ResolveSources(cfg, presets)
+			if err != nil || len(sources) != 5 {
+				t.Fatalf("resolved sources = %+v, %v", sources, err)
+			}
+			wantNames := []string{CompozyCatalogSource, "renamed-preset", "second-preset", "custom-z", "custom-a"}
+			wantKinds := []string{"feed", "preset", "preset", "custom", "custom"}
+			for index, source := range sources {
+				if source.Name != wantNames[index] || source.Kind != wantKinds[index] || source.Enabled != (index < 4) {
+					t.Fatalf("source %d = %+v", index, source)
+				}
+			}
+			if sources[1].Ref != "github:openai/plugins" || cfg.PluginSources[1].Name != "old-preset-name" ||
+				cfg.PluginSources[1].Source != "github:OPENAI/Plugins" || !*cfg.PluginSources[1].Enabled {
+				t.Fatalf("source identity or caller config changed: %+v, %+v", sources[1], cfg.PluginSources[1])
+			}
+		},
+	)
+	t.Run("Should inherit preset defaults and reject a custom name collision after overlay", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.DefaultMarketplaceRuntimeConfig()
+		cfg.PluginSources = []config.MarketplacePluginSourceConfig{
+			{Name: "operator-name", Source: "github:team/plugins"},
+		}
+		presets := []Preset{{Name: "team", Source: "github:team/plugins", Default: "off"}}
+		sources, err := ResolveSources(cfg, presets)
+		if err != nil || len(sources) != 2 || sources[1].Enabled {
+			t.Fatalf("inherited preset default = %+v, %v", sources, err)
+		}
+		cfg.PluginSources = append(
+			cfg.PluginSources,
+			config.MarketplacePluginSourceConfig{Name: "team", Source: "github:other/plugins"},
+		)
+		if _, err := ResolveSources(cfg, presets); !errors.Is(err, ErrSourceExists) {
+			t.Fatalf("post-overlay name collision = %v", err)
+		}
+	})
+	t.Run("Should normalize preset refs and reject duplicate upstream identities", func(t *testing.T) {
+		t.Parallel()
+		raw := `{"manifest_version":3,"generated_at":"2026-09-13T00:00:00Z","entries":[{"name":"team","source":"https://github.com/Team/Plugins.git","description":"Team plugins","default":"off"}]}`
+		document, err := DecodePresets([]byte(raw))
+		if err != nil || document.Entries[0].Source != "github:team/plugins" {
+			t.Fatalf("normalized presets = %+v, %v", document, err)
+		}
+		duplicate := strings.Replace(
+			raw,
+			`}]}`,
+			`},{"name":"duplicate","source":"github:team/plugins","description":"Same repository","default":"on"}]}`,
+			1,
+		)
+		if _, err := DecodePresets([]byte(duplicate)); err == nil {
+			t.Fatal("accepted duplicate preset acquisition identity")
+		}
+	})
+}
 
 func TestPluginProjectionBudget(t *testing.T) {
 	t.Parallel()

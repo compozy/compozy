@@ -13,6 +13,20 @@ import (
 
 var ErrInvalidRef = errors.New("marketplace_source_invalid_ref")
 
+var ErrSourceNameReserved = errors.New("marketplace_source_name_reserved")
+
+var sourceNamePattern = regexp.MustCompile(`^[a-z0-9._-]{1,64}$`)
+
+func ValidateName(name string) error {
+	if name == "compozy" || name == "compozy-catalog" {
+		return ErrSourceNameReserved
+	}
+	if !sourceNamePattern.MatchString(name) || name == "." || name == ".." {
+		return errors.New("marketplace source name must match [a-z0-9._-]{1,64} and cannot be a dot path")
+	}
+	return nil
+}
+
 var githubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+$`)
 
 // NormalizeRef assigns one acquisition identity to equivalent source spellings.

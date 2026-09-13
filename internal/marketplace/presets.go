@@ -2,9 +2,10 @@ package marketplace
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 // Preset is one ordered built-in plugin marketplace registration.
@@ -22,8 +23,6 @@ type PresetDocument struct {
 	Entries         []Preset `json:"entries"`
 }
 
-var presetNamePattern = regexp.MustCompile(`^[a-z0-9._-]{1,64}$`)
-
 // DecodePresets validates publication metadata while preserving registration order.
 func DecodePresets(raw []byte) (*PresetDocument, error) {
 	var document PresetDocument
@@ -40,9 +39,10 @@ func DecodePresets(raw []byte) (*PresetDocument, error) {
 		return nil, fmt.Errorf("marketplace presets entries is required")
 	}
 	seen := make(map[string]bool, len(document.Entries))
+	refs := make(map[string]bool, len(document.Entries))
 	for index, entry := range document.Entries {
-		if !presetNamePattern.MatchString(entry.Name) || entry.Name == "compozy" || entry.Name == CompozyCatalogSource {
-			return nil, fmt.Errorf("marketplace presets entries[%d].name is invalid or reserved", index)
+		if err := pluginsource.ValidateName(entry.Name); err != nil {
+			return nil, fmt.Errorf("marketplace presets entries[%d].name: %w", index, err)
 		}
 		if seen[entry.Name] {
 			return nil, fmt.Errorf("marketplace preset %q is duplicated", entry.Name)
@@ -54,6 +54,15 @@ func DecodePresets(raw []byte) (*PresetDocument, error) {
 		if entry.Default != "on" && entry.Default != "off" {
 			return nil, fmt.Errorf("marketplace preset %q default must be on or off", entry.Name)
 		}
+		ref, err := pluginsource.NormalizeRef(entry.Source)
+		if err != nil {
+			return nil, fmt.Errorf("marketplace presets entries[%d].source: %w", index, err)
+		}
+		if refs[ref] {
+			return nil, fmt.Errorf("marketplace preset source %q is duplicated", ref)
+		}
+		refs[ref] = true
+		document.Entries[index].Source = ref
 	}
 	return &document, nil
 }
