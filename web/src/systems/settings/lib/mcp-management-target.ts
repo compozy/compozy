@@ -76,3 +76,15 @@ export function mcpManagementScopeLabel(server: SettingsMCPServerEntry): string 
   if (filter.scope === "profile") return `profile · ${filter.profile}`;
   return "user";
 }
+
+/** Full definition identity for selection and React keys; names may repeat across owners and scopes. */
+export function mcpDefinitionKey(server: SettingsMCPServerEntry): string {
+  const filter = deriveMCPManagementFilter(server);
+  return JSON.stringify([
+    server.owner ?? "manual",
+    server.name,
+    filter?.scope ?? server.scope,
+    filter && "profile" in filter ? filter.profile : (server.profile ?? ""),
+    filter && "workspace_id" in filter ? (filter.workspace_id ?? "") : (server.workspace_id ?? ""),
+  ]);
+}

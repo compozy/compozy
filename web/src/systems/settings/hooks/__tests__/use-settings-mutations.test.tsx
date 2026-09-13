@@ -1,3 +1,5 @@
+import { useMCPOverrideEditor } from "../use-mcp-override-editor";
+import type { SettingsMCPServerEntry } from "../../types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -515,4 +517,59 @@ describe("extension-owned MCP reconciliation", () => {
       queryClient.clear();
     }
   );
+});
+
+// Invariant: override edit/reset target the exact extension and preserve the draft on mutation failure.
+// Owner: Settings mutation integration; canonical suite: use-settings-mutations.test.tsx.
+describe("extension MCP override editor", () => {
+  const entry: SettingsMCPServerEntry = {
+    name: "github",
+    owner: "extension:kit",
+    runtime_name: "kit.github",
+    transport: "http",
+    scope: "workspace",
+    workspace_id: "ws-a",
+    url: "https://manifest.example/mcp",
+    source_metadata: {
+      available_targets: [],
+      effective_source: { kind: "extension", scope: "workspace", workspace_id: "ws-a" },
+    },
+    override: { headers: { "X-Team": "team-a" } },
+  };
+  it("Should save and reset only the selected owner and keep failed edits open", async () => {
+    const { wrapper, queryClient } = createWrapper();
+    const { result, unmount } = renderHook(() => useMCPOverrideEditor(), { wrapper });
+    act(() => result.current.openEdit(entry));
+    const draft = { env: [], headers: [{ key: "X-Team", value: "team-b" }], url: "" };
+    act(() => result.current.editorProps?.onChange(draft));
+    vi.mocked(putSettingsMCPServer).mockRejectedValueOnce(new Error("publication failed"));
+    act(() => result.current.editorProps?.onSave());
+    await waitFor(() => expect(result.current.editorProps?.saveError).toBe("publication failed"));
+    expect(result.current.editorProps?.draft).toEqual(draft);
+    const filter = { scope: "workspace", workspace_id: "ws-a", owner: "extension:kit" };
+    expect(putSettingsMCPServer).toHaveBeenCalledWith(
+      "github",
+      {
+        server: {
+          name: "github",
+          env: {},
+          headers: { "X-Team": "team-b" },
+          url: "",
+        },
+      },
+      filter
+    );
+    vi.mocked(putSettingsMCPServer).mockResolvedValueOnce(generalMutation);
+    act(() => result.current.editorProps?.onSave());
+    await waitFor(() => expect(result.current.editorProps).toBeNull());
+    act(() => result.current.openEdit(entry));
+    vi.mocked(deleteSettingsMCPServer).mockResolvedValueOnce(generalMutation);
+    act(() => result.current.editorProps?.onReset());
+    await waitFor(() => expect(result.current.editorProps).toBeNull());
+    expect(deleteSettingsMCPServer).toHaveBeenCalledWith("github", filter);
+    act(() => result.current.openEdit({ ...entry, owner: "manual" }));
+    expect(result.current.editorProps).toBeNull();
+    unmount();
+    queryClient.clear();
+  });
 });

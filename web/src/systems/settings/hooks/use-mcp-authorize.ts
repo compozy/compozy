@@ -88,6 +88,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   return {
     phase: state.phase,
     server: activeState?.server ?? null,
+    filter: activeState?.filter ?? null,
     begin: beginResponse,
     error,
     prior: activeState?.prior ?? null,

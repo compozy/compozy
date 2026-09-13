@@ -1,6 +1,7 @@
 import { Button, cn, Pill } from "@compozy/ui";
 import { Pencil, Plug } from "lucide-react";
 
+import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
 
@@ -16,7 +17,7 @@ const ROW_GRID = "md:grid-cols-[minmax(200px,1.4fr)_100px_150px_162px_140px_150p
 export interface MCPServersTableProps {
   servers: SettingsMCPServerEntry[];
   selectedServer?: string;
-  onSelect: (name: string) => void;
+  onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
 }
@@ -56,9 +57,9 @@ export function MCPServersTable({
       <div className="max-md:flex max-md:flex-col max-md:gap-2">
         {servers.map(server => (
           <MCPServerRow
-            key={`${server.name}-${server.source_metadata.effective_source.kind}`}
+            key={mcpDefinitionKey(server)}
             server={server}
-            selected={server.name === selectedServer}
+            selected={mcpDefinitionKey(server) === selectedServer}
             onSelect={onSelect}
             onEdit={onEdit}
             onAuthorize={onAuthorize}
@@ -78,7 +79,7 @@ function MCPServerRow({
 }: {
   server: SettingsMCPServerEntry;
   selected: boolean;
-  onSelect: (name: string) => void;
+  onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
 }) {
@@ -117,7 +118,7 @@ function MCPServerRow({
             <button
               type="button"
               aria-current={selected ? "true" : undefined}
-              onClick={() => onSelect(server.name)}
+              onClick={() => onSelect(server)}
               data-testid={`${rowTestId}-name`}
               className="min-w-0 truncate text-left font-mono text-small-body font-medium text-fg-strong hover:underline"
             >

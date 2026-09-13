@@ -422,3 +422,15 @@ export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model"
 export { ROLE_ORDER, type RoleRuntimeValue } from "./lib/roles-config";
 export type { RolesDisclosure } from "./hooks/use-roles-disclosure";
 export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
+
+export { useMCPEditor } from "./hooks/use-mcp-editor";
+export { useMCPOverrideEditor } from "./hooks/use-mcp-override-editor";
+export { useSettingsMCPPage } from "./hooks/use-settings-mcp-page";
+export { mcpDefinitionKey } from "./lib/mcp-management-target";
+export type {
+  MCPOverrideDraft,
+  MCPOverridePair,
+  MCPOverrideErrors,
+} from "./lib/mcp-override-model";
+
+export { useMCPDefinitionAuthorization } from "./hooks/use-mcp-definition-authorization";

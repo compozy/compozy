@@ -555,3 +555,11 @@ enablement, inputs and allocations. Existing native/HTTP/UDS surfaces use this l
 DTO, route, config, hook, SDK or database shape. Other installations, manual credentials and dev
 unlink remain protected. Install docs and the official tools-and-skills reference co-ship; final
 QA09/10 owns the installed-management UI walk. Task04 UI implementation remains pending.
+
+Task04 frontend data now exposes a Settings MCP controller and reusable manual/extension editors.
+Manual definitions retain existing Settings serialization; extension writes contain only explicit
+env/headers/url overrides. Selection keys include owner and exact scope. Authorization polls its
+captured definition independently of page selection. Existing adapters and Query invalidation own
+HTTP/UDS mutation envelopes; no new backend, wire, config, hook, schema or SDK changes. The Settings
+route and Marketplace/Settings presentation remain the next UI slice; final09/10 owns visual QA.
+Canonical editor-model, mutation, authorization and Marketplace-hook suites verify these boundaries.

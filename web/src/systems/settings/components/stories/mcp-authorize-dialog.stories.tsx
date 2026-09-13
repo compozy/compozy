@@ -6,6 +6,7 @@ import { MCPAuthorizeDialog } from "../mcp-authorize-dialog";
 
 const scopeReviewAuthorize: UseMCPAuthorizeReturn = {
   phase: "reviewing_scopes",
+  filter: { scope: "user" },
   server: "Linear",
   begin: null,
   error: null,
