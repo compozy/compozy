@@ -628,3 +628,11 @@ CapturePackage now creates the canonical digest-addressed package from a confine
 excludes Git metadata and publishes through the verified cache before releasing source bytes. The
 acquisition suite proves cache reuse after checkout deletion and refuses traversal/symlink/over-budget
 inputs. The source resolver, projection and install-lifecycle consumers remain pending task07.
+
+### Task07 pinned GitHub repository snapshots
+
+The existing registry extractor is now available to source acquisition without requiring an extension
+manifest at the root of an entire marketplace repository. GitHubSource acquires one exact revision,
+verifies its marketplace document matches the fetched document and exposes an owned snapshot for
+relative package capture. Failure and Close remove the snapshot and download spool. Extraction safety
+remains owned by registry; no second extractor or internal compatibility alias was introduced.

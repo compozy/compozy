@@ -2,20 +2,28 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"io"
 	"mime"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func extractArchiveWithContext(
+// ExtractArchive materializes an archive into a caller-owned directory under explicit resource limits.
+func ExtractArchive(
 	ctx context.Context,
 	reader io.Reader,
 	root *fileutil.Directory,
-	limits extractLimits,
+	limits ExtractionLimits,
 	contentType string,
 ) error {
+	if ctx == nil || reader == nil {
+		return errors.New("registry: archive context and reader are required")
+	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateDownloadContentType(contentType); err != nil {
 		return err
 	}
 	mediaType, _, err := mime.ParseMediaType(contentType)

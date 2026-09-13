@@ -41,26 +41,26 @@ var (
 	errArchiveTooDeep      = errors.New("registry: archive entry exceeds max depth")
 )
 
-type extractLimits struct {
-	maxDecompressedSize int64
-	maxFileCount        int
-	maxDepth            int
+type ExtractionLimits struct {
+	MaxBytes int64
+	MaxFiles int
+	MaxDepth int
 }
 
-func (l extractLimits) normalized() extractLimits {
-	if l.maxDecompressedSize <= 0 {
-		l.maxDecompressedSize = DefaultMaxDecompressedSize
+func (l ExtractionLimits) normalized() ExtractionLimits {
+	if l.MaxBytes <= 0 {
+		l.MaxBytes = DefaultMaxDecompressedSize
 	}
-	if l.maxFileCount <= 0 {
-		l.maxFileCount = DefaultMaxFileCount
+	if l.MaxFiles <= 0 {
+		l.MaxFiles = DefaultMaxFileCount
 	}
-	if l.maxDepth <= 0 {
-		l.maxDepth = DefaultMaxArchiveDepth
+	if l.MaxDepth <= 0 {
+		l.MaxDepth = DefaultMaxArchiveDepth
 	}
 	return l
 }
 
-func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLimits) (err error) {
+func extractArchive(reader io.Reader, root *fileutil.Directory, limits ExtractionLimits) (err error) {
 	if root == nil {
 		return ErrArchiveRootRequired
 	}
@@ -78,15 +78,15 @@ func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLi
 	return extractTar(gzipReader, root, limits)
 }
 
-func extractTar(reader io.Reader, root *fileutil.Directory, limits extractLimits) error {
+func extractTar(reader io.Reader, root *fileutil.Directory, limits ExtractionLimits) error {
 	if root == nil {
 		return ErrArchiveRootRequired
 	}
 	limits = limits.normalized()
-	decompressed := newDecompressedArchiveReader(reader, limits.maxDecompressedSize)
+	decompressed := newDecompressedArchiveReader(reader, limits.MaxBytes)
 	tarReader := tar.NewReader(decompressed)
 	seenEntries := make(map[string]struct{})
-	treeBudget := newArchiveTreeBudget(limits.maxFileCount, limits.maxDepth)
+	treeBudget := newArchiveTreeBudget(limits.MaxFiles, limits.MaxDepth)
 	for {
 		header, readErr := tarReader.Next()
 		if errors.Is(readErr, io.EOF) {

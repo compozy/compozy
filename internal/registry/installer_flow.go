@@ -145,10 +145,10 @@ func (i *Installer) extractInstallPackage(
 		}
 	}()
 
-	if err := extractArchiveWithContext(ctx, reader, extractRoot, extractLimits{
-		maxDecompressedSize: i.maxDecompressedSize,
-		maxFileCount:        i.maxFileCount,
-		maxDepth:            i.maxArchiveDepth,
+	if err := ExtractArchive(ctx, reader, extractRoot, ExtractionLimits{
+		MaxBytes: i.maxDecompressedSize,
+		MaxFiles: i.maxFileCount,
+		MaxDepth: i.maxArchiveDepth,
 	}, contentType); err != nil {
 		return nil, installedPackageMetadata{}, err
 	}

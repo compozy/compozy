@@ -114,7 +114,7 @@ func BenchmarkExtractArchive(b *testing.B) {
 		if err != nil {
 			b.Fatalf("OpenDirectory(%q) error = %v", destRoot, err)
 		}
-		if err := extractArchive(bytes.NewReader(archive), root, extractLimits{}); err != nil {
+		if err := extractArchive(bytes.NewReader(archive), root, ExtractionLimits{}); err != nil {
 			if closeErr := root.Close(); closeErr != nil {
 				b.Fatalf("ExtractArchive() error = %v; Directory.Close() error = %v", err, closeErr)
 			}

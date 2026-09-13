@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,129 @@ import (
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
+
+func TestGitHubSnapshot(t *testing.T) {
+	t.Parallel()
+	t.Run("Should capture relative packages from one pinned repository snapshot", func(t *testing.T) {
+		t.Parallel()
+		manifest := []byte(`{"name":"team","plugins":[{"name":"tool","source":"./plugins/tool"}]}`)
+		checkout := t.TempDir()
+		writeMarketplaceDocument(t, checkout, "snapshot/marketplace.json", manifest)
+		writeMarketplaceDocument(
+			t,
+			checkout,
+			"snapshot/plugins/tool/plugin.json",
+			[]byte(`{"name":"tool","version":"1.0.0"}`),
+		)
+		archive := githubSnapshotArchive(t, checkout)
+		archiveRequests := 0
+		source := githubSnapshotSource(t, manifest, archive, &archiveRequests)
+		document, err := source.Fetch(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		temporary := t.TempDir()
+		snapshot, err := source.OpenSnapshot(t.Context(), document, temporary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := snapshot.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if snapshot.ResolvedRef != document.ResolvedRef || archiveRequests != 1 {
+			t.Fatalf("snapshot = %+v, archive requests %d", snapshot, archiveRequests)
+		}
+		cache := &PackageCache{Root: t.TempDir()}
+		digest, err := CapturePackage(t.Context(), snapshot.Root, document.Plugins[0].Source.Path, cache)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := snapshot.Close(); err != nil {
+			t.Fatal(err)
+		}
+		entries, readErr := os.ReadDir(temporary)
+		if readErr != nil || len(entries) != 0 {
+			t.Fatalf("snapshot cleanup left %v, %v", entries, readErr)
+		}
+		reader, err := cache.Open(t.Context(), digest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should remove a snapshot whose document differs or whose archive is unsafe", func(t *testing.T) {
+		t.Parallel()
+		manifest := []byte(`{"plugins":[]}`)
+		for _, failure := range []string{"different_document", "symlink_entry"} {
+			checkout := t.TempDir()
+			writeMarketplaceDocument(
+				t,
+				checkout,
+				"snapshot/marketplace.json",
+				[]byte(`{"name":"changed","plugins":[]}`),
+			)
+			if failure == "symlink_entry" {
+				if err := os.Symlink("../outside", filepath.Join(checkout, "snapshot", "escape")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			requests := 0
+			source := githubSnapshotSource(t, manifest, githubSnapshotArchive(t, checkout), &requests)
+			document, err := source.Fetch(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			temporary := t.TempDir()
+			if snapshot, err := source.OpenSnapshot(t.Context(), document, temporary); err == nil || snapshot != nil {
+				t.Fatalf("%s accepted snapshot %+v, %v", failure, snapshot, err)
+			}
+			entries, readErr := os.ReadDir(temporary)
+			if readErr != nil || len(entries) != 0 {
+				t.Fatalf("snapshot cleanup left %v, %v", entries, readErr)
+			}
+		}
+	})
+}
+
+func githubSnapshotArchive(t *testing.T, root string) []byte {
+	t.Helper()
+	var archive bytes.Buffer
+	if _, err := fileutil.WriteTarGzipDirectory(
+		t.Context(),
+		&archive,
+		root,
+		nil,
+		fileutil.TarGzipLimits{},
+	); err != nil {
+		t.Fatal(err)
+	}
+	return archive.Bytes()
+}
+
+func githubSnapshotSource(t *testing.T, manifest, archive []byte, requests *int) *GitHubSource {
+	t.Helper()
+	commit := strings.Repeat("c", 40)
+	return githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(request.URL.Path, "/commits/"):
+			return marketplaceHTTPResponse(t, request, http.StatusOK, commit), nil
+		case strings.Contains(request.URL.Path, "/tarball/"):
+			*requests++
+			if !strings.HasSuffix(request.URL.Path, "/"+commit) {
+				t.Error("snapshot download did not use the fetched document commit")
+			}
+			response := marketplaceHTTPResponse(t, request, http.StatusOK, string(archive))
+			response.Header.Set("Content-Type", "application/gzip")
+			return response, nil
+		default:
+			return marketplaceHTTPResponse(t, request, http.StatusOK, string(manifest)), nil
+		}
+	})
+}
 
 func TestCapturePackage(t *testing.T) {
 	t.Parallel()
