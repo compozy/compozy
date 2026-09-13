@@ -58,7 +58,9 @@ Install typed values with `compozy extension install compozy/supabase --input pr
 Use `--input-file` for structured value/vault_ref envelopes; existing scoped extension-secret refs
 stay in that instance. The CLI derives types from the manifest. Required-field failures include
 `inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
-and retry the same scoped request. `extension_input_invalid` names the invalid input_id, and
+and retry the same scoped request. Inputs remain isolated by profile: an unconfigured profile
+publishes no packaged MCPs and does not block installation or restart in a configured profile.
+`extension_input_invalid` names the invalid input_id, and
 `extension_source_changed` requires reviewing the current artifact before retrying.
 
 Update requests accept the same scope/workspace/profile selectors. CLI `extension update` uses

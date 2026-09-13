@@ -39,4 +39,7 @@ explicitly, review the acquired manifest and complete the same typed fields used
 extensions. The request retains the approved digest and allow_unverified; input edits do not
 reacquire a preview. A source change invalidates confirmation. An update requiring new values
 uses the candidate input_definitions response, keeping the selected instance and prior inputs.
+After restarting the daemon, confirm that configured MCPs retain their URL and boolean inputs.
+A second profile without those inputs must still report missing configuration and publish no MCPs
+from that package; it must not prevent installation or publication in the configured profile.
 Do not invent input fields for a package that declares none.

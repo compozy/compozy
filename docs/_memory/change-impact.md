@@ -450,3 +450,11 @@ named batches now process every distinct name. Cross-workspace agents cannot mut
 attachments. No database, config, hooks or extension SDK shape change. Owning generated contracts,
 CLI help, official skill and final09/10 QA scenario co-ship. The obsolete --runtime-name and marketplace
 --kind examples are removed from the install guide. UI recovery and same-origin reinstall remain open.
+
+
+Task03 runtime input publication: each profile loads its own durable input cell. Unconfigured
+profile projections omit packaged MCP servers without aborting publication for configured profiles.
+No input inheritance, credential copying, public DTO, hook, config, database or extension SDK change.
+Real daemon CLI installation, HTTP/UDS readiness/settings and restart coverage lives in the existing
+extension distribution integration suite. Web readiness keeps the current missing_inputs contract;
+install guidance and ET-agent-plugin-marketplace-install cover isolation and restart for final task10.

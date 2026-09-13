@@ -136,6 +136,10 @@ func collectExtensionManifestToolMCPDeclarations(
 		if err != nil {
 			return toolMCPDesiredResources{}, err
 		}
+		readiness := extensionpkg.InputReadiness(ext.Manifest, inputState, getenv)
+		if len(ext.Manifest.Inputs) > 0 && (len(readiness.MissingInputs) > 0 || len(readiness.MissingEnv) > 0) {
+			continue
+		}
 		if err := appendExtensionMCPServerDeclarations(&desired, ext, inputState, getenv, snapshot.scope); err != nil {
 			return toolMCPDesiredResources{}, err
 		}

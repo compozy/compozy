@@ -100,7 +100,9 @@ Required inputs are checked before installed files or stored values change. Upda
 values and ask for newly required inputs. Removed declarations retain their values as inactive;
 reintroducing an ID reactivates its saved value. URL parameters use saved values or manifest
 defaults, without reading the daemon environment. An unconfigured package remains inspectable,
-but cannot be enabled until its required inputs are available in the selected profile.
+but cannot be enabled until its required inputs are available in the selected profile. MCP publication
+checks each profile independently: an unconfigured profile publishes no packaged MCP servers and
+does not prevent a configured profile from installing or restarting. Values are never copied between profiles.
 
 HTTP and UDS callers send the same envelopes in `inputs` on `POST /api/extensions`,
 `PUT /api/extensions/{name}`, or `POST /api/extensions/update` for a single named extension.

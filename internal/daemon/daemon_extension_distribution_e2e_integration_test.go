@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,11 +24,15 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	t.Run("Should restore typed inputs through public transports after daemon restart [IT-020]",
+		testDaemonExtensionInputsRestart)
+
 	t.Run(
 		"Should publish install update and remove across isolated homes",
 		testDaemonE2EExtensionDistributionAcrossIsolatedHomes,
@@ -716,5 +721,250 @@ func writeDistributionGitHubJSON(t *testing.T, writer http.ResponseWriter, value
 	writer.WriteHeader(status)
 	if err := json.NewEncoder(writer).Encode(value); err != nil {
 		t.Errorf("json.Encode(mock GitHub response) error = %v", err)
+	}
+}
+
+// Invariant: real CLI installation persists typed values which HTTP/UDS publish again after a daemon restart.
+// Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
+func testDaemonExtensionInputsRestart(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
+	defer cancel()
+	catalog := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(catalog.Close)
+	options := &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{
+		Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Extensions.Trust.AllowUnverified = true
+			cfg.Marketplace.Catalog.BaseURL = catalog.URL
+		},
+	}, Env: map[string]string{"WORKSPACE_ID": "", "READ_ONLY": ""}}
+	runtime := e2etest.StartRuntimeHarness(t, options)
+	remote := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StartHTTP(t)
+	packageDir := filepath.Join(runtime.WorkspaceRoot, "durable-input-kit")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	reportPath := filepath.Join(t.TempDir(), "input-probe.json")
+	manifest := fmt.Sprintf(`name = "durable-input-kit"
+version = "1.0.0"
+description = "Typed input restart fixture"
+min_compozy_version = "0.0.0"
+
+[[profiles]]
+name = "input-isolated"
+icon = "circle"
+color = "#5fbf85"
+
+[[inputs]]
+id = "workspace_id"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "workspace" }
+
+[[inputs]]
+id = "read_only"
+prompt = "Read only"
+type = "boolean"
+required = true
+binding = { type = "env", name = "READ_ONLY" }
+
+[resources.mcp_servers.remote]
+transport = "http"
+url = %q
+default_scope = "global"
+
+[resources.mcp_servers.probe]
+transport = "stdio"
+command = %q
+args = ["-test.run=^TestExtensionInputStdioHelperProcess$"]
+env = { READ_ONLY = "read_only", COMPOZY_TEST_DAEMON_EXTENSION_HELPER = "1", COMPOZY_TEST_INPUT_REPORT = %q }
+default_scope = "global"
+`, remote.URL+"/mcp?workspace=", os.Args[0], reportPath)
+	if err := os.WriteFile(filepath.Join(packageDir, "extension.toml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	request := compozycontract.InstallExtensionRequest{
+		Source: compozycontract.InstallExtensionSourceLocalPath, Ref: packageDir,
+		Scope: "global", AllowUnverified: true,
+	}
+	for _, transport := range []struct {
+		client *http.Client
+		url    string
+	}{
+		{runtime.HTTPClient, runtime.HTTPURL("/api/extensions")},
+		{runtime.UDSClient, runtime.UDSURL("/api/extensions")},
+	} {
+		assertDistributionMissingInputs(t, ctx, transport.client, transport.url, request)
+	}
+	var installed compozycontract.ExtensionPayload
+	if err := runtime.CLI.RunJSON(ctx, &installed, "extension", "install", packageDir,
+		"--scope", "global", "--allow-unverified", "--yes", "--input", "workspace_id=team-a",
+		"--input", "read_only=false", "-o", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if installed.Name != "durable-input-kit" || len(installed.MissingInputs) != 0 {
+		t.Fatalf("installed input readiness = %#v", installed)
+	}
+	assertDistributionUnconfiguredProfile(t, ctx, runtime)
+	firstPID := assertDistributionPublishedInputs(t, ctx, runtime, reportPath)
+	if err := runtime.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	options.HomePaths, options.BinaryPath = runtime.HomePaths, runtime.BinaryPath
+	options.Workspace.Root = runtime.WorkspaceRoot
+	runtime = e2etest.StartRuntimeHarness(t, options)
+	assertDistributionUnconfiguredProfile(t, ctx, runtime)
+	secondPID := assertDistributionPublishedInputs(t, ctx, runtime, reportPath)
+	if secondPID == firstPID {
+		t.Fatal("restart did not launch a new MCP process from persisted inputs")
+	}
+}
+
+func assertDistributionMissingInputs(
+	t *testing.T, ctx context.Context, client *http.Client, target string, install compozycontract.InstallExtensionRequest,
+) {
+	t.Helper()
+	body, err := json.Marshal(install)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload compozycontract.ExtensionOperationErrorPayload
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	closeErr := response.Body.Close()
+	if decodeErr != nil || closeErr != nil {
+		t.Fatalf("read input refusal: decode=%v close=%v", decodeErr, closeErr)
+	}
+	if response.StatusCode != http.StatusUnprocessableEntity || payload.Code != "extension_inputs_required" ||
+		len(payload.Inputs) != 2 || len(payload.InputDefinitions) != 2 {
+		t.Fatalf("input refusal status=%d payload=%#v", response.StatusCode, payload)
+	}
+}
+
+func assertDistributionPublishedInputs(t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness, reportPath string) int {
+	t.Helper()
+	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+		var inventory struct {
+			Extensions []compozycontract.ExtensionPayload `json:"extensions"`
+		}
+		if err := read(ctx, http.MethodGet, "/api/extensions", nil, &inventory); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, extension := range inventory.Extensions {
+			if extension.Name == "durable-input-kit" {
+				found = true
+				if len(extension.MissingInputs) != 0 || len(extension.MissingEnv) != 0 || len(extension.Inputs) != 2 {
+					t.Fatalf("reopened input readiness = %#v", extension)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("installed input fixture missing from inventory")
+		}
+		var servers compozycontract.SettingsMCPServersResponse
+		if err := read(ctx, http.MethodGet, "/api/settings/mcp-servers", nil, &servers); err != nil {
+			t.Fatal(err)
+		}
+		foundRemote, foundProbe := false, false
+		for _, server := range servers.MCPServers {
+			if server.Owner != "extension:durable-input-kit" {
+				continue
+			}
+			switch server.Name {
+			case "remote":
+				parsed, err := url.Parse(server.URL)
+				if err != nil || parsed.Query().Get("workspace") != "team-a" {
+					t.Fatalf("published URL = %s, error=%v", server.URL, err)
+				}
+				foundRemote = true
+			case "probe":
+				foundProbe = true
+			}
+		}
+		if !foundRemote || !foundProbe {
+			t.Fatalf("published input servers missing: %#v", servers.MCPServers)
+		}
+	}
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed struct {
+		PID      int
+		ReadOnly string
+	}
+	if err := json.Unmarshal(data, &observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.PID == 0 || observed.ReadOnly != "false" {
+		t.Fatalf("MCP process input = %#v", observed)
+	}
+	return observed.PID
+}
+
+func TestExtensionInputStdioHelperProcess(t *testing.T) {
+	if os.Getenv("COMPOZY_TEST_DAEMON_EXTENSION_HELPER") != "1" || os.Getenv("COMPOZY_TEST_INPUT_REPORT") == "" {
+		return
+	}
+	observed := struct {
+		PID      int
+		ReadOnly string
+	}{os.Getpid(), os.Getenv("READ_ONLY")}
+	data, err := json.Marshal(observed)
+	if err == nil {
+		err = os.WriteFile(os.Getenv("COMPOZY_TEST_INPUT_REPORT"), data, 0o600)
+	}
+	if err == nil {
+		err = mcpfixture.MustNew(mcpfixture.ProfileModern2026).RunStdio(context.Background(), os.Stdin, os.Stdout)
+	}
+	if err != nil {
+		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
+			os.Exit(3)
+		}
+		os.Exit(2)
+	}
+	os.Exit(0)
+}
+
+func assertDistributionUnconfiguredProfile(t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness) {
+	t.Helper()
+	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+		var inventory struct {
+			Extensions []compozycontract.ExtensionPayload `json:"extensions"`
+		}
+		if err := read(ctx, http.MethodGet, "/api/extensions?profile=input-isolated", nil, &inventory); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, extension := range inventory.Extensions {
+			if extension.Name == "durable-input-kit" {
+				found = true
+				if len(extension.MissingInputs) == 0 || len(extension.MissingEnv) == 0 {
+					t.Fatalf("unconfigured profile inherited inputs: %#v", extension)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("unconfigured extension missing from profile inventory")
+		}
+		var servers compozycontract.SettingsMCPServersResponse
+		if err := read(ctx, http.MethodGet, "/api/settings/mcp-servers?scope=profile&profile=input-isolated", nil, &servers); err != nil {
+			t.Fatal(err)
+		}
+		for _, server := range servers.MCPServers {
+			if server.Owner == "extension:durable-input-kit" {
+				t.Fatalf("unconfigured profile published MCP: %#v", server)
+			}
+		}
 	}
 }
