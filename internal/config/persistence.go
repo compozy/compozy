@@ -346,6 +346,11 @@ func EditConfigOverlay(
 		return Config{}, err
 	}
 
+	contents, err = archiveRetiredSkillMarketplace(contents, target.path)
+	if err != nil {
+		return Config{}, err
+	}
+
 	editor, err := newOverlayEditor(target.path, contents)
 	if err != nil {
 		return Config{}, err

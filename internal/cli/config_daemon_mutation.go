@@ -338,10 +338,6 @@ func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.Se
 		PollInterval:            cfg.PollInterval.String(),
 		AllowedMarketplaceMCP:   append([]string(nil), cfg.AllowedMarketplaceMCP...),
 		AllowedMarketplaceHooks: append([]string(nil), cfg.AllowedMarketplaceHooks...),
-		Marketplace: contract.SettingsMarketplacePayload{
-			Registry: cfg.Marketplace.Registry,
-			BaseURL:  cfg.Marketplace.BaseURL,
-		},
 	}
 }
 

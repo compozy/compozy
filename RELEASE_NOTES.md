@@ -29,6 +29,11 @@ remote skill acquisition and MCP catalog installation are removed without aliase
 Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
 Refresh accepts no `kind` selector and reports `sources[]` outcomes.
 Existing extension packages, acquisition references, installed skills and manual MCPs remain.
+Retired `skills.marketplace.registry` and `skills.marketplace.base_url` settings
+are archived as inactive comments in the same config file on load. The archive
+and active configuration are written atomically, once; unrelated settings and
+extension configuration are preserved. Settings and `config set` reject new
+writes of these acquisition fields.
 
 ### Features
 

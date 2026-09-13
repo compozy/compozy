@@ -3,11 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const profileConfigKeyDeniedCode = "profile_config_key_denied"
@@ -26,14 +23,7 @@ func applyProfileConfigOverlayFile(path string, dst *Config, source string) erro
 	if dst == nil {
 		return errors.New("config: destination config is required")
 	}
-	contents, _, err := fileutil.ReadRegularFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return FileError{Op: mergeReadKey, Path: path, Err: err}
-	}
-	overlay, err := loadProfileConfigOverlayBytes(contents, path)
+	overlay, err := loadPersistedConfigOverlay(path, loadProfileConfigOverlayBytes)
 	if err != nil {
 		return err
 	}
@@ -44,14 +34,7 @@ func loadProfileConfigOverlayForWrite(path string, target WriteTarget, rendered 
 	if target.isConfigTarget() && samePath(target.path, path) {
 		return loadProfileConfigOverlayBytes(rendered, path)
 	}
-	contents, _, err := fileutil.ReadRegularFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return configOverlay{}, nil
-		}
-		return configOverlay{}, FileError{Op: mergeReadKey, Path: path, Err: err}
-	}
-	return loadProfileConfigOverlayBytes(contents, path)
+	return loadPersistedConfigOverlay(path, loadProfileConfigOverlayBytes)
 }
 
 func loadProfileConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {

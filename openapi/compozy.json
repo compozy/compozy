@@ -174963,20 +174963,6 @@
                         "enabled": {
                           "type": "boolean"
                         },
-                        "marketplace": {
-                          "properties": {
-                            "base_url": {
-                              "type": "string"
-                            },
-                            "registry": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "registry"
-                          ],
-                          "type": "object"
-                        },
                         "poll_interval": {
                           "type": "string"
                         },
@@ -174990,7 +174976,6 @@
                       "required": [
                         "custom_sources",
                         "enabled",
-                        "marketplace",
                         "poll_interval",
                         "sources"
                       ],
@@ -175751,20 +175736,6 @@
                       "enabled": {
                         "type": "boolean"
                       },
-                      "marketplace": {
-                        "properties": {
-                          "base_url": {
-                            "type": "string"
-                          },
-                          "registry": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "registry"
-                        ],
-                        "type": "object"
-                      },
                       "poll_interval": {
                         "type": "string"
                       },
@@ -175778,7 +175749,6 @@
                     "required": [
                       "custom_sources",
                       "enabled",
-                      "marketplace",
                       "poll_interval",
                       "sources"
                     ],
@@ -175876,20 +175846,6 @@
                         "enabled": {
                           "type": "boolean"
                         },
-                        "marketplace": {
-                          "properties": {
-                            "base_url": {
-                              "type": "string"
-                            },
-                            "registry": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "registry"
-                          ],
-                          "type": "object"
-                        },
                         "poll_interval": {
                           "type": "string"
                         },
@@ -175903,7 +175859,6 @@
                       "required": [
                         "custom_sources",
                         "enabled",
-                        "marketplace",
                         "poll_interval",
                         "sources"
                       ],

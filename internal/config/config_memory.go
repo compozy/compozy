@@ -170,9 +170,3 @@ type MemoryWorkspaceConfig struct {
 	TOMLPath   string `toml:"toml_path"`
 	AutoCreate bool   `toml:"auto_create"`
 }
-
-// MarketplaceConfig controls the external skill registry used by CLI skill commands.
-type MarketplaceConfig struct {
-	Registry string `toml:"registry"`
-	BaseURL  string `toml:"base_url,omitempty"`
-}

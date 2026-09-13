@@ -48,12 +48,7 @@ func diffSkillsSettings(current compozyconfig.SkillsConfig, desired compozyconfi
 	if !reflect.DeepEqual(current.AllowedMarketplaceHooks, desired.AllowedMarketplaceHooks) {
 		changed = append(changed, "skills.allowed_marketplace_hooks")
 	}
-	if current.Marketplace.Registry != desired.Marketplace.Registry {
-		changed = append(changed, "skills.marketplace.registry")
-	}
-	if current.Marketplace.BaseURL != desired.Marketplace.BaseURL {
-		changed = append(changed, "skills.marketplace.base_url")
-	}
+
 	return changed
 }
 

@@ -3,10 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	burnttoml "github.com/BurntSushi/toml"
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const configBaseURLKey = "base_url"
@@ -54,15 +52,7 @@ func skillSourceWriteScope(roleSource string) WriteScope {
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {
-	contents, _, err := fileutil.ReadRegularFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return configOverlay{}, nil
-		}
-		return configOverlay{}, FileError{Op: mergeReadKey, Path: path, Err: err}
-	}
-
-	return loadConfigOverlayBytes(contents, path)
+	return loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
 }
 
 func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {

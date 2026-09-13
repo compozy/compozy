@@ -288,7 +288,7 @@ export {
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
   SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   SettingsSkillsScopeSelector,
   SettingsEditorDialog,
   ModalSettingsFieldRow,

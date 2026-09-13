@@ -249,11 +249,6 @@ type SettingsMemoryWorkspacePayload struct {
 	AutoCreate bool   `json:"auto_create"`
 }
 
-type SettingsMarketplacePayload struct {
-	Registry string `json:"registry"`
-	BaseURL  string `json:"base_url,omitempty"`
-}
-
 type SettingsExtensionTrustPayload struct {
 	AllowUnverified bool `json:"allow_unverified"`
 }
@@ -277,14 +272,13 @@ type SettingsExtensionDevPayload struct {
 }
 
 type SettingsSkillsConfigPayload struct {
-	Enabled                 bool                       `json:"enabled"`
-	Sources                 []string                   `json:"sources"`
-	CustomSources           []string                   `json:"custom_sources"`
-	DisabledSkills          []string                   `json:"disabled_skills,omitempty"`
-	PollInterval            string                     `json:"poll_interval"`
-	AllowedMarketplaceMCP   []string                   `json:"allowed_marketplace_mcp,omitempty"`
-	AllowedMarketplaceHooks []string                   `json:"allowed_marketplace_hooks,omitempty"`
-	Marketplace             SettingsMarketplacePayload `json:"marketplace"`
+	Enabled                 bool     `json:"enabled"`
+	Sources                 []string `json:"sources"`
+	CustomSources           []string `json:"custom_sources"`
+	DisabledSkills          []string `json:"disabled_skills,omitempty"`
+	PollInterval            string   `json:"poll_interval"`
+	AllowedMarketplaceMCP   []string `json:"allowed_marketplace_mcp,omitempty"`
+	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }
 
 type SettingsAutomationConfigPayload struct {

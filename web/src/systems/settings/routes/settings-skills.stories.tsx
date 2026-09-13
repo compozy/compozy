@@ -39,7 +39,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state -- the marketplace registry has been edited so the policy
+ * Dirty shell state -- the source scan interval has been edited so the policy
  * section's save controls enable.
  */
 export const Dirty: Story = {
@@ -48,10 +48,7 @@ export const Dirty: Story = {
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookFieldDirtySetup
-        testId="settings-page-skills-marketplace-registry-input"
-        value="dirty-registry"
-      />
+      <StorybookFieldDirtySetup testId="settings-page-skills-poll-interval-input" value="2m" />
     </>
   ),
 };

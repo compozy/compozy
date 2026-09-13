@@ -9,6 +9,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	burnttoml "github.com/BurntSushi/toml"
 )
 
 func TestEditConfigOverlayPreservesCommentsAndUntouchedSections(t *testing.T) {
@@ -225,19 +228,20 @@ defaults = "legacy"
 	}
 }
 
-func TestEditConfigOverlayCreatesNestedSkillsSection(t *testing.T) {
-	t.Parallel()
+func TestEditConfigOverlayCreatesNestedConfigSections(t *testing.T) {
+	t.Run("Should persist new nested sections through current config keys", func(t *testing.T) {
+		t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
-	if err != nil {
-		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
-	}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
 
-	writeFile(t, homePaths.ConfigFile, `
+		writeFile(t, homePaths.ConfigFile, `
 [daemon]
 socket = "/tmp/compozy.sock"
 
@@ -246,78 +250,79 @@ host = "127.0.0.1"
 port = 4317
 `)
 
-	initial, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(initial config) error = %v", err)
-	}
-
-	editor, err := newOverlayEditor(homePaths.ConfigFile, initial)
-	if err != nil {
-		t.Fatalf("newOverlayEditor() error = %v", err)
-	}
-
-	updates := []struct {
-		path  []string
-		value any
-	}{
-		{path: []string{"skills", "enabled"}, value: true},
-		{path: []string{"skills", "disabled_skills"}, value: []string{"compozy"}},
-		{path: []string{"skills", "poll_interval"}, value: "3s"},
-		{path: []string{"skills", "marketplace", "registry"}, value: "clawhub"},
-		{path: []string{"skills", "marketplace", "base_url"}, value: "https://skills.example"},
-	}
-	for _, update := range updates {
-		if err := editor.SetValue(update.path, update.value); err != nil {
-			rendered, renderErr := editor.Bytes()
-			if renderErr != nil {
-				t.Fatalf("editor.SetValue(%v) error = %v; editor.Bytes() error = %v", update.path, err, renderErr)
-			}
-			t.Fatalf("editor.SetValue(%v) error = %v\n%s", update.path, err, rendered)
+		initial, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(initial config) error = %v", err)
 		}
-	}
 
-	rendered, err := editor.Bytes()
-	if err != nil {
-		t.Fatalf("editor.Bytes() error = %v", err)
-	}
-	if _, err := loadConfigOverlayBytes(rendered, homePaths.ConfigFile); err != nil {
-		t.Fatalf("loadConfigOverlayBytes(rendered) error = %v\n%s", err, rendered)
-	}
+		editor, err := newOverlayEditor(homePaths.ConfigFile, initial)
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
 
-	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		updates := []struct {
+			path  []string
+			value any
+		}{
+			{path: []string{"skills", "enabled"}, value: true},
+			{path: []string{"skills", "disabled_skills"}, value: []string{"compozy"}},
+			{path: []string{"skills", "poll_interval"}, value: "3s"},
+			{path: []string{"extensions", "sources", "github", "enabled"}, value: true},
+			{path: []string{"extensions", "sources", "github", "base_url"}, value: "https://github.example"},
+		}
 		for _, update := range updates {
 			if err := editor.SetValue(update.path, update.value); err != nil {
-				return err
+				rendered, renderErr := editor.Bytes()
+				if renderErr != nil {
+					t.Fatalf("editor.SetValue(%v) error = %v; editor.Bytes() error = %v", update.path, err, renderErr)
+				}
+				t.Fatalf("editor.SetValue(%v) error = %v\n%s", update.path, err, rendered)
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("EditConfigOverlay() error = %v", err)
-	}
 
-	contents, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(config) error = %v", err)
-	}
-	if _, err := loadConfigOverlayBytes(contents, homePaths.ConfigFile); err != nil {
-		t.Fatalf("loadConfigOverlayBytes() error = %v\n%s", err, contents)
-	}
-
-	text := string(contents)
-	for _, want := range []string{
-		"[skills]",
-		"enabled = true",
-		`disabled_skills = ["compozy"]`,
-		`poll_interval = "3s"`,
-		"[skills.marketplace]",
-		`registry = "clawhub"`,
-		`base_url = "https://skills.example"`,
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("config contents missing %q\n%s", want, text)
+		rendered, err := editor.Bytes()
+		if err != nil {
+			t.Fatalf("editor.Bytes() error = %v", err)
 		}
-	}
+		if _, err := loadConfigOverlayBytes(rendered, homePaths.ConfigFile); err != nil {
+			t.Fatalf("loadConfigOverlayBytes(rendered) error = %v\n%s", err, rendered)
+		}
+
+		_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+			for _, update := range updates {
+				if err := editor.SetValue(update.path, update.value); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("EditConfigOverlay() error = %v", err)
+		}
+
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config) error = %v", err)
+		}
+		if _, err := loadConfigOverlayBytes(contents, homePaths.ConfigFile); err != nil {
+			t.Fatalf("loadConfigOverlayBytes() error = %v\n%s", err, contents)
+		}
+
+		text := string(contents)
+		for _, want := range []string{
+			"[skills]",
+			"enabled = true",
+			`disabled_skills = ["compozy"]`,
+			`poll_interval = "3s"`,
+			"[extensions.sources.github]",
+			`enabled = true`,
+			`base_url = "https://github.example"`,
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("config contents missing %q\n%s", want, text)
+			}
+		}
+	})
 }
 
 func TestResolveWriteTargets(t *testing.T) {
@@ -1056,4 +1061,193 @@ func TestPersistenceHelperMapsAndStringDecoding(t *testing.T) {
 	if _, ok := decodeStringValue([]byte(`123`)); ok {
 		t.Fatal("decodeStringValue(non-string) ok = true, want false")
 	}
+}
+
+func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+	}{
+		{name: "Should archive table keys", content: "[skills]\nenabled = false\nallowed_marketplace_hooks = ['kept']\n[skills.marketplace]\nregistry = 'clawhub'\nbase_url = 'https://registry.example/api'\n"},
+		{name: "Should archive dotted keys", content: "skills.enabled = false\nskills.allowed_marketplace_hooks = ['kept']\nskills.marketplace.registry = 'clawhub'\nskills.marketplace.base_url = 'https://registry.example/api'\n"},
+		{name: "Should archive an inline marketplace table", content: "[skills]\nenabled = false\nallowed_marketplace_hooks = ['kept']\nmarketplace = {registry = 'clawhub', base_url = 'https://registry.example/api'}\n"},
+		{name: "Should preserve current values in an inline skills table", content: "skills = {enabled = false, allowed_marketplace_hooks = ['kept'], marketplace = {registry = 'clawhub', base_url = 'https://registry.example/api'}}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			preserved := "\n# Keep extension trust exactly as written.\n[extensions.trust]\nallow_unverified = true # local choice\n"
+			writeFile(t, home.ConfigFile, tc.content+preserved)
+			cfg, err := LoadForHome(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Skills.Enabled || !reflect.DeepEqual(cfg.Skills.AllowedMarketplaceHooks, []string{"kept"}) ||
+				!cfg.Extensions.Trust.AllowUnverified {
+				t.Fatalf("current settings changed: skills=%#v extensions=%#v", cfg.Skills, cfg.Extensions)
+			}
+			first, err := os.ReadFile(home.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(first, []byte(preserved)) {
+				t.Fatalf("unrelated block changed: %s", first)
+			}
+			active, archived := map[string]any{}, map[string]any{}
+			if _, err := burnttoml.Decode(string(first), &active); err != nil {
+				t.Fatal(err)
+			}
+			if _, exists := active["skills"].(map[string]any)["marketplace"]; exists {
+				t.Fatalf("retired settings remain active: %s", first)
+			}
+			var archive strings.Builder
+			for line := range strings.SplitSeq(string(first), "\n") {
+				if value, ok := strings.CutPrefix(line, "# "); ok {
+					archive.WriteString(value + "\n")
+				}
+			}
+			// Decode only the archived TOML after its explanatory comment.
+			_, archivedTOML, found := strings.Cut(archive.String(), "these values are inactive.\n")
+			if !found {
+				t.Fatalf("missing archive: %s", first)
+			}
+			if _, err := burnttoml.Decode(archivedTOML, &archived); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]any{"registry": "clawhub", "base_url": "https://registry.example/api"}
+			if !reflect.DeepEqual(archived["skills"].(map[string]any)["marketplace"], want) {
+				t.Fatalf("archive = %#v", archived)
+			}
+			if _, err := LoadForHome(home); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(home.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(first, second) {
+				t.Fatal("second load changed the archive")
+			}
+			info, err := os.Stat(home.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("permissions = %o", info.Mode().Perm())
+			}
+		})
+	}
+	t.Run("Should leave invalid config untouched", func(t *testing.T) {
+		t.Parallel()
+		for _, content := range []string{
+			"[skills.marketplace]\nregistry = 'clawhub'\nunknown = true\n",
+			"[skills.marketplace]\nregistry = 'clawhub'\n[unknown]\nvalue = true\n",
+			"skills = {marketplace = {registry = 'clawhub'}, unknown = true}\n",
+		} {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeFile(t, path, content)
+			if _, err := loadConfigOverlayFile(path); err == nil {
+				t.Fatal("expected invalid config rejection")
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(actual) != content {
+				t.Fatalf("invalid config changed: %s", actual)
+			}
+		}
+	})
+	t.Run("Should archive retired keys together with a current config write", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[skills.marketplace]\nregistry = 'clawhub'\n")
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"skills", "poll_interval"}, "2m")
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Skills.PollInterval != 2*time.Minute {
+			t.Fatalf("poll interval = %v", cfg.Skills.PollInterval)
+		}
+		actual, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(actual, []byte("Archived retired skill acquisition")) {
+			t.Fatal("archive missing after write")
+		}
+		reopened, err := LoadForHome(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reopened.Skills.PollInterval != cfg.Skills.PollInterval {
+			t.Fatal("written config did not survive reopen")
+		}
+	})
+	t.Run("Should reject new writes of retired keys", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		original := "[skills]\nenabled = false\n"
+		writeFile(t, home.ConfigFile, original)
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"registry", "base_url"} {
+			_, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"skills", "marketplace", key}, "retired")
+			})
+			if err == nil || !strings.Contains(err.Error(), "unknown config keys") {
+				t.Fatalf("new key %s: error = %v", key, err)
+			}
+		}
+		actual, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(actual) != original {
+			t.Fatalf("rejected write changed file: %s", actual)
+		}
+	})
+	t.Run("Should archive profile config with profile restrictions intact", func(t *testing.T) {
+		t.Parallel()
+		for _, denied := range []bool{false, true} {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			content := "[skills.marketplace]\nregistry = 'clawhub'\n"
+			if denied {
+				content += "[http]\nport = 8080\n"
+			}
+			writeFile(t, path, content)
+			cfg := Config{}
+			err := applyProfileConfigOverlayFile(path, &cfg, RoleFieldSourceProfile)
+			if (err != nil) != denied {
+				t.Fatalf("denied=%t error=%v", denied, err)
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if denied && string(actual) != content {
+				t.Fatal("denied profile was rewritten")
+			}
+			if !denied && !bytes.Contains(actual, []byte("Archived retired skill acquisition")) {
+				t.Fatal("profile not archived")
+			}
+		}
+	})
 }

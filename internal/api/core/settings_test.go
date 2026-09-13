@@ -1504,10 +1504,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				Config: compozyconfig.SkillsConfig{
 					Enabled:      true,
 					PollInterval: time.Minute,
-					Marketplace: compozyconfig.MarketplaceConfig{
-						Registry: "registry.example",
-						BaseURL:  "https://registry.example",
-					},
 				},
 				DiscoveredCount:  5,
 				DisabledCount:    1,
@@ -2452,7 +2448,6 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 		body := mustJSON(t, contract.UpdateSettingsSkillsRequest{
 			Config: contract.SettingsSkillsConfigPayload{
 				Enabled: true, Sources: []string{"agents"}, CustomSources: []string{}, PollInterval: "1m",
-				Marketplace: contract.SettingsMarketplacePayload{Registry: "clawhub"},
 			},
 		})
 		response := performRequest(
@@ -2526,7 +2521,6 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 		body := mustJSON(t, contract.UpdateSettingsSkillsRequest{
 			Config: contract.SettingsSkillsConfigPayload{
 				Enabled: true, Sources: []string{"agnets"}, CustomSources: []string{}, PollInterval: "1m",
-				Marketplace: contract.SettingsMarketplacePayload{Registry: "clawhub"},
 			},
 		})
 		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills", body)
@@ -2555,7 +2549,6 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 				Sources:       []string{"agents", "claude"},
 				CustomSources: []string{"/team/skills"},
 				PollInterval:  "1m",
-				Marketplace:   contract.SettingsMarketplacePayload{Registry: "clawhub"},
 			},
 		})
 		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills?scope=user", body)
@@ -2787,15 +2780,11 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				Config: contract.SettingsSkillsConfigPayload{
 					Enabled:      true,
 					PollInterval: "1m",
-					Marketplace: contract.SettingsMarketplacePayload{
-						Registry: "clawhub",
-						BaseURL:  "https://registry.example",
-					},
 				},
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Skills == nil || req.Skills.Marketplace.Registry != "clawhub" {
+				if req.Skills == nil || req.Skills.PollInterval != time.Minute {
 					t.Fatalf("req.Skills = %#v, want populated skills config", req.Skills)
 				}
 			},
@@ -3910,7 +3899,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 					Config: compozyconfig.SkillsConfig{
 						Enabled:      true,
 						PollInterval: time.Minute,
-						Marketplace:  compozyconfig.MarketplaceConfig{Registry: "clawhub"},
 					},
 				}
 			case settingspkg.SectionAutomation:

@@ -278,8 +278,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"skills.poll_interval":                              configSetDuration,
 	"skills.allowed_marketplace_mcp":                    configSetStringSlice,
 	"skills.allowed_marketplace_hooks":                  configSetStringSlice,
-	"skills.marketplace.registry":                       configSetString,
-	"skills.marketplace.base_url":                       configSetString,
 	"model_catalog.sources.models_dev.enabled":          configSetBool,
 	"model_catalog.sources.models_dev.endpoint":         configSetString,
 	"model_catalog.sources.models_dev.ttl":              configSetDuration,

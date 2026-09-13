@@ -199,9 +199,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Skills == nil {
 					t.Fatal("Skills section = nil")
 				}
-				if got, want := envelope.Skills.Config.Marketplace.Registry, "clawhub"; got != want {
-					t.Fatalf("Skills marketplace registry = %q, want %q", got, want)
-				}
+
 				if got, want := envelope.Skills.DiscoveredCount, 3; got != want {
 					t.Fatalf("Skills discovered count = %d, want %d", got, want)
 				}
@@ -1508,10 +1506,6 @@ func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 			PollInterval:            30 * time.Minute,
 			AllowedMarketplaceMCP:   []string{"ctx"},
 			AllowedMarketplaceHooks: []string{"market"},
-			Marketplace: compozyconfig.MarketplaceConfig{
-				Registry: "clawhub",
-				BaseURL:  "https://skills.example",
-			},
 		},
 	})
 	if err != nil {
@@ -1554,10 +1548,6 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 				PollInterval:            30 * time.Minute,
 				AllowedMarketplaceMCP:   []string{"ctx"},
 				AllowedMarketplaceHooks: []string{"market"},
-				Marketplace: compozyconfig.MarketplaceConfig{
-					Registry: "clawhub",
-					BaseURL:  "https://skills.example",
-				},
 			},
 		})
 		if err == nil {
@@ -4157,10 +4147,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 					PollInterval:            45 * time.Minute,
 					AllowedMarketplaceMCP:   []string{"ctx"},
 					AllowedMarketplaceHooks: []string{"market"},
-					Marketplace: compozyconfig.MarketplaceConfig{
-						Registry: "clawhub",
-						BaseURL:  "https://skills-updated.example",
-					},
 				},
 			},
 			want: `base_url = "https://skills-updated.example"`,

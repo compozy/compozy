@@ -353,14 +353,13 @@ type memoryWorkspaceOverlay struct {
 }
 
 type skillsOverlay struct {
-	Enabled                 *bool              `toml:"enabled"`
-	Sources                 *[]string          `toml:"sources"`
-	CustomSources           *[]string          `toml:"custom_sources"`
-	DisabledSkills          *[]string          `toml:"disabled_skills"`
-	PollInterval            *time.Duration     `toml:"poll_interval"`
-	AllowedMarketplaceMCP   *[]string          `toml:"allowed_marketplace_mcp"`
-	AllowedMarketplaceHooks *[]string          `toml:"allowed_marketplace_hooks"`
-	Marketplace             marketplaceOverlay `toml:"marketplace"`
+	Enabled                 *bool          `toml:"enabled"`
+	Sources                 *[]string      `toml:"sources"`
+	CustomSources           *[]string      `toml:"custom_sources"`
+	DisabledSkills          *[]string      `toml:"disabled_skills"`
+	PollInterval            *time.Duration `toml:"poll_interval"`
+	AllowedMarketplaceMCP   *[]string      `toml:"allowed_marketplace_mcp"`
+	AllowedMarketplaceHooks *[]string      `toml:"allowed_marketplace_hooks"`
 }
 
 type extensionsOverlay struct {
@@ -394,11 +393,6 @@ type schedulerOverlay struct {
 	EventAfter          *int           `toml:"event_after"`
 	NeedsAttentionAfter *int           `toml:"needs_attention_after"`
 	MinQueuedAge        *time.Duration `toml:"min_queued_age"`
-}
-
-type marketplaceOverlay struct {
-	Registry *string `toml:"registry"`
-	BaseURL  *string `toml:"base_url"`
 }
 
 type hooksOverlay struct {

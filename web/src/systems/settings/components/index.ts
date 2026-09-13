@@ -34,7 +34,7 @@ export { SettingsSkillCustomSources } from "./settings-skill-custom-sources";
 export {
   SettingsSkillsEngineSection,
   SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   type SettingsSkillsDraftSectionProps,
 } from "./settings-skills-engine-sections";
 export { SettingsSkillsInstallPolicySection } from "./settings-skills-install-policy-section";

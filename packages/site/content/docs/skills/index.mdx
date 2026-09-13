@@ -106,16 +106,16 @@ CompozyOS resolves eight layers of filesystem-backed skills. The final layer com
 agent's `skills/` directory when one effective agent is selected. Later rows override earlier rows
 when the same skill name is visible.
 
-| Precedence | Tier                | Directory or owner                                                       | Notes                                                                        |
-| ---------- | ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
+| Precedence | Tier                | Directory or owner                                                       | Notes                                                                                      |
+| ---------- | ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.                            |
 | 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Previously acquired skills retain their provenance. Load-time hash verification must pass. |
-| 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                      |
-| 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                             |
-| 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                   |
-| 6          | `workspace`         | `<workspace>/.compozy/skills/...` plus workspace configured roots        | The project's own skills.                                                    |
-| 7          | `workspace_profile` | `<workspace>/.compozy/profiles/<name>/skills/...` plus its source roots  | Binds only while that profile is active. Repository-authored, read-only.     |
-| 8          | `agent_local`       | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                         |
+| 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                                    |
+| 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                                           |
+| 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                                 |
+| 6          | `workspace`         | `<workspace>/.compozy/skills/...` plus workspace configured roots        | The project's own skills.                                                                  |
+| 7          | `workspace_profile` | `<workspace>/.compozy/profiles/<name>/skills/...` plus its source roots  | Binds only while that profile is active. Repository-authored, read-only.                   |
+| 8          | `agent_local`       | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                                       |
 
 Agent-local is resolved from the winning `AGENT.md` directory only after CompozyOS chooses the
 effective agent definition for that scope. It does not create a separate skill mode; it only
@@ -369,8 +369,6 @@ the skill's consent keys: the marketplace slug, `registry:slug`, or the installe
 [skills]
 allowed_marketplace_mcp = ["@author/postgres-tools"]
 
-[skills.marketplace]
-registry = "clawhub"
 ```
 
 There is no interactive MCP consent prompt today. Consent is a static config allowlist.

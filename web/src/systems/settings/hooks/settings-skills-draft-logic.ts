@@ -49,7 +49,6 @@ function mergeSavedSkillsBaseline(
     ...current,
     enabled: saved.enabled,
     poll_interval: saved.poll_interval,
-    marketplace: saved.marketplace,
     allowed_marketplace_mcp: saved.allowed_marketplace_mcp,
     allowed_marketplace_hooks: saved.allowed_marketplace_hooks,
   };

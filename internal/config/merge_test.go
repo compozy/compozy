@@ -75,12 +75,6 @@ base_url = "https://registry.example.test/api/v1"
 	) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
 	}
-	if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.Registry = %q, want %q", got, want)
-	}
-	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.BaseURL = %q, want %q", got, want)
-	}
 }
 
 func TestSkillSourceOverlayLayersReplaceIndependently(t *testing.T) {
@@ -206,38 +200,6 @@ func TestApplyConfigOverlayFileAppliesRedactionSnapshotSetting(t *testing.T) {
 		}
 		if cfg.Redact.Enabled {
 			t.Fatal("ApplyConfigOverlayFile() Redact.Enabled = true, want false")
-		}
-	})
-}
-
-func TestApplyConfigOverlayFileLeavesMarketplaceDefaultsWhenOverlayOmitsFields(t *testing.T) {
-	t.Run("ShouldLeaveMarketplaceDefaultsWhenOverlayOmitsFields", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		cfg := DefaultWithHome(homePaths)
-		cfg.Skills.Marketplace = MarketplaceConfig{
-			Registry: "clawhub",
-			BaseURL:  "https://global.example.test/api/v1",
-		}
-
-		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-		writeFile(t, overlayPath, `
-[skills]
-enabled = true
-`)
-
-		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
-			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-		}
-
-		if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.Registry = %q, want %q", got, want)
-		}
-		if got, want := cfg.Skills.Marketplace.BaseURL, "https://global.example.test/api/v1"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 		}
 	})
 }

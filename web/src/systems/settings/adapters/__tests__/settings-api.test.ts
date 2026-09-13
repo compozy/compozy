@@ -280,7 +280,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
       },
       links: [{ label: "skills", path: "/marketplace/skills" }],
     };
@@ -314,7 +313,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
         sources: ["agents"],
         custom_sources: [],
       },
@@ -352,7 +350,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: [],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
         sources: ["agents"],
         custom_sources: ["/work/.agents/skills"],
       },

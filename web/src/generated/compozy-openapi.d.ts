@@ -71428,10 +71428,6 @@ export interface operations {
               custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;
-              marketplace: {
-                base_url?: string;
-                registry: string;
-              };
               poll_interval: string;
               sources: string[];
             };
@@ -71686,10 +71682,6 @@ export interface operations {
             custom_sources: string[];
             disabled_skills?: string[];
             enabled: boolean;
-            marketplace: {
-              base_url?: string;
-              registry: string;
-            };
             poll_interval: string;
             sources: string[];
           };
@@ -71721,10 +71713,6 @@ export interface operations {
               custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;
-              marketplace: {
-                base_url?: string;
-                registry: string;
-              };
               poll_interval: string;
               sources: string[];
             };

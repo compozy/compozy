@@ -25,7 +25,7 @@ import type {
   SettingsSkillsSection,
   TerminalSettingsConfig,
 } from "@/systems/settings";
-import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyWorkspacePaths } from "@/storybook/fintech-scenario";
 
 export const terminalSettingsFixture: TerminalSettingsConfig = {
   default_shell: "",
@@ -548,10 +548,6 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     enabled: true,
     disabled_skills: ["alpha", "beta"],
     poll_interval: "5m",
-    marketplace: {
-      registry: "compozy",
-      base_url: storyCompany.registryBaseUrl,
-    },
     allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
     sources: ["agents"],

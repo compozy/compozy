@@ -329,7 +329,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	if _, err := skillsConfigFromPayload(contract.SettingsSkillsConfigPayload{
 		Enabled:      true,
 		PollInterval: "bad",
-		Marketplace:  contract.SettingsMarketplacePayload{Registry: "clawhub"},
 	}); err == nil {
 		t.Fatal("skillsConfigFromPayload(invalid interval) error = nil, want non-nil")
 	}

@@ -32,34 +32,16 @@ export function SettingsSkillsEngineSection({ draft, onChange }: SettingsSkillsD
   );
 }
 
-export function SettingsSkillsMarketplaceSection({
+export function SettingsSkillsDiscoverySection({
   draft,
   onChange,
 }: SettingsSkillsDraftSectionProps) {
   return (
-    <SettingsGroup title="Marketplace">
-      <SettingsFieldRow
-        data-testid="settings-page-skills-marketplace-registry"
-        label="Skills come from"
-        help="Identifier of the marketplace publisher"
-        control={
-          <Input
-            className="w-56"
-            data-testid="settings-page-skills-marketplace-registry-input"
-            value={draft.marketplace.registry ?? ""}
-            onChange={event =>
-              onChange({
-                ...draft,
-                marketplace: { ...draft.marketplace, registry: event.target.value },
-              })
-            }
-          />
-        }
-      />
+    <SettingsGroup title="Discovery">
       <SettingsFieldRow
         data-testid="settings-page-skills-poll-interval"
-        label="Check for updates every"
-        help="How often the registry re-scans sources"
+        label="Scan sources every"
+        help="How often installed skill sources are scanned"
         control={
           <Input
             className="w-32 font-mono"

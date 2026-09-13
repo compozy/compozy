@@ -12,7 +12,7 @@ import {
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
   SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   SettingsSkillSourcesSection,
   SettingsSkillsScopeSelector,
   useSettingsSaveBarState,
@@ -137,7 +137,7 @@ export function SkillsSettingsPage() {
       <SettingsSkillSourcesSection model={page.sources} />
       {isPersonalPolicyScope ? (
         <>
-          <SettingsSkillsMarketplaceSection draft={draft} onChange={setDraft} />
+          <SettingsSkillsDiscoverySection draft={draft} onChange={setDraft} />
           <SettingsSkillsManageSection />
         </>
       ) : null}

@@ -36,14 +36,6 @@ func applySkillsSettings(editor *compozyconfig.OverlayEditor, settings compozyco
 			path:  []string{string(SectionSkills), "allowed_marketplace_hooks"},
 			value: append([]string(nil), settings.AllowedMarketplaceHooks...),
 		},
-		{
-			path:  []string{string(SectionSkills), sectionsMarketplaceKey, "registry"},
-			value: settings.Marketplace.Registry,
-		},
-		{
-			path:  []string{string(SectionSkills), sectionsMarketplaceKey, "base_url"},
-			value: settings.Marketplace.BaseURL,
-		},
 	}
 	return applyValueUpdates(editor, updates)
 }
