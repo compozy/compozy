@@ -32,17 +32,6 @@ import {
   type RuntimeMode,
 } from "./runtime-helpers";
 import { stopBrowserDaemonProcess, stopSpawnedDaemonProcess } from "./runtime-process";
-import {
-  closeSkillMarketplaceServer,
-  startSkillMarketplaceServer,
-  type SkillMarketplaceTestServer,
-} from "./skill-marketplace-server";
-
-export {
-  closeSkillMarketplaceServer,
-  startSkillMarketplaceServer,
-  type SkillMarketplaceTestServer,
-} from "./skill-marketplace-server";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
@@ -143,7 +132,6 @@ interface RuntimeLaunchState {
   marketplaceCatalogServer?: Server;
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
-  skillMarketplaceServer?: Server;
 }
 
 export async function createBrowserRuntime(
@@ -194,7 +182,6 @@ async function createBrowserRuntimeAttempt(
   const binaryPath = await ensureDaemonBinary(repoRoot);
   const paths = await createRuntimePaths();
   const boundHost = options.host ?? DEFAULT_HOST;
-  const skillMarketplace = await startSkillMarketplaceServer(options.seed?.skillMarketplace);
   let marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>> = undefined;
   let extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>> = undefined;
   let runtime: RuntimeLaunchState | undefined;
@@ -224,7 +211,6 @@ async function createBrowserRuntimeAttempt(
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         networkEnabled: options.networkEnabled,
         port: httpPort,
-        skillsMarketplaceBaseURL: skillMarketplace?.baseURL,
         socketPath: paths.daemonSocket,
         toolsExternalDefault: options.toolsExternalDefault,
       }),
@@ -235,7 +221,6 @@ async function createBrowserRuntimeAttempt(
     runtime = startDaemonProcess(binaryPath, repoRoot, runtimeEnv, paths.daemonLog);
     runtime.marketplaceCatalogServer = marketplaceCatalog?.server;
     runtime.extensionRegistryServer = extensionRegistry?.server;
-    runtime.skillMarketplaceServer = skillMarketplace?.server;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
     await waitForRuntimeReady(
@@ -263,7 +248,6 @@ async function createBrowserRuntimeAttempt(
       error,
       runtime,
       paths,
-      skillMarketplace,
       marketplaceCatalog,
       extensionRegistry
     );
@@ -411,7 +395,6 @@ class ActiveBrowserRuntime implements BrowserRuntime {
     }
 
     const serverResults = await Promise.allSettled([
-      closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
       closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
       closeExtensionRegistryServer(this.launchState.extensionRegistryServer),
     ]);
@@ -458,7 +441,6 @@ async function cleanupFailedRuntimeLaunch(
   cause: unknown,
   runtime: RuntimeLaunchState | undefined,
   paths: RuntimePaths,
-  skillMarketplace: SkillMarketplaceTestServer | undefined,
   marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>,
   extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
 ): Promise<never> {
@@ -471,11 +453,6 @@ async function cleanupFailedRuntimeLaunch(
     }
   }
 
-  try {
-    await closeSkillMarketplaceServer(skillMarketplace?.server);
-  } catch (error) {
-    cleanupErrors.push(errorFromUnknown(error));
-  }
   try {
     await closeMarketplaceCatalogServer(marketplaceCatalog?.server);
   } catch (error) {

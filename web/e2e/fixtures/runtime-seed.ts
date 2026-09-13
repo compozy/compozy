@@ -106,23 +106,6 @@ export interface BrowserSkillSeed {
   version?: string;
 }
 
-export interface BrowserSkillMarketplaceListingSeed {
-  author?: string;
-  description?: string;
-  downloads?: number;
-  license?: string;
-  name: string;
-  readme?: string;
-  slug: string;
-  source?: string;
-  tags?: string[];
-  version?: string;
-}
-
-export interface BrowserSkillMarketplaceSeed {
-  listings: BrowserSkillMarketplaceListingSeed[];
-}
-
 interface BrowserMarketplaceEntrySeed {
   description: string;
   entry_id: string;
@@ -130,41 +113,6 @@ interface BrowserMarketplaceEntrySeed {
   published_at?: string;
   updated_at?: string;
   version?: string;
-}
-
-export interface BrowserMarketplaceMCPEntrySeed extends BrowserMarketplaceEntrySeed {
-  launch: BrowserMarketplaceMCPLaunchSeed;
-  auth?: BrowserMarketplaceMCPAuthSeed;
-  inputs?: BrowserMarketplaceMCPInputSeed[];
-  default_scope: "global" | "workspace";
-}
-
-export interface BrowserMarketplaceMCPLaunchSeed {
-  type: "npm" | "uvx" | "docker" | "remote";
-  args?: string[];
-  digest?: string;
-  image?: string;
-  package?: string;
-  url?: string;
-  version?: string;
-}
-
-export interface BrowserMarketplaceMCPAuthSeed {
-  method: "oauth";
-  registration: "auto";
-  scopes?: string[];
-}
-
-export interface BrowserMarketplaceMCPInputSeed {
-  id: string;
-  prompt: string;
-  type: "string" | "identifier" | "boolean" | "secret";
-  required: boolean;
-  binding: {
-    type: "env" | "url_query";
-    name: string;
-  };
-  default?: boolean | string;
 }
 
 export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {
@@ -179,25 +127,23 @@ export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplace
   tier: "official" | "community" | "unverified";
 }
 
-export interface BrowserMarketplaceSkillEntrySeed extends BrowserMarketplaceEntrySeed {
-  author?: string;
-  display_name?: string;
-  install_slug: string;
-  tags?: string[];
+export interface BrowserMarketplacePresetSeed {
+  name: string;
+  source: string;
+  description: string;
+  default: "on" | "off";
 }
 
 export interface BrowserMarketplaceCatalogSeed {
   extensions?: BrowserMarketplaceExtensionEntrySeed[];
   generatedAt?: string;
-  mcp?: BrowserMarketplaceMCPEntrySeed[];
-  skills?: BrowserMarketplaceSkillEntrySeed[];
+  presets?: BrowserMarketplacePresetSeed[];
 }
 
 export interface BrowserRuntimeSeed {
   bundledBridgeExtension?: boolean;
   extensionRegistry?: BrowserExtensionRegistrySeed;
   marketplaceCatalog?: BrowserMarketplaceCatalogSeed;
-  skillMarketplace?: BrowserSkillMarketplaceSeed;
   skills?: BrowserSkillSeed[];
   mockAgents?: BrowserMockAgentSeed[];
   workspace?: BrowserWorkspaceSeed;

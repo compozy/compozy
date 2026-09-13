@@ -150,34 +150,26 @@ function MarketplaceResults({
     />
   );
 
-  const sectioned = page.sources.length >= 2;
+  // Sections need two or more sources that list something: a zero-plugin source never earns a
+  // header, and a query that narrows to one section keeps its header so the count stays readable.
+  const sectioned = page.catalogSections.filter(section => section.count > 0).length >= 2;
 
   return (
     <>
       {shelf}
       {page.stale ? <MarketplaceStaleLine page={page} /> : null}
       {sectioned ? (
-        page.sources.map(source => {
-          const items = page.catalogItems.filter(entry => entry.source === source.name);
-          if (items.length === 0) return null;
+        page.catalogSections.map(section => {
+          if (section.items.length === 0) return null;
           return (
             <MarketplaceCatalogSection
-              count={items.length}
-              gist={
-                source.state === "degraded" ? (
-                  <>
-                    last read {source.last_read_at ? <Time iso={source.last_read_at} /> : "unknown"}{" "}
-                    · could not refresh
-                  </>
-                ) : query ? (
-                  `${items.length} of ${source.count} ${items.length === 1 ? "matches" : "match"} “${query}”`
-                ) : null
-              }
-              key={source.name}
-              name={source.name}
+              count={query ? section.items.length : section.count}
+              gist={<MarketplaceSectionGist query={query} section={section} />}
+              key={section.name}
+              name={section.name}
             >
-              <MarketplaceGrid data-testid={`marketplace-grid-${source.name}`}>
-                {items.map(renderCard)}
+              <MarketplaceGrid data-testid={`marketplace-grid-${section.name}`}>
+                {section.items.map(renderCard)}
               </MarketplaceGrid>
             </MarketplaceCatalogSection>
           );
@@ -188,6 +180,36 @@ function MarketplaceResults({
       <MarketplaceContinuation page={page} />
     </>
   );
+}
+
+type MarketplaceCatalogSectionModel = MarketplacePageModel["catalogSections"][number];
+
+/**
+ * What the summary says after the count: a degraded source names its last read and that it could
+ * not refresh; a query names matches against the source's authoritative total; otherwise the kind
+ * of source it is. Nothing here invents a success the envelope did not report.
+ */
+function MarketplaceSectionGist({
+  query,
+  section,
+}: {
+  query: string;
+  section: MarketplaceCatalogSectionModel;
+}) {
+  if (section.state === "degraded") {
+    return (
+      <span data-testid={`marketplace-section-${section.name}-degraded`}>
+        last read {section.last_read_at ? <Time iso={section.last_read_at} /> : "unknown"} · could
+        not refresh
+      </span>
+    );
+  }
+  if (query) {
+    return `${section.items.length} of ${section.count} matches “${query}”`;
+  }
+  if (section.kind === "preset") return "Plugin marketplace";
+  if (section.kind === "custom") return "Plugin marketplace · custom";
+  return null;
 }
 
 /** The last projection the daemon could load, under one 12px line that says so — never a banner. */

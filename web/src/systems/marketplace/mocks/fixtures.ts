@@ -2,6 +2,9 @@ import type {
   MarketplaceCatalogResponse,
   MarketplaceCatalogEntryResponse,
   MarketplaceCatalogListing,
+  MarketplaceSource,
+  MarketplaceSourcePreview,
+  MarketplaceSourcesResponse,
 } from "../types";
 
 const warningUnsigned = {
@@ -147,3 +150,111 @@ export function marketplaceCatalogDetailFixture(
     },
   };
 }
+
+const READ_AT = "2026-09-13T09:12:00Z";
+const DEGRADED_READ_AT = "2026-09-10T14:02:11Z";
+
+/** Every source row exactly as `GET /api/marketplace/sources` returns it, in authoritative order. */
+export const marketplaceSourceFixtures = {
+  feed: {
+    diagnostics: [],
+    document_path: "v3/extensions.json",
+    enabled: true,
+    installable: entries.length,
+    kind: "feed",
+    last_read_at: READ_AT,
+    name: "compozy-catalog",
+    plugins: entries.length,
+    source: "https://raw.githubusercontent.com/compozy/compozy/main/catalog",
+    stability: "experimental",
+    state: "ok",
+  },
+  presetOn: {
+    diagnostics: [],
+    document_path: ".claude-plugin/marketplace.json",
+    enabled: true,
+    installable: 6,
+    kind: "preset",
+    last_read_at: READ_AT,
+    name: "claude-plugins-official",
+    owner: "Anthropic",
+    plugins: 6,
+    source: "github:anthropics/claude-plugins-official",
+    stability: "experimental",
+    state: "ok",
+  },
+  presetOff: {
+    diagnostics: [],
+    enabled: false,
+    installable: 0,
+    kind: "preset",
+    last_read_at: null,
+    name: "openai-codex",
+    plugins: 0,
+    source: "github:openai/codex",
+    stability: "experimental",
+    state: "never",
+  },
+  customDegraded: {
+    diagnostics: [
+      {
+        category: "marketplace",
+        code: "load_failed",
+        data_freshness: "cached",
+        id: "load_failed:legacy-tool",
+        message:
+          'plugin "legacy-tool": no manifest found (checked plugin.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json)',
+        severity: "warning",
+        title: "Plugin dropped",
+      },
+    ],
+    document_path: "marketplace.json",
+    enabled: true,
+    error: "ENOENT",
+    error_class: "source_unreachable",
+    installable: 3,
+    kind: "custom",
+    last_read_at: DEGRADED_READ_AT,
+    name: "team-plugins",
+    owner: "Compozy team",
+    plugins: 4,
+    source: "file:///Users/pedro/Dev/team-plugins",
+    stability: "experimental",
+    state: "degraded",
+  },
+} satisfies Record<string, MarketplaceSource>;
+
+export const marketplaceSourcesFixture: MarketplaceSourcesResponse = {
+  sources: [
+    marketplaceSourceFixtures.feed,
+    marketplaceSourceFixtures.presetOn,
+    marketplaceSourceFixtures.presetOff,
+    marketplaceSourceFixtures.customDegraded,
+  ],
+};
+
+/** What `POST /api/marketplace/sources?dry_run=true` reports for a readable reference. */
+export const marketplaceSourcePreviewFixture: MarketplaceSourcePreview = {
+  diagnostics: [],
+  document_path: ".claude-plugin/marketplace.json",
+  installable: 6,
+  name: "claude-plugins-official",
+  owner: "Anthropic",
+  plugins: 6,
+};
+
+/** The registered row a successful `POST /api/marketplace/sources` returns for that preview. */
+export const marketplaceSourceAddedFixture: MarketplaceSource = {
+  diagnostics: [],
+  document_path: marketplaceSourcePreviewFixture.document_path,
+  enabled: true,
+  installable: marketplaceSourcePreviewFixture.installable,
+  kind: "custom",
+  last_read_at: READ_AT,
+  name: marketplaceSourcePreviewFixture.name,
+  owner: marketplaceSourcePreviewFixture.owner,
+  plugins: marketplaceSourcePreviewFixture.plugins,
+  source: "github:anthropics/claude-plugins-official",
+  stability: "experimental",
+  state: "ok",
+};

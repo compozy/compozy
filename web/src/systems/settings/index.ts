@@ -293,7 +293,6 @@ export {
   SettingsSkillsScopeNotice,
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
-  SettingsSkillsManageSection,
   SettingsSkillsDiscoverySection,
   SettingsSkillsScopeSelector,
   SettingsEditorDialog,
@@ -313,7 +312,18 @@ export {
   SettingsTiles,
   LayoutProfileGrid,
   LayoutStage,
+  MarketplaceSourceRow,
+  SettingsMarketplaceCatalogSection,
+  SettingsMarketplaceSourcesSection,
+  marketplaceCatalogDraftInvalid,
+  sameMarketplaceCatalogConfig,
   WindowManagerConfigEditor,
+} from "./components";
+export type {
+  MarketplaceSourceRowProps,
+  SettingsMarketplaceCatalogConfig,
+  SettingsMarketplaceCatalogSectionProps,
+  SettingsMarketplaceSourcesSectionProps,
 } from "./components";
 export type { MCPOverrideEditorProps, MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
@@ -450,3 +460,5 @@ export {
   useUpdateSettingsMarketplace,
 } from "./hooks/use-settings-marketplace";
 export { settingsMarketplaceOptions } from "./lib/query-options";
+
+export type { SettingsMarketplaceSection, SettingsUpdateMarketplaceRequest } from "./types";

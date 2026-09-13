@@ -280,7 +280,6 @@ export const marketplaceOperatorTestIds = {
   extensionNetworkConsent: "extension-network-consent",
   extensionInstallAllowUnverified: "extension-install-allow-unverified",
   extensionInstallDialog: "extension-install-dialog",
-  extensionInstallEntry: "marketplace-extension-install",
   extensionInstallError: "extension-install-error",
   extensionInstallRef: "extension-install-ref",
   extensionInstallRefError: "extension-install-ref-error",
@@ -297,10 +296,6 @@ export const marketplaceOperatorTestIds = {
   extensionTrustConfirm: "extension-trust-confirm",
   extensionTrustDialog: "extension-trust-dialog",
   grid: "marketplace-grid",
-  kindNavigation: "marketplace-kind-navigation",
-  mcpInstallConfirm: "mcp-install-confirm",
-  mcpInstallDialog: "mcp-install-dialog",
-  mcpInstallError: "mcp-install-error",
   refresh: "marketplace-refresh",
 } as const;
 
@@ -535,7 +530,6 @@ export interface MarketplaceOperatorSelectors {
   extensionDevBadge: Locator;
   extensionInstallAllowUnverified: Locator;
   extensionInstallDialog: Locator;
-  extensionInstallEntry: Locator;
   extensionInstallError: Locator;
   extensionInstallRef: Locator;
   extensionInstallRefError: Locator;
@@ -547,7 +541,6 @@ export interface MarketplaceOperatorSelectors {
   extensionLogsStatus: Locator;
   extensionOriginPath: Locator;
   extensionOverridesPublishedBadge: Locator;
-  kindUpdates(kind: string): Locator;
   extensionAutomationStarted: Locator;
   extensionEnvironmentState: Locator;
   extensionFormatBadge: Locator;
@@ -566,13 +559,6 @@ export interface MarketplaceOperatorSelectors {
   extensionTrustConfirm: Locator;
   extensionTrustDialog: Locator;
   grid: Locator;
-  kind(kind: string): Locator;
-  kindNavigation: Locator;
-  mcpCreateSecret(envName: string): Locator;
-  mcpInstallConfirm: Locator;
-  mcpInstallDialog: Locator;
-  mcpInstallError: Locator;
-  mcpVaultSelector(envName: string): Locator;
   refresh: Locator;
 }
 
@@ -639,9 +625,6 @@ export const settingsSkillsTestIds = {
   disabledMessage: "settings-page-skills-disabled-message",
   disabledSave: "settings-page-skills-disabled-save",
   save: "settings-page-skills-save",
-  policyRegistryInput: "settings-page-skills-marketplace-registry-input",
-  policyBaseURLInput: "settings-page-skills-marketplace-base-url-input",
-  operationalLink: "settings-page-skills-link-skills",
   restartNotice: "settings-page-skills-restart-notice",
 } as const;
 
@@ -746,9 +729,6 @@ interface SettingsSkillsSelectors {
   disabledMessage: Locator;
   disabledSave: Locator;
   disabledToggle(name: string): Locator;
-  operationalLink: Locator;
-  policyBaseURLInput: Locator;
-  policyRegistryInput: Locator;
   save: Locator;
   restartNotice: Locator;
 }
@@ -1305,7 +1285,6 @@ export function marketplaceOperatorSelectors(
       marketplaceOperatorTestIds.extensionInstallAllowUnverified
     ),
     extensionInstallDialog: page.getByTestId(marketplaceOperatorTestIds.extensionInstallDialog),
-    extensionInstallEntry: page.getByTestId(marketplaceOperatorTestIds.extensionInstallEntry),
     extensionInstallError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallError),
     extensionInstallRef: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRef),
     extensionInstallRefError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRefError),
@@ -1320,18 +1299,10 @@ export function marketplaceOperatorSelectors(
     extensionOverridesPublishedBadge: page.getByTestId(
       marketplaceOperatorTestIds.extensionOverridesPublishedBadge
     ),
-    kindUpdates: (kind: string) => page.getByTestId(`marketplace-kind-updates-${kind}`),
     detailAction: page.getByTestId(marketplaceOperatorTestIds.detailAction),
     extensionTrustConfirm: page.getByTestId(marketplaceOperatorTestIds.extensionTrustConfirm),
     extensionTrustDialog: page.getByTestId(marketplaceOperatorTestIds.extensionTrustDialog),
     grid: page.getByTestId(marketplaceOperatorTestIds.grid),
-    kind: (kind: string) => page.getByTestId(`marketplace-kind-${kind}`),
-    kindNavigation: page.getByTestId(marketplaceOperatorTestIds.kindNavigation),
-    mcpCreateSecret: (envName: string) => page.getByTestId(`mcp-create-secret-${envName}`),
-    mcpInstallConfirm: page.getByTestId(marketplaceOperatorTestIds.mcpInstallConfirm),
-    mcpInstallDialog: page.getByTestId(marketplaceOperatorTestIds.mcpInstallDialog),
-    mcpInstallError: page.getByTestId(marketplaceOperatorTestIds.mcpInstallError),
-    mcpVaultSelector: (envName: string) => page.getByTestId(`mcp-vault-selector-${envName}`),
     refresh: page.getByTestId(marketplaceOperatorTestIds.refresh),
   };
 }
@@ -1590,9 +1561,6 @@ export function settingsOperatorSelectors(
       disabledSave: page.getByTestId(settingsSkillsTestIds.disabledSave),
       disabledToggle: (name: string) =>
         page.getByTestId(`settings-page-skills-disabled-toggle-${name}`),
-      operationalLink: page.getByTestId(settingsSkillsTestIds.operationalLink),
-      policyRegistryInput: page.getByTestId(settingsSkillsTestIds.policyRegistryInput),
-      policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
       save: page.getByTestId(settingsSkillsTestIds.save),
       restartNotice: page.getByTestId(settingsSkillsTestIds.restartNotice),
     },

@@ -1,4 +1,8 @@
 import { createServer, type Server } from "node:http";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { BrowserMarketplaceCatalogSeed } from "./runtime-seed";
 
@@ -18,9 +22,8 @@ export async function startMarketplaceCatalogServer(
   }
 
   const documents = new Map<string, unknown[]>([
-    ["/mcp.json", seed.mcp ?? []],
-    ["/extensions.json", seed.extensions ?? []],
-    ["/skills.json", seed.skills ?? []],
+    ["/v3/extensions.json", seed.extensions ?? []],
+    ["/v3/marketplaces.json", seed.presets ?? []],
   ]);
   const server = createServer((request, response) => {
     const requestURL = new URL(request.url ?? "/", `http://${DEFAULT_HOST}`);
@@ -36,7 +39,7 @@ export async function startMarketplaceCatalogServer(
     response.setHeader("content-type", "application/json");
     response.end(
       JSON.stringify({
-        manifest_version: 2,
+        manifest_version: 3,
         generated_at: seed.generatedAt ?? DEFAULT_GENERATED_AT,
         entries,
       })
@@ -82,4 +85,41 @@ export async function closeMarketplaceCatalogServer(server: Server | undefined):
       resolve();
     });
   });
+}
+
+/** An isolated real client-layout source used by browser acquisition and digest-race journeys. */
+export async function createPluginMarketplaceFixture() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-marketplace-"));
+  const source = path.join(root, "source");
+  const plugin = path.join(source, "tool");
+  const fixture = fileURLToPath(
+    new URL("../../../internal/extension/testdata/client-plugins/loop-engineering", import.meta.url)
+  );
+  try {
+    await mkdir(source, { recursive: true });
+    await cp(fixture, plugin, { recursive: true });
+    await writeFile(
+      path.join(source, "marketplace.json"),
+      JSON.stringify({
+        name: "team",
+        owner: { name: "Acme" },
+        plugins: [{ name: "tool", source: "./tool" }],
+      })
+    );
+    return {
+      root,
+      source,
+      plugin,
+      instanceName: "loop-engineering",
+      async changePackage() {
+        await writeFile(path.join(plugin, "CHANGELOG.md"), "Changed after approval\n");
+      },
+      async cleanup() {
+        await rm(root, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
 }

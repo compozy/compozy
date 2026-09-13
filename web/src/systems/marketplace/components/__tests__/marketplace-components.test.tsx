@@ -36,6 +36,8 @@ import { validateMarketplaceSearch } from "../../lib/marketplace-search";
 import { mcpExtensionServerFixtures, mcpAuthBeginFixture } from "@/systems/settings/mocks/fixtures";
 import { settingsKeys } from "@/systems/settings/lib/query-keys";
 import { MarketplaceExtensionServerSection } from "../marketplace-detail-extension-server";
+import { SettingsMarketplaceSourcesSection } from "@/systems/settings";
+import { AddMarketplaceDialog } from "../add-marketplace-dialog";
 import { MarketplacePage } from "../marketplace-page";
 import { MarketplaceInstalledPage } from "../marketplace-installed-page";
 import { MarketplaceEntryLogo } from "../marketplace-entry-logo";
@@ -241,7 +243,7 @@ describe("Marketplace page and cards", () => {
     expect(screen.queryByTestId("marketplace-section-compozy-catalog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-installed-shelf")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    expect(await screen.findAllByRole("menuitem")).toHaveLength(2);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(3);
     await userEvent.click(screen.getByTestId("marketplace-add-github"));
     expect(await screen.findByTestId("extension-install-source-github")).toHaveAttribute(
       "aria-checked",
@@ -1178,5 +1180,238 @@ describe("Marketplace extension MCP controls", () => {
     expect(
       screen.queryByRole("button", { name: "Authorize github for github" })
     ).not.toBeInTheDocument();
+  });
+});
+
+// Invariant: only the exact successfully checked draft can register a source; collisions use daemon metadata.
+// Owner: AddMarketplaceDialog over HTTP; existing Marketplace component suite.
+describe("Marketplace source registration", () => {
+  const source = {
+    name: "team",
+    source: "github:acme/team",
+    kind: "custom",
+    enabled: true,
+    state: "ok",
+    plugins: 1,
+    installable: 1,
+    stability: "experimental",
+    diagnostics: [],
+  };
+  const preview = {
+    name: "team",
+    owner: "Acme",
+    document_path: "marketplace.json",
+    plugins: 1,
+    installable: 1,
+    diagnostics: [],
+  };
+
+  it("Should invalidate a successful preview on edit and register only the newly checked draft", async () => {
+    const calls: Array<{ dryRun: boolean; body: unknown }> = [];
+    server.use(
+      http.post("*/api/marketplace/sources", async ({ request }) => {
+        const dryRun = new URL(request.url).searchParams.get("dry_run") === "true";
+        const body = await request.json();
+        calls.push({ dryRun, body });
+        return HttpResponse.json(dryRun ? preview : { source }, { status: dryRun ? 200 : 201 });
+      })
+    );
+    const onAdded = vi.fn();
+    setup(<AddMarketplaceDialog open onOpenChange={() => {}} onAdded={onAdded} />);
+    const input = await screen.findByTestId("add-marketplace-ref");
+    const submit = screen.getByTestId("add-marketplace-submit");
+    expect(submit).toBeDisabled();
+    await userEvent.type(input, "acme/old");
+    await userEvent.tab();
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.clear(input);
+    await userEvent.type(input, "acme/team");
+    expect(submit).toBeDisabled();
+    await userEvent.tab();
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.click(submit);
+    await waitFor(() => expect(onAdded).toHaveBeenCalledWith(source));
+    expect(calls.filter(call => !call.dryRun)).toEqual([
+      { dryRun: false, body: { ref: "acme/team" } },
+    ]);
+  });
+
+  it.each([
+    {
+      code: "marketplace_not_a_marketplace",
+      checked: ["marketplace.json", ".claude-plugin/marketplace.json"],
+      retained_by: undefined,
+      text: ".claude-plugin/marketplace.json",
+      field: "add-marketplace-ref",
+    },
+    {
+      code: "marketplace_source_name_retained",
+      checked: undefined,
+      retained_by: ["protected-extension"],
+      text: "protected-extension",
+      field: "add-marketplace-name",
+    },
+    {
+      code: "marketplace_source_name_reserved",
+      checked: undefined,
+      retained_by: undefined,
+      text: "reserved",
+      field: "add-marketplace-name",
+    },
+  ])(
+    "Should expose actionable $code details and prevent registration",
+    async ({ code, checked, retained_by, text, field }) => {
+      server.use(
+        http.post("*/api/marketplace/sources", () =>
+          HttpResponse.json(
+            {
+              error:
+                code === "marketplace_source_name_reserved" ? "Name is reserved" : "Source refused",
+              code,
+              checked,
+              retained_by,
+            },
+            { status: code === "marketplace_source_name_retained" ? 409 : 422 }
+          )
+        )
+      );
+      setup(<AddMarketplaceDialog open onOpenChange={() => {}} />);
+      await userEvent.type(await screen.findByTestId("add-marketplace-ref"), "acme/team");
+      await userEvent.tab();
+      expect(await screen.findByTestId("add-marketplace-failure")).toHaveTextContent(text);
+      expect(screen.getByTestId(field)).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByTestId("add-marketplace-submit")).toBeDisabled();
+    }
+  );
+
+  it("Should check and submit the explicitly selected suggested name after a collision", async () => {
+    const added: unknown[] = [];
+    server.use(
+      http.post("*/api/marketplace/sources", async ({ request }) => {
+        const body = (await request.json()) as { ref: string; name?: string };
+        if (!body.name)
+          return HttpResponse.json(
+            {
+              error: "Name already registered",
+              code: "marketplace_source_exists",
+              suggested_name: "team-acme",
+            },
+            { status: 409 }
+          );
+        if (new URL(request.url).searchParams.get("dry_run") === "true")
+          return HttpResponse.json({ ...preview, name: body.name });
+        added.push(body);
+        return HttpResponse.json({ source: { ...source, name: body.name } }, { status: 201 });
+      })
+    );
+    setup(<AddMarketplaceDialog open onOpenChange={() => {}} />);
+    await userEvent.type(await screen.findByTestId("add-marketplace-ref"), "acme/team");
+    await userEvent.tab();
+    const suggested = await screen.findByTestId("add-marketplace-use-suggested");
+    expect(screen.getByTestId("add-marketplace-submit")).toBeDisabled();
+    await userEvent.click(suggested);
+    await waitFor(() => expect(screen.getByTestId("add-marketplace-submit")).toBeEnabled());
+    expect(screen.getByTestId("add-marketplace-name")).toHaveValue("team-acme");
+    await userEvent.click(screen.getByTestId("add-marketplace-submit"));
+    await waitFor(() => expect(added).toEqual([{ ref: "acme/team", name: "team-acme" }]));
+  });
+});
+
+// Invariant: feed/preset ownership constrains controls; mutations reread daemon state and preserve failures.
+// Owner: Settings Marketplace sources integration in the canonical Marketplace component suite.
+describe("Marketplace source settings", () => {
+  it("Should keep the feed always on and toggle a preset without offering removal", async () => {
+    let preset = {
+      name: "preset",
+      source: "github:acme/preset",
+      kind: "preset",
+      enabled: false,
+      state: "off",
+      plugins: 0,
+      installable: 0,
+      stability: "experimental",
+      diagnostics: [],
+    };
+    const feed = {
+      ...preset,
+      name: "compozy-catalog",
+      source: "catalog:compozy",
+      kind: "feed",
+      enabled: true,
+      state: "ok",
+    };
+    const patches: unknown[] = [];
+    server.use(
+      http.get("*/api/marketplace/sources", () => HttpResponse.json({ sources: [feed, preset] })),
+      http.patch("*/api/marketplace/sources/preset", async ({ request }) => {
+        const body = (await request.json()) as { enabled: boolean };
+        patches.push(body);
+        preset = { ...preset, enabled: body.enabled, state: "ok", plugins: 1, installable: 1 };
+        return HttpResponse.json({ source: preset });
+      })
+    );
+    setup(<SettingsMarketplaceSourcesSection onAdd={() => {}} />);
+    const feedRow = await screen.findByTestId("settings-page-marketplace-source-compozy-catalog");
+    expect(within(feedRow).queryByRole("switch")).not.toBeInTheDocument();
+    const row = await screen.findByTestId("settings-page-marketplace-source-preset");
+    await userEvent.click(
+      within(row).getByTestId("settings-page-marketplace-source-preset-disclosure")
+    );
+    expect(within(row).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("switch"));
+    await waitFor(() => expect(within(row).getByRole("switch")).toBeChecked());
+    expect(patches).toEqual([{ enabled: true }]);
+    expect(
+      within(row).queryByTestId("settings-page-marketplace-source-preset-off")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should show cached counts and diagnostics, then remove only after explicit confirmation", async () => {
+    let sources = [
+      {
+        name: "team",
+        source: "github:acme/team",
+        kind: "custom",
+        enabled: true,
+        state: "degraded",
+        plugins: 3,
+        installable: 2,
+        stability: "experimental",
+        last_read_at: "2026-09-13T10:00:00Z",
+        error: "Repository unavailable",
+        error_class: "unavailable",
+        diagnostics: [],
+      },
+    ];
+    let removals = 0;
+    server.use(
+      http.get("*/api/marketplace/sources", () => HttpResponse.json({ sources })),
+      http.delete("*/api/marketplace/sources/team", () => {
+        removals++;
+        sources = [];
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    setup(<SettingsMarketplaceSourcesSection onAdd={() => {}} />);
+    const row = await screen.findByTestId("settings-page-marketplace-source-team");
+    expect(
+      within(row).getByTestId("settings-page-marketplace-source-team-count")
+    ).toHaveTextContent("3 plugins");
+    await userEvent.click(
+      within(row).getByTestId("settings-page-marketplace-source-team-disclosure")
+    );
+    expect(
+      within(row).getByTestId("settings-page-marketplace-source-team-reason")
+    ).toHaveTextContent("Repository unavailable");
+    await userEvent.click(within(row).getByRole("button", { name: "Remove" }));
+    expect(removals).toBe(0);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(removals).toBe(0);
+    await userEvent.click(within(row).getByRole("button", { name: "Remove" }));
+    await userEvent.click(screen.getByTestId("settings-page-marketplace-sources-remove-confirm"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("settings-page-marketplace-source-team")).not.toBeInTheDocument()
+    );
+    expect(removals).toBe(1);
   });
 });

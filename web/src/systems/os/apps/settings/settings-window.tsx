@@ -123,6 +123,11 @@ const SECTION_PAGES = {
       default: m.ExtensionsSettingsPage,
     }))
   ),
+  marketplace: lazy(() =>
+    import("@/routes/_app/settings/-marketplace-settings-page").then(m => ({
+      default: m.MarketplaceSettingsPage,
+    }))
+  ),
 } satisfies Partial<Record<string, LazyExoticComponent<ComponentType<SettingsSectionPageProps>>>>;
 
 type MappedSectionSlug = keyof typeof SECTION_PAGES;

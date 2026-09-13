@@ -1,10 +1,11 @@
 import { useMarketplacePage } from "../hooks/use-marketplace-page";
 import type { MarketplaceSearch } from "../lib/marketplace-search";
+import { useAddMarketplaceDialog } from "./use-add-marketplace-dialog";
 import { useExtensionInstallDialog } from "./use-extension-install-dialog";
 import { useMarketplaceActionController } from "./use-marketplace-action-controller";
 import { useMarketplaceSearchStrip } from "./use-marketplace-search-strip";
 
-/** Browse behavior: route query → catalog page, row actions, the Add ▾ install flow, the strip. */
+/** Browse behavior: route query → catalog page, row actions, both Add ▾ flows, the strip. */
 export function useMarketplaceBrowse(search: MarketplaceSearch, liveDataEnabled: boolean) {
   const query = search.q ?? "";
   const strip = useMarketplaceSearchStrip({
@@ -19,5 +20,6 @@ export function useMarketplaceBrowse(search: MarketplaceSearch, liveDataEnabled:
   const install = useExtensionInstallDialog({
     onInstalled: () => void strip.navigate({ search: {}, to: "/marketplace/installed" }),
   });
-  return { actions, install, page, query, strip };
+  const addMarketplace = useAddMarketplaceDialog();
+  return { actions, addMarketplace, install, page, query, strip };
 }

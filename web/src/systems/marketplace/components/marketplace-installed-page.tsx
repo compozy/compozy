@@ -20,6 +20,7 @@ import {
   installedScopeWord,
 } from "../lib/marketplace-installed-view";
 import type { MarketplaceSearch } from "../lib/marketplace-search";
+import { useAddMarketplaceDialog } from "./use-add-marketplace-dialog";
 import { MarketplaceAddMenu } from "./marketplace-add-menu";
 import { MarketplaceEntryCard } from "./marketplace-entry-card";
 import { MarketplaceInstalledTrail } from "./marketplace-entry-trail";
@@ -46,6 +47,8 @@ function MarketplaceInstalledPage({
     liveDataEnabled
   );
 
+  const addMarketplace = useAddMarketplaceDialog();
+
   useTopbarSlot({
     onBack: backToBrowse,
     crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: backToBrowse }],
@@ -68,7 +71,7 @@ function MarketplaceInstalledPage({
           )}
           Refresh
         </Button>
-        <MarketplaceAddMenu onInstall={install.open} />
+        <MarketplaceAddMenu onInstall={install.open} onAddMarketplace={addMarketplace.open} />
       </>
     ),
     toolbar: strip.toolbar,
@@ -90,6 +93,7 @@ function MarketplaceInstalledPage({
       </div>
       {actions.dialogs}
       {install.dialogs}
+      {addMarketplace.dialog}
       <span aria-live="polite" className="sr-only">
         {query ? `Search updated · ${page.items.length} results` : ""}
       </span>

@@ -12,6 +12,7 @@ import {
   Radio,
   Route,
   SlidersHorizontal,
+  Store,
   Terminal,
   UsersRound,
   UserRoundCog,
@@ -170,6 +171,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Puzzle,
     group: "system",
     keywords: "policy registry unverified trust",
+  },
+  {
+    slug: "marketplace",
+    label: "Marketplace",
+    icon: Store,
+    group: "system",
+    keywords:
+      "catalog feed plugin marketplaces sources presets custom refresh ttl timeout base_url experimental",
   },
 ] as const;
 

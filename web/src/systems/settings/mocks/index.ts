@@ -16,6 +16,7 @@ export {
   mcpOwnerCollectionFixture,
   settingsMCPServersCollectionFixture,
   settingsMCPServerFixtures,
+  settingsMarketplaceSectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
   settingsNotificationPresetCollectionFixture,

@@ -8,8 +8,13 @@ import type {
   MarketplaceCatalogListing,
   MarketplaceCatalogResponse,
   MarketplaceExtensionServer,
+  MarketplaceSource,
 } from "@/systems/marketplace";
-import { marketplaceCatalogFixture } from "@/systems/marketplace/mocks";
+import {
+  marketplaceCatalogFixture,
+  marketplaceSourceFixtures,
+  marketplaceSourceHandlers,
+} from "@/systems/marketplace/mocks";
 
 /** A 28px feed icon as a data URL: rung 1 of the logo ladder without a network fetch. */
 export const STORY_FEED_ICON =
@@ -100,6 +105,83 @@ export const storyCatalog = {
     version: "0.7.0",
   }),
 };
+
+/** A plugin listed by a registered marketplace: its own source, slug, and manifest layout. */
+export function pluginListing(
+  source: string,
+  overrides: Partial<MarketplaceCatalogListing> &
+    Pick<MarketplaceCatalogListing, "entry_id" | "name">
+): MarketplaceCatalogListing {
+  return {
+    ...acmeTools,
+    author: "@community",
+    format: "agent-plugin",
+    installed: false,
+    installed_name: undefined,
+    installed_version: undefined,
+    layout: "claude-plugin",
+    source,
+    source_ref: `marketplace:${source}`,
+    tier: "unverified",
+    update_available: false,
+    ...overrides,
+    install_slug: `${source}/${overrides.entry_id}`,
+  };
+}
+
+/** The sources list as Settings and Browse see it: feed · preset on · preset off · custom. */
+export const storySources = marketplaceSourceFixtures;
+
+/** Plugins from two marketplaces, one of them blocked because its package could not be loaded. */
+export const storyMarketplacePlugins = {
+  featureDev: pluginListing("claude-plugins-official", {
+    description: "Guided feature development: explore, design, implement, and verify in one flow.",
+    entry_id: "feature-dev",
+    name: "Feature Dev",
+    version: "1.2.0",
+  }),
+  codeReview: pluginListing("claude-plugins-official", {
+    description: "Structured review passes with findings ranked by severity.",
+    entry_id: "code-review",
+    name: "Code Review",
+    version: "0.9.1",
+  }),
+  releaseNotes: pluginListing("team-plugins", {
+    description: "Draft release notes from merged pull requests since the last tag.",
+    entry_id: "release-notes",
+    name: "Release Notes",
+    version: "0.3.0",
+  }),
+  legacyTool: pluginListing("team-plugins", {
+    description: "An older package whose manifest Compozy could not locate.",
+    entry_id: "legacy-tool",
+    install_blocker:
+      "no manifest found (checked plugin.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json)",
+    installable: false,
+    layout: undefined,
+    name: "Legacy Tool",
+    version: "0.1.0",
+  }),
+};
+
+/** Catalog `sources[]` summaries derived from the registered rows and what the catalog lists. */
+export function catalogSourceSummaries(
+  sources: readonly MarketplaceSource[],
+  items: readonly MarketplaceCatalogListing[]
+): MarketplaceCatalogResponse["sources"] {
+  const summaries: MarketplaceCatalogResponse["sources"] = [];
+  for (const source of sources) {
+    if (!source.enabled) continue;
+    summaries.push({
+      count: items.filter(item => item.source === source.name).length,
+      kind: source.kind,
+      last_read_at: source.last_read_at,
+      name: source.name,
+      state: source.state,
+    });
+  }
+  return summaries;
+}
 
 /** The daemon-joined installed state of a listing: origin match, never a name match. */
 export function installedListing(
@@ -257,10 +339,13 @@ export function marketplaceStoryHandlers(options: {
   /** Per-entry detail payload overrides (servers, inputs, contents) keyed by entry id. */
   details?: Record<string, Partial<StoryExtensionDetail>>;
   installDelayMs?: number;
+  /** Registered sources; the catalog `sources[]` summaries derive from the enabled ones. */
+  sources?: readonly MarketplaceSource[];
 }) {
   const catalog = options.catalog ?? [];
   const extensions = options.extensions ?? [];
   const details = options.details ?? {};
+  const sources = options.sources ?? [marketplaceSourceFixtures.feed];
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace", async ({ request }) => {
@@ -276,12 +361,11 @@ export function marketplaceStoryHandlers(options: {
         return HttpResponse.json(
           catalogResponse(items, {
             ...options.catalogOverrides,
-            sources: [
-              { count: catalog.length, kind: "feed", name: "compozy-catalog", state: "ok" },
-            ],
+            sources: catalogSourceSummaries(sources, catalog),
           })
         );
       }),
+      ...marketplaceSourceHandlers(sources),
       compozyApiMock.get("/api/marketplace/entries/{entry_id}", ({ params }) => {
         const entry = catalog.find(item => item.entry_id === String(params.entry_id));
         if (!entry) {

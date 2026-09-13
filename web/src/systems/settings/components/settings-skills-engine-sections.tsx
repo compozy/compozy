@@ -1,11 +1,8 @@
-import { Link } from "@tanstack/react-router";
-
 import { Input, Switch } from "@compozy/ui";
 
 import type { SettingsSkillsSection } from "../types";
 import { SettingsFieldRow } from "./settings-field-row";
 import { SettingsGroup } from "./settings-group";
-import { SettingLinkRow } from "./setting-row";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 
@@ -51,18 +48,6 @@ export function SettingsSkillsDiscoverySection({
             onChange={event => onChange({ ...draft, poll_interval: event.target.value })}
           />
         }
-      />
-    </SettingsGroup>
-  );
-}
-
-export function SettingsSkillsManageSection() {
-  return (
-    <SettingsGroup title="Manage">
-      <SettingLinkRow
-        data-testid="settings-page-skills-link-skills"
-        label="Manage installed skills"
-        render={<Link to="/marketplace" />}
       />
     </SettingsGroup>
   );

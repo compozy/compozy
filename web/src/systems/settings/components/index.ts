@@ -42,7 +42,6 @@ export { SettingsSkillSourceDiagnostics } from "./settings-skill-source-diagnost
 export { SettingsSkillCustomSources } from "./settings-skill-custom-sources";
 export {
   SettingsSkillsEngineSection,
-  SettingsSkillsManageSection,
   SettingsSkillsDiscoverySection,
   type SettingsSkillsDraftSectionProps,
 } from "./settings-skills-engine-sections";
@@ -61,6 +60,17 @@ export {
 } from "./setting-row";
 export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
+export { MarketplaceSourceRow } from "./marketplace-source-row";
+export type { MarketplaceSourceRowProps } from "./marketplace-source-row";
+export {
+  marketplaceCatalogDraftInvalid,
+  sameMarketplaceCatalogConfig,
+  type SettingsMarketplaceCatalogConfig,
+} from "./marketplace-catalog-draft";
+export { SettingsMarketplaceCatalogSection } from "./settings-marketplace-catalog-section";
+export type { SettingsMarketplaceCatalogSectionProps } from "./settings-marketplace-catalog-section";
+export { SettingsMarketplaceSourcesSection } from "./settings-marketplace-sources-section";
+export type { SettingsMarketplaceSourcesSectionProps } from "./settings-marketplace-sources-section";
 export type { SettingsGroupProps } from "./settings-group";
 export { SettingsUpdateTrackRow } from "./settings-update-track-row";
 export type { SettingsUpdateTrackRowProps } from "./settings-update-track-row";

@@ -4,12 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import {
-  appWindow,
-  openAppWindow,
-  setGlobalScope,
-  switchWorkspace,
-} from "../fixtures/os-navigation";
+import { appWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import {
   profilesOperatorSelectors,
   settingsOperatorSelectors,
@@ -388,19 +383,7 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.disabledMessage).toContainText("applied immediately");
     await expect(settingsUI.skills.restartNotice).not.toBeVisible();
 
-    await settingsUI.skills.operationalLink.click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
-    await expect.poll(() => new URL(appPage.url()).search).toBe("");
-    await openAppWindow(appPage, "Settings", "settings");
-    await settingsUI.shell.sectionLink("skills").click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
-
-    await settingsWin
-      .getByTestId("settings-page-skills-advanced")
-      .getByTestId("settings-advanced-toggle")
-      .click();
-    await settingsUI.skills.policyRegistryInput.fill("clawhub");
-    await settingsUI.skills.policyBaseURLInput.fill("https://skills.example/browser-updated");
+    await settingsWin.getByTestId("settings-page-skills-enabled-switch").click();
     await expect(settingsUI.skills.save).toBeEnabled();
     await settingsUI.skills.save.click();
 
@@ -483,14 +466,14 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
+  await appPage.goto(runtime.url("/settings/mcp"), {
     waitUntil: "domcontentloaded",
   });
 
   await expect(settingsUI.mcpServers.page).toBeVisible();
 
   await switchWorkspace(appPage, workspace.id, workspace.name);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
+  await appPage.goto(runtime.url("/settings/mcp"), {
     waitUntil: "domcontentloaded",
   });
   await expect(settingsUI.mcpServers.page).toBeVisible();
@@ -509,7 +492,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   ).toBeVisible();
 
   await setGlobalScope(appPage, true);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
+  await appPage.goto(runtime.url("/settings/mcp"), {
     waitUntil: "domcontentloaded",
   });
   await expect(settingsUI.mcpServers.page).toBeVisible();
@@ -528,7 +511,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   ).toBeVisible();
 
   await setGlobalScope(appPage, false);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
+  await appPage.goto(runtime.url("/settings/mcp"), {
     waitUntil: "domcontentloaded",
   });
   await expect(

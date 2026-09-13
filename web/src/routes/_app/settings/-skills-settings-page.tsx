@@ -11,7 +11,6 @@ import {
   SettingsSkillsScopeNotice,
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
-  SettingsSkillsManageSection,
   SettingsSkillsDiscoverySection,
   SettingsSkillSourcesSection,
   SettingsSkillsScopeSelector,
@@ -138,7 +137,6 @@ export function SkillsSettingsPage() {
       {isPersonalPolicyScope ? (
         <>
           <SettingsSkillsDiscoverySection draft={draft} onChange={setDraft} />
-          <SettingsSkillsManageSection />
         </>
       ) : null}
       <SettingsDisabledSkillsSection
@@ -157,7 +155,7 @@ export function SkillsSettingsPage() {
         emptyDescription={
           page.selection.scope === "agent"
             ? "This agent is currently inheriting the effective skill set without disabled logical names."
-            : "Manage availability from the Skills operational page; nothing has been disabled yet."
+            : "No skills have been disabled in this scope."
         }
         onToggle={page.toggleDisabled}
         readOnly={page.isRepositoryProfile}
@@ -181,7 +179,7 @@ export function SkillsSettingsPage() {
       {isPersonalPolicyScope ? (
         <SettingsAdvancedFold
           data-testid="settings-page-skills-advanced"
-          label="Advanced — endpoint & install policy"
+          label="Advanced — install policy"
           padded
         >
           <SettingsSkillsInstallPolicySection draft={draft} onChange={setDraft} />

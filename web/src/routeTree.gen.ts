@@ -48,6 +48,7 @@ import { Route as AppSettingsGatewayRouteImport } from './routes/_app/settings/g
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
 import { Route as AppSettingsLayoutsRouteImport } from './routes/_app/settings/layouts'
+import { Route as AppSettingsMarketplaceRouteImport } from './routes/_app/settings/marketplace'
 import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings/mcp'
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
@@ -272,6 +273,11 @@ const AppSettingsLayoutsRoute = AppSettingsLayoutsRouteImport.update({
   path: '/layouts',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsMarketplaceRoute = AppSettingsMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsMcpRoute = AppSettingsMcpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
@@ -460,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/layouts': typeof AppSettingsLayoutsRoute
+  '/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
@@ -524,6 +531,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/layouts': typeof AppSettingsLayoutsRoute
+  '/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
@@ -595,6 +603,7 @@ export interface FileRoutesById {
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/hooks': typeof AppSettingsHooksRoute
   '/_app/settings/layouts': typeof AppSettingsLayoutsRoute
+  '/_app/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/_app/settings/mcp': typeof AppSettingsMcpRoute
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
@@ -666,6 +675,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/hooks'
     | '/settings/layouts'
+    | '/settings/marketplace'
     | '/settings/mcp'
     | '/settings/memory'
     | '/settings/network'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/hooks'
     | '/settings/layouts'
+    | '/settings/marketplace'
     | '/settings/mcp'
     | '/settings/memory'
     | '/settings/network'
@@ -800,6 +811,7 @@ export interface FileRouteTypes {
     | '/_app/settings/general'
     | '/_app/settings/hooks'
     | '/_app/settings/layouts'
+    | '/_app/settings/marketplace'
     | '/_app/settings/mcp'
     | '/_app/settings/memory'
     | '/_app/settings/network'
@@ -1112,6 +1124,13 @@ declare module '@tanstack/react-router' {
       path: '/layouts'
       fullPath: '/settings/layouts'
       preLoaderRoute: typeof AppSettingsLayoutsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/marketplace': {
+      id: '/_app/settings/marketplace'
+      path: '/marketplace'
+      fullPath: '/settings/marketplace'
+      preLoaderRoute: typeof AppSettingsMarketplaceRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/mcp': {
@@ -1499,6 +1518,7 @@ interface AppSettingsRouteChildren {
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsHooksRoute: typeof AppSettingsHooksRoute
   AppSettingsLayoutsRoute: typeof AppSettingsLayoutsRoute
+  AppSettingsMarketplaceRoute: typeof AppSettingsMarketplaceRoute
   AppSettingsMcpRoute: typeof AppSettingsMcpRoute
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
@@ -1522,6 +1542,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsHooksRoute: AppSettingsHooksRoute,
   AppSettingsLayoutsRoute: AppSettingsLayoutsRoute,
+  AppSettingsMarketplaceRoute: AppSettingsMarketplaceRoute,
   AppSettingsMcpRoute: AppSettingsMcpRoute,
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,

@@ -15,8 +15,10 @@ import {
   storyCatalog,
   storyContext7Server,
   storyGithubServer,
+  storyMarketplacePlugins,
   storyPostgresInputs,
   storyPostgresServer,
+  storySources,
 } from "./marketplace-story-data";
 
 const herdrInstalled = installedListing(storyCatalog.herdrBridge, {
@@ -147,7 +149,7 @@ export const CatalogEmpty: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Add ▾ holds exactly the two install doors; both open the production install dialog. */
+/** Add ▾ holds the two install doors and, after a rule, the plugin-marketplace door. */
 export const AddMenuOpen: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
@@ -161,7 +163,90 @@ export const AddMenuOpen: Story = {
     const menu = within(document.body);
     await expect(menu.findByTestId("marketplace-add-github")).resolves.toBeDefined();
     await expect(menu.findByTestId("marketplace-add-local")).resolves.toBeDefined();
+    await expect(menu.findByTestId("marketplace-add-marketplace")).resolves.toBeDefined();
   },
+};
+
+/** The feed plus two plugin marketplaces: one section per source, in the daemon's order. */
+const multiSourceCatalog = [
+  ...defaultCatalog,
+  storyMarketplacePlugins.featureDev,
+  storyMarketplacePlugins.codeReview,
+  storyMarketplacePlugins.releaseNotes,
+  storyMarketplacePlugins.legacyTool,
+];
+
+const multiSourceSources = [
+  storySources.feed,
+  storySources.presetOn,
+  storySources.presetOff,
+  { ...storySources.customDegraded, error: undefined, error_class: undefined, state: "ok" },
+];
+
+/** Three sources listing something → three collapsible sections with authoritative counts. */
+export const MultiSource: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: multiSourceCatalog,
+      extensions: defaultExtensions,
+      sources: multiSourceSources,
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** A query narrows every section; sections with no match disappear, the gist counts matches. */
+export const MultiSourceSearch: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace?q=review"),
+    ...marketplaceStoryHandlers({
+      catalog: multiSourceCatalog,
+      extensions: defaultExtensions,
+      sources: multiSourceSources,
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * `team-plugins` failed its last refresh: its section keeps the plugins it last read and the gist
+ * names the last read and that it could not refresh. The blocked package stays visibly blocked.
+ */
+export const DegradedSource: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: multiSourceCatalog,
+      extensions: defaultExtensions,
+      sources: Object.values(storySources),
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** A registered marketplace whose document lists zero plugins earns no section. */
+export const ZeroPluginSource: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({
+      catalog: [...defaultCatalog, storyMarketplacePlugins.featureDev],
+      extensions: defaultExtensions,
+      sources: [
+        storySources.feed,
+        storySources.presetOn,
+        {
+          ...storySources.customDegraded,
+          error: undefined,
+          error_class: undefined,
+          installable: 0,
+          plugins: 0,
+          state: "ok",
+        },
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /** Under 960px of window width the grid is one column and the description may wrap. */

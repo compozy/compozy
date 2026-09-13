@@ -17,7 +17,10 @@ interface MarketplacePageProps {
  * search only; body = installed shelf → sections by source → grid.
  */
 function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProps) {
-  const { actions, install, page, query, strip } = useMarketplaceBrowse(search, liveDataEnabled);
+  const { actions, addMarketplace, install, page, query, strip } = useMarketplaceBrowse(
+    search,
+    liveDataEnabled
+  );
 
   useTopbarSlot({
     glyph: <Store />,
@@ -40,7 +43,7 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
           )}
           Refresh
         </Button>
-        <MarketplaceAddMenu onInstall={install.open} />
+        <MarketplaceAddMenu onAddMarketplace={addMarketplace.open} onInstall={install.open} />
       </>
     ),
     toolbar: strip.toolbar,
@@ -59,6 +62,7 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
       </div>
       {actions.dialogs}
       {install.dialogs}
+      {addMarketplace.dialog}
       <span aria-live="polite" className="sr-only">
         {query ? `Search updated · ${page.catalogItems.length} results` : ""}
       </span>

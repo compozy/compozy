@@ -1,2 +1,9 @@
-export { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "./fixtures";
-export { handlers } from "./handlers";
+export {
+  marketplaceCatalogFixture,
+  marketplaceCatalogDetailFixture,
+  marketplaceSourceAddedFixture,
+  marketplaceSourceFixtures,
+  marketplaceSourcePreviewFixture,
+  marketplaceSourcesFixture,
+} from "./fixtures";
+export { handlers, marketplaceSourceHandlers } from "./handlers";

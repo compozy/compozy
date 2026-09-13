@@ -91,9 +91,12 @@ test.describe("Extension dev overlay and source-union install", () => {
     await expect(marketplace.extensionLogsStatus).toContainText("Paused");
     await expect(marketplace.extensionLogsLines).toContainText(logSentinel);
 
-    await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
-    await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
-    await marketplace.extensionInstallEntry.click();
+    await appPage.goto(runtime.url("/marketplace/installed"), { waitUntil: "domcontentloaded" });
+    await expect(marketplaceWin.getByTestId("marketplace-installed-grid")).toBeVisible({
+      timeout: 20_000,
+    });
+    await marketplaceWin.getByTestId("marketplace-add").click();
+    await appPage.getByTestId("marketplace-add-local").click();
     await expect(marketplace.extensionInstallDialog).toBeVisible();
 
     await marketplace.extensionInstallRef.fill("relative/dist");

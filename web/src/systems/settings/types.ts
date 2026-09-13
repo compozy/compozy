@@ -274,4 +274,5 @@ export type SettingsSectionSlug =
   | "attention"
   | "observability"
   | "hooks"
-  | "extensions";
+  | "extensions"
+  | "marketplace";

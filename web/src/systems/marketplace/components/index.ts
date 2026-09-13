@@ -1,3 +1,5 @@
+export { AddMarketplaceDialog } from "./add-marketplace-dialog";
+export type { AddMarketplaceDialogProps } from "./add-marketplace-dialog";
 export { ExtensionInstallDialog } from "./extension-install-dialog";
 export type { ExtensionInstallDialogProps } from "./extension-install-dialog";
 export { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
@@ -14,6 +16,8 @@ export type {
 } from "./extension-install-model";
 export { ExtensionTrustDialog } from "./extension-trust-dialog";
 export type { ExtensionTrustDialogProps } from "./extension-trust-dialog";
+export { useAddMarketplaceDialog } from "./use-add-marketplace-dialog";
+export type { AddMarketplaceDialogController } from "./use-add-marketplace-dialog";
 export { useExtensionInstallDialog } from "./use-extension-install-dialog";
 export { MarketplaceAddMenu } from "./marketplace-add-menu";
 export type { MarketplaceAddMenuProps } from "./marketplace-add-menu";

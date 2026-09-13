@@ -311,7 +311,7 @@ describe("captureRouteState", () => {
   });
 
   it("captures the installed Skills catalog and unified detail state", async () => {
-    window.history.replaceState({}, "", "/marketplace/skills");
+    window.history.replaceState({}, "", "/marketplace");
     document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="marketplace-kind-skill">
@@ -328,7 +328,7 @@ describe("captureRouteState", () => {
     });
 
     expect(installedState).toMatchObject({
-      pathname: "/marketplace/skills",
+      pathname: "/marketplace",
       skills_content_visible: false,
       skills_detail_visible: false,
       skills_item_count: 2,

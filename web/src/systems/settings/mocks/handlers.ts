@@ -23,6 +23,7 @@ import {
   mcpManagementServerFixtures,
   settingsMCPServerFixtures,
   settingsMCPServersCollectionFixture,
+  settingsMarketplaceSectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
   settingsNotificationPresetCollectionFixture,
@@ -217,6 +218,13 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
+  ),
+
+  compozyApiMock.get("/api/settings/marketplace", () =>
+    HttpResponse.json(settingsMarketplaceSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/marketplace", () =>
+    HttpResponse.json(mutationResult("marketplace"))
   ),
 
   compozyApiMock.get("/api/settings/attention", () =>

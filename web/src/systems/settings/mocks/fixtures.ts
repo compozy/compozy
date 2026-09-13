@@ -9,6 +9,7 @@ import type {
   SettingsGeneralSection,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
+  SettingsMarketplaceSection,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
   SettingsMemorySection,
@@ -120,6 +121,17 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
     messages_rejected: 1,
   },
   links: [{ label: "network", path: "/network" }],
+};
+
+export const settingsMarketplaceSectionFixture: SettingsMarketplaceSection = {
+  section: "marketplace",
+  scope: "user",
+  available_scopes: ["user"],
+  config: {
+    base_url: "https://raw.githubusercontent.com/compozy/compozy/main/catalog",
+    ttl: "1h",
+    timeout: "30s",
+  },
 };
 
 export const settingsAttentionSectionFixture: SettingsAttentionSection = {
