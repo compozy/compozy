@@ -33,3 +33,10 @@ contributes seven skills and no MCP. An explicit package with commands/agents/ho
 report `client_component_ignored` with zero loaded hooks. Verify update, removal, dev reload,
 trust and scoped resource delivery. Focused Go lifecycle evidence does not close this live row;
 previous browser evidence above predates the client adapter and current Marketplace routes.
+
+Task03 input step (final tasks09/10): for a plugin that declares inputs, confirm unverified trust
+explicitly, review the acquired manifest and complete the same typed fields used by curated
+extensions. The request retains the approved digest and allow_unverified; input edits do not
+reacquire a preview. A source change invalidates confirmation. An update requiring new values
+uses the candidate input_definitions response, keeping the selected instance and prior inputs.
+Do not invent input fields for a package that declares none.

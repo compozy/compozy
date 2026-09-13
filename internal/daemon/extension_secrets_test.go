@@ -1048,6 +1048,32 @@ func TestExtensionInputBinder(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: the binder accepts an 8192-byte string and identifies the field at 8193 bytes.
+	// Owner: daemon input validation; canonical suite: TestExtensionInputBinder.
+	t.Run("Should enforce the exact string byte boundary [UT-005]", func(t *testing.T) {
+		t.Parallel()
+		for _, size := range []int{8192, 8193} {
+			service, _ := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+			manifest := extensionInputBinderManifest()
+			manifest.Inputs[0].Type = "string"
+			value, err := json.Marshal(strings.Repeat("x", size))
+			if err != nil {
+				t.Fatal(err)
+			}
+			binder := extensionInputBinder{service: service}
+			_, err = binder.Prepare(t.Context(), extensionpkg.GlobalInstanceKey("kit"),
+				extensionDefaultProfileLens(), manifest, map[string]extensioninput.Value{
+					"workspace": {Value: value}, "token": {Value: json.RawMessage(`"secret"`)},
+				})
+			if size == 8192 {
+				if err != nil {
+					t.Fatalf("8192-byte input refused: %v", err)
+				}
+			} else if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); !ok || invalid.InputID != "workspace" {
+				t.Fatalf("8193-byte error = %v", err)
+			}
+		}
+	})
 }
 
 func extensionInputBinderManifest() *extensionpkg.Manifest {

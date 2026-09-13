@@ -3,7 +3,15 @@ import { useMarketplaceUpdateRecovery } from "../use-marketplace-update-recovery
 // Owner: Marketplace action controller; canonical suite: marketplace-action-controller.test.tsx.
 // HTTP adapters, navigation, and notifications are the only mocked I/O boundaries.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -133,6 +141,143 @@ function installed(entry: MarketplaceCatalogListing): InstalledExtensionView {
 }
 
 describe("useMarketplaceActionController", () => {
+  // Invariant: the shared form validates declared fields and submits the approved catalog acquisition once.
+  // Owner: Marketplace controller/form integration; canonical suite: marketplace-action-controller.test.tsx.
+  it("Should collect typed inputs and submit the approved digest with Enter [UT-039]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "token",
+          prompt: "API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+        {
+          id: "region",
+          prompt: "Region",
+          type: "identifier",
+          required: false,
+          default: "eu",
+          binding: { type: "url_query", name: "region" },
+        },
+        {
+          id: "enabled",
+          prompt: "Enabled",
+          type: "boolean",
+          required: true,
+          default: false,
+          binding: { type: "env", name: "ENABLED" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    const secret = await screen.findByLabelText("API key");
+    expect(secret).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Region")).toHaveValue("eu");
+    expect(screen.getByRole("switch", { name: "Enabled" })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    fireEvent.change(secret, { target: { value: "a".repeat(8193) } });
+    expect(await screen.findByText("Too long (max 8 KB)")).toBeVisible();
+    expect(secret).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    fireEvent.change(secret, { target: { value: "literal-secret" } });
+    await user.click(secret);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "curated",
+        expected_digest: verified.digest_sha256,
+        inputs: {
+          token: { value: "literal-secret" },
+          region: { value: "eu" },
+          enabled: { value: false },
+        },
+      })
+    );
+    expect(io.preview).toHaveBeenCalledOnce();
+    expect(io.error).not.toHaveBeenCalled();
+  });
+  it("Should allow every optional field to remain empty [UT-039]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "token",
+          prompt: "Optional API key",
+          type: "secret",
+          required: false,
+          binding: { type: "env", name: "TOKEN" },
+        },
+        {
+          id: "enabled",
+          prompt: "Enabled",
+          type: "boolean",
+          required: false,
+          binding: { type: "env", name: "ENABLED" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByRole("button", { name: "Install" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install.mock.calls[0]![0]).not.toHaveProperty("inputs");
+  });
+  it("Should open the shared input step after an update and preserve values on failure [UT-039]", async () => {
+    const definition = {
+      id: "region",
+      prompt: "Region",
+      type: "identifier",
+      required: true,
+      binding: { type: "url_query", name: "region" },
+    };
+    io.update
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: [definition],
+        })
+      )
+      .mockRejectedValueOnce(new Error("publication failed"))
+      .mockResolvedValue(undefined);
+    setup([{ ...verified, installed: true, installed_name: "kit", update_available: true }]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    const field = await screen.findByLabelText("Region");
+    expect(screen.getByRole("button", { name: "Update" })).toBeDisabled();
+    await user.type(field, "eu");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(io.error).toHaveBeenCalledWith("publication failed"));
+    expect(screen.getByLabelText("Region")).toHaveValue("eu");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(io.update).toHaveBeenCalledTimes(3));
+    expect(io.update).toHaveBeenLastCalledWith("kit", {
+      allow_unverified: false,
+      version: verified.version,
+      inputs: { region: { value: "eu" } },
+    });
+    expect(io.preview).not.toHaveBeenCalled();
+  });
+  it("Should show configuration readiness from the installed extension", () => {
+    const item = installed(verified);
+    item.extension = { ...item.extension, missing_inputs: ["token"] };
+    setup([], item);
+    expect(screen.getByText("Needs configuration")).toBeVisible();
+    expect(screen.getByRole("switch")).toBeInTheDocument();
+  });
+
   it("Should block forbidden acquisitions before preview or consent", async () => {
     setup([blocked, { ...verified, entry_id: "disabled", installable: false }]);
     const user = userEvent.setup();

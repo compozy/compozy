@@ -737,7 +737,15 @@ describe("Extension source installation", () => {
     const user = userEvent.setup();
     mocks.previewExtensionInstall.mockResolvedValueOnce({
       digest_sha256: "a".repeat(64),
-      inputs: [],
+      inputs: [
+        {
+          id: "token",
+          prompt: "API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+      ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
       network_requirement_digest: "sha256:local-network",
@@ -761,7 +769,10 @@ describe("Extension source installation", () => {
 
     expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     expect(mocks.installExtension).not.toHaveBeenCalled();
+    expect(screen.getByTestId("extension-install-submit")).toBeDisabled();
+    await user.type(screen.getByLabelText("API key"), "literal-secret");
     await user.click(screen.getByTestId("extension-install-submit"));
+    expect(mocks.previewExtensionInstall).toHaveBeenCalledOnce();
 
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
     expect(mocks.installExtension).not.toHaveBeenCalled();
@@ -773,10 +784,49 @@ describe("Extension source installation", () => {
         allow_unverified: true,
         expected_digest: "a".repeat(64),
         confirm_network_digest: "sha256:local-network",
+        inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
       })
     );
+  });
+
+  it("Should clear secret drafts when closing or changing the acquisition", async () => {
+    mocks.previewExtensionInstall.mockResolvedValue({
+      name: "kit",
+      digest_sha256: "a".repeat(64),
+      inputs: [
+        {
+          id: "token",
+          prompt: "API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    renderInstaller();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.type(screen.getByTestId("extension-install-ref"), "/srv/kit");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    await user.type(await screen.findByLabelText("API key"), "discarded-secret");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    const ref = screen.getByTestId("extension-install-ref");
+    await user.clear(ref);
+    await user.type(ref, "/srv/kit");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByLabelText("API key")).toHaveValue("");
+    await user.type(screen.getByLabelText("API key"), "also-discarded");
+    await user.clear(ref);
+    await user.type(ref, "/srv/other-kit");
+    expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByLabelText("API key")).toHaveValue("");
+    expect(mocks.installExtension).not.toHaveBeenCalled();
   });
 
   it("Should reject a GitHub reference with an empty tag before the request", async () => {

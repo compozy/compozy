@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   Pill,
   Spinner,
+  StatusDot,
   Switch,
 } from "@compozy/ui";
 
@@ -138,8 +139,10 @@ interface MarketplaceInstalledTrailProps {
 }
 
 /**
- * Installed trail: update first, then the enable switch and the overflow. A dev overlay shadows
- * the published row without owning it, so enable/update stay on the published extension.
+ * Installed trail: the readiness word first, then update, the enable switch and the overflow. A
+ * dev overlay shadows the published row without owning it, so enable/update stay on the published
+ * extension. "Needs configuration" is daemon truth (`missing_inputs`), never inferred from the
+ * listing.
  */
 function MarketplaceInstalledTrail({
   item,
@@ -161,6 +164,15 @@ function MarketplaceInstalledTrail({
 
   return (
     <>
+      {extension.missing_inputs.length > 0 ? (
+        <span
+          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-warning"
+          data-testid={`marketplace-installed-needs-configuration-${extension.name}`}
+        >
+          <StatusDot aria-hidden="true" size="sm" tone="warning" />
+          Needs configuration
+        </span>
+      ) : null}
       {item.updateAvailable && !isDevOverlay ? (
         <>
           {targetVersion ? (

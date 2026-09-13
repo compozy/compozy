@@ -54,6 +54,13 @@ With neither scope nor workspace selected, operators use the manifest servers' c
 trusted workspace context or an explicit workspace selector. Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
 extension/profile/workspace under `vault:extensions/`; manual MCP references are not imported.
 
+Install typed values with `compozy extension install compozy/supabase --input project_ref=my-project`.
+Use `--input-file` for structured value/vault_ref envelopes; existing scoped extension-secret refs
+stay in that instance. The CLI derives types from the manifest. Required-field failures include
+`inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
+and retry the same scoped request. `extension_input_invalid` names the invalid input_id, and
+`extension_source_changed` requires reviewing the current artifact before retrying.
+
 Update requests accept the same scope/workspace/profile selectors. CLI `extension update` uses
 `--scope`, `--workspace`, and `--profile` (or `COMPOZY_PROFILE`); `--all` filters to that selected
 installation scope/profile. HTTP/UDS and `compozy__extensions_update` also accept typed `inputs`

@@ -1,5 +1,3 @@
-import { useExtensionInputForm } from "./use-extension-input-form";
-
 import { useState } from "react";
 
 import {
@@ -26,6 +24,7 @@ import {
 
 import type { ExtensionInstallRequest } from "../types";
 import type { ExtensionInstallPreview } from "@/systems/extensions";
+import { ExtensionInputFields } from "./extension-input-fields";
 import {
   buildExtensionInstallRequest,
   createExtensionInstallForm,
@@ -35,6 +34,7 @@ import {
   type ExtensionInstallForm,
   type ExtensionInstallSource,
 } from "./extension-install-model";
+import { useExtensionInputForm } from "./use-extension-input-form";
 
 export interface ExtensionInstallDialogProps {
   error?: string | null;
@@ -65,10 +65,16 @@ export function ExtensionInstallDialog({
   const [form, setForm] = useState<ExtensionInstallForm>(() =>
     createExtensionInstallForm(initialSource)
   );
-  const inputForm = useExtensionInputForm(
-    preview?.inputs ?? [],
-    JSON.stringify([form.source, form.ref, form.version, form.asset, preview?.digest_sha256])
-  );
+  // Any acquisition change (source, ref, version, asset, previewed digest) rebuilds the input
+  // draft, so secrets typed for one preview never carry into another.
+  const acquisitionIdentity = JSON.stringify([
+    form.source,
+    form.ref,
+    form.version,
+    form.asset,
+    preview?.digest_sha256,
+  ]);
+  const inputForm = useExtensionInputForm(preview?.inputs ?? [], acquisitionIdentity);
   const [fieldErrors, setFieldErrors] = useState<ExtensionInstallFieldError>({});
   const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
   const patch = (next: Partial<ExtensionInstallForm>) => {
@@ -89,11 +95,12 @@ export function ExtensionInstallDialog({
       open={open}
     >
       <DialogContent
-        className="sm:max-w-(--width-modal-sm)"
+        className="flex max-h-[min(var(--height-modal-md),80vh)] flex-col sm:max-w-(--width-modal-sm)"
         data-testid="extension-install-dialog"
         unframed
       >
         <form
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={event => {
             event.preventDefault();
             const errors = validateExtensionInstallForm(form);
@@ -113,7 +120,7 @@ export function ExtensionInstallDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4 px-5 py-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
             <Field>
               <FieldLabel id="extension-install-source-label">Source</FieldLabel>
               <RadioGroup
@@ -221,6 +228,13 @@ export function ExtensionInstallDialog({
             </Field>
 
             {preview ? <ExtensionInstallSummary preview={preview} /> : null}
+            {preview && preview.inputs.length > 0 ? (
+              <ExtensionInputFields
+                disabled={pending}
+                form={inputForm}
+                key={acquisitionIdentity}
+              />
+            ) : null}
 
             {error ? (
               <p

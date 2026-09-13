@@ -1,39 +1,40 @@
 ---
 id: ET-web-mcp-guided-install
 area: ET
-title: Configure a curated MCP server with typed or Vault-backed values
+title: Install and configure an extension with packaged inputs
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Manifest-v2 typed inputs accept only their declared string, identifier, boolean, or secret values; secret inputs accept a typed value or present namespace=mcp Vault ref and inline creation stores without echo. Stdio launch entries and Streamable HTTP entries render only their supported fields, catalog default scope applies when omitted, and the next daemon step is announced.
-entry_points: /marketplace/mcp/$entryId; MCP Install action
-qa_status: skipped
-bug_ids: BUG-20260714-keyboard-focus-invisible; BUG-20260715-mcp-install-null-values
-fix_status: fixed
-retest_status:
-fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-github-input.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-github-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-linear-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/web-guided-github-settings.json
-last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
-overlaps: ET-cli-mcp-install; ET-api-mcp-catalog-install; ET-web-mcp-authorize
+expected: The extension confirmation renders declared typed inputs, preserves the approved artifact digest and explicit trust decision, and recovers a refused update using only missing candidate fields. Stored values and secret references do not appear in responses or logs.
+entry_points: /marketplace/$entryId; catalog Install; Installed Update; Install from GitHub or local build
+qa_status: untested
+bug_ids:
+fix_status:
+retest_status: untested
+fix_commits:
+evidence:
+last_report:
+overlaps: ET-web-marketplace-detail-redesign; ET-agent-plugin-marketplace-install; ET-web-marketplace-installed-management
 ---
 
-Retired by marketplace-catalog task05. The catalog MCP installer and its CLI/API entry points are removed. Marketplace acquisition now uses extension packages; manual MCP settings and credentials remain supported. Current coverage belongs to ET-web-marketplace-installed-management, ET-web-mcp-authorize-manual and ET-api-marketplace-namespace. Final tasks09/10 verify the replacement journeys and removed-route rejection. Historical evidence below does not verify the new contract.
+Marketplace task03 replaces the retired MCP installer with the extension input step. The scenario ID
+remains the journey record; old MCP routes, manual-MCP Vault import and inline Vault creation are
+not supported acquisition paths. Manual MCP settings and stored credentials remain intact.
+Tasks09/10 own the live and visual walk; earlier MCP-installer evidence does not verify this flow.
 
+Install Context7 with its optional key empty, Brave Search with its required brave_api_key, and
+Supabase with project_ref. Sentry and Linear use OAuth and have no packaged inputs. For the typed
+boolean/default case, use the authored durable-input-kit fixture. Check password/text/switch controls,
+labels, optional markers, defaults, false values, required gating, keyboard submission and a narrow
+window. At 8193 UTF-8 bytes, show "Too long (max 8 KB)" and refuse submission; 8192 bytes pass.
 
-Passed in the 2026-07-30 final rerun: GitHub's typed stdio form installed the exact returned server,
-and Linear's hosted install stopped at the explicit Authorize handoff without beginning OAuth.
-Independent settings evidence contains no secret value. The Web-only existing-Vault branch was not
-repeated; its equivalent CLI ownership and redaction contract passed in ET-cli-mcp-install.
+Inspect the mutation: source, ref and expected_digest address the approved package; inputs retain
+wire types, optional empty fields are absent, and secrets are not logged. Editing input fields must
+not download another preview. Closing or changing the acquisition clears secret drafts. A changed
+source requires a fresh listing/confirmation and any new trust consent before another install.
 
-Added by marketplace Task 06. Walk typed, existing-ref, inline-create, remote-no-auth, and remote-OAuth branches; inspect network, DOM, logs, and fresh settings reads for plaintext-secret absence.
-
-Historical QA note: exact invoked Authorize and Manage toast destinations remain pending.
-
-Task 10 planning note: persona moved from Ada to Bruno — the guided modal is a human web surface; Ada's structured equivalents are ET-cli-mcp-install and ET-api-mcp-catalog-install.
-
-QA impact 2026-07-16: install success actions now navigate using the exact server identity returned
-by the mutation; retest both Authorize and Manage destinations rather than only toast presence.
-
-QA impact 2026-07-30 deep-review remediation: reset after OAuth install copy was corrected to an
-explicit post-install Authorize handoff. Verify installation itself does not begin OAuth, the success
-state points to the exact installed target, and the subsequent Authorize action owns browser or manual
-authorization without exposing secrets.
+Publish an update with a new required input. The failed update leaves the working package and values
+intact, returns extension_inputs_required with input_definitions, and opens the same input step.
+Fill only missing fields and retry the same name/profile/workspace and existing consent. If another
+field is required on retry, preserve values already submitted. Publication errors keep the step
+editable; duplicate confirmations send one request. The installed row reports "Needs configuration"
+from missing_inputs. Installation does not start OAuth; explicit Authorize remains a separate action.
