@@ -7,7 +7,34 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/marketplace"
 )
+
+// InspectPluginPackage uses the install manifest and resource loaders without publishing or starting resources.
+func InspectPluginPackage(ctx context.Context, root string) (marketplace.PluginInspection, error) {
+	manifest, err := LoadManifest(root)
+	if err != nil {
+		return marketplace.PluginInspection{}, err
+	}
+	if manifest.Format != FormatAgentPlugin {
+		return marketplace.PluginInspection{}, errors.New(
+			"extension: marketplace plugin requires an Agent Plugins manifest",
+		)
+	}
+	contents, err := InspectPackageContents(ctx, &Extension{
+		Info: ExtensionInfo{Name: manifest.Name, Version: manifest.Version}, Manifest: manifest, RootDir: root,
+	}, "")
+	if err != nil {
+		return marketplace.PluginInspection{}, err
+	}
+	return marketplace.PluginInspection{
+		Inputs: manifest.Inputs,
+		Contents: marketplace.PluginContents{
+			Skills: contents.Skills, MCPServers: contents.MCPServers, Hooks: contents.Hooks,
+			Loops: contents.Loops, Agents: contents.Agents, Bridges: contents.Bridges,
+		},
+	}, nil
+}
 
 // InspectMarketplacePackage reads pinned artifact bytes without install consent, execution, or registry writes.
 // It shares download, digest verification, extraction and manifest loading with installation, but cannot commit.

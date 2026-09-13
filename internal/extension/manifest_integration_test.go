@@ -11,11 +11,93 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
+
+func TestPluginCatalogInstallability(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		skills, servers int
+	}{
+		{name: "open-design", servers: 1},
+		{name: "loop-engineering", skills: 7},
+	} {
+		t.Run(
+			"Should derive "+tc.name+" installability from cached authored bytes through the install loader",
+			func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				fixture := filepath.Join("testdata", "client-plugins", tc.name)
+				if err := os.CopyFS(filepath.Join(root, "good"), os.DirFS(fixture)); err != nil {
+					t.Fatal(err)
+				}
+				broken := filepath.Join(root, "broken", ".claude-plugin")
+				if err := os.MkdirAll(broken, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(broken, "plugin.json"), `{"name":`)
+				writeFile(
+					t,
+					filepath.Join(root, "marketplace.json"),
+					`{"plugins":[{"name":"good","source":"./good"},{"name":"broken","source":"./broken"}]}`,
+				)
+				resolver := &pluginsource.Resolver{
+					Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
+					Sources: pluginsource.Sources{TempDir: t.TempDir()},
+				}
+				doc, err := resolver.Sources.Fetch(t.Context(), root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := snapshot.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				projector, err := marketplace.NewPluginProjector(resolver, InspectPluginPackage)
+				if err != nil {
+					t.Fatal(err)
+				}
+				entries, diagnostics, err := projector.Project(t.Context(), doc, "team", snapshot)
+				if err != nil || len(entries) != 2 || len(diagnostics) != 1 || !entries[0].Installable ||
+					entries[1].Installable || entries[1].InstallBlocker != "load_failed" || entries[1].Layout != "claude-plugin" {
+					t.Fatalf("real loader projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
+				}
+				detail, err := marketplace.ProjectEntry(entries[0])
+				if err != nil || detail.Extension.Contents.Skills != tc.skills ||
+					detail.Extension.Contents.MCPServers != tc.servers {
+					t.Fatalf("real package contents = %+v, %v", detail, err)
+				}
+				if detail.SourceRef != doc.SourceRef ||
+					detail.Extension.Acquisition.DigestSHA256 != entries[0].DigestSHA256 {
+					t.Fatalf("projected acquisition does not identify the inspected bytes: %+v", detail)
+				}
+				remaining, err := os.ReadDir(resolver.Sources.TempDir)
+				if err != nil || len(remaining) != 0 {
+					t.Fatalf("inspection retained temporary trees: %v, %v", remaining, err)
+				}
+				before, err := ComputeDirectoryChecksum(fixture)
+				if err != nil {
+					t.Fatal(err)
+				}
+				after, err := ComputeDirectoryChecksum(filepath.Join(root, "good"))
+				if err != nil || before != after {
+					t.Fatalf("projection changed authored package bytes: %s != %s, %v", before, after, err)
+				}
+			},
+		)
+	}
+}
 
 func TestLoadManifestBridgeMetadataRoundTrip(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")

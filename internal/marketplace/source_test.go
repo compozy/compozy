@@ -17,7 +17,206 @@ import (
 	"testing"
 	"testing/iotest"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
+
+func TestPluginProjectionBudget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve two hundred plugins with at most four workers and preserve source order", func(t *testing.T) {
+		t.Parallel()
+		doc := pluginsource.Document{SourceRef: "github:team/plugins", Plugins: make([]pluginsource.Plugin, 250)}
+		for i := range doc.Plugins {
+			doc.Plugins[i] = pluginsource.Plugin{Name: fmt.Sprintf("plugin-%03d", i)}
+		}
+		var calls, active, peak atomic.Int32
+		barrier := make(chan struct{})
+		resolver := &projectionResolver{
+			resolve: func(ctx context.Context, doc pluginsource.Document, plugin pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
+				calls.Add(1)
+				current := active.Add(1)
+				defer active.Add(-1)
+				for previous := peak.Load(); current > previous; previous = peak.Load() {
+					if peak.CompareAndSwap(previous, current) {
+						if current == 4 {
+							close(barrier)
+						}
+						break
+					}
+				}
+				select {
+				case <-barrier:
+				case <-ctx.Done():
+					return pluginsource.AcquisitionRecord{}, ctx.Err()
+				}
+				return projectionRecord(t, doc, plugin), nil
+			},
+		}
+		projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
+			return PluginInspection{Contents: PluginContents{Skills: 2}}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		entries, diagnostics, err := projector.Project(ctx, doc, "team-plugins", nil)
+		if err != nil || len(entries) != 250 || calls.Load() != 200 || peak.Load() != 4 || active.Load() != 0 {
+			t.Fatalf(
+				"budget = %d entries, calls %d, peak %d, active %d, error %v",
+				len(entries),
+				calls.Load(),
+				peak.Load(),
+				active.Load(),
+				err,
+			)
+		}
+		for i, entry := range entries {
+			if entry.EntryID != doc.Plugins[i].Name || entry.SourceName != "team-plugins" ||
+				entry.Installable != (i < 200) {
+				t.Fatalf("entry %d = %+v", i, entry)
+			}
+			if i >= 200 && entry.InstallBlocker != budgetExhausted {
+				t.Fatalf("entry %d is not budget blocked: %+v", i, entry)
+			}
+		}
+		sourceDiagnostics := 0
+		for _, diagnostic := range diagnostics {
+			if diagnostic.Plugin == "" && diagnostic.Code == budgetExhausted {
+				sourceDiagnostics++
+			}
+		}
+		if sourceDiagnostics != 1 {
+			t.Fatalf("source budget diagnostics = %d", sourceDiagnostics)
+		}
+	})
+	t.Run("Should join canceled resolves and leave unfinished plugins budget blocked", func(t *testing.T) {
+		t.Parallel()
+		var active atomic.Int32
+		resolver := &projectionResolver{
+			resolve: func(ctx context.Context, _ pluginsource.Document, _ pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
+				active.Add(1)
+				defer active.Add(-1)
+				<-ctx.Done()
+				return pluginsource.AcquisitionRecord{}, ctx.Err()
+			},
+		}
+		projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
+			t.Error("inspected a timed-out package")
+			return PluginInspection{}, nil
+		}, WithPluginRefreshBudget(time.Millisecond))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := pluginsource.Document{
+			SourceRef: "github:team/plugins",
+			Plugins:   []pluginsource.Plugin{{Name: "one"}, {Name: "two"}},
+		}
+		entries, _, err := projector.Project(t.Context(), doc, "team", nil)
+		if err != nil || len(entries) != 2 || active.Load() != 0 {
+			t.Fatalf("timed-out projection = %+v, active %d, %v", entries, active.Load(), err)
+		}
+		for _, entry := range entries {
+			if entry.Installable || entry.InstallBlocker != budgetExhausted {
+				t.Fatalf("timed-out entry = %+v", entry)
+			}
+		}
+	})
+	t.Run("Should preserve loader and cache failures while dropping escaped sources", func(t *testing.T) {
+		t.Parallel()
+		doc := pluginsource.Document{SourceRef: "github:team/plugins", Plugins: []pluginsource.Plugin{
+			{
+				Name:        "good",
+				Description: "tool",
+				Author:      "Team",
+				Homepage:    "https://example.com",
+				License:     "MIT",
+				Category:    "tools",
+				Keywords:    []string{"test"},
+			},
+			{Name: "broken"},
+			{Name: "missing"},
+			{Name: "escape"},
+		}}
+		resolver := &projectionResolver{
+			resolve: func(_ context.Context, doc pluginsource.Document, plugin pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
+				if plugin.Name == "escape" {
+					return pluginsource.AcquisitionRecord{}, pluginsource.ErrSourceOutsideCheckout
+				}
+				record := projectionRecord(t, doc, plugin)
+				record.DigestSHA256 = fmt.Sprintf("%064x", plugin.Name)
+				return record, nil
+			},
+			inspect: func(ctx context.Context, digest string, inspect func(context.Context, string) error) error {
+				if digest == fmt.Sprintf("%064x", "missing") {
+					return pluginsource.ErrPackageUnavailable
+				}
+				return inspect(ctx, digest)
+			},
+		}
+		projector, err := NewPluginProjector(resolver, func(_ context.Context, root string) (PluginInspection, error) {
+			if root == fmt.Sprintf("%064x", "broken") {
+				return PluginInspection{}, errors.New("invalid authored manifest")
+			}
+			return PluginInspection{Contents: PluginContents{MCPServers: 1}}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, diagnostics, err := projector.Project(t.Context(), doc, "team", nil)
+		if err != nil || len(entries) != 3 || len(diagnostics) != 3 || !entries[0].Installable ||
+			entries[1].InstallBlocker != "load_failed" || entries[2].InstallBlocker != "package_unavailable" {
+			t.Fatalf("projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
+		}
+		detail, err := ProjectEntry(entries[0])
+		if err != nil || detail.Source != "team" || detail.SourceRef != doc.SourceRef || detail.Author != "Team" ||
+			detail.Extension.Acquisition.EntryID != "good" || detail.Extension.Contents.MCPServers != 1 ||
+			detail.Extension.Homepage != "https://example.com" || detail.Extension.License != "MIT" ||
+			detail.Extension.Category != "tools" || len(detail.Extension.Keywords) != 1 ||
+			detail.Extension.Format != ExtensionFormatAgentPlugin || entries[0].Tier != extensionTierUnverified {
+			t.Fatalf("projected detail = %+v, %v", detail, err)
+		}
+		empty, emptyDiagnostics, err := projector.Project(t.Context(), pluginsource.Document{}, "team", nil)
+		if err != nil || len(empty) != 0 || len(emptyDiagnostics) != 0 {
+			t.Fatalf("empty projection = %+v, %+v, %v", empty, emptyDiagnostics, err)
+		}
+	})
+}
+
+type projectionResolver struct {
+	resolve func(context.Context, pluginsource.Document, pluginsource.Plugin) (pluginsource.AcquisitionRecord, error)
+	inspect func(context.Context, string, func(context.Context, string) error) error
+}
+
+func (r *projectionResolver) Resolve(
+	ctx context.Context,
+	doc pluginsource.Document,
+	_ *pluginsource.Snapshot,
+	plugin pluginsource.Plugin,
+) (pluginsource.AcquisitionRecord, error) {
+	return r.resolve(ctx, doc, plugin)
+}
+
+func (r *projectionResolver) Inspect(
+	ctx context.Context,
+	digest string,
+	inspect func(context.Context, string) error,
+) error {
+	if r.inspect != nil {
+		return r.inspect(ctx, digest, inspect)
+	}
+	return inspect(ctx, digest)
+}
+
+func projectionRecord(
+	t *testing.T, doc pluginsource.Document, plugin pluginsource.Plugin,
+) pluginsource.AcquisitionRecord {
+	t.Helper()
+	return pluginsource.AcquisitionRecord{
+		SourceRef: doc.SourceRef, EntryID: plugin.Name, ResolvedRef: doc.SourceRef + "@" + strings.Repeat("a", 40),
+		DigestSHA256: strings.Repeat("b", 64), Version: "1.0.0", Layout: "claude-plugin", PackagePath: plugin.Name,
+	}
+}
 
 func TestDecodeDocumentValidation(t *testing.T) {
 	t.Parallel()
