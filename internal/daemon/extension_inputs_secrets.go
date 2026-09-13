@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionenv"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -63,7 +64,9 @@ func (b extensionInputBinder) prepareSecret(
 		}
 		write.snapshot = &snapshot
 	}
-	plan.writes = append(plan.writes, write)
+	if !inputSecretUnchanged(plan, write) {
+		plan.writes = append(plan.writes, write)
+	}
 	plan.state.Values[input.ID] = extensionpkg.InputValueRecord{
 		Type: "secret", SecretRef: write.ref, Active: true, UpdatedAt: b.service.now().UTC(),
 	}
@@ -82,4 +85,14 @@ func validateExtensionInputSecretRef(plan *extensionInputPlan, value string) err
 		return errors.New("secret reference is outside the extension instance")
 	}
 	return nil
+}
+
+func inputSecretUnchanged(plan *extensionInputPlan, write preparedExtensionSecret) bool {
+	before, found := plan.previous[write.envName]
+	if !found || before.SecretRef != write.ref || before.InputID != write.inputID ||
+		before.Kind != extensionenv.BindingKind || before.Inactive ||
+		before.MCPServer != write.mcpServer || before.HeaderName != write.headerName {
+		return false
+	}
+	return write.value == nil || (write.snapshot != nil && write.snapshot.existed && write.snapshot.value == *write.value)
 }

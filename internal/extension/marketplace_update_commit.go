@@ -19,12 +19,33 @@ type marketplaceUpdateCommitInput struct {
 	slug              string
 	registryName      string
 	latestVersion     string
-	allowUnverified   bool
-	installedBy       string
-	trust             *MarketplaceTrustEvidence
+	provenance        ExtensionProvenance
 	commitCandidate   MarketplaceUpdateCommit
 	rollbackCandidate MarketplaceUpdateRollback
 	reload            MutationReload
+	afterReload       MutationReload
+}
+
+// Both update and reinstall publish one already validated artifact through this transaction.
+func applyMarketplaceUpdateCandidate(
+	ctx context.Context, input *marketplaceUpdateCommitInput,
+	preflight MarketplaceUpdatePreflight, cleanup marketplaceUpdateCleanup,
+) (marketplaceUpdateApplyResult, error) {
+	if preflight != nil {
+		if err := preflight(input.info, input.manifest); err != nil {
+			return marketplaceUpdateApplyResult{}, err
+		}
+	}
+	change, err := stageExtensionDirReplacement(input.result.InstallPath, input.installDir)
+	if err != nil {
+		return marketplaceUpdateApplyResult{}, err
+	}
+	input.change = change
+	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, input)
+	if err != nil {
+		return marketplaceUpdateApplyResult{}, err
+	}
+	return committedMarketplaceUpdateResult(cleanup, input.info.Name, remoteVersion, change), nil
 }
 
 func committedMarketplaceUpdateResult(
@@ -50,15 +71,6 @@ func commitMarketplaceUpdateCandidate(
 	input *marketplaceUpdateCommitInput,
 ) (string, error) {
 	remoteVersion := firstNonEmpty(input.result.Version, input.latestVersion, input.manifest.Version)
-	provenance := marketplaceUpdateProvenance(
-		input.info,
-		input.result,
-		input.manifest,
-		input.registryName,
-		input.allowUnverified,
-		input.installedBy,
-		input.trust,
-	)
 	if err := installMarketplaceExtensionUpdateRecord(
 		input.registry,
 		input.manifest,
@@ -67,7 +79,7 @@ func commitMarketplaceUpdateCandidate(
 		input.slug,
 		input.registryName,
 		remoteVersion,
-		provenance,
+		input.provenance,
 	); err != nil {
 		return "", errors.Join(err, input.change.Rollback())
 	}
@@ -80,52 +92,31 @@ func commitMarketplaceUpdateCandidate(
 			))
 		}
 	}
-	if err := reloadMarketplaceExtensionUpdate(
-		ctx,
-		input.reload,
-		input.registry,
-		input.info,
-		input.installDir,
-		input.change,
-		input.rollbackCandidate,
-	); err != nil {
+	if err := reloadMarketplaceExtensionUpdate(ctx, input); err != nil {
 		return "", err
 	}
 	return remoteVersion, nil
 }
 
-func reloadMarketplaceExtensionUpdate(
-	ctx context.Context,
-	reload MutationReload,
-	registry LifecycleRegistry,
-	info ExtensionInfo,
-	installDir string,
-	change *stagedExtensionDirChange,
-	rollbackCandidate MarketplaceUpdateRollback,
-) error {
-	if reload == nil {
+func reloadMarketplaceExtensionUpdate(ctx context.Context, input *marketplaceUpdateCommitInput) error {
+	var err error
+	if input.reload != nil {
+		err = input.reload(ctx)
+	}
+	if err == nil && input.afterReload != nil {
+		err = input.afterReload(ctx)
+	}
+	if err == nil {
 		return nil
 	}
-	if err := reload(ctx); err != nil {
-		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-		defer cancel()
-		restoreErr := restoreMarketplaceUpdateCandidate(
-			rollbackCtx,
-			registry,
-			info,
-			installDir,
-			change,
-			rollbackCandidate,
-		)
-		if restoreErr == nil {
-			restoreErr = reload(rollbackCtx)
-		}
-		return errors.Join(
-			fmt.Errorf("extension: reload after update %q: %w", info.Name, err),
-			restoreErr,
-		)
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancel()
+	restoreErr := restoreMarketplaceUpdateCandidate(rollbackCtx, input.registry, input.info,
+		input.installDir, input.change, input.rollbackCandidate)
+	if restoreErr == nil && input.reload != nil {
+		restoreErr = input.reload(rollbackCtx)
 	}
-	return nil
+	return errors.Join(fmt.Errorf("extension: publish update %q: %w", input.info.Name, err), restoreErr)
 }
 
 // Restore the package before releasing candidate-only resources. A failed package restoration

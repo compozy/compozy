@@ -1,5 +1,8 @@
+import type { ExtensionEntry } from "../types";
+
 /** Safe structured fields used to recover from a refused extension lifecycle operation. */
 export interface ExtensionOperationErrorMetadata {
+  readonly installedOrigin?: NonNullable<ExtensionEntry["origin"]>;
   readonly code?: string;
   readonly currentDigest?: string;
   readonly listedDigest?: string;
@@ -18,6 +21,7 @@ export function extensionOperationErrorMetadata(error: unknown): ExtensionOperat
   const inputs: unknown = Reflect.get(error, "inputs");
   return {
     code: errorString(error, "code"),
+    installedOrigin: installedOrigin(error),
     currentDigest: errorString(error, "current_digest"),
     listedDigest: errorString(error, "listed_digest"),
     fetchedDigest: errorString(error, "fetched_digest"),
@@ -27,4 +31,13 @@ export function extensionOperationErrorMetadata(error: unknown): ExtensionOperat
         ? [...inputs]
         : undefined,
   };
+}
+
+function installedOrigin(error: object): ExtensionOperationErrorMetadata["installedOrigin"] {
+  const origin: unknown = Reflect.get(error, "installed_origin");
+  if (origin === null || typeof origin !== "object") return undefined;
+  const sourceRef = errorString(origin, "source_ref");
+  const entryId = errorString(origin, "entry_id");
+  if (!sourceRef || !entryId) return undefined;
+  return { source: errorString(origin, "source") ?? "", source_ref: sourceRef, entry_id: entryId };
 }

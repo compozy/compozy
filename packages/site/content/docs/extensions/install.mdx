@@ -113,6 +113,16 @@ current entry before retrying. `422 extension_inputs_required` names missing inp
 `422 extension_input_invalid` identifies `input_id`. Missing or invalid inputs exit with code `2`
 when reported by the daemon.
 
+Installing an already installed published extension reuses its update transaction. The same acquisition
+and inputs return the installed result without rewriting its package, input rows, or secret bindings.
+Changed package bytes or inputs preserve all existing attachments and restore the previous package,
+inputs, and credentials if publication fails. Choose an existing attachment with the same scope selectors.
+
+A classified extension name belongs to its `(source_ref, entry_id)` pair. Another origin receives
+`409 extension_name_conflict` with `installed_origin`; renaming a catalog's local display name does
+not change this identity. An operator can explicitly associate an unclassified managed installation
+with a catalog entry by installing that entry. Agent callers cannot make that association.
+
 ## MCP runtime names
 
 CompozyOS allocates a name during publication, adding the extension name and a numeric suffix when

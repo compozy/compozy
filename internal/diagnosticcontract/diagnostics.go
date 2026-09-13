@@ -183,6 +183,7 @@ const (
 
 const (
 	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
+	CodeExtensionNameConflict            = "extension_name_conflict"
 	CodeExtensionSourceChanged           = "extension_source_changed"
 	CodeExtensionInputsRequired          = "extension_inputs_required"
 	CodeExtensionInputInvalid            = "extension_input_invalid"
@@ -232,6 +233,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
 	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
+	{Code: CodeExtensionNameConflict, Category: CategoryExtension},
 	{Code: CodeExtensionSourceChanged, Category: CategoryExtension},
 	{Code: CodeExtensionInputsRequired, Category: CategoryExtension},
 	{Code: CodeExtensionInputInvalid, Category: CategoryExtension},

@@ -12,7 +12,7 @@ import (
 func (s *daemonExtensionService) configureUpdateInputGate(
 	ctx context.Context, request *extensionpkg.MarketplaceUpdateRequest, values map[string]extensioninput.Value,
 	target extensionMutationTarget,
-) {
+) map[string]*extensionInputPlan {
 	binder := extensionInputBinder{service: s}
 	plans := make(map[string]*extensionInputPlan)
 	allocations := make(map[string]*extensionMCPAllocationSnapshot)
@@ -60,4 +60,5 @@ func (s *daemonExtensionService) configureUpdateInputGate(
 		}
 		return s.rollbackExtensionMCPAllocations(rollbackCtx, allocations[info.Name])
 	}
+	return plans
 }

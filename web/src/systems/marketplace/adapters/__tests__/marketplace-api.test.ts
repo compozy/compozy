@@ -65,6 +65,29 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
+  it("Should preserve the installed acquisition when another catalog claims its name", async () => {
+    const installedOrigin = {
+      source: "team",
+      source_ref: "https://example.com/catalog",
+      entry_id: "team/review-pack",
+    };
+    mockJsonResponse(
+      {
+        error: "instance name belongs to another origin",
+        code: "extension_name_conflict",
+        installed_origin: installedOrigin,
+      },
+      { status: 409 }
+    );
+    await expect(
+      installMarketplaceExtension({ ref: "review-pack", source: "curated" })
+    ).rejects.toMatchObject({
+      status: 409,
+      diagnosticCode: "extension_name_conflict",
+      installedOrigin,
+    });
+  });
+
   it("Should preserve the daemon diagnostic code for extension consent decisions", async () => {
     mockJsonResponse(
       {

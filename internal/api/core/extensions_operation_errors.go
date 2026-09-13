@@ -27,6 +27,9 @@ func extensionOperationErrorPayload(
 	switch kind {
 	case extensionErrorMCPNameTaken:
 		payload.Code = "mcp_server_name_taken"
+	case extensionErrorNameConflict:
+		payload.InstalledOrigin = ExtensionNameConflictOrigin(err)
+		payload.Code = diagnosticcontract.CodeExtensionNameConflict
 	case extensionErrorSourceChanged:
 		if changed, ok := errors.AsType[*extensionpkg.SourceChangedError](err); ok {
 			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
@@ -142,5 +145,18 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 		return diagnosticcontract.CodeExtensionEnvBindingDangling
 	default:
 		return diagnosticcontract.CodeExtensionEnvBindingInvalid
+	}
+}
+
+// ExtensionNameConflictOrigin exposes the installed acquisition consistently across public transports.
+func ExtensionNameConflictOrigin(err error) *contract.MarketplaceOriginPayload {
+	conflict, ok := errors.AsType[*extensionpkg.ExtensionNameConflictError](err)
+	if !ok {
+		return nil
+	}
+	return &contract.MarketplaceOriginPayload{
+		Source:    conflict.SourceName,
+		SourceRef: conflict.InstalledOrigin.SourceRef,
+		EntryID:   conflict.InstalledOrigin.EntryID,
 	}
 }

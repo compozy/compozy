@@ -40,16 +40,21 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	event.ExtensionName = prepared.name
-	confirmation, err := s.prepareInstallNetworkConfirmation(
-		prepared.manifest,
-		strings.TrimSpace(req.ConfirmNetworkDigest),
-		actor,
-	)
-	if err != nil {
-		return contract.ExtensionPayload{}, errors.Join(err, prepared.Close())
-	}
 	var item contract.ExtensionPayload
 	mutation := func() error {
+		if prepared.published != nil {
+			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
+				return s.reinstallPreparedExtension(ctx, prepared, *installed, req, actor, &item)
+			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
+				return readErr
+			}
+		}
+		confirmation, confirmErr := s.prepareInstallNetworkConfirmation(
+			prepared.manifest, strings.TrimSpace(req.ConfirmNetworkDigest), actor,
+		)
+		if confirmErr != nil {
+			return confirmErr
+		}
 		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
 	err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
@@ -244,28 +249,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
 	confirmed := s.configureUpdateNetworkGate(&domainReq, confirmNetworkDigest, actor)
-	previousCommitCandidate := domainReq.CommitCandidate
-	domainReq.CommitCandidate = func(
-		info extensionpkg.ExtensionInfo,
-		manifest *extensionpkg.Manifest,
-	) error {
-		if previousCommitCandidate != nil {
-			if err := previousCommitCandidate(info, manifest); err != nil {
-				return err
-			}
-		}
-		if manifest == nil || len(manifest.Profiles) == 0 {
-			return nil
-		}
-		if s.profiles == nil {
-			return errors.New("daemon: profile manager is required for declared profiles")
-		}
-		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, manifest)
-		if err != nil {
-			return err
-		}
-		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
-	}
+	s.configureUpdateProfileGate(ctx, &domainReq, actor)
 	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs, target)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,

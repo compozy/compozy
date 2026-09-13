@@ -294,3 +294,9 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
 Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, `network.participation.*` in `references/network.md`, and `window_manager.*` in `references/window-management.md`.
+
+Published reinstall uses the existing update transaction and selected attachment. Repeating the same
+acquisition and inputs preserves package and input/secret before-images without a runtime reload.
+A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
+display names do not participate in identity. Only an operator may associate an unclassified managed
+installation with a catalog entry. Publication failure restores the old package and selected input cell.

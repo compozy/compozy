@@ -249,37 +249,23 @@ func applyMarketplaceExtensionUpdate(
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-	if preflightCandidate != nil {
-		if err := preflightCandidate(info, manifest); err != nil {
-			return marketplaceUpdateApplyResult{}, err
-		}
-	}
-	change, err := stageExtensionDirReplacement(result.InstallPath, installDir)
-	if err != nil {
-		return marketplaceUpdateApplyResult{}, err
-	}
-	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry:          registry,
-		info:              info,
-		installDir:        installDir,
-		result:            result,
-		manifest:          manifest,
-		change:            change,
-		slug:              slug,
-		registryName:      registryName,
-		latestVersion:     latestVersion,
-		allowUnverified:   allowUnverified,
-		installedBy:       installedBy,
-		trust:             trust,
+
+	return applyMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
+		registry:      registry,
+		info:          info,
+		installDir:    installDir,
+		result:        result,
+		manifest:      manifest,
+		slug:          slug,
+		registryName:  registryName,
+		latestVersion: latestVersion,
+		provenance: marketplaceUpdateProvenance(
+			info, result, manifest, registryName, allowUnverified, installedBy, trust,
+		),
 		commitCandidate:   commitCandidate,
 		rollbackCandidate: rollbackCandidate,
 		reload:            reload,
-	})
-	if err != nil {
-		return marketplaceUpdateApplyResult{}, err
-	}
-	out = committedMarketplaceUpdateResult(cleanup, info.Name, remoteVersion, change)
-	return out, nil
+	}, preflightCandidate, cleanup)
 }
 
 func installMarketplaceExtensionUpdateRecord(

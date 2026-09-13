@@ -83601,6 +83601,26 @@
                           },
                           "type": "array"
                         },
+                        "installed_origin": {
+                          "nullable": true,
+                          "properties": {
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "source_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "entry_id",
+                            "source",
+                            "source_ref"
+                          ],
+                          "type": "object"
+                        },
                         "listed_digest": {
                           "type": "string"
                         },
@@ -83621,7 +83641,7 @@
                 }
               }
             },
-            "description": "The approved source changed or the extension already exists"
+            "description": "Source changed, acquisition name conflict, or package replacement refused"
           },
           "422": {
             "content": {
@@ -83780,6 +83800,26 @@
                             "type": "string"
                           },
                           "type": "array"
+                        },
+                        "installed_origin": {
+                          "nullable": true,
+                          "properties": {
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "source_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "entry_id",
+                            "source",
+                            "source_ref"
+                          ],
+                          "type": "object"
                         },
                         "listed_digest": {
                           "type": "string"
@@ -86080,6 +86120,26 @@
                       },
                       "type": "array"
                     },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
+                    },
                     "listed_digest": {
                       "type": "string"
                     },
@@ -86853,6 +86913,26 @@
                       },
                       "type": "array"
                     },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
+                    },
                     "listed_digest": {
                       "type": "string"
                     },
@@ -87030,6 +87110,26 @@
                             "type": "string"
                           },
                           "type": "array"
+                        },
+                        "installed_origin": {
+                          "nullable": true,
+                          "properties": {
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "source_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "entry_id",
+                            "source",
+                            "source_ref"
+                          ],
+                          "type": "object"
                         },
                         "listed_digest": {
                           "type": "string"
@@ -89458,6 +89558,26 @@
                       },
                       "type": "array"
                     },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
+                    },
                     "listed_digest": {
                       "type": "string"
                     },
@@ -89635,6 +89755,26 @@
                             "type": "string"
                           },
                           "type": "array"
+                        },
+                        "installed_origin": {
+                          "nullable": true,
+                          "properties": {
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "source_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "entry_id",
+                            "source",
+                            "source_ref"
+                          ],
+                          "type": "object"
                         },
                         "listed_digest": {
                           "type": "string"
@@ -90420,6 +90560,26 @@
                         "type": "string"
                       },
                       "type": "array"
+                    },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
                     },
                     "listed_digest": {
                       "type": "string"
@@ -93276,6 +93436,26 @@
                       },
                       "type": "array"
                     },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
+                    },
                     "listed_digest": {
                       "type": "string"
                     },
@@ -93851,6 +94031,26 @@
                       },
                       "type": "array"
                     },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
+                    },
                     "listed_digest": {
                       "type": "string"
                     },
@@ -94163,6 +94363,26 @@
                         "type": "string"
                       },
                       "type": "array"
+                    },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
                     },
                     "listed_digest": {
                       "type": "string"
@@ -103226,6 +103446,26 @@
                         "type": "string"
                       },
                       "type": "array"
+                    },
+                    "installed_origin": {
+                      "nullable": true,
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "source_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry_id",
+                        "source",
+                        "source_ref"
+                      ],
+                      "type": "object"
                     },
                     "listed_digest": {
                       "type": "string"

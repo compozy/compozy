@@ -17,12 +17,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -1322,6 +1324,15 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: reinstall uses one validated acquisition, rejects foreign identity and restores the complete prior record on publication failure.
+	// Owner: managed package transaction. Canonical suite: curated archive lifecycle.
+	for _, scenario := range []string{"same origin", "display alias", "unclassified association", "foreign source", "foreign entry", "completion failure"} {
+		t.Run("Should preserve acquisition identity during reinstall with "+scenario, func(t *testing.T) {
+			t.Parallel()
+			testCuratedPreparedReinstall(t, scenario)
+		})
+	}
+
 	// Invariant: pinned inspection reads declarations without installation consent or managed writes.
 	// Owner: extension acquisition. Canonical suite: curated archive lifecycle tests.
 	t.Run("Should inspect a community HTTPS package without installing it", func(t *testing.T) {
@@ -2247,5 +2258,138 @@ func requireFileContains(t *testing.T, path string, want string) {
 	}
 	if !strings.Contains(string(content), want) {
 		t.Fatalf("file %q = %q, want contains %q", path, string(content), want)
+	}
+}
+
+func testCuratedPreparedReinstall(t *testing.T, scenario string) {
+	t.Helper()
+	ctx := t.Context()
+	env := newRegistryTestEnv(t)
+	paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	archives := map[string][]byte{
+		"/1.tar.gz": lifecycleTarGzNamed(t, "reinstall-kit", "1.0.0"),
+		"/2.tar.gz": lifecycleTarGzNamed(t, "reinstall-kit", "2.0.0"),
+	}
+	var acquisitions atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acquisitions.Add(1)
+		if _, err := w.Write(archives[r.URL.Path]); err != nil {
+			t.Errorf("write archive: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	request := MarketplaceInstallRequest{Slug: "team/reinstall-kit", ArtifactHTTPClient: server.Client(),
+		Trust: &MarketplaceTrustEvidence{CatalogEntryID: "reinstall-kit", Version: "1.0.0",
+			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/1.tar.gz"]),
+			ArtifactURL:         server.URL + "/1.tar.gz", RegistryTier: ExtensionRegistryTierCommunity,
+		},
+	}
+	installed, err := InstallMarketplaceManaged(ctx, paths, env.registry, nil, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provenance := installed.Provenance
+	switch scenario {
+	case "display alias":
+		provenance.SourceName = "renamed-local-alias"
+	case "unclassified association":
+		provenance.SourceRef, provenance.EntryID, provenance.CatalogEntryID, provenance.SourceName = "", "", "", ""
+	case "foreign source":
+		provenance.SourceRef = "https://example.com/another-catalog"
+	case "foreign entry":
+		provenance.EntryID = "another-entry"
+	}
+	manifest, err := LoadManifest(ManagedInstallPath(paths, installed.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.registry.Install(manifest, ManagedInstallPath(paths, installed.Name), installed.Checksum,
+		WithInstallSource(SourceMarketplace), WithInstallReplaceExisting(), WithInstallProvenance(provenance),
+		WithInstallRegistryMetadata("team/reinstall-kit", marketplacepkg.CompozyCatalogSource, "1.0.0"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	installed, err = env.registry.Get(installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments, err := env.registry.Installations(ctx, installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Trust = &MarketplaceTrustEvidence{CatalogEntryID: "reinstall-kit", Version: "2.0.0",
+		ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/2.tar.gz"]),
+		ArtifactURL:         server.URL + "/2.tar.gz", RegistryTier: ExtensionRegistryTierCommunity,
+	}
+	prepared, err := PrepareMarketplaceManagedInstall(ctx, paths, env.registry, nil, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := prepared.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	candidateCommitted, restored, reloads := false, false, 0
+	completionErr := errors.New("completion persistence unavailable")
+	_, err = prepared.Reinstall(ctx, *installed, nil,
+		func(ExtensionInfo, *Manifest) error { candidateCommitted = true; return nil },
+		func(context.Context, ExtensionInfo) error { restored = true; return nil },
+		func(context.Context) error { reloads++; return nil },
+		func(context.Context) error {
+			if scenario == "completion failure" {
+				return completionErr
+			}
+			return nil
+		},
+	)
+	failed := scenario == "foreign source" || scenario == "foreign entry" || scenario == "completion failure"
+	if scenario == "foreign source" || scenario == "foreign entry" {
+		conflict, ok := errors.AsType[*ExtensionNameConflictError](err)
+		if !ok || !errors.Is(err, ErrExtensionNameConflict) || conflict.InstalledOrigin.SourceRef != provenance.SourceRef ||
+			conflict.InstalledOrigin.EntryID != provenance.EntryID || candidateCommitted || reloads != 0 {
+			t.Fatalf("foreign acquisition reached mutation: %v, committed=%v reloads=%d", err, candidateCommitted, reloads)
+		}
+	} else if scenario == "completion failure" {
+		if !errors.Is(err, completionErr) || !candidateCommitted || !restored || reloads != 2 {
+			t.Fatalf("completion rollback = %v, committed=%v restored=%v reloads=%d", err, candidateCommitted, restored, reloads)
+		}
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := env.registry.Get(installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedVersion := "2.0.0"
+	if failed {
+		expectedVersion = "1.0.0"
+		expected := *installed
+		if scenario == "completion failure" {
+			// A restored package is a new lifecycle owner; stale cleanup must not act on it.
+			if actual.lifecycleToken == installed.lifecycleToken || actual.lifecycleToken == "" {
+				t.Fatal("rollback did not replace the lifecycle owner token")
+			}
+			expected.lifecycleToken = actual.lifecycleToken
+		}
+		if !reflect.DeepEqual(*actual, expected) {
+			t.Fatal("failed reinstall changed the persisted package before-image")
+		}
+	} else if actual.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef || actual.Provenance.EntryID != "reinstall-kit" {
+		t.Fatalf("reinstall origin = %#v", actual.Provenance)
+	}
+	manifest, err = LoadManifest(ManagedInstallPath(paths, installed.Name))
+	if err != nil || manifest.Version != expectedVersion {
+		t.Fatalf("installed manifest = %#v, %v", manifest, err)
+	}
+	afterAttachments, err := env.registry.Installations(ctx, installed.Name)
+	if err != nil || !reflect.DeepEqual(afterAttachments, attachments) {
+		t.Fatalf("attachments changed: %v", err)
+	}
+	if acquisitions.Load() != 2 {
+		t.Fatalf("reinstall reacquired its artifact: %d requests", acquisitions.Load())
 	}
 }

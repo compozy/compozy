@@ -23,6 +23,7 @@ const (
 	extensionErrorUnknown extensionErrorKind = iota
 	extensionErrorMCPNameTaken
 	extensionErrorSourceChanged
+	extensionErrorNameConflict
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
 	extensionErrorNotFound
@@ -52,7 +53,7 @@ func ExtensionStatusCode(err error) int {
 	case extensionErrorConflict,
 		extensionErrorNetworkConfirmationRequired,
 		extensionErrorAgentConflict,
-		extensionErrorSourceChanged:
+		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
 	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
@@ -76,6 +77,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 	switch {
 	case errors.Is(err, extensionmcp.ErrNameTaken):
 		return extensionErrorMCPNameTaken
+	case errors.Is(err, extensionpkg.ErrExtensionNameConflict):
+		return extensionErrorNameConflict
 	case errors.Is(err, extensionpkg.ErrExtensionSourceChanged):
 		return extensionErrorSourceChanged
 	case errors.Is(err, extensionpkg.ErrExtensionInputsRequired):

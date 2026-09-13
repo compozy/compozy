@@ -980,7 +980,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 func TestExtensionOperationErrorPayloads(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: lifecycle input/source errors preserve their structured fields and 409/422 status over HTTP.
+	// Invariant: lifecycle input/source errors preserve their structured fields and 409/422 status over HTTP and UDS.
 	// Owner: extension HTTP boundary. Canonical suite: operation error payload tests.
 	for _, tc := range []struct {
 		name   string
@@ -989,53 +989,63 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 		code   string
 	}{
 		{"runtime name taken", extensionmcp.ErrNameTaken, http.StatusUnprocessableEntity, "mcp_server_name_taken"},
+		{"name conflict", &extensionpkg.ExtensionNameConflictError{Name: "example", SourceName: "team-catalog",
+			InstalledOrigin: marketplacepkg.Origin{SourceRef: "https://example.com/catalog", EntryID: "team/example"}},
+			http.StatusConflict, diagnosticcontract.CodeExtensionNameConflict},
 		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
 		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
 		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
 	} {
-		t.Run("Should report "+tc.name+" with structured details", func(t *testing.T) {
-			t.Parallel()
-			service := extensionServiceStub{
-				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-					return contract.ExtensionPayload{}, tc.cause
-				},
-			}
-			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
-			engine := gin.New()
-			engine.POST("/extensions", handlers.InstallExtension)
-			response := performRequest(
-				t,
-				engine,
-				http.MethodPost,
-				"/extensions",
-				[]byte(`{"source":"curated","ref":"compozy/example"}`),
-			)
-			if response.Code != tc.status {
-				t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
-			}
-			var payload contract.ExtensionOperationErrorPayload
-			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-				t.Fatal(err)
-			}
-			if payload.Code != tc.code {
-				t.Fatalf("code = %s want %s", payload.Code, tc.code)
-			}
-			switch tc.code {
-			case diagnosticcontract.CodeExtensionSourceChanged:
-				if payload.ListedDigest != strings.Repeat("a", 64) || payload.FetchedDigest != strings.Repeat("b", 64) {
-					t.Fatalf("source mismatch = %#v", payload)
+		for _, transport := range []string{"http", "uds"} {
+			t.Run("Should report "+tc.name+" with structured details over "+transport, func(t *testing.T) {
+				t.Parallel()
+				service := extensionServiceStub{
+					installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+						return contract.ExtensionPayload{}, tc.cause
+					},
 				}
-			case diagnosticcontract.CodeExtensionInputsRequired:
-				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
-					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
-					t.Fatalf("required inputs = %#v", payload)
+				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
+				engine := gin.New()
+				engine.POST("/extensions", handlers.InstallExtension)
+				response := performRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/extensions",
+					[]byte(`{"source":"curated","ref":"compozy/example"}`),
+				)
+				if response.Code != tc.status {
+					t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
 				}
-			case diagnosticcontract.CodeExtensionInputInvalid:
-				if payload.InputID != "workspace" {
-					t.Fatalf("invalid input id = %s", payload.InputID)
+				var payload contract.ExtensionOperationErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
 				}
-			}
-		})
+				if payload.Code != tc.code {
+					t.Fatalf("code = %s want %s", payload.Code, tc.code)
+				}
+				switch tc.code {
+				case diagnosticcontract.CodeExtensionNameConflict:
+					if payload.InstalledOrigin == nil || payload.InstalledOrigin.Source != "team-catalog" ||
+						payload.InstalledOrigin.SourceRef != "https://example.com/catalog" || payload.InstalledOrigin.EntryID != "team/example" {
+						t.Fatalf("installed origin = %#v", payload.InstalledOrigin)
+					}
+				case diagnosticcontract.CodeExtensionSourceChanged:
+					if payload.ListedDigest != strings.Repeat("a", 64) || payload.FetchedDigest != strings.Repeat("b", 64) {
+						t.Fatalf("source mismatch = %#v", payload)
+					}
+				case diagnosticcontract.CodeExtensionInputsRequired:
+					if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
+						!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+						t.Fatalf("required inputs = %#v", payload)
+					}
+				case diagnosticcontract.CodeExtensionInputInvalid:
+					if payload.InputID != "workspace" {
+						t.Fatalf("invalid input id = %s", payload.InputID)
+					}
+				}
+			})
+		}
 	}
 
 	t.Run("Should return current digest and retry command for network confirmation", func(t *testing.T) {

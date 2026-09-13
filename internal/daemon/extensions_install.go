@@ -13,12 +13,13 @@ import (
 )
 
 type preparedDaemonExtensionInstall struct {
-	target   extensionMutationTarget
-	name     string
-	digest   string
-	manifest *extensionpkg.Manifest
-	commit   func() error
-	cleanup  func() error
+	target    extensionMutationTarget
+	name      string
+	digest    string
+	manifest  *extensionpkg.Manifest
+	commit    func() error
+	cleanup   func() error
+	published *extensionpkg.PreparedMarketplaceManagedInstall
 }
 
 func (p preparedDaemonExtensionInstall) Close() error {
@@ -153,7 +154,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	}
 	return preparedDaemonExtensionInstall{
 		name: prepared.Name(), manifest: manifest, target: target,
-		digest: digest,
+		digest: digest, published: prepared,
 		commit: func() error {
 			_, commitErr := prepared.Commit(target.scope)
 			return commitErr

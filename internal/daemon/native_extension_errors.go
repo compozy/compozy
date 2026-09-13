@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -76,6 +77,8 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
+	case errors.Is(err, extensionpkg.ErrExtensionNameConflict):
+		return nativeExtensionNameConflictError(id, err)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionmcp.ErrNameTaken):
@@ -194,4 +197,21 @@ func requiredNativeExtensionName(toolID toolspkg.ToolID, name, owner string) (st
 		)
 	}
 	return name, nil
+}
+
+func nativeExtensionNameConflictError(id toolspkg.ToolID, err error) error {
+	result := toolspkg.NewToolError(diagnosticcontract.CodeExtensionNameConflict, id, err.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err), toolspkg.ReasonExtensionValidationFailed)
+	origin := core.ExtensionNameConflictOrigin(err)
+	if origin == nil {
+		return result
+	}
+	payload, encodeErr := structuredResult(contract.ExtensionOperationErrorPayload{
+		Code: diagnosticcontract.CodeExtensionNameConflict, Error: err.Error(),
+		InstalledOrigin: origin,
+	}, err.Error())
+	if encodeErr != nil {
+		return errors.Join(result, encodeErr)
+	}
+	return result.WithPartialResult(payload)
 }

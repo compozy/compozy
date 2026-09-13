@@ -48,6 +48,7 @@ export class ExtensionsApiError extends Error {
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
   public readonly currentDigest: string | undefined;
+  public readonly installedOrigin: ExtensionsApiErrorMetadata["installedOrigin"];
   public readonly listedDigest: string | undefined;
   public readonly fetchedDigest: string | undefined;
   public readonly inputId: string | undefined;
@@ -64,6 +65,7 @@ export class ExtensionsApiError extends Error {
     this.code = metadata.code;
     this.currentDigest = metadata.currentDigest;
     this.listedDigest = metadata.listedDigest;
+    this.installedOrigin = metadata.installedOrigin;
     this.fetchedDigest = metadata.fetchedDigest;
     this.inputId = metadata.inputId;
     this.requiredInputs = metadata.requiredInputs;

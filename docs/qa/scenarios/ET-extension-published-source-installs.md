@@ -60,3 +60,13 @@ focused daemon SQLite/vault and transport tests do not settle this scenario.
 Also cover an omitted selector with a workspace default in trusted workspace context, rejection without
 that context, explicit global override, and explicit selection for mixed server defaults. Failed default
 resolution leaves no managed package or installation row. Existing attachments survive updates.
+
+QA impact 2026-09-13 (marketplace-catalog task03; final walk owned by tasks09/10): repeat the same
+published install with identical inputs and verify unchanged package/attachment/input/secret state and
+no runtime reload. Reinstall a new package or changed inputs in an existing workspace/profile and
+verify other input cells remain unchanged; a publication failure restores the previous package and
+credentials. Concurrent catalog aliases of one origin return the same installed result; two origins
+claiming one name produce one success and one `409 extension_name_conflict` with `installed_origin`.
+A display-name change must not conflict. Only an operator may associate an unclassified installation
+with a listing. Exercise CLI, HTTP/UDS and native error details; scoped fixture race checks are slice
+evidence, not completion of this live journey.

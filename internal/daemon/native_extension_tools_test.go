@@ -35,6 +35,7 @@ import (
 type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
+	download      func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
 }
 
 func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) {
@@ -67,8 +68,9 @@ func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) 
 }
 
 type nativeExtensionCatalog struct {
-	entry *marketplacepkg.Entry
-	err   error
+	entry   *marketplacepkg.Entry
+	entries map[string]*marketplacepkg.Entry
+	err     error
 }
 
 func (nativeExtensionCatalog) Close(context.Context) error { return nil }
@@ -87,10 +89,11 @@ func (c nativeExtensionCatalog) Detail(context.Context, string) (*marketplacepkg
 }
 
 func (c nativeExtensionCatalog) ResolveExtensionInstall(
-	context.Context,
-	string,
-	string,
+	_ context.Context, ref string, _ string,
 ) (*marketplacepkg.Entry, error) {
+	if c.entries != nil {
+		return c.entries[ref], c.err
+	}
 	return c.entry, c.err
 }
 
@@ -141,10 +144,11 @@ func (s *nativeExtensionSource) Info(context.Context, string) (*registrypkg.Deta
 }
 
 func (s *nativeExtensionSource) Download(
-	_ context.Context,
-	_ string,
-	opts registrypkg.DownloadOpts,
+	ctx context.Context, slug string, opts registrypkg.DownloadOpts,
 ) (*registrypkg.DownloadResult, error) {
+	if s.download != nil {
+		return s.download(ctx, slug, opts)
+	}
 	version := strings.TrimSpace(opts.Version)
 	if version == "" {
 		version = s.latestVersion
@@ -307,6 +311,28 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				result,
 				[]byte(`"last_error":"extension development origin is unavailable"`),
 			)
+		}
+	})
+
+	// Invariant: native callers can branch on name conflict and inspect the installed acquisition.
+	// Owner: native extension boundary. Canonical suite: daemon native extension tools.
+	t.Run("Should report the installed origin in a native name conflict", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.ExtensionNameConflictError{Name: "kit", SourceName: "team",
+			InstalledOrigin: marketplacepkg.Origin{SourceRef: "https://example.com/catalog", EntryID: "team/kit"}}
+		err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_name_conflict" || !errors.Is(err, extensionpkg.ErrExtensionNameConflict) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native name conflict = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.InstalledOrigin == nil || payload.InstalledOrigin.SourceRef != cause.InstalledOrigin.SourceRef ||
+			payload.InstalledOrigin.EntryID != cause.InstalledOrigin.EntryID || payload.InstalledOrigin.Source != "team" {
+			t.Fatalf("native installed origin = %#v", payload.InstalledOrigin)
 		}
 	})
 

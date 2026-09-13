@@ -294,7 +294,7 @@ func installExtensionOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{
 				Status:      409,
-				Description: "The approved source changed or the extension already exists",
+				Description: "Source changed, acquisition name conflict, or package replacement refused",
 				Bodies: responseBodiesOf(
 					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
 				),

@@ -69,3 +69,30 @@ func (s *daemonExtensionService) scopedMarketplaceUpdateNames(
 	}
 	return normalizeLifecycleNames(names), nil
 }
+
+func (s *daemonExtensionService) configureUpdateProfileGate(
+	ctx context.Context, request *extensionpkg.MarketplaceUpdateRequest, actor taskpkg.ActorContext,
+) {
+	previousCommitCandidate := request.CommitCandidate
+	request.CommitCandidate = func(
+		info extensionpkg.ExtensionInfo,
+		manifest *extensionpkg.Manifest,
+	) error {
+		if previousCommitCandidate != nil {
+			if err := previousCommitCandidate(info, manifest); err != nil {
+				return err
+			}
+		}
+		if manifest == nil || len(manifest.Profiles) == 0 {
+			return nil
+		}
+		if s.profiles == nil {
+			return errors.New("daemon: profile manager is required for declared profiles")
+		}
+		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, manifest)
+		if err != nil {
+			return err
+		}
+		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
+	}
+}

@@ -36595,7 +36595,7 @@ export interface operations {
           };
         };
       };
-      /** @description The approved source changed or the extension already exists */
+      /** @description Source changed, acquisition name conflict, or package replacement refused */
       409: {
         headers: {
           [name: string]: unknown;
@@ -36648,6 +36648,11 @@ export interface operations {
                 fetched_digest?: string;
                 input_id?: string;
                 inputs?: string[];
+                installed_origin?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 listed_digest?: string;
                 missing_env?: string[];
               };
@@ -36706,6 +36711,11 @@ export interface operations {
                 fetched_digest?: string;
                 input_id?: string;
                 inputs?: string[];
+                installed_origin?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 listed_digest?: string;
                 missing_env?: string[];
               }
@@ -37459,6 +37469,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -37739,6 +37754,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -37797,6 +37817,11 @@ export interface operations {
                 fetched_digest?: string;
                 input_id?: string;
                 inputs?: string[];
+                installed_origin?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 listed_digest?: string;
                 missing_env?: string[];
               };
@@ -38433,6 +38458,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -38491,6 +38521,11 @@ export interface operations {
                 fetched_digest?: string;
                 input_id?: string;
                 inputs?: string[];
+                installed_origin?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 listed_digest?: string;
                 missing_env?: string[];
               };
@@ -39004,6 +39039,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -39991,6 +40031,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -40205,6 +40250,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -40328,6 +40378,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };
@@ -43692,6 +43747,11 @@ export interface operations {
             fetched_digest?: string;
             input_id?: string;
             inputs?: string[];
+            installed_origin?: {
+              entry_id: string;
+              source: string;
+              source_ref: string;
+            } | null;
             listed_digest?: string;
             missing_env?: string[];
           };

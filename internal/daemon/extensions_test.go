@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
@@ -374,6 +376,16 @@ func (p *blockingExtensionConsumerPublisher) Sync(ctx context.Context) error {
 
 func TestExtensionLifecycleCoordinator(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: concurrent acquisitions serialize by discovered package name; aliases are idempotent and foreign origins never overwrite.
+	// Owner: daemon lifecycle coordinator. Canonical suite: coordinator operations.
+	for _, foreign := range []bool{false, true} {
+		name := "Should return one installation for concurrent aliases of the same origin"
+		if foreign {
+			name = "Should refuse one of two concurrent origins claiming the same name"
+		}
+		t.Run(name, func(t *testing.T) { t.Parallel(); testConcurrentMarketplaceInstall(t, foreign) })
+	}
 
 	t.Run("Should keep a committed install successful when staging cleanup fails", func(t *testing.T) {
 		t.Parallel()
@@ -1673,6 +1685,11 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 		{name: "Should honor explicit workspace scope over mixed defaults", workspaceID: "ws-install", scope: "workspace", manifestScope: "workspace", mixed: true},
 		// Invariant: updates validate/restore only selected inputs and preserve every attachment.
 		// Owner: daemon lifecycle coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+		{name: "Should associate an unclassified install only after a successful operator reinstall", profile: "marketing", update: true, reinstall: true, associate: true},
+		{name: "Should refuse an agent associating an unclassified install", workspaceID: "ws-install", profile: "marketing", agent: true, update: true, reinstall: true, associate: true},
+		{name: "Should reinstall and roll back inputs for an explicit global profile", profile: "marketing", update: true, reinstall: true},
+		{name: "Should reinstall and roll back inputs for a workspace profile", workspaceID: "ws-install", profile: "marketing", update: true, reinstall: true},
+		{name: "Should reinstall and roll back inputs for a trusted agent", workspaceID: "ws-install", profile: "marketing", agent: true, update: true, reinstall: true},
 		{name: "Should update and roll back inputs for an explicit global profile", profile: "marketing", update: true},
 		{name: "Should update and roll back inputs for a workspace profile", workspaceID: "ws-install", profile: "marketing", update: true},
 		{name: "Should update and roll back inputs for a trusted agent", workspaceID: "ws-install", profile: "marketing", agent: true, update: true},
@@ -2060,6 +2077,8 @@ binding = { type = "url_query", name = "region" }
 type daemonScopedInstallCase struct {
 	native        bool
 	update        bool
+	reinstall     bool
+	associate     bool
 	name          string
 	workspaceID   string
 	profile       string
@@ -2250,6 +2269,37 @@ binding = { type = "env", name = "TOKEN" }
 	if err != nil {
 		t.Fatal(err)
 	}
+	if scenario.reinstall {
+		beforeInfo, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeBindings, err := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service.runtime = &fakeExtensionRuntime{onReload: func(context.Context) error {
+			return errors.New("idempotent install must not reload runtime")
+		}}
+		source.downloads["1.0.0"].Reader = io.NopCloser(bytes.NewReader(archive))
+		retried, err := service.Install(ctx, request, actor)
+		if err != nil || retried.Name != installed.Name {
+			t.Fatalf("same-request reinstall = %#v, %v", retried, err)
+		}
+		afterInfo, err := registry.Get("tool-ext")
+		if err != nil || !reflect.DeepEqual(beforeInfo, afterInfo) {
+			t.Fatalf("retry changed the registry: %v", err)
+		}
+		afterBindings, err := db.ExtensionEnvRepo.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		if err != nil || !reflect.DeepEqual(beforeBindings, afterBindings) {
+			t.Fatalf("retry changed secret bindings: %v", err)
+		}
+		afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+		if err != nil || !reflect.DeepEqual(beforeRows, afterRows) {
+			t.Fatalf("retry changed input before-images: %v", err)
+		}
+		service.runtime = nil
+	}
 	otherWorkspace := "ws-install"
 	if workspaceID != "" {
 		otherWorkspace = ""
@@ -2290,6 +2340,14 @@ binding = { type = "url_query", name = "region" }
 	setCandidate := func() {
 		archive := nativeExtensionTarGzWithNetwork(t, "2.0.0", "", candidateSections)
 		source.latestVersion = "2.0.0"
+		if scenario.associate {
+			request.Source = contract.InstallExtensionSourceCurated
+			service.marketplaceCatalog = nativeExtensionCatalog{entry: &marketplacepkg.Entry{
+				EntryID: "tool-ext", InstallSlug: "acme/tool-ext", Version: "2.0.0",
+				DigestSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)), Tier: "official",
+				Payload: json.RawMessage(`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`),
+			}}
+		}
 		source.downloads["2.0.0"] = &registrypkg.DownloadResult{
 			Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "2.0.0",
 			ContentSize: int64(len(archive)), ContentType: "application/gzip",
@@ -2323,8 +2381,38 @@ binding = { type = "url_query", name = "region" }
 	if agent {
 		updateRequest.Profile, updateRequest.WorkspaceID = "", ""
 	}
+	mutate := func() (contract.ManagedExtensionUpdatePayload, error) {
+		if !scenario.reinstall {
+			return service.Update(ctx, "tool-ext", updateRequest, actor)
+		}
+		reinstallRequest := request
+		reinstallRequest.Inputs = updateRequest.Inputs
+		reinstalled, installErr := service.Install(ctx, reinstallRequest, actor)
+		if installErr != nil {
+			return contract.ManagedExtensionUpdatePayload{}, installErr
+		}
+		return contract.ManagedExtensionUpdatePayload{Name: reinstalled.Name, Status: extensionpkg.MarketplaceUpdateStatusUpdated}, nil
+	}
+	if scenario.associate && agent {
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := mutate(); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("agent association = %v", err)
+		}
+		after, err := registry.Get("tool-ext")
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatalf("denied association changed package: %v", err)
+		}
+		afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+		if err != nil || !reflect.DeepEqual(beforeRows, afterRows) {
+			t.Fatalf("denied association changed inputs: %v", err)
+		}
+		return
+	}
 	setCandidate()
-	if _, err := service.Update(ctx, "tool-ext", updateRequest, actor); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+	if _, err := mutate(); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
 		t.Fatalf("missing scoped update input error = %v", err)
 	}
 	updateRequest.Inputs = map[string]extensioninput.Value{
@@ -2350,7 +2438,7 @@ binding = { type = "url_query", name = "region" }
 	service.agentSkill = publisher
 	publisher.failNextSyncs(1)
 	setCandidate()
-	if _, err := service.Update(ctx, "tool-ext", updateRequest, actor); err == nil {
+	if _, err := mutate(); err == nil {
 		t.Fatal("publication failure must fail update")
 	}
 	rolledBackRows, err := db.ExtensionInputs.List(ctx, selectedCell)
@@ -2394,10 +2482,16 @@ binding = { type = "url_query", name = "region" }
 		}
 		updated = payload.Updates[0]
 	} else {
-		updated, err = service.Update(ctx, "tool-ext", updateRequest, actor)
+		updated, err = mutate()
 	}
 	if err != nil || updated.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
 		t.Fatalf("scoped update = %#v, %v", updated, err)
+	}
+	if scenario.associate {
+		associated, err := registry.Get("tool-ext")
+		if err != nil || associated.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef || associated.Provenance.EntryID != "tool-ext" {
+			t.Fatalf("operator association did not persist the catalog origin: %v", err)
+		}
 	}
 	afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
 	if err != nil || len(afterRows) != 2 || string(afterRows["workspace"].Value) != `"updated-team"` ||
@@ -2419,5 +2513,87 @@ binding = { type = "url_query", name = "region" }
 	afterAttachments, err := registry.Installations(ctx, "tool-ext")
 	if err != nil || !reflect.DeepEqual(afterAttachments, attachments) {
 		t.Fatalf("update changed attachment before-images: %v", err)
+	}
+}
+
+func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
+	t.Helper()
+	deps, registry, source, runtime := newNativeExtensionToolDeps(t)
+	archive := nativeExtensionTarGz(t, "1.0.0")
+	digest := fmt.Sprintf("%x", sha256.Sum256(archive))
+	first := &marketplacepkg.Entry{EntryID: "tool-ext", InstallSlug: "acme/tool-ext", Version: "1.0.0",
+		DigestSHA256: digest, Tier: "official", Payload: json.RawMessage(`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`)}
+	second := *first
+	if foreign {
+		second.EntryID = "other-tool-ext"
+	}
+	second.InstallSlug = "compozy/" + second.EntryID
+	source.latestVersion = "1.0.0"
+	bothAcquired := make(chan struct{})
+	var acquisitions, publications atomic.Int32
+	source.download = func(ctx context.Context, _ string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+		if acquisitions.Add(1) == 2 {
+			close(bothAcquired)
+		}
+		select {
+		case <-bothAcquired:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return &registrypkg.DownloadResult{Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext",
+			Version: "1.0.0", ContentSize: int64(len(archive)), ContentType: "application/gzip"}, nil
+	}
+	runtime.onReload = func(context.Context) error { publications.Add(1); return nil }
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(),
+	}, withDaemonExtensionMarketplace(validNativeExtensionConfig(false), deps.ExtensionSources),
+		withDaemonExtensionCatalog(nativeExtensionCatalog{entries: map[string]*marketplacepkg.Entry{"acme/tool-ext": first, second.InstallSlug: &second}}),
+	).(*daemonExtensionService)
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "concurrent install")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	outcomes := make(chan error, 2)
+	var workers sync.WaitGroup
+	for _, ref := range []string{first.InstallSlug, second.InstallSlug} {
+		workers.Go(func() {
+			item, err := service.Install(ctx, contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceCurated, Ref: ref}, actor)
+			if err == nil && item.Name != "tool-ext" {
+				err = fmt.Errorf("installed name = %q", item.Name)
+			}
+			outcomes <- err
+		})
+	}
+	workers.Wait()
+	close(outcomes)
+	conflicts := 0
+	for err := range outcomes {
+		if errors.Is(err, extensionpkg.ErrExtensionNameConflict) {
+			conflicts++
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantConflicts := 0
+	if foreign {
+		wantConflicts = 1
+	}
+	if conflicts != wantConflicts || acquisitions.Load() != 2 || publications.Load() != 1 {
+		t.Fatalf("concurrent install: conflicts=%d acquisitions=%d publications=%d", conflicts, acquisitions.Load(), publications.Load())
+	}
+	installed, err := registry.Get("tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installed.Provenance.EntryID != first.EntryID && installed.Provenance.EntryID != second.EntryID {
+		t.Fatalf("unexpected installed origin: %s", installed.Provenance.EntryID)
+	}
+	attachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("duplicate attachments: %v, %v", attachments, err)
 	}
 }

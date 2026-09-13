@@ -5,6 +5,7 @@ import {
 } from "@/systems/extensions/adapters/extension-operation-error";
 
 export class MarketplaceApiError extends Error {
+  public readonly installedOrigin: ExtensionOperationErrorMetadata["installedOrigin"];
   public readonly listedDigest: string | undefined;
   public readonly fetchedDigest: string | undefined;
   public readonly inputId: string | undefined;
@@ -19,6 +20,7 @@ export class MarketplaceApiError extends Error {
     super(message);
     this.name = "MarketplaceApiError";
     this.listedDigest = metadata.listedDigest;
+    this.installedOrigin = metadata.installedOrigin;
     this.fetchedDigest = metadata.fetchedDigest;
     this.inputId = metadata.inputId;
     this.requiredInputs = metadata.requiredInputs;
