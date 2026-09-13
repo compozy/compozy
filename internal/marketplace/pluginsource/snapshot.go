@@ -36,6 +36,17 @@ func (s *GitHubSource) OpenSnapshot(ctx context.Context, document Document, temp
 	if err != nil {
 		return nil, err
 	}
+	snapshot, err := s.openRevision(ctx, commit, tempDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateSnapshotDocument(ctx, snapshot.Root, document); err != nil {
+		return nil, errors.Join(err, snapshot.Close())
+	}
+	return snapshot, nil
+}
+
+func (s *GitHubSource) openRevision(ctx context.Context, commit, tempDir string) (_ *Snapshot, err error) {
 	download, err := s.client.DownloadRevision(ctx, s.repo, commit, registry.DefaultMaxArchiveSize)
 	if err != nil {
 		return nil, remoteSourceError(err)
@@ -51,7 +62,7 @@ func (s *GitHubSource) OpenSnapshot(ctx context.Context, document Document, temp
 		return nil, err
 	}
 	snapshot := &Snapshot{
-		ResolvedRef: document.ResolvedRef,
+		ResolvedRef: s.ref + "@" + commit,
 		release:     sync.OnceValue(func() error { return os.RemoveAll(root) }),
 	}
 	defer func() {
@@ -74,9 +85,6 @@ func (s *GitHubSource) OpenSnapshot(ctx context.Context, document Document, temp
 		return nil, errors.New("pluginsource: repository archive must contain one root directory")
 	}
 	snapshot.Root = filepath.Join(root, entries[0].Name())
-	if err := validateSnapshotDocument(ctx, snapshot.Root, document); err != nil {
-		return nil, err
-	}
 	return snapshot, nil
 }
 

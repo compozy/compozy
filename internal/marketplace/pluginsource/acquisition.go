@@ -23,41 +23,70 @@ func CapturePackage(ctx context.Context, checkout, relative string, cache *Packa
 	if err != nil {
 		return "", err
 	}
-	packagePath, err := confinedPackagePath(checkout, relative)
+	archive, err := capturePackage(ctx, checkout, relative, capacity, "")
 	if err != nil {
 		return "", err
+	}
+	defer func() { err = errors.Join(err, archive.Close()) }()
+	if err := cache.Put(ctx, archive.digest, archive.file); err != nil {
+		return "", err
+	}
+	return archive.digest, nil
+}
+
+// capturedPackage owns private staging bytes until verification permits cache publication.
+type capturedPackage struct {
+	file   *os.File
+	digest string
+}
+
+func (p *capturedPackage) Close() error {
+	return errors.Join(p.file.Close(), os.Remove(p.file.Name()))
+}
+
+func capturePackage(
+	ctx context.Context,
+	checkout, relative string,
+	capacity int64,
+	tempDir string,
+) (_ *capturedPackage, err error) {
+	packagePath, err := confinedPackagePath(checkout, relative)
+	if err != nil {
+		return nil, err
 	}
 	directory, err := fileutil.OpenDirectory(packagePath)
 	if err != nil {
 		if errors.Is(err, fileutil.ErrSymlink) {
-			return "", fmt.Errorf("%w: %w", ErrSourceOutsideCheckout, err)
+			return nil, fmt.Errorf("%w: %w", ErrSourceOutsideCheckout, err)
 		}
-		return "", fmt.Errorf("%w: open package directory: %w", ErrSourceUnreachable, err)
+		return nil, fmt.Errorf("%w: open package directory: %w", ErrSourceUnreachable, err)
 	}
 	if err := directory.Close(); err != nil {
-		return "", err
+		return nil, err
 	}
-	archive, err := os.CreateTemp("", "compozy-marketplace-package-*.tar")
+	archive, err := os.CreateTemp(tempDir, "compozy-marketplace-package-*.tar")
 	if err != nil {
-		return "", fmt.Errorf("pluginsource: create package spool: %w", err)
+		return nil, fmt.Errorf("pluginsource: create package spool: %w", err)
 	}
-	defer func() { err = errors.Join(err, archive.Close(), os.Remove(archive.Name())) }()
+	packageBytes := &capturedPackage{file: archive}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, packageBytes.Close())
+		}
+	}()
 	hash := sha256.New()
 	_, err = fileutil.WriteTarDirectory(ctx, io.MultiWriter(archive, hash), packagePath,
 		map[string]struct{}{".git": {}}, fileutil.TarLimits{
 			MaxBytes: min(capacity, registry.DefaultMaxArchiveSize), MaxFileCount: registry.DefaultMaxFileCount,
 		})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	digest = hex.EncodeToString(hash.Sum(nil))
+	packageBytes.digest = hex.EncodeToString(hash.Sum(nil))
 	if _, err := archive.Seek(0, io.SeekStart); err != nil {
-		return "", fmt.Errorf("pluginsource: rewind package spool: %w", err)
+		return nil, fmt.Errorf("pluginsource: rewind package spool: %w", err)
 	}
-	if err := cache.Put(ctx, digest, archive); err != nil {
-		return "", err
-	}
-	return digest, nil
+	return packageBytes, nil
 }
 
 func confinedPackagePath(checkout, relative string) (string, error) {
