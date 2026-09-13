@@ -120,3 +120,28 @@ func (s *daemonExtensionService) installedTargetStatus(
 	populateExtensionManifest(s.logger, ext)
 	return s.payloadFromExtension(ctx, ext, target.profile)
 }
+
+func (s *daemonExtensionService) applyManifestInstallScope(
+	ctx context.Context, target extensionInstallTarget, request contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext, manifest *extensionpkg.Manifest,
+) (extensionInstallTarget, error) {
+	if strings.TrimSpace(request.Scope) != "" || strings.TrimSpace(request.WorkspaceID) != "" || !actor.Scope.Operator {
+		return target, nil
+	}
+	defaultScope := ""
+	for _, server := range manifest.Resources.MCPServers {
+		scope := server.DefaultScope
+		if scope == "" {
+			scope = "global"
+		}
+		if defaultScope != "" && scope != defaultScope {
+			return target, extensionInstallSelectorError("scope", "servers have different defaults; select global or workspace")
+		}
+		defaultScope = scope
+	}
+	if defaultScope != "workspace" {
+		return target, nil
+	}
+	request.Scope = defaultScope
+	return s.resolveExtensionInstallTarget(ctx, request, actor)
+}

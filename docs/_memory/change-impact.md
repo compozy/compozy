@@ -431,3 +431,10 @@ MCP import promise. OpenAPI, Web DTOs, native catalog, CLI help and official ski
 config, hook, SDK extension protocol or database shape changes. ET-extension-published-source-installs
 is untested for final09/10. Manifest default_scope selection, scoped updates, workspace runtime and
 UI remain task03/04 work; this slice proves explicit install selectors, not those remaining outcomes.
+
+Task03 manifest defaults: explicit selectors and trusted agent scope retain priority. Operator installs
+without selectors use the manifest servers' common default_scope; mixed defaults and missing workspace
+context fail before managed writes. The staged installer accepts the final scope at Commit, avoiding
+reacquisition or mutable setters. Local packages use the same resolver; updates retain attachments.
+Owning daemon/archive/SQLite tests include default workspace, explicit override, mixed defaults and
+failure cleanup. Generated scope descriptions and the existing final09/10 QA inventory co-ship.

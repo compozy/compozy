@@ -82357,6 +82357,7 @@
                     "type": "string"
                   },
                   "scope": {
+                    "description": "Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.",
                     "enum": [
                       "global",
                       "workspace"
@@ -85668,6 +85669,7 @@
                     "type": "string"
                   },
                   "scope": {
+                    "description": "Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.",
                     "enum": [
                       "global",
                       "workspace"

@@ -44,7 +44,7 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 
 	switch req.Source {
 	case contract.InstallExtensionSourceLocalPath:
-		return s.prepareLocalExtensionInstall(req, installedBy, target)
+		return s.prepareLocalExtensionInstall(ctx, req, actor, installedBy, target)
 	case contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit:
@@ -62,11 +62,17 @@ func normalizedInstallSource(source contract.InstallExtensionSource) contract.In
 }
 
 func (s *daemonExtensionService) prepareLocalExtensionInstall(
+	ctx context.Context,
 	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
 	installedBy string,
 	target extensionInstallTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	manifest, err := extensionpkg.LoadManifest(req.Ref)
+	if err != nil {
+		return preparedDaemonExtensionInstall{}, err
+	}
+	target, err = s.applyManifestInstallScope(ctx, target, req, actor, manifest)
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
@@ -120,7 +126,6 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
-	installReq.Scope = target.scope
 	installReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
 		verificationErr error,
@@ -137,15 +142,20 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	manifest := prepared.Manifest()
+	target, err = s.applyManifestInstallScope(ctx, target, req, actor, manifest)
+	if err != nil {
+		return preparedDaemonExtensionInstall{}, errors.Join(err, prepared.Close())
+	}
 	digest := req.ExpectedDigest
 	if installReq.Trust != nil {
 		digest = installReq.Trust.ArchiveDigestSHA256
 	}
 	return preparedDaemonExtensionInstall{
-		name: prepared.Name(), manifest: prepared.Manifest(), target: target,
+		name: prepared.Name(), manifest: manifest, target: target,
 		digest: digest,
 		commit: func() error {
-			_, commitErr := prepared.Commit()
+			_, commitErr := prepared.Commit(target.scope)
 			return commitErr
 		},
 		cleanup: prepared.Close,

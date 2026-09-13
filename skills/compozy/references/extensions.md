@@ -49,7 +49,9 @@ Install selectors are `scope = global|workspace`, `workspace_id` (registered ID)
 (name) in HTTP/UDS/native requests. CLI equivalents are `--scope`, `--workspace <name|path|id>`,
 and `--profile`; the explicit flag wins over `COMPOZY_PROFILE`. An operator omitting the profile
 keeps all-profile installation. Agents remain bound to their trusted workspace/profile.
-Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
+With neither scope nor workspace selected, operators use the manifest servers' common default
+(`global` when undeclared); mixed defaults require an explicit scope. A workspace default requires
+trusted workspace context or an explicit workspace selector. Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
 extension/profile/workspace under `vault:extensions/`; manual MCP references are not imported.
 
 ## Built-in Open Design

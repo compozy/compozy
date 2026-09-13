@@ -19,6 +19,8 @@ func customizeExtensionInputValueSchema(schema *openapi3.Schema) {
 func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
 		scope.Value.Enum = []any{"global", "workspace"}
+		scope.Value.Description = "Overrides manifest server defaults. Mixed defaults require an explicit scope. " +
+			"A workspace default requires a workspace-bound caller or workspace_id."
 	}
 	if profile := schema.Properties["profile"]; profile != nil && profile.Value != nil {
 		profile.Value.Description = "Profile name. Omitted for a local operator keeps the installation " +

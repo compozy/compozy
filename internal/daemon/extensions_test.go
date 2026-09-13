@@ -1654,13 +1654,7 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 	t.Parallel()
 	// Invariant: install attachment, inputs, secret ownership and response address the selected cell.
 	// Owner: daemon install coordination; canonical suite: TestDaemonExtensionInputLifecycle.
-	for _, scenario := range []struct {
-		name        string
-		workspaceID string
-		profile     string
-		agent       bool
-		local       bool
-	}{
+	for _, scenario := range []daemonScopedInstallCase{
 		{name: "Should retain global all-profile installation by default"},
 		{name: "Should install for an explicit global profile", profile: "marketing"},
 		{name: "Should install for an explicit default profile", profile: "default"},
@@ -1668,10 +1662,16 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 		{name: "Should install for one profile in a workspace", workspaceID: "ws-install", profile: "marketing"},
 		{name: "Should bind an agent install to its trusted cell", workspaceID: "ws-install", profile: "marketing", agent: true},
 		{name: "Should scope local package installation", workspaceID: "ws-install", profile: "marketing", local: true},
+		{name: "Should honor workspace default in trusted operator context", workspaceID: "ws-install", manifestScope: "workspace", useDefaults: true},
+		{name: "Should honor local package workspace default", workspaceID: "ws-install", manifestScope: "workspace", useDefaults: true, local: true},
+		{name: "Should let explicit global scope override a workspace default", scope: "global", manifestScope: "workspace"},
+		{name: "Should require workspace context for a workspace default", manifestScope: "workspace", useDefaults: true, errorField: "workspace_id"},
+		{name: "Should require explicit scope for mixed server defaults", manifestScope: "workspace", mixed: true, errorField: "scope"},
+		{name: "Should honor explicit workspace scope over mixed defaults", workspaceID: "ws-install", scope: "workspace", manifestScope: "workspace", mixed: true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			testDaemonScopedInstall(t, scenario.workspaceID, scenario.profile, scenario.agent, scenario.local)
+			testDaemonScopedInstall(t, scenario)
 		})
 	}
 	t.Run("Should reject invalid selectors and cross-scope writes before acquisition", func(t *testing.T) {
@@ -2048,8 +2048,22 @@ binding = { type = "url_query", name = "region" }
 	)
 }
 
-func testDaemonScopedInstall(t *testing.T, workspaceID, profileName string, agent, local bool) {
+type daemonScopedInstallCase struct {
+	name          string
+	workspaceID   string
+	profile       string
+	agent         bool
+	local         bool
+	scope         string
+	manifestScope string
+	mixed         bool
+	useDefaults   bool
+	errorField    string
+}
+
+func testDaemonScopedInstall(t *testing.T, scenario daemonScopedInstallCase) {
 	t.Helper()
+	workspaceID, profileName, agent, local := scenario.workspaceID, scenario.profile, scenario.agent, scenario.local
 	ctx := t.Context()
 	deps, registry, source, _ := newNativeExtensionToolDeps(t)
 	db := deps.ExtensionEvents.(*globaldb.GlobalDB)
@@ -2101,6 +2115,14 @@ type = "secret"
 required = true
 binding = { type = "env", name = "TOKEN" }
 `
+	if scenario.manifestScope != "" {
+		sections = strings.Replace(sections, "[resources.mcp_servers.server]\n",
+			fmt.Sprintf("[resources.mcp_servers.server]\ndefault_scope = %q\n", scenario.manifestScope), 1)
+		if !scenario.mixed {
+			sections = strings.Replace(sections, "[resources.mcp_servers.remote]\n",
+				fmt.Sprintf("[resources.mcp_servers.remote]\ndefault_scope = %q\n", scenario.manifestScope), 1)
+		}
+	}
 	archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
 	source.latestVersion = "1.0.0"
 	source.downloads["1.0.0"] = &registrypkg.DownloadResult{
@@ -2108,7 +2130,7 @@ binding = { type = "env", name = "TOKEN" }
 		ContentSize: int64(len(archive)), ContentType: "application/gzip",
 	}
 	request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceGitHub,
-		Ref: "acme/tool-ext", AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID,
+		Ref: "acme/tool-ext", AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID, Scope: scenario.scope,
 		Inputs: map[string]extensioninput.Value{
 			"workspace": {Value: json.RawMessage(`"selected-team"`)}, "token": {Value: json.RawMessage(`"scoped-secret"`)},
 		},
@@ -2129,6 +2151,10 @@ binding = { type = "env", name = "TOKEN" }
 	if err != nil {
 		t.Fatal(err)
 	}
+	if scenario.useDefaults {
+		request.WorkspaceID = ""
+		actor.Scope.WorkspaceID = workspaceID
+	}
 	if agent {
 		actor, err = taskpkg.DeriveAgentSessionActorContext("session-install", workspaceID)
 		if err != nil {
@@ -2138,6 +2164,18 @@ binding = { type = "env", name = "TOKEN" }
 		request.Profile, request.WorkspaceID = "", ""
 	}
 	installed, err := service.Install(ctx, request, actor)
+	if scenario.errorField != "" {
+		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); !ok || validation.Field != scenario.errorField {
+			t.Fatalf("install error = %v, want field %s", err, scenario.errorField)
+		}
+		if _, err := registry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("failed install persisted registry row: %v", err)
+		}
+		if _, err := os.Stat(extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("failed default selection left managed package: %v", err)
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -56,3 +56,7 @@ Read back exact attachment and input ownership, verify a secret never appears in
 and reject cross-workspace/profile agent writes before acquisition. Include the local-path variant
 and explicit `COMPOZY_PROFILE` selection. Task09/10 owns the remaining live runtime/restart walks;
 focused daemon SQLite/vault and transport tests do not settle this scenario.
+
+Also cover an omitted selector with a workspace default in trusted workspace context, rejection without
+that context, explicit global override, and explicit selection for mixed server defaults. Failed default
+resolution leaves no managed package or installation row. Existing attachments survive updates.

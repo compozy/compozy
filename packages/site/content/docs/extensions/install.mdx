@@ -60,6 +60,12 @@ uses its trusted workspace and profile when selectors are omitted; it cannot sel
 workspace or profile. Preview and installation use the same selectors. Inputs and secret bindings
 belong to the selected profile/workspace cell.
 
+When both `scope` and `workspace_id` are omitted, a local operator uses the package's MCP server
+`default_scope` (an undeclared server default means `global`). A workspace default requires a
+workspace-bound caller; otherwise pass `--workspace` or choose `--scope global` explicitly.
+If servers declare different defaults, select a scope explicitly. Existing installations keep their
+attachments during updates.
+
 ## Supply package inputs
 
 The package declares its input IDs, types, prompts, defaults, and required values. Pass repeatable

@@ -36272,7 +36272,10 @@ export interface operations {
           /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
           profile?: string;
           ref: string;
-          /** @enum {string} */
+          /**
+           * @description Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
+           * @enum {string}
+           */
           scope?: "global" | "workspace";
           source: string;
           version?: string;
@@ -37312,7 +37315,10 @@ export interface operations {
           /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
           profile?: string;
           ref: string;
-          /** @enum {string} */
+          /**
+           * @description Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
+           * @enum {string}
+           */
           scope?: "global" | "workspace";
           source: string;
           version?: string;

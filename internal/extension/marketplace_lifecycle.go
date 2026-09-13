@@ -155,7 +155,7 @@ func InstallMarketplaceManaged(
 	defer func() {
 		err = errors.Join(err, prepared.Close())
 	}()
-	return prepared.Commit()
+	return prepared.Commit(req.Scope)
 }
 
 func prepareMarketplaceManagedInstall(
