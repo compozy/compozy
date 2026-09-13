@@ -135,7 +135,7 @@ warning; if quarantine also fails, removal fails and the instance remains instal
 
 ## Install Trust
 
-Install takes one closed source union — `curated`, `github`, `git`, or `local_path` — plus a required
+Install takes one closed source union — `curated`, `marketplace`, `github`, `git`, or `local_path` — plus a required
 `ref` and optional `version`, `asset`, and `allow_unverified`. `compozy extension install <source>`
 owns the shorthand: a filesystem path (`./`, `../`, or absolute) becomes `local_path`,
 `github:owner/repo[@ref]` and `git:<url>[@ref]` become their named sources, and a bare
@@ -148,13 +148,23 @@ Git 2.37 or newer so the daemon can pin validated DNS answers; missing Git repor
 Curated refs resolve through the daemon-owned catalog: the runtime downloads the feed-owned artifact
 when the entry carries one, verifies the catalog-pinned SHA-256 before extraction, then persists
 separate catalog entry, archive digest, and extracted-tree checksum provenance. Official and community
-catalog tiers install with no consent. Every other install — curated `unverified` tier, `github`,
+catalog tiers install with no consent. Every other install — curated `unverified` tier, `marketplace`, `github`,
 `git`, `local_path` — needs live policy `extensions.trust.allow_unverified` (default `true`) plus the
 request-level `--allow-unverified`, which is the whole consent. Policy off returns
 `extension_unverified_policy_blocked` with evidence path `/settings/extensions`; policy on without
 consent returns `extension_checksum_unverified`. Both are `422`. Human output prompts on
 `--allow-unverified` unless `--yes`; structured output requires `--yes`. The deleted key is
 `extensions.marketplace.allow_unverified`, and `compozy config set` names its replacement.
+
+Registered plugin sources use `POST /api/extensions` with `source: marketplace`, the listed
+`install_slug` as `ref`, and the listed `digest_sha256` as `expected_digest`. Preview and install
+retain that same pin. Plugins remain unverified regardless of layout or cache integrity. A cached
+package installs without contacting its source; missing/corrupt bytes are acquired again only if the
+live package has the same digest. `extension_source_changed` (409) requires a new listing and approval;
+`source_unreachable` (503) means the cache is unavailable and the source could not supply the package.
+Updates resolve `(source_ref, entry_id)` from installed provenance, so source renames keep identity.
+Changed bytes count as an update even when the declared version stays the same. Publication and
+rollback use the existing extension lifecycle; shared credentials and other attachments stay intact.
 
 A curated digest mismatch is `extension_archive_digest_mismatch`, terminal for that catalog version
 and with no unverified bypass. A GitHub release may carry an `<asset>.sha256` sidecar; when one

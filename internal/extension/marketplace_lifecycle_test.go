@@ -32,6 +32,7 @@ import (
 
 func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 	t.Parallel()
+	t.Run("Should update a renamed origin by digest and retain rollback and consent", testPluginMarketplaceUpdate)
 	t.Run(
 		"Should install approved cached bytes offline and retain unverified origin across a source rename",
 		func(t *testing.T) {
@@ -108,7 +109,7 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 			t.Fatalf("changed bytes were cached: %v, %v", entries, err)
 		}
 	})
-	for _, scenario := range []string{"policy", "consent", "approval", "curated trust"} {
+	for _, scenario := range []string{"policy", "consent", "approval", "missing approval", "curated trust"} {
 		t.Run("Should reject invalid "+scenario+" before creating managed staging", func(t *testing.T) {
 			t.Parallel()
 			env := newRegistryTestEnv(t)
@@ -126,6 +127,8 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 				req.AllowUnverified, expected = false, ErrExtensionChecksumUnverified
 			case "approval":
 				req.ExpectedDigest, expected = strings.Repeat("0", 64), ErrExtensionSourceChanged
+			case "missing approval":
+				req.ExpectedDigest, expected = "", ErrManifestInvalid
 			case "curated trust":
 				req.Trust = &MarketplaceTrustEvidence{RegistryTier: ExtensionRegistryTierOfficial}
 			}
@@ -135,6 +138,112 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 			}
 			if _, err := os.Stat(home); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("refused acquisition wrote the managed home: %v", err)
+			}
+		})
+	}
+}
+
+func testPluginMarketplaceUpdate(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"success", "rollback", "consent", "origin"} {
+		t.Run("Should preserve the plugin update contract for "+scenario, func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			install, resolver, root := pluginAcquisitionRequest(t)
+			before, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, install)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, filepath.Join(root, "tool", "README.md"), "Updated without changing semantic version")
+			doc, err := resolver.Sources.Fetch(t.Context(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := resolver.Resolve(t.Context(), doc, snapshot, doc.Plugins[0])
+			if err := errors.Join(err, snapshot.Close()); err != nil {
+				t.Fatal(err)
+			}
+			if record.DigestSHA256 == install.ExpectedDigest {
+				t.Fatal("changed package retained old digest")
+			}
+			if err := os.RemoveAll(root); err != nil {
+				t.Fatal(err)
+			}
+			plugin := &MarketplacePluginAcquisition{SourceName: "renamed", Record: record, Acquirer: resolver}
+			req := MarketplaceUpdateRequest{
+				Names:                  []string{before.Name},
+				PolicyAllowsUnverified: true,
+				AllowUnverified:        true,
+				ResolvePlugin: func(_ context.Context, sourceRef, entryID, version string) (*MarketplacePluginAcquisition, error) {
+					if sourceRef != before.Provenance.SourceRef || entryID != before.Provenance.EntryID ||
+						version != "" {
+						t.Errorf("update selected a different origin: %s/%s@%s", sourceRef, entryID, version)
+					}
+					return plugin, nil
+				},
+			}
+			req.CheckOnly = true
+			checked, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, nil)
+			if err != nil || len(checked) != 1 || checked[0].Status != MarketplaceUpdateStatusAvailable {
+				t.Fatalf("digest-only update check = %+v, %v", checked, err)
+			}
+			req.CheckOnly = false
+			var reload MutationReload
+			var wantErr error
+			switch scenario {
+			case "rollback":
+				wantErr = errors.New("publication rejected")
+				reload = func(context.Context) error { return wantErr }
+			case "consent":
+				req.AllowUnverified = false
+				wantErr = ErrExtensionChecksumUnverified
+			case "origin":
+				plugin.Record.SourceRef = "github:foreign/marketplace"
+			}
+			updated, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, reload)
+			if scenario != "success" {
+				if err == nil || (wantErr != nil && !errors.Is(err, wantErr)) {
+					t.Fatalf("update error = %v", err)
+				}
+				after, err := env.registry.Get(before.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(before.Provenance, after.Provenance) || before.Checksum != after.Checksum {
+					t.Fatalf("failed update replaced installed state: %+v", after)
+				}
+				return
+			}
+			if err != nil || len(updated) != 1 || updated[0].Status != MarketplaceUpdateStatusUpdated {
+				t.Fatalf("update = %+v, %v", updated, err)
+			}
+			after, err := env.registry.Get(before.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Provenance.SourceName != "renamed" || after.Provenance.SourceRef != record.SourceRef ||
+				after.Provenance.EntryID != record.EntryID || after.Provenance.ResolvedRef != record.ResolvedRef ||
+				after.Provenance.ArchiveDigestSHA256 != record.DigestSHA256 || !after.Provenance.DigestMatched ||
+				after.Provenance.ChecksumVerified || after.Provenance.RegistryTier != ExtensionRegistryTierUnverified ||
+				dereferenceOptionalString(after.RegistrySlug) != "renamed/tool" {
+				t.Fatalf("updated provenance = %+v", after)
+			}
+			requireFileContains(
+				t,
+				filepath.Join(ManagedInstallPath(homePaths, before.Name), "README.md"),
+				"Updated without changing semantic version",
+			)
+			current, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, nil)
+			if err != nil || len(current) != 1 || current[0].Status != MarketplaceUpdateStatusCurrent {
+				t.Fatalf("repeat update = %+v, %v", current, err)
 			}
 		})
 	}

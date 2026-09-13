@@ -296,7 +296,7 @@ const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
 	"properties":{
-		"source":{"type":"string","enum":["curated","github","git","local_path"]},
+		"source":{"type":"string","enum":["curated","marketplace","github","git","local_path"]},
 		"ref":{"type":"string","minLength":1},
 		"scope":{"type":"string","enum":["global","workspace"],
 			"description":"Overrides manifest defaults; required when server defaults differ."},

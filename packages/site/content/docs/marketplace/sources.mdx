@@ -1,0 +1,65 @@
+---
+title: Plugin sources
+description: Configure plugin marketplaces and install the exact packages you reviewed.
+---
+
+Plugin sources add extensions from GitHub, an HTTPS Git repository, or a local folder to the daemon's
+Marketplace. The folder or repository must contain `marketplace.json` at its root or under
+`.claude-plugin/`. Each listed plugin is loaded with the same manifest loader used during installation.
+The listing reports `installable`, `install_blocker`, layout, and the digest of its captured package.
+
+## Configure a source
+
+Add a source in `config.toml` and reload the configuration:
+
+```toml
+[[marketplace.plugin_sources]]
+name = "team"
+source = "github:example/team-plugins"
+enabled = true
+```
+
+Sources also accept `git+https://example.com/team/plugins.git` and an absolute file URL such as
+`file:///Users/me/team-plugins`. The Compozy feed supplies presets. An explicit config row for the same
+source overrides its enabled state, even if the preset is renamed. Disabled sources are not fetched.
+Refresh with `compozy marketplace refresh -o json`, then inspect the returned source states.
+
+Source names appear in install slugs. The immutable identity is `(source_ref, entry_id)`. Registering
+the same repository under two names lists it twice but joins both rows to the same installed extension.
+An installed extension keeps its identity if that source is removed and later registered again.
+A name retained by an installed extension cannot be reassigned to a different source.
+
+## Install approved bytes
+
+Read the entry detail before installing. Send its install slug and digest through HTTP or UDS:
+
+```json
+{
+  "source": "marketplace",
+  "ref": "team/tool",
+  "expected_digest": "<digest_sha256 from the entry>",
+  "allow_unverified": true
+}
+```
+
+Use this body with `POST /api/extensions`. The daemon also requires
+`extensions.trust.allow_unverified = true`. Plugin marketplaces are unverified: a Claude plugin layout
+or a matching digest does not establish publisher trust. Required inputs use the normal extension
+confirmation flow. A different origin that declares an already installed instance name returns
+`409 extension_name_conflict`.
+
+The daemon captures the listed package in its home-owned cache and verifies its digest when reading
+it. Installation uses those bytes even if the source later changes or goes offline. If the blob is
+missing or corrupt, the daemon reacquires it and proceeds only if the digest still matches.
+
+| Response | Next step |
+| --- | --- |
+| `409 extension_source_changed` | Refresh, inspect the new package, and approve its new digest. |
+| `503 source_unreachable` | Restore source access and retry the approved package. |
+| `422 extension_checksum_unverified` | Review the unverified package and provide explicit consent. |
+| `422 extension_unverified_policy_blocked` | Review the daemon's extension trust policy. |
+
+Updates select the current package by installed origin and compare digests, including when the
+version is unchanged. They retain the existing input, publication, attachment, and rollback behavior.
+Inspect the recorded source, resolved revision, layout, and digest with
+`compozy extension provenance <installed-name> -o json`.

@@ -82365,6 +82365,14 @@
                     "type": "string"
                   },
                   "source": {
+                    "description": "Use marketplace for a registered plugin source and include the listed expected_digest.",
+                    "enum": [
+                      "curated",
+                      "marketplace",
+                      "github",
+                      "git",
+                      "local_path"
+                    ],
                     "type": "string"
                   },
                   "version": {
@@ -85803,6 +85811,14 @@
                     "type": "string"
                   },
                   "source": {
+                    "description": "Use marketplace for a registered plugin source and include the listed expected_digest.",
+                    "enum": [
+                      "curated",
+                      "marketplace",
+                      "github",
+                      "git",
+                      "local_path"
+                    ],
                     "type": "string"
                   },
                   "version": {

@@ -23,12 +23,20 @@ type MarketplacePluginAcquisition struct {
 	Acquirer   MarketplacePackageAcquirer
 }
 
+type MarketplacePluginResolver func(context.Context, string, string, string) (*MarketplacePluginAcquisition, error)
+
 func (p *MarketplacePluginAcquisition) validate(req MarketplaceInstallRequest) error {
 	if req.Trust != nil {
 		return errors.New("extension: plugin marketplace acquisition cannot carry curated trust")
 	}
+	if strings.TrimSpace(req.ExpectedDigest) == "" {
+		return &ManifestValidationError{
+			Field:   "expected_digest",
+			Message: "a listed digest is required for marketplace plugins",
+		}
+	}
 	if p.Acquirer == nil || strings.TrimSpace(p.SourceName) == "" || p.Record.EntryID == "" ||
-		strings.TrimSpace(req.ExpectedDigest) == "" || p.Record.DigestSHA256 == "" || p.Record.Version == "" {
+		p.Record.DigestSHA256 == "" || p.Record.Version == "" {
 		return errors.New("extension: plugin marketplace acquisition requires its source, package and approved digest")
 	}
 	if strings.TrimSpace(req.Slug) != p.SourceName+"/"+p.Record.EntryID {

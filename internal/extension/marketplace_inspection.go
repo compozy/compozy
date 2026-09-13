@@ -44,19 +44,28 @@ func InspectMarketplacePackage(
 	req MarketplaceInstallRequest,
 	profileName string,
 ) (_ contract.MarketplaceExtensionDetailPayload, resultErr error) {
-	if !hasCuratedMarketplaceArtifact(req.Trust) || strings.TrimSpace(req.Trust.ArchiveDigestSHA256) == "" ||
-		strings.TrimSpace(req.Slug) == "" {
-		return contract.MarketplaceExtensionDetailPayload{}, errors.New(
-			"extension: inspection requires a pinned catalog artifact",
-		)
+	var artifactURL, repository string
+	if req.Plugin != nil {
+		if err := req.Plugin.validate(req); err != nil {
+			return contract.MarketplaceExtensionDetailPayload{}, err
+		}
+		repository = req.Plugin.Record.SourceRef
+	} else {
+		if !hasCuratedMarketplaceArtifact(req.Trust) || strings.TrimSpace(req.Trust.ArchiveDigestSHA256) == "" ||
+			strings.TrimSpace(req.Slug) == "" {
+			return contract.MarketplaceExtensionDetailPayload{}, errors.New(
+				"extension: inspection requires a pinned catalog artifact",
+			)
+		}
+		if err := ValidateExpectedDigest(req.Trust.ArchiveDigestSHA256); err != nil {
+			return contract.MarketplaceExtensionDetailPayload{}, err
+		}
+		if err := CheckExpectedDigest(req.ExpectedDigest, req.Trust.ArchiveDigestSHA256); err != nil {
+			return contract.MarketplaceExtensionDetailPayload{}, err
+		}
+		req.ExpectedDigest = req.Trust.ArchiveDigestSHA256
+		artifactURL, repository = req.Trust.ArtifactURL, req.Trust.Repository
 	}
-	if err := ValidateExpectedDigest(req.Trust.ArchiveDigestSHA256); err != nil {
-		return contract.MarketplaceExtensionDetailPayload{}, err
-	}
-	if err := CheckExpectedDigest(req.ExpectedDigest, req.Trust.ArchiveDigestSHA256); err != nil {
-		return contract.MarketplaceExtensionDetailPayload{}, err
-	}
-	req.ExpectedDigest = req.Trust.ArchiveDigestSHA256
 	req.ObserveDigestVerification = nil
 	install, err := prepareMarketplacePackage(ctx, homePaths, nil, req, strings.TrimSpace(req.Slug))
 	if err != nil {
@@ -80,9 +89,9 @@ func InspectMarketplacePackage(
 	}
 	result := contract.MarketplaceExtensionDetailPayload{
 		InstallSlug:  req.Slug,
-		ArtifactURL:  req.Trust.ArtifactURL,
+		ArtifactURL:  artifactURL,
 		DigestSHA256: install.archiveDigest,
-		Repository:   req.Trust.Repository,
+		Repository:   repository,
 		Contents:     contents,
 		MCPServers:   servers,
 		Inputs:       []contract.MarketplaceInputPayload{},

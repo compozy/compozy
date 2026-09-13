@@ -1,5 +1,10 @@
 {
     "title": "Marketplace",
     "icon": "Store",
-    "pages": ["index", "installed", "mcp-catalog"]
+    "pages": [
+        "index",
+        "installed",
+        "sources",
+        "mcp-catalog"
+    ]
 }

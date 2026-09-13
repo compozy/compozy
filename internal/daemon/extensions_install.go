@@ -46,7 +46,8 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 	switch req.Source {
 	case contract.InstallExtensionSourceLocalPath:
 		return s.prepareLocalExtensionInstall(ctx, req, actor, installedBy, target)
-	case contract.InstallExtensionSourceCurated,
+	case contract.InstallExtensionSourceMarketplace,
+		contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit:
 		return s.preparePublishedExtensionInstall(ctx, req, actor, installedBy, target)

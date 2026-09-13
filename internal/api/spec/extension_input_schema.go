@@ -17,6 +17,10 @@ func customizeExtensionInputValueSchema(schema *openapi3.Schema) {
 }
 
 func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
+	if source := schema.Properties["source"]; source != nil && source.Value != nil {
+		source.Value.Enum = []any{"curated", "marketplace", "github", "git", "local_path"}
+		source.Value.Description = "Use marketplace for a registered plugin source and include the listed expected_digest."
+	}
 	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
 		scope.Value.Enum = []any{"global", "workspace"}
 		scope.Value.Description = "Overrides manifest server defaults. Mixed defaults require an explicit scope. " +

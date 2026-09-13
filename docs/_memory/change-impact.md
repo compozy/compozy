@@ -648,3 +648,13 @@ and lifecycle consumers remain pending; final live QA and delivery gates are not
 Task05 embedded MCP retirement (2026-09-13): retired skills.allowed_marketplace_mcp from config/Settings/HTTP/UDS/CLI/Web and archived its values atomically through the existing config owner. SourceMarketplace skill MCP declarations are disabled; local skills, content/provenance, manual MCPs/credentials, extension execution and hook policy retain their owners. Wire artifacts, official skill, config guides, migration/release notes and ET013 co-ship. Real-file registry integration, config archival/reload, HTTP/UDS rejection, CLI validation and focused Web tests pass; memory/task_05.md owns exact receipts. Prior pending-consent statements are superseded. Final user journeys remain09/10.
 
 Task07 source runtime composition: the daemon composes configured plugin readers, the existing manifest inspector, the package resolver and a home-owned cache. Feed refresh flights read v3 presets with bounded HTTP/file acquisition; operator enablement follows normalized origin, and an atomic derived preset cache restores registrations offline. Full refresh includes newly discovered enabled presets. Hot configuration retains the existing source generation fences and cancellation owner. Public wire contracts are unchanged in this checkpoint; plugin install routing, cache sweep/availability and source-management surfaces remain task07/08. The configuration guide documents this discovery behavior; final QA remains09/10.
+
+### Marketplace plugin acquisition continuation (task07)
+
+`POST /api/extensions` and install preview accept `source: marketplace` with the listed digest;
+HTTP/UDS and native extensions_install use the same daemon/lifecycle owner. Update resolves persisted
+origin and keeps publication, input, attachment, credential, and rollback behavior. Missing cache plus
+unreachable source returns503 source_unreachable. Web action data selects the source union from origin;
+OpenAPI, TS, native catalog, site sources docs and official extension skill co-ship. CLI source-index
+selection and source-management UI remain task08-owned. No hook or manual MCP policy changes.
+QA: ET-agent-plugin-marketplace-install and CH-agent-plugin-marketplace remain pending task10 live walk.

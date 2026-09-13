@@ -76,6 +76,10 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 		SourceRef: details.SourceRef, EntryID: entry.EntryID,
 	}]
 	updateAvailable := isInstalled && registrypkg.VersionIsNewer(installation.version, entry.Version)
+	if isInstalled && details.SourceRef != marketplacepkg.CompozyCatalogRef &&
+		installation.extension.Provenance != nil {
+		updateAvailable = installation.extension.Provenance.ArchiveDigestSHA256 != entry.DigestSHA256
+	}
 	result := contract.MarketplaceListingPayload{
 		EntryID:          entry.EntryID,
 		Name:             entry.Name,

@@ -67,8 +67,8 @@ function installedName(entry: MarketplaceCatalogListing): string {
   return entry.installed_name;
 }
 
-/** Catalog listings resolve through the curated catalog, so the listing slug is the install ref. */
-function curatedInstallRequest(
+/** Use the listed source and digest for this catalog acquisition. */
+function catalogInstallRequest(
   entry: MarketplaceCatalogListing,
   allowUnverified: boolean
 ): ExtensionInstallRequest {
@@ -76,7 +76,7 @@ function curatedInstallRequest(
     allow_unverified: allowUnverified,
     expected_digest: entry.digest_sha256,
     ref: marketplaceEntrySlug(entry),
-    source: "curated",
+    source: entry.source_ref === "catalog:compozy" ? "curated" : "marketplace",
     version: entry.version,
   };
 }
@@ -144,7 +144,7 @@ function useMarketplaceActionController(): MarketplaceActionController {
   };
 
   const loadInstallPreview = async (entry: MarketplaceCatalogListing, allowUnverified: boolean) => {
-    const request = curatedInstallRequest(entry, allowUnverified);
+    const request = catalogInstallRequest(entry, allowUnverified);
     const preview = await previewExtensionInstall(request);
     setInstallPreview({ entry, preview, request });
   };

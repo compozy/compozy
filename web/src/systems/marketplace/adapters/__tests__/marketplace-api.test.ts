@@ -35,7 +35,7 @@ describe("marketplace acquisition transport", () => {
   });
 
   it("Should install extensions through the source-union mutation", async () => {
-    const extensionBody = {
+    const extensionBody: Parameters<typeof installMarketplaceExtension>[0] = {
       allow_unverified: true,
       ref: "review-pack",
       source: "curated",

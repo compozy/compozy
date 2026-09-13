@@ -456,7 +456,8 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {
 	switch req.Source {
-	case contract.InstallExtensionSourceCurated,
+	case contract.InstallExtensionSourceMarketplace,
+		contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit,
 		contract.InstallExtensionSourceLocalPath:

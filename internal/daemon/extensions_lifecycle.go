@@ -245,6 +245,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		InstalledBy:            extensionInstalledBy(actor),
 		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		ResolveTrust:           s.marketplaceTrustResolver(),
+		ResolvePlugin:          s.resolveMarketplacePluginOrigin,
 	}
 	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,

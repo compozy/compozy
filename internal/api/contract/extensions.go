@@ -13,10 +13,11 @@ import (
 type InstallExtensionSource string
 
 const (
-	InstallExtensionSourceCurated   InstallExtensionSource = "curated"
-	InstallExtensionSourceGitHub    InstallExtensionSource = "github"
-	InstallExtensionSourceGit       InstallExtensionSource = "git"
-	InstallExtensionSourceLocalPath InstallExtensionSource = "local_path"
+	InstallExtensionSourceCurated     InstallExtensionSource = "curated"
+	InstallExtensionSourceMarketplace InstallExtensionSource = "marketplace"
+	InstallExtensionSourceGitHub      InstallExtensionSource = "github"
+	InstallExtensionSourceGit         InstallExtensionSource = "git"
+	InstallExtensionSourceLocalPath   InstallExtensionSource = "local_path"
 )
 
 // InstallExtensionRequest is the shared extension install request payload.

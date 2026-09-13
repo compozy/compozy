@@ -229,11 +229,7 @@ export function ExtensionInstallDialog({
 
             {preview ? <ExtensionInstallSummary preview={preview} /> : null}
             {preview && preview.inputs.length > 0 ? (
-              <ExtensionInputFields
-                disabled={pending}
-                form={inputForm}
-                key={acquisitionIdentity}
-              />
+              <ExtensionInputFields disabled={pending} form={inputForm} key={acquisitionIdentity} />
             ) : null}
 
             {error ? (

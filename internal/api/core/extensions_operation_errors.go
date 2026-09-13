@@ -27,7 +27,8 @@ func extensionOperationErrorPayload(
 	switch kind {
 	case extensionErrorMCPNameTaken:
 		payload.Code = "mcp_server_name_taken"
-	case extensionErrorNameConflict, extensionErrorSourceChanged, extensionErrorInputsRequired, extensionErrorInputInvalid:
+	case extensionErrorNameConflict, extensionErrorSourceChanged, extensionErrorSourceUnreachable,
+		extensionErrorInputsRequired, extensionErrorInputInvalid:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorNetworkConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
@@ -136,6 +137,8 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
 	payload := contract.ExtensionOperationErrorPayload{}
 	switch classifyExtensionError(err) {
+	case extensionErrorSourceUnreachable:
+		payload.Code = "source_unreachable"
 	case extensionErrorNameConflict:
 		payload.Code = diagnosticcontract.CodeExtensionNameConflict
 		if conflict, ok := errors.AsType[*extensionpkg.ExtensionNameConflictError](err); ok {
@@ -155,9 +158,15 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
 			for _, input := range required.InputDefinitions {
 				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
-					ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
-					Default: slices.Clone(input.Default),
-					Binding: contract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+					ID:       input.ID,
+					Prompt:   input.Prompt,
+					Type:     input.Type,
+					Required: input.Required,
+					Default:  slices.Clone(input.Default),
+					Binding: contract.MarketplaceInputBindingPayload{
+						Type: input.Binding.Type,
+						Name: input.Binding.Name,
+					},
 				})
 			}
 		}

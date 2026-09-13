@@ -206,66 +206,35 @@ func applyMarketplaceExtensionUpdate(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
-	downloader registrypkg.Downloader,
 	info ExtensionInfo,
-	latestVersion string,
-	registryName string,
-	allowUnverified bool,
-	installedBy string,
-	trust *MarketplaceTrustEvidence,
-	observeDigestVerification MarketplaceDigestVerificationObserver,
-	preflightCandidate MarketplaceUpdatePreflight,
-	commitCandidate MarketplaceUpdateCommit,
-	rollbackCandidate MarketplaceUpdateRollback,
+	req MarketplaceUpdateRequest,
+	resolution marketplaceUpdateResolution,
 	reload MutationReload,
-	cleanup marketplaceUpdateCleanup,
 ) (out marketplaceUpdateApplyResult, err error) {
-	slug := dereferenceOptionalString(info.RegistrySlug)
 	installDir, err := InstalledExtensionDir(info)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
+	cleanup := marketplaceUpdateCleanupForRequest(req)
 	defer finalizeMarketplaceUpdateStagingCleanup(&out, &err, cleanup, info.Name, stagingDir)
-
-	result, err := installMarketplaceUpdateArchive(
-		ctx,
-		downloader,
-		slug,
-		latestVersion,
-		stagingDir,
-		trust,
-		observeDigestVerification,
-	)
+	result, err := installMarketplaceUpdateArchive(ctx, resolution, stagingDir, req.ObserveDigestVerification)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
 	manifest, err := loadMarketplaceUpdatedExtensionManifest(result.InstallPath, info.Name)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
 	return applyMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry:      registry,
-		info:          info,
-		installDir:    installDir,
-		result:        result,
-		manifest:      manifest,
-		slug:          slug,
-		registryName:  registryName,
-		latestVersion: latestVersion,
-		provenance: marketplaceUpdateProvenance(
-			info, result, manifest, registryName, allowUnverified, installedBy, trust,
-		),
-		commitCandidate:   commitCandidate,
-		rollbackCandidate: rollbackCandidate,
-		reload:            reload,
-	}, preflightCandidate, cleanup)
+		registry: registry, info: info, installDir: installDir, result: result, manifest: manifest,
+		slug: resolution.slug, registryName: resolution.registryName, latestVersion: resolution.latestVersion,
+		provenance:      marketplaceUpdateProvenance(info, result, manifest, req, resolution),
+		commitCandidate: req.CommitCandidate, rollbackCandidate: req.RollbackCandidate, reload: reload,
+	}, req.PreflightCandidate, cleanup)
 }
 
 func installMarketplaceExtensionUpdateRecord(
@@ -291,28 +260,19 @@ func installMarketplaceExtensionUpdateRecord(
 
 func installMarketplaceUpdateArchive(
 	ctx context.Context,
-	downloader registrypkg.Downloader,
-	slug string,
-	latestVersion string,
+	resolution marketplaceUpdateResolution,
 	stagingDir string,
-	trust *MarketplaceTrustEvidence,
 	observeDigestVerification MarketplaceDigestVerificationObserver,
 ) (*registrypkg.InstallResult, error) {
-	version := strings.TrimSpace(latestVersion)
-	expectedDigest := ""
-	if trust != nil {
-		version = strings.TrimSpace(trust.Version)
-		expectedDigest = strings.TrimSpace(trust.ArchiveDigestSHA256)
-	}
-	result, err := registrypkg.NewInstaller(downloader).Install(ctx, slug, registrypkg.DownloadOpts{
-		Version:        version,
-		ExpectedSHA256: expectedDigest,
-	}, stagingDir)
+	result, err := registrypkg.NewInstaller(resolution.downloader).
+		Install(ctx, resolution.slug, registrypkg.DownloadOpts{
+			Version: strings.TrimSpace(resolution.latestVersion), ExpectedSHA256: resolution.expectedDigest,
+		}, stagingDir)
 	if err != nil {
-		err = wrapCuratedDigestMismatch(err, trust)
+		err = wrapCuratedDigestMismatch(err, resolution.trust)
 	}
 	if observeDigestVerification != nil {
-		observeDigestVerification(trust, err)
+		observeDigestVerification(resolution.trust, err)
 	}
 	return result, err
 }
@@ -321,16 +281,15 @@ func marketplaceUpdateProvenance(
 	info ExtensionInfo,
 	result *registrypkg.InstallResult,
 	manifest *Manifest,
-	registryName string,
-	allowUnverified bool,
-	installedBy string,
-	trust *MarketplaceTrustEvidence,
+	req MarketplaceUpdateRequest,
+	resolution marketplaceUpdateResolution,
 ) ExtensionProvenance {
+	trust := resolution.trust
 	provenance := info.Provenance
-	provenance.Slug = dereferenceOptionalString(info.RegistrySlug)
+	provenance.Slug = resolution.slug
 	provenance.ChecksumSHA256 = result.Checksum
 	provenance.Permissions = extensionPermissions(manifest)
-	provenance.InstalledBy = firstNonEmpty(installedBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
+	provenance.InstalledBy = firstNonEmpty(req.InstalledBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
 	if trust != nil {
 		registryTier := normalizedMarketplaceRegistryTier(trust.RegistryTier)
 		provenance.CatalogEntryID = strings.TrimSpace(trust.CatalogEntryID)
@@ -342,7 +301,7 @@ func marketplaceUpdateProvenance(
 		provenance.DigestMatched = result.DigestMatched
 		provenance.ChecksumVerified = true
 		provenance.RegistryTier = registryTier
-		provenance.AllowUnverified = registryTier == ExtensionRegistryTierUnverified && allowUnverified
+		provenance.AllowUnverified = registryTier == ExtensionRegistryTierUnverified && req.AllowUnverified
 		provenance.Warnings = marketplaceTrustWarnings(trust)
 		return provenance
 	}
@@ -352,13 +311,21 @@ func marketplaceUpdateProvenance(
 	provenance.EntryID = ""
 	provenance.ResolvedRef = ""
 	provenance.Layout = manifest.Layout
+	if plugin := resolution.plugin; plugin != nil {
+		provenance.SourceName = plugin.SourceName
+		provenance.SourceRef = plugin.Record.SourceRef
+		provenance.EntryID = plugin.Record.EntryID
+		provenance.ResolvedRef = plugin.Record.ResolvedRef
+		provenance.Layout = plugin.Record.Layout
+		provenance.SourceURL = plugin.Record.SourceRef
+	}
 	provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 	provenance.DigestMatched = result.DigestMatched
 	provenance.ChecksumVerified = false
 	provenance.RegistryTier = ExtensionRegistryTierUnverified
-	provenance.AllowUnverified = allowUnverified
+	provenance.AllowUnverified = req.AllowUnverified
 	provenance.Warnings = []diagnosticcontract.DiagnosticItem{
-		extensionChecksumUnverifiedDiagnostic(provenance.Slug, registryName, allowUnverified),
+		extensionChecksumUnverifiedDiagnostic(provenance.Slug, resolution.registryName, req.AllowUnverified),
 	}
 	return provenance
 }

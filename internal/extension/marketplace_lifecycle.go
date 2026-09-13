@@ -96,6 +96,7 @@ type MarketplaceUpdateRequest struct {
 	AllowUnverified           bool
 	InstalledBy               string
 	ResolveTrust              MarketplaceTrustResolver
+	ResolvePlugin             MarketplacePluginResolver
 	ArtifactHTTPClient        *http.Client
 	ObserveDigestVerification MarketplaceDigestVerificationObserver
 	PreflightCandidate        MarketplaceUpdatePreflight

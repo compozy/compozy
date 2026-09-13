@@ -43,3 +43,13 @@ After restarting the daemon, confirm that configured MCPs retain their URL and b
 A second profile without those inputs must still report missing configuration and publish no MCPs
 from that package; it must not prevent installation or publication in the configured profile.
 Do not invent input fields for a package that declares none.
+
+Task07 acquisition (final live/visual owner task10): configure a folder source and refresh; inspect
+its digest, contents, and unverified decision in Web and HTTP/UDS. Install through source=marketplace
+with the selected expected_digest and explicit consent. Refresh changed bytes after confirmation and
+verify409 extension_source_changed with no mutation. With a cached blob, change or hide the folder:
+installation still uses approved bytes. Without the blob and with the folder inaccessible, verify503
+source_unreachable. Restore equal bytes and retry. Register the same source under another name and
+verify both rows join the one instance; another origin claiming its name must conflict. Update changed
+bytes with an unchanged version and verify new provenance plus preserved inputs/attachments/rollback.
+Focused daemon integration and controller tests are receipts, not completion of this live browser row.

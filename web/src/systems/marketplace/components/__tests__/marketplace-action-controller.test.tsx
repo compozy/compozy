@@ -666,32 +666,44 @@ describe("useMarketplaceActionController", () => {
     );
     await act(async () => second(preview));
   });
-  it("Should show portable-package consent without permission grants", async () => {
-    const portable = marketplaceCatalogFixture.items.find(
-      entry => entry.format === "agent-plugin"
-    )!;
-    setup([portable]);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Run 0" }));
-    const dialog = await screen.findByTestId("extension-trust-dialog");
-    expect(dialog).toHaveTextContent("Unsigned package");
-    expect(dialog).not.toHaveTextContent(/permission|grant/i);
-    expect(io.install).not.toHaveBeenCalled();
-    await user.click(screen.getByTestId("extension-trust-confirm"));
-    await screen.findByRole("heading", {
-      name: `Install ${portable.install_slug!.split("/").pop()}`,
-    });
-    await user.click(screen.getByRole("button", { name: "Install" }));
-    await waitFor(() =>
-      expect(io.install).toHaveBeenCalledWith({
-        allow_unverified: true,
-        expected_digest: portable.digest_sha256,
-        ref: portable.install_slug,
-        source: "curated",
-        version: portable.version,
-      })
-    );
-  });
+  it.each(["curated", "marketplace"] as const)(
+    "Should retain portable-package consent and the approved acquisition for %s",
+    async source => {
+      const fixture = marketplaceCatalogFixture.items.find(
+        entry => entry.format === "agent-plugin"
+      )!;
+      const portable =
+        source === "curated"
+          ? fixture
+          : {
+              ...fixture,
+              source: "team",
+              source_ref: "github:team/plugins",
+              install_slug: `team/${fixture.entry_id}`,
+            };
+      setup([portable]);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Run 0" }));
+      const dialog = await screen.findByTestId("extension-trust-dialog");
+      expect(dialog).toHaveTextContent("Unsigned package");
+      expect(dialog).not.toHaveTextContent(/permission|grant/i);
+      expect(io.install).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId("extension-trust-confirm"));
+      await screen.findByRole("heading", {
+        name: `Install ${portable.install_slug!.split("/").pop()}`,
+      });
+      await user.click(screen.getByRole("button", { name: "Install" }));
+      await waitFor(() =>
+        expect(io.install).toHaveBeenCalledWith({
+          allow_unverified: true,
+          expected_digest: portable.digest_sha256,
+          ref: portable.install_slug,
+          source,
+          version: portable.version,
+        })
+      );
+    }
+  );
 });
 
 // Invariant: input/network recovery retries the same scoped update without losing prior fields or consent.

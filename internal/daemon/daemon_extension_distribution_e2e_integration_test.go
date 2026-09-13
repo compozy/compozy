@@ -43,6 +43,10 @@ import (
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	t.Run(
+		"Should install and update pinned plugins through public transports [IT-015 IT-018 IT-019]",
+		testDaemonPluginCatalogLifecycle,
+	)
+	t.Run(
 		"Should preserve published attachments through update restart and scoped removal [IT-021]",
 		testDaemonExtensionAttachments,
 	)
@@ -63,6 +67,193 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		"Should install a declared profile and clear its setup requirement [E2E-008]",
 		testDaemonE2EExtensionDeclaredProfileSetup,
 	)
+}
+
+func testDaemonPluginCatalogLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"HTTP", "UDS"} {
+		t.Run("Should preserve approved plugin bytes and origin through "+transport, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+			defer cancel()
+			root := extensionAuthoringE2ERepoRoot(t)
+			source := filepath.Join(t.TempDir(), "source")
+			fixture := filepath.Join(root, "internal", "extension", "testdata", "client-plugins", "loop-engineering")
+			if err := os.CopyFS(filepath.Join(source, "tool"), os.DirFS(fixture)); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(source, "marketplace.json"),
+				[]byte(`{"plugins":[{"name":"tool","source":"./tool"}]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			foreign := filepath.Join(t.TempDir(), "source")
+			if err := os.CopyFS(foreign, os.DirFS(source)); err != nil {
+				t.Fatal(err)
+			}
+			ref := (&url.URL{Scheme: "file", Path: source}).String()
+			catalog := newDistributionGitHubServer(t, "plugin-fixture")
+			t.Cleanup(catalog.Close)
+			runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Marketplace.Catalog.BaseURL = catalog.URL
+					cfg.Extensions.Trust.AllowUnverified = true
+					cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{
+						{Name: "team", Source: ref}, {Name: "alias", Source: ref},
+						{Name: "foreign", Source: (&url.URL{Scheme: "file", Path: foreign}).String()},
+					}
+				}},
+			})
+			client, target, read := runtime.HTTPClient, runtime.HTTPURL, runtime.HTTPJSON
+			if transport == "UDS" {
+				client, target, read = runtime.UDSClient, runtime.UDSURL, runtime.UDSJSON
+			}
+			refreshDistributionCatalog(t, ctx, runtime)
+			listing := func() map[string]compozycontract.MarketplaceListingPayload {
+				t.Helper()
+				var response compozycontract.MarketplaceListResponse
+				if err := read(ctx, http.MethodGet, "/api/marketplace", nil, &response); err != nil {
+					t.Fatal(err)
+				}
+				result := make(map[string]compozycontract.MarketplaceListingPayload)
+				for _, entry := range response.Items {
+					result[entry.InstallSlug] = entry
+				}
+				return result
+			}
+			first := listing()["team/tool"]
+			if first.DigestSHA256 == "" || !first.Installable || first.Layout != "claude-plugin" ||
+				first.Trust == nil || first.Trust.Decision != extensionpkg.ExtensionTrustDecisionAllowedUnverified {
+				t.Fatalf("plugin projection = %+v", first)
+			}
+			var detail compozycontract.MarketplaceEntryResponse
+			if err := read(ctx, http.MethodGet, "/api/marketplace/entries/tool?source=team", nil, &detail); err != nil {
+				t.Fatal(err)
+			}
+			if detail.Extension == nil || detail.Extension.DigestSHA256 != first.DigestSHA256 {
+				t.Fatalf("plugin detail = %+v", detail)
+			}
+			install := compozycontract.InstallExtensionRequest{
+				Source: compozycontract.InstallExtensionSourceMarketplace, Ref: "team/tool", Scope: "global",
+				ExpectedDigest: first.DigestSHA256, AllowUnverified: true,
+			}
+			readme := filepath.Join(source, "tool", "README.md")
+			if err := os.WriteFile(readme, []byte("Approved bytes B"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			refreshDistributionCatalog(t, ctx, runtime)
+			second := listing()["team/tool"]
+			body := requestDistributionInstall(t, ctx, client, target("/api/extensions"), install, http.StatusConflict)
+			var changed compozycontract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(body, &changed); err != nil {
+				t.Fatal(err)
+			}
+			if changed.Code != "extension_source_changed" || changed.ListedDigest != first.DigestSHA256 ||
+				changed.FetchedDigest != second.DigestSHA256 || second.Installed {
+				t.Fatalf("digest refusal = %s", body)
+			}
+			install.ExpectedDigest, install.AllowUnverified = second.DigestSHA256, false
+			body = requestDistributionInstall(
+				t,
+				ctx,
+				client,
+				target("/api/extensions"),
+				install,
+				http.StatusUnprocessableEntity,
+			)
+			if !strings.Contains(string(body), "unverified") {
+				t.Fatalf("consent refusal = %s", body)
+			}
+			install.AllowUnverified = true
+			blob := filepath.Join(runtime.HomePaths.HomeDir, "marketplace", "packages", second.DigestSHA256+".tar")
+			if err := os.Remove(blob); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(source, source+".offline"); err != nil {
+				t.Fatal(err)
+			}
+			body = requestDistributionInstall(
+				t,
+				ctx,
+				client,
+				target("/api/extensions"),
+				install,
+				http.StatusServiceUnavailable,
+			)
+			var unavailable compozycontract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(body, &unavailable); err != nil {
+				t.Fatal(err)
+			}
+			if unavailable.Code != "source_unreachable" {
+				t.Fatalf("offline refusal = %s", body)
+			}
+			if err := os.Rename(source+".offline", source); err != nil {
+				t.Fatal(err)
+			}
+			body = requestDistributionInstall(t, ctx, client, target("/api/extensions"), install, http.StatusCreated)
+			var installedResponse compozycontract.ExtensionResponse
+			if err := json.Unmarshal(body, &installedResponse); err != nil {
+				t.Fatal(err)
+			}
+			installed := installedResponse.Extension
+			if installed.Provenance == nil || installed.Provenance.SourceRef != ref ||
+				installed.Provenance.ArchiveDigestSHA256 != second.DigestSHA256 || !installed.Provenance.DigestMatched ||
+				installed.Provenance.ChecksumVerified {
+				t.Fatalf("installed origin = %+v", installed)
+			}
+			if err := os.WriteFile(readme, []byte("Unlisted bytes C"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			install.Ref = "alias/tool"
+			requestDistributionInstall(t, ctx, client, target("/api/extensions"), install, http.StatusCreated)
+			installedReadme := filepath.Join(
+				extensionpkg.ManagedInstallPath(runtime.HomePaths, installed.Name),
+				"README.md",
+			)
+			if bytes, err := os.ReadFile(installedReadme); err != nil || string(bytes) != "Approved bytes B" {
+				t.Fatalf("cached install bytes = %s, %v", bytes, err)
+			}
+			rows := listing()
+			if !rows["team/tool"].Installed || !rows["alias/tool"].Installed || rows["foreign/tool"].Installed {
+				t.Fatalf("origin join = %+v", rows)
+			}
+			install.Ref, install.ExpectedDigest = "foreign/tool", rows["foreign/tool"].DigestSHA256
+			body = requestDistributionInstall(t, ctx, client, target("/api/extensions"), install, http.StatusConflict)
+			var conflict compozycontract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(body, &conflict); err != nil {
+				t.Fatal(err)
+			}
+			if conflict.Code != "extension_name_conflict" || conflict.InstalledOrigin == nil ||
+				conflict.InstalledOrigin.SourceRef != ref {
+				t.Fatalf("origin conflict = %s", body)
+			}
+			refreshDistributionCatalog(t, ctx, runtime)
+			third := listing()["team/tool"]
+			if !third.UpdateAvailable || third.DigestSHA256 == second.DigestSHA256 {
+				t.Fatalf("digest-only update = %+v", third)
+			}
+			requestDistributionJSON(
+				t,
+				ctx,
+				client,
+				http.MethodPost,
+				target("/api/extensions/update"),
+				compozycontract.UpdateExtensionsRequest{
+					Names:           []string{installed.Name},
+					AllowUnverified: true,
+				},
+				http.StatusOK,
+			)
+			if bytes, err := os.ReadFile(installedReadme); err != nil || string(bytes) != "Unlisted bytes C" {
+				t.Fatalf("updated bytes = %s, %v", bytes, err)
+			}
+			if listing()["team/tool"].UpdateAvailable {
+				t.Fatal("updated origin still reports an update")
+			}
+		})
+	}
 }
 
 // Invariant: the daemon reads the publisher's complete v3 family and reports root-only source failure without fallback.

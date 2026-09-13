@@ -26,6 +26,10 @@ func (d *Daemon) newBootExtensionService(
 	if store, ok := any(state.registry).(extensionpkg.EnvBindingLifecycleStore); ok {
 		envBindings = store
 	}
+	var acquirer extensionpkg.MarketplacePackageAcquirer
+	if state.marketplace != nil {
+		acquirer = state.marketplace.resolver
+	}
 	return newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:     extRegistry,
 		Runtime:      manager,
@@ -42,6 +46,7 @@ func (d *Daemon) newBootExtensionService(
 	},
 		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
+		withDaemonMarketplacePackageAcquirer(acquirer),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
 		withDaemonExtensionKitPublisher(state.extensionKitResources),

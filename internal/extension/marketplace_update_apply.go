@@ -25,22 +25,5 @@ func applyResolvedMarketplaceUpdate(
 		return marketplaceUpdateApplyResult{}, err
 	}
 
-	return applyMarketplaceExtensionUpdate(
-		ctx,
-		homePaths,
-		registry,
-		resolution.downloader,
-		info,
-		resolution.latestVersion,
-		resolution.registryName,
-		req.AllowUnverified,
-		req.InstalledBy,
-		resolution.trust,
-		req.ObserveDigestVerification,
-		req.PreflightCandidate,
-		req.CommitCandidate,
-		req.RollbackCandidate,
-		reload,
-		marketplaceUpdateCleanupForRequest(req),
-	)
+	return applyMarketplaceExtensionUpdate(ctx, homePaths, registry, info, req, resolution, reload)
 }

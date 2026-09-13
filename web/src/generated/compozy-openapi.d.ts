@@ -36277,7 +36277,11 @@ export interface operations {
            * @enum {string}
            */
           scope?: "global" | "workspace";
-          source: string;
+          /**
+           * @description Use marketplace for a registered plugin source and include the listed expected_digest.
+           * @enum {string}
+           */
+          source: "curated" | "marketplace" | "github" | "git" | "local_path";
           version?: string;
           /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
           workspace_id?: string;
@@ -37352,7 +37356,11 @@ export interface operations {
            * @enum {string}
            */
           scope?: "global" | "workspace";
-          source: string;
+          /**
+           * @description Use marketplace for a registered plugin source and include the listed expected_digest.
+           * @enum {string}
+           */
+          source: "curated" | "marketplace" | "github" | "git" | "local_path";
           version?: string;
           /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
           workspace_id?: string;

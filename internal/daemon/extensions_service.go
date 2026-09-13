@@ -19,41 +19,42 @@ import (
 )
 
 type daemonExtensionService struct {
-	marketplaceMu      sync.RWMutex
-	searchMu           sync.Mutex
-	consumerSyncOnce   sync.Once
-	consumerSyncGate   chan struct{}
-	searchCache        map[string]extensionSearchSnapshot
-	registry           *extensionpkg.Registry
-	runtime            extensionRuntime
-	hookBinds          hookBindingPublisher
-	agentSkill         agentSkillPublisher
-	toolMCP            toolMCPPublisher
-	loops              loopResourcePublisher
-	sessions           SessionManager
-	extensionKit       extensionKitResourcePublisher
-	homePaths          compozyconfig.HomePaths
-	logger             *slog.Logger
-	now                func() time.Time
-	getenv             func(string) string
-	extensionConfig    compozyconfig.ExtensionsConfig
-	marketplaceLoader  extensionMarketplaceSourceLoader
-	marketplaceCatalog marketplacepkg.Service
-	eventWriter        extensionLifecycleEventWriter
-	workspaceResolver  workspacepkg.RuntimeResolver
-	envBindings        extensionpkg.EnvBindingLifecycleStore
-	inputs             extensioninput.Store
-	mcpAllocations     extensionmcp.Store
-	mcpDetails         *extensionMCPDetails
-	secretVault        extensionSecretVault
-	automation         extensionAutomationPreviewer
-	lifecycle          *extensionLifecycleCoordinator
-	resourceStore      resources.RawStore
-	resourceActor      resources.MutationActor
-	resourceCodecs     *resources.CodecRegistry
-	mcpRuntimeHealth   *mcppkg.RuntimeHealthRegistry
-	paletteNotifier    *extensionPaletteNotifier
-	profiles           *profilepkg.Manager
+	marketplaceMu       sync.RWMutex
+	searchMu            sync.Mutex
+	consumerSyncOnce    sync.Once
+	consumerSyncGate    chan struct{}
+	searchCache         map[string]extensionSearchSnapshot
+	registry            *extensionpkg.Registry
+	runtime             extensionRuntime
+	hookBinds           hookBindingPublisher
+	agentSkill          agentSkillPublisher
+	toolMCP             toolMCPPublisher
+	loops               loopResourcePublisher
+	sessions            SessionManager
+	extensionKit        extensionKitResourcePublisher
+	homePaths           compozyconfig.HomePaths
+	logger              *slog.Logger
+	now                 func() time.Time
+	getenv              func(string) string
+	extensionConfig     compozyconfig.ExtensionsConfig
+	marketplaceLoader   extensionMarketplaceSourceLoader
+	marketplaceCatalog  marketplacepkg.Service
+	marketplaceAcquirer extensionpkg.MarketplacePackageAcquirer
+	eventWriter         extensionLifecycleEventWriter
+	workspaceResolver   workspacepkg.RuntimeResolver
+	envBindings         extensionpkg.EnvBindingLifecycleStore
+	inputs              extensioninput.Store
+	mcpAllocations      extensionmcp.Store
+	mcpDetails          *extensionMCPDetails
+	secretVault         extensionSecretVault
+	automation          extensionAutomationPreviewer
+	lifecycle           *extensionLifecycleCoordinator
+	resourceStore       resources.RawStore
+	resourceActor       resources.MutationActor
+	resourceCodecs      *resources.CodecRegistry
+	mcpRuntimeHealth    *mcppkg.RuntimeHealthRegistry
+	paletteNotifier     *extensionPaletteNotifier
+	profiles            *profilepkg.Manager
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -89,6 +90,12 @@ func withDaemonExtensionCatalog(catalog marketplacepkg.Service) daemonExtensionS
 	return func(service *daemonExtensionService) {
 		service.marketplaceCatalog = catalog
 	}
+}
+
+func withDaemonMarketplacePackageAcquirer(
+	acquirer extensionpkg.MarketplacePackageAcquirer,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.marketplaceAcquirer = acquirer }
 }
 
 func withDaemonExtensionEventWriter(writer extensionLifecycleEventWriter) daemonExtensionServiceOption {

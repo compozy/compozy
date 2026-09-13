@@ -31,15 +31,23 @@ func (s *daemonExtensionService) InspectCatalogExtension(
 	if strings.TrimSpace(profileName) == "" {
 		profileName = daemonDefaultProfileName
 	}
-	return extensionpkg.InspectMarketplacePackage(ctx, s.homePaths, extensionpkg.MarketplaceInstallRequest{
+	request := extensionpkg.MarketplaceInstallRequest{
 		Slug: entry.InstallSlug, Version: entry.Version, ExpectedDigest: entry.DigestSHA256,
-		Trust: &extensionpkg.MarketplaceTrustEvidence{
+	}
+	if details.SourceRef != marketplacepkg.CompozyCatalogRef {
+		request.Plugin, err = s.marketplacePluginFromEntry(entry)
+		if err != nil {
+			return contract.MarketplaceExtensionDetailPayload{}, err
+		}
+	} else {
+		request.Trust = &extensionpkg.MarketplaceTrustEvidence{
 			CatalogEntryID:      entry.EntryID,
 			Version:             entry.Version,
 			ArchiveDigestSHA256: entry.DigestSHA256,
 			RegistryTier:        entry.Tier,
 			ArtifactURL:         details.Extension.ArtifactURL,
 			Repository:          details.Extension.Repository,
-		},
-	}, profileName)
+		}
+	}
+	return extensionpkg.InspectMarketplacePackage(ctx, s.homePaths, request, profileName)
 }
