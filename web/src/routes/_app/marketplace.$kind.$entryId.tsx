@@ -1,31 +1,28 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { createOsRouteSync, validateMarketplaceDetailSearch } from "@/systems/os";
-import type { TopbarRouteContext } from "@/types/topbar";
-import {
-  isMarketplaceKind,
-  MARKETPLACE_KIND_LABEL,
-  marketplaceRouteKindFor,
-} from "@/systems/marketplace";
+import { validateMarketplaceDetailSearch } from "@/systems/os";
 
+/**
+ * Retired kind detail path: redirects to the one-catalog entry for one release, keeping the
+ * installed identity and scope of the row that linked here.
+ */
 export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
   validateSearch: validateMarketplaceDetailSearch,
-  beforeLoad: ({ params, search }): { topbar: TopbarRouteContext } => ({
-    topbar: {
-      parentCrumb: isMarketplaceKind(params.kind)
-        ? {
-            label: MARKETPLACE_KIND_LABEL[params.kind],
-            search: {
-              profile: search.profile,
-              scope: search.scope,
-              tab: search.tab,
-              workspace_id: search.workspace_id,
-            },
-            to: `/marketplace/${marketplaceRouteKindFor(params.kind)}`,
-          }
-        : undefined,
-      crumb: { label: params.entryId },
-    },
-  }),
-  component: createOsRouteSync("marketplace"),
+  beforeLoad: ({ params, search }) => {
+    throw redirect({
+      params: { entryId: params.entryId },
+      search: {
+        installed_name: search.installed_name,
+        profile: search.profile,
+        scope: search.scope,
+        workspace_id: search.workspace_id,
+      },
+      to: "/marketplace/$entryId",
+    });
+  },
+  component: RetiredMarketplaceDetailRedirect,
 });
+
+function RetiredMarketplaceDetailRedirect() {
+  return null;
+}

@@ -9,12 +9,15 @@ entry_points: user config.toml; compozy config set marketplace.catalog.* --scope
 qa_status: untested
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-marketplace-native-config-policy; BUG-20260715-config-set-late-metadata
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-033; ET-marketplace-kill-switch
 ---
+
+Marketplace catalog task 02 (2026-09-12): Exercise v3 preference, root fallback only after 404/410 with one marketplace.feed.root_family warning, unchanged configured base_url, and failure without fallback for invalid v3/503. A live source switch must preserve these family rules. Final execution belongs to tasks 09/10; earlier evidence does not validate these changes.
+
 
 QA impact 2026-08-22: the public scope vocabulary hard-cut from `global` to `user`, and profile
 overlays add a second denied mutation path. Reset for the Task 13 denial and live-apply replay.

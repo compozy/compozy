@@ -49,6 +49,7 @@
         "@xstate/store-react": "^2.0.0",
         "@xyflow/react": "^12.11.5",
         "ai": "^7.0.79",
+        "boring-avatars": "2.0.4",
         "date-fns": "^4.4.0",
         "lexical": "^0.49.0",
         "lucide-react": "^1.34.0",

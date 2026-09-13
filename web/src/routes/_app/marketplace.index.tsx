@@ -1,14 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { validateMarketplaceSearch } from "@/systems/marketplace";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/marketplace/")({
-  beforeLoad: redirectToMarketplaceSkills,
-  component: MarketplaceIndexRedirect,
+  validateSearch: validateMarketplaceSearch,
+  component: createOsRouteSync("marketplace"),
 });
-
-function redirectToMarketplaceSkills() {
-  throw redirect({ to: "/marketplace/skills" });
-}
-
-function MarketplaceIndexRedirect() {
-  return null;
-}

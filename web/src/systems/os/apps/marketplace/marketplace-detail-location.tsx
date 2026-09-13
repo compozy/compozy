@@ -7,100 +7,64 @@ import { useMarketplaceDetailScope } from "./hooks/use-marketplace-detail-scope"
 import type { MarketplaceDetailSearch } from "./marketplace-detail-search";
 import {
   MarketplaceApiError,
+  MarketplaceCatalogTrail,
   MarketplaceDetail,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
-  MarketplaceEntryAction,
-  MarketplaceEntryStatus,
-  type MarketplaceKind,
-  MarketplaceMCPDetailTopbarActions,
-  marketplaceRouteKindFor,
   useMarketplaceActionController,
-  useMarketplaceEntry,
+  useMarketplaceCatalogEntry,
 } from "@/systems/marketplace";
 
 export function MarketplaceDetailLocation({
-  kind,
   entryId,
   search,
   liveDataEnabled,
 }: {
-  kind: MarketplaceKind;
   entryId: string;
-  search: MarketplaceDetailSearch;
-  liveDataEnabled: boolean;
-}) {
-  return (
-    <MarketplaceDetailRouteBody
-      entryId={entryId}
-      kind={kind}
-      liveDataEnabled={liveDataEnabled}
-      search={search}
-    />
-  );
-}
-
-function MarketplaceDetailRouteBody({
-  entryId,
-  kind,
-  search,
-  liveDataEnabled,
-}: {
-  entryId: string;
-  kind: MarketplaceKind;
   search: MarketplaceDetailSearch;
   liveDataEnabled: boolean;
 }) {
   const navigate = useNavigate();
-  const { managementScope, profileName, workspaceId } = useMarketplaceDetailScope(search);
-  const query = useMarketplaceEntry({
-    entryId,
-    installedName: search.installed_name,
-    kind,
-    workspaceId,
-  });
-  const actions = useMarketplaceActionController(workspaceId, {
-    mcpScope: managementScope,
-    profileName,
-  });
+  const { profileName, workspaceId } = useMarketplaceDetailScope(search);
+  const query = useMarketplaceCatalogEntry(
+    {
+      entryId,
+      installedName: search.installed_name,
+      profileName,
+      source: search.source,
+      workspaceId,
+    },
+    liveDataEnabled
+  );
+  const actions = useMarketplaceActionController();
   const entry = query.data?.entry;
   const entryName = entry?.name ?? entryId;
-  const catalogPath = `/marketplace/${marketplaceRouteKindFor(kind)}` as const;
-  const backToCatalog = () => {
-    void navigate({ search: search.tab === "market" ? { tab: "market" } : {}, to: catalogPath });
+  const referrer = search.from === "installed" ? "Installed" : "Marketplace";
+  const back = () => {
+    void navigate({
+      search: { q: search.q },
+      to: search.from === "installed" ? "/marketplace/installed" : "/marketplace",
+    });
   };
 
-  const mcpInstalled = Boolean(entry && kind === "mcp" && entry.installed);
   useTopbarSlot({
-    onBack: backToCatalog,
-    crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: backToCatalog }],
+    onBack: back,
+    crumbs: [{ id: "marketplace", label: referrer, onSelect: back }],
     crumb: entryName,
-    status: entry && !mcpInstalled ? <MarketplaceEntryStatus entry={entry} /> : undefined,
     actions: entry ? (
-      mcpInstalled ? (
-        <MarketplaceMCPDetailTopbarActions
-          entry={entry}
-          liveDataEnabled={liveDataEnabled}
-          onAction={actions.handleAction}
-          pending={actions.isEntryPending(entry)}
-          scope={managementScope}
-          profileName={profileName ?? undefined}
-          workspaceId={workspaceId ?? undefined}
-        />
-      ) : (
-        <MarketplaceEntryAction
-          emphasis="primary"
-          entry={entry}
-          onAction={actions.handleAction}
-          pending={actions.isEntryPending(entry)}
-        />
-      )
+      <MarketplaceCatalogTrail
+        emphasis="primary"
+        entry={entry}
+        onInstall={actions.install}
+        onUpdate={actions.update}
+        pending={actions.isEntryPending(entry)}
+      />
     ) : undefined,
   });
 
   if (query.isLoading) return <MarketplaceDetailSkeleton />;
   if (query.error instanceof MarketplaceApiError && query.error.status === 404) {
-    return <MarketplaceDetailNotFound onBack={backToCatalog} />;
+    return <MarketplaceDetailNotFound onBack={back} />;
   }
   if (query.error || !query.data) {
     return (
@@ -119,13 +83,7 @@ function MarketplaceDetailRouteBody({
   }
   return (
     <>
-      <MarketplaceDetail
-        data={query.data}
-        liveDataEnabled={liveDataEnabled}
-        managementScope={managementScope}
-        managementWorkspaceId={workspaceId ?? undefined}
-        managementProfileName={profileName ?? undefined}
-      />
+      <MarketplaceDetail data={query.data} />
       {actions.dialogs}
     </>
   );

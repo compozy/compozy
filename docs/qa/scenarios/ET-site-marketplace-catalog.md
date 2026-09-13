@@ -9,12 +9,15 @@ entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extens
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: untested
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-mcp.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-github.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/api-marketplace-mcp-final.json
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-site-docs-single-tree-ia
 ---
+
+Marketplace catalog task 02 (2026-09-12): The site now reads 20 extensions from catalog/v3/extensions.json, validates typed inputs, icons and presets, and validates the retained root family separately. Confirm GitHub/Linear packaged servers and same-brand bridge setup links remain distinct. Documentation Writer stays only in retained skill discovery. Final execution belongs to tasks 09/10; earlier evidence does not validate these changes.
+
 
 Added 2026-07-29 with the site IA restructure (spec `.compozy/tasks/site-docs-ia/_spec.md`
 Phase B): `/marketplace` is a build-time render of `catalog/skills.json`, `catalog/extensions.json`,

@@ -2,20 +2,20 @@ import { FileText, Fingerprint, ShieldCheck } from "lucide-react";
 
 import { MonoId, PropertyRow, Time } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionInstalled } from "./marketplace-detail-extension-installed";
 import {
   MarketplaceDetailColumns,
   MarketplaceDetailKvRow,
   MarketplaceDetailRailCard,
   MarketplaceDetailSection,
+  MarketplaceRepositoryRow,
 } from "./marketplace-detail-shell";
-import { MarketplaceRepositoryRow } from "./marketplace-detail-skill";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionViewProps {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
 }
 
 /**
@@ -47,7 +47,7 @@ function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionView
 function MarketplaceExtensionArtifactSection({
   extension,
 }: {
-  extension: MarketplaceEntryResponse["extension"];
+  extension: MarketplaceCatalogEntryResponse["extension"];
 }) {
   if (!extension) return null;
   return (
@@ -93,7 +93,7 @@ function MarketplaceExtensionDetailsCard({
   data,
   defaultOpen = true,
 }: {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
   defaultOpen?: boolean;
 }) {
   const entry = data.entry;
@@ -142,7 +142,7 @@ function MarketplaceExtensionDetailsCard({
 function MarketplaceExtensionTrustCard({
   trust,
 }: {
-  trust: MarketplaceEntryResponse["entry"]["trust"];
+  trust: MarketplaceCatalogEntryResponse["entry"]["trust"];
 }) {
   if (!trust) return null;
   return (

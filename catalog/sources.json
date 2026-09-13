@@ -43,7 +43,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/context7"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/context7",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/context7.png"
         },
         {
             "entry_id": "github",
@@ -53,7 +54,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/github"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/github",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/github.svg"
         },
         {
             "entry_id": "linear",
@@ -63,7 +65,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/linear"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/linear",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/linear.svg"
         },
         {
             "entry_id": "notion",
@@ -73,7 +76,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/notion"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/notion",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/notion.png"
         },
         {
             "entry_id": "sentry",
@@ -83,7 +87,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/sentry"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/sentry",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/sentry.svg"
         },
         {
             "entry_id": "postgres",
@@ -93,7 +98,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/postgres"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/postgres",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/postgres.png"
         },
         {
             "entry_id": "supabase",
@@ -103,7 +109,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/supabase"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/supabase",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/supabase.png"
         },
         {
             "entry_id": "brave-search",
@@ -113,7 +120,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/brave-search"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/brave-search",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/brave-search.png"
         },
         {
             "entry_id": "playwright",
@@ -123,7 +131,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/playwright"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/playwright",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/playwright.png"
         },
         {
             "entry_id": "stripe",
@@ -133,7 +142,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/stripe"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/stripe",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/stripe.svg"
         },
         {
             "entry_id": "posthog",
@@ -143,7 +153,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/posthog"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/posthog",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/posthog.svg"
         },
         {
             "entry_id": "airtable",
@@ -153,7 +164,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/airtable"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/airtable",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/airtable.png"
         },
         {
             "entry_id": "gitlab",
@@ -163,7 +175,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/gitlab"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/gitlab",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/gitlab.png"
         },
         {
             "entry_id": "atlassian",
@@ -173,7 +186,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/atlassian"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/atlassian",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/atlassian.svg"
         },
         {
             "entry_id": "grafana",
@@ -183,7 +197,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/grafana"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/grafana",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/grafana.svg"
         },
         {
             "entry_id": "calcom",
@@ -193,7 +208,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/calcom"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/calcom",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/calcom.png"
         },
         {
             "entry_id": "cloudflare",
@@ -203,7 +219,8 @@
             "tier": "official",
             "format": "compozy",
             "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/cloudflare"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/cloudflare",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/cloudflare.png"
         }
     ],
     "retained_skills": [

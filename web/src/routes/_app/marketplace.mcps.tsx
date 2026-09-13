@@ -1,15 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import type { TopbarRouteContext } from "@/types/topbar";
-import { validateMarketplaceKindSearch } from "@/systems/marketplace";
-import { createOsRouteSync } from "@/systems/os";
+import { validateMarketplaceSearch } from "@/systems/marketplace";
 
-const MARKETPLACE_MCPS_TOPBAR_CONTEXT: { topbar: TopbarRouteContext } = {
-  topbar: { crumb: { label: "MCPs" } },
-};
-
+/** Retired kind path: redirects to the one catalog for one release (`?tab=` is dropped). */
 export const Route = createFileRoute("/_app/marketplace/mcps")({
-  beforeLoad: (): { topbar: TopbarRouteContext } => MARKETPLACE_MCPS_TOPBAR_CONTEXT,
-  validateSearch: validateMarketplaceKindSearch,
-  component: createOsRouteSync("marketplace"),
+  validateSearch: validateMarketplaceSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ search: { q: search.q }, to: "/marketplace" });
+  },
+  component: RetiredMarketplaceKindRedirect,
 });
+
+function RetiredMarketplaceKindRedirect() {
+  return null;
+}

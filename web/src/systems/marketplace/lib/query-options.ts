@@ -1,13 +1,13 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
-  browseMarketplace,
   getMarketplaceCatalogEntry,
   browseMarketplaceKind,
   getMarketplaceEntry,
   searchMarketplace,
 } from "../adapters/marketplace-api";
 import { marketplaceKeys } from "./query-keys";
+import { readMarketplaceSnapshot } from "./catalog-snapshot";
 import type {
   MarketplaceCatalogOptions,
   MarketplaceCatalogEntryOptions,
@@ -51,12 +51,9 @@ export function marketplaceEntryOptions(options: MarketplaceEntryOptions) {
 }
 
 export function marketplaceCatalogOptions(options: MarketplaceCatalogOptions = {}, enabled = true) {
-  return infiniteQueryOptions({
+  return queryOptions({
     queryKey: marketplaceKeys.catalog(options),
-    queryFn: ({ pageParam, signal }) =>
-      browseMarketplace({ ...options, cursor: pageParam }, signal),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: page => page.next_cursor || undefined,
+    queryFn: ({ signal }) => readMarketplaceSnapshot(options, signal),
     staleTime: MARKETPLACE_STALE_TIME,
     retry: (failures, error) =>
       !(error instanceof MarketplaceApiError && error.status < 500) && failures < 2,
@@ -64,11 +61,14 @@ export function marketplaceCatalogOptions(options: MarketplaceCatalogOptions = {
   });
 }
 
-export function marketplaceCatalogEntryOptions(options: MarketplaceCatalogEntryOptions) {
+export function marketplaceCatalogEntryOptions(
+  options: MarketplaceCatalogEntryOptions,
+  enabled = true
+) {
   return queryOptions({
     queryKey: marketplaceKeys.catalogEntry(options),
     queryFn: ({ signal }) => getMarketplaceCatalogEntry(options, signal),
     staleTime: MARKETPLACE_STALE_TIME,
-    enabled: options.entryId.trim() !== "",
+    enabled: enabled && options.entryId.trim() !== "",
   });
 }

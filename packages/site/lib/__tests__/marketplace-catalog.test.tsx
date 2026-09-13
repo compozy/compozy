@@ -55,6 +55,12 @@ import {
   entriesForKind,
   extensionEntries,
   extensionEntrySchema,
+  extensionV3EntrySchema,
+  extensionV3FeedSchema,
+  extensionFeedSchema,
+  retainedExtensionEntries,
+  marketplacePresets,
+  marketplacePresetsSchema,
   findEntry,
   installCommand,
   isMarketplaceKind,
@@ -83,6 +89,106 @@ describe("marketplace catalog", () => {
     expect(skillEntries.length).toBeGreaterThan(0);
     expect(extensionEntries.length).toBeGreaterThan(0);
     expect(mcpEntries.length).toBeGreaterThan(0);
+  });
+
+  // Invariant: published v3 data is validated before rendering while the retained v2 schema stays strict.
+  // Owner: site build-time feed boundary; canonical suite: marketplace-catalog.test.tsx.
+  it("Should load all packaged extensions from v3 and validate the retained root family", () => {
+    expect(extensionEntries).toHaveLength(20);
+    expect(retainedExtensionEntries).toHaveLength(20);
+    expect(extensionEntries.find(entry => entry.entry_id === "context7")?.inputs).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "context7_api_key", type: "secret" })])
+    );
+    expect(
+      retainedExtensionEntries.find(entry => entry.entry_id === "context7")
+    ).not.toHaveProperty("inputs");
+    expect(extensionEntries.map(entry => [entry.entry_id, entry.digest_sha256])).toEqual(
+      retainedExtensionEntries.map(entry => [entry.entry_id, entry.digest_sha256])
+    );
+    expect(extensionEntries.some(entry => entry.entry_id === "documentation-writer")).toBe(false);
+    expect(skillEntries.some(entry => entry.entry_id === "documentation-writer")).toBe(true);
+  });
+
+  it("Should fence v3 fields from the retained v2 feed schema", () => {
+    const entry = {
+      ...retainedExtensionEntries[0],
+      icon: "https://example.com/icon.svg",
+      inputs: [],
+    };
+    const feed = { manifest_version: 3, generated_at: "2026-09-12T10:00:00Z", entries: [entry] };
+    expect(extensionV3FeedSchema.parse(feed).entries[0].icon).toBe(entry.icon);
+    expect(() => extensionFeedSchema.parse({ ...feed, manifest_version: 2 })).toThrow();
+    expect(() => extensionV3FeedSchema.parse({ ...feed, manifest_version: 2 })).toThrow();
+    expect(() => extensionV3FeedSchema.parse({ ...feed, entries: [entry, entry] })).toThrow(
+      /duplicated/
+    );
+  });
+
+  it.each([
+    { icon: "https://example.com/icon.svg" },
+    { icon: "https://example.com/icon.webp?revision=2" },
+    { icon: "data:image/svg+xml,%3Csvg%2F%3E" },
+    { icon: "data:image/png;base64,YWJj" },
+  ])("Should accept the supported icon reference $icon", ({ icon }) => {
+    expect(extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], icon }).icon).toBe(icon);
+  });
+
+  it.each([
+    "http://example.com/icon.svg",
+    "https://example.com/icon.gif",
+    "https://user:pass@example.com/icon.svg",
+    "data:text/html,%3Cscript%3E",
+    "data:image/png;base64,invalid",
+    "data:image/svg+xml,%GG",
+    "x".repeat(65537),
+  ])("Should reject an unsupported icon reference (%#)", icon => {
+    expect(() => extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], icon })).toThrow(
+      /icon/
+    );
+  });
+
+  it("Should reject invalid typed defaults, secret query bindings and duplicate inputs", () => {
+    const input = {
+      id: "project",
+      prompt: "Project",
+      type: "identifier",
+      required: true,
+      binding: { type: "url_query", name: "project" },
+    };
+    const parse = (inputs: unknown[]) =>
+      extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], inputs });
+    expect(parse([{ ...input, default: "demo-project" }]).inputs?.[0].default).toBe("demo-project");
+    expect(() => parse([input, input])).toThrow(/unique/);
+    expect(() => parse([input, { ...input, id: "another" }])).toThrow(/bindings/);
+    expect(() => parse([{ ...input, type: "secret" }])).toThrow(/secret/);
+    expect(() => parse([{ ...input, default: "project with spaces" }])).toThrow(/URL-safe/);
+    expect(() => parse([{ ...input, type: "boolean", default: "true" }])).toThrow(/boolean/);
+    expect(() => parse([{ ...input, type: "string", default: "a".repeat(8193) }])).toThrow(/8 KiB/);
+    expect(() => parse([{ ...input, type: "string", default: "a\0b" }])).toThrow(/NUL-free/);
+  });
+
+  it("Should preserve preset order and reject duplicate or reserved names", () => {
+    expect(marketplacePresets.map(entry => [entry.name, entry.default])).toEqual([
+      ["claude-plugins-official", "on"],
+      ["openai-codex", "off"],
+    ]);
+    const feed = {
+      manifest_version: 3,
+      generated_at: "2026-09-12T10:00:00Z",
+      entries: marketplacePresets,
+    };
+    expect(() =>
+      marketplacePresetsSchema.parse({
+        ...feed,
+        entries: [marketplacePresets[0], marketplacePresets[0]],
+      })
+    ).toThrow(/unique/);
+    expect(() =>
+      marketplacePresetsSchema.parse({
+        ...feed,
+        entries: [{ ...marketplacePresets[0], name: "compozy" }],
+      })
+    ).toThrow(/reserved/);
   });
 
   it("accepts and normalizes the optional extension format marker", () => {
@@ -629,12 +735,20 @@ describe("marketplace bridge providers", () => {
     }
   });
 
-  it("keeps bridges out of the catalog feed kinds", () => {
-    // Bridges cannot be feed entries: each manifest points [subprocess] at a locally built binary,
-    // so there is no cross-platform artifact to publish with a digest.
+  it("Should keep bridge setup independent of packaged MCP servers with the same brand", () => {
+    // Task02 packages the GitHub/Linear MCP servers. A shared brand is not bridge identity:
+    // bridges retain setup guides, while the distinct extension packages carry install artifacts.
     expect(isMarketplaceKind("bridges")).toBe(false);
-    for (const provider of bridgeProviders) {
-      expect(findEntry("extensions", provider.platform)).toBeUndefined();
+    for (const platform of ["github", "linear"]) {
+      const bridge = findBridgeProvider(platform);
+      const packaged = findEntry("extensions", platform);
+      expect(bridge?.setupUrl).toBe(`/docs/bridges/setup-${platform}`);
+      expect(packaged).toMatchObject({
+        entry_id: platform,
+        install_slug: `compozy/${platform}`,
+        repository: `https://github.com/compozy/compozy/tree/main/catalog/packages/${platform}`,
+      });
+      expect(packaged?.description).not.toBe(bridge?.description);
     }
   });
 });

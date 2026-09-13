@@ -1,54 +1,34 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-import { notifyUser } from "@/lib/user-feedback";
+import type { MarketplaceCatalogListing } from "../types";
 
-import type { MarketplaceListing } from "../types";
-
-export type MarketplaceDialogSelection = {
-  entryId: string;
-  installedName?: string | null;
-};
-
+/** Explicit-consent gate for an `allowed_unverified` catalog entry, in daemon order. */
 export type MarketplaceActionControllerPhase =
   | { status: "idle"; nextRequestId: number }
   | {
-      status: "detailLoading";
-      nextRequestId: number;
-      requestId: number;
-      selection: MarketplaceDialogSelection;
-    }
-  | { status: "mcpInstall"; nextRequestId: number; selection: MarketplaceDialogSelection }
-  | {
       status: "extensionTrust";
       nextRequestId: number;
-      entry: MarketplaceListing;
+      entry: MarketplaceCatalogListing;
       error: string | null;
     }
   | {
       status: "extensionTrustSubmitting";
       nextRequestId: number;
-      entry: MarketplaceListing;
+      entry: MarketplaceCatalogListing;
       requestId: number;
     };
 
 type MarketplaceActionControllerEventPayloadMap = {
-  detailFailed: { error: string; requestId: number };
-  detailLoaded: { requestId: number };
-  detailRequested: {
-    describeFailure: (error: unknown) => string;
-    load: () => Promise<void>;
-    selection: MarketplaceDialogSelection;
-  };
   dialogDismissed: {};
   extensionTrustConfirmed: {
     describeFailure: (error: unknown) => string;
-    execute: (entry: MarketplaceListing) => Promise<boolean>;
-    notifySuccess: (entry: MarketplaceListing) => void;
+    execute: (entry: MarketplaceCatalogListing) => Promise<boolean>;
+    notifySuccess: (entry: MarketplaceCatalogListing) => void;
   };
   extensionTrustFailed: { error: string; requestId: number };
-  extensionTrustRequested: { entry: MarketplaceListing };
+  extensionTrustRequested: { entry: MarketplaceCatalogListing };
   extensionTrustSucceeded: {
-    notifySuccess: (entry: MarketplaceListing) => void;
+    notifySuccess: (entry: MarketplaceCatalogListing) => void;
     requestId: number;
   };
 };
@@ -69,29 +49,6 @@ export const marketplaceActionControllerLogic = createStoreLogic<
 >({
   context: idle(0),
   on: {
-    detailFailed: (context, event, enqueue) => {
-      if (context.status !== "detailLoading" || context.requestId !== event.requestId) return;
-      enqueue.effect(() => notifyUser({ message: event.error, tone: "error" }));
-      return idle(context.nextRequestId);
-    },
-    detailLoaded: (context, event) => {
-      if (context.status !== "detailLoading" || context.requestId !== event.requestId) return;
-      return {
-        nextRequestId: context.nextRequestId,
-        selection: context.selection,
-        status: "mcpInstall",
-      };
-    },
-    detailRequested: (context, event, enqueue) => {
-      const requestId = context.nextRequestId + 1;
-      enqueueDetail(event, enqueue, requestId);
-      return {
-        nextRequestId: requestId,
-        requestId,
-        selection: event.selection,
-        status: "detailLoading",
-      };
-    },
     dialogDismissed: context =>
       context.status === "extensionTrustSubmitting" ? undefined : idle(context.nextRequestId),
     extensionTrustConfirmed: (context, event, enqueue) => {
@@ -132,23 +89,8 @@ export const marketplaceActionControllerLogic = createStoreLogic<
   },
 });
 
-function enqueueDetail(
-  event: MarketplaceActionControllerEventPayloadMap["detailRequested"],
-  enqueue: MarketplaceActionControllerEnqueue,
-  requestId: number
-) {
-  enqueue.effect(async ({ trigger }) => {
-    try {
-      await event.load();
-      trigger.detailLoaded({ requestId });
-    } catch (error) {
-      trigger.detailFailed({ error: event.describeFailure(error), requestId });
-    }
-  });
-}
-
 function enqueueExtensionTrust(
-  entry: MarketplaceListing,
+  entry: MarketplaceCatalogListing,
   event: MarketplaceActionControllerEventPayloadMap["extensionTrustConfirmed"],
   enqueue: MarketplaceActionControllerEnqueue,
   requestId: number

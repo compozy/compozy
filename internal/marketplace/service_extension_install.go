@@ -31,7 +31,7 @@ func (e *ExtensionInstallResolutionError) Unwrap() []error {
 	return []error{e.RefreshErr, e.LookupErr}
 }
 
-// ResolveExtensionInstall returns a curated extension by exact slug and optional version.
+// ResolveExtensionInstall returns a curated extension by canonical or retained slug and optional version.
 func (s *CatalogService) ResolveExtensionInstall(
 	ctx context.Context,
 	installSlug string,

@@ -42,8 +42,10 @@ export interface ExtensionInstallForm {
 
 export type ExtensionInstallFieldError = Partial<Record<"ref" | "version" | "asset", string>>;
 
-export function createExtensionInstallForm(): ExtensionInstallForm {
-  return { allowUnverified: false, asset: "", ref: "", source: "local_path", version: "" };
+export function createExtensionInstallForm(
+  source: ExtensionInstallSource = "local_path"
+): ExtensionInstallForm {
+  return { allowUnverified: false, asset: "", ref: "", source, version: "" };
 }
 
 /** Performs the form's early syntax checks; the daemon owns destination and DNS policy. */

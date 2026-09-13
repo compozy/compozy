@@ -36,6 +36,8 @@ import {
 
 export interface ExtensionInstallDialogProps {
   error?: string | null;
+  /** Source preselected when the dialog opens from a specific Add ▾ item. */
+  initialSource?: ExtensionInstallSource;
   open: boolean;
   pending?: boolean;
   preview?: ExtensionInstallPreview | null;
@@ -50,6 +52,7 @@ export interface ExtensionInstallDialogProps {
  */
 export function ExtensionInstallDialog({
   error,
+  initialSource = "local_path",
   open,
   pending = false,
   preview = null,
@@ -57,7 +60,9 @@ export function ExtensionInstallDialog({
   onOpenChange,
   onSubmit,
 }: ExtensionInstallDialogProps) {
-  const [form, setForm] = useState<ExtensionInstallForm>(createExtensionInstallForm);
+  const [form, setForm] = useState<ExtensionInstallForm>(() =>
+    createExtensionInstallForm(initialSource)
+  );
   const [fieldErrors, setFieldErrors] = useState<ExtensionInstallFieldError>({});
   const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
   const patch = (next: Partial<ExtensionInstallForm>) => {
@@ -70,7 +75,7 @@ export function ExtensionInstallDialog({
     <Dialog
       onOpenChange={next => {
         if (!next) {
-          setForm(createExtensionInstallForm());
+          setForm(createExtensionInstallForm(initialSource));
           setFieldErrors({});
         }
         onOpenChange(next);

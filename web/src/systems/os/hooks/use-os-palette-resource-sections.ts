@@ -175,7 +175,6 @@ function useMarketplaceSection(context: OsPaletteDomainContext) {
     },
     enabled
   );
-  usePaletteInfiniteCatalog(marketplace, enabled);
   if (context.signals === null) return EMPTY_SECTION("Marketplace");
   return section(
     "Marketplace",

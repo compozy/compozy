@@ -2,11 +2,11 @@ import { TriangleAlert } from "lucide-react";
 
 import { cn, Pill } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailSection } from "./marketplace-detail-shell";
 
 type TrustWarnings = NonNullable<
-  NonNullable<MarketplaceEntryResponse["entry"]["trust"]>["warnings"]
+  NonNullable<MarketplaceCatalogEntryResponse["entry"]["trust"]>["warnings"]
 >;
 
 interface MarketplaceDetailWarningsProps {

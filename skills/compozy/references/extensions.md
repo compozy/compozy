@@ -3,6 +3,7 @@
 ## Contents
 
 - Extension kits
+- Packaged inputs and server auth
 - Built-in open design
 - Portable Agent Plugins
 - Install trust
@@ -24,6 +25,25 @@ Extensions declare required environment variable names. Bind an existing Vault r
 If a candidate extension changes its normalized Network Live requirement, install or update returns `extension_network_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
+
+## Packaged Inputs And Server Auth
+
+Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,
+`type = string|identifier|boolean|secret`, `required`, and `binding = {type, name}`.
+An `env` binding must match a server's `env` or `secret_env` key; the map value is the input id.
+A `url_query` binding must match a parameter declared in a remote server URL. Secrets require
+`secret_env`, cannot bind URLs, and cannot have defaults. Boolean defaults are booleans; other
+non-secret defaults are strings. Values are NUL-free and at most 8 KiB; identifier values use
+URL-safe unreserved characters.
+
+`[resources.mcp_servers.<name>.auth]` accepts `method = "oauth"`,
+`registration = "dynamic"`, optional `issuer_url`, and scopes. The issuer must be advertised by
+the protected resource. `default_scope` supplies the installation default and never expands an
+existing installation. Validate the package with `compozy extension validate <directory>`.
+
+`compozy-catalog publish` derives version, inputs, archive and digest from the package. It emits
+v3 extensions and presets plus the retained v2 family; change `catalog/sources.json` or the package,
+not generated feed JSON. The site validates both families and reads its extensions from v3.
 
 ## Built-in Open Design
 

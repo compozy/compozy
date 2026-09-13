@@ -43,10 +43,10 @@
   color: var(--color-subtle);
 }
 
-/* Marketplace install flash — domain animation using the shared motion scale. */
+/* Marketplace install flash — one success-tint fade when a row just landed (state, not accent). */
 @keyframes marketplace-card-flash {
   0% {
-    background-color: var(--color-accent-tint);
+    background-color: var(--color-success-tint);
   }
   100% {
     background-color: var(--color-canvas-soft);
@@ -54,7 +54,14 @@
 }
 
 .marketplace-card-flash {
-  animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
+  animation: marketplace-card-flash 1.4s var(--ease-out) 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketplace-card-flash {
+    animation: none;
+    background-color: var(--color-elevated);
+  }
 }
 
 /* Runtime speed switch: the bolt zaps as fast engages (design ref:

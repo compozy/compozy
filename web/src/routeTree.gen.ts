@@ -35,8 +35,9 @@ import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
 import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
 import { Route as AppMarketplaceIndexRouteImport } from './routes/_app/marketplace.index'
-import { Route as AppMarketplaceKindRouteImport } from './routes/_app/marketplace.$kind_'
+import { Route as AppMarketplaceEntryIdRouteImport } from './routes/_app/marketplace.$entryId'
 import { Route as AppMarketplaceExtensionsRouteImport } from './routes/_app/marketplace.extensions'
+import { Route as AppMarketplaceInstalledRouteImport } from './routes/_app/marketplace.installed'
 import { Route as AppMarketplaceMcpsRouteImport } from './routes/_app/marketplace.mcps'
 import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketplace.skills'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
@@ -209,9 +210,9 @@ const AppMarketplaceIndexRoute = AppMarketplaceIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppMarketplaceRoute,
 } as any)
-const AppMarketplaceKindRoute = AppMarketplaceKindRouteImport.update({
-  id: '/$kind_',
-  path: '/$kind',
+const AppMarketplaceEntryIdRoute = AppMarketplaceEntryIdRouteImport.update({
+  id: '/$entryId',
+  path: '/$entryId',
   getParentRoute: () => AppMarketplaceRoute,
 } as any)
 const AppMarketplaceExtensionsRoute =
@@ -220,6 +221,11 @@ const AppMarketplaceExtensionsRoute =
     path: '/extensions',
     getParentRoute: () => AppMarketplaceRoute,
   } as any)
+const AppMarketplaceInstalledRoute = AppMarketplaceInstalledRouteImport.update({
+  id: '/installed',
+  path: '/installed',
+  getParentRoute: () => AppMarketplaceRoute,
+} as any)
 const AppMarketplaceMcpsRoute = AppMarketplaceMcpsRouteImport.update({
   id: '/mcps',
   path: '/mcps',
@@ -462,8 +468,9 @@ export interface FileRoutesByFullPath {
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
-  '/marketplace/$kind': typeof AppMarketplaceKindRoute
+  '/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
+  '/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
@@ -528,8 +535,9 @@ export interface FileRoutesByTo {
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
-  '/marketplace/$kind': typeof AppMarketplaceKindRoute
+  '/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
+  '/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
@@ -601,8 +609,9 @@ export interface FileRoutesById {
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
-  '/_app/marketplace/$kind_': typeof AppMarketplaceKindRoute
+  '/_app/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/_app/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
+  '/_app/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/_app/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/_app/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/_app/session/$id': typeof AppSessionIdRoute
@@ -674,8 +683,9 @@ export interface FileRouteTypes {
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
-    | '/marketplace/$kind'
+    | '/marketplace/$entryId'
     | '/marketplace/extensions'
+    | '/marketplace/installed'
     | '/marketplace/mcps'
     | '/marketplace/skills'
     | '/session/$id'
@@ -740,8 +750,9 @@ export interface FileRouteTypes {
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
-    | '/marketplace/$kind'
+    | '/marketplace/$entryId'
     | '/marketplace/extensions'
+    | '/marketplace/installed'
     | '/marketplace/mcps'
     | '/marketplace/skills'
     | '/session/$id'
@@ -812,8 +823,9 @@ export interface FileRouteTypes {
     | '/_app/jobs/$jobId'
     | '/_app/loop-runs/$runId'
     | '/_app/loops/$name'
-    | '/_app/marketplace/$kind_'
+    | '/_app/marketplace/$entryId'
     | '/_app/marketplace/extensions'
+    | '/_app/marketplace/installed'
     | '/_app/marketplace/mcps'
     | '/_app/marketplace/skills'
     | '/_app/session/$id'
@@ -1049,11 +1061,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMarketplaceIndexRouteImport
       parentRoute: typeof AppMarketplaceRoute
     }
-    '/_app/marketplace/$kind_': {
-      id: '/_app/marketplace/$kind_'
-      path: '/$kind'
-      fullPath: '/marketplace/$kind'
-      preLoaderRoute: typeof AppMarketplaceKindRouteImport
+    '/_app/marketplace/$entryId': {
+      id: '/_app/marketplace/$entryId'
+      path: '/$entryId'
+      fullPath: '/marketplace/$entryId'
+      preLoaderRoute: typeof AppMarketplaceEntryIdRouteImport
       parentRoute: typeof AppMarketplaceRoute
     }
     '/_app/marketplace/extensions': {
@@ -1061,6 +1073,13 @@ declare module '@tanstack/react-router' {
       path: '/extensions'
       fullPath: '/marketplace/extensions'
       preLoaderRoute: typeof AppMarketplaceExtensionsRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/marketplace/installed': {
+      id: '/_app/marketplace/installed'
+      path: '/installed'
+      fullPath: '/marketplace/installed'
+      preLoaderRoute: typeof AppMarketplaceInstalledRouteImport
       parentRoute: typeof AppMarketplaceRoute
     }
     '/_app/marketplace/mcps': {
@@ -1465,8 +1484,9 @@ const AppLoopsRouteWithChildren = AppLoopsRoute._addFileChildren(
 )
 
 interface AppMarketplaceRouteChildren {
-  AppMarketplaceKindRoute: typeof AppMarketplaceKindRoute
+  AppMarketplaceEntryIdRoute: typeof AppMarketplaceEntryIdRoute
   AppMarketplaceExtensionsRoute: typeof AppMarketplaceExtensionsRoute
+  AppMarketplaceInstalledRoute: typeof AppMarketplaceInstalledRoute
   AppMarketplaceMcpsRoute: typeof AppMarketplaceMcpsRoute
   AppMarketplaceSkillsRoute: typeof AppMarketplaceSkillsRoute
   AppMarketplaceIndexRoute: typeof AppMarketplaceIndexRoute
@@ -1474,8 +1494,9 @@ interface AppMarketplaceRouteChildren {
 }
 
 const AppMarketplaceRouteChildren: AppMarketplaceRouteChildren = {
-  AppMarketplaceKindRoute: AppMarketplaceKindRoute,
+  AppMarketplaceEntryIdRoute: AppMarketplaceEntryIdRoute,
   AppMarketplaceExtensionsRoute: AppMarketplaceExtensionsRoute,
+  AppMarketplaceInstalledRoute: AppMarketplaceInstalledRoute,
   AppMarketplaceMcpsRoute: AppMarketplaceMcpsRoute,
   AppMarketplaceSkillsRoute: AppMarketplaceSkillsRoute,
   AppMarketplaceIndexRoute: AppMarketplaceIndexRoute,

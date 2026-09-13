@@ -13,6 +13,7 @@ import type { MarketplaceExtensionServer } from "../../types";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import {
   useMarketplaceCatalog,
+  useMarketplaceCatalogEntry,
   useMarketplaceEntry,
   useMarketplaceKind,
   useMarketplaceSearch,
@@ -110,65 +111,130 @@ describe("marketplace query hooks", () => {
   });
 });
 
-// Invariant: revision conflicts replace the entire paged cache; source scope and liveness stay independent.
+// Invariant: only complete, single-revision snapshots enter the cache; restart at most three times.
 // Owning layer: catalog query lifecycle; canonical suite: use-marketplace.test.tsx (UT-035).
 describe("one catalog query lifecycle", () => {
   beforeEach(() => {
     mocks.catalog.mockReset();
     mocks.catalogDetail.mockReset();
   });
-  it("Should discard old pages and restart from page one after a stale cursor", async () => {
-    const first = {
-      total: 2,
-      revision: "old",
-      stale: false,
-      sources: [],
-      items: [{ entry_id: "old-entry" }],
-      next_cursor: "old-next",
+
+  it("Should retain source and installed identity while suppressing inactive detail reads", async () => {
+    mocks.catalogDetail.mockResolvedValue({ entry: { entry_id: "shared" } });
+    const options = {
+      entryId: "shared",
+      source: "team",
+      installedName: "local-name",
+      profileName: "work",
+      workspaceId: "ws-a",
     };
-    const current = {
-      total: 1,
-      revision: "new",
-      stale: false,
-      sources: [],
-      items: [{ entry_id: "new-entry" }],
-    };
+    const { client, wrapper } = setup();
+    const inactive = renderHook(() => useMarketplaceCatalogEntry(options, false), { wrapper });
+    expect(inactive.result.current.fetchStatus).toBe("idle");
+    expect(mocks.catalogDetail).not.toHaveBeenCalled();
+    const active = renderHook(() => useMarketplaceCatalogEntry(options), { wrapper });
+    await waitFor(() => expect(active.result.current.isSuccess).toBe(true));
+    expect(mocks.catalogDetail).toHaveBeenCalledWith(options, expect.any(AbortSignal));
+    inactive.unmount();
+    active.unmount();
+    client.clear();
+  });
+
+  const page = (revision: string, next_cursor?: string) => ({
+    total: 2,
+    revision,
+    stale: false,
+    sources: [],
+    items: [{ entry_id: `${revision}-${next_cursor ?? "last"}` }],
+    next_cursor,
+  });
+  const staleCursor = () =>
+    new MarketplaceApiError("Catalog changed", 409, "marketplace_cursor_stale", true);
+
+  it("Should drain pages atomically and restart at page one without concatenating revisions", async () => {
+    const old = page("old", "old-next");
+    const first = page("new", "new-next");
+    const last = page("new");
+    let resolveLast!: (value: unknown) => void;
     mocks.catalog
+      .mockResolvedValueOnce(old)
+      .mockRejectedValueOnce(staleCursor())
       .mockResolvedValueOnce(first)
-      .mockRejectedValueOnce(
-        new MarketplaceApiError("Catalog changed", 409, "marketplace_cursor_stale", true)
-      )
-      .mockResolvedValueOnce(current);
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveLast = resolve;
+          })
+      );
     const { client, wrapper } = setup();
     const { result, unmount } = renderHook(
       () => useMarketplaceCatalog({ q: "audit", profileName: "work" }),
       { wrapper }
     );
-    await waitFor(() => expect(result.current.data?.pages).toEqual([first]));
+    await waitFor(() => expect(mocks.catalog).toHaveBeenCalledTimes(4));
+    expect(result.current.data).toBeUndefined();
     await act(async () => {
-      await result.current.fetchNextPage();
+      resolveLast(last);
     });
-    await waitFor(() => expect(result.current.data?.pages).toEqual([current]));
-    expect(result.current.data?.pageParams).toEqual([undefined]);
+    await waitFor(() => expect(result.current.data?.pages).toEqual([first, last]));
     expect(mocks.catalog.mock.calls.map(call => call[0].cursor)).toEqual([
       undefined,
       "old-next",
       undefined,
+      "new-next",
     ]);
     expect(client.getQueryCache().getAll()).toHaveLength(1);
     unmount();
     client.clear();
   });
 
-  it("Should retain the envelope on ordinary errors and pause inactive catalog requests", async () => {
-    const first = {
-      total: 2,
-      revision: "same",
-      stale: false,
-      sources: [],
-      items: [],
-      next_cursor: "next",
-    };
+  it("Should stop after a fourth stale cursor and preserve the last fully drained snapshot until Retry", async () => {
+    const previous = page("previous");
+    mocks.catalog.mockResolvedValueOnce(previous);
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
+    await waitFor(() => expect(result.current.data?.pages).toEqual([previous]));
+    for (let revision = 0; revision < 4; revision++) {
+      mocks.catalog
+        .mockResolvedValueOnce(page(`partial-${revision}`, "next"))
+        .mockRejectedValueOnce(staleCursor());
+    }
+    expect(result.current.isError).toBe(false);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data?.pages).toEqual([previous]);
+    expect(mocks.catalog).toHaveBeenCalledTimes(9);
+    const replacement = page("replacement");
+    expect(result.current.error).toBeInstanceOf(MarketplaceApiError);
+    mocks.catalog.mockResolvedValueOnce(replacement);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.error).toBeNull());
+    expect(result.current.data?.pages).toEqual([replacement]);
+    unmount();
+    client.clear();
+  });
+
+  it("Should expose no partial snapshot when every initial attempt changes revision", async () => {
+    for (let revision = 0; revision < 4; revision++) {
+      mocks.catalog
+        .mockResolvedValueOnce(page(`partial-${revision}`, "next"))
+        .mockRejectedValueOnce(staleCursor());
+    }
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    expect(mocks.catalog).toHaveBeenCalledTimes(8);
+    unmount();
+    client.clear();
+  });
+
+  it("Should retain complete data on ordinary errors and pause inactive catalog requests", async () => {
+    const first = page("same");
     mocks.catalog
       .mockResolvedValueOnce(first)
       .mockRejectedValueOnce(new MarketplaceApiError("Invalid request", 400));
@@ -177,16 +243,17 @@ describe("one catalog query lifecycle", () => {
       wrapper,
     });
     await waitFor(() => expect(result.current.data?.pages).toEqual([first]));
+    expect(result.current.isError).toBe(false);
     await act(async () => {
-      await result.current.fetchNextPage();
+      await result.current.refetch();
     });
-    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data?.pages).toEqual([first]);
-    expect(mocks.catalog).toHaveBeenCalledTimes(2);
     const inactive = renderHook(() => useMarketplaceCatalog({ profileName: "personal" }, false), {
       wrapper,
     });
     expect(inactive.result.current.fetchStatus).toBe("idle");
+    expect(inactive.result.current.data).toBeUndefined();
     expect(mocks.catalog).toHaveBeenCalledTimes(2);
     inactive.unmount();
     unmount();

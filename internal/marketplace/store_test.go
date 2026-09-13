@@ -258,6 +258,44 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 
 func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: canonical catalog slugs select immutable entry identity; retained slugs stay usable.
+	t.Run("Should resolve canonical and retained slugs without crossing entry or version identity", func(t *testing.T) {
+		t.Parallel()
+		store := openMarketplaceTestStore(t)
+		entry := testEntry(KindExtension, "herdr-bridge", "herdr bridge", "Bridge integration")
+		entry.InstallSlug = "AlexandreAkao/herdr-bridge-compozy"
+		collision := testEntry(KindExtension, "other", "Other", "Different package")
+		collision.InstallSlug, collision.Version = "compozy/herdr-bridge", "2.0.0"
+		if err := store.ReplaceKind(t.Context(), KindExtension,
+			testDocument(time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), entry, collision)); err != nil {
+			t.Fatal(err)
+		}
+		for _, slug := range []string{"compozy/herdr-bridge", entry.InstallSlug} {
+			resolved, err := store.GetExtensionByInstallSlug(t.Context(), slug, "1.0.0")
+			if err != nil {
+				t.Fatalf("resolve(%s): %v", slug, err)
+			}
+			if resolved.EntryID != entry.EntryID || resolved.InstallSlug != slug ||
+				resolved.DigestSHA256 != entry.DigestSHA256 {
+				t.Fatalf("resolve(%s) = %#v, want exact entry and request slug", slug, resolved)
+			}
+		}
+		if _, err := store.GetExtensionByInstallSlug(
+			t.Context(),
+			"compozy/herdr-bridge",
+			"2.0.0",
+		); !errors.Is(
+			err,
+			ErrEntryNotFound,
+		) {
+			t.Fatalf("wrong canonical version: %v, want not found instead of another entry", err)
+		}
+		persisted, err := store.GetEntry(t.Context(), KindExtension, entry.EntryID)
+		if err != nil || persisted.InstallSlug != entry.InstallSlug {
+			t.Fatalf("persisted entry = %#v, %v, want unchanged feed acquisition identity", persisted, err)
+		}
+	})
 	t.Run("Should resolve an extension by exact install slug and version", func(t *testing.T) {
 		t.Parallel()
 

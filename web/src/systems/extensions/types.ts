@@ -1,5 +1,5 @@
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
-import type { MarketplaceListing } from "@/systems/marketplace";
+import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 
 export type ExtensionEntry = OperationResponse<"listExtensions", 200>["extensions"][number];
 export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 200>["provenance"];
@@ -20,6 +20,6 @@ export interface ExtensionInstanceScope {
 
 export interface InstalledExtensionView {
   extension: ExtensionEntry;
-  listing: MarketplaceListing | null;
+  listing: MarketplaceCatalogListing | null;
   updateAvailable: boolean;
 }

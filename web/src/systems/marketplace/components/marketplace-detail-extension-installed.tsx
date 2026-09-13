@@ -11,7 +11,7 @@ import {
 
 import { Empty, MonoId } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import {
   MarketplaceExtensionManageCard,
   MarketplaceExtensionNetworkCard,
@@ -45,7 +45,7 @@ import {
 } from "@/systems/extensions";
 
 interface MarketplaceDetailExtensionInstalledProps {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
   logEventSourceFactory?: (url: string) => ExtensionLogEventSource;
 }
 
@@ -149,7 +149,7 @@ function MarketplaceDetailExtensionInstalled({
       <RemoveExtensionDialog
         extension={extension}
         onOpenChange={open => (open ? state.requestRemoval() : state.dismissDialog())}
-        onRemoved={() => void state.navigate({ search: {}, to: "/marketplace/extensions" })}
+        onRemoved={() => void state.navigate({ search: {}, to: "/marketplace/installed" })}
         open={state.activeDialog === "remove"}
       />
     </>

@@ -411,6 +411,41 @@ Bind required values through the instance-scoped Vault flow described in
 instance, while stale bindings remain visible but are never injected when the new manifest stops
 declaring that name.
 
+## Declare packaged server inputs
+
+Use `[[inputs]]` for values requested during installation. Input ids and bindings must be unique.
+Types are `string`, `identifier`, `boolean`, and `secret`; each declaration includes a prompt,
+required flag, and an `env` or `url_query` binding. For example, an optional Context7 credential:
+
+```toml
+[[inputs]]
+id = "context7_api_key"
+prompt = "Context7 API key (optional)"
+type = "secret"
+required = false
+binding = { type = "env", name = "CONTEXT7_API_KEY" }
+
+[resources.mcp_servers.context7]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@upstash/context7-mcp@3.2.3"]
+secret_env = { CONTEXT7_API_KEY = "context7_api_key" }
+default_scope = "global"
+```
+
+Environment maps retain their map shape: the value is the declared input id. Non-secret environment
+inputs use `env`; secrets use `secret_env`. URL inputs must name a parameter already declared in the
+remote server URL. Secret inputs cannot have defaults or bind URL parameters. Boolean defaults are
+booleans; string and identifier defaults are strings. Values must be NUL-free and at most 8 KiB.
+
+A hosted server may declare `[resources.mcp_servers.<name>.auth]` with `method = "oauth"`,
+`registration = "dynamic"`, and scopes. An optional `issuer_url` restricts the authorization server
+to an advertised issuer. `default_scope` is an installation default, not permission to broaden the
+installed instance's scope. Validate the package with `compozy extension validate <directory>`.
+
+The publisher derives v3 feed inputs from the package and checks their equality. Editing a generated
+feed cannot change what a package requests; change its manifest and republish.
+
 ## Inspect extension MCP servers
 
 Before installation, catalog detail downloads the listed artifact, verifies its SHA-256 digest,
@@ -461,7 +496,6 @@ does not match `name` before reading or mutating the instance. This applies to i
 provenance, update, remove, enable, disable, reload, and logs. `extensions_list` accepts the same
 owner as a filter. List, info, and provenance retain the caller's selected profile even when no
 workspace is selected. Owner selection does not change the caller's workspace or profile authority.
-
 
 | Action             | Tool                                    | CLI                                |
 | ------------------ | --------------------------------------- | ---------------------------------- |

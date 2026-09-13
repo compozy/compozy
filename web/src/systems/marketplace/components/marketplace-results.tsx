@@ -1,0 +1,240 @@
+import { AlertCircle, ClockAlert, Puzzle, SearchX } from "lucide-react";
+
+import { Button, Empty, Time } from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
+
+import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
+import type { useMarketplacePage } from "../hooks/use-marketplace-page";
+import { catalogDetailSearch } from "../lib/marketplace-installed-view";
+import type { MarketplaceCatalogListing } from "../types";
+import { MarketplaceCatalogSection } from "./marketplace-catalog-section";
+import { MarketplaceEntryCard } from "./marketplace-entry-card";
+import { MarketplaceCatalogTrail } from "./marketplace-entry-trail";
+import { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
+import { MarketplaceInstalledShelf } from "./marketplace-installed-shelf";
+import type { MarketplaceActionController } from "./use-marketplace-action-controller";
+
+type MarketplacePageModel = ReturnType<typeof useMarketplacePage>;
+
+interface MarketplaceResultsProps {
+  actions: MarketplaceActionController;
+  onClearSearch: () => void;
+  onInstallFromGitHub: () => void;
+  page: MarketplacePageModel;
+  query: string;
+}
+
+/** Community word after the name: tier and author for anything the catalog does not mark official. */
+function originWords(entry: MarketplaceCatalogListing): string[] {
+  const tier = entry.tier?.trim();
+  if (!tier || tier === "official" || tier === "unverified") return [];
+  const author = entry.author?.trim();
+  return [author ? `${tier} · ${author}` : tier];
+}
+
+/**
+ * Browse body: shelf → sections by source (only with two or more) → grid, with truthful loading,
+ * stale, unreachable, empty, and continuation states from the daemon envelope.
+ */
+function MarketplaceResults({
+  actions,
+  onClearSearch,
+  onInstallFromGitHub,
+  page,
+  query,
+}: MarketplaceResultsProps) {
+  const shelf = (
+    <MarketplaceInstalledShelf
+      items={page.installedItems}
+      query={query}
+      updates={page.updates.length}
+    />
+  );
+
+  if (page.isLoading) {
+    return (
+      <>
+        {shelf}
+        <MarketplaceGridSkeleton count={6} />
+      </>
+    );
+  }
+
+  const hasItems = page.catalogItems.length > 0;
+
+  if (page.catalogError && !hasItems) {
+    return (
+      <>
+        {shelf}
+        <Empty
+          action={
+            <Button
+              data-testid="marketplace-retry"
+              onClick={() => void page.refresh()}
+              size="sm"
+              type="button"
+            >
+              Retry
+            </Button>
+          }
+          cause={page.catalogError.message}
+          data-testid="marketplace-unreachable"
+          description="No sources responded. Retry, or come back in a moment."
+          framed
+          icon={AlertCircle}
+          title="The marketplace is unreachable"
+          titleAs="h2"
+        />
+      </>
+    );
+  }
+
+  if (!hasItems) {
+    return (
+      <>
+        {shelf}
+        {query ? (
+          <Empty
+            action={
+              <Button onClick={onClearSearch} size="sm" type="button" variant="outline">
+                Clear search
+              </Button>
+            }
+            data-testid="marketplace-query-empty"
+            description={`Nothing matches "${query}" in the marketplace.`}
+            icon={SearchX}
+            title="No extensions match this query"
+          />
+        ) : (
+          <Empty
+            action={
+              <Button onClick={onInstallFromGitHub} size="sm" type="button">
+                <GithubLogo aria-hidden="true" className="size-3" />
+                Install from GitHub…
+              </Button>
+            }
+            data-testid="marketplace-empty"
+            description="No extensions are available from your sources. Install one directly from GitHub."
+            icon={Puzzle}
+            title="No extensions yet"
+          />
+        )}
+      </>
+    );
+  }
+
+  const renderCard = (entry: MarketplaceCatalogListing) => (
+    <MarketplaceEntryCard
+      data-testid={`marketplace-card-${entry.entry_id}`}
+      description={entry.description}
+      entry={entry}
+      flashing={actions.isEntryFlashing(entry)}
+      key={`${entry.source_ref ?? entry.source}:${entry.entry_id}`}
+      link={{
+        params: { entryId: entry.entry_id },
+        search: { ...catalogDetailSearch(entry), q: query || undefined },
+        to: "/marketplace/$entryId",
+      }}
+      onFlashEnd={() => actions.endEntryFlash(entry)}
+      pending={actions.isEntryPending(entry)}
+      trail={
+        <MarketplaceCatalogTrail
+          entry={entry}
+          onInstall={actions.install}
+          onUpdate={actions.update}
+          pending={actions.isEntryPending(entry)}
+        />
+      }
+      unverified={entry.trust?.registry_tier === "unverified"}
+      words={originWords(entry)}
+    />
+  );
+
+  const sectioned = page.sources.length >= 2;
+
+  return (
+    <>
+      {shelf}
+      {page.stale ? <MarketplaceStaleLine page={page} /> : null}
+      {sectioned ? (
+        page.sources.map(source => {
+          const items = page.catalogItems.filter(entry => entry.source === source.name);
+          if (items.length === 0) return null;
+          return (
+            <MarketplaceCatalogSection
+              count={items.length}
+              gist={
+                query
+                  ? `${items.length} of ${source.count} ${items.length === 1 ? "matches" : "match"} “${query}”`
+                  : null
+              }
+              key={source.name}
+              name={source.name}
+            >
+              <MarketplaceGrid data-testid={`marketplace-grid-${source.name}`}>
+                {items.map(renderCard)}
+              </MarketplaceGrid>
+            </MarketplaceCatalogSection>
+          );
+        })
+      ) : (
+        <MarketplaceGrid>{page.catalogItems.map(renderCard)}</MarketplaceGrid>
+      )}
+      <MarketplaceContinuation page={page} />
+    </>
+  );
+}
+
+/** The last projection the daemon could load, under one 12px line that says so — never a banner. */
+function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
+  const lastRead = page.sources
+    .map(source => source.last_read_at)
+    .filter((value): value is string => typeof value === "string" && value !== "")
+    .sort()
+    .at(-1);
+  return (
+    <p
+      className="flex items-center gap-2 text-eyebrow text-subtle"
+      data-testid="marketplace-stale"
+      role="status"
+    >
+      <ClockAlert aria-hidden="true" className="size-3 shrink-0 text-warning" />
+      <span>
+        Showing the catalog from {lastRead ? <Time iso={lastRead} /> : "the last refresh"} — the
+        sources did not answer.
+      </span>
+      <Button
+        disabled={page.isRefreshing}
+        onClick={() => void page.refresh()}
+        size="xs"
+        type="button"
+        variant="ghost"
+      >
+        Retry
+      </Button>
+    </p>
+  );
+}
+
+function MarketplaceContinuation({ page }: { page: MarketplacePageModel }) {
+  if (page.catalogError) {
+    const restarting = isMarketplaceCursorStale(page.catalogError);
+    return (
+      <div className="flex items-center justify-center gap-3 py-3" role="alert">
+        <span className="text-small-body text-danger">
+          {restarting
+            ? "The catalog changed while loading; showing the last complete catalog."
+            : "The catalog could not be refreshed."}
+        </span>
+        <Button onClick={() => void page.refresh()} size="sm" type="button" variant="outline">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+export { MarketplaceResults };
+export type { MarketplaceResultsProps };

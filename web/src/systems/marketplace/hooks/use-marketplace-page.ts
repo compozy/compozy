@@ -19,6 +19,10 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
   const pages = catalog.data?.pages ?? [];
   const first = pages[0];
   const catalogItems = pages.flatMap(page => page.items);
+  const unavailable =
+    first?.error_class && catalogItems.length === 0
+      ? new Error(first.error || `Catalog unavailable (${first.error_class})`)
+      : null;
   const updates = inventory.data.filter(item => item.updateAvailable);
   return {
     catalogItems,
@@ -30,14 +34,11 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     revision: first?.revision,
     stale: pages.some(page => page.stale),
     diagnostic: first?.error,
-    catalogError: catalog.error,
+    catalogError: catalog.error ?? unavailable,
     installedError: inventory.error,
     isLoading: catalog.isPending,
     isInstalledLoading: inventory.isPending,
     isRefreshing: refresh.isPending || catalog.isRefetching,
-    hasNextPage: catalog.hasNextPage,
-    isFetchingNextPage: catalog.isFetchingNextPage,
-    fetchNextPage: catalog.fetchNextPage,
     refresh: () => refresh.mutateAsync("extension"),
     profileName: inventory.profileName,
     workspaceId: inventory.workspaceId,

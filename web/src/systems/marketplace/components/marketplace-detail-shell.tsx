@@ -1,7 +1,14 @@
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow } from "@compozy/ui";
+import {
+  cn,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Eyebrow,
+  PropertyRow,
+} from "@compozy/ui";
 
 /**
  * Marketplace detail anatomy (OpenDesign marketplace contract): the kind-specific
@@ -184,6 +191,34 @@ function MarketplaceDetailRailNote({ children }: { children: ReactNode }) {
   );
 }
 
+/** Rail property row linking to the entry's repository as an owner/repo slug. */
+function MarketplaceRepositoryRow({ repository }: { repository: string | undefined }) {
+  const url = repository?.trim();
+  if (!url) return null;
+  return (
+    <PropertyRow label="Repository" valueTitle={url}>
+      <a
+        className="min-w-0 truncate font-mono text-eyebrow text-muted transition-colors duration-base hover:text-fg-strong"
+        href={url}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {formatRepositorySlug(url)} ↗
+      </a>
+    </PropertyRow>
+  );
+}
+
+function formatRepositorySlug(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/^\/+|\/+$/g, "");
+    return path || parsed.host;
+  } catch {
+    return url;
+  }
+}
+
 export {
   MarketplaceDetailColumns,
   MarketplaceDetailKvRow,
@@ -191,5 +226,6 @@ export {
   MarketplaceDetailRailCard,
   MarketplaceDetailRailNote,
   MarketplaceDetailSection,
+  MarketplaceRepositoryRow,
 };
 export type { MarketplaceDetailRailCardProps, MarketplaceDetailSectionProps };

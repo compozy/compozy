@@ -1770,17 +1770,22 @@ Cursor's discovery command defaults to `cursor-agent models`; its session launch
 
 ## `[marketplace.catalog]`
 
-CompozyOS fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
-validated independently and projected into the global database. If a fetch fails after a successful
-projection, CompozyOS keeps serving the prior rows with stale status instead of replacing them with an
-invalid or incomplete document.
+CompozyOS reads the extension catalog from `<base_url>/v3/extensions.json`. A mirror that returns
+404 or 410 for v3 falls back to the root `extensions.json` with one
+`marketplace.feed.root_family` warning. Other HTTP failures and invalid v3 documents do not fall
+back. The configured base URL is never rewritten. Failed refreshes retain the last valid projection
+and mark it stale.
+
+The publisher also emits the retained root `extensions.json`, `mcp.json`, and `skills.json` for
+existing consumers. Keep both families when hosting a mirror; v3 carries extension icons and typed
+inputs, and `v3/marketplaces.json` carries plugin marketplace presets.
 
 This section is global-only because the projection and refresh service are global. Put it in
 `$COMPOZY_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
 
 | Key        | Type     | Default                                                          | Validation                                     | Effect                                                                              |
 | ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for `mcp.json`, `extensions.json`, and `skills.json`; applies live.  |
+| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for the v3 and retained root feed families; applies live.            |
 | `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | HTTP(S) cache age before browse refreshes that kind; local files refresh on access. |
 | `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                        |
 

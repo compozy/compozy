@@ -1,7 +1,4 @@
-import { useEffect } from "react";
-import { isMarketplaceCursorStale } from "../adapters/marketplace-api-error";
-import { marketplaceKeys } from "../lib/query-keys";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   marketplaceCatalogOptions,
@@ -31,23 +28,12 @@ export function useMarketplaceEntry(options: MarketplaceEntryOptions) {
 }
 
 export function useMarketplaceCatalog(options: MarketplaceCatalogOptions = {}, enabled = true) {
-  const client = useQueryClient();
-  const query = useInfiniteQuery(marketplaceCatalogOptions(options, enabled));
-  const { error, data } = query;
-  const restart = isMarketplaceCursorStale(error) && !!data?.pages.length;
-  const { q, limit, workspaceId, profileName } = options;
-  useEffect(() => {
-    if (!enabled || !restart) return;
-    // Reset the whole infinite-query envelope before fetching the new first page.
-    // Returning page one as a continuation would mix two catalog revisions.
-    void client.resetQueries({
-      queryKey: marketplaceKeys.catalog({ q, limit, workspaceId, profileName }),
-      exact: true,
-    });
-  }, [client, enabled, restart, q, limit, workspaceId, profileName]);
-  return query;
+  return useQuery(marketplaceCatalogOptions(options, enabled));
 }
 
-export function useMarketplaceCatalogEntry(options: MarketplaceCatalogEntryOptions) {
-  return useQuery(marketplaceCatalogEntryOptions(options));
+export function useMarketplaceCatalogEntry(
+  options: MarketplaceCatalogEntryOptions,
+  enabled = true
+) {
+  return useQuery(marketplaceCatalogEntryOptions(options, enabled));
 }
