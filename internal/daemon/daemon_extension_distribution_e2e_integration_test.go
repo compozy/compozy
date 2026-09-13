@@ -22,14 +22,19 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	t.Run("Should install checked-in required and optional secret inputs through public transports [IT-005]",
+		testDaemonCatalogSecretInputs)
 	t.Run("Should restore typed inputs through public transports after daemon restart [IT-020]",
 		testDaemonExtensionInputsRestart)
 
@@ -825,28 +830,13 @@ func assertDistributionMissingInputs(
 	t *testing.T, ctx context.Context, client *http.Client, target string, install compozycontract.InstallExtensionRequest,
 ) {
 	t.Helper()
-	body, err := json.Marshal(install)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := requestDistributionInstall(t, ctx, client, target, install, http.StatusUnprocessableEntity)
 	var payload compozycontract.ExtensionOperationErrorPayload
-	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
-	closeErr := response.Body.Close()
-	if decodeErr != nil || closeErr != nil {
-		t.Fatalf("read input refusal: decode=%v close=%v", decodeErr, closeErr)
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
 	}
-	if response.StatusCode != http.StatusUnprocessableEntity || payload.Code != "extension_inputs_required" ||
-		len(payload.Inputs) != 2 || len(payload.InputDefinitions) != 2 {
-		t.Fatalf("input refusal status=%d payload=%#v", response.StatusCode, payload)
+	if payload.Code != "extension_inputs_required" || len(payload.Inputs) != 2 || len(payload.InputDefinitions) != 2 {
+		t.Fatalf("input refusal payload=%#v", payload)
 	}
 }
 
@@ -967,4 +957,136 @@ func assertDistributionUnconfiguredProfile(t *testing.T, ctx context.Context, ru
 			}
 		}
 	}
+}
+
+// Invariant: checked-in input declarations drive transport refusals, secret storage and optional installation.
+// Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
+func testDaemonCatalogSecretInputs(t *testing.T) {
+	t.Run("Should store a supplied secret and omit an optional input", func(t *testing.T) {
+		testDaemonCatalogSecretInputMode(t, false)
+	})
+	t.Run("Should reuse an existing owned vault reference", func(t *testing.T) {
+		testDaemonCatalogSecretInputMode(t, true)
+	})
+}
+
+func testDaemonCatalogSecretInputMode(t *testing.T, reuseRef bool) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
+	defer cancel()
+	catalog := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(catalog.Close)
+	runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Extensions.Trust.AllowUnverified = true
+			cfg.Marketplace.Catalog.BaseURL = catalog.URL
+		}},
+		Env: map[string]string{"BRAVE_API_KEY": "", "CONTEXT7_API_KEY": ""},
+	})
+	root := extensionAuthoringE2ERepoRoot(t)
+	const syntheticSecret = "catalog-input-integration-secret"
+	request := compozycontract.InstallExtensionRequest{
+		Source: compozycontract.InstallExtensionSourceLocalPath,
+		Ref:    filepath.Join(root, "catalog", "packages", "brave-search"), Scope: "global", AllowUnverified: true,
+	}
+	for _, transport := range []struct {
+		client *http.Client
+		url    string
+	}{
+		{runtime.HTTPClient, runtime.HTTPURL("/api/extensions")},
+		{runtime.UDSClient, runtime.UDSURL("/api/extensions")},
+	} {
+		payload := requestDistributionInstall(t, ctx, transport.client, transport.url, request, http.StatusUnprocessableEntity)
+		var refused compozycontract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(payload, &refused); err != nil {
+			t.Fatal(err)
+		}
+		if refused.Code != "extension_inputs_required" || len(refused.Inputs) != 1 ||
+			refused.Inputs[0] != "brave_api_key" || len(refused.InputDefinitions) != 1 {
+			t.Fatalf("required Brave input refusal = %#v", refused)
+		}
+	}
+	request.Inputs = map[string]extensioninput.Value{
+		"brave_api_key": {Value: json.RawMessage(strconv.Quote(syntheticSecret))},
+	}
+	ref := vault.ExtensionProfileSecretRef("brave-search", store.DefaultProfileID, "", "BRAVE_API_KEY")
+	var before compozycontract.VaultSecretPayload
+	if reuseRef {
+		stdout, stderr, err := runtime.CLI.RunInDirWithInput(ctx, runtime.WorkspaceRoot,
+			strings.NewReader(syntheticSecret), "vault", "put", ref, "--value-stdin", "-o", "json")
+		if err != nil {
+			t.Fatalf("seed owned vault reference: %v; stderr=%s", err, stderr)
+		}
+		if err := json.Unmarshal([]byte(stdout), &before); err != nil {
+			t.Fatal(err)
+		}
+		if !before.Present {
+			t.Fatal("seeded vault reference is absent")
+		}
+		request.Inputs = map[string]extensioninput.Value{"brave_api_key": {VaultRef: &ref}}
+	}
+	payload := requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"), request, http.StatusCreated)
+	if bytes.Contains(payload, []byte(syntheticSecret)) || bytes.Contains(payload, []byte("vault:extensions/")) {
+		t.Fatal("install response exposed a secret or reference")
+	}
+	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+		var bindings compozycontract.ExtensionSecretsPayload
+		if err := read(ctx, http.MethodGet, "/api/extensions/brave-search/secrets", nil, &bindings); err != nil {
+			t.Fatal(err)
+		}
+		if len(bindings.BoundEnvKeys) != 1 || bindings.BoundEnvKeys[0] != "BRAVE_API_KEY" ||
+			len(bindings.Bindings) != 1 || bindings.Bindings[0].Stale {
+			t.Fatalf("stored Brave secret binding = %#v", bindings)
+		}
+	}
+	var after compozycontract.VaultSecretPayload
+	if err := runtime.CLI.RunJSON(ctx, &after, "vault", "get", ref, "-o", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if !after.Present || (reuseRef && !after.UpdatedAt.Equal(before.UpdatedAt)) {
+		t.Fatal("installation failed to retain the stored vault entry")
+	}
+	if reuseRef {
+		return
+	}
+	request.Ref = filepath.Join(root, "catalog", "packages", "context7")
+	request.Inputs = nil
+	payload = requestDistributionInstall(t, ctx, runtime.UDSClient, runtime.UDSURL("/api/extensions"), request, http.StatusCreated)
+	var response compozycontract.ExtensionResponse
+	if err := json.Unmarshal(payload, &response); err != nil {
+		t.Fatal(err)
+	}
+	installed := response.Extension
+	if installed.Name != "context7" || len(installed.MissingInputs) != 0 || len(installed.MissingEnv) != 0 {
+		t.Fatalf("optional Context7 input readiness = %#v", installed)
+	}
+}
+
+func requestDistributionInstall(
+	t *testing.T, ctx context.Context, client *http.Client, target string,
+	install compozycontract.InstallExtensionRequest, wantStatus int,
+) []byte {
+	t.Helper()
+	body, err := json.Marshal(install)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil || closeErr != nil {
+		t.Fatalf("read install response: read=%v close=%v", readErr, closeErr)
+	}
+	if response.StatusCode != wantStatus {
+		t.Fatalf("install response status=%d, want %d; body=%s", response.StatusCode, wantStatus, payload)
+	}
+	return payload
 }
