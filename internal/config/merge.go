@@ -358,7 +358,6 @@ type skillsOverlay struct {
 	CustomSources           *[]string      `toml:"custom_sources"`
 	DisabledSkills          *[]string      `toml:"disabled_skills"`
 	PollInterval            *time.Duration `toml:"poll_interval"`
-	AllowedMarketplaceMCP   *[]string      `toml:"allowed_marketplace_mcp"`
 	AllowedMarketplaceHooks *[]string      `toml:"allowed_marketplace_hooks"`
 }
 

@@ -71655,7 +71655,6 @@ export interface operations {
             available_scopes: ("user" | "profile" | "workspace" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
-              allowed_marketplace_mcp?: string[];
               custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;
@@ -71909,7 +71908,6 @@ export interface operations {
         "application/json": {
           config?: {
             allowed_marketplace_hooks?: string[];
-            allowed_marketplace_mcp?: string[];
             custom_sources: string[];
             disabled_skills?: string[];
             enabled: boolean;
@@ -71940,7 +71938,6 @@ export interface operations {
             available_scopes: ("user" | "profile" | "workspace" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
-              allowed_marketplace_mcp?: string[];
               custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;

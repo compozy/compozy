@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+const retiredSkillRegistryKey = "registry"
+
 func loadPersistedConfigOverlay(
 	path string,
 	decode func([]byte, string) (configOverlay, error),
@@ -52,33 +54,48 @@ func archiveRetiredSkillMarketplace(contents []byte, source string) ([]byte, err
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {
 		return nil, err
 	}
-	skills, ok := values["skills"].(map[string]any)
+	skills, ok := values[SkillsDirName].(map[string]any)
 	if !ok {
 		return contents, nil
 	}
-	retired, exists := skills["marketplace"]
-	if !exists {
-		return contents, nil
-	}
-	registry, ok := retired.(map[string]any)
-	if !ok {
-		return nil, errors.New("skills.marketplace must be a table")
-	}
-	for key := range registry {
-		if key != "registry" && key != configBaseURLKey {
-			return nil, fmt.Errorf("unknown config key skills.marketplace.%s", key)
+	retiredValues := make(map[string]any)
+	if retired, exists := skills[toolSurfaceMarketplaceKey]; exists {
+		registry, ok := retired.(map[string]any)
+		if !ok {
+			return nil, errors.New("skills.marketplace must be a table")
 		}
+		for key := range registry {
+			if key != retiredSkillRegistryKey && key != configBaseURLKey {
+				return nil, fmt.Errorf("unknown config key skills.marketplace.%s", key)
+			}
+		}
+		retiredValues[toolSurfaceMarketplaceKey] = registry
+	}
+	if allowed, exists := skills["allowed_marketplace_mcp"]; exists {
+		entries, ok := allowed.([]any)
+		if !ok {
+			return nil, errors.New("skills.allowed_marketplace_mcp must be an array of strings")
+		}
+		for _, entry := range entries {
+			if _, ok := entry.(string); !ok {
+				return nil, errors.New("skills.allowed_marketplace_mcp must be an array of strings")
+			}
+		}
+		retiredValues["allowed_marketplace_mcp"] = allowed
+	}
+	if len(retiredValues) == 0 {
+		return contents, nil
 	}
 	var archive bytes.Buffer
 	if err := burnttoml.NewEncoder(&archive).
-		Encode(map[string]any{"skills": map[string]any{"marketplace": registry}}); err != nil {
+		Encode(map[string]any{SkillsDirName: retiredValues}); err != nil {
 		return nil, fmt.Errorf("archive retired skill acquisition settings: %w", err)
 	}
 	editor, err := newOverlayEditor(source, contents)
 	if err != nil {
 		return nil, err
 	}
-	if err := removeSkillMarketplaceTable(editor, skills); err != nil {
+	if err := removeRetiredSkillSettings(editor, skills); err != nil {
 		return nil, err
 	}
 	rendered, err := editor.Bytes()
@@ -93,23 +110,28 @@ func archiveRetiredSkillMarketplace(contents []byte, source string) ([]byte, err
 	return result.Bytes(), nil
 }
 
-func removeSkillMarketplaceTable(editor *OverlayEditor, skills map[string]any) error {
+func removeRetiredSkillSettings(editor *OverlayEditor, skills map[string]any) error {
 	document, err := parseOverlayDocument(editor.content)
 	if err != nil {
 		return err
 	}
-	if document.findKeyValue([]string{"skills"}) != nil {
-		delete(skills, "marketplace")
-		if err := editor.Delete([]string{"skills"}); err != nil {
+	if document.findKeyValue([]string{SkillsDirName}) != nil {
+		delete(skills, toolSurfaceMarketplaceKey)
+		delete(skills, "allowed_marketplace_mcp")
+		if err := editor.Delete([]string{SkillsDirName}); err != nil {
 			return err
 		}
 		if len(skills) > 0 {
-			if err := editor.SetTable([]string{"skills"}, skills); err != nil {
+			if err := editor.SetTable([]string{SkillsDirName}, skills); err != nil {
 				return err
 			}
 		}
 	} else {
-		for _, path := range [][]string{{"skills", "marketplace", "registry"}, {"skills", "marketplace", configBaseURLKey}} {
+		for _, path := range [][]string{
+			{SkillsDirName, "allowed_marketplace_mcp"},
+			{SkillsDirName, toolSurfaceMarketplaceKey, retiredSkillRegistryKey},
+			{SkillsDirName, toolSurfaceMarketplaceKey, configBaseURLKey},
+		} {
 			if err := editor.Delete(path); err != nil {
 				return err
 			}
@@ -119,7 +141,7 @@ func removeSkillMarketplaceTable(editor *OverlayEditor, skills map[string]any) e
 	if err != nil {
 		return err
 	}
-	path := []string{"skills", "marketplace"}
+	path := []string{SkillsDirName, toolSurfaceMarketplaceKey}
 	if header := remaining.findTable(path); header != nil {
 		// Removing the empty header must not eat comments before the next section.
 		editor.content = replaceRange(editor.content, header.raw, nil)

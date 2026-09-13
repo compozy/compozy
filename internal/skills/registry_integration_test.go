@@ -189,55 +189,71 @@ func TestRegistryIntegrationOwnExposureDoesNotSelfShadow(t *testing.T) {
 
 func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve installed skill content and provenance while blocking its embedded MCP", func(t *testing.T) {
+		t.Parallel()
 
-	root := t.TempDir()
-	userDir := filepath.Join(root, "user")
-	content := skillWithDescription("installed", "Installed from marketplace")
-	skillPath := writeSkillFile(t, userDir, filepath.Join("installed", skillFileName), content)
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		content := skillWithDescription("installed", "Installed from marketplace")
+		skillPath := writeSkillFile(t, userDir, filepath.Join("installed", skillFileName), content)
+		writeSkillMCPSidecar(t, filepath.Dir(skillPath), `{"mcpServers":{"embedded":{"command":"example-mcp"}}}`)
 
-	registry := newTestRegistry(t, RegistryConfig{
-		GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		registry := newTestRegistry(t, RegistryConfig{
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		})
+
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		skill, ok := registry.Get("installed")
+		if !ok {
+			t.Fatal("Get(installed) ok = false, want initial user skill")
+		}
+		if skill.Source != SourceUser {
+			t.Fatalf("initial Source = %v, want %v", skill.Source, SourceUser)
+		}
+
+		resolver := NewMCPResolver(nil)
+		if got := resolver.Resolve([]*Skill{skill}); len(got) != 1 || got[0].Name != "embedded" {
+			t.Fatalf("local skill MCP declaration = %+v", got)
+		}
+		if err := WriteSidecar(filepath.Dir(skillPath), Provenance{
+			Hash:        mustComputeDirectoryHash(t, filepath.Dir(skillPath)),
+			Registry:    "clawhub",
+			Slug:        "@author/installed",
+			Version:     "1.0.0",
+			InstalledAt: time.Date(2026, 4, 7, 14, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("WriteSidecar() error = %v", err)
+		}
+
+		if err := registry.RefreshGlobal(context.Background()); err != nil {
+			t.Fatalf("RefreshGlobal() error = %v", err)
+		}
+
+		skill, ok = registry.Get("installed")
+		if !ok {
+			t.Fatal("Get(installed) ok = false after refresh, want marketplace skill")
+		}
+		if skill.Source != SourceMarketplace {
+			t.Fatalf("refreshed Source = %v, want %v", skill.Source, SourceMarketplace)
+		}
+		if skill.InstalledFrom != "@author/installed" {
+			t.Fatalf("InstalledFrom = %q, want %q", skill.InstalledFrom, "@author/installed")
+		}
+		if skill.Provenance == nil || skill.Provenance.Slug != "@author/installed" {
+			t.Fatalf("Provenance = %#v, want loaded sidecar provenance", skill.Provenance)
+		}
+		if got := resolver.Resolve([]*Skill{skill}); got != nil {
+			t.Fatalf("installed Marketplace skill published embedded MCPs: %+v", got)
+		}
+		retained, err := os.ReadFile(skillPath)
+		if err != nil || string(retained) != content || !skill.Enabled || len(skill.MCPServers) != 1 {
+			t.Fatalf("installed skill content or declaration changed: %+v, %v", skill, err)
+		}
+
 	})
-
-	if err := registry.LoadAll(context.Background()); err != nil {
-		t.Fatalf("LoadAll() error = %v", err)
-	}
-
-	skill, ok := registry.Get("installed")
-	if !ok {
-		t.Fatal("Get(installed) ok = false, want initial user skill")
-	}
-	if skill.Source != SourceUser {
-		t.Fatalf("initial Source = %v, want %v", skill.Source, SourceUser)
-	}
-
-	if err := WriteSidecar(filepath.Dir(skillPath), Provenance{
-		Hash:        mustComputeDirectoryHash(t, filepath.Dir(skillPath)),
-		Registry:    "clawhub",
-		Slug:        "@author/installed",
-		Version:     "1.0.0",
-		InstalledAt: time.Date(2026, 4, 7, 14, 0, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("WriteSidecar() error = %v", err)
-	}
-
-	if err := registry.RefreshGlobal(context.Background()); err != nil {
-		t.Fatalf("RefreshGlobal() error = %v", err)
-	}
-
-	skill, ok = registry.Get("installed")
-	if !ok {
-		t.Fatal("Get(installed) ok = false after refresh, want marketplace skill")
-	}
-	if skill.Source != SourceMarketplace {
-		t.Fatalf("refreshed Source = %v, want %v", skill.Source, SourceMarketplace)
-	}
-	if skill.InstalledFrom != "@author/installed" {
-		t.Fatalf("InstalledFrom = %q, want %q", skill.InstalledFrom, "@author/installed")
-	}
-	if skill.Provenance == nil || skill.Provenance.Slug != "@author/installed" {
-		t.Fatalf("Provenance = %#v, want loaded sidecar provenance", skill.Provenance)
-	}
 }
 
 func TestRegistryIntegrationRefreshBlocksTamperedMarketplaceSkill(t *testing.T) {

@@ -362,16 +362,9 @@ At session start, CompozyOS merges MCP servers in this order:
 3. agent MCP servers
 4. skill MCP servers
 
-Marketplace skill MCP servers are blocked unless `skills.allowed_marketplace_mcp` contains one of
-the skill's consent keys: the marketplace slug, `registry:slug`, or the installed hash.
-
-```toml
-[skills]
-allowed_marketplace_mcp = ["@author/postgres-tools"]
-
-```
-
-There is no interactive MCP consent prompt today. Consent is a static config allowlist.
+MCP servers embedded in installed Marketplace skills are blocked. The retired MCP allowlist cannot
+enable them. Skill content and provenance remain available; manual and extension-provided MCP
+servers keep their existing configuration and credentials.
 
 ## Reload And Failure Behavior
 

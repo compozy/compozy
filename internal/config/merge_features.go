@@ -25,9 +25,6 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	if o.PollInterval != nil {
 		dst.PollInterval = *o.PollInterval
 	}
-	if o.AllowedMarketplaceMCP != nil {
-		dst.AllowedMarketplaceMCP = append([]string(nil), (*o.AllowedMarketplaceMCP)...)
-	}
 	if o.AllowedMarketplaceHooks != nil {
 		dst.AllowedMarketplaceHooks = append([]string(nil), (*o.AllowedMarketplaceHooks)...)
 	}

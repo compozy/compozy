@@ -17,7 +17,6 @@ export function skillsPolicyConfig(baseline: SkillsConfig, draft: SkillsConfig):
     ...baseline,
     enabled: draft.enabled,
     poll_interval: draft.poll_interval,
-    allowed_marketplace_mcp: draft.allowed_marketplace_mcp,
     allowed_marketplace_hooks: draft.allowed_marketplace_hooks,
   };
 }

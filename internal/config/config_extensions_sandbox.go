@@ -13,7 +13,6 @@ type SkillsConfig struct {
 	CustomSources           []string      `toml:"custom_sources,omitempty"`
 	DisabledSkills          []string      `toml:"disabled_skills,omitempty"`
 	PollInterval            time.Duration `toml:"poll_interval"`
-	AllowedMarketplaceMCP   []string      `toml:"allowed_marketplace_mcp,omitempty"`
 	AllowedMarketplaceHooks []string      `toml:"allowed_marketplace_hooks,omitempty"`
 }
 

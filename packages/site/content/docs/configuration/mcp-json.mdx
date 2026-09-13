@@ -444,8 +444,7 @@ Use this when the tool belongs to one agent.
   mcp.json
 ```
 
-Use this when the tool belongs to one skill. Marketplace skill MCP servers are blocked unless the
-skill is explicitly allowlisted in `[skills].allowed_marketplace_mcp`. Skill-local `mcp.json`
+Use this when the tool belongs to one skill. MCP servers embedded in installed Marketplace skills are blocked. The retired MCP allowlist cannot enable them; skill content and provenance remain available. Skill-local `mcp.json`
 symlinks must resolve inside the skill directory; CompozyOS rejects sidecars that escape the approved
 skill root.
 

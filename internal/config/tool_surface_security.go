@@ -153,7 +153,7 @@ func skillsConfigPathIsTrustRoot(path []string) bool {
 		return false
 	}
 	switch path[1] {
-	case "sources", "custom_sources", "allowed_marketplace_mcp", "allowed_marketplace_hooks":
+	case "sources", "custom_sources", "allowed_marketplace_hooks":
 		return true
 	default:
 		return false

@@ -127,7 +127,7 @@ Skill MCP behavior depends on skill source:
 | Source                                    | MCP behavior                                                                                                                  |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Bundled, user, additional root, workspace | MCP servers are allowed.                                                                                                      |
-| Marketplace                               | MCP servers are blocked unless `[skills].allowed_marketplace_mcp` includes the skill slug, `registry:slug`, or verified hash. |
+| Marketplace                               | Embedded MCP servers are blocked; installed skill content and provenance remain available. |
 
 When multiple active skills declare the same trimmed server name, the later skill in source
 precedence replaces the earlier skill's server. The resolved skill MCP list is then merged into the

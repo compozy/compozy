@@ -1146,6 +1146,8 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 			"[skills.marketplace]\nregistry = 'clawhub'\nunknown = true\n",
 			"[skills.marketplace]\nregistry = 'clawhub'\n[unknown]\nvalue = true\n",
 			"skills = {marketplace = {registry = 'clawhub'}, unknown = true}\n",
+			"[skills]\nallowed_marketplace_mcp = true\n",
+			"[skills]\nallowed_marketplace_mcp = [1, 2]\n",
 		} {
 			path := filepath.Join(t.TempDir(), "config.toml")
 			writeFile(t, path, content)
@@ -1250,4 +1252,72 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestLoadConfigArchivesRetiredSkillMCP(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{
+		"[skills]\nenabled = false\nallowed_marketplace_mcp = ['clawhub:@team/kept', 'hash-kept']\nallowed_marketplace_hooks = ['kept']\n",
+		"skills.enabled = false\nskills.allowed_marketplace_mcp = ['clawhub:@team/kept', 'hash-kept']\nskills.allowed_marketplace_hooks = ['kept']\n",
+		"skills = {enabled = false, allowed_marketplace_mcp = ['clawhub:@team/kept', 'hash-kept'], allowed_marketplace_hooks = ['kept']}\n",
+	} {
+		t.Run(
+			"Should archive only the retired MCP policy and preserve active settings across reload",
+			func(t *testing.T) {
+				t.Parallel()
+				home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				preserved := "\n# Operator extension policy stays unchanged.\n[extensions.trust]\nallow_unverified = true\n"
+				writeFile(t, home.ConfigFile, content+preserved)
+				cfg, err := LoadForHome(home)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if cfg.Skills.Enabled || !reflect.DeepEqual(cfg.Skills.AllowedMarketplaceHooks, []string{"kept"}) ||
+					!cfg.Extensions.Trust.AllowUnverified {
+					t.Fatalf("active settings changed: %+v", cfg.Skills)
+				}
+				first, err := os.ReadFile(home.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Contains(first, []byte(preserved)) {
+					t.Fatalf("unrelated config changed: %s", first)
+				}
+				var archive strings.Builder
+				for line := range strings.SplitSeq(string(first), "\n") {
+					if value, ok := strings.CutPrefix(line, "# "); ok {
+						archive.WriteString(value + "\n")
+					}
+				}
+				_, archivedTOML, found := strings.Cut(archive.String(), "these values are inactive.\n")
+				if !found {
+					t.Fatal("retired values were not archived")
+				}
+				var archived struct {
+					Skills struct {
+						Allowed []string `toml:"allowed_marketplace_mcp"`
+					} `toml:"skills"`
+				}
+				if _, err := burnttoml.Decode(archivedTOML, &archived); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(archived.Skills.Allowed, []string{"clawhub:@team/kept", "hash-kept"}) {
+					t.Fatalf("archived policy = %+v", archived)
+				}
+				if _, err := LoadForHome(home); err != nil {
+					t.Fatal(err)
+				}
+				second, err := os.ReadFile(home.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(first, second) {
+					t.Fatal("reload changed archived or unrelated settings")
+				}
+			},
+		)
+	}
 }

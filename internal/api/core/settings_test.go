@@ -2143,6 +2143,29 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		})
 	}
 
+	for _, transport := range []string{"api-core-http", "api-core-uds"} {
+		t.Run("Should reject retired Marketplace MCP policy before mutation via "+transport, func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, transport, service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills",
+				[]byte(`{"config":{"allowed_marketplace_mcp":["clawhub:@team/old"]}}`))
+			var payload contract.ErrorPayload
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if response.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 ||
+				!strings.Contains(
+					payload.Error,
+					"unknown field",
+				) || !strings.Contains(payload.Error, "allowed_marketplace_mcp") {
+				t.Fatalf(
+					"retired policy response=%d %+v, mutations=%d",
+					response.Code,
+					payload,
+					service.UpdateSectionCalls,
+				)
+			}
+		})
+	}
 	for _, field := range []string{"default_channel", "port"} {
 		t.Run("Should reject removed network field "+field, func(t *testing.T) {
 			t.Parallel()

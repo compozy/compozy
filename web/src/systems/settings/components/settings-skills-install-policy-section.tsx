@@ -11,24 +11,6 @@ export function SettingsSkillsInstallPolicySection({
   return (
     <SettingsGroup title="Install policy" description="restart required to apply">
       <SettingsFieldRow
-        data-testid="settings-page-skills-allowed-mcp"
-        label="Allowed MCP installs"
-        help={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Marketplace MCP packages that may be installed
-            <SettingsProvChip>skills.allowed_marketplace_mcp</SettingsProvChip>
-          </span>
-        }
-        control={
-          <SettingsTaglistField
-            data-testid="settings-page-skills-allowed-mcp-input"
-            label="Allowed MCP installs"
-            value={draft.allowed_marketplace_mcp ?? []}
-            onChange={value => onChange({ ...draft, allowed_marketplace_mcp: value })}
-          />
-        }
-      />
-      <SettingsFieldRow
         data-testid="settings-page-skills-allowed-hooks"
         label="Allowed hook installs"
         help={

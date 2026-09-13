@@ -1504,7 +1504,6 @@ func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 			Enabled:                 true,
 			DisabledSkills:          []string{"beta"},
 			PollInterval:            30 * time.Minute,
-			AllowedMarketplaceMCP:   []string{"ctx"},
 			AllowedMarketplaceHooks: []string{"market"},
 		},
 	})
@@ -1546,7 +1545,6 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 				Enabled:                 true,
 				DisabledSkills:          []string{"beta"},
 				PollInterval:            30 * time.Minute,
-				AllowedMarketplaceMCP:   []string{"ctx"},
 				AllowedMarketplaceHooks: []string{"market"},
 			},
 		})
@@ -4145,7 +4143,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 					Enabled:                 true,
 					DisabledSkills:          []string{"alpha", "beta"},
 					PollInterval:            45 * time.Minute,
-					AllowedMarketplaceMCP:   []string{"ctx"},
 					AllowedMarketplaceHooks: []string{"market"},
 				},
 			},
@@ -5241,7 +5238,6 @@ check_interval = "15m"
 enabled = true
 disabled_skills = ["alpha", "beta"]
 poll_interval = "30m"
-allowed_marketplace_mcp = ["ctx"]
 allowed_marketplace_hooks = ["market"]
 
 [automation]

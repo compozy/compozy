@@ -5,31 +5,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
 )
-
-func TestNewMCPResolverClonesAllowedMarketplaceConfig(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should clone allowed marketplace config", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := compozyconfig.SkillsConfig{
-			AllowedMarketplaceMCP: []string{"marketplace-skill"},
-		}
-
-		resolver := NewMCPResolver(cfg, nil)
-		cfg.AllowedMarketplaceMCP[0] = "changed"
-
-		if len(resolver.allowedMarketplace) != 1 || resolver.allowedMarketplace[0] != "marketplace-skill" {
-			t.Fatalf("allowedMarketplace = %#v, want cloned allowlist", resolver.allowedMarketplace)
-		}
-		if resolver.logger == nil {
-			t.Fatal("logger = nil, want default logger")
-		}
-	})
-}
 
 func TestMCPResolverResolveAutoApprovesTrustedSources(t *testing.T) {
 	t.Parallel()
@@ -55,7 +31,7 @@ func TestMCPResolverResolveAutoApprovesTrustedSources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver, logs := newResolverForTest(nil)
+			resolver, logs := newResolverForTest()
 			skill := newSkillWithServer(tt.skillName+"-skill", tt.source, MCPServerDecl{
 				Name:    "filesystem",
 				Command: "npx",
@@ -96,20 +72,25 @@ func TestMCPResolverResolveAutoApprovesTrustedSources(t *testing.T) {
 	}
 }
 
-func TestMCPResolverResolveBlocksMarketplaceServerWithoutConsent(t *testing.T) {
+func TestMCPResolverResolveBlocksMarketplaceServer(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should block marketplace server without consent", func(t *testing.T) {
+	t.Run("Should block marketplace server while preserving the installed skill", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, logs := newResolverForTest(nil)
+		resolver, logs := newResolverForTest()
 
-		got := resolver.Resolve([]*Skill{
-			newSkillWithServer("marketplace-skill", SourceMarketplace, MCPServerDecl{
-				Name:    "github",
-				Command: "npx",
-			}),
-		})
+		skill := newSkillWithServer(
+			"marketplace-skill",
+			SourceMarketplace,
+			MCPServerDecl{Name: "github", Command: "npx"},
+		)
+		provenance := *skill.Provenance
+		got := resolver.Resolve([]*Skill{skill})
+		if !skill.Enabled || skill.Meta.Name != "marketplace-skill" || *skill.Provenance != provenance ||
+			len(skill.MCPServers) != 1 {
+			t.Fatalf("resolver changed installed skill: %+v", skill)
+		}
 		if got != nil {
 			t.Fatalf("Resolve() = %#v, want nil", got)
 		}
@@ -130,77 +111,13 @@ func TestMCPResolverResolveBlocksMarketplaceServerWithoutConsent(t *testing.T) {
 	})
 }
 
-func TestMCPResolverResolveAllowsMarketplaceServerWithConsent(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should allow marketplace server with consent", func(t *testing.T) {
-		t.Parallel()
-
-		resolver, logs := newResolverForTest([]string{"@test/marketplace-skill"})
-
-		got := resolver.Resolve([]*Skill{
-			newSkillWithServer("marketplace-skill", SourceMarketplace, MCPServerDecl{
-				Name:    "github",
-				Command: "npx",
-			}),
-		})
-		if len(got) != 1 {
-			t.Fatalf("Resolve() len = %d, want 1", len(got))
-		}
-		if got[0].Name != "github" || got[0].Command != "npx" {
-			t.Fatalf("Resolve() server = %#v, want approved marketplace MCP server", got[0])
-		}
-
-		output := logs.String()
-		if strings.Contains(output, "level=WARN") {
-			t.Fatalf("logs = %q, want no warning log", output)
-		}
-		if !strings.Contains(output, "level=INFO") {
-			t.Fatalf("logs = %q, want info log", output)
-		}
-	})
-}
-
-func TestMCPResolverResolveUsesProvenanceSlugForMarketplaceConsent(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should use provenance slug for marketplace consent", func(t *testing.T) {
-		t.Parallel()
-
-		resolver, logs := newResolverForTest([]string{"@registry/real-skill"})
-		skill := newSkillWithServer("spoofed-name", SourceMarketplace, MCPServerDecl{
-			Name:    "github",
-			Command: "npx",
-		})
-		skill.Provenance = &Provenance{
-			Hash:     "hash-real-skill",
-			Registry: "clawhub",
-			Slug:     "@registry/real-skill",
-		}
-
-		got := resolver.Resolve([]*Skill{skill})
-		if len(got) != 1 {
-			t.Fatalf("Resolve() len = %d, want 1", len(got))
-		}
-		if got[0].Name != "github" {
-			t.Fatalf("Resolve() Name = %q, want github", got[0].Name)
-		}
-		if logs.Len() == 0 {
-			return
-		}
-		if strings.Contains(logs.String(), "level=WARN") {
-			t.Fatalf("logs = %q, want no warning log", logs.String())
-		}
-	})
-}
-
 func TestMCPResolverResolveSkipsSkillsWithoutMCPServers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should skip skills without MCP servers", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, logs := newResolverForTest(nil)
+		resolver, logs := newResolverForTest()
 
 		got := resolver.Resolve([]*Skill{
 			{Meta: SkillMeta{Name: "empty"}, Source: SourceUser, Enabled: true},
@@ -221,7 +138,7 @@ func TestMCPResolverResolveSkipsDisabledSkills(t *testing.T) {
 	t.Run("Should skip disabled skills with MCP servers", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, logs := newResolverForTest(nil)
+		resolver, logs := newResolverForTest()
 		skill := newSkillWithServer("disabled-skill", SourceUser, MCPServerDecl{
 			Name:    "filesystem",
 			Command: "npx",
@@ -244,7 +161,7 @@ func TestMCPResolverResolveDeduplicatesByServerNameUsingHigherPrecedenceSkill(t 
 	t.Run("Should deduplicate by server name using higher precedence skill", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, logs := newResolverForTest(nil)
+		resolver, logs := newResolverForTest()
 
 		got := resolver.Resolve([]*Skill{
 			newSkillWithServer("workspace-skill", SourceWorkspace, MCPServerDecl{
@@ -279,7 +196,7 @@ func TestMCPResolverResolveNormalizesStoredServerNameBeforeDeduplication(t *test
 	t.Run("Should normalize stored server name before deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, _ := newResolverForTest(nil)
+		resolver, _ := newResolverForTest()
 
 		got := resolver.Resolve([]*Skill{
 			newSkillWithServer("bundled-skill", SourceBundled, MCPServerDecl{
@@ -309,7 +226,7 @@ func TestMCPResolverResolveReturnsNilForEmptySkillList(t *testing.T) {
 	t.Run("Should return nil for empty skill lists", func(t *testing.T) {
 		t.Parallel()
 
-		resolver, logs := newResolverForTest(nil)
+		resolver, logs := newResolverForTest()
 
 		if got := resolver.Resolve(nil); got != nil {
 			t.Fatalf("Resolve(nil) = %#v, want nil", got)
@@ -323,12 +240,10 @@ func TestMCPResolverResolveReturnsNilForEmptySkillList(t *testing.T) {
 	})
 }
 
-func newResolverForTest(allowed []string) (*MCPResolver, *bytes.Buffer) {
+func newResolverForTest() (*MCPResolver, *bytes.Buffer) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	resolver := NewMCPResolver(compozyconfig.SkillsConfig{
-		AllowedMarketplaceMCP: allowed,
-	}, logger)
+	resolver := NewMCPResolver(logger)
 	return resolver, &logs
 }
 

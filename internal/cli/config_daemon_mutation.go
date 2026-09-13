@@ -336,7 +336,6 @@ func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.Se
 		CustomSources:           append([]string(nil), cfg.CustomSources...),
 		DisabledSkills:          append([]string(nil), cfg.DisabledSkills...),
 		PollInterval:            cfg.PollInterval.String(),
-		AllowedMarketplaceMCP:   append([]string(nil), cfg.AllowedMarketplaceMCP...),
 		AllowedMarketplaceHooks: append([]string(nil), cfg.AllowedMarketplaceHooks...),
 	}
 }

@@ -1305,7 +1305,6 @@ describe("browser runtime seed helpers", () => {
               registry: browserSettingsOperatorFlowScenario.skills.policyRegistry,
             },
             allowed_marketplace_hooks: [],
-            allowed_marketplace_mcp: [],
           },
         };
       }
@@ -1541,7 +1540,6 @@ describe("browser runtime seed helpers", () => {
               registry: browserSettingsOperatorFlowScenario.skills.policyRegistry,
             },
             allowed_marketplace_hooks: [],
-            allowed_marketplace_mcp: [],
           },
         };
       }

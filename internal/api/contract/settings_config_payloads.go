@@ -277,7 +277,6 @@ type SettingsSkillsConfigPayload struct {
 	CustomSources           []string `json:"custom_sources"`
 	DisabledSkills          []string `json:"disabled_skills,omitempty"`
 	PollInterval            string   `json:"poll_interval"`
-	AllowedMarketplaceMCP   []string `json:"allowed_marketplace_mcp,omitempty"`
 	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }
 

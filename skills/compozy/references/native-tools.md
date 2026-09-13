@@ -376,8 +376,8 @@ deleted; dynamic definitions are fully mutable.
 `compozy__automation_suggestions_{list,accept,dismiss}` accepts optional `workspace`; list, accept, or
 dismiss; retry CAS conflicts.
 
-`compozy__marketplace_search` returns MCP, extension, and skill rows. Single-kind cursors bind the
-query, scope, workspace, and source projection; grouped searches omit them. Paging and installed
+`compozy__marketplace_search` returns extension catalog rows and rejects the retired `kind` argument.
+Cursors bind the query, scope, workspace, and source revision. Paging and installed
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
 Extension tools are

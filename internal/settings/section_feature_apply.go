@@ -29,10 +29,6 @@ func applySkillsSettings(editor *compozyconfig.OverlayEditor, settings compozyco
 		},
 		{path: []string{string(SectionSkills), "poll_interval"}, value: settings.PollInterval.String()},
 		{
-			path:  []string{string(SectionSkills), "allowed_marketplace_mcp"},
-			value: append([]string(nil), settings.AllowedMarketplaceMCP...),
-		},
-		{
 			path:  []string{string(SectionSkills), "allowed_marketplace_hooks"},
 			value: append([]string(nil), settings.AllowedMarketplaceHooks...),
 		},

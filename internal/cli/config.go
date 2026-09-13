@@ -276,7 +276,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"skills.custom_sources":                             configSetStringSlice,
 	"skills.disabled_skills":                            configSetStringSlice,
 	"skills.poll_interval":                              configSetDuration,
-	"skills.allowed_marketplace_mcp":                    configSetStringSlice,
 	"skills.allowed_marketplace_hooks":                  configSetStringSlice,
 	"model_catalog.sources.models_dev.enabled":          configSetBool,
 	"model_catalog.sources.models_dev.endpoint":         configSetString,

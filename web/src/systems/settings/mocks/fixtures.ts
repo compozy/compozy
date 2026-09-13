@@ -548,7 +548,6 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     enabled: true,
     disabled_skills: ["alpha", "beta"],
     poll_interval: "5m",
-    allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
     sources: ["agents"],
     custom_sources: ["~/team-skills"],

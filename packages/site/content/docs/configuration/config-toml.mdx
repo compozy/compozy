@@ -618,7 +618,6 @@ sources = ["agents"]
 custom_sources = []
 disabled_skills = ["experimental-skill"]
 poll_interval = "3s"
-allowed_marketplace_mcp = ["clawhub:@team/search-skill"]
 allowed_marketplace_hooks = ["clawhub:@team/format-hook"]
 
 [extensions.trust]
@@ -2070,7 +2069,6 @@ If `enabled = false`, local skill discovery and polling are disabled.
 | `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
 | `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
 | `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
-| `allowed_marketplace_mcp`   | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for MCP servers declared by marketplace skills.                                   |
 | `allowed_marketplace_hooks` | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for hooks declared by marketplace skills.                                         |
 
 `sources` and `custom_sources` pass through all four config layers — user, personal profile,

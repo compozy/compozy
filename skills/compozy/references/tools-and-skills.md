@@ -84,6 +84,10 @@ scalar field. The daemon selects and redacts the preview. See [Tool progress in
 bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
 contract.
 
+MCP declarations embedded in installed Marketplace/ClawHub skills are disabled. Do not write the
+retired `skills.allowed_marketplace_mcp` key. Installed skill content/provenance and manual or
+extension-provided MCP servers retain their existing behavior.
+
 ## Marketplace Discovery
 
 Marketplace in the app is one extension catalog at `/marketplace`; its installed shelf opens

@@ -349,6 +349,11 @@ See [Agent Plugins interoperability](packages/site/content/docs/extensions/agent
 
 ## Marketplace acquisition hard cut
 
+MCP servers embedded in previously installed ClawHub/Marketplace skills are disabled. Their skill
+files and provenance remain readable; manual MCPs and extension-provided MCPs are unaffected.
+`skills.allowed_marketplace_mcp` is retired and archived as inactive comments on config load;
+remove it from scripts that write config or Settings payloads. The archive does not grant runtime access.
+
 Marketplace discovery now uses `compozy marketplace search [query]`,
 `compozy marketplace info <entry_id>` and `compozy marketplace refresh`.
 Remove `--kind` and the kind argument previously passed to `info`. HTTP and UDS clients

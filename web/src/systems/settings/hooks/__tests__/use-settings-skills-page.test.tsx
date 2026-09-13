@@ -72,7 +72,6 @@ const skillsEnvelope: SettingsSkillsSection = {
     enabled: true,
     disabled_skills: ["alpha"],
     poll_interval: "5m",
-    allowed_marketplace_mcp: [],
     allowed_marketplace_hooks: [],
     sources: ["agents"],
     custom_sources: [],

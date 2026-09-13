@@ -33,7 +33,11 @@ CLI callers remove `--kind` and the first kind argument to `marketplace info`.
 `compozy mcp install` and remote `compozy skill search|install|update|remove` are removed;
 local skill inspection and management remain. Native `compozy__marketplace_search`
 rejects the removed `kind` argument. See [migration steps](MIGRATION_GUIDE.md#marketplace-acquisition-hard-cut).
-Retired `skills.marketplace.registry` and `skills.marketplace.base_url` settings
+MCP declarations embedded in previously installed ClawHub/Marketplace skills are now disabled.
+The skill files and provenance, manual MCP configuration and credentials, and extension-provided
+MCP servers remain intact. Existing extension removal still retires its instance bindings and
+exclusive secrets while preserving shared or foreign secrets and compensating failed removals.
+Retired `skills.marketplace.registry`, `skills.marketplace.base_url` and `skills.allowed_marketplace_mcp` settings
 are archived as inactive comments in the same config file on load. The archive
 and active configuration are written atomically, once; unrelated settings and
 extension configuration are preserved. Settings and `config set` reject new

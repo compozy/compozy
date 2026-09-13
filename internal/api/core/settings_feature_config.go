@@ -35,7 +35,6 @@ func skillsConfigFromPayload(payload contract.SettingsSkillsConfigPayload) (comp
 		CustomSources:           cloneStrings(payload.CustomSources),
 		DisabledSkills:          cloneStrings(payload.DisabledSkills),
 		PollInterval:            pollInterval,
-		AllowedMarketplaceMCP:   cloneStrings(payload.AllowedMarketplaceMCP),
 		AllowedMarketplaceHooks: cloneStrings(payload.AllowedMarketplaceHooks),
 	}
 	if err := value.Validate(); err != nil {

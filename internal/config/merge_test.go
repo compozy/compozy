@@ -57,15 +57,6 @@ base_url = "https://registry.example.test/api/v1"
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill", "code-review"}; !slices.Equal(got, want) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
-	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{
-		"@registry/mcp-a",
-		"@registry/mcp-b",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
-	}
 	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{
 		"@registry/hook-a",
 		"@registry/hook-b",

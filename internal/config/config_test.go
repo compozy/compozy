@@ -294,15 +294,6 @@ max_wakes = 80
 	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "compozy"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
-	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{
-		"@registry/skill-a",
-		"@registry/skill-b",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("Load() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
-	}
 	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{
 		"@registry/hook-a",
 		"@registry/hook-b",
@@ -1092,9 +1083,6 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 	if cfg.Skills.Enabled {
 		t.Fatal("Load() Skills.Enabled = true, want false")
-	}
-	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"@workspace/skill"}; !slices.Equal(got, want) {
-		t.Fatalf("Load() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
 	}
 	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{"@workspace/hook"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
@@ -1999,12 +1987,6 @@ func TestDefaultWithHomeSetsExtensionConfigDefaults(t *testing.T) {
 	}
 
 	cfg := DefaultWithHome(homePaths)
-	if cfg.Skills.AllowedMarketplaceMCP != nil {
-		t.Fatalf(
-			"DefaultWithHome() Skills.AllowedMarketplaceMCP = %#v, want nil/empty",
-			cfg.Skills.AllowedMarketplaceMCP,
-		)
-	}
 	if cfg.Skills.AllowedMarketplaceHooks != nil {
 		t.Fatalf(
 			"DefaultWithHome() Skills.AllowedMarketplaceHooks = %#v, want nil/empty",

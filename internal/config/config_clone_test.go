@@ -51,7 +51,6 @@ func TestCloneConfig(t *testing.T) {
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated"
 		cloned.RoleSources[RoleCoordinator][RoleFieldModel] = RoleFieldSourceWorkspace
 		cloned.Skills.DisabledSkills[0] = "mutated"
-		cloned.Skills.AllowedMarketplaceMCP[0] = "mutated"
 		cloned.Marketplace.PluginSources[0].Name = "mutated"
 		*cloned.Marketplace.PluginSources[0].Enabled = false
 		cloned.Extensions.Resources.AllowedKinds[0] = resources.ResourceKind("task")
@@ -132,7 +131,6 @@ func configCloneFixture() Config {
 		},
 		Skills: SkillsConfig{
 			DisabledSkills:          []string{"alpha"},
-			AllowedMarketplaceMCP:   []string{"trusted-mcp"},
 			AllowedMarketplaceHooks: []string{"trusted-hook"},
 		},
 		Extensions: ExtensionsConfig{Resources: ExtensionsResourcesConfig{

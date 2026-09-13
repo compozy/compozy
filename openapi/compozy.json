@@ -175775,12 +175775,6 @@
                           },
                           "type": "array"
                         },
-                        "allowed_marketplace_mcp": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
                         "custom_sources": {
                           "items": {
                             "type": "string"
@@ -176548,12 +176542,6 @@
                         },
                         "type": "array"
                       },
-                      "allowed_marketplace_mcp": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
                       "custom_sources": {
                         "items": {
                           "type": "string"
@@ -176653,12 +176641,6 @@
                     "config": {
                       "properties": {
                         "allowed_marketplace_hooks": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "allowed_marketplace_mcp": {
                           "items": {
                             "type": "string"
                           },
