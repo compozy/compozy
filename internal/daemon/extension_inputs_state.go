@@ -54,16 +54,16 @@ func (r extensionInputReader) load(
 	if manifest == nil || instance.ProfileID == "" {
 		return state, nil
 	}
-	return state, r.addLegacyInputs(ctx, instance, manifest, &state)
+	return state, r.addRequiresEnvInputs(ctx, instance, manifest, &state)
 }
 
-func (r extensionInputReader) addLegacyInputs(
+func (r extensionInputReader) addRequiresEnvInputs(
 	ctx context.Context,
 	instance extensioninput.Instance,
 	manifest *extensionpkg.Manifest,
 	state *extensionpkg.InputState,
 ) error {
-	// Preserve legacy requires_env inheritance; typed input bindings address their exact instance above.
+	// Preserve requires_env inheritance; typed input bindings address their exact instance above.
 	effective, err := r.bindings.ResolveEnvBindings(ctx, instance.Extension, instance.ProfileID, instance.WorkspaceID)
 	if err != nil {
 		return err

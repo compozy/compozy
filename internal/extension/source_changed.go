@@ -19,7 +19,7 @@ func (e *SourceChangedError) Error() string        { return ErrExtensionSourceCh
 func (e *SourceChangedError) Unwrap() error        { return e.Cause }
 func (e *SourceChangedError) Is(target error) bool { return target == ErrExtensionSourceChanged }
 
-// ValidateExpectedDigest accepts a missing legacy pin, otherwise requires a full SHA-256 digest.
+// ValidateExpectedDigest accepts an omitted pin, otherwise requires a full SHA-256 digest.
 func ValidateExpectedDigest(digest string) error {
 	digest = strings.TrimSpace(digest)
 	if digest == "" {

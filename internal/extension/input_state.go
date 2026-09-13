@@ -25,7 +25,7 @@ type InputValueRecord struct {
 // InputState is the effective input snapshot for one extension instance.
 type InputState struct{ Values map[string]InputValueRecord }
 
-// Readiness separates missing typed inputs from legacy environment requirements.
+// Readiness separates missing typed inputs from requires_env requirements.
 type Readiness struct {
 	MissingInputs []string
 	MissingEnv    []string
