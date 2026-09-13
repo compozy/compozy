@@ -621,3 +621,10 @@ Explicit application/x-tar downloads now pass through the same registry digest, 
 manifest/content validation and publication pipeline as gzip downloads. Canonical raw package bytes
 are verified before extraction and retained as the archive digest in the result. Existing gzip behavior
 is covered by unchanged suites. Public Marketplace install/source composition is still pending task07/08.
+
+### Task07 checkout-to-cache capture
+
+CapturePackage now creates the canonical digest-addressed package from a confined checkout path,
+excludes Git metadata and publishes through the verified cache before releasing source bytes. The
+acquisition suite proves cache reuse after checkout deletion and refuses traversal/symlink/over-budget
+inputs. The source resolver, projection and install-lifecycle consumers remain pending task07.
