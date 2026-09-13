@@ -24,6 +24,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type lifecycleSource struct {
@@ -425,7 +426,82 @@ func (s *lifecycleSource) packageSlug() string {
 	return s.slug
 }
 
+func testMarketplaceInstallationScope(t *testing.T, scope InstallationScope) {
+	t.Helper()
+	env := newRegistryTestEnv(t)
+	if scope.ProfileID == "marketing" {
+		scope.ProfileID = insertActiveRegistryProfile(t, env, "marketing")
+	}
+	if scope.WorkspaceID != "" {
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+   (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			scope.WorkspaceID, t.TempDir(), "Scoped install", store.FormatTimestamp(env.installedAt),
+			store.FormatTimestamp(env.installedAt)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := newLifecycleSourceNamed(t, "scoped-package", "github", "1.0.0", "2.0.0")
+	source.latestVersion = "1.0.0"
+	loader := func(context.Context) ([]registrypkg.Source, error) {
+		return []registrypkg.Source{source}, nil
+	}
+	installed, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, loader, MarketplaceInstallRequest{
+		Slug: "acme/scoped-package", SourceFilter: "github", Scope: scope,
+		PolicyAllowsUnverified: true, AllowUnverified: true,
+	})
+	if scope.ProfileID == "missing" {
+		if err == nil {
+			t.Fatal("installation with a missing profile succeeded")
+		}
+		if _, readErr := env.registry.Get("scoped-package"); !errors.Is(readErr, ErrExtensionNotFound) {
+			t.Fatalf("failed install registry row = %v", readErr)
+		}
+		packagePath, pathErr := ManagedInstallPathChecked(homePaths, "scoped-package")
+		if pathErr != nil {
+			t.Fatal(pathErr)
+		}
+		if _, statErr := os.Stat(packagePath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("failed install retained package files: %v", statErr)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments, err := env.registry.Installations(t.Context(), installed.Name)
+	if err != nil || len(attachments) != 1 || attachments[0].Scope != scope {
+		t.Fatalf("installed attachments = %#v, %v; want only %#v", attachments, err, scope)
+	}
+	source.latestVersion = "2.0.0"
+	updates, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, loader, MarketplaceUpdateRequest{
+		Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+	}, nil)
+	if err != nil || len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+		t.Fatalf("scoped update = %#v, %v", updates, err)
+	}
+	after, err := env.registry.Installations(t.Context(), installed.Name)
+	if err != nil || !reflect.DeepEqual(after, attachments) {
+		t.Fatalf("updated attachments = %#v, %v; want unchanged %#v", after, err, attachments)
+	}
+}
+
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
+	// Invariant: package acquisition persists exactly its requested attachment and cleans failed scope writes.
+	// Owner: managed install lifecycle. Canonical suite: marketplace_lifecycle_test.go.
+	for _, scope := range []InstallationScope{
+		{}, {ProfileID: "marketing"}, {WorkspaceID: "ws-scoped-install"},
+		{ProfileID: "marketing", WorkspaceID: "ws-scoped-install"}, {ProfileID: "missing"},
+	} {
+		t.Run(fmt.Sprintf("Should retain only the requested installation scope %s/%s", scope.ProfileID, scope.WorkspaceID),
+			func(t *testing.T) {
+				t.Parallel()
+				testMarketplaceInstallationScope(t, scope)
+			})
+	}
 	t.Run(
 		"Should refresh a data-named package while preserving its isolated data and reject unsupported schemas",
 		func(t *testing.T) {
@@ -1259,7 +1335,9 @@ registration = "dynamic"
 `
 		archive := lifecycleTarGzWithPayload(t, "inspect-kit", "1.0.0", map[string]string{"extension.toml": manifest})
 		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write(archive)
+			if _, err := w.Write(archive); err != nil {
+				t.Errorf("write inspection archive: %v", err)
+			}
 		}))
 		defer server.Close()
 		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())

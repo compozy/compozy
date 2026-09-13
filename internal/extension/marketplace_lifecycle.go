@@ -61,6 +61,7 @@ type MarketplaceUpdateRollback func(context.Context, ExtensionInfo) error
 
 // MarketplaceInstallRequest describes one marketplace-backed extension install.
 type MarketplaceInstallRequest struct {
+	Scope                     InstallationScope
 	ExpectedDigest            string
 	Slug                      string
 	SourceFilter              string

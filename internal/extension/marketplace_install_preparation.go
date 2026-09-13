@@ -81,6 +81,7 @@ func (p *PreparedMarketplaceManagedInstall) Commit() (*ExtensionInfo, error) {
 		p.install.finalDir,
 		p.install.checksum,
 		WithInstallSource(SourceMarketplace),
+		WithInstallScope(p.request.Scope),
 		WithInstallRegistryMetadata(
 			p.install.slug,
 			strings.TrimSpace(p.install.detail.Source),
