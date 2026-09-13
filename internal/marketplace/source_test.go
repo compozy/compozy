@@ -1307,7 +1307,7 @@ func v3ExtensionJSON(t *testing.T, icon string) []byte {
 	return []byte(strings.Replace(extensionDocumentJSON(fields), `"manifest_version":2`, `"manifest_version":3`, 1))
 }
 
-// Invariant: only an absent v3 family permits root fallback; malformed/unavailable v3 stays visible as failure.
+// Invariant: extension discovery reads only v3 and never retries a retired root feed.
 // Owner: HTTP feed family resolution. Canonical suite: source_test.go.
 func TestHTTPSourceV3Family(t *testing.T) {
 	t.Parallel()
@@ -1316,11 +1316,10 @@ func TestHTTPSourceV3Family(t *testing.T) {
 		status       int
 		wrongVersion bool
 		wantErr      bool
-		wantRoot     int64
 	}{
 		{name: "prefer v3", status: 200},
-		{name: "fallback for an absent family", status: 404, wantRoot: 1},
-		{name: "fallback for a removed family", status: 410, wantRoot: 1},
+		{name: "reject an absent family without root fallback", status: 404, wantErr: true},
+		{name: "reject a removed family without root fallback", status: 410, wantErr: true},
 		{name: "reject v3 server errors", status: 503, wantErr: true},
 		{name: "reject a v2 document at the v3 address", status: 200, wrongVersion: true, wantErr: true},
 	}
@@ -1339,11 +1338,15 @@ func TestHTTPSourceV3Family(t *testing.T) {
 					v3Calls.Add(1)
 					w.WriteHeader(test.status)
 					if test.status == 200 {
-						_, _ = w.Write(v3)
+						if _, err := w.Write(v3); err != nil {
+							t.Errorf("write v3 response: %v", err)
+						}
 					}
 				case "/catalog/extensions.json":
 					rootCalls.Add(1)
-					_, _ = io.WriteString(w, validExtensionDocumentJSON())
+					if _, err := io.WriteString(w, validExtensionDocumentJSON()); err != nil {
+						t.Errorf("write retired response: %v", err)
+					}
 				default:
 					http.NotFound(w, r)
 				}
@@ -1357,10 +1360,10 @@ func TestHTTPSourceV3Family(t *testing.T) {
 			if (err != nil) != test.wantErr {
 				t.Fatalf("fetch = %v", err)
 			}
-			if rootCalls.Load() != test.wantRoot || v3Calls.Load() != 1 {
+			if rootCalls.Load() != 0 || v3Calls.Load() != 1 {
 				t.Fatalf("requests v3/root = %d/%d", v3Calls.Load(), rootCalls.Load())
 			}
-			if !test.wantErr && test.wantRoot == 0 && document.ManifestVersion != 3 {
+			if !test.wantErr && document.ManifestVersion != 3 {
 				t.Fatalf("version = %d", document.ManifestVersion)
 			}
 		})
