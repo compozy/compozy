@@ -63,7 +63,7 @@ func (h *BaseHandlers) extensionInstallIndex(
 	return index, nil
 }
 
-func (h *BaseHandlers) curatedMarketplaceListing(
+func (h *BaseHandlers) catalogMarketplaceListing(
 	ctx context.Context,
 	entry marketplacepkg.Entry,
 	installed marketplaceInstallIndex,
@@ -73,7 +73,7 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 		return contract.MarketplaceListingPayload{}, err
 	}
 	installation, isInstalled := installed.byOrigin[marketplacepkg.Origin{
-		SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: entry.EntryID,
+		SourceRef: details.SourceRef, EntryID: entry.EntryID,
 	}]
 	updateAvailable := isInstalled && registrypkg.VersionIsNewer(installation.version, entry.Version)
 	result := contract.MarketplaceListingPayload{
@@ -103,7 +103,7 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 	if err != nil {
 		return contract.MarketplaceListingPayload{}, err
 	}
-	result.SourceRef = marketplacepkg.CompozyCatalogRef
+	result.SourceRef = details.SourceRef
 	result.DigestSHA256 = entry.DigestSHA256
 	result.Icon = entry.Icon
 	result.Layout = entry.Layout

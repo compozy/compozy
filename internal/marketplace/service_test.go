@@ -65,7 +65,7 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := NewService(tc.store, tc.source, tc.ttl, tc.timeout)
+			_, err := NewService(t.Context(), tc.store, marketplaceTestBindings(t, tc.source), tc.ttl, tc.timeout)
 			if err == nil {
 				t.Fatal("NewService() error = nil, want validation error")
 			}
@@ -86,8 +86,8 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 			return testDocument(now, testEntry("extension", "Extension", "Detail fixture")), nil
 		}}
 		service, err := NewService(
-			openMarketplaceTestStore(t),
-			source,
+			t.Context(), openMarketplaceTestStore(t),
+			marketplaceTestBindings(t, source),
 			time.Hour,
 			time.Minute,
 			WithNow(func() time.Time { return now }),
@@ -110,14 +110,17 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 		if got, want := len(states), 1; got != want || states[0].Source != CompozyCatalogSource {
 			t.Fatalf("Status() = %#v, want the curated source before its first refresh", states)
 		}
-		entry, err := service.Detail(ctx, "extension")
+		if _, err := service.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := service.Detail(ctx, CompozyCatalogSource, "extension")
 		if err != nil {
 			t.Fatalf("Detail() error = %v", err)
 		}
 		if entry.EntryID != "extension" {
 			t.Fatalf("Detail().EntryID = %q, want extension", entry.EntryID)
 		}
-		if _, err := service.Detail(ctx, "missing"); !errors.Is(err, ErrEntryNotFound) {
+		if _, err := service.Detail(ctx, CompozyCatalogSource, "missing"); !errors.Is(err, ErrEntryNotFound) {
 			t.Fatalf("Detail(missing) error = %v, want ErrEntryNotFound", err)
 		}
 	})
@@ -132,6 +135,9 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 			return testDocument(now, entry), nil
 		}}
 		extensionService := newMarketplaceTestService(t, openMarketplaceTestStore(t), extensionSource, now, nil)
+		if _, err := extensionService.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
 		resolved, err := extensionService.ResolveExtensionInstall(ctx, "compozy/telemetry", "2.1.0")
 		if err != nil {
 			t.Fatalf("ResolveExtensionInstall() error = %v", err)
@@ -147,22 +153,24 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve refresh and missing-entry failures together", func(t *testing.T) {
+	t.Run("Should resolve a missing installation without contacting an unavailable source", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := testutil.Context(t)
-		refreshErr := errors.New("catalog unavailable")
-		extensionSource := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			return nil, refreshErr
-		}}
-		extensionService := newMarketplaceTestService(t, openMarketplaceTestStore(t), extensionSource, now, nil)
-		_, err := extensionService.ResolveExtensionInstall(ctx, "compozy/missing", "1.0.0")
-		if !errors.Is(err, refreshErr) || !errors.Is(err, ErrEntryNotFound) {
-			t.Fatalf("ResolveExtensionInstall() error = %v, want refresh and missing-entry identities", err)
+		source := &recordingSource{
+			fetch: func(context.Context) (*Document, error) { return nil, errors.New("unavailable") },
 		}
-		resolutionErr, resolutionErrMatched := errors.AsType[*ExtensionInstallResolutionError](err)
-		if !resolutionErrMatched || resolutionErr.RefreshErr == nil || resolutionErr.LookupErr == nil {
-			t.Fatalf("ResolveExtensionInstall() error = %#v, want combined resolution error", err)
+		service := newMarketplaceTestService(t, openMarketplaceTestStore(t), source, now, nil)
+		if _, err := service.ResolveExtensionInstall(
+			t.Context(),
+			"compozy/missing",
+			"1.0.0",
+		); !errors.Is(
+			err,
+			ErrEntryNotFound,
+		) {
+			t.Fatalf("missing install = %v", err)
+		}
+		if source.calls.Load() != 0 {
+			t.Fatal("install resolution contacted the source")
 		}
 	})
 
@@ -177,18 +185,18 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 			t.Fatalf("Browse(nil context) error = %v, want service-context validation", err)
 		}
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-		_, err = service.Detail(nil, "extension")
+		_, err = service.Detail(nil, CompozyCatalogSource, "extension")
 		if err == nil || !strings.Contains(err.Error(), "service context is required") {
 			t.Fatalf("Detail(nil context) error = %v, want service-context validation", err)
 		}
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		_, err = service.Refresh(nil)
-		if err == nil || !strings.Contains(err.Error(), "refresh context is required") {
+		if err == nil || !strings.Contains(err.Error(), "service context is required") {
 			t.Fatalf("Refresh(nil context) error = %v, want refresh-context validation", err)
 		}
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		_, err = service.Status(nil)
-		if err == nil || !strings.Contains(err.Error(), "status context is required") {
+		if err == nil || !strings.Contains(err.Error(), "service context is required") {
 			t.Fatalf("Status(nil context) error = %v, want status-context validation", err)
 		}
 		var unavailable *CatalogService
@@ -265,16 +273,22 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			fetchedAt,
-			testEntry("fresh", "Fresh skill", "Already projected"),
-		)); err != nil {
-			t.Fatalf("ReplaceSource() error = %v", err)
-		}
+
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
 			return nil, errors.New("unexpected fetch")
 		}}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(30*time.Minute), nil)
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				fetchedAt,
+				testEntry("fresh", "Fresh skill", "Already projected"),
+			),
+		); err != nil {
+			t.Fatalf("ReplaceSource() error = %v", err)
+		}
 
 		result, err := service.Browse(ctx, "", 0, 10)
 		if err != nil {
@@ -288,16 +302,21 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should replace a fresh remote projection from a checkout source", func(t *testing.T) {
+	t.Run("Should replace a fresh remote projection through an explicit checkout refresh", func(t *testing.T) {
 		t.Parallel()
 
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			fetchedAt,
-			testEntry("remote", "Remote skill", "Fresh remote projection"),
-		)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				fetchedAt,
+				testEntry("remote", "Remote skill", "Fresh remote projection"),
+			),
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 		directory := t.TempDir()
@@ -320,6 +339,9 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(30*time.Minute), nil)
 
+		if _, err := service.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
 		result, err := service.Browse(ctx, "", 0, 10)
 		if err != nil {
 			t.Fatalf("Browse() error = %v", err)
@@ -329,52 +351,54 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should collapse concurrent stale browse refreshes into one fetch", func(t *testing.T) {
+	t.Run("Should return cached pages while concurrent reads coalesce a stale refresh", func(t *testing.T) {
 		t.Parallel()
-
-		store := openMarketplaceTestStore(t)
-		ctx := testutil.Context(t)
-		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			fetchedAt,
-			testEntry("old", "Old server", "Removed by refresh"),
-		)); err != nil {
-			t.Fatalf("ReplaceSource() error = %v", err)
+		ctx := t.Context()
+		catalog := openMarketplaceTestStore(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		if err := catalog.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, catalog, CompozyCatalogSource),
+			testDocument(at, testEntry("old", "Old", "cached")),
+		); err != nil {
+			t.Fatal(err)
 		}
-		refreshAt := fetchedAt.Add(2 * time.Hour)
-		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-			time.Sleep(20 * time.Millisecond)
-			return testDocument(
-				refreshAt,
-				testEntry("new", "New server", "Projected once"),
-			), nil
+		started, release := make(chan struct{}), make(chan struct{})
+		source := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			close(started)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			return testDocument(at.Add(2*time.Hour), testEntry("new", "New", "refreshed")), nil
 		}}
-		service := newMarketplaceTestService(t, store, source, refreshAt, nil)
-
-		const callers = 12
-		errorsCh := make(chan error, callers)
-		var wait sync.WaitGroup
-		wait.Add(callers)
-		for range callers {
-			go func() {
-				defer wait.Done()
-				result, err := service.Browse(ctx, "", 0, 10)
-				if err != nil {
-					errorsCh <- err
-					return
+		service := newMarketplaceTestService(t, catalog, source, at.Add(2*time.Hour), nil)
+		var wg sync.WaitGroup
+		for range 12 {
+			wg.Go(func() {
+				page, err := service.Browse(ctx, "", 0, 10)
+				if err != nil || len(page.Entries) != 1 || page.Entries[0].EntryID != "old" || !page.Stale {
+					t.Errorf("cached page = %+v, %v", page, err)
 				}
-				if got, want := result.Entries[0].EntryID, "new"; got != want {
-					errorsCh <- errors.New("Browse() did not return refreshed entry")
-				}
-			}()
+			})
 		}
-		wait.Wait()
-		close(errorsCh)
-		for err := range errorsCh {
-			t.Errorf("concurrent Browse() error = %v", err)
+		wg.Wait()
+		<-started
+		if source.calls.Load() != 1 {
+			t.Fatal("reads started more than one refresh")
 		}
-		if got, want := source.calls.Load(), int32(1); got != want {
-			t.Fatalf("source calls = %d, want singleflight %d", got, want)
+		service.flightMu.Lock()
+		flight := service.byName[CompozyCatalogSource].flight
+		service.flightMu.Unlock()
+		close(release)
+		if _, err := awaitRefreshFlight(ctx, flight); err != nil {
+			t.Fatal(err)
+		}
+		page, err := service.Browse(ctx, "", 0, 10)
+		if err != nil || page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "new" {
+			t.Fatalf("refreshed page = %+v, %v", page, err)
 		}
 	})
 
@@ -414,7 +438,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 
 		service.flightMu.Lock()
-		flight := service.flight
+		flight := service.byName[CompozyCatalogSource].flight
 		service.flightMu.Unlock()
 		if flight == nil {
 			close(release)
@@ -536,7 +560,13 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		}}
-		service, err := NewService(store, source, time.Hour, 30*time.Millisecond)
+		service, err := NewService(
+			t.Context(),
+			store,
+			marketplaceTestBindings(t, source),
+			time.Hour,
+			30*time.Millisecond,
+		)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -581,11 +611,16 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			fetchedAt,
-			testEntry("keep", "Keep", "Still curated"),
-			testEntry("pulled", "Pulled", "Kill switch target"),
-		)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				fetchedAt,
+				testEntry("keep", "Keep", "Still curated"),
+				testEntry("pulled", "Pulled", "Kill switch target"),
+			),
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
@@ -622,10 +657,15 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		fetchedAt := time.Date(2026, time.July, 13, 10, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			fetchedAt,
-			testEntry("offline", "Offline server", "Survives feed outage"),
-		)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				fetchedAt,
+				testEntry("offline", "Offline server", "Survives feed outage"),
+			),
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
@@ -634,6 +674,9 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		notifier := &recordingRefreshNotifier{}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(2*time.Hour), notifier)
 
+		if _, err := service.Refresh(ctx); err == nil {
+			t.Fatal("expected refresh failure")
+		}
 		result, err := service.Browse(ctx, "", 0, 10)
 		if err != nil {
 			t.Fatalf("Browse() stale fallback error = %v", err)
@@ -641,12 +684,12 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		if got, want := len(result.Entries), 1; got != want {
 			t.Fatalf("Browse() stale entries = %d, want %d", got, want)
 		}
-		if !result.State.Stale || result.State.ErrorClass != errorClassNetwork {
-			t.Fatalf("Browse() state = %#v, want stale network state", result.State)
+		if !result.Stale || result.ErrorClass != errorClassNetwork {
+			t.Fatalf("Browse() state = %#v, want stale network state", result.Sources)
 		}
-		if strings.Contains(result.State.LastError, "super-secret-value") ||
-			!strings.Contains(result.State.LastError, "[REDACTED]") {
-			t.Fatalf("Browse() LastError = %q, want redacted detail", result.State.LastError)
+		if strings.Contains(result.LastError, "super-secret-value") ||
+			!strings.Contains(result.LastError, "[REDACTED]") {
+			t.Fatalf("Browse() LastError = %q, want redacted detail", result.LastError)
 		}
 		outcomes := notifier.snapshot()
 		if got, want := len(outcomes), 1; got != want {
@@ -658,7 +701,7 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the refresh error when no projection exists", func(t *testing.T) {
+	t.Run("Should return a source refresh error without fabricating a projection", func(t *testing.T) {
 		t.Parallel()
 
 		store := openMarketplaceTestStore(t)
@@ -668,7 +711,7 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		service := newMarketplaceTestService(t, store, source, now, nil)
 
-		_, err := service.Browse(testutil.Context(t), "", 0, 10)
+		_, err := service.Refresh(testutil.Context(t))
 		if err == nil {
 			t.Fatal("Browse() error = nil, want failure without stale projection")
 		}
@@ -747,6 +790,21 @@ func (n *recordingRefreshNotifier) snapshot() []RefreshOutcome {
 	return append([]RefreshOutcome(nil), n.outcomes...)
 }
 
+func marketplaceTestBindings(t *testing.T, source Source) []SourceBinding {
+	t.Helper()
+	return []SourceBinding{
+		{
+			Config: ResolvedSource{
+				Name:    CompozyCatalogSource,
+				Ref:     CompozyCatalogRef,
+				Kind:    SourceKindFeed,
+				Enabled: true,
+			},
+			Fetcher: source,
+		},
+	}
+}
+
 func newMarketplaceTestService(
 	t *testing.T,
 	store Store,
@@ -759,10 +817,21 @@ func newMarketplaceTestService(
 	if notifier != nil {
 		options = append(options, WithNotifier(notifier))
 	}
-	service, err := NewService(store, source, time.Hour, time.Minute, options...)
+	service, err := NewService(
+		t.Context(),
+		store,
+		marketplaceTestBindings(t, source),
+		time.Hour,
+		time.Minute,
+		options...)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if err := service.Close(testutil.Context(t)); err != nil {
+			t.Error(err)
+		}
+	})
 	return service
 }
 
@@ -798,10 +867,14 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
 			}
-			generation, err := catalog.repository.AdvanceMarketplaceCatalogGeneration(ctx, CompozyCatalogSource)
+			configuration, err := catalog.ConfigureSources(ctx, []ResolvedSource{{
+				Name: CompozyCatalogSource, Ref: CompozyCatalogRef, Kind: SourceKindFeed,
+				Enabled: true, Revision: "replacement-acquisition",
+			}}, "replacement-configuration")
 			if err != nil {
 				t.Fatal(err)
 			}
+			generation := configuration.SourceGenerations[CompozyCatalogSource]
 			current := testDocument(at, testEntry("current", "Current", "New source configuration"))
 			if err := catalog.ReplaceSource(ctx, CompozyCatalogSource, generation, current); err != nil {
 				t.Fatal(err)
@@ -829,16 +902,13 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		catalog := openMarketplaceTestStore(t)
-		generation, err := catalog.repository.AdvanceMarketplaceCatalogGeneration(ctx, CompozyCatalogSource)
-		if err != nil {
-			t.Fatal(err)
-		}
 		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 		notifier := &recordingRefreshNotifier{}
 		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
 			return testDocument(at, testEntry("current", "Current", "Published")), nil
 		}}
 		service := newMarketplaceTestService(t, catalog, source, at, notifier)
+		generation := testSourceGeneration(t, catalog, CompozyCatalogSource)
 		if _, err := service.Refresh(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -848,4 +918,290 @@ func TestCatalogServiceSourceGeneration(t *testing.T) {
 			t.Fatalf("refresh events=%#v", events)
 		}
 	})
+}
+
+// Invariant: pages use one ordered source snapshot, while lifecycle fences reject obsolete remote work.
+// Owner: catalog aggregation and refresh lifecycle; canonical suite: service_test.go (UT-002/003/067/073).
+func TestCatalogServiceSources(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should page across enabled sources and join renamed origins without fetching during lookup",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+			binding := func(name, ref, kind string, enabled bool) SourceBinding {
+				return SourceBinding{
+					Config: ResolvedSource{Name: name, Ref: ref, Kind: kind, Enabled: enabled},
+					Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
+						if !enabled {
+							return nil, errors.New("disabled source was fetched")
+						}
+						first, second := testEntry("same", "beta", name), testEntry("alpha", "Alpha", name)
+						if kind != SourceKindFeed {
+							first.InstallSlug, second.InstallSlug = name+"/same", name+"/alpha"
+						}
+						return testDocument(at, first, second), nil
+					}},
+				}
+			}
+			feed := binding(CompozyCatalogSource, CompozyCatalogRef, SourceKindFeed, true)
+			preset := binding("preset", "github:team/preset", SourceKindPreset, true)
+			custom := binding("team", "github:team/plugins", SourceKindCustom, true)
+			disabled := binding("off", "github:team/off", SourceKindPreset, false)
+			catalog := openMarketplaceTestStore(t)
+			service, err := NewService(
+				ctx,
+				catalog,
+				[]SourceBinding{custom, disabled, preset, feed},
+				time.Hour,
+				time.Minute,
+				WithNow(func() time.Time { return at }),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := service.Refresh(ctx); err != nil {
+				t.Fatal(err)
+			}
+			page, err := service.Browse(ctx, "", 1, 4)
+			if err != nil || page.Total != 6 || len(page.Entries) != 4 || len(page.Sources) != 4 || page.Stale {
+				t.Fatalf("merged page = %+v, %v", page, err)
+			}
+			wantSources := []string{CompozyCatalogSource, "preset", "preset", "team"}
+			wantIDs := []string{"same", "alpha", "same", "alpha"}
+			for i, entry := range page.Entries {
+				if entry.SourceName != wantSources[i] || entry.EntryID != wantIDs[i] {
+					t.Fatalf("row %d = %+v", i, entry)
+				}
+			}
+			if _, err := service.Refresh(ctx); err != nil {
+				t.Fatal(err)
+			}
+			identical, err := service.Browse(ctx, "", 1, 4)
+			if err != nil || identical.Revision != page.Revision {
+				t.Fatalf("unchanged refresh invalidated cursor: %+v, %v", identical, err)
+			}
+			filtered, err := service.Browse(ctx, "ALPHA", 1, 1)
+			if err != nil || filtered.Total != 3 || len(filtered.Entries) != 1 ||
+				filtered.Entries[0].SourceName != "preset" {
+				t.Fatalf("filtered merged page = %+v, %v", filtered, err)
+			}
+			if _, err := service.Detail(ctx, "off", "same"); !errors.Is(err, ErrEntryNotFound) {
+				t.Fatalf("disabled detail = %v", err)
+			}
+			entry, err := service.ResolveExtensionInstall(ctx, "team/same", "1.0.0")
+			if err != nil || entry.SourceName != "team" {
+				t.Fatalf("install lookup = %+v, %v", entry, err)
+			}
+			if disabled.Fetcher.(*recordingSource).calls.Load() != 0 {
+				t.Fatal("disabled source was contacted")
+			}
+			renamed := binding("renamed", custom.Config.Ref, SourceKindCustom, true)
+			if err := service.SetSources(ctx, []SourceBinding{feed, preset, disabled, renamed}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Refresh(ctx, "renamed"); err != nil {
+				t.Fatal(err)
+			}
+			joined, err := service.Entry(ctx, Origin{SourceRef: custom.Config.Ref, EntryID: "same"})
+			if err != nil || joined.SourceName != "renamed" {
+				t.Fatalf("origin after rename = %+v, %v", joined, err)
+			}
+			changed, err := service.Browse(ctx, "", 0, 10)
+			if err != nil || changed.Revision == page.Revision || changed.Total != 6 {
+				t.Fatalf("renamed page = %+v, %v", changed, err)
+			}
+			if _, err := catalog.SourceState(ctx, "team"); !errors.Is(err, ErrSourceStateMissing) {
+				t.Fatalf("removed source survived = %v", err)
+			}
+		},
+	)
+	t.Run("Should join a cached origin through an alias when its first source has no projection", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		source := &recordingSource{fetch: func(context.Context) (*Document, error) {
+			return testDocument(at, testEntry("shared", "Shared", "One immutable origin")), nil
+		}}
+		bindings := marketplaceTestBindings(t, source)
+		for _, name := range []string{"first", "second"} {
+			bindings = append(bindings, SourceBinding{
+				Config:  ResolvedSource{Name: name, Ref: "github:team/plugins", Kind: SourceKindCustom, Enabled: true},
+				Fetcher: source,
+			})
+		}
+		service, err := NewService(ctx, openMarketplaceTestStore(t), bindings, time.Hour, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(ctx, "second"); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := service.Entry(ctx, Origin{SourceRef: "github:team/plugins", EntryID: "shared"})
+		if err != nil || entry.SourceName != "second" || source.calls.Load() != 1 {
+			t.Fatalf("origin lookup=%+v, err=%v, source calls=%d", entry, err, source.calls.Load())
+		}
+	})
+	t.Run("Should preserve an unchanged source flight when another source is added", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		started, release := make(chan struct{}), make(chan struct{})
+		releaseFetch := sync.OnceFunc(func() { close(release) })
+		source := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			close(started)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-release:
+				return testDocument(at, testEntry("retained", "Retained", "Source unchanged")), nil
+			}
+		}}
+		catalog := openMarketplaceTestStore(t)
+		service := newMarketplaceTestService(t, catalog, source, at, nil)
+		t.Cleanup(releaseFetch)
+		originalGeneration := testSourceGeneration(t, catalog, CompozyCatalogSource)
+		finished := make(chan error, 1)
+		go func() { _, err := service.Refresh(ctx); finished <- err }()
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		bindings := marketplaceTestBindings(t, source)
+		bindings = append(bindings, SourceBinding{
+			Config: ResolvedSource{
+				Name:    "disabled",
+				Ref:     "github:team/disabled",
+				Kind:    SourceKindCustom,
+				Enabled: false,
+			},
+			Fetcher: &recordingSource{fetch: func(context.Context) (*Document, error) {
+				return nil, errors.New("disabled source must not be contacted")
+			}},
+		})
+		if err := service.SetSources(ctx, bindings); err != nil {
+			t.Fatal(err)
+		}
+		if got := testSourceGeneration(t, catalog, CompozyCatalogSource); got != originalGeneration {
+			t.Fatalf("unchanged source generation = %d, want %d", got, originalGeneration)
+		}
+		releaseFetch()
+		select {
+		case err := <-finished:
+			if err != nil {
+				t.Fatalf("unchanged refresh was interrupted: %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		entry, err := service.Detail(ctx, CompozyCatalogSource, "retained")
+		if err != nil || entry.EntryID != "retained" || source.calls.Load() != 1 {
+			t.Fatalf("entry=%+v, err=%v, calls=%d", entry, err, source.calls.Load())
+		}
+	})
+	for _, operation := range []string{"remove", "disable", "re-add"} {
+		for _, fail := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should reject late success or failure after %s with failure=%t", operation, fail),
+				func(t *testing.T) {
+					t.Parallel()
+					ctx := t.Context()
+					at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+					feed := marketplaceTestBindings(t, &recordingSource{fetch: func(context.Context) (*Document, error) { return testDocument(at), nil }})[0]
+					started, canceled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+					releaseOld := sync.OnceFunc(func() { close(release) })
+					old := SourceBinding{
+						Config: ResolvedSource{
+							Name:    "team",
+							Ref:     "github:team/plugins",
+							Kind:    SourceKindCustom,
+							Enabled: true,
+						},
+						Fetcher: &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+							close(started)
+							<-ctx.Done()
+							close(canceled)
+							<-release
+							if fail {
+								return nil, errors.New("late source failure")
+							}
+							return testDocument(at, testEntry("old", "Old", "obsolete")), nil
+						}},
+					}
+					catalog := openMarketplaceTestStore(t)
+					notifier := &recordingRefreshNotifier{}
+					service, err := NewService(
+						ctx,
+						catalog,
+						[]SourceBinding{feed, old},
+						time.Hour,
+						time.Minute,
+						WithNotifier(notifier),
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := service.Close(testutil.Context(t)); err != nil {
+							t.Error(err)
+						}
+					})
+					t.Cleanup(releaseOld)
+					finished := make(chan error, 1)
+					go func() { _, err := service.Refresh(ctx, "team"); finished <- err }()
+					<-started
+					next := []SourceBinding{feed}
+					if operation == "disable" {
+						disabled := old
+						disabled.Config.Enabled = false
+						next = append(next, disabled)
+					}
+					if err := service.SetSources(ctx, next); err != nil {
+						t.Fatal(err)
+					}
+					<-canceled
+					if operation == "re-add" {
+						current := old
+						current.Fetcher = &recordingSource{fetch: func(context.Context) (*Document, error) {
+							return testDocument(at, testEntry("current", "Current", "new generation")), nil
+						}}
+						if err := service.SetSources(ctx, []SourceBinding{feed, current}); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := service.Refresh(ctx, "team"); err != nil {
+							t.Fatal(err)
+						}
+					}
+					releaseOld()
+					if err := <-finished; !errors.Is(err, storepkg.ErrMarketplaceCatalogGenerationStale) {
+						t.Fatalf("late refresh = %v", err)
+					}
+					if _, err := catalog.GetEntry(ctx, "team", "old"); !errors.Is(err, ErrEntryNotFound) {
+						t.Fatalf("obsolete row published: %v", err)
+					}
+					events := notifier.snapshot()
+					if operation == "re-add" {
+						current, err := service.Detail(ctx, "team", "current")
+						if err != nil || current.EntryID != "current" || len(events) != 1 {
+							t.Fatalf("current entry=%+v, events=%+v, %v", current, events, err)
+						}
+					} else if len(events) != 0 {
+						t.Fatalf("obsolete refresh notified: %+v", events)
+					}
+				},
+			)
+		}
+	}
 }

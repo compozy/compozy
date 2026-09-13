@@ -10,38 +10,43 @@ import (
 	"database/sql"
 )
 
-const advanceMarketplaceCatalogGeneration = `-- name: AdvanceMarketplaceCatalogGeneration :one
-INSERT INTO marketplace_catalog_state (source, manifest_version, generation, stale)
-VALUES (?1, 0, 1, 1)
-ON CONFLICT(source) DO UPDATE SET generation = marketplace_catalog_state.generation + 1, stale = 1
-RETURNING generation
-`
-
-func (q *Queries) AdvanceMarketplaceCatalogGeneration(ctx context.Context, source string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, advanceMarketplaceCatalogGeneration, source)
-	var generation int64
-	err := row.Scan(&generation)
-	return generation, err
-}
-
 const claimMarketplaceCatalogGeneration = `-- name: ClaimMarketplaceCatalogGeneration :execrows
-INSERT INTO marketplace_catalog_state (source, manifest_version, generation)
-VALUES (?1, 0, ?2)
-ON CONFLICT(source) DO UPDATE SET generation = excluded.generation
-WHERE marketplace_catalog_state.generation = excluded.generation
+UPDATE marketplace_catalog_state SET generation = generation
+WHERE source = ?1 AND source_ref = ?2
+  AND enabled = 1 AND generation = ?3
 `
 
 type ClaimMarketplaceCatalogGenerationParams struct {
 	Source     string `json:"source"`
+	SourceRef  string `json:"source_ref"`
 	Generation int64  `json:"generation"`
 }
 
 func (q *Queries) ClaimMarketplaceCatalogGeneration(ctx context.Context, arg ClaimMarketplaceCatalogGenerationParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, claimMarketplaceCatalogGeneration, arg.Source, arg.Generation)
+	result, err := q.db.ExecContext(ctx, claimMarketplaceCatalogGeneration, arg.Source, arg.SourceRef, arg.Generation)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const claimMarketplaceSourceConfiguration = `-- name: ClaimMarketplaceSourceConfiguration :one
+INSERT INTO marketplace_catalog_config (id, generation, revision)
+VALUES (1, (SELECT COALESCE(MAX(generation), 0) FROM marketplace_catalog_state), '')
+ON CONFLICT(id) DO UPDATE SET id = id
+RETURNING generation, revision
+`
+
+type ClaimMarketplaceSourceConfigurationRow struct {
+	Generation int64  `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
+func (q *Queries) ClaimMarketplaceSourceConfiguration(ctx context.Context) (ClaimMarketplaceSourceConfigurationRow, error) {
+	row := q.db.QueryRowContext(ctx, claimMarketplaceSourceConfiguration)
+	var i ClaimMarketplaceSourceConfigurationRow
+	err := row.Scan(&i.Generation, &i.Revision)
+	return i, err
 }
 
 const deleteMarketplaceCatalogEntriesBySource = `-- name: DeleteMarketplaceCatalogEntriesBySource :exec
@@ -50,6 +55,33 @@ DELETE FROM marketplace_catalog_entries WHERE source = ?1
 
 func (q *Queries) DeleteMarketplaceCatalogEntriesBySource(ctx context.Context, source string) error {
 	_, err := q.db.ExecContext(ctx, deleteMarketplaceCatalogEntriesBySource, source)
+	return err
+}
+
+const deleteMarketplaceCatalogState = `-- name: DeleteMarketplaceCatalogState :exec
+DELETE FROM marketplace_catalog_state WHERE source = ?1
+`
+
+func (q *Queries) DeleteMarketplaceCatalogState(ctx context.Context, source string) error {
+	_, err := q.db.ExecContext(ctx, deleteMarketplaceCatalogState, source)
+	return err
+}
+
+const deleteUnconfiguredMarketplaceEntries = `-- name: DeleteUnconfiguredMarketplaceEntries :exec
+DELETE FROM marketplace_catalog_entries WHERE source NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?1))
+`
+
+func (q *Queries) DeleteUnconfiguredMarketplaceEntries(ctx context.Context, names any) error {
+	_, err := q.db.ExecContext(ctx, deleteUnconfiguredMarketplaceEntries, names)
+	return err
+}
+
+const deleteUnconfiguredMarketplaceStates = `-- name: DeleteUnconfiguredMarketplaceStates :exec
+DELETE FROM marketplace_catalog_state WHERE source NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?1))
+`
+
+func (q *Queries) DeleteUnconfiguredMarketplaceStates(ctx context.Context, names any) error {
+	_, err := q.db.ExecContext(ctx, deleteUnconfiguredMarketplaceStates, names)
 	return err
 }
 
@@ -91,7 +123,7 @@ func (q *Queries) GetMarketplaceCatalogEntry(ctx context.Context, arg GetMarketp
 
 const getMarketplaceCatalogState = `-- name: GetMarketplaceCatalogState :one
 SELECT s.source, s.generation, s.revision, s.manifest_version, s.generated_at, s.fetched_at, s.stale, s.last_error,
-       s.source_ref, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
+       s.source_ref, s.config_revision, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
        s.installable, s.error_class, s.document_path, s.owner,
        CAST((SELECT COUNT(*) FROM marketplace_catalog_entries e WHERE e.source = s.source) AS INTEGER) AS entry_count
 FROM marketplace_catalog_state s
@@ -108,6 +140,7 @@ type GetMarketplaceCatalogStateRow struct {
 	Stale           int64          `json:"stale"`
 	LastError       string         `json:"last_error"`
 	SourceRef       string         `json:"source_ref"`
+	ConfigRevision  string         `json:"config_revision"`
 	DocumentDigest  string         `json:"document_digest"`
 	DiagnosticsJson string         `json:"diagnostics_json"`
 	KindOfSource    string         `json:"kind_of_source"`
@@ -132,6 +165,7 @@ func (q *Queries) GetMarketplaceCatalogState(ctx context.Context, source string)
 		&i.Stale,
 		&i.LastError,
 		&i.SourceRef,
+		&i.ConfigRevision,
 		&i.DocumentDigest,
 		&i.DiagnosticsJson,
 		&i.KindOfSource,
@@ -180,6 +214,22 @@ func (q *Queries) GetMarketplaceExtensionByInstallSlug(ctx context.Context, arg 
 		&i.InstallBlocker,
 		&i.ResolvedRef,
 	)
+	return i, err
+}
+
+const getMarketplaceSourceConfiguration = `-- name: GetMarketplaceSourceConfiguration :one
+SELECT generation, revision FROM marketplace_catalog_config WHERE id = 1
+`
+
+type GetMarketplaceSourceConfigurationRow struct {
+	Generation int64  `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
+func (q *Queries) GetMarketplaceSourceConfiguration(ctx context.Context) (GetMarketplaceSourceConfigurationRow, error) {
+	row := q.db.QueryRowContext(ctx, getMarketplaceSourceConfiguration)
+	var i GetMarketplaceSourceConfigurationRow
+	err := row.Scan(&i.Generation, &i.Revision)
 	return i, err
 }
 
@@ -292,34 +342,117 @@ func (q *Queries) ListMarketplaceCatalogEntries(ctx context.Context, arg ListMar
 	return items, nil
 }
 
+const listMarketplaceSourceNameRetainers = `-- name: ListMarketplaceSourceNameRetainers :many
+SELECT name FROM extensions
+WHERE json_extract(provenance_json, '$.source_name') = ?1
+  AND COALESCE(json_extract(provenance_json, '$.source_ref'), '') <> ''
+  AND json_extract(provenance_json, '$.source_ref') <> ?2
+ORDER BY name
+`
+
+type ListMarketplaceSourceNameRetainersParams struct {
+	Source    string `json:"source"`
+	SourceRef string `json:"source_ref"`
+}
+
+func (q *Queries) ListMarketplaceSourceNameRetainers(ctx context.Context, arg ListMarketplaceSourceNameRetainersParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listMarketplaceSourceNameRetainers, arg.Source, arg.SourceRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markMarketplaceCatalogStateStale = `-- name: MarkMarketplaceCatalogStateStale :execrows
-INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, generation, error_class
-) VALUES (
-  ?1, 0, NULL, '', 1, ?2, ?3, ?4
-)
-ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error, error_class = excluded.error_class
-WHERE marketplace_catalog_state.generation = excluded.generation
+UPDATE marketplace_catalog_state
+SET stale = 1, last_error = ?1, error_class = ?2
+WHERE source = ?3 AND enabled = 1 AND generation = ?4
 `
 
 type MarkMarketplaceCatalogStateStaleParams struct {
-	Source     string `json:"source"`
 	LastError  string `json:"last_error"`
-	Generation int64  `json:"generation"`
 	ErrorClass string `json:"error_class"`
+	Source     string `json:"source"`
+	Generation int64  `json:"generation"`
 }
 
 func (q *Queries) MarkMarketplaceCatalogStateStale(ctx context.Context, arg MarkMarketplaceCatalogStateStaleParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markMarketplaceCatalogStateStale,
-		arg.Source,
 		arg.LastError,
-		arg.Generation,
 		arg.ErrorClass,
+		arg.Source,
+		arg.Generation,
 	)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const registerMarketplaceSource = `-- name: RegisterMarketplaceSource :exec
+INSERT INTO marketplace_catalog_state (source, source_ref, config_revision, kind_of_source, enabled, generation, manifest_version)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
+ON CONFLICT(source) DO UPDATE SET
+  generation = CASE WHEN source_ref <> excluded.source_ref OR config_revision <> excluded.config_revision
+    OR kind_of_source <> excluded.kind_of_source OR enabled <> excluded.enabled THEN excluded.generation ELSE generation END,
+  stale = CASE WHEN source_ref <> excluded.source_ref OR config_revision <> excluded.config_revision THEN 1 ELSE stale END,
+  source_ref = excluded.source_ref, config_revision = excluded.config_revision,
+  kind_of_source = excluded.kind_of_source, enabled = excluded.enabled
+`
+
+type RegisterMarketplaceSourceParams struct {
+	Source         string `json:"source"`
+	SourceRef      string `json:"source_ref"`
+	ConfigRevision string `json:"config_revision"`
+	KindOfSource   string `json:"kind_of_source"`
+	Enabled        int64  `json:"enabled"`
+	Generation     int64  `json:"generation"`
+}
+
+func (q *Queries) RegisterMarketplaceSource(ctx context.Context, arg RegisterMarketplaceSourceParams) error {
+	_, err := q.db.ExecContext(ctx, registerMarketplaceSource,
+		arg.Source,
+		arg.SourceRef,
+		arg.ConfigRevision,
+		arg.KindOfSource,
+		arg.Enabled,
+		arg.Generation,
+	)
+	return err
+}
+
+const setMarketplaceSourceConfiguration = `-- name: SetMarketplaceSourceConfiguration :one
+UPDATE marketplace_catalog_config
+SET generation = MAX(generation, (SELECT COALESCE(MAX(generation), 0) FROM marketplace_catalog_state)) + 1,
+    revision = ?1
+WHERE id = 1 RETURNING generation, revision
+`
+
+type SetMarketplaceSourceConfigurationRow struct {
+	Generation int64  `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
+func (q *Queries) SetMarketplaceSourceConfiguration(ctx context.Context, revision string) (SetMarketplaceSourceConfigurationRow, error) {
+	row := q.db.QueryRowContext(ctx, setMarketplaceSourceConfiguration, revision)
+	var i SetMarketplaceSourceConfigurationRow
+	err := row.Scan(&i.Generation, &i.Revision)
+	return i, err
 }
 
 const upsertMarketplaceCatalogStateFresh = `-- name: UpsertMarketplaceCatalogStateFresh :exec

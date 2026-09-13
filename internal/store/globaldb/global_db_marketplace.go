@@ -39,7 +39,7 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 
 	queries := sqlcgen.New(tx)
 	claimed, err := queries.ClaimMarketplaceCatalogGeneration(ctx, sqlcgen.ClaimMarketplaceCatalogGenerationParams{
-		Source: replacement.Source, Generation: replacement.Generation,
+		Source: replacement.Source, SourceRef: replacement.SourceRef, Generation: replacement.Generation,
 	})
 	if err != nil {
 		return fmt.Errorf("store: claim marketplace source generation: %w", err)
@@ -241,15 +241,4 @@ func marketplaceCatalogEntryFromRow(row sqlcgen.MarketplaceCatalogEntry) store.M
 
 func marketplaceCatalogNullString(value string) sql.NullString {
 	return store.SQLNullString(value)
-}
-
-func (r *MarketplaceRepo) AdvanceMarketplaceCatalogGeneration(ctx context.Context, source string) (int64, error) {
-	if err := r.checkReady(ctx, "advance marketplace source generation"); err != nil {
-		return 0, err
-	}
-	generation, err := r.queries.AdvanceMarketplaceCatalogGeneration(ctx, source)
-	if err != nil {
-		return 0, fmt.Errorf("store: advance marketplace source generation: %w", err)
-	}
-	return generation, nil
 }

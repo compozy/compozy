@@ -84,8 +84,12 @@ func (c nativeExtensionCatalog) Browse(
 	return marketplacepkg.BrowseResult{}, errors.New("unexpected catalog browse")
 }
 
-func (c nativeExtensionCatalog) Detail(context.Context, string) (*marketplacepkg.Entry, error) {
+func (c nativeExtensionCatalog) Detail(context.Context, string, string) (*marketplacepkg.Entry, error) {
 	return nil, errors.New("unexpected catalog detail")
+}
+
+func (c nativeExtensionCatalog) Entry(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
+	return nil, errors.New("unexpected catalog origin lookup")
 }
 
 func (c nativeExtensionCatalog) ResolveExtensionInstall(
@@ -97,7 +101,7 @@ func (c nativeExtensionCatalog) ResolveExtensionInstall(
 	return c.entry, c.err
 }
 
-func (c nativeExtensionCatalog) Refresh(context.Context) (marketplacepkg.RefreshReport, error) {
+func (c nativeExtensionCatalog) Refresh(context.Context, ...string) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected catalog refresh")
 }
 
@@ -359,14 +363,19 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 		if payload.CompletedCount != 1 || payload.FailedTarget != "kit" || len(payload.Updates) != 1 ||
 			payload.Updates[0].Name != "completed" || payload.OperationError == nil ||
-			len(payload.OperationError.InputDefinitions) != 1 || payload.OperationError.InputDefinitions[0].Prompt != "Region" {
+			len(
+				payload.OperationError.InputDefinitions,
+			) != 1 || payload.OperationError.InputDefinitions[0].Prompt != "Region" {
 			t.Fatalf("native partial recovery = %#v", payload)
 		}
 	})
 
 	t.Run("Should retain changed source digests in a native conflict", func(t *testing.T) {
 		t.Parallel()
-		cause := &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}
+		cause := &extensionpkg.SourceChangedError{
+			ListedDigest:  strings.Repeat("a", 64),
+			FetchedDigest: strings.Repeat("b", 64),
+		}
 		err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
 		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
 		if !ok || toolErr.Code != "extension_source_changed" || !errors.Is(err, toolspkg.ErrToolConflict) ||
@@ -858,18 +867,15 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail closed when catalog refresh and lookup both fail", func(t *testing.T) {
+	t.Run("Should fail closed when catalog lookup fails", func(t *testing.T) {
 		t.Parallel()
 
-		refreshErr := errors.New("catalog unavailable")
-		catalog := nativeExtensionCatalog{err: &marketplacepkg.ExtensionInstallResolutionError{
-			RefreshErr: refreshErr,
-			LookupErr:  marketplacepkg.ErrEntryNotFound,
-		}}
+		lookupErr := errors.New("catalog unavailable")
+		catalog := nativeExtensionCatalog{err: lookupErr}
 		service := &daemonExtensionService{marketplaceCatalog: catalog}
 		trust, err := service.resolveMarketplaceExtensionTrust(t.Context(), "acme/tool-ext", "1.0.0")
-		if trust != nil || !errors.Is(err, refreshErr) || !errors.Is(err, marketplacepkg.ErrEntryNotFound) {
-			t.Fatalf("resolveMarketplaceExtensionTrust() = (%#v, %v), want fail-closed combined error", trust, err)
+		if trust != nil || !errors.Is(err, lookupErr) {
+			t.Fatalf("resolveMarketplaceExtensionTrust() = (%#v, %v), want fail-closed lookup error", trust, err)
 		}
 	})
 

@@ -1128,6 +1128,12 @@ type LoopUiAnnotation struct {
 	Y           float64 `json:"y"`
 }
 
+type MarketplaceCatalogConfig struct {
+	ID         int64  `json:"id"`
+	Generation int64  `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
 type MarketplaceCatalogEntry struct {
 	Source         string         `json:"source"`
 	EntryID        string         `json:"entry_id"`
@@ -1151,6 +1157,7 @@ type MarketplaceCatalogEntry struct {
 type MarketplaceCatalogState struct {
 	Source          string         `json:"source"`
 	SourceRef       string         `json:"source_ref"`
+	ConfigRevision  string         `json:"config_revision"`
 	DocumentDigest  string         `json:"document_digest"`
 	DiagnosticsJson string         `json:"diagnostics_json"`
 	ManifestVersion int64          `json:"manifest_version"`

@@ -24,6 +24,33 @@ import (
 
 func TestResolveMarketplaceSources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve aliases of one origin and consume only its preset override", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.DefaultMarketplaceRuntimeConfig()
+		cfg.PluginSources = []config.MarketplacePluginSourceConfig{
+			{Name: "first", Source: "github:TEAM/Plugins", Enabled: new(false)},
+			{Name: "preset", Source: "github:team/plugins", Enabled: new(true)},
+			{Name: "last", Source: "github:team/plugins"},
+		}
+		for _, presets := range [][]Preset{nil, {{Name: "preset", Source: "github:team/plugins", Default: "off"}}} {
+			sources, err := ResolveSources(cfg, presets)
+			if err != nil || len(sources) != 4 {
+				t.Fatalf("aliases=%+v, err=%v", sources, err)
+			}
+			names := []string{CompozyCatalogSource, "first", "preset", "last"}
+			if len(presets) != 0 {
+				names = []string{CompozyCatalogSource, "preset", "first", "last"}
+			}
+			for index, source := range sources {
+				if source.Name != names[index] || source.Enabled != (source.Name != "first") {
+					t.Fatalf("source %d = %+v", index, source)
+				}
+				if index > 0 && source.Ref != "github:team/plugins" {
+					t.Fatalf("origin = %q", source.Ref)
+				}
+			}
+		}
+	})
 	t.Run(
 		"Should retain an enabled choice when a preset is renamed and order feed presets then custom sources",
 		func(t *testing.T) {

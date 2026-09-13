@@ -82,10 +82,10 @@ func (h *BaseHandlers) MarketplaceList(
 		return contract.MarketplaceListResponse{}, err
 	}
 	page, err := h.MarketplaceCatalog.Browse(ctx, query, offset, limit)
-	if err != nil && !page.State.Stale {
+	if err != nil {
 		return contract.MarketplaceListResponse{}, normalizeCuratedMarketplaceError(err)
 	}
-	if fence != "" && fence != page.State.Revision {
+	if fence != "" && fence != page.Revision {
 		return contract.MarketplaceListResponse{}, ErrMarketplaceCursorStale
 	}
 	installed, err := h.extensionInstallIndex(ctx, scope)
@@ -94,19 +94,24 @@ func (h *BaseHandlers) MarketplaceList(
 	}
 	response := contract.MarketplaceListResponse{
 		Total:      page.Total,
-		Revision:   page.State.Revision,
-		Stale:      page.State.Stale,
-		ErrorClass: page.State.ErrorClass,
-		Error:      h.marketplaceCatalogDiagnostic(page.State.LastError),
+		Revision:   page.Revision,
+		Stale:      page.Stale,
+		ErrorClass: page.ErrorClass,
+		Error:      h.marketplaceCatalogDiagnostic(page.LastError),
 		Items: make(
 			[]contract.MarketplaceListingPayload,
 			0,
 			len(page.Entries),
 		),
-		Sources: []contract.MarketplaceSourceSummary{marketplaceSourceSummary(page.State)},
+		Sources: []contract.MarketplaceSourceSummary{},
+	}
+	for _, source := range page.Sources {
+		if source.Enabled {
+			response.Sources = append(response.Sources, marketplaceSourceSummary(source))
+		}
 	}
 	for _, entry := range page.Entries {
-		listing, err := h.curatedMarketplaceListing(ctx, entry, installed)
+		listing, err := h.catalogMarketplaceListing(ctx, entry, installed)
 		if err != nil {
 			return contract.MarketplaceListResponse{}, err
 		}
@@ -116,7 +121,7 @@ func (h *BaseHandlers) MarketplaceList(
 	response.NextCursor, err = marketplaceNextCursor(
 		query,
 		scope,
-		page.State.Revision,
+		page.Revision,
 		offset+len(page.Entries),
 		offset+len(page.Entries) < page.Total,
 	)
@@ -133,9 +138,8 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 	}
 
 	source := strings.TrimSpace(c.Query("source"))
-	if source != "" && source != marketplacepkg.CompozyCatalogSource {
-		h.respondMarketplaceError(c, ErrMarketplaceNotFound)
-		return
+	if source == "" {
+		source = marketplacepkg.CompozyCatalogSource
 	}
 	actor, ok := h.marketplaceCatalogReadActor(c, "entry")
 	if !ok {
@@ -151,8 +155,8 @@ func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
 	if name := strings.TrimSpace(c.Query("installed_name")); name != "" {
 		response, err = h.installedExtensionMarketplaceEntry(c.Request.Context(), name, scope)
 	} else {
-		response, err = h.curatedMarketplaceEntry(
-			c.Request.Context(),
+		response, err = h.catalogMarketplaceEntry(
+			c.Request.Context(), source,
 			c.Param("entry_id"),
 			scope,
 		)
@@ -175,15 +179,15 @@ func normalizeCatalogListing(listing *contract.MarketplaceListingPayload) {
 
 func marketplaceSourceSummary(state marketplacepkg.SourceState) contract.MarketplaceSourceSummary {
 	source := contract.MarketplaceSourceSummary{
-		Name:  marketplacepkg.CompozyCatalogSource,
-		Kind:  "feed",
+		Name:  state.Source,
+		Kind:  state.Kind,
 		State: "ok",
 		Count: state.EntryCount,
 	}
-	if state.Stale {
-		source.State = "degraded"
-	} else if state.FetchedAt.IsZero() {
+	if state.FetchedAt.IsZero() && state.LastError == "" {
 		source.State = "never"
+	} else if state.Stale {
+		source.State = "degraded"
 	}
 	if !state.FetchedAt.IsZero() {
 		source.LastReadAt = new(state.FetchedAt)

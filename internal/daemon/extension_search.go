@@ -274,7 +274,7 @@ func (s *daemonExtensionService) searchCuratedExtensions(
 			Tier: entry.Tier, Integrity: integrity,
 		})
 	}
-	if result.State.Stale {
+	if result.Stale {
 		return items, errors.New("curated extension catalog is stale")
 	}
 	return items, nil

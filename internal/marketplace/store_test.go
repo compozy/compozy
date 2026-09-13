@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,14 +30,24 @@ func TestSQLiteStoreReplaceSource(t *testing.T) {
 			testEntry("alpha", "Alpha server", "First server"),
 			testEntry("beta", "Beta server", "Second server"),
 		)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			first,
+		); err != nil {
 			t.Fatalf("ReplaceSource(first) error = %v", err)
 		}
 
 		second := testDocument(now.Add(time.Hour),
 			testEntry("beta", "Beta server", "Updated description"),
 		)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, second); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			second,
+		); err != nil {
 			t.Fatalf("ReplaceSource(second) error = %v", err)
 		}
 
@@ -68,15 +79,25 @@ func TestSQLiteStoreReplaceSource(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			now,
-			testEntry("stable", "Stable skill", "Preserved row"),
-		)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				now,
+				testEntry("stable", "Stable skill", "Preserved row"),
+			),
+		); err != nil {
 			t.Fatalf("ReplaceSource(valid) error = %v", err)
 		}
 
 		invalid := testDocument(now.Add(time.Hour), testEntry("", "Invalid", "Missing id"))
-		err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, invalid)
+		err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			invalid,
+		)
 		if err == nil || !strings.Contains(err.Error(), "identity fields are required") {
 			t.Fatalf("ReplaceSource(invalid) error = %v, want identity-fields validation", err)
 		}
@@ -130,13 +151,25 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		catalog := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+		configureMarketplaceTestSources(t, catalog, map[string]string{"partner": ""})
 		for _, source := range []string{CompozyCatalogSource, "partner"} {
 			document := testDocument(at, testEntry("shared", source, "Source isolation"))
-			if err := catalog.ReplaceSource(ctx, source, 0, document); err != nil {
+			if err := catalog.ReplaceSource(
+				ctx,
+				source,
+				testSourceGeneration(t, catalog, source),
+				document,
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := catalog.MarkSourceStale(ctx, "partner", 0, errorClassNetwork, "unavailable"); err != nil {
+		if err := catalog.MarkSourceStale(
+			ctx,
+			"partner",
+			testSourceGeneration(t, catalog, "partner"),
+			errorClassNetwork,
+			"unavailable",
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, source := range []string{CompozyCatalogSource, "partner"} {
@@ -177,7 +210,12 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 			testEntry("strasse", "Straße tools", "Indexes German names"),
 			testEntry("cafe", "Cafe\u0301 index", "Decomposed canonical text"),
 		)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, document); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			document,
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 
@@ -272,16 +310,21 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		store := openMarketplaceTestStore(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(
-			now,
-			testEntry("server", "MCP server", "Available while offline"),
-		)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(
+				now,
+				testEntry("server", "MCP server", "Available while offline"),
+			),
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 		if err := store.MarkSourceStale(
 			ctx,
 			CompozyCatalogSource,
-			0,
+			testSourceGeneration(t, store, CompozyCatalogSource),
 			errorClassNetwork,
 			"token=[REDACTED]",
 		); err != nil {
@@ -316,8 +359,12 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		entry.InstallSlug = "AlexandreAkao/herdr-bridge-compozy"
 		collision := testEntry("other", "Other", "Different package")
 		collision.InstallSlug, collision.Version = "compozy/herdr-bridge", "2.0.0"
-		if err := store.ReplaceSource(t.Context(), CompozyCatalogSource, 0,
-			testDocument(time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), entry, collision)); err != nil {
+		if err := store.ReplaceSource(
+			t.Context(),
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), entry, collision),
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, slug := range []string{"compozy/herdr-bridge", entry.InstallSlug} {
@@ -353,7 +400,12 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		entry := testEntry("telemetry", "Telemetry", "Exports traces")
 		entry.Version = "2.1.0"
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, testDocument(now, entry)); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			testDocument(now, entry),
+		); err != nil {
 			t.Fatalf("ReplaceSource() error = %v", err)
 		}
 
@@ -444,7 +496,12 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, tc.document)
+			err := store.ReplaceSource(
+				ctx,
+				CompozyCatalogSource,
+				testSourceGeneration(t, store, CompozyCatalogSource),
+				tc.document,
+			)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("ReplaceSource() error = %v, want %q", err, tc.wantErr)
 			}
@@ -505,7 +562,41 @@ func openMarketplaceTestStore(t *testing.T) *SQLiteStore {
 	if err != nil {
 		t.Fatalf("NewSQLiteStore() error = %v", err)
 	}
+	configureMarketplaceTestSources(t, store, nil)
 	return store
+}
+
+func configureMarketplaceTestSources(t *testing.T, catalog *SQLiteStore, custom map[string]string) int64 {
+	t.Helper()
+	sources := []ResolvedSource{
+		{Name: CompozyCatalogSource, Ref: CompozyCatalogRef, Kind: SourceKindFeed, Enabled: true},
+	}
+	names := make([]string, 0, len(custom))
+	for name := range custom {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		sources = append(sources, ResolvedSource{Name: name, Ref: custom[name], Kind: SourceKindCustom, Enabled: true})
+	}
+	encoded, err := json.Marshal(sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, err := catalog.ConfigureSources(t.Context(), sources, string(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return generation.Generation
+}
+
+func testSourceGeneration(t *testing.T, catalog *SQLiteStore, source string) int64 {
+	t.Helper()
+	state, err := catalog.SourceState(t.Context(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return state.Generation
 }
 
 func testDocument(fetchedAt time.Time, entries ...Entry) *Document {
@@ -547,7 +638,8 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		document.DocumentPath = ".claude-plugin/marketplace.json"
 		document.Owner = "Example"
 		document.Diagnostics = []pluginsource.Diagnostic{{Code: "invalid_plugin", Message: "Missing name"}}
-		if err := catalog.ReplaceSource(ctx, "team", 0, document); err != nil {
+		configureMarketplaceTestSources(t, catalog, map[string]string{"team": document.SourceRef})
+		if err := catalog.ReplaceSource(ctx, "team", testSourceGeneration(t, catalog, "team"), document); err != nil {
 			t.Fatal(err)
 		}
 		state, err := catalog.SourceState(ctx, "team")
@@ -560,7 +652,13 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			state.EntryCount != 0 || state.Installable != 0 || state.Revision == "" {
 			t.Fatalf("empty source state = %#v", state)
 		}
-		if err := catalog.MarkSourceStale(ctx, "team", 0, "network", "[remote] unavailable"); err != nil {
+		if err := catalog.MarkSourceStale(
+			ctx,
+			"team",
+			testSourceGeneration(t, catalog, "team"),
+			"network",
+			"[remote] unavailable",
+		); err != nil {
 			t.Fatal(err)
 		}
 		stale, err := catalog.SourceState(ctx, "team")
@@ -579,7 +677,15 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			{&document.SourceRef, "github:example/replacement"},
 		} {
 			*change.field = change.value
-			if err := catalog.ReplaceSource(ctx, "team", 0, document); err != nil {
+			if document.SourceRef != state.SourceRef {
+				configureMarketplaceTestSources(t, catalog, map[string]string{"team": document.SourceRef})
+			}
+			if err := catalog.ReplaceSource(
+				ctx,
+				"team",
+				testSourceGeneration(t, catalog, "team"),
+				document,
+			); err != nil {
 				t.Fatal(err)
 			}
 			changed, err := catalog.SourceState(ctx, "team")
@@ -603,7 +709,12 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			t.Fatal(err)
 		}
 		document.FetchedAt = time.Now().UTC()
-		if err := store.ReplaceSource(t.Context(), CompozyCatalogSource, 0, document); err != nil {
+		if err := store.ReplaceSource(
+			t.Context(),
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			document,
+		); err != nil {
 			t.Fatal(err)
 		}
 		result, err := store.BrowseSource(t.Context(), CompozyCatalogSource, "", 0, 100)
@@ -626,7 +737,12 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			testEntry("b", "Beta", "Original"),
 			testEntry("a", "Alpha", "Original"),
 		)
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			first,
+		); err != nil {
 			t.Fatal(err)
 		}
 		before, err := store.SourceState(ctx, CompozyCatalogSource)
@@ -638,7 +754,12 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 		for i := range refreshed.Entries {
 			refreshed.Entries[i].FetchedAt = refreshed.FetchedAt
 		}
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			refreshed,
+		); err != nil {
 			t.Fatal(err)
 		}
 		after, err := store.SourceState(ctx, CompozyCatalogSource)
@@ -649,7 +770,12 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			t.Fatalf("before=%#v after=%#v", before, after)
 		}
 		refreshed.Entries[0].Description = "Changed"
-		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
+		if err := store.ReplaceSource(
+			ctx,
+			CompozyCatalogSource,
+			testSourceGeneration(t, store, CompozyCatalogSource),
+			refreshed,
+		); err != nil {
 			t.Fatal(err)
 		}
 		changed, err := store.SourceState(ctx, CompozyCatalogSource)

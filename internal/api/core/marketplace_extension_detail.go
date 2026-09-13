@@ -25,7 +25,11 @@ func (h *BaseHandlers) populateMarketplaceExtensionDetail(
 	if detail == nil {
 		return nil
 	}
-	origin := marketplacepkg.Origin{SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: entry.EntryID}
+	projection, err := marketplacepkg.ProjectEntry(entry)
+	if err != nil {
+		return err
+	}
+	origin := marketplacepkg.Origin{SourceRef: projection.SourceRef, EntryID: entry.EntryID}
 	if item := installed.byOrigin[origin].extension; item != nil {
 		detail.Contents, detail.MCPServers = item.Contents, item.MCPServers
 		if detail.MCPServers == nil {

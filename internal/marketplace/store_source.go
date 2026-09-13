@@ -87,29 +87,29 @@ func sourceContentRevision(source, sourceRef string, document *Document) (string
 }
 
 // BrowseSource binds the filtered page to the revision that owns its rows.
-func (s *SQLiteStore) BrowseSource(ctx context.Context, source, query string, offset, limit int) (BrowseResult, error) {
+func (s *SQLiteStore) BrowseSource(ctx context.Context, source, query string, offset, limit int) (SourcePage, error) {
 	if err := s.checkReady(ctx); err != nil {
-		return BrowseResult{}, err
+		return SourcePage{}, err
 	}
 	if offset < 0 {
-		return BrowseResult{}, fmt.Errorf("marketplace catalog: list offset must be non-negative: %d", offset)
+		return SourcePage{}, fmt.Errorf("marketplace catalog: list offset must be non-negative: %d", offset)
 	}
 	snapshot, err := s.repository.ReadMarketplaceCatalogSnapshot(ctx, source, maxCatalogEntriesPerSource)
 	if errors.Is(err, sql.ErrNoRows) {
-		return BrowseResult{}, fmt.Errorf("%w: %s", ErrSourceStateMissing, source)
+		return SourcePage{}, fmt.Errorf("%w: %s", ErrSourceStateMissing, source)
 	}
 	if err != nil {
-		return BrowseResult{}, err
+		return SourcePage{}, err
 	}
 	page, err := listCatalogRows(snapshot.Entries, query, offset, limit)
 	if err != nil {
-		return BrowseResult{}, err
+		return SourcePage{}, err
 	}
 	state, err := marketplaceSourceStateFromRow(snapshot.State)
 	if err != nil {
-		return BrowseResult{}, err
+		return SourcePage{}, err
 	}
-	return BrowseResult{Entries: page.Entries, Total: page.Total, State: state}, nil
+	return SourcePage{Entries: page.Entries, Total: page.Total, State: state}, nil
 }
 
 // MarkSourceStale refuses failure results from an obsolete source generation.
@@ -120,12 +120,4 @@ func (s *SQLiteStore) MarkSourceStale(
 		return err
 	}
 	return s.repository.MarkMarketplaceCatalogStale(ctx, source, generation, errorClass, lastError)
-}
-
-// AdvanceSourceGeneration invalidates outstanding reads when a source configuration changes.
-func (s *SQLiteStore) AdvanceSourceGeneration(ctx context.Context, source string) (int64, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return 0, err
-	}
-	return s.repository.AdvanceMarketplaceCatalogGeneration(ctx, source)
 }

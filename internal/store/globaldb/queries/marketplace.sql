@@ -40,13 +40,9 @@ ON CONFLICT(source) DO UPDATE SET
   error_class = '';
 
 -- name: MarkMarketplaceCatalogStateStale :execrows
-INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, generation, error_class
-) VALUES (
-  sqlc.arg(source), 0, NULL, '', 1, sqlc.arg(last_error), sqlc.arg(generation), sqlc.arg(error_class)
-)
-ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error, error_class = excluded.error_class
-WHERE marketplace_catalog_state.generation = excluded.generation;
+UPDATE marketplace_catalog_state
+SET stale = 1, last_error = sqlc.arg(last_error), error_class = sqlc.arg(error_class)
+WHERE source = sqlc.arg(source) AND enabled = 1 AND generation = sqlc.arg(generation);
 
 -- name: ListMarketplaceCatalogEntries :many
 SELECT *
@@ -69,20 +65,54 @@ WHERE source = 'compozy-catalog'
 
 -- name: GetMarketplaceCatalogState :one
 SELECT s.source, s.generation, s.revision, s.manifest_version, s.generated_at, s.fetched_at, s.stale, s.last_error,
-       s.source_ref, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
+       s.source_ref, s.config_revision, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
        s.installable, s.error_class, s.document_path, s.owner,
        CAST((SELECT COUNT(*) FROM marketplace_catalog_entries e WHERE e.source = s.source) AS INTEGER) AS entry_count
 FROM marketplace_catalog_state s
 WHERE s.source = sqlc.arg(source);
 
 -- name: ClaimMarketplaceCatalogGeneration :execrows
-INSERT INTO marketplace_catalog_state (source, manifest_version, generation)
-VALUES (sqlc.arg(source), 0, sqlc.arg(generation))
-ON CONFLICT(source) DO UPDATE SET generation = excluded.generation
-WHERE marketplace_catalog_state.generation = excluded.generation;
+UPDATE marketplace_catalog_state SET generation = generation
+WHERE source = sqlc.arg(source) AND source_ref = sqlc.arg(source_ref)
+  AND enabled = 1 AND generation = sqlc.arg(generation);
 
--- name: AdvanceMarketplaceCatalogGeneration :one
-INSERT INTO marketplace_catalog_state (source, manifest_version, generation, stale)
-VALUES (sqlc.arg(source), 0, 1, 1)
-ON CONFLICT(source) DO UPDATE SET generation = marketplace_catalog_state.generation + 1, stale = 1
-RETURNING generation;
+-- name: ClaimMarketplaceSourceConfiguration :one
+INSERT INTO marketplace_catalog_config (id, generation, revision)
+VALUES (1, (SELECT COALESCE(MAX(generation), 0) FROM marketplace_catalog_state), '')
+ON CONFLICT(id) DO UPDATE SET id = id
+RETURNING generation, revision;
+
+-- name: SetMarketplaceSourceConfiguration :one
+UPDATE marketplace_catalog_config
+SET generation = MAX(generation, (SELECT COALESCE(MAX(generation), 0) FROM marketplace_catalog_state)) + 1,
+    revision = sqlc.arg(revision)
+WHERE id = 1 RETURNING generation, revision;
+
+-- name: GetMarketplaceSourceConfiguration :one
+SELECT generation, revision FROM marketplace_catalog_config WHERE id = 1;
+
+-- name: RegisterMarketplaceSource :exec
+INSERT INTO marketplace_catalog_state (source, source_ref, config_revision, kind_of_source, enabled, generation, manifest_version)
+VALUES (sqlc.arg(source), sqlc.arg(source_ref), sqlc.arg(config_revision), sqlc.arg(kind_of_source), sqlc.arg(enabled), sqlc.arg(generation), 0)
+ON CONFLICT(source) DO UPDATE SET
+  generation = CASE WHEN source_ref <> excluded.source_ref OR config_revision <> excluded.config_revision
+    OR kind_of_source <> excluded.kind_of_source OR enabled <> excluded.enabled THEN excluded.generation ELSE generation END,
+  stale = CASE WHEN source_ref <> excluded.source_ref OR config_revision <> excluded.config_revision THEN 1 ELSE stale END,
+  source_ref = excluded.source_ref, config_revision = excluded.config_revision,
+  kind_of_source = excluded.kind_of_source, enabled = excluded.enabled;
+
+-- name: DeleteMarketplaceCatalogState :exec
+DELETE FROM marketplace_catalog_state WHERE source = sqlc.arg(source);
+
+-- name: DeleteUnconfiguredMarketplaceEntries :exec
+DELETE FROM marketplace_catalog_entries WHERE source NOT IN (SELECT CAST(value AS TEXT) FROM json_each(sqlc.arg(names)));
+
+-- name: DeleteUnconfiguredMarketplaceStates :exec
+DELETE FROM marketplace_catalog_state WHERE source NOT IN (SELECT CAST(value AS TEXT) FROM json_each(sqlc.arg(names)));
+
+-- name: ListMarketplaceSourceNameRetainers :many
+SELECT name FROM extensions
+WHERE json_extract(provenance_json, '$.source_name') = sqlc.arg(source)
+  AND COALESCE(json_extract(provenance_json, '$.source_ref'), '') <> ''
+  AND json_extract(provenance_json, '$.source_ref') <> sqlc.arg(source_ref)
+ORDER BY name;

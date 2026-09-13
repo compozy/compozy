@@ -7,49 +7,37 @@ import (
 	"strings"
 )
 
-// ExtensionInstallResolutionError preserves refresh and last-known lookup failures.
-type ExtensionInstallResolutionError struct {
-	RefreshErr error
-	LookupErr  error
-}
-
-func (e *ExtensionInstallResolutionError) Error() string {
-	if e == nil {
-		return "marketplace catalog: resolve extension install"
-	}
-	return fmt.Sprintf(
-		"marketplace catalog: resolve extension install after refresh failure: refresh: %v; lookup: %v",
-		e.RefreshErr,
-		e.LookupErr,
-	)
-}
-
-func (e *ExtensionInstallResolutionError) Unwrap() []error {
-	if e == nil {
-		return nil
-	}
-	return []error{e.RefreshErr, e.LookupErr}
-}
-
-// ResolveExtensionInstall returns a curated extension by canonical or retained slug and optional version.
-func (s *CatalogService) ResolveExtensionInstall(
-	ctx context.Context,
-	installSlug string,
-	version string,
-) (*Entry, error) {
+// ResolveExtensionInstall reads the selected source's approved projection without remote refresh.
+func (s *CatalogService) ResolveExtensionInstall(ctx context.Context, installSlug, version string) (*Entry, error) {
 	if err := s.checkReady(ctx); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(installSlug) == "" {
+	installSlug, version = strings.TrimSpace(installSlug), strings.TrimSpace(version)
+	if installSlug == "" {
 		return nil, errors.New("marketplace catalog: extension install slug is required")
 	}
-	refreshErr := s.ensureFresh(ctx)
-	entry, getErr := s.store.GetExtensionByInstallSlug(ctx, installSlug, version)
-	if getErr != nil {
-		if refreshErr != nil {
-			return nil, &ExtensionInstallResolutionError{RefreshErr: refreshErr, LookupErr: getErr}
+	s.sourceMu.RLock()
+	defer s.sourceMu.RUnlock()
+	name, entryID, ok := strings.Cut(installSlug, "/")
+	if !ok || entryID == "" || strings.Contains(entryID, "/") {
+		return nil, ErrEntryNotFound
+	}
+	if source, exists := s.byName[name]; exists && source.binding.Config.Kind != SourceKindFeed {
+		if !source.binding.Config.Enabled {
+			return nil, ErrEntryNotFound
 		}
-		return nil, fmt.Errorf("marketplace catalog: resolve extension install: %w", getErr)
+		entry, err := s.store.GetEntry(ctx, name, entryID)
+		if err != nil {
+			return nil, err
+		}
+		if version != "" && entry.Version != version {
+			return nil, ErrEntryNotFound
+		}
+		return entry, nil
+	}
+	entry, err := s.store.GetExtensionByInstallSlug(ctx, installSlug, version)
+	if err != nil {
+		return nil, fmt.Errorf("marketplace catalog: resolve extension install: %w", err)
 	}
 	return entry, nil
 }

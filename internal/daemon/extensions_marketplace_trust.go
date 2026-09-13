@@ -90,10 +90,7 @@ func (s *daemonExtensionService) resolveMarketplaceExtensionTrust(
 		return nil, nil
 	}
 	entry, err := s.marketplaceCatalog.ResolveExtensionInstall(ctx, installSlug, version)
-	if resolutionErr, ok := errors.AsType[*marketplacepkg.ExtensionInstallResolutionError](err); ok &&
-		resolutionErr.RefreshErr != nil {
-		return nil, fmt.Errorf("daemon: resolve curated extension install: %w", err)
-	}
+
 	if errors.Is(err, marketplacepkg.ErrEntryNotFound) {
 		return nil, nil
 	}

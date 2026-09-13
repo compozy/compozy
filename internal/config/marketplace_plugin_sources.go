@@ -24,7 +24,6 @@ func (c MarketplacePluginSourceConfig) EffectiveEnabled(presetDefault bool) bool
 
 func ValidateMarketplacePluginSources(sources []MarketplacePluginSourceConfig) error {
 	names := make(map[string]struct{}, len(sources))
-	refs := make(map[string]struct{}, len(sources))
 	for index, source := range sources {
 		path := fmt.Sprintf("marketplace.plugin_sources[%d]", index)
 		if err := pluginsource.ValidateName(source.Name); err != nil {
@@ -38,14 +37,10 @@ func ValidateMarketplacePluginSources(sources []MarketplacePluginSourceConfig) e
 			!strings.HasPrefix(source.Source, "file:") {
 			return fmt.Errorf("%s.source: %w", path, pluginsource.ErrInvalidRef)
 		}
-		ref, err := pluginsource.NormalizeRef(source.Source)
+		_, err := pluginsource.NormalizeRef(source.Source)
 		if err != nil {
 			return fmt.Errorf("%s.source: %w", path, err)
 		}
-		if _, exists := refs[ref]; exists {
-			return fmt.Errorf("%s.source: marketplace_source_exists: duplicate source %q", path, ref)
-		}
-		refs[ref] = struct{}{}
 	}
 	return nil
 }

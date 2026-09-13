@@ -38,7 +38,13 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		service, err := NewService(openMarketplaceTestStore(t), source, time.Hour, time.Minute)
+		service, err := NewService(
+			t.Context(),
+			openMarketplaceTestStore(t),
+			marketplaceTestBindings(t, source),
+			time.Hour,
+			time.Minute,
+		)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -71,7 +77,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewHTTPSource() error = %v", err)
 			}
-			service, err := NewService(store, source, time.Hour, time.Minute)
+			service, err := NewService(t.Context(), store, marketplaceTestBindings(t, source), time.Hour, time.Minute)
 			if err != nil {
 				t.Fatalf("NewService() error = %v", err)
 			}
@@ -110,8 +116,8 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Browse(stale fallback) error = %v", err)
 			}
-			if !result.State.Stale || result.State.ErrorClass != errorClassNetwork {
-				t.Fatalf("Browse(stale fallback) state = %#v, want stale network state", result.State)
+			if !result.Stale || result.ErrorClass != errorClassNetwork {
+				t.Fatalf("Browse(stale fallback) state = %#v, want stale network state", result.Sources)
 			}
 			assertProjectedExtensionIDs(t, ctx, store, "stable")
 			states, err := service.Status(ctx)

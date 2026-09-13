@@ -49,7 +49,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		cfg.Marketplace.Catalog.BaseURL = (&url.URL{Scheme: "file", Path: catalogDir}).String()
 		cfg.Marketplace.Catalog.TTL = "1h"
 		cfg.Marketplace.Catalog.Timeout = "1s"
-		runtime, err := newMarketplaceRuntime(marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}
@@ -58,7 +58,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
-		if _, err := runtime.Browse(testutil.Context(t), "", 0, 20); err != nil {
+		if _, err := runtime.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Browse(checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "checkout")
@@ -69,7 +69,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err := os.WriteFile(catalogPath, []byte(catalogDocument), 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", catalogPath, err)
 		}
-		if _, err := runtime.Browse(testutil.Context(t), "", 0, 20); err != nil {
+		if _, err := runtime.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Browse(edited checkout) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "edited-checkout")
@@ -204,7 +204,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		cfg.Marketplace.Catalog.BaseURL = oldServer.URL
 		cfg.Marketplace.Catalog.TTL = "1h"
 		cfg.Marketplace.Catalog.Timeout = "1m"
-		runtime, err := newMarketplaceRuntime(marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}
@@ -226,8 +226,8 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			t.Fatalf("ReconcileConfig() error = %v", err)
 		}
 		<-requestCanceled
-		if err := <-oldRefresh; !errors.Is(err, marketplace.ErrServiceClosed) {
-			t.Fatalf("old Refresh() error = %v, want ErrServiceClosed", err)
+		if err := <-oldRefresh; !errors.Is(err, store.ErrMarketplaceCatalogGenerationStale) {
+			t.Fatalf("old Refresh() error = %v, want obsolete source generation", err)
 		}
 		if _, err := runtime.Refresh(testutil.Context(t)); err != nil {
 			t.Fatalf("Refresh(replacement) error = %v", err)
@@ -277,21 +277,41 @@ func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wa
 
 func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Store, fetchedAt time.Time) {
 	t.Helper()
-	if err := catalogStore.ReplaceSource(t.Context(), marketplace.CompozyCatalogSource, 0, &marketplace.Document{
-		ManifestVersion: marketplace.ManifestVersion,
-		GeneratedAt:     fetchedAt.Add(-time.Minute),
-		FetchedAt:       fetchedAt,
-		Entries: []marketplace.Entry{{
-			EntryID:      "remote",
-			Version:      "1.0.0",
-			DigestSHA256: strings.Repeat("a", 64),
-			Name:         "remote",
-			Description:  "Fresh remote projection",
-			InstallSlug:  "compozy/remote",
-			Payload:      []byte(`{"entry_id":"remote","name":"remote"}`),
-			FetchedAt:    fetchedAt,
-		}},
-	}); err != nil {
+	generation, err := catalogStore.ConfigureSources(
+		t.Context(),
+		[]marketplace.ResolvedSource{
+			{
+				Name:    marketplace.CompozyCatalogSource,
+				Ref:     marketplace.CompozyCatalogRef,
+				Kind:    marketplace.SourceKindFeed,
+				Enabled: true,
+			},
+		},
+		"fixture",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := catalogStore.ReplaceSource(
+		t.Context(),
+		marketplace.CompozyCatalogSource,
+		generation.Generation,
+		&marketplace.Document{
+			ManifestVersion: marketplace.ManifestVersion,
+			GeneratedAt:     fetchedAt.Add(-time.Minute),
+			FetchedAt:       fetchedAt,
+			Entries: []marketplace.Entry{{
+				EntryID:      "remote",
+				Version:      "1.0.0",
+				DigestSHA256: strings.Repeat("a", 64),
+				Name:         "remote",
+				Description:  "Fresh remote projection",
+				InstallSlug:  "compozy/remote",
+				Payload:      []byte(`{"entry_id":"remote","name":"remote"}`),
+				FetchedAt:    fetchedAt,
+			}},
+		},
+	); err != nil {
 		t.Fatalf("ReplaceSource(remote projection) error = %v", err)
 	}
 }

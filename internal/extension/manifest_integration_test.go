@@ -99,7 +99,17 @@ func TestPluginCatalogInstallability(t *testing.T) {
 					t.Fatal(err)
 				}
 				doc.FetchedAt = time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
-				if err := catalog.ReplaceSource(t.Context(), "team", 0, doc); err != nil {
+				generation, err := catalog.ConfigureSources(
+					t.Context(),
+					[]marketplace.ResolvedSource{
+						{Name: "team", Ref: doc.SourceRef, Kind: marketplace.SourceKindCustom, Enabled: true},
+					},
+					"fixture",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := catalog.ReplaceSource(t.Context(), "team", generation.Generation, doc); err != nil {
 					t.Fatal(err)
 				}
 				page, err := catalog.BrowseSource(t.Context(), "team", "", 0, 10)

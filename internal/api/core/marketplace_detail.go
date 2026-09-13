@@ -10,9 +10,9 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
-func (h *BaseHandlers) curatedMarketplaceEntry(
+func (h *BaseHandlers) catalogMarketplaceEntry(
 	ctx context.Context,
-	entryID string,
+	source, entryID string,
 	scope marketplaceReadScope,
 ) (contract.MarketplaceEntryResponse, error) {
 	if h == nil || h.MarketplaceCatalog == nil {
@@ -20,7 +20,7 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 			ErrMarketplaceUnavailable, errors.New("catalog is not configured"),
 		)
 	}
-	entry, err := h.MarketplaceCatalog.Detail(ctx, entryID)
+	entry, err := h.MarketplaceCatalog.Detail(ctx, source, entryID)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, normalizeCuratedMarketplaceError(err)
 	}
@@ -33,7 +33,7 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
-	listing, err := h.curatedMarketplaceListing(ctx, *entry, installed)
+	listing, err := h.catalogMarketplaceListing(ctx, *entry, installed)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}

@@ -3,9 +3,38 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
-var ErrMarketplaceCatalogGenerationStale = errors.New("marketplace catalog: source generation is stale")
+var (
+	ErrMarketplaceCatalogGenerationStale = errors.New("marketplace catalog: source generation is stale")
+	ErrMarketplaceSourceNameRetained     = errors.New("marketplace_source_name_retained")
+)
+
+type MarketplaceSourceNameRetainedError struct {
+	Source     string
+	RetainedBy []string
+}
+
+func (e *MarketplaceSourceNameRetainedError) Error() string {
+	return fmt.Sprintf("%s: %s is retained by %v", ErrMarketplaceSourceNameRetained, e.Source, e.RetainedBy)
+}
+
+func (e *MarketplaceSourceNameRetainedError) Unwrap() error { return ErrMarketplaceSourceNameRetained }
+
+type MarketplaceSourceDefinition struct {
+	ConfigurationRevision string
+	Name                  string
+	Ref                   string
+	Kind                  string
+	Enabled               bool
+}
+
+type MarketplaceSourceConfiguration struct {
+	SourceGenerations map[string]int64
+	Generation        int64
+	Revision          string
+}
 
 // MarketplaceCatalogEntry is the storage-boundary projection for one curated entry.
 type MarketplaceCatalogEntry struct {
@@ -68,6 +97,11 @@ type MarketplaceCatalogState struct {
 }
 
 // MarketplaceCatalogSnapshot keeps content and its revision in one database snapshot.
+type MarketplaceCatalogSourcesSnapshot struct {
+	Generation int64
+	Sources    []MarketplaceCatalogSnapshot
+}
+
 type MarketplaceCatalogSnapshot struct {
 	Entries []MarketplaceCatalogEntry
 	State   MarketplaceCatalogState
@@ -75,9 +109,14 @@ type MarketplaceCatalogSnapshot struct {
 
 // MarketplaceCatalogRepository owns the global SQLite projection and its transactions.
 type MarketplaceCatalogRepository interface {
+	ConfigureMarketplaceSources(
+		context.Context,
+		[]MarketplaceSourceDefinition,
+		string,
+	) (MarketplaceSourceConfiguration, error)
+	ReadMarketplaceCatalogSources(context.Context, []string, int64) (MarketplaceCatalogSourcesSnapshot, error)
 	ReplaceMarketplaceCatalog(context.Context, MarketplaceCatalogReplacement) error
 	ReadMarketplaceCatalogSnapshot(context.Context, string, int64) (MarketplaceCatalogSnapshot, error)
-	AdvanceMarketplaceCatalogGeneration(context.Context, string) (int64, error)
 	MarkMarketplaceCatalogStale(context.Context, string, int64, string, string) error
 	ListMarketplaceCatalogEntries(context.Context, string, int64) ([]MarketplaceCatalogEntry, error)
 	GetMarketplaceCatalogEntry(context.Context, string, string) (MarketplaceCatalogEntry, error)

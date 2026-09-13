@@ -54,7 +54,19 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			Diagnostics: []pluginsource.Diagnostic{{Code: "invalid_plugin", Message: "Missing name"}},
 		}
 		catalog := openMarketplaceMigrationStore(t, first)
-		if err := catalog.ReplaceSource(ctx, "empty", 0, empty); err != nil {
+		generation, err := catalog.ConfigureSources(ctx, []marketplace.ResolvedSource{
+			{
+				Name:    marketplace.CompozyCatalogSource,
+				Ref:     marketplace.CompozyCatalogRef,
+				Kind:    marketplace.SourceKindFeed,
+				Enabled: true,
+			},
+			{Name: "empty", Ref: empty.SourceRef, Kind: marketplace.SourceKindCustom, Enabled: true},
+		}, "empty-fixture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := catalog.ReplaceSource(ctx, "empty", generation.Generation, empty); err != nil {
 			t.Fatal(err)
 		}
 		before, err := catalog.SourceState(ctx, "empty")
@@ -177,7 +189,27 @@ func seedMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteS
 			Payload:      json.RawMessage(`{"entry_id":"migration-fixture"}`),
 		}},
 	}
-	if err := store.ReplaceSource(testutil.Context(t), marketplace.CompozyCatalogSource, 0, document); err != nil {
+	generation, err := store.ConfigureSources(
+		t.Context(),
+		[]marketplace.ResolvedSource{
+			{
+				Name:    marketplace.CompozyCatalogSource,
+				Ref:     marketplace.CompozyCatalogRef,
+				Kind:    marketplace.SourceKindFeed,
+				Enabled: true,
+			},
+		},
+		"feed-fixture",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReplaceSource(
+		testutil.Context(t),
+		marketplace.CompozyCatalogSource,
+		generation.Generation,
+		document,
+	); err != nil {
 		t.Fatalf("ReplaceSource() error = %v", err)
 	}
 }
@@ -536,11 +568,23 @@ func TestMarketplaceCatalogSourceReplacement(t *testing.T) {
 		ctx := t.Context()
 		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 		catalog := openMarketplaceMigrationStore(t, db)
+		generation, err := catalog.ConfigureSources(ctx, []marketplace.ResolvedSource{
+			{
+				Name:    marketplace.CompozyCatalogSource,
+				Ref:     marketplace.CompozyCatalogRef,
+				Kind:    marketplace.SourceKindFeed,
+				Enabled: true,
+			},
+			{Name: "team-plugins", Kind: marketplace.SourceKindCustom, Enabled: true},
+		}, "concurrent-fixture")
+		if err != nil {
+			t.Fatal(err)
+		}
 		var wg sync.WaitGroup
 		failures := make(chan error, 2)
 		for _, source := range []string{"compozy-catalog", "team-plugins"} {
 			wg.Go(func() {
-				failures <- catalog.ReplaceSource(ctx, source, 0, &marketplace.Document{
+				failures <- catalog.ReplaceSource(ctx, source, generation.Generation, &marketplace.Document{
 					ManifestVersion: marketplace.ManifestVersion, GeneratedAt: at, FetchedAt: at,
 					Entries: []marketplace.Entry{{EntryID: "same", Name: source, Description: "preserved", InstallSlug: source + "/same", Payload: json.RawMessage(`{"entry_id":"same"}`)}},
 				})
@@ -561,12 +605,18 @@ func TestMarketplaceCatalogSourceReplacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, err := db.AdvanceMarketplaceCatalogGeneration(ctx, "compozy-catalog")
+		configuration, err := db.ConfigureMarketplaceSources(ctx, []store.MarketplaceSourceDefinition{
+			{Name: "compozy-catalog", Ref: marketplace.CompozyCatalogRef, Kind: marketplace.SourceKindFeed,
+				Enabled: true, ConfigurationRevision: "changed-acquisition"},
+			{Name: "team-plugins", Kind: marketplace.SourceKindCustom, Enabled: true},
+		}, "changed-configuration")
+		next := configuration.SourceGenerations["compozy-catalog"]
 		if err != nil || next != state.Generation+1 {
 			t.Fatalf("next=%d err=%v", next, err)
 		}
 		replacement := store.MarketplaceCatalogReplacement{
 			Source:          "compozy-catalog",
+			SourceRef:       marketplace.CompozyCatalogRef,
 			Generation:      state.Generation,
 			ManifestVersion: 2,
 			GeneratedAt:     store.FormatTimestamp(at),
@@ -628,9 +678,20 @@ func TestMarketplaceCatalogSourceSnapshot(t *testing.T) {
 		ctx := testutil.Context(t)
 		db := openFreshTestGlobalDB(t)
 		at := store.FormatTimestamp(time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC))
+		configuration, err := db.ConfigureMarketplaceSources(
+			ctx,
+			[]store.MarketplaceSourceDefinition{
+				{Name: "compozy-catalog", Ref: marketplace.CompozyCatalogRef, Kind: "feed", Enabled: true},
+			},
+			"snapshot-fixture",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		replacement := func(revision string) store.MarketplaceCatalogReplacement {
 			return store.MarketplaceCatalogReplacement{
-				Source:          "compozy-catalog",
+				Source:    "compozy-catalog",
+				SourceRef: marketplace.CompozyCatalogRef, Generation: configuration.Generation,
 				Revision:        revision,
 				ManifestVersion: 2,
 				FetchedAt:       at,
@@ -767,7 +828,23 @@ func refreshMarketplaceUpgradeCatalog(t *testing.T, db *GlobalDB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := marketplace.NewService(catalog, source, time.Hour, 10*time.Second)
+	service, err := marketplace.NewService(
+		ctx,
+		catalog,
+		[]marketplace.SourceBinding{
+			{
+				Config: marketplace.ResolvedSource{
+					Name:    marketplace.CompozyCatalogSource,
+					Ref:     marketplace.CompozyCatalogRef,
+					Kind:    marketplace.SourceKindFeed,
+					Enabled: true,
+				},
+				Fetcher: source,
+			},
+		},
+		time.Hour,
+		10*time.Second,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -789,4 +866,192 @@ func refreshMarketplaceUpgradeCatalog(t *testing.T, db *GlobalDB) {
 	if err := service.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Invariant: membership, identity fences and retained installation names change atomically.
+// Owner: global marketplace transactions; canonical suite: global_db_marketplace_catalog_test.go.
+func TestMarketplaceCatalogSourceConfiguration(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should preserve disabled rows and prevent removed or replaced sources from being recreated by a late writer",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openFreshTestGlobalDB(t)
+			sources := []store.MarketplaceSourceDefinition{
+				{Name: "compozy-catalog", Ref: marketplace.CompozyCatalogRef, Kind: "feed", Enabled: true},
+				{Name: "team", Ref: "github:team/plugins", Kind: "custom", Enabled: true},
+			}
+			first, err := db.ConfigureMarketplaceSources(ctx, sources, "first")
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := store.FormatTimestamp(time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC))
+			projection := store.MarketplaceCatalogReplacement{
+				Source:          "team",
+				SourceRef:       sources[1].Ref,
+				Kind:            "custom",
+				Generation:      first.SourceGenerations["team"],
+				ManifestVersion: 3,
+				FetchedAt:       at,
+				Entries: []store.MarketplaceCatalogEntry{
+					{
+						Source:      "team",
+						EntryID:     "tool",
+						Name:        "Tool",
+						PayloadJSON: "{}",
+						FetchedAt:   at,
+						Installable: true,
+					},
+				},
+			}
+			if err := db.ReplaceMarketplaceCatalog(ctx, projection); err != nil {
+				t.Fatal(err)
+			}
+			sources[1].Enabled = false
+			disabled, err := db.ConfigureMarketplaceSources(ctx, sources, "disabled")
+			if err != nil || disabled.Generation <= first.Generation ||
+				disabled.SourceGenerations["compozy-catalog"] != first.SourceGenerations["compozy-catalog"] {
+				t.Fatalf("disabled configuration = %+v, %v", disabled, err)
+			}
+			rows, err := db.ListMarketplaceCatalogEntries(ctx, "team", 10)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("disabled rows were lost: %+v, %v", rows, err)
+			}
+			snapshot, err := db.ReadMarketplaceCatalogSources(ctx, []string{"compozy-catalog", "team"}, 10)
+			if err != nil || snapshot.Generation != disabled.Generation || len(snapshot.Sources[1].Entries) != 0 ||
+				snapshot.Sources[1].State.EntryCount != 1 {
+				t.Fatalf("disabled read snapshot = %+v, %v", snapshot, err)
+			}
+			projection.Generation = disabled.SourceGenerations["team"]
+			if err := db.ReplaceMarketplaceCatalog(
+				ctx,
+				projection,
+			); !errors.Is(
+				err,
+				store.ErrMarketplaceCatalogGenerationStale,
+			) {
+				t.Fatalf("disabled source accepted a refresh: %v", err)
+			}
+			removed, err := db.ConfigureMarketplaceSources(ctx, sources[:1], "removed")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.ReplaceMarketplaceCatalog(
+				ctx,
+				projection,
+			); !errors.Is(
+				err,
+				store.ErrMarketplaceCatalogGenerationStale,
+			) {
+				t.Fatalf("removed source was recreated: %v", err)
+			}
+			if err := db.MarkMarketplaceCatalogStale(
+				ctx,
+				"team",
+				projection.Generation,
+				"network",
+				"old error",
+			); !errors.Is(
+				err,
+				store.ErrMarketplaceCatalogGenerationStale,
+			) {
+				t.Fatalf("removed error state was recreated: %v", err)
+			}
+			sources[1].Enabled = true
+			readded, err := db.ConfigureMarketplaceSources(ctx, sources, "readded")
+			if err != nil || readded.Generation <= removed.Generation ||
+				readded.SourceGenerations["team"] <= projection.Generation {
+				t.Fatalf("readded fence = %+v, %v", readded, err)
+			}
+			if err := db.ReplaceMarketplaceCatalog(
+				ctx,
+				projection,
+			); !errors.Is(
+				err,
+				store.ErrMarketplaceCatalogGenerationStale,
+			) {
+				t.Fatalf("old incarnation overwrote the new source: %v", err)
+			}
+			projection.Generation = readded.SourceGenerations["team"]
+			projection.SourceRef = "github:other/plugins"
+			if err := db.ReplaceMarketplaceCatalog(
+				ctx,
+				projection,
+			); !errors.Is(
+				err,
+				store.ErrMarketplaceCatalogGenerationStale,
+			) {
+				t.Fatalf("wrong origin accepted: %v", err)
+			}
+			unchanged, err := db.ConfigureMarketplaceSources(ctx, sources, "readded")
+			if err != nil || !reflect.DeepEqual(unchanged, readded) {
+				t.Fatalf("no-op changed configuration: %+v, %v", unchanged, err)
+			}
+		},
+	)
+	t.Run("Should roll back a retained-name conflict and allow the same origin under a new name", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openFreshTestGlobalDB(t)
+		source := store.MarketplaceSourceDefinition{
+			Name:    "team",
+			Ref:     "github:team/plugins",
+			Kind:    "custom",
+			Enabled: true,
+		}
+		first, err := db.ConfigureMarketplaceSources(ctx, []store.MarketplaceSourceDefinition{source}, "first")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO extensions (name,version,source,manifest_path,installed_at,checksum,provenance_json)
+VALUES ('tool','1.0.0','marketplace','/managed/tool','2026-09-13T12:00:00Z','checksum','{"source_name":"team","source_ref":"github:team/plugins","entry_id":"tool"}')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		other := source
+		other.Ref = "github:other/plugins"
+		_, err = db.ConfigureMarketplaceSources(ctx, []store.MarketplaceSourceDefinition{other}, "conflict")
+		retained, ok := errors.AsType[*store.MarketplaceSourceNameRetainedError](err)
+		if !ok || !errors.Is(err, store.ErrMarketplaceSourceNameRetained) || retained.Source != "team" ||
+			!reflect.DeepEqual(retained.RetainedBy, []string{"tool"}) {
+			t.Fatalf("retained-name error = %#v", err)
+		}
+		preserved, err := db.GetMarketplaceCatalogState(ctx, "team")
+		if err != nil || preserved.SourceRef != source.Ref || preserved.Generation != first.SourceGenerations["team"] {
+			t.Fatalf("failed configuration changed source: %+v, %v", preserved, err)
+		}
+		current, err := db.ConfigureMarketplaceSources(ctx, []store.MarketplaceSourceDefinition{source}, "first")
+		if err != nil || current.Generation != first.Generation {
+			t.Fatalf("failed configuration advanced the committed generation: %+v, %v", current, err)
+		}
+		source.Name = "renamed"
+		if _, err := db.ConfigureMarketplaceSources(
+			ctx,
+			[]store.MarketplaceSourceDefinition{source},
+			"renamed",
+		); err != nil {
+			t.Fatal(err)
+		}
+		var provenance string
+		if err := db.db.QueryRowContext(ctx, "SELECT provenance_json FROM extensions WHERE name = 'tool'").
+			Scan(&provenance); err != nil {
+			t.Fatal(err)
+		}
+		if provenance != `{"source_name":"team","source_ref":"github:team/plugins","entry_id":"tool"}` {
+			t.Fatalf("source mutation rewrote installed provenance: %s", provenance)
+		}
+		if _, err := db.ConfigureMarketplaceSources(
+			ctx,
+			[]store.MarketplaceSourceDefinition{source, other},
+			"reuse-old-name",
+		); !errors.Is(
+			err,
+			store.ErrMarketplaceSourceNameRetained,
+		) {
+			t.Fatalf("removed name was reassigned while retained: %v", err)
+		}
+	})
 }

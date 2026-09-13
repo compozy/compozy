@@ -2404,6 +2404,17 @@ func TestMarketplaceCatalogConfigValidatesDefaultsAndOverrides(t *testing.T) {
 
 func TestMarketplacePluginSourceValidation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should accept distinct names for the same normalized origin", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultMarketplaceRuntimeConfig()
+		cfg.PluginSources = []MarketplacePluginSourceConfig{
+			{Name: "team", Source: "github:team/plugins"},
+			{Name: "alias", Source: "github:TEAM/Plugins", Enabled: new(false)},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run(
 		"Should accept public repository and local sources with explicit or inherited enabled state",
 		func(t *testing.T) {
@@ -2453,15 +2464,6 @@ func TestMarketplacePluginSourceValidation(t *testing.T) {
 				{Name: "team", Source: "github:other/plugins"},
 			},
 			path:   "[1].name",
-			reason: "marketplace_source_exists",
-		},
-		{
-			name: "Should reject duplicate acquisition identities",
-			rows: []MarketplacePluginSourceConfig{
-				{Name: "team", Source: "github:team/plugins"},
-				{Name: "renamed", Source: "github:TEAM/Plugins"},
-			},
-			path:   "[1].source",
 			reason: "marketplace_source_exists",
 		},
 	}

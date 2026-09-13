@@ -21,17 +21,16 @@ import (
 const defaultMarketplaceEventWriteTimeout = 5 * time.Second
 
 type marketplaceRuntime struct {
-	mu       sync.RWMutex
-	store    marketplace.Store
-	notifier marketplace.Notifier
-	now      func() time.Time
-	service  marketplace.Service
-	stopped  bool
+	mu      sync.RWMutex
+	store   marketplace.Store
+	service *marketplace.CatalogService
+	stopped bool
 }
 
 var _ marketplace.Service = (*marketplaceRuntime)(nil)
 
 func newMarketplaceRuntime(
+	ctx context.Context,
 	store marketplace.Store,
 	notifier marketplace.Notifier,
 	cfg compozyconfig.MarketplaceCatalogConfig,
@@ -40,49 +39,65 @@ func newMarketplaceRuntime(
 	if store == nil {
 		return nil, errors.New("daemon: marketplace store is required")
 	}
-	service, err := buildMarketplaceService(store, notifier, cfg, now)
+	service, err := buildMarketplaceService(ctx, store, notifier, cfg, now)
 	if err != nil {
 		return nil, err
 	}
 	return &marketplaceRuntime{
-		store:    store,
-		notifier: notifier,
-		now:      now,
-		service:  service,
+		store:   store,
+		service: service,
 	}, nil
 }
 
 func buildMarketplaceService(
+	ctx context.Context,
 	marketplaceStore marketplace.Store,
 	notifier marketplace.Notifier,
 	cfg compozyconfig.MarketplaceCatalogConfig,
 	now func() time.Time,
-) (marketplace.Service, error) {
-	if err := cfg.Validate("marketplace.catalog"); err != nil {
+) (*marketplace.CatalogService, error) {
+	sources, ttl, timeout, err := buildMarketplaceBindings(cfg)
+	if err != nil {
 		return nil, err
-	}
-	ttl, err := time.ParseDuration(cfg.EffectiveTTL())
-	if err != nil {
-		return nil, fmt.Errorf("daemon: parse marketplace catalog TTL: %w", err)
-	}
-	timeout, err := time.ParseDuration(cfg.EffectiveTimeout())
-	if err != nil {
-		return nil, fmt.Errorf("daemon: parse marketplace catalog timeout: %w", err)
-	}
-	client := &http.Client{Timeout: timeout}
-	source, err := marketplace.NewSource(cfg.EffectiveBaseURL(), client)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create marketplace source: %w", err)
 	}
 	options := []marketplace.ServiceOption{marketplace.WithNotifier(notifier)}
 	if now != nil {
 		options = append(options, marketplace.WithNow(now))
 	}
-	service, err := marketplace.NewService(marketplaceStore, source, ttl, timeout, options...)
+	service, err := marketplace.NewService(ctx, marketplaceStore, sources, ttl, timeout, options...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create marketplace service: %w", err)
 	}
 	return service, nil
+}
+
+func buildMarketplaceBindings(
+	cfg compozyconfig.MarketplaceCatalogConfig,
+) ([]marketplace.SourceBinding, time.Duration, time.Duration, error) {
+	if err := cfg.Validate("marketplace.catalog"); err != nil {
+		return nil, 0, 0, err
+	}
+	ttl, err := time.ParseDuration(cfg.EffectiveTTL())
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("daemon: parse marketplace catalog TTL: %w", err)
+	}
+	timeout, err := time.ParseDuration(cfg.EffectiveTimeout())
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("daemon: parse marketplace catalog timeout: %w", err)
+	}
+	client := &http.Client{Timeout: timeout}
+	source, err := marketplace.NewSource(cfg.EffectiveBaseURL(), client)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("daemon: create marketplace source: %w", err)
+	}
+
+	return []marketplace.SourceBinding{{Config: marketplace.ResolvedSource{
+		Revision: cfg.EffectiveBaseURL(),
+		Name:     marketplace.CompozyCatalogSource,
+		Ref:      marketplace.CompozyCatalogRef,
+		Kind:     marketplace.SourceKindFeed,
+		Enabled:  true,
+	}, Fetcher: source}}, ttl, timeout, nil
 }
 
 func (r *marketplaceRuntime) Browse(
@@ -100,13 +115,21 @@ func (r *marketplaceRuntime) Browse(
 
 func (r *marketplaceRuntime) Detail(
 	ctx context.Context,
-	entryID string,
+	source, entryID string,
 ) (*marketplace.Entry, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return service.Detail(ctx, entryID)
+	return service.Detail(ctx, source, entryID)
+}
+
+func (r *marketplaceRuntime) Entry(ctx context.Context, origin marketplace.Origin) (*marketplace.Entry, error) {
+	service, err := r.currentService(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return service.Entry(ctx, origin)
 }
 
 func (r *marketplaceRuntime) ResolveExtensionInstall(
@@ -122,13 +145,13 @@ func (r *marketplaceRuntime) ResolveExtensionInstall(
 }
 
 func (r *marketplaceRuntime) Refresh(
-	ctx context.Context,
+	ctx context.Context, names ...string,
 ) (marketplace.RefreshReport, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return marketplace.RefreshReport{}, err
 	}
-	return service.Refresh(ctx)
+	return service.Refresh(ctx, names...)
 }
 
 func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.SourceState, error) {
@@ -152,32 +175,16 @@ func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *compozyco
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("daemon: marketplace config reconciliation canceled: %w", err)
 	}
-	next, err := buildMarketplaceService(r.store, r.notifier, cfg.Marketplace.Catalog, r.now)
+	sources, ttl, timeout, err := buildMarketplaceBindings(cfg.Marketplace.Catalog)
 	if err != nil {
 		return err
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.stopped {
-		r.mu.Unlock()
-		return errors.Join(errors.New("daemon: marketplace runtime is stopped"), next.Close(ctx))
+		return errors.New("daemon: marketplace runtime is stopped")
 	}
-	if _, err := r.store.AdvanceSourceGeneration(ctx, marketplace.CompozyCatalogSource); err != nil {
-		r.mu.Unlock()
-		return errors.Join(fmt.Errorf("daemon: invalidate marketplace source configuration: %w", err), next.Close(ctx))
-	}
-	previous := r.service
-	if previous != nil {
-		if err := previous.Close(ctx); err != nil {
-			r.mu.Unlock()
-			return errors.Join(
-				fmt.Errorf("daemon: retire previous marketplace service: %w", err),
-				next.Close(context.WithoutCancel(ctx)),
-			)
-		}
-	}
-	r.service = next
-	r.mu.Unlock()
-	return nil
+	return r.service.Reconfigure(ctx, sources, ttl, timeout)
 }
 
 func (r *marketplaceRuntime) Shutdown(ctx context.Context) error {
@@ -340,7 +347,7 @@ func (d *Daemon) bootMarketplace(ctx context.Context, state *bootState, cleanup 
 		return fmt.Errorf("daemon: create marketplace store: %w", err)
 	}
 	notifier := &daemonMarketplaceNotifier{writer: state.registry, logger: state.logger, now: d.now}
-	runtime, err := newMarketplaceRuntime(marketplaceStore, notifier, state.cfg.Marketplace.Catalog, d.now)
+	runtime, err := newMarketplaceRuntime(ctx, marketplaceStore, notifier, state.cfg.Marketplace.Catalog, d.now)
 	if err != nil {
 		return err
 	}

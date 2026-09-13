@@ -56,7 +56,7 @@ func (s marketplaceCatalogStub) Browse(
 
 func (s marketplaceCatalogStub) Detail(
 	ctx context.Context,
-	entryID string,
+	_ string, entryID string,
 ) (*marketplacepkg.Entry, error) {
 	if s.detailFn != nil {
 		return s.detailFn(ctx, entryID)
@@ -64,16 +64,26 @@ func (s marketplaceCatalogStub) Detail(
 	return nil, marketplacepkg.ErrEntryNotFound
 }
 
+func (s marketplaceCatalogStub) Entry(
+	ctx context.Context,
+	origin marketplacepkg.Origin,
+) (*marketplacepkg.Entry, error) {
+	if origin.SourceRef != marketplacepkg.CompozyCatalogRef {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	return s.Detail(ctx, marketplacepkg.CompozyCatalogSource, origin.EntryID)
+}
+
 func (s marketplaceCatalogStub) ResolveExtensionInstall(
 	ctx context.Context,
 	installSlug string,
 	version string,
 ) (*marketplacepkg.Entry, error) {
-	return s.Detail(ctx, installSlug+"@"+version)
+	return s.Detail(ctx, marketplacepkg.CompozyCatalogSource, installSlug+"@"+version)
 }
 
 func (s marketplaceCatalogStub) Refresh(
-	ctx context.Context,
+	ctx context.Context, _ ...string,
 ) (marketplacepkg.RefreshReport, error) {
 	if s.refreshFn != nil {
 		return s.refreshFn(ctx)
@@ -242,11 +252,14 @@ func TestMarketplaceCatalog(t *testing.T) {
 			) (marketplacepkg.BrowseResult, error) {
 				entry := marketplaceEntryForTest()
 				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entry},
-					State: marketplacepkg.SourceState{
+					Entries:    []marketplacepkg.Entry{entry},
+					Stale:      true,
+					ErrorClass: "store",
+					LastError:  "database path /private/catalog.db unavailable",
+					Sources: []marketplacepkg.SourceState{{Enabled: true, Kind: marketplacepkg.SourceKindFeed,
 						Source: marketplacepkg.CompozyCatalogSource, Stale: true, ErrorClass: "store",
 						LastError: "database path /private/catalog.db unavailable",
-					},
+					}},
 				}, nil
 			},
 		})
@@ -834,12 +847,18 @@ func TestMarketplaceCatalog(t *testing.T) {
 					t.Fatalf("browse %q %d %d", q, offset, limit)
 				}
 				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entry},
-					Total:   1,
-					State: marketplacepkg.SourceState{
-						Revision:   "content-a",
-						EntryCount: 9,
-						FetchedAt:  time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC),
+					Entries:  []marketplacepkg.Entry{entry},
+					Total:    1,
+					Revision: "content-a",
+					Sources: []marketplacepkg.SourceState{
+						{
+							Enabled:    true,
+							Kind:       marketplacepkg.SourceKindFeed,
+							Source:     marketplacepkg.CompozyCatalogSource,
+							Revision:   "content-a",
+							EntryCount: 9,
+							FetchedAt:  time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC),
+						},
 					},
 				}, nil
 			},
@@ -918,9 +937,18 @@ func TestMarketplaceCatalog(t *testing.T) {
 			browsePageFn: func(_ context.Context, _ string, offset, limit int) (marketplacepkg.BrowseResult, error) {
 				entry := marketplaceEntryForTest()
 				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entry},
-					Total:   2,
-					State:   marketplacepkg.SourceState{Revision: revision, EntryCount: 2},
+					Entries:  []marketplacepkg.Entry{entry},
+					Total:    2,
+					Revision: revision,
+					Sources: []marketplacepkg.SourceState{
+						{
+							Enabled:    true,
+							Kind:       marketplacepkg.SourceKindFeed,
+							Source:     marketplacepkg.CompozyCatalogSource,
+							Revision:   revision,
+							EntryCount: 2,
+						},
+					},
 				}, nil
 			},
 		}
@@ -955,19 +983,43 @@ func TestMarketplaceCatalog(t *testing.T) {
 			t.Fatalf("mismatch=%d %s", mismatch.Code, mismatch.Body.String())
 		}
 	})
+	t.Run("Should distinguish an unrefreshed source from a failed refresh", func(t *testing.T) {
+		t.Parallel()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			browseFn: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
+				return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}, Stale: true,
+					Sources: []marketplacepkg.SourceState{{Source: marketplacepkg.CompozyCatalogSource,
+						Kind: marketplacepkg.SourceKindFeed, Enabled: true, Stale: true}},
+				}, nil
+			},
+		}
+		response, err := handlers.MarketplaceList(t.Context(), core.MarketplaceListRequest{})
+		if err != nil || len(response.Sources) != 1 || response.Sources[0].State != "never" || !response.Stale {
+			t.Fatalf("unrefreshed catalog = %+v, err=%v", response, err)
+		}
+	})
 	t.Run("Should return truthful degraded source state with no cached entries", func(t *testing.T) {
 		t.Parallel()
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		handlers.MarketplaceCatalog = marketplaceCatalogStub{
 			browseFn: func(context.Context, string, int) (marketplacepkg.BrowseResult, error) {
 				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{},
-					State: marketplacepkg.SourceState{
-						Stale:      true,
-						ErrorClass: "network",
-						LastError:  "source unreachable",
+					Entries:    []marketplacepkg.Entry{},
+					Stale:      true,
+					ErrorClass: "network",
+					LastError:  "source unreachable",
+					Sources: []marketplacepkg.SourceState{
+						{
+							Enabled:    true,
+							Kind:       marketplacepkg.SourceKindFeed,
+							Source:     marketplacepkg.CompozyCatalogSource,
+							Stale:      true,
+							ErrorClass: "network",
+							LastError:  "source unreachable",
+						},
 					},
-				}, marketplacepkg.ErrSourceUnavailable
+				}, nil
 			},
 		}
 		engine := gin.New()
@@ -1039,9 +1091,17 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 		h.MarketplaceCatalog = marketplaceCatalogStub{
 			browsePageFn: func(context.Context, string, int, int) (marketplacepkg.BrowseResult, error) {
 				return marketplacepkg.BrowseResult{
-					Entries: []marketplacepkg.Entry{entry},
-					Total:   2,
-					State:   marketplacepkg.SourceState{Revision: "same"},
+					Entries:  []marketplacepkg.Entry{entry},
+					Total:    2,
+					Revision: "same",
+					Sources: []marketplacepkg.SourceState{
+						{
+							Enabled:  true,
+							Kind:     marketplacepkg.SourceKindFeed,
+							Source:   marketplacepkg.CompozyCatalogSource,
+							Revision: "same",
+						},
+					},
 				}, nil
 			},
 		}

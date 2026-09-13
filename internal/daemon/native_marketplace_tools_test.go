@@ -43,14 +43,21 @@ func (c lateBootMarketplaceCatalog) Browse(
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{
 		Entries: []marketplacepkg.Entry{c.entry},
-		State:   marketplacepkg.SourceState{Source: marketplacepkg.CompozyCatalogSource},
+		Sources: []marketplacepkg.SourceState{
+			{Source: marketplacepkg.CompozyCatalogSource, Kind: marketplacepkg.SourceKindFeed, Enabled: true},
+		},
 	}, nil
 }
 
 func (c lateBootMarketplaceCatalog) Detail(
 	context.Context,
 	string,
+	string,
 ) (*marketplacepkg.Entry, error) {
+	return &c.entry, nil
+}
+
+func (c lateBootMarketplaceCatalog) Entry(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
 	return &c.entry, nil
 }
 
@@ -64,6 +71,7 @@ func (lateBootMarketplaceCatalog) ResolveExtensionInstall(
 
 func (lateBootMarketplaceCatalog) Refresh(
 	context.Context,
+	...string,
 ) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected Refresh call")
 }

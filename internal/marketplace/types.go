@@ -80,11 +80,32 @@ type SourceState struct {
 	EntryCount      int
 }
 
-// BrowseResult returns projected rows with their truthful freshness state.
+// BrowseResult is one ordered page from the complete enabled source set.
 type BrowseResult struct {
+	Entries    []Entry
+	Total      int
+	Revision   string
+	Sources    []SourceState
+	Stale      bool
+	ErrorClass string
+	LastError  string
+}
+
+type SourcePage struct {
 	Entries []Entry
 	Total   int
 	State   SourceState
+}
+
+// SourceBinding ties immutable configuration to its acquisition owner.
+type SourceConfiguration struct {
+	Generation        int64
+	SourceGenerations map[string]int64
+}
+
+type SourceBinding struct {
+	Config  ResolvedSource
+	Fetcher Source
 }
 
 // ListResult is one deterministic page from the durable catalog projection.
@@ -124,10 +145,11 @@ type Source interface {
 
 // Store persists the curated projection and freshness state.
 type Store interface {
-	AdvanceSourceGeneration(ctx context.Context, source string) (int64, error)
+	ConfigureSources(context.Context, []ResolvedSource, string) (SourceConfiguration, error)
+	BrowseSources(context.Context, []string, string, int, int) (BrowseResult, error)
 	ReplaceSource(ctx context.Context, source string, generation int64, document *Document) error
 	MarkSourceStale(ctx context.Context, source string, generation int64, errorClass, lastError string) error
-	BrowseSource(ctx context.Context, source, query string, offset, limit int) (BrowseResult, error)
+	BrowseSource(ctx context.Context, source, query string, offset, limit int) (SourcePage, error)
 	GetEntry(ctx context.Context, source string, entryID string) (*Entry, error)
 	GetExtensionByInstallSlug(ctx context.Context, installSlug string, version string) (*Entry, error)
 	SourceState(ctx context.Context, source string) (*SourceState, error)
@@ -135,10 +157,11 @@ type Store interface {
 
 // Service exposes internal curated browse, detail, refresh, and status operations.
 type Service interface {
+	Entry(context.Context, Origin) (*Entry, error)
 	Browse(ctx context.Context, query string, offset int, limit int) (BrowseResult, error)
-	Detail(ctx context.Context, entryID string) (*Entry, error)
+	Detail(ctx context.Context, source, entryID string) (*Entry, error)
 	ResolveExtensionInstall(ctx context.Context, installSlug string, version string) (*Entry, error)
-	Refresh(ctx context.Context) (RefreshReport, error)
+	Refresh(ctx context.Context, names ...string) (RefreshReport, error)
 	Status(ctx context.Context) ([]SourceState, error)
 	Close(ctx context.Context) error
 }

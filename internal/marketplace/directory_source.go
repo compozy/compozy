@@ -36,11 +36,6 @@ func NewDirectorySource(baseURL string) (*DirectorySource, error) {
 	}, nil
 }
 
-// refreshOnAccess keeps checkout reads independent from durable HTTP cache freshness.
-func (s *DirectorySource) refreshOnAccess() bool {
-	return s != nil
-}
-
 // Fetch reads and validates the local document without mutating projection state.
 func (s *DirectorySource) Fetch(ctx context.Context) (document *Document, err error) {
 	if ctx == nil {
