@@ -70,3 +70,10 @@ claiming one name produce one success and one `409 extension_name_conflict` with
 A display-name change must not conflict. Only an operator may associate an unclassified installation
 with a listing. Exercise CLI, HTTP/UDS and native error details; scoped fixture race checks are slice
 evidence, not completion of this live journey.
+
+
+Task03 update/rollback follow-up (final task10): update a direct GitHub package while the curated
+catalog is unavailable. Its source/provenance must remain GitHub. Add a required input: refusal
+keeps the installed package unchanged; supplying the input permits update. Dropped declarations
+retain inactive values, and re-declaring an input restores its old value. A failed publication after
+input commit restores both package and values, and the restored MCP still launches with them.

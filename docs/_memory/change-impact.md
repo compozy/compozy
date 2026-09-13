@@ -458,3 +458,12 @@ No input inheritance, credential copying, public DTO, hook, config, database or 
 Real daemon CLI installation, HTTP/UDS readiness/settings and restart coverage lives in the existing
 extension distribution integration suite. Web readiness keeps the current missing_inputs contract;
 install guidance and ET-agent-plugin-marketplace-install cover isolation and restart for final task10.
+
+Task03 update origin and rollback: removed the opportunistic curated trust lookup for direct
+registry updates and stopped overwriting their recorded installation origin. HTTP/UDS, CLI and
+native update use the shared lifecycle; no DTO, config, hook, extension SDK or database shape change.
+Real daemon integration covers retained typed values, inactive/reactivated inputs and publication
+failure compensation; the owning vault integration covers second-write install cleanup. The
+IT020 storage-failure expectation uses the existing `500` contract, with `422` reserved for input
+validation. Site/official skill and ET-extension-published-source-installs carry the final task10
+walk. Workspace attachment publication remains task04; this evidence uses the global/default cell.

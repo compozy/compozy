@@ -328,7 +328,6 @@ func marketplaceUpdateProvenance(
 ) ExtensionProvenance {
 	provenance := info.Provenance
 	provenance.Slug = dereferenceOptionalString(info.RegistrySlug)
-	provenance.InstalledFrom = ExtensionInstalledFromMarketplace
 	provenance.ChecksumSHA256 = result.Checksum
 	provenance.Permissions = extensionPermissions(manifest)
 	provenance.InstalledBy = firstNonEmpty(installedBy, provenance.InstalledBy, extensionTrustInstalledByOperator)

@@ -59,12 +59,6 @@ func resolveMarketplaceUpdate(
 		updateInfo.HasUpdate = requestedVersion != currentVersion
 		updateInfo.LatestVersion = requestedVersion
 	}
-	if trust == nil && updateInfo.HasUpdate && !req.CheckOnly {
-		trust, err = resolveMarketplaceUpdateTrust(ctx, req.ResolveTrust, slug, updateInfo.LatestVersion)
-		if err != nil {
-			return marketplaceUpdateResolution{}, errors.Join(err, multi.Close())
-		}
-	}
 	return marketplaceUpdateResolution{
 		downloader: multi, trust: trust, latestVersion: updateInfo.LatestVersion,
 		hasUpdate: updateInfo.HasUpdate, registryName: registryName, closeDownloader: multi.Close,

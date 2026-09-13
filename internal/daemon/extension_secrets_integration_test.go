@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -28,6 +29,8 @@ import (
 )
 
 func TestExtensionSecrets(t *testing.T) {
+	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
+		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
 	t.Run(
 		"Should prefer a development binding and fall back to the profile binding",
@@ -220,6 +223,7 @@ func newExtensionSecretIntegrationHarness(
 		withDaemonExtensionAutomation(&fakeAutomationManager{}),
 		withDaemonExtensionEventWriter(db),
 		withDaemonExtensionSecrets(db.ExtensionEnvRepo, serviceVault),
+		withDaemonExtensionInputs(db.ExtensionInputs),
 		withDaemonExtensionMCPAllocations(db.ExtensionMCP),
 	}
 	if workspaceResolver != nil {
@@ -1193,4 +1197,93 @@ func writeBoundSecretExtensionGenerationWithEnv(
 	t.Helper()
 	fixture := writeBoundSecretExtensionFixtureVersion(t, t.TempDir(), name, version, requiredEnv)
 	return publishSecretExtensionGeneration(t, origin, fixture)
+}
+
+// Invariant: a second secret-write failure leaves no installed package, input rows, bindings or vault material.
+// Owner: daemon install transaction; canonical suite: TestExtensionSecrets.
+func testExtensionInputInstallRollback(t *testing.T) {
+	t.Parallel()
+	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
+		allowUnverified: true, failingVault: true, actorReason: "input install rollback",
+	})
+	const name = "input-rollback"
+	root := t.TempDir()
+	manifest := `name = "input-rollback"
+version = "1.0.0"
+description = "Input install rollback fixture"
+min_compozy_version = "0.0.0"
+
+[[inputs]]
+id = "first"
+prompt = "First"
+type = "secret"
+required = true
+binding = { type = "env", name = "FIRST_KEY" }
+
+[[inputs]]
+id = "second"
+prompt = "Second"
+type = "secret"
+required = true
+binding = { type = "env", name = "SECOND_KEY" }
+
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "env", name = "WORKSPACE_ID" }
+
+[resources.mcp_servers.server]
+command = "server"
+env = { WORKSPACE_ID = "workspace" }
+secret_env = { FIRST_KEY = "first", SECOND_KEY = "second" }
+`
+	if err := os.WriteFile(filepath.Join(root, "extension.toml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	harness.failingVault.failSecondNextPut()
+	response := performExtensionTransportRequest(t, harness.transport, http.MethodPost, "/extensions",
+		mustExtensionTransportJSON(t, contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root, AllowUnverified: true, Scope: "global",
+			Inputs: map[string]extensioninput.Value{
+				"first":     {Value: json.RawMessage(`"first-secret"`)},
+				"second":    {Value: json.RawMessage(`"second-secret"`)},
+				"workspace": {Value: json.RawMessage(`"team"`)},
+			},
+		}))
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("storage failure status=%d body=%s", response.Code, response.Body)
+	}
+	var failure contract.ErrorPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(failure.Error, "injected transport vault failure") {
+		t.Fatalf("primary storage failure was lost: %#v", failure)
+	}
+	assertSecretsAbsent(t, "failed input install", response.Body.String(), []string{"first-secret", "second-secret"})
+	instance := extensioninput.Instance{Extension: name, ProfileID: store.DefaultProfileID}
+	rows, err := harness.db.ExtensionInputs.List(t.Context(), instance)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("failed install retained input rows: %#v %v", rows, err)
+	}
+	bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(t.Context(), name, store.DefaultProfileID, "")
+	if err != nil || len(bindings) != 0 {
+		t.Fatalf("failed install retained bindings: %#v %v", bindings, err)
+	}
+	secrets, err := harness.vault.ListMetadata(t.Context(), vault.ExtensionSecretOwnerPrefix(name, ""))
+	if err != nil || len(secrets) != 0 {
+		t.Fatalf("failed install retained vault entries: %#v %v", secrets, err)
+	}
+	if _, err := harness.service.registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		t.Fatalf("failed install retained registry entry: %v", err)
+	}
+	if _, err := os.Stat(extensionpkg.ManagedInstallPath(harness.service.homePaths, name)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed install retained package files: %v", err)
+	}
+	items, err := harness.service.List(t.Context())
+	if err != nil || len(items) != 0 {
+		t.Fatalf("failed install remained in public inventory: %#v %v", items, err)
+	}
 }

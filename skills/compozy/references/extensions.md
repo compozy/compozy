@@ -69,6 +69,7 @@ installation scope/profile. HTTP/UDS and `compozy__extensions_update` also accep
 for one named extension. Updates retain every attachment and its creation time; package bytes are
 shared, while supplied inputs and rollback before-images address only the selected cell. A workspace
 caller cannot mutate an inherited global attachment as though it belonged to the workspace.
+Direct GitHub updates retain their acquisition origin and do not depend on the curated catalog.
 
 ## Built-in Open Design
 

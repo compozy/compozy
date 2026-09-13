@@ -3,8 +3,12 @@
 package daemon
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -735,20 +739,18 @@ func testDaemonExtensionInputsRestart(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
-	catalog := httptest.NewServer(http.NotFoundHandler())
+	catalog := newDistributionGitHubServer(t, "input-release-fixture")
 	t.Cleanup(catalog.Close)
 	options := &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{
 		Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Extensions.Trust.AllowUnverified = true
 			cfg.Marketplace.Catalog.BaseURL = catalog.URL
+			cfg.Extensions.Sources.GitHub.Enabled = true
+			cfg.Extensions.Sources.GitHub.BaseURL = catalog.URL
 		},
 	}, Env: map[string]string{"WORKSPACE_ID": "", "READ_ONLY": ""}}
 	runtime := e2etest.StartRuntimeHarness(t, options)
 	remote := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StartHTTP(t)
-	packageDir := filepath.Join(runtime.WorkspaceRoot, "durable-input-kit")
-	if err := os.MkdirAll(packageDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
 	reportPath := filepath.Join(t.TempDir(), "input-probe.json")
 	manifest := fmt.Sprintf(`name = "durable-input-kit"
 version = "1.0.0"
@@ -786,11 +788,9 @@ args = ["-test.run=^TestExtensionInputStdioHelperProcess$"]
 env = { READ_ONLY = "read_only", COMPOZY_TEST_DAEMON_EXTENSION_HELPER = "1", COMPOZY_TEST_INPUT_REPORT = %q }
 default_scope = "global"
 `, remote.URL+"/mcp?workspace=", os.Args[0], reportPath)
-	if err := os.WriteFile(filepath.Join(packageDir, "extension.toml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	digest := catalog.setInputRelease(t, "1.0.0", manifest)
 	request := compozycontract.InstallExtensionRequest{
-		Source: compozycontract.InstallExtensionSourceLocalPath, Ref: packageDir,
+		Source: compozycontract.InstallExtensionSourceGitHub, Ref: "acme/hello", ExpectedDigest: digest,
 		Scope: "global", AllowUnverified: true,
 	}
 	for _, transport := range []struct {
@@ -803,7 +803,7 @@ default_scope = "global"
 		assertDistributionMissingInputs(t, ctx, transport.client, transport.url, request)
 	}
 	var installed compozycontract.ExtensionPayload
-	if err := runtime.CLI.RunJSON(ctx, &installed, "extension", "install", packageDir,
+	if err := runtime.CLI.RunJSON(ctx, &installed, "extension", "install", "github:acme/hello",
 		"--scope", "global", "--allow-unverified", "--yes", "--input", "workspace_id=team-a",
 		"--input", "read_only=false", "-o", "json"); err != nil {
 		t.Fatal(err)
@@ -824,6 +824,7 @@ default_scope = "global"
 	if secondPID == firstPID {
 		t.Fatal("restart did not launch a new MCP process from persisted inputs")
 	}
+	assertDistributionInputUpdates(t, ctx, runtime, catalog, manifest, reportPath)
 }
 
 func assertDistributionMissingInputs(
@@ -853,7 +854,16 @@ func assertDistributionPublishedInputs(t *testing.T, ctx context.Context, runtim
 		for _, extension := range inventory.Extensions {
 			if extension.Name == "durable-input-kit" {
 				found = true
-				if len(extension.MissingInputs) != 0 || len(extension.MissingEnv) != 0 || len(extension.Inputs) != 2 {
+				if extension.Provenance == nil || extension.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
+					t.Fatalf("update changed acquisition origin: %#v", extension.Provenance)
+				}
+				activeInputs := 0
+				for _, input := range extension.Inputs {
+					if input.Active && input.Set {
+						activeInputs++
+					}
+				}
+				if len(extension.MissingInputs) != 0 || len(extension.MissingEnv) != 0 || activeInputs != 2 {
 					t.Fatalf("reopened input readiness = %#v", extension)
 				}
 			}
@@ -1067,11 +1077,18 @@ func requestDistributionInstall(
 	install compozycontract.InstallExtensionRequest, wantStatus int,
 ) []byte {
 	t.Helper()
-	body, err := json.Marshal(install)
+	return requestDistributionJSON(t, ctx, client, http.MethodPost, target, install, wantStatus)
+}
+
+func requestDistributionJSON(
+	t *testing.T, ctx context.Context, client *http.Client, method, target string, input any, wantStatus int,
+) []byte {
+	t.Helper()
+	body, err := json.Marshal(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1089,4 +1106,132 @@ func requestDistributionInstall(
 		t.Fatalf("install response status=%d, want %d; body=%s", response.StatusCode, wantStatus, payload)
 	}
 	return payload
+}
+
+func (s *distributionGitHubServer) setInputRelease(t *testing.T, version, manifest string) string {
+	t.Helper()
+	var buffer bytes.Buffer
+	compressed := gzip.NewWriter(&buffer)
+	archive := tar.NewWriter(compressed)
+	if err := archive.WriteHeader(&tar.Header{Name: "extension.toml", Mode: 0o600, Size: int64(len(manifest))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := archive.Write([]byte(manifest)); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextAsset++
+	asset := distributionGitHubAsset{
+		ID: s.nextAsset, Name: "hello.tar.gz", URL: s.URL + "/assets/" + strconv.FormatInt(s.nextAsset, 10),
+		ContentType: "application/gzip", Size: int64(buffer.Len()), payload: buffer.Bytes(),
+	}
+	asset.BrowserDownloadURL = asset.URL
+	s.assets[asset.ID] = asset
+	s.releases = append([]*distributionGitHubRelease{{
+		ID: s.nextAsset, Name: version, TagName: "v" + version, Assets: []distributionGitHubAsset{asset},
+	}}, s.releases...)
+	return fmt.Sprintf("%x", sha256.Sum256(buffer.Bytes()))
+}
+
+func assertDistributionInputUpdates(
+	t *testing.T, ctx context.Context, runtime *e2etest.RuntimeHarness,
+	catalog *distributionGitHubServer, original, reportPath string,
+) {
+	t.Helper()
+	databaseURL := url.URL{Scheme: "file", Path: runtime.HomePaths.DatabaseFile, RawQuery: "mode=rw"}
+	db, err := sql.Open("sqlite", databaseURL.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	newInput := `
+[[inputs]]
+id = "region"
+prompt = "Region"
+type = "identifier"
+required = true
+binding = { type = "env", name = "REGION" }
+`
+	second := strings.Replace(original, `version = "1.0.0"`, `version = "2.0.0"`, 1)
+	booleanStart := strings.Index(second, "[[inputs]]\nid = \"read_only\"")
+	booleanEnd := strings.Index(second[booleanStart:], "[resources.mcp_servers.remote]") + booleanStart
+	second = second[:booleanStart] + second[booleanEnd:]
+	second = strings.Replace(second, `READ_ONLY = "read_only",`, `REGION = "region",`, 1) + newInput
+	catalog.setInputRelease(t, "2.0.0", second)
+	update := compozycontract.UpdateExtensionRequest{AllowUnverified: true, Scope: "global"}
+	target := runtime.HTTPURL("/api/extensions/durable-input-kit")
+	body := requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut, target, update, http.StatusUnprocessableEntity)
+	var failure compozycontract.ExtensionOperationErrorPayload
+	if err := json.Unmarshal(body, &failure); err != nil {
+		t.Fatal(err)
+	}
+	if failure.Code != "extension_inputs_required" || len(failure.Inputs) != 1 || failure.Inputs[0] != "region" {
+		t.Fatalf("candidate input refusal = %#v", failure)
+	}
+	installedPath := filepath.Join(extensionpkg.ManagedInstallPath(runtime.HomePaths, "durable-input-kit"), "extension.toml")
+	before, err := os.ReadFile(installedPath)
+	if err != nil || string(before) != original {
+		t.Fatalf("missing-input update changed package: %v", err)
+	}
+	update.Inputs = map[string]extensioninput.Value{"region": {Value: json.RawMessage(`"us"`)}}
+	requestDistributionJSON(t, ctx, runtime.UDSClient, http.MethodPut,
+		runtime.UDSURL("/api/extensions/durable-input-kit"), update, http.StatusOK)
+	assertDistributionInputRow(t, ctx, db, "read_only", "false", false)
+	assertDistributionInputRow(t, ctx, db, "region", `"us"`, true)
+	third := strings.Replace(original, `version = "1.0.0"`, `version = "3.0.0"`, 1)
+	catalog.setInputRelease(t, "3.0.0", third)
+	update.Inputs = nil
+	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPut, target, update, http.StatusOK)
+	assertDistributionInputRow(t, ctx, db, "read_only", "false", true)
+	assertDistributionInputRow(t, ctx, db, "region", `"us"`, false)
+	assertDistributionPublishedInputs(t, ctx, runtime, reportPath)
+	failed := strings.Replace(third, `version = "3.0.0"`, `version = "4.0.0"`, 1) + `
+[resources.mcp_servers.fail-publication]
+command = "server"
+`
+	catalog.setInputRelease(t, "4.0.0", failed)
+	_, err = db.ExecContext(ctx, `CREATE TRIGGER fail_input_publication BEFORE INSERT ON extension_mcp_overrides
+WHEN NEW.extension = 'durable-input-kit' AND NEW.server = 'fail-publication'
+BEGIN SELECT RAISE(ABORT, 'injected input publication failure'); END`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	update.Inputs = map[string]extensioninput.Value{"workspace_id": {Value: json.RawMessage(`"changed-team"`)}}
+	body = requestDistributionJSON(t, ctx, runtime.UDSClient, http.MethodPut,
+		runtime.UDSURL("/api/extensions/durable-input-kit"), update, http.StatusInternalServerError)
+	if !bytes.Contains(body, []byte("injected input publication failure")) {
+		t.Fatalf("update did not reach publication failure: %s", body)
+	}
+	if _, err := db.ExecContext(ctx, "DROP TRIGGER fail_input_publication"); err != nil {
+		t.Fatal(err)
+	}
+	assertDistributionInputRow(t, ctx, db, "workspace_id", `"team-a"`, true)
+	after, err := os.ReadFile(installedPath)
+	if err != nil || string(after) != third {
+		t.Fatalf("publication rollback did not restore package: %v", err)
+	}
+	assertDistributionPublishedInputs(t, ctx, runtime, reportPath)
+}
+
+func assertDistributionInputRow(t *testing.T, ctx context.Context, db *sql.DB, id, expected string, active bool) {
+	t.Helper()
+	var value string
+	var storedActive bool
+	err := db.QueryRowContext(ctx, `SELECT value_json, active FROM extension_inputs
+WHERE extension = 'durable-input-kit' AND profile = ? AND workspace_id = '' AND input_id = ?`,
+		store.DefaultProfileID, id).Scan(&value, &storedActive)
+	if err != nil || value != expected || storedActive != active {
+		t.Fatalf("stored input %s value=%s active=%t: %v", id, value, storedActive, err)
+	}
 }
