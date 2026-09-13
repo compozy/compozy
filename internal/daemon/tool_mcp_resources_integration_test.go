@@ -669,13 +669,10 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
 		}
-		// Invariant: the requested reservation is consumed by actual desired-state publication.
-		// Owner: publication integration; canonical tagged suite.
-		allocationService := &daemonExtensionService{registry: registry, mcpAllocations: db.ExtensionMCP,
-			resourceStore: kernel, resourceActor: resourceReconcileActor()}
-		if _, err := allocationService.prepareInstallMCPAllocations(t.Context(), preparedDaemonExtensionInstall{
-			name: manifest.Name, manifest: manifest,
-		}, "requested-server"); err != nil {
+		// Existing sticky names survive desired-state publication.
+		if _, err := db.ExtensionMCP.Reserve(t.Context(), extensionmcp.Target{
+			Extension: manifest.Name, ProfileID: store.DefaultProfileID, ServerName: "kubectl",
+		}, "requested-server", nil); err != nil {
 			t.Fatal(err)
 		}
 		if err := registry.Install(manifest, extensionDir, checksum); err != nil {

@@ -36392,7 +36392,6 @@ export interface operations {
                 };
           };
           ref: string;
-          runtime_name?: string;
           source: string;
           version?: string;
         };
@@ -37433,7 +37432,6 @@ export interface operations {
                 };
           };
           ref: string;
-          runtime_name?: string;
           source: string;
           version?: string;
         };

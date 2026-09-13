@@ -63,7 +63,7 @@ func (b extensionInputBinder) Prepare(
 			return nil, inputInvalid(input.ID, "supply exactly one of value or vault_ref")
 		}
 		if input.Type == "secret" {
-			if err := b.prepareSecret(ctx, plan, profile, manifest, input, value, supplied); err != nil {
+			if err := b.prepareSecret(ctx, plan, input, value, supplied); err != nil {
 				return nil, err
 			}
 		} else if err := b.prepareValue(plan, input, value, supplied); err != nil {

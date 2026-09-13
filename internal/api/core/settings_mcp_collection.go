@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetSettingsMCPServer returns an exact owner-qualified definition, with manual-first legacy lookup.
+// GetSettingsMCPServer returns an exact owner-qualified definition, or a manual definition when owner is omitted.
 func (h *BaseHandlers) GetSettingsMCPServer(c *gin.Context) {
 	if h.Settings == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
@@ -59,19 +59,20 @@ func findSettingsMCPServer(
 				return item, true
 			}
 		}
+		return settingspkg.MCPServerItem{}, false
 	}
 	var selected settingspkg.MCPServerItem
 	selectedRank := 0
 	for _, item := range items {
 		owner := vault.NormalizeMCPOwner(item.Owner)
-		if owner == "manual" || (req.Owner != "" && req.Owner != owner) {
+		if req.Owner != owner {
 			continue
 		}
 		rank := settingsMCPItemScopeRank(item, req)
 		if rank <= selectedRank {
 			continue
 		}
-		if settingsMCPRuntimeName(item) == name || (req.Owner != "" && item.Name == name) {
+		if settingsMCPRuntimeName(item) == name || item.Name == name {
 			selected, selectedRank = item, rank
 		}
 	}

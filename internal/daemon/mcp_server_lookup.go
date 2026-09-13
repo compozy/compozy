@@ -32,6 +32,9 @@ func mcpSourceResource(
 		if record.Owner.Normalize().Kind == extensionResourceOwnerKind {
 			definitionOwner = "extension:" + record.Owner.Normalize().ID
 		}
+		if owner == "" && definitionOwner != "manual" {
+			continue
+		}
 		if owner != "" && owner != definitionOwner {
 			continue
 		}
@@ -45,9 +48,6 @@ func mcpSourceResource(
 		if rank == 0 {
 			continue
 		}
-		if owner == "" && definitionOwner == "manual" {
-			rank += 4
-		}
 		if rank < best {
 			continue
 		}
@@ -55,10 +55,6 @@ func mcpSourceResource(
 			return source, false, fmt.Errorf("daemon: multiple MCP definitions address %q", name)
 		}
 		selected, best = record, rank
-	}
-	if owner == "" && selected.Owner.Normalize().Kind == extensionResourceOwnerKind &&
-		mcpManualConfigHasName(state.cfg, name) {
-		return source, false, nil
 	}
 	if best == 0 {
 		return source, false, nil
@@ -98,20 +94,4 @@ func mcpSourceResourceRank(
 		rank += 2
 	}
 	return rank, nil
-}
-
-func mcpManualConfigHasName(cfg compozyconfig.Config, name string) bool {
-	for _, server := range cfg.MCPServers {
-		if server.Name == name {
-			return true
-		}
-	}
-	for _, provider := range cfg.Providers {
-		for _, server := range provider.MCPServers {
-			if server.Name == name {
-				return true
-			}
-		}
-	}
-	return false
 }

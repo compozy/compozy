@@ -707,7 +707,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b0b4b87cdf452627e3af3070314c3baa8ba7166aef67b595887a4562ce02814c",
+    "input_schema_digest": "51cc8af16a79ebbeb455883a18315beeccb81d2a25c09e432ddd8f8657dcec89",
     "output_schema_digest": "e33854024c730fa5d74795c36139d92b55ff66951cdf08efc67396704c34d88f"
   },
   {

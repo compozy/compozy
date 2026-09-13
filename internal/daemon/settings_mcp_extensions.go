@@ -32,11 +32,11 @@ func (s settingsMCPExtensionDefinitions) ResolveMCPExtensionDefinition(
 		if owner.Kind != extensionResourceOwnerKind {
 			continue
 		}
-		if req.Owner != "" && strings.TrimSpace(req.Owner) != "extension:"+owner.ID {
+		if strings.TrimSpace(req.Owner) != "extension:"+owner.ID {
 			continue
 		}
 		name := strings.TrimSpace(req.Name)
-		if name != record.Spec.RuntimeName && (req.Owner == "" || name != record.Spec.Name) {
+		if name != record.Spec.RuntimeName && name != record.Spec.Name {
 			continue
 		}
 		target, err := mcpAuthTargetForResource(ctx, s.state, record.Scope, record.Spec.Name, owner)

@@ -21,7 +21,6 @@ compozy extension install <source> [flags]
   -h, --help                                 help for install
       --input stringArray                    Set a manifest input as id=value (repeatable)
       --input-file string                    Read input values from a JSON object of {value} or {vault_ref} envelopes
-      --runtime-name string                  Request a runtime name for a single-server MCP extension
       --version string                       Install a specific registry version
       --yes                                  Skip confirmation when using --allow-unverified
 ```
@@ -38,12 +37,13 @@ compozy extension install <source> [flags]
 
 The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
 
-| Format | Command result |
-| --- | --- |
-| `human` | Interactive terminal rendering |
-| `json` | Machine-readable JSON rendering |
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
 | `jsonl` | One JSON record per line when supported |
-| `toon` | Compact agent-readable rendering |
+| `toon`  | Compact agent-readable rendering        |
+
 Example:
 
 ```bash

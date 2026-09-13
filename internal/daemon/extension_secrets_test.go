@@ -1076,18 +1076,20 @@ func extensionInputBinderManifest() *extensionpkg.Manifest {
 // Owner: daemon input commit coordination. Canonical suite: extension secret mutation tests.
 func TestExtensionInputBinderVaultReferencesAndFailure(t *testing.T) {
 	t.Parallel()
-	// Invariant: imported MCP secrets never cross a workspace-profile credential boundary.
+	// Invariant: input references stay within the exact extension instance.
 	// Owner: daemon input binder validation; canonical suite: extension_secrets_test.go.
-	t.Run("Should require the exact workspace-profile namespace for borrowed MCP references", func(t *testing.T) {
+	t.Run("Should reject manual MCP references across every workspace-profile namespace", func(t *testing.T) {
 		t.Parallel()
-		manifest := extensionInputBinderManifest()
 		profile := extensionpkg.ProfileLens{ID: "profile-marketing", Name: "marketing"}
-		plan := &extensionInputPlan{key: extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "workspace-a"}}
+		plan := &extensionInputPlan{
+			key:      extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "workspace-a"},
+			instance: extensioninput.Instance{ProfileID: profile.ID},
+		}
 		for _, tc := range []struct {
 			scope, scopeID string
 			allowed        bool
 		}{
-			{vault.MCPWorkspaceProfileScope, "workspace-a@pf:marketing", true},
+			{vault.MCPWorkspaceProfileScope, "workspace-a@pf:marketing", false},
 			{vault.MCPWorkspaceProfileScope, "workspace-a@pf:engineering", false},
 			{vault.MCPWorkspaceProfileScope, "workspace-b@pf:marketing", false},
 			{vault.MCPWorkspaceScope, "workspace-a", false},
@@ -1098,14 +1100,14 @@ func TestExtensionInputBinderVaultReferencesAndFailure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateExtensionInputSecretRef(plan, profile, manifest, manifest.Inputs[1], prefix+"TOKEN")
+			err = validateExtensionInputSecretRef(plan, prefix+"TOKEN")
 			if (err == nil) != tc.allowed {
 				t.Fatalf("scope %s cell %s allowed=%t: %v", tc.scope, tc.scopeID, tc.allowed, err)
 			}
 		}
 	})
 	for _, kind := range []string{"owned extension", "owned MCP", "shared MCP"} {
-		t.Run("Should retain an authorized "+kind+" reference without copying material", func(t *testing.T) {
+		t.Run("Should validate a "+kind+" input reference without changing existing material", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t)
 			secretVault := newExtensionSecretVaultFake()
@@ -1133,6 +1135,23 @@ func TestExtensionInputBinderVaultReferencesAndFailure(t *testing.T) {
 						"workspace": {Value: json.RawMessage(`"team"`)}, "token": {VaultRef: &ref},
 					},
 				)
+				if kind != "owned extension" {
+					if err == nil {
+						t.Fatal("manual MCP reference was accepted as an extension input")
+					}
+					bound, readErr := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+					if readErr != nil || len(bound) != 0 {
+						t.Fatalf("rejected input changed bindings: %#v %v", bound, readErr)
+					}
+					if value, readErr := secretVault.ResolveRef(
+						ctx,
+						ref,
+					); readErr != nil ||
+						value != "existing-material" {
+						t.Fatal("rejected input changed manual secret")
+					}
+					return nil
+				}
 				if err != nil {
 					return err
 				}

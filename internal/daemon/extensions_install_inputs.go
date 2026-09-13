@@ -30,7 +30,7 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 	if err != nil {
 		return err
 	}
-	allocations, err := s.prepareInstallMCPAllocations(ctx, prepared, req.RuntimeName)
+	allocations, err := s.prepareInstallMCPAllocations(ctx, prepared)
 	if err != nil {
 		return err
 	}

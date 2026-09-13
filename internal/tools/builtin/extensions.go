@@ -296,7 +296,6 @@ const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
 	"properties":{
-		"runtime_name":{"type":"string","description":"Requested runtime name for a single-server extension."},
 		"source":{"type":"string","enum":["curated","github","git","local_path"]},
 		"ref":{"type":"string","minLength":1},
 		"version":{"type":"string"},

@@ -418,8 +418,12 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			t.Fatal("manual definition did not retain its identity")
 		}
 		request.Owner, request.Name = "", "linear.linear"
-		if _, err := service.GetMCPAuthStatus(t.Context(), request); err != nil || runtime.statusTarget != want {
-			t.Fatalf("owner-less runtime name did not resolve the extension: %v", err)
+		if _, err := service.GetMCPAuthStatus(
+			t.Context(),
+			request,
+		); !errors.Is(err, ErrNotFound) ||
+			runtime.statusTarget.Owner != "manual" {
+			t.Fatalf("owner-less lookup dispatched extension authentication: %v", err)
 		}
 	})
 	t.Run("Should resolve the exact workspace sidecar target for every auth operation", func(t *testing.T) {

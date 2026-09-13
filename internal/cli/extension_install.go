@@ -26,9 +26,6 @@ func installExtension(
 	if request.Source != contract.InstallExtensionSourceLocalPath {
 		return ExtensionRecord{}, errors.New("cli: extension install from a published source requires a running daemon")
 	}
-	if strings.TrimSpace(request.RuntimeName) != "" {
-		return ExtensionRecord{}, errors.New("cli: runtime-name allocation requires a running daemon")
-	}
 	prepared, err := prepareExtensionInstall(request.Ref)
 	if err != nil {
 		return ExtensionRecord{}, err

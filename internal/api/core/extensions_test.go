@@ -404,6 +404,40 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		}
 	})
 
+	// Install request decoding owns rejection before lifecycle or preview dispatch.
+	for _, operation := range []string{"install", "preview"} {
+		t.Run("Should reject retired runtime_name before "+operation, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					t.Fatal("retired request dispatched install")
+					return contract.ExtensionPayload{}, nil
+				},
+				previewInstallFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
+					t.Fatal("retired request dispatched preview")
+					return contract.ExtensionInstallPreviewPayload{}, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			handler := handlers.InstallExtension
+			if operation == "preview" {
+				handler = handlers.PreviewExtensionInstall
+			}
+			engine.POST("/extensions", handler)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"curated","ref":"compozy/kit","runtime_name":"chosen"}`),
+			)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "runtime_name") {
+				t.Fatalf("retired input: status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+
 	t.Run("Should preview the exact install summary without invoking install", func(t *testing.T) {
 		t.Parallel()
 

@@ -200,7 +200,9 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "inputs.json")
 		if err := os.WriteFile(
 			inputFile,
-			[]byte(`{"label":{"value":"from file"},"token":{"vault_ref":"vault:mcp/shared/TOKEN"}}`),
+			[]byte(
+				`{"label":{"value":"from file"},"token":{"vault_ref":"vault:extensions/global/pf-default/install-ext/env/TOKEN"}}`,
+			),
 			0o600,
 		); err != nil {
 			t.Fatal(err)
@@ -260,8 +262,62 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 		if string(captured.Inputs["label"].Value) != `"true"` || string(captured.Inputs["enabled"].Value) != "false" {
 			t.Fatal("CLI did not preserve string and boolean types")
 		}
-		if ref := captured.Inputs["token"].VaultRef; ref == nil || *ref != "vault:mcp/shared/TOKEN" {
+		if ref := captured.Inputs["token"].VaultRef; ref == nil ||
+			*ref != "vault:extensions/global/pf-default/install-ext/env/TOKEN" {
 			t.Fatal("CLI did not preserve the vault reference")
+		}
+	})
+	t.Run("Should keep canonical catalog lookup failures on the curated source", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				calls++
+				if req.Source != contract.InstallExtensionSourceCurated {
+					t.Fatal("canonical request fell through to GitHub")
+				}
+				return ExtensionInstallPreviewRecord{}, &daemonAPIError{
+					statusCode: 404,
+					status:     "missing catalog entry",
+				}
+			},
+			installExtensionFn: func(context.Context, InstallExtensionRequest) (ExtensionRecord, error) {
+				t.Fatal("missing canonical entry dispatched installation")
+				return ExtensionRecord{}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		_, _, err := executeRootCommand(t, deps, "extension", "install", "compozy/missing", "-o", "json")
+		if err == nil || calls != 1 {
+			t.Fatalf("canonical lookup: calls=%d error=%v", calls, err)
+		}
+	})
+	t.Run("Should reject the retired runtime-name flag before contacting the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				t.Fatal("retired flag dispatched inspection")
+				return ExtensionInstallPreviewRecord{}, nil
+			},
+			installExtensionFn: func(context.Context, InstallExtensionRequest) (ExtensionRecord, error) {
+				t.Fatal("retired flag dispatched installation")
+				return ExtensionRecord{}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"install",
+			"compozy/pinned",
+			"--runtime-name",
+			"pinned-server",
+			"-o",
+			"json",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag: --runtime-name") {
+			t.Fatalf("retired flag: %v", err)
 		}
 	})
 	t.Run("Should preserve an explicit digest pin during inspection and installation", func(t *testing.T) {
@@ -269,13 +325,13 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 		digest := strings.Repeat("b", 64)
 		deps, _ := newExtensionLocalDeps(t, &stubClient{
 			previewExtensionInstallFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
-				if req.ExpectedDigest != digest || req.RuntimeName != "pinned-server" {
+				if req.ExpectedDigest != digest {
 					t.Fatal("inspection lost the reviewed digest")
 				}
 				return ExtensionInstallPreviewRecord{DigestSHA256: digest}, nil
 			},
 			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
-				if req.ExpectedDigest != digest || req.RuntimeName != "pinned-server" {
+				if req.ExpectedDigest != digest {
 					t.Fatal("installation lost the reviewed digest")
 				}
 				return ExtensionRecord{Name: "pinned"}, nil
@@ -288,7 +344,6 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 			"extension",
 			"install",
 			"compozy/pinned",
-			"--runtime-name", "pinned-server",
 			"--expected-digest",
 			digest,
 			"-o",

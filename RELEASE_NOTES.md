@@ -21,13 +21,16 @@ Migration `00113` separates stored extension packages from their profile/workspa
 installation attachments. Existing packages receive one global, all-profiles
 attachment with their original installation timestamp; enablement exceptions,
 package files, provenance, and credentials are preserved.
-Public compatibility translations remain scheduled for the full release.
+The Marketplace switches directly to the extension catalog contract. Retired kind routes,
+remote skill acquisition and MCP catalog installation are removed without aliases.
+Existing extension packages, acquisition references, installed skills and manual MCPs remain.
 
 ### Features
 
-- Single-server extension installs accept `--runtime-name` in the CLI and `runtime_name`
-  in HTTP, UDS, and native-tool requests. Occupied names return `mcp_server_name_taken`;
-  failed installs release new reservations after restoring package state.
+- Extension MCP runtime names are allocated automatically and remain stable.
+  Install requests no longer accept `--runtime-name` or `runtime_name`; failed
+  installs restore prior allocations. Extension inputs accept secrets owned by
+  the same extension instance, without importing manual MCP vault references.
 
 ## 0.3.0 - 2026-09-11
 

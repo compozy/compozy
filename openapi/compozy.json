@@ -82364,9 +82364,6 @@
                   "ref": {
                     "type": "string"
                   },
-                  "runtime_name": {
-                    "type": "string"
-                  },
                   "source": {
                     "type": "string"
                   },
@@ -85685,9 +85682,6 @@
                     "type": "object"
                   },
                   "ref": {
-                    "type": "string"
-                  },
-                  "runtime_name": {
                     "type": "string"
                   },
                   "source": {

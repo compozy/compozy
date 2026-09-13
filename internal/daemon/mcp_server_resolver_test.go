@@ -176,6 +176,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 				t.Context(),
 				settingspkg.MCPAuthTargetRequest{
 					Name:        tc.name,
+					Owner:       "extension:bundle",
 					Scope:       tc.scope,
 					WorkspaceID: tc.workspace,
 					ProfileName: tc.profile,
@@ -198,7 +199,10 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			{"bundle.named", store.DefaultProfileID, "workspace-a", ""},
 		} {
 			resolved, err := resolveDaemonMCPServer(t.Context(), adapter.state, toolspkg.SourceRef{
-				RawServerName: tc.name, ProfileID: tc.profileID, WorkspaceID: tc.workspaceID,
+				RawServerName:      tc.name,
+				ProfileID:          tc.profileID,
+				WorkspaceID:        tc.workspaceID,
+				MCPDefinitionOwner: "extension:bundle",
 			})
 			if tc.wantScope == "" {
 				if err == nil {
@@ -346,7 +350,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		for _, tc := range []struct{ name, owner, want string }{
 			{"github", "", "manual"}, {"github", "manual", "manual"},
 			{"github", "extension:github", "extension:github"},
-			{"github.github", "", "extension:github"},
+			{"github.github", "", ""},
 			{"github", "extension:other", ""},
 			{"github.github", "manual", ""},
 		} {
@@ -363,13 +367,13 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 				t.Fatalf("native lookup %#v = %#v, %v", tc, resolved.Target, err)
 			}
 		}
-		// Invariant: Settings addresses extension definitions by owner or unique runtime name, within scope.
+		// Invariant: Settings requires an owner for logical and runtime extension names.
 		// Owner: daemon Settings catalog adapter; canonical suite: mcp_server_resolver_test.go.
 		for _, tc := range []struct {
 			name, owner string
 			found       bool
 		}{
-			{"github", "extension:github", true}, {"github.github", "", true},
+			{"github", "extension:github", true}, {"github.github", "extension:github", true}, {"github.github", "", false},
 			{"github", "", false}, {"github.github", "manual", false},
 			{"github", "extension:other", false},
 		} {

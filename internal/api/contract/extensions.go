@@ -20,7 +20,6 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
-	RuntimeName          string                          `json:"runtime_name,omitempty"`
 	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
 	ExpectedDigest       string                          `json:"expected_digest,omitempty"`
 	Source               InstallExtensionSource          `json:"source"`

@@ -11,22 +11,18 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/spf13/cobra"
 )
 
 type extensionInputFlags struct {
-	runtimeName string
-	values      []string
-	file        string
-	digest      string
+	values []string
+	file   string
+	digest string
 }
 
 func (f *extensionInputFlags) register(cmd *cobra.Command) {
-	cmd.Flags().
-		StringVar(&f.runtimeName, "runtime-name", "", "Request a runtime name for a single-server MCP extension")
 	cmd.Flags().StringArrayVar(&f.values, "input", nil, "Set a manifest input as id=value (repeatable)")
 	cmd.Flags().
 		StringVar(&f.file, "input-file", "", "Read input values from a JSON object of {value} or {vault_ref} envelopes")
@@ -39,38 +35,37 @@ func prepareExtensionCLIInputs(
 	if err := extensionpkg.ValidateExpectedDigest(flags.digest); err != nil {
 		return extensionInstallPlan{}, nil, err
 	}
-	if name := strings.TrimSpace(flags.runtimeName); name != "" {
-		if err := compozyconfig.ValidateMCPServerName(name); err != nil {
-			return extensionInstallPlan{}, nil, err
-		}
-	}
 	values, err := readExtensionInputFile(flags.file)
 	if err != nil {
 		return extensionInstallPlan{}, nil, err
 	}
-	for index, request := range plan.Attempts {
-		request.RuntimeName = strings.TrimSpace(flags.runtimeName)
-		request.ExpectedDigest = strings.ToLower(strings.TrimSpace(flags.digest))
-		preview, types, err := extensionCLIInputMetadata(ctx, deps, request, len(flags.values) > 0)
-		if err != nil {
-			if index < len(plan.Attempts)-1 && extensionInstallFallbackAllowed(err) {
-				continue
+	var selectedPreview *ExtensionInstallPreviewRecord
+	selected, err := runExtensionInstallAttempts(
+		plan.Attempts,
+		func(request InstallExtensionRequest) (InstallExtensionRequest, error) {
+			request.ExpectedDigest = strings.ToLower(strings.TrimSpace(flags.digest))
+			preview, types, err := extensionCLIInputMetadata(ctx, deps, request, len(flags.values) > 0)
+			if err != nil {
+				return InstallExtensionRequest{}, err
 			}
-			return extensionInstallPlan{}, nil, err
-		}
-		if preview != nil && request.ExpectedDigest == "" {
-			request.ExpectedDigest = preview.DigestSHA256
-		}
-		if request.Source == contract.InstallExtensionSourceCurated && request.ExpectedDigest == "" {
-			return extensionInstallPlan{}, nil, errors.New("cli: current extension listing has no acquisition digest")
-		}
-		request.Inputs, err = mergeExtensionInputFlags(values, flags.values, types)
-		if err != nil {
-			return extensionInstallPlan{}, nil, err
-		}
-		return extensionInstallPlan{Attempts: []InstallExtensionRequest{request}}, preview, nil
+			if preview != nil && request.ExpectedDigest == "" {
+				request.ExpectedDigest = preview.DigestSHA256
+			}
+			if request.Source == contract.InstallExtensionSourceCurated && request.ExpectedDigest == "" {
+				return InstallExtensionRequest{}, errors.New("cli: current extension listing has no acquisition digest")
+			}
+			request.Inputs, err = mergeExtensionInputFlags(values, flags.values, types)
+			if err != nil {
+				return InstallExtensionRequest{}, err
+			}
+			selectedPreview = preview
+			return request, nil
+		},
+	)
+	if err != nil {
+		return extensionInstallPlan{}, nil, err
 	}
-	return extensionInstallPlan{}, nil, errors.New("cli: extension install plan has no attempts")
+	return extensionInstallPlan{Attempts: []InstallExtensionRequest{selected}}, selectedPreview, nil
 }
 
 func extensionCLIInputMetadata(

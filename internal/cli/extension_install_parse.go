@@ -69,6 +69,9 @@ func parseExtensionInstallPlan(
 		}
 		request.Ref = trimmed
 		request.Source = contract.InstallExtensionSourceCurated
+		if strings.HasPrefix(trimmed, "compozy/") {
+			return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
+		}
 		githubRequest := request
 		githubRequest.Source = contract.InstallExtensionSourceGitHub
 		return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request, githubRequest}}, nil

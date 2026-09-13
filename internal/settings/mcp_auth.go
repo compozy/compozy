@@ -209,9 +209,6 @@ func (s *service) resolveMCPAuthTarget(
 			inherited, err := mcpAuthTargetForSource(effective)
 			return inherited, effective.Server, err
 		}
-		if strings.TrimSpace(req.Owner) == "" {
-			return s.resolveExtensionMCPAuthTarget(ctx, req)
-		}
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)

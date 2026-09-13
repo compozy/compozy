@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
@@ -26,7 +25,6 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
-	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -1653,17 +1651,14 @@ func lifecycleNetworkDigest(t *testing.T, channelScope string) string {
 // Owner: daemon lifecycle orchestration. Canonical suite: extensions_test.go.
 func TestDaemonExtensionInputLifecycle(t *testing.T) {
 	t.Parallel()
-	// Invariant: requested allocations survive success and only new allocations are removed on failed installation.
+	// Invariant: automatic allocations survive success and only new allocations are removed on failed installation.
 	// Owner: daemon install coordinator; canonical suite: TestDaemonExtensionInputLifecycle with real SQLite.
-	for _, scenario := range []string{"success", "publication failure", "completion failure", "manual collision", "multiple servers"} {
+	for _, scenario := range []string{"success", "publication failure", "completion failure"} {
 		t.Run("Should handle runtime allocation on "+scenario, func(t *testing.T) {
 			t.Parallel()
 			deps, registry, source, runtime := newNativeExtensionToolDeps(t)
 			db := deps.ExtensionEvents.(*globaldb.GlobalDB)
 			sections := "[resources.mcp_servers.server]\ncommand = \"server\"\n"
-			if scenario == "multiple servers" {
-				sections += "[resources.mcp_servers.other]\ncommand = \"other\"\n"
-			}
 			archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
 			source.latestVersion = "1.0.0"
 			source.downloads["1.0.0"] = &registrypkg.DownloadResult{
@@ -1681,18 +1676,8 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			manual := inventoryRawStore{
-				records: []resources.RawRecord{
-					{
-						Kind:     compozyconfig.MCPServerResourceKind,
-						Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-						SpecJSON: []byte(`{"name":"taken","command":"manual"}`),
-					},
-				},
-			}
 			service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Logger: discardLogger(), Now: time.Now},
 				withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources), withDaemonExtensionMCPAllocations(db.ExtensionMCP),
-				withDaemonExtensionResources(manual, resourceReconcileActor(), nil),
 			).(*daemonExtensionService)
 			sentinel := errors.New("injected post-allocation failure")
 			if scenario == "completion failure" {
@@ -1702,14 +1687,12 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 				if _, err := registry.Get("tool-ext"); errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 					return nil
 				}
-				_, err := db.ExtensionMCP.Reserve(
-					ctx,
-					extensionmcp.Target{Extension: "tool-ext", ProfileID: "another-profile", ServerName: "server"},
-					"",
-					nil,
-				)
-				if err != nil {
-					return err
+				for _, profileID := range []string{store.DefaultProfileID, "another-profile"} {
+					if _, err := db.ExtensionMCP.Reserve(ctx, extensionmcp.Target{
+						Extension: "tool-ext", ProfileID: profileID, ServerName: "server",
+					}, "", nil); err != nil {
+						return err
+					}
 				}
 				if scenario == "publication failure" {
 					return sentinel
@@ -1724,17 +1707,12 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			requested := "chosen"
-			if scenario == "manual collision" {
-				requested = "taken"
-			}
 			_, err = service.Install(
 				t.Context(),
 				contract.InstallExtensionRequest{
 					Source:          contract.InstallExtensionSourceGitHub,
 					Ref:             "acme/tool-ext",
 					AllowUnverified: true,
-					RuntimeName:     requested,
 				},
 				actor,
 			)
@@ -1750,18 +1728,15 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 				for _, record := range records {
 					if record.ProfileID == store.DefaultProfileID && record.WorkspaceID == "" &&
 						record.ServerName == "server" {
-						found = record.RuntimeName == "chosen"
+						found = record.RuntimeName == "server"
 					}
 				}
 				if !found {
-					t.Fatal("requested runtime name was not retained")
+					t.Fatal("automatic runtime name was not retained")
 				}
 			} else {
 				if err == nil || len(records) != 2 {
 					t.Fatalf("failed install changed prior allocations: %#v %v", records, err)
-				}
-				if scenario == "manual collision" && !errors.Is(err, extensionmcp.ErrNameTaken) {
-					t.Fatalf("collision lost typed error: %v", err)
 				}
 				if _, getErr := registry.Get("tool-ext"); !errors.Is(getErr, extensionpkg.ErrExtensionNotFound) {
 					t.Fatalf("failed install left registry row: %v", getErr)
