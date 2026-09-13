@@ -72,6 +72,7 @@ export function useExtensionInstallDialog(
               execute,
               request: {
                 ...request,
+                ...(preview.digest_sha256 ? { expected_digest: preview.digest_sha256 } : {}),
                 ...(preview.network_requirement_digest
                   ? { confirm_network_digest: preview.network_requirement_digest }
                   : {}),

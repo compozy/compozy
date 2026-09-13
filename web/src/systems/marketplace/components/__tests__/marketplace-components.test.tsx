@@ -728,9 +728,10 @@ describe("Marketplace page and cards", () => {
 });
 
 describe("Extension source installation", () => {
-  it("Should install a local path through the source union and gate consent explicitly", async () => {
+  it("Should pin the previewed local artifact through explicit source consent", async () => {
     const user = userEvent.setup();
     mocks.previewExtensionInstall.mockResolvedValueOnce({
+      digest_sha256: "a".repeat(64),
       inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
@@ -765,6 +766,7 @@ describe("Extension source installation", () => {
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: true,
+        expected_digest: "a".repeat(64),
         confirm_network_digest: "sha256:local-network",
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",

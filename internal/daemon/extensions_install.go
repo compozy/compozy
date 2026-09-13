@@ -148,13 +148,9 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, errors.Join(err, prepared.Close())
 	}
-	digest := req.ExpectedDigest
-	if installReq.Trust != nil {
-		digest = installReq.Trust.ArchiveDigestSHA256
-	}
 	return preparedDaemonExtensionInstall{
 		name: prepared.Name(), manifest: manifest, target: target,
-		digest: digest, published: prepared,
+		digest: prepared.Digest(), published: prepared,
 		commit: func() error {
 			_, commitErr := prepared.Commit(target.scope)
 			return commitErr

@@ -1911,7 +1911,7 @@ binding = { type = "url_query", name = "region" }
 			}
 			digest := setSource("1.0.0", false)
 			request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceGitHub,
-				Ref: "acme/tool-ext", AllowUnverified: true, ExpectedDigest: digest}
+				Ref: "acme/tool-ext", AllowUnverified: true}
 			profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
 				profilepkg.WithHomePaths(deps.HomePaths), profilepkg.WithLogger(discardLogger()))
 			if err != nil {

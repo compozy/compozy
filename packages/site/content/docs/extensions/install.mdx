@@ -106,6 +106,9 @@ HTTP and UDS callers send the same envelopes in `inputs` on `POST /api/extension
 `PUT /api/extensions/{name}`, or `POST /api/extensions/update` for a single named extension.
 The native `compozy__extensions_install` and `compozy__extensions_update` tools accept the same inputs.
 
+Install preview returns `digest_sha256` for the bytes it validated, including a direct source requested
+without a digest. The source install dialog sends that digest when you confirm the reviewed package.
+
 The CLI reads the current catalog acquisition digest and sends it as `expected_digest`. To use a
 digest reviewed earlier, pass `--expected-digest <sha256>`. A changed listing or mismatched acquired
 archive returns `409 extension_source_changed` with `listed_digest` and `fetched_digest`; review the

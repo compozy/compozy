@@ -55,6 +55,11 @@ func (p *PreparedMarketplaceManagedInstall) Manifest() *Manifest {
 	return cloneManifest(p.install.manifest)
 }
 
+// Digest returns the digest of the acquired archive, including unpinned direct-source previews.
+func (p *PreparedMarketplaceManagedInstall) Digest() string {
+	return p.install.archiveDigest
+}
+
 // Commit moves the staged artifact into place and attaches it to the resolved scope.
 func (p *PreparedMarketplaceManagedInstall) Commit(scope InstallationScope) (*ExtensionInfo, error) {
 	if p == nil || p.registry == nil || p.install.manifest == nil {
