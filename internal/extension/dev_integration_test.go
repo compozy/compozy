@@ -28,6 +28,65 @@ import (
 
 func TestManagerDevelopmentLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: removing a development overlay restores the published workspace attachment's live runtime.
+	// Owner: extension lifecycle; canonical suite: TestManagerDevelopmentLifecycle.
+	t.Run("Should resume a published workspace runtime after unlinking its development overlay", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		workspace := newDevTestWorkspace(t, "workspace-published-overlay")
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			workspace.ID, workspace.RootDir, "Published overlay", env.installedAt, env.installedAt); err != nil {
+			t.Fatal(err)
+		}
+		published := createManagerTestExtension(t, devManifest("workspace-overlay", "0.1.0", ""), nil)
+		if err := env.registry.Install(published.manifest, published.dir, published.checksum, WithInstallScope(
+			InstallationScope{WorkspaceID: workspace.ID},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		origin := filepath.Join(workspace.RootDir, "overlay")
+		generation := writeDevTestGeneration(t, origin, devManifest("workspace-overlay", "0.2.0", ""))
+		manager := NewManager(env.registry, WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)))
+		startDevTestManager(t, manager)
+		key := InstanceKey{Name: published.manifest.Name, WorkspaceID: workspace.ID}
+		for _, overlay := range []bool{true, false} {
+			if overlay {
+				if _, err := manager.LinkDevelopmentFromOrigin(
+					t.Context(),
+					workspace.ID,
+					origin,
+					generation,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := manager.UnlinkDevelopment(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+			current, err := manager.GetForInstance(key)
+			version := "0.1.0"
+			if overlay {
+				version = "0.2.0"
+			}
+			if err != nil || current.Info.Version != version || !current.Status.Active || !current.Status.Registered ||
+				(current.DevLink != nil) != overlay || current.Status.WorkspaceID != workspace.ID {
+				t.Fatalf("overlay=%t runtime = %#v, %v", overlay, current, err)
+			}
+			if _, err := manager.Get(key.Name); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("workspace runtime exposed globally: %v", err)
+			}
+			if overlay {
+				if err := manager.Reload(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				restarted, err := manager.GetForInstance(key)
+				if err != nil || restarted.DevLink == nil || !restarted.Status.Active ||
+					restarted.Info.Version != version {
+					t.Fatalf("persisted overlay restart = %#v, %v", restarted, err)
+				}
+			}
+		}
+	})
 	// Invariant: an active development overlay is visible only in its workspace,
 	// independently of the published package's profile attachment. Owner: manager lifecycle.
 	t.Run("Should restore attachment visibility after unlinking a development overlay", func(t *testing.T) {

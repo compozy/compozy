@@ -206,6 +206,10 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 
 func TestManagerProfileRuntimeIsolation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should run all-profile workspace installations through restart", func(t *testing.T) {
+		t.Parallel()
+		testInstalledWorkspaceRuntimeLifecycle(t)
+	})
 	// Invariant: each explicit profile installation, including default, runs
 	// under its own profile/workspace ceiling and can restart without a global base process.
 	// Owner: extension runtime lifecycle; canonical suite: manager profile isolation.
@@ -301,6 +305,88 @@ func TestManagerProfileRuntimeIsolation(t *testing.T) {
 	}
 	if got := launchEnvValue(configs[2].Env, "BOUND_SECRET"); got != "updated-marketing-value" {
 		t.Fatalf("updated marketing runtime BOUND_SECRET = %q, want updated-marketing-value", got)
+	}
+}
+
+func testInstalledWorkspaceRuntimeLifecycle(t *testing.T) {
+	t.Helper()
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	profileID := insertActiveRegistryProfile(t, env, "marketing")
+	const workspaceID = "ws-all-profiles"
+	if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, workspaceID, t.TempDir(), "Runtime scope",
+		store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
+		t.Fatal(err)
+	}
+	fixture := createManagerTestExtension(t, managerTestManifest("workspace-runtime", managerManifestOptions{
+		command: helperCommand(t), args: helperArgs(), withEnv: helperEnv("default", ""),
+		capabilities:     []string{extensionprotocol.CapabilityToolProvider},
+		resourceFamilies: []string{"tools"}, resourceMaxScope: "user",
+	}), nil)
+	if err := env.registry.Install(fixture.manifest, fixture.dir, fixture.checksum, WithInstallScope(
+		InstallationScope{WorkspaceID: workspaceID},
+	)); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(env.registry, WithProfileNameResolver(fixedProfileNameResolver{
+		profileID: "marketing", store.DefaultProfileID: "default",
+	}))
+	if err := manager.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 10*time.Second)
+		defer cancel()
+		if err := manager.Stop(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	key := InstanceKey{Name: fixture.manifest.Name, WorkspaceID: workspaceID}
+	initial, err := manager.GetForInstance(key)
+	if err != nil || !initial.Status.Active || initial.Status.PID == 0 || initial.DevLink != nil ||
+		initial.Status.WorkspaceID != workspaceID ||
+		!slices.Contains(initial.GrantedResourceScopes, resources.ResourceScopeKindWorkspace) ||
+		slices.Contains(initial.GrantedResourceScopes, resources.ResourceScopeKindUser) {
+		t.Fatalf("workspace runtime = %#v, %v", initial, err)
+	}
+	for _, id := range []string{store.DefaultProfileID, profileID} {
+		view := ProfileInstanceKey(key.Name, id, workspaceID)
+		tools, err := manager.ProvideToolsForInstance(t.Context(), view)
+		if err != nil || len(tools) != 1 {
+			t.Fatalf("workspace profile %s tools = %#v, %v", id, tools, err)
+		}
+		if id != store.DefaultProfileID {
+			profile, err := manager.GetForInstance(view)
+			if err != nil || !profile.Status.Active || profile.Status.PID == 0 ||
+				profile.Status.PID == initial.Status.PID ||
+				!slices.Contains(profile.GrantedResourceScopes, resources.ResourceScopeKindWorkspaceProfile) ||
+				slices.Contains(profile.GrantedResourceScopes, resources.ResourceScopeKindWorkspace) {
+				t.Fatalf("isolated workspace profile runtime = %#v, %v", profile, err)
+			}
+		}
+		logs, err := manager.Logs(view, ExtensionLogCursor{})
+		if err != nil || logs.StreamEpoch == "" {
+			t.Fatalf("workspace profile %s logs = %#v, %v", id, logs, err)
+		}
+	}
+	for _, other := range []string{"", "other-workspace"} {
+		if _, err := manager.GetForInstance(
+			InstanceKey{Name: key.Name, WorkspaceID: other},
+		); !errors.Is(
+			err,
+			ErrExtensionNotFound,
+		) {
+			t.Fatalf("workspace runtime leaked into %q: %v", other, err)
+		}
+	}
+	if err := manager.Reload(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := manager.GetForInstance(key)
+	if err != nil || !restarted.Status.Active || restarted.Status.PID == 0 ||
+		restarted.Status.PID == initial.Status.PID || restarted.DevLink != nil {
+		t.Fatalf("workspace restart = %#v, %v", restarted, err)
 	}
 }
 

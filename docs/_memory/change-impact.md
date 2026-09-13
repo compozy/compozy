@@ -476,3 +476,14 @@ shape changed. The existing install guide describes the corrected scope behavior
 selectors remain accurate. ET-extension-published-source-installs assigns the daemon walk to
 final tasks09/10. All-profile workspace startup and package-wide MCP allocation rollback remain
 task04 work; this focused fix does not claim those paths or final Web/QA delivery.
+
+Task04 all-profile workspace runtime: scopedExtensions now owns published workspace and profile
+instances while devExtensions retains development-overlay identity. Boot uses active attachments
+and defers to persisted overlays; unlink restores published workspace instances through the same
+startup owner. Restoration does not start processes while the manager is stopping. Profile grant
+metadata is resolved using the actual instance ceiling instead of copying the base runtime's
+broader grant. Existing SQLite/subprocess and development lifecycle suites cover startup, restart,
+scope exclusion, default overlay restoration and shutdown interaction. Public DTOs, native tools,
+hooks, configuration and stored data shapes are unchanged. Install docs and the final09/10 scenario
+are updated; named-profile overlay transition concurrency and package-wide MCP rollback remain
+task04 integration work before backend/data handoff or final delivery.

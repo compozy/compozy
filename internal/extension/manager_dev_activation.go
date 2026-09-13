@@ -120,6 +120,7 @@ func (m *Manager) activateAndPublishDevCandidate(
 	var previous *managedExtension
 	err := m.commitPreparedExtensionWithPublish(ctx, candidate, candidate.startup, func() {
 		previous = m.instanceLocked(key)
+		delete(m.scopedExtensions, key)
 		m.devExtensions[key] = candidate
 		candidate.deferSupervision = false
 		candidate.supervisionStopped = false

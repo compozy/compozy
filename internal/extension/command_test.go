@@ -455,7 +455,7 @@ func TestManagerCmdPaletteFiltersByProfileEnablementAndPlacement(t *testing.T) {
 				info: ExtensionInfo{Name: manifest.Name, Enabled: true},
 			}
 			key := InstanceKey{Name: manifest.Name, ProfileID: profileID}
-			manager.profileExtensions[key] = &managedExtension{
+			manager.scopedExtensions[key] = &managedExtension{
 				key: key, info: ExtensionInfo{Name: manifest.Name, Enabled: true},
 				manifest: cmdPaletteTestManifest(manifest.Name), registered: true, active: true,
 			}
@@ -477,7 +477,7 @@ func TestManagerCmdPaletteFiltersByProfileEnablementAndPlacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			key.ProfileID = store.DefaultProfileID
-			manager.profileExtensions[key] = &managedExtension{
+			manager.scopedExtensions[key] = &managedExtension{
 				key: key, info: ExtensionInfo{Name: manifest.Name, Enabled: true},
 				manifest: cmdPaletteTestManifest(manifest.Name), registered: true, active: true,
 			}

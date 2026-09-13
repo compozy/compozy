@@ -63,12 +63,15 @@ func extensionCapabilityGrantID(key InstanceKey, sessionNonce string) string {
 func (m *Manager) instanceLocked(key InstanceKey) *managedExtension {
 	key = key.Normalize()
 	if key.IsProfileScoped() {
-		return m.profileExtensions[key]
+		return m.scopedExtensions[key]
 	}
 	if key.IsGlobal() {
 		return m.extensions[key.Name]
 	}
-	return m.devExtensions[key]
+	if development := m.devExtensions[key]; development != nil {
+		return development
+	}
+	return m.scopedExtensions[key]
 }
 
 func (m *Manager) lookupInstance(key InstanceKey) (*managedExtension, bool) {
@@ -85,7 +88,7 @@ func (m *Manager) lookupInstance(key InstanceKey) (*managedExtension, bool) {
 func (m *Manager) deleteInstanceLocked(key InstanceKey) {
 	key = key.Normalize()
 	if key.IsProfileScoped() {
-		delete(m.profileExtensions, key)
+		delete(m.scopedExtensions, key)
 		return
 	}
 	if key.IsGlobal() {

@@ -232,9 +232,11 @@ func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error 
 	delete(m.devLogs, key)
 	m.mu.Unlock()
 	if current != nil {
-		return m.stopManagedExtension(ctx, current)
+		if err := m.stopManagedExtension(ctx, current); err != nil {
+			return err
+		}
 	}
-	return nil
+	return m.restoreWorkspaceInstallations(ctx, key)
 }
 
 // Logs returns retained redacted stderr entries after a cursor within the current ring identity.

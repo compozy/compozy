@@ -54,6 +54,11 @@ Task04 restart follow-up (final tasks09/10): install a published extension with 
 workspace/profile, restart the daemon, and verify its process/tools/logs belong to that exact
 workspace and profile. Global and unrelated-workspace views must not expose the instance.
 Archive the selected profile and restart again: preserve the attachment and stop its runtime.
+For an all-profile workspace attachment, verify the base runtime starts on boot and a named
+profile uses a distinct process with a workspace-profile resource ceiling. Link a development
+overlay, restart, then unlink it: the published workspace runtime must resume with its original
+version and no global publication. Include an already-running named profile during the overlay
+transition to exercise teardown and replacement across both instance keys.
 
 QA impact 2026-09-13 (marketplace-catalog task03): repeat install and preview over CLI, HTTP/UDS,
 and the native tool with global/profile, workspace/all-profile, and workspace/profile selectors.

@@ -291,7 +291,7 @@ type Manager struct {
 
 	extensions          map[string]*managedExtension
 	devExtensions       map[InstanceKey]*managedExtension
-	profileExtensions   map[InstanceKey]*managedExtension
+	scopedExtensions    map[InstanceKey]*managedExtension
 	devCoordinators     map[InstanceKey]*sync.Mutex
 	profileCoordinators map[InstanceKey]*sync.Mutex
 	devLogs             map[InstanceKey]*ExtensionLogRing
@@ -335,7 +335,7 @@ func newManagerDefaults(registry *Registry) *Manager {
 		subprocessSignalGrace:     defaultSubprocessSignalGrace,
 		extensions:                make(map[string]*managedExtension),
 		devExtensions:             make(map[InstanceKey]*managedExtension),
-		profileExtensions:         make(map[InstanceKey]*managedExtension),
+		scopedExtensions:          make(map[InstanceKey]*managedExtension),
 		devCoordinators:           make(map[InstanceKey]*sync.Mutex),
 		profileCoordinators:       make(map[InstanceKey]*sync.Mutex),
 		devLogs:                   make(map[InstanceKey]*ExtensionLogRing),
