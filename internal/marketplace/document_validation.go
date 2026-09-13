@@ -14,7 +14,7 @@ func validateDocumentEntries(entries []Entry) error {
 	seenInstallSlugs := make(map[string]struct{}, len(entries))
 	for index, entry := range entries {
 		entryID := strings.TrimSpace(entry.EntryID)
-		if entryID == "" || strings.TrimSpace(entry.Name) == "" || strings.TrimSpace(entry.Description) == "" {
+		if entryID == "" || strings.TrimSpace(entry.Name) == "" {
 			return fmt.Errorf("marketplace catalog entry %d identity fields are required", index)
 		}
 

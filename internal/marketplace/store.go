@@ -185,7 +185,8 @@ func validateReplacement(document *Document) error {
 	if document.ManifestVersion != ManifestVersion {
 		return &UnsupportedManifestVersionError{Version: document.ManifestVersion}
 	}
-	if document.SourceKind != "preset" && document.SourceKind != "custom" && document.GeneratedAt.IsZero() {
+	if document.SourceKind != SourceKindPreset && document.SourceKind != SourceKindCustom &&
+		document.GeneratedAt.IsZero() {
 		return errors.New("marketplace catalog generated_at and fetched_at are required")
 	}
 	if document.FetchedAt.IsZero() {

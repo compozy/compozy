@@ -95,6 +95,93 @@ func TestResolveMarketplaceSources(t *testing.T) {
 
 func TestPluginProjectionBudget(t *testing.T) {
 	t.Parallel()
+	// Invariant: one source deadline covers document, snapshot and package work; empty sources need no checkout.
+	// Owner: source refresh composition; canonical suite: TestPluginProjectionBudget.
+	t.Run(
+		"Should share one deadline across source acquisition and skip snapshots for empty documents",
+		func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, "marketplace.json")
+			if err := os.WriteFile(
+				path,
+				[]byte(`{"owner":{"name":"Team"},"plugins":[{"name":"tool","source":"./tool"}]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			var deadline time.Time
+			var snapshots int
+			var resolves atomic.Int32
+			reader := &pluginsource.Sources{}
+			checkedReader := &projectionSourceReader{
+				fetch: func(ctx context.Context, ref string) (pluginsource.Document, error) {
+					var bounded bool
+					deadline, bounded = ctx.Deadline()
+					if !bounded {
+						t.Error("document fetch has no source deadline")
+					}
+					return reader.Fetch(ctx, ref)
+				},
+				snapshot: func(ctx context.Context, doc pluginsource.Document) (*pluginsource.Snapshot, error) {
+					snapshots++
+					if got, _ := ctx.Deadline(); !got.Equal(deadline) {
+						t.Errorf("snapshot reset the source deadline: %v != %v", got, deadline)
+					}
+					return reader.OpenSnapshot(ctx, doc)
+				},
+			}
+			resolver := &projectionResolver{
+				resolve: func(ctx context.Context, doc pluginsource.Document, plugin pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
+					resolves.Add(1)
+					if got, _ := ctx.Deadline(); !got.Equal(deadline) {
+						t.Errorf("package work reset the source deadline: %v != %v", got, deadline)
+					}
+					return projectionRecord(t, doc, plugin), nil
+				},
+			}
+			projector, err := NewPluginProjector(resolver, func(context.Context, string) (PluginInspection, error) {
+				return PluginInspection{}, nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			source, err := NewPluginSource(
+				ResolvedSource{Name: "team", Ref: root, Kind: "custom"},
+				checkedReader,
+				projector,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := source.Fetch(t.Context())
+			if err != nil || len(doc.Entries) != 1 || snapshots != 1 || resolves.Load() != 1 || doc.Owner != "Team" ||
+				doc.SourceRef == "" || doc.DocumentDigest == "" || doc.DocumentPath != "marketplace.json" {
+				t.Fatalf(
+					"source composition = %+v, snapshots=%d, resolves=%d, %v",
+					doc,
+					snapshots,
+					resolves.Load(),
+					err,
+				)
+			}
+			if err := os.WriteFile(path, []byte(`{"plugins":[]}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			empty, err := source.Fetch(t.Context())
+			if err != nil || len(empty.Entries) != 0 || snapshots != 1 || resolves.Load() != 1 ||
+				empty.DocumentDigest == doc.DocumentDigest {
+				t.Fatalf(
+					"empty source composition = %+v, snapshots=%d, resolves=%d, %v",
+					empty,
+					snapshots,
+					resolves.Load(),
+					err,
+				)
+			}
+		},
+	)
+
 	t.Run("Should resolve two hundred plugins with at most four workers and preserve source order", func(t *testing.T) {
 		t.Parallel()
 		doc := pluginsource.Document{SourceRef: "github:team/plugins", Plugins: make([]pluginsource.Plugin, 250)}
@@ -255,6 +342,22 @@ func TestPluginProjectionBudget(t *testing.T) {
 	})
 }
 
+type projectionSourceReader struct {
+	fetch    func(context.Context, string) (pluginsource.Document, error)
+	snapshot func(context.Context, pluginsource.Document) (*pluginsource.Snapshot, error)
+}
+
+func (r *projectionSourceReader) Fetch(ctx context.Context, ref string) (pluginsource.Document, error) {
+	return r.fetch(ctx, ref)
+}
+
+func (r *projectionSourceReader) OpenSnapshot(
+	ctx context.Context,
+	doc pluginsource.Document,
+) (*pluginsource.Snapshot, error) {
+	return r.snapshot(ctx, doc)
+}
+
 type projectionResolver struct {
 	resolve func(context.Context, pluginsource.Document, pluginsource.Plugin) (pluginsource.AcquisitionRecord, error)
 	inspect func(context.Context, string, func(context.Context, string) error) error
@@ -383,7 +486,6 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			raw     string
 			wantErr string
 		}{
-
 			{
 				name:    "missing manifest version",
 				raw:     `{"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
@@ -393,6 +495,16 @@ func TestDecodeDocumentValidation(t *testing.T) {
 				name:    "missing entries array",
 				raw:     `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z"}`,
 				wantErr: "entries is required",
+			},
+			{
+				name: "feed extension without a description",
+				raw: strings.Replace(
+					validExtensionDocumentJSON(),
+					`"description":"Connect GitHub events to Compozy",`,
+					"",
+					1,
+				),
+				wantErr: "description is required",
 			},
 			{
 				name: "extension without digest",

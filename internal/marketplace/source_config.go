@@ -8,6 +8,12 @@ import (
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
+const (
+	SourceKindFeed   = "feed"
+	SourceKindPreset = "preset"
+	SourceKindCustom = "custom"
+)
+
 var ErrSourceExists = errors.New("marketplace_source_exists")
 
 type ResolvedSource struct {
@@ -33,7 +39,9 @@ func ResolveSources(cfg config.MarketplaceRuntimeConfig, presets []Preset) ([]Re
 		configured[ref] = source
 		customOrder = append(customOrder, ref)
 	}
-	sources := []ResolvedSource{{Name: CompozyCatalogSource, Ref: CompozyCatalogRef, Kind: "feed", Enabled: true}}
+	sources := []ResolvedSource{
+		{Name: CompozyCatalogSource, Ref: CompozyCatalogRef, Kind: SourceKindFeed, Enabled: true},
+	}
 	names, refs := map[string]bool{CompozyCatalogSource: true}, make(map[string]bool, len(presets))
 	for _, preset := range presets {
 		if err := pluginsource.ValidateName(preset.Name); err != nil {
@@ -56,7 +64,7 @@ func ResolveSources(cfg config.MarketplaceRuntimeConfig, presets []Preset) ([]Re
 			delete(configured, ref)
 		}
 		sources = append(sources, ResolvedSource{
-			Name: preset.Name, Ref: ref, Kind: "preset", Description: preset.Description, Enabled: enabled,
+			Name: preset.Name, Ref: ref, Kind: SourceKindPreset, Description: preset.Description, Enabled: enabled,
 		})
 	}
 	for _, ref := range customOrder {
@@ -70,7 +78,7 @@ func ResolveSources(cfg config.MarketplaceRuntimeConfig, presets []Preset) ([]Re
 		names[source.Name] = true
 		sources = append(
 			sources,
-			ResolvedSource{Name: source.Name, Ref: ref, Kind: "custom", Enabled: source.EffectiveEnabled(true)},
+			ResolvedSource{Name: source.Name, Ref: ref, Kind: SourceKindCustom, Enabled: source.EffectiveEnabled(true)},
 		)
 	}
 	return sources, nil

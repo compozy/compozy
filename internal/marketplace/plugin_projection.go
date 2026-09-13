@@ -109,6 +109,15 @@ func (p *PluginProjector) Project(
 	}
 	workCtx, cancel := context.WithTimeout(ctx, p.budget)
 	defer cancel()
+	return p.project(ctx, workCtx, doc, name, snapshot)
+}
+
+func (p *PluginProjector) project(
+	ctx, workCtx context.Context,
+	doc pluginsource.Document,
+	name string,
+	snapshot *pluginsource.Snapshot,
+) ([]Entry, []pluginsource.Diagnostic, error) {
 	results := make([]projectedPlugin, len(doc.Plugins))
 	for index, plugin := range doc.Plugins {
 		results[index] = p.projectBlocked(
@@ -146,7 +155,7 @@ func (p *PluginProjector) Project(
 	}
 	entries := make([]Entry, 0, len(results))
 	diagnostics := append([]pluginsource.Diagnostic(nil), doc.Diagnostics...)
-	exhausted := false
+	exhausted := workCtx.Err() != nil
 	for _, result := range results {
 		if result.err != nil {
 			return nil, nil, result.err

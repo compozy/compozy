@@ -2,7 +2,7 @@ CREATE TABLE marketplace_catalog_entries (
 	source         TEXT NOT NULL CHECK (trim(source) <> ''),
 	entry_id       TEXT NOT NULL CHECK (trim(entry_id) <> ''),
 	name           TEXT NOT NULL CHECK (trim(name) <> ''),
-	description    TEXT NOT NULL CHECK (trim(description) <> ''),
+	description    TEXT NOT NULL,
 	version        TEXT NOT NULL DEFAULT '',
 	published_at   TEXT,
 	updated_at     TEXT,

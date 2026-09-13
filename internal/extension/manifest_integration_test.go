@@ -9,16 +9,21 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
+// Invariant: authored plugins reach the durable listing through the real source, cache and install loader.
+// Owner: plugin catalog integration; canonical suite: TestPluginCatalogInstallability.
 func TestPluginCatalogInstallability(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -51,25 +56,23 @@ func TestPluginCatalogInstallability(t *testing.T) {
 					Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
 					Sources: pluginsource.Sources{TempDir: t.TempDir()},
 				}
-				doc, err := resolver.Sources.Fetch(t.Context(), root)
-				if err != nil {
-					t.Fatal(err)
-				}
-				snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() {
-					if err := snapshot.Close(); err != nil {
-						t.Error(err)
-					}
-				})
 				projector, err := marketplace.NewPluginProjector(resolver, InspectPluginPackage)
 				if err != nil {
 					t.Fatal(err)
 				}
-				entries, diagnostics, err := projector.Project(t.Context(), doc, "team", snapshot)
-				if err != nil || len(entries) != 2 || len(diagnostics) != 1 || !entries[0].Installable ||
+				source, err := marketplace.NewPluginSource(
+					marketplace.ResolvedSource{Name: "team", Ref: root, Kind: "custom", Enabled: true},
+					&resolver.Sources, projector,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				doc, err := source.Fetch(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
+				entries, diagnostics := doc.Entries, doc.Diagnostics
+				if len(entries) != 2 || len(diagnostics) != 1 || !entries[0].Installable ||
 					entries[1].Installable || entries[1].InstallBlocker != "load_failed" || entries[1].Layout != "claude-plugin" {
 					t.Fatalf("real loader projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
 				}
@@ -81,6 +84,31 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if detail.SourceRef != doc.SourceRef ||
 					detail.Extension.Acquisition.DigestSHA256 != entries[0].DigestSHA256 {
 					t.Fatalf("projected acquisition does not identify the inspected bytes: %+v", detail)
+				}
+				db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "catalog.db"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := db.Close(testutil.Context(t)); err != nil {
+						t.Error(err)
+					}
+				})
+				catalog, err := marketplace.NewSQLiteStore(db)
+				if err != nil {
+					t.Fatal(err)
+				}
+				doc.FetchedAt = time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+				if err := catalog.ReplaceSource(t.Context(), "team", 0, doc); err != nil {
+					t.Fatal(err)
+				}
+				page, err := catalog.BrowseSource(t.Context(), "team", "", 0, 10)
+				if err != nil || page.Total != 2 || page.State.Installable != 1 ||
+					page.State.SourceRef != doc.SourceRef || page.State.DocumentDigest != doc.DocumentDigest ||
+					page.State.DocumentPath != doc.DocumentPath || !page.State.GeneratedAt.IsZero() ||
+					len(page.State.Diagnostics) != 1 || page.Entries[0].InstallBlocker != "load_failed" ||
+					!page.Entries[1].Installable || page.Entries[1].Description != "" {
+					t.Fatalf("durable plugin projection = %+v, %v", page, err)
 				}
 				remaining, err := os.ReadDir(resolver.Sources.TempDir)
 				if err != nil || len(remaining) != 0 {
