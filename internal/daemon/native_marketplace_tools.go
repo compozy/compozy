@@ -15,7 +15,6 @@ import (
 
 type marketplaceSearchInput struct {
 	Query  string `json:"query"`
-	Kind   string `json:"kind"`
 	Limit  int    `json:"limit"`
 	Cursor string `json:"cursor"`
 }
@@ -59,34 +58,14 @@ func (n *daemonNativeTools) marketplaceSearch(
 			errors.Join(core.ErrMarketplaceUnavailable, errors.New("marketplace dependencies are not configured")),
 		)
 	}
-	if kind := strings.TrimSpace(input.Kind); kind != "" {
-		response, err := handlers.MarketplaceKind(ctx, core.MarketplaceKindRequest{
-			Kind: kind, Query: input.Query, Limit: input.Limit, Cursor: input.Cursor,
-			Scope: readScope, WorkspaceID: workspaceID, ProfileName: profileName, Actor: actor,
-		})
-		if err != nil {
-			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
-		}
-		return structuredResult(response, fmt.Sprintf("%d %s marketplace entries", len(response.Items), response.Kind))
-	}
-	if strings.TrimSpace(input.Cursor) != "" {
-		return toolspkg.ToolResult{}, marketplaceNativeError(
-			req.ToolID,
-			errors.Join(core.ErrMarketplaceValidation, errors.New("marketplace cursor requires kind")),
-		)
-	}
-	response, err := handlers.MarketplaceSearch(ctx, core.MarketplaceSearchRequest{
-		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID,
-		ProfileName: profileName, Actor: actor,
+	response, err := handlers.MarketplaceList(ctx, core.MarketplaceListRequest{
+		Query: input.Query, Limit: input.Limit, Cursor: input.Cursor, Scope: readScope,
+		WorkspaceID: workspaceID, ProfileName: profileName, Actor: actor,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
 	}
-	count := 0
-	for _, result := range response.Kinds {
-		count += len(result.Items)
-	}
-	return structuredResult(response, fmt.Sprintf("%d marketplace entries", count))
+	return structuredResult(response, fmt.Sprintf("%d marketplace entries", len(response.Items)))
 }
 
 func (n *daemonNativeTools) marketplaceHandlers() *core.BaseHandlers {
@@ -98,14 +77,12 @@ func (n *daemonNativeTools) marketplaceHandlers() *core.BaseHandlers {
 		settings = n.deps.Settings()
 	}
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{
-		MarketplaceCatalog:        n.deps.MarketplaceCatalog,
-		SkillMarketplace:          n.deps.MarketplaceSkills,
-		InstalledSkillMarketplace: n.deps.MarketplaceInstalledSkills,
-		Extensions:                n.extensionCoreService(),
-		Settings:                  settings,
-		Profiles:                  n.deps.ProfileManager,
-		HomePaths:                 n.deps.HomePaths,
-		Config:                    n.deps.Config,
+		MarketplaceCatalog: n.deps.MarketplaceCatalog,
+		Extensions:         n.extensionCoreService(),
+		Settings:           settings,
+		Profiles:           n.deps.ProfileManager,
+		HomePaths:          n.deps.HomePaths,
+		Config:             n.deps.Config,
 	})
 }
 

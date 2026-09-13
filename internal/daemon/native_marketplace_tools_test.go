@@ -229,7 +229,7 @@ func (scopedLateBootExtensionService) StatusScoped(
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject an opaque cursor without a single kind", func(t *testing.T) {
+	t.Run("Should reject obsolete kind before catalog discovery", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -240,11 +240,11 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"cursor":"opaque"}`),
+				Input:  json.RawMessage(`{"kind":"extension"}`),
 			},
 		)
 		if err == nil || !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(cursor without kind) error = %v, want invalid input", err)
+			t.Fatalf("Registry.Call(obsolete kind) error = %v, want invalid input", err)
 		}
 	})
 
@@ -270,7 +270,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"kind":"extension"}`),
+				Input:  json.RawMessage(`{}`),
 			},
 		)
 		if err != nil {
@@ -330,7 +330,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"kind":"extension"}`),
+				Input:  json.RawMessage(`{}`),
 			},
 		)
 		if err != nil {

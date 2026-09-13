@@ -103,8 +103,8 @@ installed inventory comes from `GET /api/extensions`, independent of catalog pag
 `POST /api/extensions/update` with `{"all":true}` returns per-extension outcomes: a failed item does
 not undo earlier successful updates. Inspect every status, even on HTTP 200.
 
-The existing native `compozy__marketplace_search` and CLI discovery verbs retain their current
-selectors: `compozy marketplace search [query] --kind extension -o json`,
+Native `compozy__marketplace_search` reads the canonical catalog with `query`, `limit`, and
+`cursor`; obsolete `kind` input fails validation. CLI discovery verbs currently use: `compozy marketplace search [query] --kind extension -o json`,
 `compozy marketplace info extension <entry_id> [--installed-name <name>]`, and
 `compozy marketplace refresh --kind extension`. Consult their returned envelope for continuation
 metadata; do not interpret the retained CLI kind selector as an app navigation control.

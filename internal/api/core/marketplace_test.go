@@ -1689,6 +1689,25 @@ func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {
 func TestMarketplaceCatalog(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: obsolete selectors fail before catalog dispatch on canonical routes.
+	// Owner: shared Marketplace handlers; canonical suite: TestMarketplaceCatalog.
+	t.Run("Should reject kind selectors on canonical browse and detail", func(t *testing.T) {
+		t.Parallel()
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
+		engine := gin.New()
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		for _, path := range []string{"/marketplace", "/marketplace/entries/review"} {
+			for _, value := range []string{"", "extension"} {
+				response := performRequest(t, engine, http.MethodGet, path+"?kind="+value, nil)
+				if response.Code != http.StatusBadRequest ||
+					!strings.Contains(response.Body.String(), "kind is not supported") {
+					t.Fatalf("obsolete selector %s kind=%q: %d %s", path, value, response.Code, response.Body.String())
+				}
+			}
+		}
+	})
+
 	// Invariant: exact-origin installed details preserve observed state; acquisition details use pinned inspection.
 	// Owner: shared marketplace transport. Canonical suite: TestMarketplaceCatalog.
 	t.Run("Should distinguish installed observations from pinned package declarations", func(t *testing.T) {
@@ -2063,7 +2082,7 @@ func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
 				}, nil
 			},
 		}
-		request := core.MarketplaceKindRequest{
+		request := core.MarketplaceListRequest{
 			Scope:       "workspace",
 			WorkspaceID: "ws-a",
 			ProfileName: "work",

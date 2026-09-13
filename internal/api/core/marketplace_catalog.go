@@ -8,13 +8,30 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
 var ErrMarketplaceCursorStale = errors.New("marketplace: catalog revision changed")
 
+// MarketplaceListRequest carries canonical catalog pagination and installed-state scope.
+type MarketplaceListRequest struct {
+	Query       string
+	Cursor      string
+	Limit       int
+	Scope       string
+	WorkspaceID string
+	ProfileName string
+	Actor       *taskpkg.ActorContext
+}
+
 // ListMarketplace serves the one-catalog envelope on HTTP and UDS.
 func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
+	if c.Request.URL.Query().Has("kind") {
+		h.respondMarketplaceError(c, marketplaceValidationf("kind is not supported by the Marketplace catalog"))
+		return
+	}
+
 	limit := maxMarketplaceLimit
 	var err error
 	if c.Query("limit") != "" {
@@ -28,7 +45,7 @@ func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
 	if !ok {
 		return
 	}
-	response, err := h.MarketplaceList(c.Request.Context(), MarketplaceKindRequest{
+	response, err := h.MarketplaceList(c.Request.Context(), MarketplaceListRequest{
 		Query: c.Query("q"), Cursor: c.Query("cursor"), Limit: limit,
 		Scope: c.Query("scope"), WorkspaceID: c.Query("workspace_id"), ProfileName: c.Query("profile"), Actor: actor,
 	})
@@ -41,7 +58,7 @@ func (h *BaseHandlers) ListMarketplace(c *gin.Context) {
 
 func (h *BaseHandlers) MarketplaceList(
 	ctx context.Context,
-	request MarketplaceKindRequest,
+	request MarketplaceListRequest,
 ) (contract.MarketplaceListResponse, error) {
 	if h == nil || h.MarketplaceCatalog == nil {
 		return contract.MarketplaceListResponse{}, ErrMarketplaceUnavailable
@@ -111,6 +128,11 @@ func (h *BaseHandlers) MarketplaceList(
 }
 
 func (h *BaseHandlers) GetMarketplaceCatalogEntry(c *gin.Context) {
+	if c.Request.URL.Query().Has("kind") {
+		h.respondMarketplaceError(c, marketplaceValidationf("kind is not supported by the Marketplace catalog"))
+		return
+	}
+
 	source := strings.TrimSpace(c.Query("source"))
 	if source != "" && source != marketplacepkg.CompozyCatalogSource {
 		h.respondMarketplaceError(c, ErrMarketplaceNotFound)
