@@ -2,7 +2,6 @@ import type { AdvancedIndex } from "fumadocs-core/search/server";
 import { allPosts, type Post } from "@/lib/blog";
 import { loadChangelogReleases } from "@/lib/changelog/github-client";
 import type { ChangelogRelease } from "@/lib/changelog/types";
-import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
@@ -11,7 +10,7 @@ import {
   MARKETPLACE_DESCRIPTION,
   marketplaceBridgesDescription,
 } from "@/lib/marketplace-copy";
-import { entriesForKind, installCommand } from "@/lib/marketplace-catalog";
+import { extensionEntries, marketplaceEntryPath, installCommand } from "@/lib/marketplace-catalog";
 import { docsSource } from "@/lib/source";
 
 type SearchPage = {
@@ -189,38 +188,20 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     structuredData: { headings: [], contents: [] },
   };
 
-  const kinds = MARKETPLACE_KIND_META.flatMap<AdvancedIndex>(meta => {
-    const kindUrl = `/marketplace/${meta.kind}`;
-    const entries = entriesForKind(meta.kind);
-    return [
-      {
-        id: kindUrl,
-        url: kindUrl,
-        title: `${meta.title} — Marketplace`,
-        description: meta.description,
-        breadcrumbs: ["Marketplace"],
-        tag: "Marketplace",
-        structuredData: { headings: [], contents: [] },
-      },
-      ...entries.map<AdvancedIndex>(entry => ({
-        id: `${kindUrl}/${entry.entry_id}`,
-        url: `${kindUrl}/${entry.entry_id}`,
-        title: entry.name,
-        description: entry.description,
-        breadcrumbs: ["Marketplace", meta.title],
-        tag: "Marketplace",
-        structuredData: {
-          headings: [],
-          contents: [
-            {
-              heading: undefined,
-              content: joinContent(entry.description, installCommand(meta.kind, entry)),
-            },
-          ],
-        },
-      })),
-    ];
-  });
+  const entries = extensionEntries.map<AdvancedIndex>(entry => ({
+    id: marketplaceEntryPath(entry),
+    url: marketplaceEntryPath(entry),
+    title: entry.name,
+    description: entry.description,
+    breadcrumbs: ["Marketplace"],
+    tag: "Marketplace",
+    structuredData: {
+      headings: [],
+      contents: [
+        { heading: undefined, content: joinContent(entry.description, installCommand(entry)) },
+      ],
+    },
+  }));
 
   const bridges: AdvancedIndex[] = [
     {
@@ -271,7 +252,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
-  return [overview, ...kinds, ...bridges, ...bundled];
+  return [overview, ...entries, ...bridges, ...bundled];
 }
 
 export async function buildPublicSearchIndexes(): Promise<AdvancedIndex[]> {

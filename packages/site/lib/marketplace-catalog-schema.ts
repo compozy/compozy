@@ -1,25 +1,11 @@
 import { z } from "zod";
-import {
-  isExactDockerImageName,
-  isExactMCPPackageName,
-  isMCPLaunchArgument,
-  isPublicMCPRemoteURL,
-  isVerifiedDockerDigest,
-  mcpRemoteURLQueryNames,
-} from "./marketplace-catalog-validation";
-
-/**
- * Build-time validation mirror of `internal/marketplace`. This validates the checked-in catalog
- * snapshot rendered by the site; a running daemon can instead use its configured, active source.
- */
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
-const SEMVER_PATTERN = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const RFC3339_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-const MAX_CATALOG_ENTRIES_PER_KIND = 50_000;
+const MAX_CATALOG_ENTRIES = 50_000;
 
 const trimmedString = z.string().transform(value => value.trim());
 const nonBlankString = trimmedString.refine(value => value.length > 0, {
@@ -73,7 +59,7 @@ function parseAbsoluteURL(value: string): URL | null {
   }
 }
 
-function isMCPEnvironmentName(value: string, secret: boolean): boolean {
+function isInputEnvironmentName(value: string, secret: boolean): boolean {
   const normalized = value.toUpperCase();
   if (!ENV_NAME_PATTERN.test(value)) return false;
   if (
@@ -106,15 +92,7 @@ const entryCommon = {
   updated_at: rfc3339.optional(),
 };
 
-export const skillEntrySchema = z.strictObject({
-  ...entryCommon,
-  install_slug: nonBlankString,
-  display_name: trimmedString.optional(),
-  author: trimmedString.optional(),
-  tags: z.array(z.string()).optional(),
-});
-
-export const extensionEntrySchema = z
+const baseExtensionEntrySchema = z
   .strictObject({
     ...entryCommon,
     version: nonBlankString,
@@ -144,70 +122,7 @@ export const extensionEntrySchema = z
     }
   });
 
-const mcpLaunchArgs = z
-  .array(z.string().refine(isMCPLaunchArgument, { message: "must be a non-empty argument" }))
-  .optional();
-
-const mcpLaunchSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("npm"),
-    package: z.string().refine(isExactMCPPackageName, {
-      message: "must be an exact package name",
-    }),
-    version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
-      message: "must be an exact semantic version",
-    }),
-    args: mcpLaunchArgs,
-  }),
-  z.strictObject({
-    type: z.literal("uvx"),
-    package: z.string().refine(isExactMCPPackageName, {
-      message: "must be an exact package name",
-    }),
-    version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
-      message: "must be an exact semantic version",
-    }),
-    args: mcpLaunchArgs,
-  }),
-  z.strictObject({
-    type: z.literal("docker"),
-    image: z.string().refine(isExactDockerImageName, {
-      message: "must be an exact untagged image name",
-    }),
-    digest: nonBlankString.refine(isVerifiedDockerDigest, {
-      message: "must be a verified sha256 digest",
-    }),
-    args: mcpLaunchArgs,
-  }),
-  z.strictObject({
-    type: z.literal("remote"),
-    url: nonBlankString.refine(isPublicMCPRemoteURL, {
-      message: "must target a public HTTPS destination",
-    }),
-  }),
-]);
-
-const mcpAuthSchema = z
-  .strictObject({
-    method: z.literal("oauth"),
-    registration: z.literal("auto"),
-    scopes: z.array(nonBlankString).optional(),
-  })
-  .superRefine((auth, ctx) => {
-    const seen = new Set<string>();
-    for (const [index, scope] of (auth.scopes ?? []).entries()) {
-      if (seen.has(scope)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "scopes must be unique",
-          path: ["scopes", index],
-        });
-      }
-      seen.add(scope);
-    }
-  });
-
-export const mcpInputSchema = z
+const inputSchema = z
   .strictObject({
     id: entryID,
     prompt: nonBlankString,
@@ -262,7 +177,7 @@ export const mcpInputSchema = z
     }
     if (
       input.binding.type === "env" &&
-      !isMCPEnvironmentName(input.binding.name, input.type === "secret")
+      !isInputEnvironmentName(input.binding.name, input.type === "secret")
     ) {
       ctx.addIssue({
         code: "custom",
@@ -279,122 +194,145 @@ export const mcpInputSchema = z
     }
   });
 
-export const mcpEntrySchema = z
-  .strictObject({
-    ...entryCommon,
-    launch: mcpLaunchSchema,
-    auth: mcpAuthSchema.optional(),
-    inputs: z.array(mcpInputSchema).optional(),
-    default_scope: z.enum(["workspace", "global"]),
-  })
-  .superRefine((entry, ctx) => {
-    if (entry.auth && entry.launch.type !== "remote") {
+const bytes = new TextEncoder();
+const identifier = /^[A-Za-z0-9._~-]+$/;
+
+/** Mirrors the published icon-reference contract; rendering still owns its loading fallback. */
+function isCatalogIcon(value: string): boolean {
+  if (!value) return true;
+  if (bytes.encode(value).length > 64 * 1024) return false;
+  try {
+    if (value.startsWith("data:")) {
+      const match = /^data:(image\/(?:png|svg\+xml|webp))(;base64)?,(.+)$/.exec(value);
+      if (!match) return false;
+      if (match[2]) {
+        const data = match[3].replace(/[\r\n]/g, "");
+        if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data))
+          return false;
+        atob(data);
+      } else {
+        decodeURIComponent(match[3]);
+      }
+      return true;
+    }
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !!url.hostname &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      /\.(?:png|svg|webp)$/i.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+const extensionInputsSchema = z.array(inputSchema).superRefine((inputs, ctx) => {
+  const ids = new Set<string>();
+  const bindings = new Set<string>();
+  for (const [index, input] of inputs.entries()) {
+    const binding = `${input.binding.type}\0${input.binding.name}`;
+    if (ids.has(input.id))
+      ctx.addIssue({ code: "custom", message: "input ids must be unique", path: [index, "id"] });
+    if (bindings.has(binding))
       ctx.addIssue({
         code: "custom",
-        message: "auth is only allowed for remote launch",
-        path: ["auth"],
+        message: "input bindings must be unique",
+        path: [index, "binding"],
+      });
+    ids.add(input.id);
+    bindings.add(binding);
+    if (input.type === "secret" && input.binding.type === "url_query") {
+      ctx.addIssue({
+        code: "custom",
+        message: "secret inputs cannot bind url_query",
+        path: [index, "binding"],
       });
     }
-    const seen = new Set<string>();
-    const seenBindings = new Set<string>();
-    const launchQueryNames =
-      entry.launch.type === "remote" ? mcpRemoteURLQueryNames(entry.launch.url) : new Set<string>();
-    for (const [index, input] of (entry.inputs ?? []).entries()) {
-      if (seen.has(input.id)) {
+    if (typeof input.default === "string") {
+      if (input.default.includes("\0") || bytes.encode(input.default).length > 8192) {
         ctx.addIssue({
           code: "custom",
-          message: "input ids must be unique",
-          path: ["inputs", index, "id"],
+          message: "default must be NUL-free and at most 8 KiB",
+          path: [index, "default"],
         });
       }
-      seen.add(input.id);
-      const { name: bindingName, type: bindingType } = input.binding;
-      const binding = `${bindingType}\0${bindingName}`;
-      if (seenBindings.has(binding)) {
+      if (input.type === "identifier" && !identifier.test(input.default.trim())) {
         ctx.addIssue({
           code: "custom",
-          message: `input binding ${bindingType}/${bindingName} is duplicated`,
-          path: ["inputs", index, "binding"],
+          message: "identifier default must be URL-safe",
+          path: [index, "default"],
         });
       }
-      seenBindings.add(binding);
-      if (bindingType === "env" && entry.launch.type === "remote") {
+    }
+  }
+});
+
+export const extensionEntrySchema = baseExtensionEntrySchema.safeExtend({
+  icon: z
+    .string()
+    .refine(isCatalogIcon, {
+      message: "icon must be a PNG, SVG or WebP HTTPS/data URL within 64 KiB",
+    })
+    .optional(),
+  inputs: extensionInputsSchema.optional(),
+});
+export const extensionFeedSchema = z
+  .strictObject({
+    manifest_version: z.literal(3),
+    generated_at: rfc3339,
+    entries: z.array(extensionEntrySchema).min(1).max(MAX_CATALOG_ENTRIES),
+  })
+  .superRefine((feed, ctx) => {
+    const ids = new Set<string>();
+    const slugs = new Set<string>();
+    for (const [index, entry] of feed.entries.entries()) {
+      if (ids.has(entry.entry_id))
         ctx.addIssue({
           code: "custom",
-          message: "env inputs are only allowed for local launch (npm, uvx, docker)",
-          path: ["inputs", index, "binding"],
+          message: "entry_id is duplicated",
+          path: ["entries", index, "entry_id"],
         });
-      }
-      if (bindingType === "url_query" && entry.launch.type !== "remote") {
+      if (slugs.has(entry.install_slug))
         ctx.addIssue({
           code: "custom",
-          message: "url_query inputs are only allowed for remote launch",
-          path: ["inputs", index, "binding"],
+          message: "install_slug is duplicated",
+          path: ["entries", index, "install_slug"],
         });
-      }
-      if (bindingType === "url_query" && input.type === "secret") {
-        ctx.addIssue({
-          code: "custom",
-          message: "secret inputs cannot bind url_query",
-          path: ["inputs", index, "binding"],
-        });
-      }
-      if (bindingType === "url_query" && launchQueryNames.has(bindingName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: `input binding url_query/${bindingName} conflicts with launch URL`,
-          path: ["inputs", index, "binding"],
-        });
-      }
+      ids.add(entry.entry_id);
+      slugs.add(entry.install_slug);
     }
   });
 
-type FeedEntry = { entry_id: string; install_slug?: string };
-
-export function catalogFeedSchema<Entry extends z.ZodType>(
-  kind: "skills" | "extensions" | "mcp",
-  entry: Entry,
-  manifestVersion: 2 | 3 = 2
-) {
-  return z
-    .strictObject({
-      manifest_version: z.literal(manifestVersion),
-      generated_at: rfc3339,
-      entries: z.array(entry).min(1).max(MAX_CATALOG_ENTRIES_PER_KIND),
-    })
-    .superRefine((feed, ctx) => {
-      const ids = new Set<string>();
-      const slugs = new Set<string>();
-      for (const [index, rawEntry] of (feed.entries as FeedEntry[]).entries()) {
-        if (kind === "skills" && rawEntry.entry_id.startsWith("skill_")) {
-          ctx.addIssue({
-            code: "custom",
-            message: "entry_id uses a reserved prefix",
-            path: ["entries", index, "entry_id"],
-          });
-        }
-        if (ids.has(rawEntry.entry_id)) {
-          ctx.addIssue({
-            code: "custom",
-            message: "entry_id is duplicated",
-            path: ["entries", index, "entry_id"],
-          });
-        }
-        ids.add(rawEntry.entry_id);
-        if (kind === "mcp") continue;
-        const slug = rawEntry.install_slug ?? "";
-        if (slugs.has(slug)) {
-          ctx.addIssue({
-            code: "custom",
-            message: "install_slug is duplicated",
-            path: ["entries", index, "install_slug"],
-          });
-        }
-        slugs.add(slug);
-      }
-    });
-}
-
-export const skillFeedSchema = catalogFeedSchema("skills", skillEntrySchema);
-export const extensionFeedSchema = catalogFeedSchema("extensions", extensionEntrySchema);
-export const mcpFeedSchema = catalogFeedSchema("mcp", mcpEntrySchema);
+export const marketplacePresetsSchema = z
+  .strictObject({
+    manifest_version: z.literal(3),
+    generated_at: rfc3339,
+    entries: z.array(
+      z.strictObject({
+        name: z
+          .string()
+          .regex(/^[a-z0-9._-]{1,64}$/)
+          .refine(name => name !== "compozy" && name !== "compozy-catalog", {
+            message: "preset name is reserved",
+          }),
+        source: z.string().trim().min(1),
+        description: z.string().trim().min(1),
+        default: z.enum(["on", "off"]),
+      })
+    ),
+  })
+  .superRefine((feed, ctx) => {
+    const names = new Set<string>();
+    for (const [index, entry] of feed.entries.entries()) {
+      if (names.has(entry.name))
+        ctx.addIssue({
+          code: "custom",
+          message: "preset names must be unique",
+          path: ["entries", index, "name"],
+        });
+      names.add(entry.name);
+    }
+  });

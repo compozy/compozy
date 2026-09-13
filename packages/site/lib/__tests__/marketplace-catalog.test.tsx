@@ -40,10 +40,7 @@ import BundledExtensionPage, {
 import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
 import MarketplaceEntryPage, {
   generateStaticParams as generateMarketplaceEntryParams,
-} from "@/app/marketplace/[kind]/[entryId]/page";
-import MarketplaceKindPage, {
-  generateStaticParams as generateMarketplaceKindParams,
-} from "@/app/marketplace/[kind]/page";
+} from "@/app/marketplace/[entryId]/page";
 import { BRIDGE_LOGOS } from "../marketplace-bridge-logos";
 import { bridgeProviders, findBridgeProvider, readBridgeProviders } from "../marketplace-bridges";
 import {
@@ -52,76 +49,81 @@ import {
   parseBundledSkillFrontmatter,
 } from "../marketplace-bundled";
 import {
-  entriesForKind,
   extensionEntries,
   extensionEntrySchema,
-  extensionV3EntrySchema,
-  extensionV3FeedSchema,
   extensionFeedSchema,
-  retainedExtensionEntries,
   marketplacePresets,
   marketplacePresetsSchema,
   findEntry,
+  marketplaceEntryPath,
   installCommand,
-  isMarketplaceKind,
-  MARKETPLACE_KINDS,
-  mcpEntries,
-  mcpEntrySchema,
   marketplaceSearchCommand,
   parseMarketplaceCatalog,
-  skillEntries,
-  skillEntrySchema,
 } from "../marketplace-catalog";
 
-function validMCPEntry(overrides: Record<string, unknown> = {}) {
-  return {
-    entry_id: "acme-mcp",
-    name: "Acme MCP",
-    description: "A validated MCP server",
-    launch: { type: "npm", package: "acme-mcp", version: "1.2.3" },
-    default_scope: "workspace",
-    ...overrides,
-  };
-}
-
+// Invariant: only the current extension feed reaches rendering, with validated identity, inputs and icons.
+// Owner: site catalog boundary. Canonical suite: marketplace-catalog.test.tsx.
 describe("marketplace catalog", () => {
-  it("parses every real feed at build time with at least one entry per kind", () => {
-    expect(skillEntries.length).toBeGreaterThan(0);
-    expect(extensionEntries.length).toBeGreaterThan(0);
-    expect(mcpEntries.length).toBeGreaterThan(0);
+  const feed = () => ({
+    manifest_version: 3,
+    generated_at: "2026-09-12T10:00:00Z",
+    entries: extensionEntries,
   });
 
-  // Invariant: published v3 data is validated before rendering while the retained v2 schema stays strict.
-  // Owner: site build-time feed boundary; canonical suite: marketplace-catalog.test.tsx.
-  it("Should load all packaged extensions from v3 and validate the retained root family", () => {
+  it("Should load all twenty current packages without standalone skill entries", () => {
+    expect(parseMarketplaceCatalog(feed())).toEqual(extensionEntries);
     expect(extensionEntries).toHaveLength(20);
-    expect(retainedExtensionEntries).toHaveLength(20);
-    expect(extensionEntries.find(entry => entry.entry_id === "context7")?.inputs).toEqual(
+    expect(findEntry("context7")?.inputs).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "context7_api_key", type: "secret" })])
     );
-    expect(
-      retainedExtensionEntries.find(entry => entry.entry_id === "context7")
-    ).not.toHaveProperty("inputs");
-    expect(extensionEntries.map(entry => [entry.entry_id, entry.digest_sha256])).toEqual(
-      retainedExtensionEntries.map(entry => [entry.entry_id, entry.digest_sha256])
-    );
-    expect(extensionEntries.some(entry => entry.entry_id === "documentation-writer")).toBe(false);
-    expect(skillEntries.some(entry => entry.entry_id === "documentation-writer")).toBe(true);
+    expect(findEntry("documentation-writer")).toBeUndefined();
   });
 
-  it("Should fence v3 fields from the retained v2 feed schema", () => {
-    const entry = {
-      ...retainedExtensionEntries[0],
-      icon: "https://example.com/icon.svg",
-      inputs: [],
-    };
-    const feed = { manifest_version: 3, generated_at: "2026-09-12T10:00:00Z", entries: [entry] };
-    expect(extensionV3FeedSchema.parse(feed).entries[0].icon).toBe(entry.icon);
-    expect(() => extensionFeedSchema.parse({ ...feed, manifest_version: 2 })).toThrow();
-    expect(() => extensionV3FeedSchema.parse({ ...feed, manifest_version: 2 })).toThrow();
-    expect(() => extensionV3FeedSchema.parse({ ...feed, entries: [entry, entry] })).toThrow(
+  it.each([undefined, 1, 2, 4])("Should reject unsupported feed version %s", manifest_version => {
+    expect(() => parseMarketplaceCatalog({ ...feed(), manifest_version })).toThrow(
+      /manifest_version/
+    );
+  });
+
+  it("Should reject missing timestamps and duplicate catalog identities", () => {
+    expect(() => extensionFeedSchema.parse({ ...feed(), generated_at: undefined })).toThrow(
+      /generated_at/
+    );
+    const entry = extensionEntries[0];
+    expect(() => parseMarketplaceCatalog({ ...feed(), entries: [entry, entry] })).toThrow(
       /duplicated/
     );
+    expect(() =>
+      parseMarketplaceCatalog({ ...feed(), entries: [entry, { ...entry, entry_id: "other" }] })
+    ).toThrow(/install_slug/);
+  });
+
+  it.each([
+    { artifact_url: "http://example.com/archive.tar.gz" },
+    { artifact_url: "https://user:pass@example.com/archive.tar.gz" },
+    { artifact_url: "https://example.com/archive.tar.gz#fragment" },
+    { digest_sha256: "bad-digest" },
+    { tier: "invented" },
+    { version: "" },
+    { entry_id: "../outside" },
+    { downloads: 100 },
+    { rating: 5 },
+    { published_at: "2026-02-31T00:00:00Z" },
+  ])("Should reject invalid catalog metadata %o", fields => {
+    expect(() => extensionEntrySchema.parse({ ...extensionEntries[0], ...fields })).toThrow();
+  });
+
+  it("Should derive current commands and canonical paths without changing acquisition refs", () => {
+    for (const entry of extensionEntries) {
+      expect(findEntry(entry.entry_id)).toEqual(entry);
+      expect(marketplaceEntryPath(entry)).toBe(`/marketplace/${entry.entry_id}`);
+      expect(marketplaceSearchCommand(entry)).toBe(`compozy marketplace search ${entry.entry_id}`);
+      expect(installCommand(entry)).toBe(`compozy extension install ${entry.install_slug}`);
+    }
+    expect(installCommand(findEntry("batuta")!)).toBe(
+      "compozy extension install franciscpd/batuta-compozy"
+    );
+    expect(findEntry("unknown-package")).toBeUndefined();
   });
 
   it.each([
@@ -130,7 +132,7 @@ describe("marketplace catalog", () => {
     { icon: "data:image/svg+xml,%3Csvg%2F%3E" },
     { icon: "data:image/png;base64,YWJj" },
   ])("Should accept the supported icon reference $icon", ({ icon }) => {
-    expect(extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], icon }).icon).toBe(icon);
+    expect(extensionEntrySchema.parse({ ...extensionEntries[0], icon }).icon).toBe(icon);
   });
 
   it.each([
@@ -142,9 +144,7 @@ describe("marketplace catalog", () => {
     "data:image/svg+xml,%GG",
     "x".repeat(65537),
   ])("Should reject an unsupported icon reference (%#)", icon => {
-    expect(() => extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], icon })).toThrow(
-      /icon/
-    );
+    expect(() => extensionEntrySchema.parse({ ...extensionEntries[0], icon })).toThrow(/icon/);
   });
 
   it("Should reject invalid typed defaults, secret query bindings and duplicate inputs", () => {
@@ -156,7 +156,7 @@ describe("marketplace catalog", () => {
       binding: { type: "url_query", name: "project" },
     };
     const parse = (inputs: unknown[]) =>
-      extensionV3EntrySchema.parse({ ...retainedExtensionEntries[0], inputs });
+      extensionEntrySchema.parse({ ...extensionEntries[0], inputs });
     expect(parse([{ ...input, default: "demo-project" }]).inputs?.[0].default).toBe("demo-project");
     expect(() => parse([input, input])).toThrow(/unique/);
     expect(() => parse([input, { ...input, id: "another" }])).toThrow(/bindings/);
@@ -209,473 +209,7 @@ describe("marketplace catalog", () => {
       /format/
     );
   });
-
-  it("exposes exactly the three daemon catalog kinds (D9 — no bundles)", () => {
-    expect([...MARKETPLACE_KINDS]).toEqual(["skills", "extensions", "mcp"]);
-    expect(isMarketplaceKind("bundles")).toBe(false);
-    expect(isMarketplaceKind("mcp")).toBe(true);
-  });
-
-  it("derives the CLI install command per kind from real feed fields", () => {
-    const skill = skillEntries[0];
-    const extension = extensionEntries[0];
-    const mcp = mcpEntries[0];
-
-    expect(installCommand("skills", skill)).toBe(`compozy skill install ${skill.install_slug}`);
-    expect(installCommand("extensions", extension)).toBe(
-      `compozy extension install ${extension.install_slug}`
-    );
-    expect(installCommand("mcp", mcp)).toBe(`compozy mcp install ${mcp.entry_id}`);
-  });
-
-  it("resolves entries by kind and id for detail routes", () => {
-    for (const kind of MARKETPLACE_KINDS) {
-      for (const entry of entriesForKind(kind)) {
-        expect(findEntry(kind, entry.entry_id)).toBe(entry);
-      }
-    }
-    expect(findEntry("skills", "does-not-exist")).toBeUndefined();
-  });
-
-  it("enumerates and renders every public Marketplace kind route", async () => {
-    expect(generateMarketplaceKindParams()).toEqual(MARKETPLACE_KINDS.map(kind => ({ kind })));
-
-    render(
-      await MarketplaceKindPage({
-        params: Promise.resolve({ kind: "skills" }),
-      })
-    );
-    expect(screen.getByRole("heading", { level: 1, name: "All skills" })).toBeTruthy();
-
-    await expect(
-      MarketplaceKindPage({ params: Promise.resolve({ kind: "unknown" }) })
-    ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
-  });
-
-  it("enumerates known detail routes and rejects unknown catalog identities", async () => {
-    const expectedParams = MARKETPLACE_KINDS.flatMap(kind =>
-      entriesForKind(kind).map(entry => ({ kind, entryId: entry.entry_id }))
-    );
-    expect(generateMarketplaceEntryParams()).toEqual(expectedParams);
-
-    const entry = skillEntries[0];
-    if (!entry) {
-      throw new Error("skills catalog fixture must not be empty");
-    }
-    render(
-      await MarketplaceEntryPage({
-        params: Promise.resolve({ kind: "skills", entryId: entry.entry_id }),
-      })
-    );
-    expect(screen.getByRole("heading", { level: 1, name: entry.name })).toBeTruthy();
-
-    await expect(
-      MarketplaceEntryPage({
-        params: Promise.resolve({ kind: "skills", entryId: "does-not-exist" }),
-      })
-    ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
-  });
-
-  it("rejects feed drift the daemon would reject", () => {
-    expect(() =>
-      skillEntrySchema.parse({
-        entry_id: "x",
-        name: "X",
-        description: "d",
-        // install_slug missing
-      })
-    ).toThrow(/install_slug/);
-
-    expect(() =>
-      extensionEntrySchema.parse({
-        entry_id: "x",
-        name: "X",
-        description: "d",
-        version: "1.0.0",
-        install_slug: "org/x",
-        artifact_url: "http://insecure.example/artifact.tar.gz",
-        digest_sha256: "a".repeat(64),
-        tier: "official",
-      })
-    ).toThrow(/HTTPS/);
-
-    expect(() =>
-      extensionEntrySchema.parse({
-        entry_id: "x",
-        name: "X",
-        description: "d",
-        version: "1.0.0",
-        install_slug: "org/x",
-        artifact_url: "https://example.com/artifact.tar.gz",
-        digest_sha256: "not-a-digest",
-        tier: "official",
-      })
-    ).toThrow(/hex/);
-
-    expect(() =>
-      mcpEntrySchema.parse({
-        entry_id: "x",
-        name: "X",
-        description: "d",
-        default_scope: "workspace",
-        // launch missing
-      })
-    ).toThrow(/launch/);
-
-    expect(() =>
-      mcpEntrySchema.parse({
-        entry_id: "x",
-        name: "X",
-        description: "d",
-        launch: { type: "remote", url: "https://example.com/mcp" },
-        default_scope: "workspace",
-        unknown_field: true,
-      })
-    ).toThrow(/unrecognized|unknown_field/);
-  });
-
-  it("omits unsupported trust fields from parsed catalog entries", () => {
-    // Truthfulness (§7.3): ratings/downloads/featured have no source fields and strict schemas reject them.
-    const allEntries = MARKETPLACE_KINDS.flatMap(kind => entriesForKind(kind));
-    for (const entry of allEntries) {
-      expect(entry).not.toHaveProperty("rating");
-      expect(entry).not.toHaveProperty("downloads");
-      expect(entry).not.toHaveProperty("featured");
-    }
-  });
-
-  it("requires the generated timestamp required by the daemon catalog decoder", () => {
-    expect(() =>
-      parseMarketplaceCatalog("skills", {
-        manifest_version: 2,
-        entries: [
-          {
-            entry_id: "writer",
-            name: "Writer",
-            description: "Writes documentation",
-            install_slug: "writer",
-          },
-        ],
-      })
-    ).toThrow(/generated_at/);
-  });
-
-  it("rejects a skill identifier reserved for registry-only entries", () => {
-    expect(() =>
-      parseMarketplaceCatalog("skills", {
-        manifest_version: 2,
-        generated_at: "2026-07-17T00:40:00Z",
-        entries: [
-          {
-            entry_id: "skill_writer",
-            name: "Writer",
-            description: "Writes documentation",
-            install_slug: "writer",
-          },
-        ],
-      })
-    ).toThrow(/reserved/);
-  });
-
-  it("rejects duplicate identifiers before publishing a catalog feed", () => {
-    expect(() =>
-      parseMarketplaceCatalog("skills", {
-        manifest_version: 2,
-        generated_at: "2026-07-17T00:40:00Z",
-        entries: [
-          {
-            entry_id: "writer",
-            name: "Writer",
-            description: "Writes documentation",
-            install_slug: "writer",
-          },
-          {
-            entry_id: "writer",
-            name: "Other Writer",
-            description: "Also writes documentation",
-            install_slug: "other-writer",
-          },
-        ],
-      })
-    ).toThrow(/duplicated/);
-  });
-
-  it("rejects duplicate install slugs before publishing a catalog feed", () => {
-    expect(() =>
-      parseMarketplaceCatalog("skills", {
-        manifest_version: 2,
-        generated_at: "2026-07-17T00:40:00Z",
-        entries: [
-          {
-            entry_id: "writer",
-            name: "Writer",
-            description: "Writes documentation",
-            install_slug: "writer",
-          },
-          {
-            entry_id: "editor",
-            name: "Editor",
-            description: "Edits documentation",
-            install_slug: "writer",
-          },
-        ],
-      })
-    ).toThrow(/install_slug is duplicated/);
-  });
-
-  it("rejects secret MCP input defaults that the daemon would never persist", () => {
-    expect(() =>
-      parseMarketplaceCatalog("mcp", {
-        manifest_version: 2,
-        generated_at: "2026-07-17T00:40:00Z",
-        entries: [
-          {
-            entry_id: "private-mcp",
-            name: "Private MCP",
-            description: "Uses a secret",
-            launch: { type: "npm", package: "private-mcp", version: "1.0.0" },
-            default_scope: "workspace",
-            inputs: [
-              {
-                id: "private_token",
-                prompt: "Private token",
-                type: "secret",
-                required: true,
-                default: "must-not-publish",
-                binding: { type: "env", name: "PRIVATE_TOKEN" },
-              },
-            ],
-          },
-        ],
-      })
-    ).toThrow(/must not set default/);
-  });
-
-  it("rejects OAuth on a local MCP launch", () => {
-    expect(() =>
-      parseMarketplaceCatalog("mcp", {
-        manifest_version: 2,
-        generated_at: "2026-07-17T00:40:00Z",
-        entries: [
-          {
-            entry_id: "remote-mcp",
-            name: "Remote MCP",
-            description: "Uses OAuth",
-            launch: { type: "npm", package: "local-mcp", version: "1.0.0" },
-            default_scope: "workspace",
-            auth: { method: "oauth", registration: "auto" },
-          },
-        ],
-      })
-    ).toThrow(/only allowed for remote/);
-  });
-
-  it.each([
-    [
-      "option-like package names",
-      { type: "npm", package: "-y", version: "1.2.3" },
-      /exact package name/,
-    ],
-    [
-      "tagged Docker images",
-      {
-        type: "docker",
-        image: "ghcr.io/acme/server:latest",
-        digest: `sha256:${"a".repeat(64)}`,
-      },
-      /exact untagged image name/,
-    ],
-    [
-      "uppercase Docker digests",
-      {
-        type: "docker",
-        image: "ghcr.io/acme/server",
-        digest: `sha256:${"A".repeat(64)}`,
-      },
-      /verified sha256 digest/,
-    ],
-    [
-      "NUL bytes in launch arguments",
-      { type: "uvx", package: "acme-mcp", version: "1.2.3", args: ["--mode\0unsafe"] },
-      /non-empty argument/,
-    ],
-  ])("rejects %s that the daemon launch decoder rejects", (_name, launch, message) => {
-    expect(() => mcpEntrySchema.parse(validMCPEntry({ launch }))).toThrow(message);
-  });
-
-  it.each([
-    "https://mcp.localhost/server",
-    "https://mcp.internal/server",
-    "https://mcp/server",
-    "https://127.0.0.1/server",
-    "https://10.0.0.8/server",
-    "https://169.254.169.254/server",
-    "https://192.0.2.1/server",
-    "https://100.64.0.1/server",
-    "https://[::1]/server",
-    "https://[::127.0.0.1]/server",
-    "https://example.com/server#credentials",
-  ])("rejects non-public MCP remote destination %s", url => {
-    expect(() => mcpEntrySchema.parse(validMCPEntry({ launch: { type: "remote", url } }))).toThrow(
-      /public HTTPS destination/
-    );
-  });
-
-  it("rejects MCP inputs that target the same binding", () => {
-    expect(() =>
-      mcpEntrySchema.parse(
-        validMCPEntry({
-          inputs: [
-            {
-              id: "first",
-              prompt: "First value",
-              type: "string",
-              required: false,
-              binding: { type: "env", name: "SERVER_MODE" },
-            },
-            {
-              id: "second",
-              prompt: "Second value",
-              type: "string",
-              required: false,
-              binding: { type: "env", name: "SERVER_MODE" },
-            },
-          ],
-        })
-      )
-    ).toThrow(/binding env\/SERVER_MODE is duplicated/);
-  });
-
-  it("explains which local launch types allow environment inputs", () => {
-    expect(() =>
-      mcpEntrySchema.parse(
-        validMCPEntry({
-          launch: { type: "remote", url: "https://mcp.example.com/server" },
-          inputs: [
-            {
-              id: "profile",
-              prompt: "Profile",
-              type: "string",
-              required: false,
-              binding: { type: "env", name: "PROFILE" },
-            },
-          ],
-        })
-      )
-    ).toThrow(/local launch \(npm, uvx, docker\)/);
-  });
-
-  it("rejects MCP query inputs that override launch configuration", () => {
-    expect(() =>
-      mcpEntrySchema.parse(
-        validMCPEntry({
-          launch: { type: "remote", url: "https://mcp.example.com/server?read_only=true" },
-          inputs: [
-            {
-              id: "read_only",
-              prompt: "Read only",
-              type: "boolean",
-              required: false,
-              binding: { type: "url_query", name: "read_only" },
-            },
-          ],
-        })
-      )
-    ).toThrow(/conflicts with launch URL/);
-  });
-
-  it("reports MCP string and identifier default violations accurately", () => {
-    const identifierInput = {
-      id: "profile",
-      prompt: "Profile",
-      type: "identifier",
-      required: false,
-      binding: { type: "env", name: "PROFILE" },
-    };
-
-    expect(() =>
-      mcpEntrySchema.parse(validMCPEntry({ inputs: [{ ...identifierInput, default: "  " }] }))
-    ).toThrow(/identifier defaults must be non-empty strings/);
-    expect(() =>
-      mcpEntrySchema.parse(
-        validMCPEntry({ inputs: [{ ...identifierInput, type: "string", default: false }] })
-      )
-    ).toThrow(/string defaults must be strings/);
-  });
 });
-
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-
-function bridgeManifests() {
-  const bridgesRoot = resolve(repoRoot, "extensions", "bridges");
-  const manifests: Array<{
-    platform: string;
-    displayName: string;
-    version: string;
-    description: string;
-    requiredSecrets: number;
-    totalSecrets: number;
-  }> = [];
-  for (const entry of readdirSync(bridgesRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const manifestPath = resolve(bridgesRoot, entry.name, "extension.toml");
-    if (!existsSync(manifestPath)) continue;
-    const manifest = parseToml(readFileSync(manifestPath, "utf8")) as {
-      bridge: {
-        platform: string;
-        display_name: string;
-        secret_slots: Array<{ required: boolean }>;
-      };
-      extension: { version: string; description: string };
-    };
-    manifests.push({
-      platform: manifest.bridge.platform,
-      displayName: manifest.bridge.display_name,
-      version: manifest.extension.version,
-      description: manifest.extension.description,
-      requiredSecrets: manifest.bridge.secret_slots.filter(slot => slot.required).length,
-      totalSecrets: manifest.bridge.secret_slots.length,
-    });
-  }
-  return manifests;
-}
-
-function manifestDirectories(root: string, directories: string[]): string[] {
-  return directories
-    .flatMap(directory => {
-      const path = resolve(root, directory);
-      if (statSync(path).isFile()) return [basename(dirname(path))];
-      return readdirSync(path, { withFileTypes: true })
-        .filter(entry => entry.isDirectory())
-        .map(entry => entry.name);
-    })
-    .sort();
-}
-
-function writeBridgeManifest(root: string, directory: string, platform: string): void {
-  const manifestRoot = resolve(root, directory);
-  mkdirSync(manifestRoot, { recursive: true });
-  writeFileSync(
-    resolve(manifestRoot, "extension.toml"),
-    `[extension]
-name = "${directory}"
-version = "0.1.0"
-description = "${directory} bridge"
-
-[capabilities]
-provides = ["bridge.adapter"]
-
-[bridge]
-platform = "${platform}"
-display_name = "${directory}"
-
-[[bridge.secret_slots]]
-name = "token"
-description = "Bridge token"
-required = true
-`
-  );
-}
 
 describe("marketplace bridge providers", () => {
   it("derives one provider per in-tree bridge manifest", () => {
@@ -738,10 +272,9 @@ describe("marketplace bridge providers", () => {
   it("Should keep bridge setup independent of packaged MCP servers with the same brand", () => {
     // Task02 packages the GitHub/Linear MCP servers. A shared brand is not bridge identity:
     // bridges retain setup guides, while the distinct extension packages carry install artifacts.
-    expect(isMarketplaceKind("bridges")).toBe(false);
     for (const platform of ["github", "linear"]) {
       const bridge = findBridgeProvider(platform);
-      const packaged = findEntry("extensions", platform);
+      const packaged = findEntry(platform);
       expect(bridge?.setupUrl).toBe(`/docs/bridges/setup-${platform}`);
       expect(packaged).toMatchObject({
         entry_id: platform,
@@ -880,44 +413,51 @@ description: body content must not override metadata
 });
 
 describe("marketplace rendering boundary", () => {
-  it("renders feed dates truthfully without invented trust signals", () => {
-    const source = skillEntries[0];
-    if (!source) throw new Error("the checked-in skill feed must not be empty");
+  it("Should render truthful dates and current detail links without invented trust signals", () => {
     const entry = {
-      ...source,
+      ...extensionEntries[0],
       published_at: "2026-07-17T00:40:00Z",
       updated_at: undefined,
     };
-
-    const card = render(<MarketplaceEntryCard kind="skills" entry={entry} />);
+    const card = render(<MarketplaceEntryCard entry={entry} />);
     expect(card.getByText(/^Published /)).toBeDefined();
+    expect(card.getByRole("link", { name: "View details" }).getAttribute("href")).toBe(
+      marketplaceEntryPath(entry)
+    );
     expect(card.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
     card.unmount();
-
-    const detail = render(<MarketplaceEntryDetail kind="skills" entry={entry} />);
-    expect(detail.getByText("Published")).toBeDefined();
-    expect(detail.getByText("Jul 17, 2026")).toBeDefined();
+    const detail = render(<MarketplaceEntryDetail entry={entry} />);
+    expect(detail.getAllByText(/Jul 17, 2026/).length).toBeGreaterThan(0);
     expect(detail.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
   });
 
-  it("directs a static listing to search the daemon's active catalog", () => {
+  it("Should direct the static listing to search the active daemon catalog", () => {
     render(<MarketplaceHero />);
-
     expect(screen.getAllByText("compozy marketplace search").length).toBeGreaterThan(0);
     expect(screen.getByText(/checked-in catalog snapshot/)).toBeDefined();
   });
 
-  it("pairs MCP input flags with the install command that owns them", () => {
-    const entry = mcpEntries.find(candidate =>
-      candidate.inputs?.some(input => input.type === "secret")
+  it("Should show declared extension inputs with the owning install command", () => {
+    const entry = findEntry("context7");
+    if (!entry?.inputs?.length) throw new Error("Context7 fixture lacks its declared input");
+    render(<MarketplaceEntryDetail entry={entry} />);
+    expect(screen.getByText(installCommand(entry))).toBeDefined();
+    expect(screen.getByText(marketplaceSearchCommand(entry))).toBeDefined();
+    expect(screen.getByText(entry.inputs[0].prompt)).toBeDefined();
+    expect(screen.queryByText(/compozy mcp install/)).toBeNull();
+  });
+
+  it("Should enumerate current detail routes and reject unknown identities", async () => {
+    expect(generateMarketplaceEntryParams()).toEqual(
+      extensionEntries.map(entry => ({ entryId: entry.entry_id }))
     );
-    if (!entry) throw new Error("the checked-in MCP feed requires a secret-bearing entry");
-
-    render(<MarketplaceEntryDetail kind="mcp" entry={entry} />);
-
-    expect(screen.getByText(installCommand("mcp", entry))).toBeDefined();
-    expect(screen.getByText("--secret id")).toBeDefined();
-    expect(screen.getByText("--set id=value")).toBeDefined();
-    expect(screen.getByText(marketplaceSearchCommand("mcp", entry))).toBeDefined();
+    const element = await MarketplaceEntryPage({
+      params: Promise.resolve({ entryId: extensionEntries[0].entry_id }),
+    });
+    const detail = render(element);
+    expect(detail.getByRole("heading", { level: 1, name: extensionEntries[0].name })).toBeDefined();
+    await expect(
+      MarketplaceEntryPage({ params: Promise.resolve({ entryId: "not-in-catalog" }) })
+    ).rejects.toThrow();
   });
 });

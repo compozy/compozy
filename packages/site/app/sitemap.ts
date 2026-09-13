@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
-import { entriesForKind, MARKETPLACE_KINDS } from "@/lib/marketplace-catalog";
+import { extensionEntries, marketplaceEntryPath } from "@/lib/marketplace-catalog";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
 import { docsSource } from "@/lib/source";
 import { absoluteUrl, canonicalPath } from "@/lib/site-config";
@@ -36,10 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/marketplace",
     "/marketplace/bridges",
     ...bundledExtensions.map(extension => extension.path),
-    ...MARKETPLACE_KINDS.flatMap(kind => [
-      `/marketplace/${kind}`,
-      ...entriesForKind(kind).map(entry => `/marketplace/${kind}/${entry.entry_id}`),
-    ]),
+    ...extensionEntries.map(marketplaceEntryPath),
   ];
   const paths = Array.from(
     new Set([

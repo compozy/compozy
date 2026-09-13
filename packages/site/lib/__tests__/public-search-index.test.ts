@@ -302,7 +302,7 @@ describe("public search index", () => {
 
   it("indexes every marketplace surface under the Marketplace group", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
-    const { entriesForKind, MARKETPLACE_KINDS } = await import("@/lib/marketplace-catalog");
+    const { extensionEntries, marketplaceEntryPath } = await import("@/lib/marketplace-catalog");
     const { bridgeProviders } = await import("@/lib/marketplace-bridges");
     const { bundledExtensions } = await import("@/lib/marketplace-bundled");
 
@@ -312,12 +312,11 @@ describe("public search index", () => {
     const urls = new Set(marketplace.map(index => index.url));
 
     expect(urls.has("/marketplace")).toBe(true);
-    for (const kind of MARKETPLACE_KINDS) {
-      expect(urls.has(`/marketplace/${kind}`)).toBe(true);
-      for (const entry of entriesForKind(kind)) {
-        expect(urls.has(`/marketplace/${kind}/${entry.entry_id}`)).toBe(true);
-      }
+    for (const entry of extensionEntries) {
+      expect(urls.has(marketplaceEntryPath(entry))).toBe(true);
     }
+    expect(urls.has("/marketplace/skills")).toBe(false);
+    expect(urls.has("/marketplace/mcp")).toBe(false);
     expect(urls.has("/marketplace/bridges")).toBe(true);
     for (const provider of bridgeProviders) {
       expect(urls.has(`/marketplace/bridges#${provider.platform}`)).toBe(true);
