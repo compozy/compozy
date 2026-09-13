@@ -11,7 +11,6 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/marketplace"
-	v2decoder "github.com/compozy/compozy/internal/marketplace/testdata/v2decoder"
 )
 
 func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string) (err error) {
@@ -37,48 +36,25 @@ func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string
 	if err := validateCatalogForPublication(ctx, stage); err != nil {
 		return err
 	}
-	if err := validateReleasedPublication(stage); err != nil {
-		return err
-	}
 	return commitCatalogPublication(ctx, stage, output)
 }
 
 func stageCatalogPublication(ctx context.Context, source, stage string, sources *publicationSources) error {
 	current := make([]publicationEntry, 0, len(sources.Entries))
-	retained := make([]publicationEntry, 0, len(sources.Entries))
-	servers := make([]publicationMCPEntry, 0)
 	for _, metadata := range sources.Entries {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		entry, manifest, err := packagePublicationEntry(source, stage, sources, metadata)
+		entry, err := packagePublicationEntry(source, stage, sources, metadata)
 		if err != nil {
 			return fmt.Errorf("publish %q: %w", metadata.EntryID, err)
 		}
-		server, err := retainedMCPEntry(entry, manifest)
-		if err != nil {
-			return err
-		}
-		if server != nil {
-			servers = append(servers, *server)
-		}
 		current = append(current, entry)
-		entry.Inputs, entry.Icon = nil, ""
-		retained = append(retained, entry)
 	}
-	files := []struct {
-		path     string
-		document any
-	}{
-		{"v3/extensions.json", publicationDocument[publicationEntry]{3, sources.GeneratedAt, current}},
-		{"extensions.json", publicationDocument[publicationEntry]{2, sources.GeneratedAt, retained}},
-		{"mcp.json", publicationDocument[publicationMCPEntry]{2, sources.GeneratedAt, servers}},
-		{"skills.json", publicationDocument[json.RawMessage]{2, sources.GeneratedAt, sources.RetainedSkills}},
-	}
-	for _, file := range files {
-		if err := writePublicationJSON(stage, file.path, file.document); err != nil {
-			return err
-		}
+	if err := writePublicationJSON(stage, "v3/extensions.json", publicationDocument[publicationEntry]{
+		ManifestVersion: marketplace.ManifestVersion, GeneratedAt: sources.GeneratedAt, Entries: current,
+	}); err != nil {
+		return err
 	}
 	raw, err := os.ReadFile(filepath.Join(source, "marketplaces.json"))
 	if err != nil {
@@ -100,30 +76,6 @@ func writePublicationJSON(directory, name string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, append(raw, '\n'), 0o644)
-}
-
-func validateReleasedPublication(directory string) error {
-	files := []struct {
-		name string
-		kind v2decoder.Kind
-	}{
-		{
-			"extensions.json",
-			v2decoder.KindExtension,
-		},
-		{"mcp.json", v2decoder.KindMCP},
-		{"skills.json", v2decoder.KindSkill},
-	}
-	for _, file := range files {
-		raw, err := os.ReadFile(filepath.Join(directory, file.name))
-		if err != nil {
-			return err
-		}
-		if _, err := v2decoder.DecodeDocument(file.kind, raw); err != nil {
-			return fmt.Errorf("released decoder rejects %s: %w", file.name, err)
-		}
-	}
-	return nil
 }
 
 func commitCatalogPublication(ctx context.Context, stage, output string) error {

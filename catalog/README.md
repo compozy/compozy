@@ -1,11 +1,10 @@
 # Curated Marketplace Catalog
 
-`sources.json` owns listing metadata, the artifact base URL, the publication timestamp, and the
-retained skill declaration. `packages/<entry_id>/` owns each extension's manifest and packaged files;
+`sources.json` owns listing metadata, the artifact base URL and the publication timestamp. `packages/<entry_id>/` owns each extension's manifest and packaged files;
 `marketplaces.json` owns the ordered plugin marketplace presets. Version, inputs, archive bytes and
 SHA-256 digests come from the packages, not from hand-edited feeds.
 
-Generate and validate both feed families from the repository root:
+Generate and validate the v3 feed family from the repository root:
 
 ```bash
 go run ./cmd/compozy-catalog publish ./catalog ./catalog
@@ -14,8 +13,7 @@ go run ./cmd/compozy-catalog validate ./catalog
 
 For an isolated publication, replace the second `./catalog` with another output directory. The
 publisher stages the complete output, validates its manifests and artifacts through the production
-installer, checks packaged inputs against v3 entries, and runs the released v2 decoder and semantic
-validator before replacing output files. Artifacts are written before feeds. Invalid sources leave
+installer and checks packaged inputs against v3 entries before replacing output files. Artifacts are written before feeds. Invalid sources leave
 the existing output untouched; filesystem failures during replacement are reported and require a
 retry. Unrelated files in the destination are preserved.
 
@@ -23,17 +21,17 @@ Generated output:
 
 - `v3/extensions.json`: the twenty extensions, including seventeen packaged MCP servers.
 - `v3/marketplaces.json`: ordered plugin marketplace presets.
-- `extensions.json`, `mcp.json`, `skills.json`: the retained v2 family, published until v0.6.0.
-- `artifacts/*.tar.gz`: deterministic package archives referenced by both extension feeds.
+- `artifacts/*.tar.gz`: deterministic package archives referenced by the extension feed.
 
-Do not edit generated feeds or artifacts. The v2 extension projection omits `icon` and `inputs`.
-The v2 MCP projection removes input-bound URL parameters while preserving fixed parameters, because
-the released decoder rejects a query binding already present in the launch URL. Documentation Writer
-is retained only in the v2 skills feed.
+Do not edit generated feeds or artifacts. Only the v3 family is published; root MCP/skill
+feeds, semantic v2 adapters and the standalone Documentation Writer listing are retired.
+The three existing extension packages keep their authored identities, acquisition references,
+versions and artifact bytes. The 17 MCP packages are validated against fixed pre-feature
+curation evidence under `internal/extension/testdata/mcp_to_extension/`.
 
-The daemon tries `<base_url>/v3/extensions.json` first. A missing or removed family (HTTP 404/410)
-falls back to the root with one `marketplace.feed.root_family` warning per source instance. Other
-HTTP errors and invalid v3 documents remain errors. Mirrors keep their configured base URL.
+The daemon reads `<base_url>/v3/extensions.json` and `<base_url>/v3/marketplaces.json`.
+Missing or invalid v3 documents report a source failure without reading root feeds.
+Mirrors keep their configured base URL and must serve the v3 family.
 
 ## Packaged MCP manifests
 

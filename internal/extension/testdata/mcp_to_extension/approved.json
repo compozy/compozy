@@ -1,0 +1,312 @@
+{
+    "source_commit": "9892912ae2bc895133042f47422f1ec7d0a9f0fa",
+    "source_path": "catalog/mcp.json",
+    "source_sha256": "a9f123fe616eaf92e995bc89a7015b33443baa69fce8515b2f158bc8648550e1",
+    "entries": [
+        {
+            "entry_id": "context7",
+            "inputs": [
+                {
+                    "id": "context7_api_key",
+                    "prompt": "Context7 API key (optional)",
+                    "type": "secret",
+                    "required": false,
+                    "binding": {
+                        "type": "env",
+                        "name": "CONTEXT7_API_KEY"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "global",
+                "transport": "stdio",
+                "command": "npx",
+                "args": ["-y", "@upstash/context7-mcp@3.2.3"],
+                "secret_env": {
+                    "CONTEXT7_API_KEY": "context7_api_key"
+                }
+            }
+        },
+        {
+            "entry_id": "github",
+            "inputs": [
+                {
+                    "id": "github_personal_access_token",
+                    "prompt": "GitHub personal access token",
+                    "type": "secret",
+                    "required": true,
+                    "binding": {
+                        "type": "env",
+                        "name": "GITHUB_PERSONAL_ACCESS_TOKEN"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "workspace",
+                "transport": "stdio",
+                "command": "docker",
+                "args": [
+                    "run",
+                    "-i",
+                    "--rm",
+                    "--env",
+                    "GITHUB_PERSONAL_ACCESS_TOKEN",
+                    "ghcr.io/github/github-mcp-server@sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+                    "--read-only"
+                ],
+                "secret_env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "github_personal_access_token"
+                }
+            }
+        },
+        {
+            "entry_id": "linear",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.linear.app/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "notion",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.notion.com/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "sentry",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.sentry.dev/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "postgres",
+            "inputs": [
+                {
+                    "id": "database_url",
+                    "prompt": "PostgreSQL connection URL",
+                    "type": "secret",
+                    "required": true,
+                    "binding": {
+                        "type": "env",
+                        "name": "DATABASE_URL"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "workspace",
+                "transport": "stdio",
+                "command": "npx",
+                "args": ["-y", "@yawlabs/postgres-mcp@0.7.0"],
+                "secret_env": {
+                    "DATABASE_URL": "database_url"
+                }
+            }
+        },
+        {
+            "entry_id": "supabase",
+            "inputs": [
+                {
+                    "id": "project_ref",
+                    "prompt": "Supabase project reference",
+                    "type": "identifier",
+                    "required": true,
+                    "binding": {
+                        "type": "url_query",
+                        "name": "project_ref"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.supabase.com/mcp?read_only=true&project_ref=",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "brave-search",
+            "inputs": [
+                {
+                    "id": "brave_api_key",
+                    "prompt": "Brave Search API key",
+                    "type": "secret",
+                    "required": true,
+                    "binding": {
+                        "type": "env",
+                        "name": "BRAVE_API_KEY"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "workspace",
+                "transport": "stdio",
+                "command": "npx",
+                "args": ["-y", "@brave/brave-search-mcp-server@2.1.0"],
+                "secret_env": {
+                    "BRAVE_API_KEY": "brave_api_key"
+                }
+            }
+        },
+        {
+            "entry_id": "playwright",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "stdio",
+                "command": "npx",
+                "args": ["-y", "@playwright/mcp@0.0.78", "--headless"]
+            }
+        },
+        {
+            "entry_id": "stripe",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.stripe.com",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "posthog",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.posthog.com/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "airtable",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.airtable.com/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "gitlab",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://gitlab.com/api/v4/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "atlassian",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.atlassian.com/v1/mcp/authv2",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "grafana",
+            "inputs": [
+                {
+                    "id": "grafana_url",
+                    "prompt": "Grafana URL",
+                    "type": "string",
+                    "required": true,
+                    "binding": {
+                        "type": "env",
+                        "name": "GRAFANA_URL"
+                    }
+                },
+                {
+                    "id": "grafana_service_account_token",
+                    "prompt": "Grafana service account token",
+                    "type": "secret",
+                    "required": true,
+                    "binding": {
+                        "type": "env",
+                        "name": "GRAFANA_SERVICE_ACCOUNT_TOKEN"
+                    }
+                }
+            ],
+            "server": {
+                "default_scope": "workspace",
+                "transport": "stdio",
+                "command": "uvx",
+                "args": ["--from", "mcp-grafana==1.0.0", "mcp-grafana", "--disable-write"],
+                "env": {
+                    "GRAFANA_URL": "grafana_url"
+                },
+                "secret_env": {
+                    "GRAFANA_SERVICE_ACCOUNT_TOKEN": "grafana_service_account_token"
+                }
+            }
+        },
+        {
+            "entry_id": "calcom",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.cal.com/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        },
+        {
+            "entry_id": "cloudflare",
+            "inputs": null,
+            "server": {
+                "default_scope": "workspace",
+                "transport": "http",
+                "url": "https://mcp.cloudflare.com/mcp",
+                "auth": {
+                    "method": "oauth",
+                    "registration": "dynamic"
+                }
+            }
+        }
+    ]
+}

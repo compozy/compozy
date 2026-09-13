@@ -20,7 +20,6 @@ type publicationSources struct {
 	GeneratedAt     string             `json:"generated_at"`
 	ArtifactBaseURL string             `json:"artifact_base_url"`
 	Entries         []publicationEntry `json:"entries"`
-	RetainedSkills  []json.RawMessage  `json:"retained_skills"`
 }
 
 type publicationEntry struct {
@@ -113,27 +112,27 @@ func packagePublicationEntry(
 	sourceDir, stage string,
 	sources *publicationSources,
 	entry publicationEntry,
-) (publicationEntry, *extensionpkg.Manifest, error) {
+) (publicationEntry, error) {
 	root := filepath.Join(sourceDir, "packages", entry.EntryID)
 	manifest, err := extensionpkg.LoadManifest(root)
 	if err != nil {
-		return publicationEntry{}, nil, err
+		return publicationEntry{}, err
 	}
 	if manifest.Name != entry.EntryID {
-		return publicationEntry{}, nil, fmt.Errorf("package %q manifest name is %q", entry.EntryID, manifest.Name)
+		return publicationEntry{}, fmt.Errorf("package %q manifest name is %q", entry.EntryID, manifest.Name)
 	}
 	filename := entry.EntryID + "-v" + manifest.Version + ".tar.gz"
 	artifact := filepath.Join(stage, "artifacts", filename)
 	if err := packageCatalogExtension(root, artifact); err != nil {
-		return publicationEntry{}, nil, err
+		return publicationEntry{}, err
 	}
 	digest, err := marketplace.DigestFile(artifact)
 	if err != nil {
-		return publicationEntry{}, nil, err
+		return publicationEntry{}, err
 	}
 	entry.Version = manifest.Version
 	entry.ArtifactURL = strings.TrimRight(sources.ArtifactBaseURL, "/") + "/" + filename
 	entry.DigestSHA256 = digest
 	entry.Inputs = manifest.Inputs
-	return entry, manifest, nil
+	return entry, nil
 }

@@ -2365,44 +2365,65 @@ env = { DEBUG = "debug" }
 	}
 }
 
-// Invariant: every retained server has a loadable first-party package with the same input declarations.
+// Invariant: packaged servers preserve approved launch/auth/input definitions and match their current feed.
 // Owner: curated package manifests. Canonical suite: manifest_test.go.
 func TestManifestCuratedMCPPackages(t *testing.T) {
 	t.Parallel()
-	t.Run(
-		"Should load all seventeen server packages and preserve feed input declarations [UT-007]",
-		func(t *testing.T) {
-			t.Parallel()
-			data, err := os.ReadFile(filepath.Join("..", "..", "catalog", "mcp.json"))
+	t.Run("Should preserve all seventeen approved server definitions [UT-007]", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile(filepath.Join("testdata", "mcp_to_extension", "approved.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var approved struct {
+			Entries []struct {
+				ID     string          `json:"entry_id"`
+				Inputs []ManifestInput `json:"inputs"`
+				Server MCPServerConfig `json:"server"`
+			} `json:"entries"`
+		}
+		if err := json.Unmarshal(data, &approved); err != nil {
+			t.Fatal(err)
+		}
+		if len(approved.Entries) != 17 {
+			t.Fatalf("approved server count = %d, want 17", len(approved.Entries))
+		}
+		feed, err := os.ReadFile(filepath.Join("..", "..", "catalog", "v3", "extensions.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := marketplace.DecodeDocument(feed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range approved.Entries {
+			manifest, err := LoadManifest(filepath.Join("..", "..", "catalog", "packages", entry.ID))
 			if err != nil {
+				t.Fatalf("%s: %v", entry.ID, err)
+			}
+			if len(manifest.Resources.MCPServers) != 1 ||
+				!reflect.DeepEqual(manifest.Resources.MCPServers[entry.ID], entry.Server) {
+				t.Fatalf("%s server = %#v, want %#v", entry.ID, manifest.Resources.MCPServers, entry.Server)
+			}
+			if !reflect.DeepEqual(manifest.Inputs, entry.Inputs) {
+				t.Fatalf("%s inputs = %#v, want %#v", entry.ID, manifest.Inputs, entry.Inputs)
+			}
+			index := slices.IndexFunc(document.Entries, func(item marketplace.Entry) bool { return item.EntryID == entry.ID })
+			if index < 0 {
+				t.Fatalf("%s missing from current feed", entry.ID)
+			}
+			current := document.Entries[index]
+			var payload struct {
+				Inputs []ManifestInput `json:"inputs"`
+			}
+			if err := json.Unmarshal(current.Payload, &payload); err != nil {
 				t.Fatal(err)
 			}
-			var catalog struct {
-				Entries []struct {
-					ID     string          `json:"entry_id"`
-					Inputs []ManifestInput `json:"inputs"`
-				} `json:"entries"`
+			if current.Version != manifest.Version || !reflect.DeepEqual(payload.Inputs, entry.Inputs) {
+				t.Fatalf("%s feed version/inputs differ from its approved package", entry.ID)
 			}
-			if err := json.Unmarshal(data, &catalog); err != nil {
-				t.Fatal(err)
-			}
-			if len(catalog.Entries) != 17 {
-				t.Fatalf("server count = %d, want 17", len(catalog.Entries))
-			}
-			for _, entry := range catalog.Entries {
-				manifest, err := LoadManifest(filepath.Join("..", "..", "catalog", "packages", entry.ID))
-				if err != nil {
-					t.Fatalf("%s: %v", entry.ID, err)
-				}
-				if len(manifest.Resources.MCPServers) != 1 {
-					t.Fatalf("%s servers = %#v", entry.ID, manifest.Resources.MCPServers)
-				}
-				if !reflect.DeepEqual(manifest.Inputs, entry.Inputs) {
-					t.Fatalf("%s inputs = %#v, want %#v", entry.ID, manifest.Inputs, entry.Inputs)
-				}
-			}
-		},
-	)
+		}
+	})
 }
 
 // Invariant: typed readiness uses active instance values and reports missing env names separately from URL input IDs.

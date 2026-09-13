@@ -7,11 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/marketplace"
-	v2decoder "github.com/compozy/compozy/internal/marketplace/testdata/v2decoder"
 )
 
 type failingWriter struct {
@@ -51,83 +51,23 @@ func TestRun(t *testing.T) {
 	})
 }
 
-// Invariant: retained publication is accepted by the released decoder and its semantic rules.
-// Owner: catalog publication. Canonical suite: compozy-catalog main_test.go.
-func TestReleasedCatalogConformance(t *testing.T) {
-	t.Parallel()
-	files := []struct {
-		name string
-		kind v2decoder.Kind
-	}{
-		{
-			"extensions.json",
-			v2decoder.KindExtension,
-		},
-		{"mcp.json", v2decoder.KindMCP},
-		{"skills.json", v2decoder.KindSkill},
-	}
-	for _, file := range files {
-		t.Run("Should accept the retained "+file.name+" with the released validator", func(t *testing.T) {
-			t.Parallel()
-			raw, err := os.ReadFile(filepath.Join("..", "..", "catalog", file.name))
-			if err != nil {
-				t.Fatal(err)
-			}
-			document, err := v2decoder.DecodeDocument(file.kind, raw)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(document.Entries) == 0 {
-				t.Fatal("retained family is empty")
-			}
-		})
-	}
-	t.Run("Should reject a query binding already present in the launch URL [UT-054]", func(t *testing.T) {
-		t.Parallel()
-		raw, err := os.ReadFile(filepath.Join("..", "..", "catalog", "mcp.json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var document map[string]any
-		if err := json.Unmarshal(raw, &document); err != nil {
-			t.Fatal(err)
-		}
-		found := false
-		for _, item := range document["entries"].([]any) {
-			entry := item.(map[string]any)
-			if entry["entry_id"] != "supabase" {
-				continue
-			}
-			entry["launch"].(map[string]any)["url"] = "https://mcp.supabase.com/mcp?read_only=true&project_ref="
-			found = true
-		}
-		if !found {
-			t.Fatal("query input fixture missing")
-		}
-		candidate, err := json.Marshal(document)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = v2decoder.DecodeDocument(v2decoder.KindMCP, candidate)
-		if err == nil || !strings.Contains(err.Error(), "conflicts with launch URL") {
-			t.Fatalf("released validator = %v", err)
-		}
-	})
-}
-
-// Invariant: one publication generates coherent v3/v2 feeds from the same verified package bytes.
+// Invariant: one v3 publication validates authored inputs and preserves existing extension identities and bytes.
 // Owner: catalog publisher. Canonical suite: main_test.go.
-func TestPublishCatalogFamilies(t *testing.T) {
+func TestPublishCatalog(t *testing.T) {
 	t.Parallel()
 	source := filepath.Join("..", "..", "catalog")
 	output := filepath.Join(t.TempDir(), "published")
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("Should emit twenty packaged extensions and a conformant retained family [UT-054]", func(t *testing.T) {
+	t.Run("Should emit only the current catalog family with twenty extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
-		if err := validateReleasedPublication(output); err != nil {
+		files, err := os.ReadDir(output)
+		if err != nil {
 			t.Fatal(err)
+		}
+		if len(files) != 2 || files[0].Name() != "artifacts" || files[1].Name() != "v3" {
+			t.Fatalf("publication roots = %v, want artifacts and v3", files)
 		}
 		raw, err := os.ReadFile(filepath.Join(output, "v3", "extensions.json"))
 		if err != nil {
@@ -153,36 +93,49 @@ func TestPublishCatalogFamilies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(parsed.Entries) != 2 || parsed.Entries[0].Name != "claude-plugins-official" {
+		if len(parsed.Entries) != 2 || parsed.Entries[0].Name != "claude-plugins-official" ||
+			parsed.Entries[0].Default != "on" || parsed.Entries[1].Name != "openai-codex" || parsed.Entries[1].Default != "off" {
 			t.Fatalf("presets = %#v", parsed.Entries)
 		}
 	})
-	t.Run("Should preserve fixed query values while stripping input-bound parameters [UT-054]", func(t *testing.T) {
+	t.Run("Should preserve existing extension metadata and artifact bytes [UT-007]", func(t *testing.T) {
 		t.Parallel()
-		raw, err := os.ReadFile(filepath.Join(output, "mcp.json"))
+		original := readPublishedExtensions(t, source)
+		published := readPublishedExtensions(t, output)
+		for _, name := range []string{"repository-orientation", "batuta", "herdr-bridge"} {
+			before, existed := original[name]
+			after, exists := published[name]
+			if !existed || !exists || !reflect.DeepEqual(before, after) {
+				t.Fatalf("existing extension %q changed: before=%#v after=%#v", name, before, after)
+			}
+			filename, err := curatedArtifactFilename(before.ArtifactURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, directory := range []string{source, output} {
+				digest, err := marketplace.DigestFile(filepath.Join(directory, "artifacts", filename))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if digest != before.DigestSHA256 {
+					t.Fatalf("artifact %q in %q changed: %s, want %s", name, directory, digest, before.DigestSHA256)
+				}
+			}
+		}
+	})
+	t.Run("Should reject a root-only catalog without falling back [UT-055]", func(t *testing.T) {
+		t.Parallel()
+		rootOnly := t.TempDir()
+		raw, err := os.ReadFile(filepath.Join(output, "v3", "extensions.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		var document publicationDocument[publicationMCPEntry]
-		if err := json.Unmarshal(raw, &document); err != nil {
+		if err := os.WriteFile(filepath.Join(rootOnly, "extensions.json"), raw, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if len(document.Entries) != 17 {
-			t.Fatalf("retained server count = %d", len(document.Entries))
-		}
-		found := false
-		for _, entry := range document.Entries {
-			if entry.EntryID != "supabase" {
-				continue
-			}
-			found = true
-			if entry.Launch.URL != "https://mcp.supabase.com/mcp?read_only=true" || len(entry.Inputs) != 1 ||
-				entry.Inputs[0].Binding.Name != "project_ref" {
-				t.Fatalf("supabase = %#v", entry)
-			}
-		}
-		if !found {
-			t.Fatal("Supabase missing")
+		err = run(t.Context(), []string{"validate", rootOnly}, io.Discard)
+		if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "v3") {
+			t.Fatalf("root-only validation = %v, want missing v3", err)
 		}
 	})
 	t.Run("Should reject a published input declaration that disagrees with package bytes", func(t *testing.T) {
@@ -213,4 +166,21 @@ func TestPublishCatalogFamilies(t *testing.T) {
 			t.Fatalf("altered validation = %v", err)
 		}
 	})
+}
+
+func readPublishedExtensions(t *testing.T, directory string) map[string]publicationEntry {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(directory, "v3", "extensions.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document publicationDocument[publicationEntry]
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	entries := make(map[string]publicationEntry, len(document.Entries))
+	for _, entry := range document.Entries {
+		entries[entry.EntryID] = entry
+	}
+	return entries
 }

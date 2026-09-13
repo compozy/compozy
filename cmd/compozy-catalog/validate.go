@@ -26,12 +26,7 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 		return err
 	}
 	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
-	feedPath := filepath.Join(directory, "extensions.json")
-	if _, statErr := os.Stat(filepath.Join(directory, "v3")); statErr == nil {
-		feedPath = filepath.Join(directory, "v3", "extensions.json")
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return statErr
-	}
+	feedPath := filepath.Join(directory, "v3", "extensions.json")
 	raw, err := os.ReadFile(feedPath)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)
@@ -53,7 +48,6 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 			directory,
 			temporaryRoot,
 			entry,
-			document.ManifestVersion == marketplace.ManifestVersion,
 		); err != nil {
 			return err
 		}
@@ -66,7 +60,6 @@ func validateExtensionArtifact(
 	catalogDir string,
 	temporaryRoot string,
 	entry marketplace.Entry,
-	requireInputs bool,
 ) error {
 	details, err := marketplace.ProjectEntry(entry)
 	if err != nil {
@@ -110,7 +103,7 @@ func validateExtensionArtifact(
 	if err := json.Unmarshal(entry.Payload, &payload); err != nil {
 		return err
 	}
-	if requireInputs && !reflect.DeepEqual(payload.Inputs, manifest.Inputs) {
+	if !reflect.DeepEqual(payload.Inputs, manifest.Inputs) {
 		return fmt.Errorf("compozy-catalog: extension %q feed inputs differ from packaged manifest", entry.EntryID)
 	}
 	return nil
