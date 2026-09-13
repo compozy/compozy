@@ -102,12 +102,14 @@ func (m *Manager) startInstalledPackage(ctx context.Context, info ExtensionInfo)
 	}
 	var errs []error
 	for _, installation := range installations {
-		if installation.Scope.WorkspaceID != "" {
+		if installation.Scope.WorkspaceID != "" && installation.Scope.ProfileID == "" {
 			continue
 		}
 		instance := ext
 		if installation.Scope.ProfileID != "" {
-			instanceKey := InstanceKey{Name: info.Name, ProfileID: installation.Scope.ProfileID}
+			instanceKey := InstanceKey{
+				Name: info.Name, ProfileID: installation.Scope.ProfileID, WorkspaceID: installation.Scope.WorkspaceID,
+			}
 			instance, err = m.newInstalledProfileInstance(ctx, instanceKey)
 			if err != nil {
 				errs = append(errs, err)

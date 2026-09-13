@@ -60,6 +60,10 @@ uses its trusted workspace and profile when selectors are omitted; it cannot sel
 workspace or profile. Preview and installation use the same selectors. Inputs and secret bindings
 belong to the selected profile/workspace cell.
 
+An installation attached to an explicit workspace profile starts in that workspace's profile
+runtime after a daemon restart. It does not start a global instance or become visible in another
+workspace. Archived profile attachments retain their state without starting a process.
+
 When both `scope` and `workspace_id` are omitted, a local operator uses the package's MCP server
 `default_scope` (an undeclared server default means `global`). A workspace default requires a
 workspace-bound caller; otherwise pass `--workspace` or choose `--scope global` explicitly.

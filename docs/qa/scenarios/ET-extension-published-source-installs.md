@@ -50,6 +50,11 @@ sidecar with a zero digest produced `extension_archive_digest_mismatch` before r
 directory mutation. The original sidecar was restored, a fresh daemon installed the release again,
 and the final remove left the fixture absent.
 
+Task04 restart follow-up (final tasks09/10): install a published extension with an explicit
+workspace/profile, restart the daemon, and verify its process/tools/logs belong to that exact
+workspace and profile. Global and unrelated-workspace views must not expose the instance.
+Archive the selected profile and restart again: preserve the attachment and stop its runtime.
+
 QA impact 2026-09-13 (marketplace-catalog task03): repeat install and preview over CLI, HTTP/UDS,
 and the native tool with global/profile, workspace/all-profile, and workspace/profile selectors.
 Read back exact attachment and input ownership, verify a secret never appears in another cell,

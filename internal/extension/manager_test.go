@@ -207,12 +207,19 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 func TestManagerProfileRuntimeIsolation(t *testing.T) {
 	t.Parallel()
 	// Invariant: each explicit profile installation, including default, runs
-	// under its own profile ceiling and can restart without a global base process.
+	// under its own profile/workspace ceiling and can restart without a global base process.
 	// Owner: extension runtime lifecycle; canonical suite: manager profile isolation.
 	t.Run("Should start and restart explicit profile installations with real subprocesses", func(t *testing.T) {
 		t.Parallel()
-		testInstalledProfileRuntimeLifecycle(t)
+		testInstalledProfileRuntimeLifecycle(t, "")
 	})
+	t.Run(
+		"Should start and restart workspace profile installations without exposing a global runtime",
+		func(t *testing.T) {
+			t.Parallel()
+			testInstalledProfileRuntimeLifecycle(t, "ws-profile-runtime")
+		},
+	)
 
 	withDaemonVersion(t, "0.5.0")
 	env := newRegistryTestEnv(t)
@@ -297,29 +304,42 @@ func TestManagerProfileRuntimeIsolation(t *testing.T) {
 	}
 }
 
-func testInstalledProfileRuntimeLifecycle(t *testing.T) {
+func testInstalledProfileRuntimeLifecycle(t *testing.T, workspaceID string) {
 	t.Helper()
 	withDaemonVersion(t, "0.5.0")
 	env := newRegistryTestEnv(t)
 	profileID := insertActiveRegistryProfile(t, env, "marketing")
+	workspaceRoot := t.TempDir()
+	if workspaceID != "" {
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, workspaceID, workspaceRoot, "Runtime scope",
+			store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	fixture := createManagerTestExtension(t, managerTestManifest("installed-profile-runtime", managerManifestOptions{
 		command: helperCommand(t), args: helperArgs(), withEnv: helperEnv("default", ""),
 		capabilities:     []string{extensionprotocol.CapabilityToolProvider},
 		resourceFamilies: []string{"tools"}, resourceMaxScope: "user",
 	}), nil)
 	if err := env.registry.Install(fixture.manifest, fixture.dir, fixture.checksum, WithInstallScope(
-		InstallationScope{ProfileID: profileID},
+		InstallationScope{ProfileID: profileID, WorkspaceID: workspaceID},
 	)); err != nil {
 		t.Fatal(err)
 	}
 	if err := env.registry.AttachInstallation(t.Context(), fixture.manifest.Name, InstallationScope{
-		ProfileID: store.DefaultProfileID,
+		ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	manager := NewManager(env.registry, WithProfileNameResolver(fixedProfileNameResolver{
 		profileID: "marketing", store.DefaultProfileID: "default",
 	}))
+	if workspaceID != "" {
+		WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot},
+		}))(manager)
+	}
 	if err := manager.Start(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -333,15 +353,28 @@ func testInstalledProfileRuntimeLifecycle(t *testing.T) {
 	if global := manager.Statuses(); len(global) != 1 || global[0].Registered || global[0].PID != 0 {
 		t.Fatalf("global package state = %#v, want no unqualified runtime", global)
 	}
+	if workspaceID != "" {
+		for _, otherWorkspace := range []string{"", "unrelated-workspace"} {
+			if _, err := manager.GetForInstance(ProfileInstanceKey(
+				fixture.manifest.Name, profileID, otherWorkspace,
+			)); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("workspace installation visible in %q: %v", otherWorkspace, err)
+			}
+		}
+	}
 	pids := map[string]int{}
 	streams := map[string]string{}
 	for _, id := range []string{store.DefaultProfileID, profileID} {
-		view := ProfileInstanceKey(fixture.manifest.Name, id, "")
+		view := ProfileInstanceKey(fixture.manifest.Name, id, workspaceID)
 		snapshot, err := manager.GetForInstance(view)
 		if err != nil || !snapshot.Status.Active || !snapshot.Status.Registered || snapshot.Status.PID == 0 {
 			t.Fatalf("profile %q startup = %#v, %v", id, snapshot, err)
 		}
-		if !slices.Contains(snapshot.GrantedResourceScopes, resources.ResourceScopeKindProfile) ||
+		ceiling := resources.ResourceScopeKindProfile
+		if workspaceID != "" {
+			ceiling = resources.ResourceScopeKindWorkspaceProfile
+		}
+		if !slices.Contains(snapshot.GrantedResourceScopes, ceiling) ||
 			slices.Contains(snapshot.GrantedResourceScopes, resources.ResourceScopeKindUser) {
 			t.Fatalf("profile %q resource ceiling = %#v", id, snapshot.GrantedResourceScopes)
 		}
@@ -350,7 +383,9 @@ func testInstalledProfileRuntimeLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		exactLogs, err := manager.Logs(InstanceKey{Name: fixture.manifest.Name, ProfileID: id}, ExtensionLogCursor{})
+		exactLogs, err := manager.Logs(InstanceKey{
+			Name: fixture.manifest.Name, ProfileID: id, WorkspaceID: workspaceID,
+		}, ExtensionLogCursor{})
 		if err != nil || logs.StreamEpoch == "" || logs.StreamEpoch != exactLogs.StreamEpoch {
 			t.Fatalf("profile %q log stream aliases disagree: %#v, %#v, %v", id, logs, exactLogs, err)
 		}
@@ -369,11 +404,11 @@ func testInstalledProfileRuntimeLifecycle(t *testing.T) {
 	for _, id := range []string{store.DefaultProfileID, profileID} {
 		if err := manager.InvalidateProfileRuntime(
 			t.Context(),
-			InstanceKey{Name: fixture.manifest.Name, ProfileID: id},
+			InstanceKey{Name: fixture.manifest.Name, ProfileID: id, WorkspaceID: workspaceID},
 		); err != nil {
 			t.Fatal(err)
 		}
-		view := ProfileInstanceKey(fixture.manifest.Name, id, "")
+		view := ProfileInstanceKey(fixture.manifest.Name, id, workspaceID)
 		if _, err := manager.ProvideToolsForInstance(t.Context(), view); err != nil {
 			t.Fatalf("profile %q restart = %v", id, err)
 		}
@@ -393,7 +428,7 @@ func testInstalledProfileRuntimeLifecycle(t *testing.T) {
 	if err := manager.Reload(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	archived, err := manager.GetForInstance(ProfileInstanceKey(fixture.manifest.Name, profileID, ""))
+	archived, err := manager.GetForInstance(ProfileInstanceKey(fixture.manifest.Name, profileID, workspaceID))
 	if err != nil || archived.Status.Active || archived.Status.PID != 0 {
 		t.Fatalf("archived profile runtime = %#v, %v; want no running subprocess", archived, err)
 	}
@@ -502,8 +537,8 @@ path = "skills/shared"
 			continue
 		}
 		if err != nil || !enabled || projected == nil || len(projected.Skills) != 1 ||
-			projected.Status.WorkspaceID != workspaceID || projected.Status.Registered {
-			t.Fatalf("scoped package inspection = %#v, enabled=%v, err=%v", projected, enabled, err)
+			projected.Status.WorkspaceID != workspaceID || !projected.Status.Registered || !projected.Status.Active {
+			t.Fatalf("scoped runtime projection = %#v, enabled=%v, err=%v", projected, enabled, err)
 		}
 	}
 	if got := manager.ListForWorkspace("foreign"); len(got) != 0 {

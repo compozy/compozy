@@ -467,3 +467,12 @@ failure compensation; the owning vault integration covers second-write install c
 IT020 storage-failure expectation uses the existing `500` contract, with `422` reserved for input
 validation. Site/official skill and ET-extension-published-source-installs carry the final task10
 walk. Workspace attachment publication remains task04; this evidence uses the global/default cell.
+
+Task04 explicit workspace-profile startup: the manager now preserves both attachment selectors
+when starting an installed profile runtime, using the existing startup/rollback and stop owners.
+Real SQLite/subprocess tests cover boot, tool/log access, restart, archived-profile suppression,
+and exclusion from global/foreign-workspace reads. No native-tool/HTTP/UDS DTO, hook or config
+shape changed. The existing install guide describes the corrected scope behavior; official skill
+selectors remain accurate. ET-extension-published-source-installs assigns the daemon walk to
+final tasks09/10. All-profile workspace startup and package-wide MCP allocation rollback remain
+task04 work; this focused fix does not claim those paths or final Web/QA delivery.
