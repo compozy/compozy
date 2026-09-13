@@ -17,6 +17,8 @@ var putNetworkCoordinationInvitationRequestType = reflect.TypeFor[contract.PutNe
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
 	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
+	reflect.TypeFor[contract.UpdateExtensionRequest]():  customizeExtensionUpdateRequestSchema,
+	reflect.TypeFor[contract.UpdateExtensionsRequest](): customizeExtensionUpdateRequestSchema,
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary

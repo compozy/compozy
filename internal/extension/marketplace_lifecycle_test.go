@@ -964,78 +964,89 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return committed updates in a typed partial failure", func(t *testing.T) {
-		t.Parallel()
+	// Invariant: every selected package participates in a batch; prior successes survive a later failure.
+	// Owner: managed update coordinator; canonical suite: TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure.
+	for _, selection := range []struct {
+		name  string
+		all   bool
+		names []string
+	}{
+		{name: "Should return committed updates in an all-package partial failure", all: true},
+		{name: "Should process every distinct named package before reporting partial failure", names: []string{"a-good", "a-good", "z-bad"}},
+	} {
+		t.Run(selection.name, func(t *testing.T) {
+			t.Parallel()
 
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		env := newRegistryTestEnv(t)
-		good := newLifecycleSourceNamed(t, "a-good", "good-registry", "1.0.0", "2.0.0")
-		bad := newLifecycleSourceNamed(t, "z-bad", "bad-registry", "1.0.0", "2.0.0")
-		loader := func(context.Context) ([]registrypkg.Source, error) {
-			return []registrypkg.Source{good, bad}, nil
-		}
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			env := newRegistryTestEnv(t)
+			good := newLifecycleSourceNamed(t, "a-good", "good-registry", "1.0.0", "2.0.0")
+			bad := newLifecycleSourceNamed(t, "z-bad", "bad-registry", "1.0.0", "2.0.0")
+			loader := func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{good, bad}, nil
+			}
 
-		for _, source := range []*lifecycleSource{good, bad} {
-			source.latestVersion = "1.0.0"
-			if _, err := InstallMarketplaceManaged(
+			for _, source := range []*lifecycleSource{good, bad} {
+				source.latestVersion = "1.0.0"
+				if _, err := InstallMarketplaceManaged(
+					t.Context(),
+					homePaths,
+					env.registry,
+					loader,
+					MarketplaceInstallRequest{
+						Slug:                   source.packageSlug(),
+						SourceFilter:           source.Name(),
+						PolicyAllowsUnverified: true,
+						AllowUnverified:        true,
+					},
+				); err != nil {
+					t.Fatalf("InstallMarketplaceManaged(%s) error = %v", source.packageName(), err)
+				}
+				source.latestVersion = "2.0.0"
+			}
+			bad.archives["2.0.0"] = lifecycleTarGzNamed(t, "wrong-identity", "2.0.0")
+
+			updates, err := UpdateMarketplaceManaged(
 				t.Context(),
 				homePaths,
 				env.registry,
 				loader,
-				MarketplaceInstallRequest{
-					Slug:                   source.packageSlug(),
-					SourceFilter:           source.Name(),
-					PolicyAllowsUnverified: true,
-					AllowUnverified:        true,
-				},
-			); err != nil {
-				t.Fatalf("InstallMarketplaceManaged(%s) error = %v", source.packageName(), err)
-			}
-			source.latestVersion = "2.0.0"
-		}
-		bad.archives["2.0.0"] = lifecycleTarGzNamed(t, "wrong-identity", "2.0.0")
+				MarketplaceUpdateRequest{All: selection.all, Names: selection.names, PolicyAllowsUnverified: true, AllowUnverified: true},
+				nil,
+			)
 
-		updates, err := UpdateMarketplaceManaged(
-			t.Context(),
-			homePaths,
-			env.registry,
-			loader,
-			MarketplaceUpdateRequest{All: true, PolicyAllowsUnverified: true, AllowUnverified: true},
-			nil,
-		)
-
-		batchErr, batchErrMatched := errors.AsType[*MarketplaceUpdateBatchError](err)
-		if !batchErrMatched {
-			t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
-		}
-		if !errors.Is(err, ErrManifestInvalid) {
-			t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
-		}
-		if len(updates) != 2 || updates[0].Name != "a-good" ||
-			updates[0].Status != MarketplaceUpdateStatusUpdated || updates[1].Name != "z-bad" ||
-			updates[1].Status != MarketplaceUpdateStatusFailed || updates[1].Error == nil ||
-			updates[1].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
-			strings.Contains(updates[1].Error.Message, "wrong-identity") {
-			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want updated then redacted failed result", updates)
-		}
-		if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
-			!reflect.DeepEqual(batchErr.Completed, updates) {
-			t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
-		}
-		for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
-			info, getErr := env.registry.Get(name)
-			if getErr != nil {
-				t.Fatalf("registry.Get(%s) error = %v", name, getErr)
+			batchErr, batchErrMatched := errors.AsType[*MarketplaceUpdateBatchError](err)
+			if !batchErrMatched {
+				t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
 			}
-			if info.Version != version {
-				t.Fatalf("registry.Get(%s).Version = %q, want %q", name, info.Version, version)
+			if !errors.Is(err, ErrManifestInvalid) {
+				t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
 			}
-			requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, name), "VERSION.txt"), version)
-		}
-	})
+			if len(updates) != 2 || updates[0].Name != "a-good" ||
+				updates[0].Status != MarketplaceUpdateStatusUpdated || updates[1].Name != "z-bad" ||
+				updates[1].Status != MarketplaceUpdateStatusFailed || updates[1].Error == nil ||
+				updates[1].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
+				strings.Contains(updates[1].Error.Message, "wrong-identity") {
+				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want updated then redacted failed result", updates)
+			}
+			if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
+				!reflect.DeepEqual(batchErr.Completed, updates) {
+				t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
+			}
+			for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
+				info, getErr := env.registry.Get(name)
+				if getErr != nil {
+					t.Fatalf("registry.Get(%s) error = %v", name, getErr)
+				}
+				if info.Version != version {
+					t.Fatalf("registry.Get(%s).Version = %q, want %q", name, info.Version, version)
+				}
+				requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, name), "VERSION.txt"), version)
+			}
+		})
+	}
 }
 
 func TestMarketplaceLifecycleReportsPostCommitCleanupFailures(t *testing.T) {

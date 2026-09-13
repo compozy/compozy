@@ -13,7 +13,7 @@ import (
 )
 
 type preparedDaemonExtensionInstall struct {
-	target   extensionInstallTarget
+	target   extensionMutationTarget
 	name     string
 	digest   string
 	manifest *extensionpkg.Manifest
@@ -33,7 +33,7 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 	installedBy string,
-	target extensionInstallTarget,
+	target extensionMutationTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
@@ -66,7 +66,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 	installedBy string,
-	target extensionInstallTarget,
+	target extensionMutationTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	manifest, err := extensionpkg.LoadManifest(req.Ref)
 	if err != nil {
@@ -115,7 +115,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 	installedBy string,
-	target extensionInstallTarget,
+	target extensionMutationTarget,
 ) (preparedDaemonExtensionInstall, error) {
 	if req.Source == contract.InstallExtensionSourceGit {
 		if err := validateDaemonGitInstallRef(req.Ref); err != nil {

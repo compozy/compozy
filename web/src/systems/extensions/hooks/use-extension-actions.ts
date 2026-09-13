@@ -10,7 +10,12 @@ import {
 } from "../adapters/extensions-api";
 import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
 import { extensionKeys } from "../lib/query-keys";
-import type { ExtensionEnablement, ExtensionEntry } from "../types";
+import type {
+  ExtensionEnablement,
+  ExtensionEntry,
+  ExtensionInstanceScope,
+  ExtensionUpdateRequest,
+} from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
 
 export interface ToggleExtensionVariables {
@@ -18,7 +23,9 @@ export interface ToggleExtensionVariables {
   enabled: boolean;
 }
 
-export interface UpdateExtensionVariables {
+export interface UpdateExtensionVariables extends ExtensionInstanceScope {
+  scope?: ExtensionUpdateRequest["scope"];
+  inputs?: ExtensionUpdateRequest["inputs"];
   name: string;
   allowUnverified?: boolean;
   version?: string;
@@ -72,7 +79,7 @@ export function useToggleExtension() {
   });
 }
 
-/** Updates address the marketplace-managed published installation; they are never workspace-scoped. */
+/** The selected published installation owns update inputs; dev overlays keep their own lifecycle. */
 export function useUpdateExtension() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -81,9 +88,17 @@ export function useUpdateExtension() {
       allowUnverified,
       version,
       confirmNetworkDigest,
+      scope,
+      workspaceId,
+      profileName,
+      inputs,
     }: UpdateExtensionVariables) =>
       updateExtension(name, {
         allow_unverified: allowUnverified === true,
+        ...(scope ? { scope } : {}),
+        ...(workspaceId ? { workspace_id: workspaceId } : {}),
+        ...(profileName ? { profile: profileName } : {}),
+        ...(inputs ? { inputs } : {}),
         ...(version ? { version } : {}),
         ...(confirmNetworkDigest ? { confirm_network_digest: confirmNetworkDigest } : {}),
       }),

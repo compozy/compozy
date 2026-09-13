@@ -7,21 +7,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func selectExtensionInstallScope(
-	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, scope, workspaceRef string,
-) (extensionInstallPlan, error) {
+type extensionCLIScope struct{ scope, workspaceID, profile string }
+
+func resolveExtensionCLIScope(
+	cmd *cobra.Command, deps commandDeps, scope, workspaceRef string,
+) (extensionCLIScope, error) {
 	scope, workspaceRef = strings.TrimSpace(scope), strings.TrimSpace(workspaceRef)
 	if scope != "" && scope != "global" && scope != "workspace" {
-		return extensionInstallPlan{}, errors.New("cli: extension scope must be global or workspace")
+		return extensionCLIScope{}, errors.New("cli: extension scope must be global or workspace")
 	}
 	if scope == "global" && workspaceRef != "" {
-		return extensionInstallPlan{}, errors.New("cli: --scope global cannot select --workspace")
+		return extensionCLIScope{}, errors.New("cli: --scope global cannot select --workspace")
 	}
 	profile := ""
 	if cmd.Flags().Lookup(profileFlagName) != nil {
 		selected, err := requestedProfileName(cmd)
 		if err != nil {
-			return extensionInstallPlan{}, err
+			return extensionCLIScope{}, err
 		}
 		profile = strings.TrimSpace(selected)
 	}
@@ -32,21 +34,16 @@ func selectExtensionInstallScope(
 	if scope == "workspace" || workspaceRef != "" {
 		client, running, err := daemonClientIfRunning(cmd.Context(), deps)
 		if err != nil {
-			return extensionInstallPlan{}, err
+			return extensionCLIScope{}, err
 		}
 		if !running {
-			return extensionInstallPlan{}, errors.New("cli: scoped extension installation requires a running daemon")
+			return extensionCLIScope{}, errors.New("cli: workspace extension operations require a running daemon")
 		}
 		workspaceID, err = resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
 		if err != nil {
-			return extensionInstallPlan{}, err
+			return extensionCLIScope{}, err
 		}
 		scope = "workspace"
 	}
-	for index := range plan.Attempts {
-		plan.Attempts[index].Scope = scope
-		plan.Attempts[index].WorkspaceID = workspaceID
-		plan.Attempts[index].Profile = profile
-	}
-	return plan, nil
+	return extensionCLIScope{scope: scope, workspaceID: workspaceID, profile: profile}, nil
 }

@@ -86366,7 +86366,22 @@
                     },
                     "type": "array"
                   },
+                  "profile": {
+                    "description": "Profile name for input validation and persistence. Inputs do not cross profile boundaries.",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "description": "Select an existing installation; updates preserve every package attachment.",
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
+                    "type": "string"
+                  },
                   "version": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
                     "type": "string"
                   }
                 },
@@ -88959,7 +88974,22 @@
                     },
                     "type": "object"
                   },
+                  "profile": {
+                    "description": "Profile name for input validation and persistence. Inputs do not cross profile boundaries.",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "description": "Select an existing installation; updates preserve every package attachment.",
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
+                    "type": "string"
+                  },
                   "version": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
                     "type": "string"
                   }
                 },

@@ -438,3 +438,12 @@ context fail before managed writes. The staged installer accepts the final scope
 reacquisition or mutable setters. Local packages use the same resolver; updates retain attachments.
 Owning daemon/archive/SQLite tests include default workspace, explicit override, mixed defaults and
 failure cleanup. Generated scope descriptions and the existing final09/10 QA inventory co-ship.
+
+Task03 scoped updates: shared HTTP/UDS DTOs, native extensions_update, CLI update and Web mutation
+data carry scope/workspace/profile. The binder prepares/commits/rolls back the selected cell; package
+and workspace locks remain held through publication/rollback. Existing attachments and other cells
+are preserved; package bytes remain shared. Batch selection filters to installed scope/profile, and
+named batches now process every distinct name. Cross-workspace agents cannot mutate global/inherited
+attachments. No database, config, hooks or extension SDK shape change. Owning generated contracts,
+CLI help, official skill and final09/10 QA scenario co-ship. The obsolete --runtime-name and marketplace
+--kind examples are removed from the install guide. UI recovery and same-origin reinstall remain open.

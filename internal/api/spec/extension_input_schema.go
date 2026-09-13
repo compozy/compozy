@@ -34,3 +34,14 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
 }
+
+func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {
+	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
+		scope.Value.Enum = []any{"global", "workspace"}
+		scope.Value.Description = "Select an existing installation; updates preserve every package attachment."
+	}
+	if profile := schema.Properties["profile"]; profile != nil && profile.Value != nil {
+		profile.Value.Description = "Profile name for input validation and persistence. " +
+			"Inputs do not cross profile boundaries."
+	}
+}

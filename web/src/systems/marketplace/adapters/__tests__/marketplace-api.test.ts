@@ -189,7 +189,12 @@ describe("one catalog transport", () => {
 // Owning layer: extension update transport; canonical suite: marketplace-api.test.ts (IT-007 wire coverage).
 describe("marketplace batch update transport", () => {
   it("Should send the exact names once and preserve mixed server outcomes", async () => {
-    const body = { names: ["first", "second"] };
+    const body = {
+      names: ["first", "second"],
+      scope: "workspace" as const,
+      workspace_id: "ws-scoped",
+      profile: "marketing",
+    };
     const response = {
       updates: [
         { name: "first", status: "updated", latest_version: "2.0.0" },

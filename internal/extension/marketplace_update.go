@@ -22,7 +22,7 @@ func UpdateMarketplaceManaged(
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) ([]MarketplaceUpdateResult, error) {
-	targets, err := selectMarketplaceExtensionsForUpdate(registry, req.Names, req.All)
+	targets, err := SelectMarketplaceUpdateTargets(registry, req.Names, req.All)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,8 @@ func loadMarketplaceUpdatedExtensionManifest(installPath string, installedName s
 	return manifest, nil
 }
 
-func selectMarketplaceExtensionsForUpdate(
+// SelectMarketplaceUpdateTargets resolves the complete managed update selection before acquisition.
+func SelectMarketplaceUpdateTargets(
 	registry LifecycleRegistry,
 	names []string,
 	updateAll bool,
@@ -415,21 +416,30 @@ func selectMarketplaceExtensionsForUpdate(
 		return items, nil
 	}
 
-	name := ""
-	if len(names) > 0 {
-		name = strings.TrimSpace(names[0])
-	}
-	if name == "" {
+	if len(names) == 0 {
 		return nil, errors.New("extension: extension name is required unless all is set")
 	}
-	info, err := registry.Get(name)
-	if err != nil {
-		return nil, err
+	items := make([]ExtensionInfo, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, errors.New("extension: extension name must not be blank")
+		}
+		if _, found := seen[name]; found {
+			continue
+		}
+		info, err := registry.Get(name)
+		if err != nil {
+			return nil, err
+		}
+		if !marketplaceExtensionInstalled(*info) {
+			return nil, fmt.Errorf("extension: extension %q is not a marketplace-installed extension", info.Name)
+		}
+		seen[name] = struct{}{}
+		items = append(items, *info)
 	}
-	if !marketplaceExtensionInstalled(*info) {
-		return nil, fmt.Errorf("extension: extension %q is not a marketplace-installed extension", info.Name)
-	}
-	return []ExtensionInfo{*info}, nil
+	return items, nil
 }
 
 func marketplaceExtensionInstalled(info ExtensionInfo) bool {

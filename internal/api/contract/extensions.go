@@ -59,6 +59,9 @@ type ExtensionOperationErrorPayload struct {
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.
 type UpdateExtensionRequest struct {
+	Scope                string                          `json:"scope,omitempty"`
+	WorkspaceID          string                          `json:"workspace_id,omitempty"`
+	Profile              string                          `json:"profile,omitempty"`
 	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
 	Version              string                          `json:"version,omitempty"`
 	CheckOnly            bool                            `json:"check_only,omitempty"`
@@ -68,6 +71,9 @@ type UpdateExtensionRequest struct {
 
 // UpdateExtensionsRequest selects one or more managed extension updates.
 type UpdateExtensionsRequest struct {
+	Scope           string                          `json:"scope,omitempty"`
+	WorkspaceID     string                          `json:"workspace_id,omitempty"`
+	Profile         string                          `json:"profile,omitempty"`
 	Inputs          map[string]extensioninput.Value `json:"inputs,omitempty"`
 	Names           []string                        `json:"names,omitempty"`
 	All             bool                            `json:"all,omitempty"`

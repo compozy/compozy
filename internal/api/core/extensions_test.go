@@ -486,6 +486,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 }
 
 type extensionServiceStub struct {
+	updateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
 	listFn             func(context.Context) ([]contract.ExtensionPayload, error)
 	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	updateBatchFn      func(context.Context, contract.UpdateExtensionsRequest, taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error)
@@ -547,12 +548,15 @@ func (s extensionServiceStub) PreviewInstall(
 	return contract.ExtensionInstallPreviewPayload{}, nil
 }
 
-func (extensionServiceStub) Update(
-	context.Context,
-	string,
-	contract.UpdateExtensionRequest,
-	taskpkg.ActorContext,
+func (s extensionServiceStub) Update(
+	ctx context.Context,
+	name string,
+	req contract.UpdateExtensionRequest,
+	actor taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
+	if s.updateFn != nil {
+		return s.updateFn(ctx, name, req, actor)
+	}
 	return contract.ManagedExtensionUpdatePayload{}, nil
 }
 
@@ -1357,6 +1361,51 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 
 func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
+	// Invariant: update decoding preserves selectors and typed inputs over both transports.
+	// Owner: shared update boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
+	for _, transport := range []string{"http", "uds"} {
+		t.Run("Should forward scoped updates over "+transport, func(t *testing.T) {
+			t.Parallel()
+			assertScope := func(scope, workspaceID, profile string) {
+				t.Helper()
+				if scope != "workspace" || workspaceID != "ws-install" || profile != "marketing" {
+					t.Fatalf("update scope = %s/%s/%s", scope, workspaceID, profile)
+				}
+			}
+			service := extensionServiceStub{
+				updateFn: func(_ context.Context, name string, req contract.UpdateExtensionRequest, _ taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error) {
+					assertScope(req.Scope, req.WorkspaceID, req.Profile)
+					if string(req.Inputs["team"].Value) != `"updated-team"` {
+						t.Fatal("update lost typed input")
+					}
+					return contract.ManagedExtensionUpdatePayload{Name: name, Status: extensionpkg.MarketplaceUpdateStatusUpdated}, nil
+				},
+				updateBatchFn: func(_ context.Context, req contract.UpdateExtensionsRequest, _ taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error) {
+					assertScope(req.Scope, req.WorkspaceID, req.Profile)
+					if len(req.Names) != 1 || string(req.Inputs["team"].Value) != `"updated-team"` {
+						t.Fatal("batch lost selected input")
+					}
+					return []contract.ManagedExtensionUpdatePayload{{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated}}, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions/update", handlers.UpdateExtensions)
+			engine.PUT("/extensions/:name", handlers.UpdateExtension)
+			for _, route := range []string{"/extensions/tool-ext", "/extensions/update"} {
+				body := []byte(`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`)
+				method := http.MethodPost
+				if route == "/extensions/tool-ext" {
+					method = http.MethodPut
+				}
+				response := performRequest(t, engine, method, route, body)
+				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"updated"`) {
+					t.Fatalf("update response = %d, %s", response.Code, response.Body.String())
+				}
+			}
+		})
+	}
+
 	// Invariant: shared HTTP/UDS decoding preserves scoped install selectors and typed inputs.
 	// Owner: transport request boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
 	for _, transport := range []string{"http", "uds"} {

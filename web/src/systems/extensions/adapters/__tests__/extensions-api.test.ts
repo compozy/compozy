@@ -92,7 +92,12 @@ describe("extensions management mutations", () => {
       code: "extension_inputs_required",
       requiredInputs: ["region"],
     });
-    const body = { inputs: { region: { value: "eu" }, tracing: { value: false } } };
+    const body = {
+      scope: "workspace" as const,
+      workspace_id: "ws-scoped",
+      profile: "marketing",
+      inputs: { region: { value: "eu" }, tracing: { value: false } },
+    };
     mockJsonResponse({});
     await updateExtension("sentry", body);
     await expectFetchRequest({ callIndex: 1, method: "PUT", path: "/api/extensions/sentry", body });

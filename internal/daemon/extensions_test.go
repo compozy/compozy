@@ -18,7 +18,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionenv"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -29,6 +31,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -1668,6 +1671,12 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 		{name: "Should require workspace context for a workspace default", manifestScope: "workspace", useDefaults: true, errorField: "workspace_id"},
 		{name: "Should require explicit scope for mixed server defaults", manifestScope: "workspace", mixed: true, errorField: "scope"},
 		{name: "Should honor explicit workspace scope over mixed defaults", workspaceID: "ws-install", scope: "workspace", manifestScope: "workspace", mixed: true},
+		// Invariant: updates validate/restore only selected inputs and preserve every attachment.
+		// Owner: daemon lifecycle coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+		{name: "Should update and roll back inputs for an explicit global profile", profile: "marketing", update: true},
+		{name: "Should update and roll back inputs for a workspace profile", workspaceID: "ws-install", profile: "marketing", update: true},
+		{name: "Should update and roll back inputs for a trusted agent", workspaceID: "ws-install", profile: "marketing", agent: true, update: true},
+		{name: "Should persist scoped native update inputs", workspaceID: "ws-install", profile: "marketing", update: true, native: true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
@@ -2049,6 +2058,8 @@ binding = { type = "url_query", name = "region" }
 }
 
 type daemonScopedInstallCase struct {
+	native        bool
+	update        bool
 	name          string
 	workspaceID   string
 	profile       string
@@ -2229,5 +2240,184 @@ binding = { type = "env", name = "TOKEN" }
 		if len(bindings) != 1 || bindings[0].SecretRef != wantRef || bindings[0].Inactive {
 			t.Fatalf("selected secret bindings = %v, want %s", bindings, wantRef)
 		}
+	}
+
+	if !scenario.update {
+		return
+	}
+	selectedCell := extensioninput.Instance{Extension: "tool-ext", ProfileID: profileID, WorkspaceID: workspaceID}
+	beforeRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherWorkspace := "ws-install"
+	if workspaceID != "" {
+		otherWorkspace = ""
+	}
+	otherCell := extensioninput.Instance{Extension: "tool-ext", ProfileID: store.DefaultProfileID, WorkspaceID: otherWorkspace}
+	otherScope := extensionpkg.InstallationScope{ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID}
+	if err := registry.AttachInstallation(ctx, "tool-ext", otherScope); err != nil {
+		t.Fatal(err)
+	}
+	otherRecord := extensioninput.Record{Type: "identifier", Value: json.RawMessage(`"other-team"`), Active: true,
+		UpdatedAt: time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)}
+	if err := db.ExtensionInputs.Apply(ctx, otherCell, []extensioninput.Mutation{{InputID: "workspace", After: &otherRecord}}); err != nil {
+		t.Fatal(err)
+	}
+	otherRef := vault.ExtensionProfileSecretRef("tool-ext", otherCell.ProfileID, otherCell.WorkspaceID, "TOKEN")
+	if _, err := secretVault.PutSecret(ctx, otherRef, extensionenv.BindingKind, "other-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ExtensionEnvRepo.PutEnvBinding(ctx, extensionenv.Binding{
+		ExtensionName: "tool-ext", ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID,
+		EnvName: "TOKEN", InputID: "token", SecretRef: otherRef, Kind: extensionenv.BindingKind,
+		CreatedAt: otherRecord.UpdatedAt, UpdatedAt: otherRecord.UpdatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	attachments, err = registry.Installations(ctx, "tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateSections := strings.Replace(sections, "mcp?ws=", "mcp?ws=&region=", 1) + `
+[[inputs]]
+id = "region"
+prompt = "Region"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "region" }
+`
+	setCandidate := func() {
+		archive := nativeExtensionTarGzWithNetwork(t, "2.0.0", "", candidateSections)
+		source.latestVersion = "2.0.0"
+		source.downloads["2.0.0"] = &registrypkg.DownloadResult{
+			Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "2.0.0",
+			ContentSize: int64(len(archive)), ContentType: "application/gzip",
+		}
+	}
+	setCandidate()
+	batchRequest := contract.UpdateExtensionsRequest{All: true, CheckOnly: true, AllowUnverified: true,
+		Profile: profileName, WorkspaceID: otherWorkspace}
+	batchRequest.Scope = "workspace"
+	if otherWorkspace == "" {
+		batchRequest.Scope = "global"
+	}
+	filtered, err := service.UpdateBatch(ctx, batchRequest, actor)
+	if agent {
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("cross-workspace update batch error = %v", err)
+		}
+	} else if err != nil || len(filtered) != 0 {
+		t.Fatalf("update batch included an installation outside the selected cell: %v, %v", filtered, err)
+	}
+	batchRequest.WorkspaceID = workspaceID
+	batchRequest.Scope = "workspace"
+	if workspaceID == "" {
+		batchRequest.Scope = "global"
+	}
+	available, err := service.UpdateBatch(ctx, batchRequest, actor)
+	if err != nil || len(available) != 1 || available[0].Status != extensionpkg.MarketplaceUpdateStatusAvailable {
+		t.Fatalf("scoped update batch = %v, %v", available, err)
+	}
+	updateRequest := contract.UpdateExtensionRequest{AllowUnverified: true, Profile: profileName, WorkspaceID: workspaceID}
+	if agent {
+		updateRequest.Profile, updateRequest.WorkspaceID = "", ""
+	}
+	setCandidate()
+	if _, err := service.Update(ctx, "tool-ext", updateRequest, actor); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("missing scoped update input error = %v", err)
+	}
+	updateRequest.Inputs = map[string]extensioninput.Value{
+		"workspace": {Value: json.RawMessage(`"updated-team"`)},
+		"region":    {Value: json.RawMessage(`"west"`)},
+		"token":     {Value: json.RawMessage(`"updated-secret"`)},
+	}
+	publisher := &lifecycleFailingPublisher{}
+	// The public update must hold the input cell lock through candidate and rollback publication.
+	service.runtime = &fakeExtensionRuntime{onReload: func(reloadCtx context.Context) error {
+		lockCtx, cancel := context.WithTimeout(reloadCtx, 40*time.Millisecond)
+		defer cancel()
+		entered := false
+		lockErr := service.lifecycle.withInstance(lockCtx, extensionpkg.InstanceKey{Name: "tool-ext", WorkspaceID: workspaceID}, func() error {
+			entered = true
+			return nil
+		})
+		if entered || !errors.Is(lockErr, context.DeadlineExceeded) {
+			t.Errorf("update publication did not hold the selected input cell lock: %v", lockErr)
+		}
+		return nil
+	}}
+	service.agentSkill = publisher
+	publisher.failNextSyncs(1)
+	setCandidate()
+	if _, err := service.Update(ctx, "tool-ext", updateRequest, actor); err == nil {
+		t.Fatal("publication failure must fail update")
+	}
+	rolledBackRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil || !reflect.DeepEqual(rolledBackRows, beforeRows) {
+		t.Fatalf("input rollback changed before-images: %v", err)
+	}
+	targetRef := vault.ExtensionProfileSecretRef("tool-ext", profileID, workspaceID, "TOKEN")
+	secret, err := secretVault.ResolveRef(ctx, targetRef)
+	if err != nil || secret != "scoped-secret" {
+		t.Fatal("update rollback failed to restore selected secret", err)
+	}
+	oldManifest, err := extensionpkg.LoadManifest(extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"))
+	if err != nil || oldManifest.Version != "1.0.0" {
+		t.Fatalf("rollback did not restore manifest: %v", err)
+	}
+	setCandidate()
+	var updated contract.ManagedExtensionUpdatePayload
+	if scenario.native {
+		deps.Extensions = func() apicore.ExtensionService { return service }
+		nativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		body, marshalErr := json.Marshal(struct {
+			Name string `json:"name"`
+			contract.UpdateExtensionRequest
+		}{"tool-ext", updateRequest})
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		result, callErr := nativeRegistry.Call(ctx, toolspkg.Scope{Operator: true, ProfileID: profileID, WorkspaceID: workspaceID},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsUpdate, Input: body})
+		if callErr != nil {
+			t.Fatal(callErr)
+		}
+		var payload struct {
+			Updates []contract.ManagedExtensionUpdatePayload `json:"updates"`
+		}
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.Updates) != 1 {
+			t.Fatalf("native updates = %#v", payload)
+		}
+		updated = payload.Updates[0]
+	} else {
+		updated, err = service.Update(ctx, "tool-ext", updateRequest, actor)
+	}
+	if err != nil || updated.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
+		t.Fatalf("scoped update = %#v, %v", updated, err)
+	}
+	afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil || len(afterRows) != 2 || string(afterRows["workspace"].Value) != `"updated-team"` ||
+		string(afterRows["region"].Value) != `"west"` {
+		t.Fatalf("selected update rows = %v, %v", afterRows, err)
+	}
+	secret, err = secretVault.ResolveRef(ctx, targetRef)
+	if err != nil || secret != "updated-secret" {
+		t.Fatal("selected secret update was not persisted", err)
+	}
+	otherRows, err := db.ExtensionInputs.List(ctx, otherCell)
+	if err != nil || len(otherRows) != 1 || !reflect.DeepEqual(otherRows["workspace"], otherRecord) {
+		t.Fatalf("update changed another cell: %v, %v", otherRows, err)
+	}
+	secret, err = secretVault.ResolveRef(ctx, otherRef)
+	if err != nil || secret != "other-secret" {
+		t.Fatal("update changed another cell's secret", err)
+	}
+	afterAttachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil || !reflect.DeepEqual(afterAttachments, attachments) {
+		t.Fatalf("update changed attachment before-images: %v", err)
 	}
 }

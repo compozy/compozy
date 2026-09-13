@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -414,6 +415,57 @@ func TestExtensionRemoveCommandUsesDaemonClient(t *testing.T) {
 
 func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	t.Parallel()
+	// Invariant: both update entry points forward the selected workspace/profile without changing selectors.
+	// Owner: CLI request construction; canonical suite: TestExtensionUpdateCommandUsesDaemonClient.
+	for _, all := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should forward workspace and profile selectors with all=%t", all), func(t *testing.T) {
+			t.Parallel()
+			called := false
+			assertScope := func(scope, workspaceID, profile string) {
+				t.Helper()
+				called = true
+				if scope != "workspace" || workspaceID != "ws-alpha" || profile != "marketing" {
+					t.Fatalf("update scope = %s/%s/%s", scope, workspaceID, profile)
+				}
+			}
+			deps, _ := newExtensionLocalDeps(t, &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					if ref != "alpha" {
+						t.Fatalf("workspace lookup = %q", ref)
+					}
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+				},
+				listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+					return []contract.Profile{{ID: "marketing-id", Name: "marketing", State: "active"}}, nil
+				},
+				updateExtensionFn: func(_ context.Context, name string, request UpdateExtensionRequest) (ExtensionUpdateRecord, error) {
+					assertScope(request.Scope, request.WorkspaceID, request.Profile)
+					return ExtensionUpdateRecord{Name: name}, nil
+				},
+				updateExtensionsFn: func(_ context.Context, request UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error) {
+					assertScope(request.Scope, request.WorkspaceID, request.Profile)
+					if !request.All {
+						t.Fatal("batch must preserve all selector")
+					}
+					return []ExtensionUpdateRecord{}, nil
+				},
+			})
+			markExtensionDaemonRunning(&deps)
+			args := []string{"extension", "update", "--check", "--workspace", "alpha", "--profile", "marketing", "-o", "json"}
+			if all {
+				args = append(args, "--all")
+			} else {
+				args = append(args, "tool-ext")
+			}
+			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+				t.Fatal(err)
+			}
+			if !called {
+				t.Fatal("update request was not dispatched")
+			}
+		})
+	}
+
 	t.Run("Should update one extension through the daemon client", func(t *testing.T) {
 		t.Parallel()
 

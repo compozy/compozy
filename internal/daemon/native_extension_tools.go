@@ -41,6 +41,9 @@ type extensionNameInput struct {
 type extensionInstallInput contract.InstallExtensionRequest
 
 type extensionUpdateInput struct {
+	Scope                string                          `json:"scope"`
+	WorkspaceID          string                          `json:"workspace_id"`
+	Profile              string                          `json:"profile"`
 	Owner                string                          `json:"owner"`
 	Inputs               map[string]extensioninput.Value `json:"inputs"`
 	Name                 string                          `json:"name"`
@@ -191,6 +194,7 @@ func (n *daemonNativeTools) extensionUpdate(
 
 	if name != "" {
 		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
+			Scope: input.Scope, WorkspaceID: input.WorkspaceID, Profile: input.Profile,
 			Version:              input.Version,
 			CheckOnly:            input.CheckOnly,
 			AllowUnverified:      input.AllowUnverified,
@@ -206,6 +210,7 @@ func (n *daemonNativeTools) extensionUpdate(
 		)
 	}
 	items, err := n.extensionService().UpdateBatch(ctx, contract.UpdateExtensionsRequest{
+		Scope: input.Scope, WorkspaceID: input.WorkspaceID, Profile: input.Profile,
 		All:             input.All,
 		CheckOnly:       input.CheckOnly,
 		Version:         input.Version,

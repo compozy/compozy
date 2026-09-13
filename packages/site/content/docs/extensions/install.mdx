@@ -104,7 +104,7 @@ but cannot be enabled until its required inputs are available in the selected pr
 
 HTTP and UDS callers send the same envelopes in `inputs` on `POST /api/extensions`,
 `PUT /api/extensions/{name}`, or `POST /api/extensions/update` for a single named extension.
-The native `compozy__extensions_install` tool accepts the same inputs.
+The native `compozy__extensions_install` and `compozy__extensions_update` tools accept the same inputs.
 
 The CLI reads the current catalog acquisition digest and sends it as `expected_digest`. To use a
 digest reviewed earlier, pass `--expected-digest <sha256>`. A changed listing or mismatched acquired
@@ -113,23 +113,12 @@ current entry before retrying. `422 extension_inputs_required` names missing inp
 `422 extension_input_invalid` identifies `input_id`. Missing or invalid inputs exit with code `2`
 when reported by the daemon.
 
-## Choose an MCP runtime name
+## MCP runtime names
 
-For a package declaring exactly one MCP server, pass `--runtime-name <name>` when installing:
-
-```bash
-compozy extension install compozy/context7 --runtime-name docs-context
-```
-
-HTTP, UDS, and `compozy__extensions_install` accept the optional `runtime_name` field on the
-install request. This requires a running daemon, including for local-path packages. The name is
-reserved before installation and remains stable while the instance exists, including while disabled.
-An occupied name returns `422 mcp_server_name_taken`; choosing another name requires a new install.
-Packages with zero or multiple MCP servers reject an explicit runtime name.
-
-Without an explicit name, CompozyOS allocates one during publication, adding the extension name and
-a numeric suffix when needed to avoid collisions. Failed installations release newly created
-reservations after package rollback; existing reservations and workspace instances are preserved.
+CompozyOS allocates a name during publication, adding the extension name and a numeric suffix when
+needed to avoid collisions. That name stays stable while the instance exists, including while disabled.
+Failed installations release newly created reservations after package rollback; existing reservations
+and workspace instances are preserved.
 
 ## Review declared profiles before install
 
@@ -140,8 +129,8 @@ Network digest when one needs confirmation. The web install flow shows this summ
 action. HTTP and UDS use `POST /api/extensions/preview-install` with the same install-source request.
 
 When the install succeeds, declared profiles are created without becoming active. Existing names are
-bound without changing their identity or defaults. The extension is enabled by default in every
-profile; use `compozy --profile <name> extension disable <extension>` for a profile-specific exception.
+bound without changing their identity or defaults. The extension is enabled by default within its installation scope. Omitting a profile selector
+keeps all-profile availability; use `compozy --profile <name> extension disable <extension>` for a profile-specific exception.
 
 ## Detected package layouts
 
@@ -263,7 +252,7 @@ compozy extension search notes --cursor <cursor>
 
 Search fans out across the curated catalog and GitHub. A rate-limited or unreachable source degrades
 to cached-or-omitted results with a `sources_degraded` marker rather than failing the whole query.
-`compozy marketplace search <query> --kind extension -o json` returns the same catalog projection
+`compozy marketplace search <query> -o json` returns the same catalog projection
 with installed state and trust fields.
 
 ## List, inspect, and update
@@ -311,6 +300,19 @@ compozy extension update --all
 Update targets extensions installed from a source with remote version metadata; local installs and
 dev links are not update targets. A successful update replaces the managed directory, updates the
 registry row and provenance, reloads runtime resources, and writes an `extension.updated` event.
+
+Use `--workspace <name|path|id>` and `--profile <name>` to select the existing installation. The explicit
+profile flag wins over `COMPOZY_PROFILE`; `--all` includes only installations in the selected scope
+and profile. HTTP/UDS and native update requests use `scope`, `workspace_id`, and `profile`.
+
+```bash
+compozy extension update hello --workspace my-project --profile engineering
+compozy extension update --all --scope workspace --workspace my-project --profile engineering
+```
+
+Selectors choose the input cell and existing attachment; updates do not create attachments or apply
+new manifest scope defaults. The package version is shared by its attachments. Each attachment and
+its creation time survives the update, while values and credentials in other cells remain unchanged.
 
 A batch update stops at the first failing target **without discarding earlier progress**: the
 response is `200` and carries every completed item plus the failed one, whose `status` is `failed`

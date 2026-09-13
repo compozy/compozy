@@ -169,6 +169,29 @@ describe("useToggleExtension", () => {
 });
 
 describe("useUpdateExtension", () => {
+  // Invariant: the mutation uses explicit installation identity and input values together.
+  // Owner: extension action data mapping; canonical suite: use-extension-actions.test.tsx.
+  it("Should forward input recovery for the selected published installation", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
+    const inputs = { project_ref: { value: "new-project" }, tracing: { value: false } };
+    await act(async () => {
+      await result.current.mutateAsync({
+        name: "scoped-kit",
+        scope: "workspace",
+        workspaceId: "ws-project",
+        profileName: "marketing",
+        inputs,
+      });
+    });
+    expect(mocks.updateExtension).toHaveBeenCalledWith("scoped-kit", {
+      allow_unverified: false,
+      scope: "workspace",
+      workspace_id: "ws-project",
+      profile: "marketing",
+      inputs,
+    });
+  });
   it("Should carry the ratified digest on a confirmed update retry", async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useUpdateExtension(), { wrapper });

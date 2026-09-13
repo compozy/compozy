@@ -37559,7 +37559,15 @@ export interface operations {
                 };
           };
           names?: string[];
+          /** @description Profile name for input validation and persistence. Inputs do not cross profile boundaries. */
+          profile?: string;
+          /**
+           * @description Select an existing installation; updates preserve every package attachment.
+           * @enum {string}
+           */
+          scope?: "global" | "workspace";
           version?: string;
+          workspace_id?: string;
         };
       };
     };
@@ -38245,7 +38253,15 @@ export interface operations {
                   vault_ref: string;
                 };
           };
+          /** @description Profile name for input validation and persistence. Inputs do not cross profile boundaries. */
+          profile?: string;
+          /**
+           * @description Select an existing installation; updates preserve every package attachment.
+           * @enum {string}
+           */
+          scope?: "global" | "workspace";
           version?: string;
+          workspace_id?: string;
         };
       };
     };

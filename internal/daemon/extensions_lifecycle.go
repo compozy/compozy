@@ -24,7 +24,7 @@ func (s *daemonExtensionService) Install(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	target, err := s.resolveExtensionInstallTarget(ctx, req, actor)
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -52,7 +52,7 @@ func (s *daemonExtensionService) Install(
 	mutation := func() error {
 		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
-	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
+	err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
@@ -154,8 +154,12 @@ func (s *daemonExtensionService) Update(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionUpdatePayload{}, err
 	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return contract.ManagedExtensionUpdatePayload{}, err
+	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err := s.lifecycle.withName(ctx, name, func() error {
+	err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{name}, target), func() error {
 		var updateErr error
 		items, updateErr = s.updateBatchUnlocked(ctx, contract.UpdateExtensionsRequest{
 			Names:           []string{name},
@@ -163,7 +167,7 @@ func (s *daemonExtensionService) Update(
 			CheckOnly:       req.CheckOnly,
 			AllowUnverified: req.AllowUnverified,
 			Inputs:          req.Inputs,
-		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest))
+		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest), target)
 		return updateErr
 	})
 	if err != nil {
@@ -186,14 +190,18 @@ func (s *daemonExtensionService) UpdateBatch(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return nil, err
 	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return nil, err
+	}
 	names, err := s.lifecycleUpdateNames(req)
 	if err != nil {
 		return nil, err
 	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err = s.lifecycle.withNames(ctx, names, func() error {
+	err = s.lifecycle.withInstances(ctx, extensionMutationKeys(names, target), func() error {
 		var updateErr error
-		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "")
+		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "", target)
 		return updateErr
 	})
 	return items, err
@@ -204,6 +212,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	req contract.UpdateExtensionsRequest,
 	actor taskpkg.ActorContext,
 	confirmNetworkDigest string,
+	target extensionMutationTarget,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
 	if len(req.Inputs) > 0 && (req.All || len(req.Names) != 1) {
 		return nil, &extensionpkg.ManifestValidationError{
@@ -211,10 +220,16 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 			Message: "inputs require exactly one extension update",
 		}
 	}
+	names, err := s.scopedMarketplaceUpdateNames(ctx, req, target)
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return []contract.ManagedExtensionUpdatePayload{}, nil
+	}
 	cfg := s.marketplaceConfig()
 	domainReq := extensionpkg.MarketplaceUpdateRequest{
-		Names:                  req.Names,
-		All:                    req.All,
+		Names:                  names,
 		CheckOnly:              req.CheckOnly,
 		Version:                req.Version,
 		AllowUnverified:        req.AllowUnverified,
@@ -251,7 +266,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		}
 		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
 	}
-	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs)
+	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs, target)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,

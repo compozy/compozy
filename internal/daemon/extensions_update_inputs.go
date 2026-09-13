@@ -8,9 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/extensioninput"
 )
 
-// The outer update coordinator holds every affected instance lock through reload and rollback.
+// The outer coordinator holds the package and selected input workspace locks through reload and rollback.
 func (s *daemonExtensionService) configureUpdateInputGate(
 	ctx context.Context, request *extensionpkg.MarketplaceUpdateRequest, values map[string]extensioninput.Value,
+	target extensionMutationTarget,
 ) {
 	binder := extensionInputBinder{service: s}
 	plans := make(map[string]*extensionInputPlan)
@@ -24,15 +25,15 @@ func (s *daemonExtensionService) configureUpdateInputGate(
 		}
 		plan, err := binder.Prepare(
 			ctx,
-			extensionpkg.GlobalInstanceKey(info.Name),
-			extensionDefaultProfileLens(),
+			target.key(info.Name),
+			target.profile,
 			manifest,
 			values,
 		)
 		if err != nil {
 			return err
 		}
-		snapshot, err := s.snapshotMCPAllocations(ctx, extensionpkg.GlobalInstanceKey(info.Name))
+		snapshot, err := s.snapshotMCPAllocations(ctx, target.key(info.Name))
 		if err != nil {
 			return err
 		}

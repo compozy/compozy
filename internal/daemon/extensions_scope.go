@@ -9,30 +9,30 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-type extensionInstallTarget struct {
+type extensionMutationTarget struct {
 	scope   extensionpkg.InstallationScope
 	profile extensionpkg.ProfileLens
 }
 
-func (target extensionInstallTarget) key(name string) extensionpkg.InstanceKey {
+func (target extensionMutationTarget) key(name string) extensionpkg.InstanceKey {
 	return extensionpkg.InstanceKey{Name: name, ProfileID: target.scope.ProfileID, WorkspaceID: target.scope.WorkspaceID}
 }
 
-func (s *daemonExtensionService) resolveExtensionInstallTarget(
-	ctx context.Context, req contract.InstallExtensionRequest, actor taskpkg.ActorContext,
-) (extensionInstallTarget, error) {
-	target := extensionInstallTarget{profile: extensionDefaultProfileLens()}
-	scope, workspaceID := strings.TrimSpace(req.Scope), strings.TrimSpace(req.WorkspaceID)
+func (s *daemonExtensionService) resolveExtensionScope(
+	ctx context.Context, scope, workspaceID, profileName string, actor taskpkg.ActorContext,
+) (extensionMutationTarget, error) {
+	target := extensionMutationTarget{profile: extensionDefaultProfileLens()}
+	scope, workspaceID = strings.TrimSpace(scope), strings.TrimSpace(workspaceID)
 	if scope != "" && scope != "global" && scope != "workspace" {
-		return target, extensionInstallSelectorError("scope", "must be global or workspace")
+		return target, extensionScopeError("scope", "must be global or workspace")
 	}
 	if scope == "global" && workspaceID != "" {
-		return target, extensionInstallSelectorError("workspace_id", "global scope cannot select a workspace")
+		return target, extensionScopeError("workspace_id", "global scope cannot select a workspace")
 	}
 	if scope == "workspace" && workspaceID == "" {
 		workspaceID = strings.TrimSpace(actor.Scope.WorkspaceID)
 		if workspaceID == "" {
-			return target, extensionInstallSelectorError("workspace_id", "workspace scope requires a workspace")
+			return target, extensionScopeError("workspace_id", "workspace scope requires a workspace")
 		}
 	}
 	if !actor.Scope.Operator && scope == "" && workspaceID == "" {
@@ -50,26 +50,26 @@ func (s *daemonExtensionService) resolveExtensionInstallTarget(
 		}
 		target.scope.WorkspaceID = resolved
 	}
-	return s.resolveExtensionInstallProfile(ctx, target, req.Profile, actor)
+	return s.resolveExtensionScopeProfile(ctx, target, profileName, actor)
 }
 
-func (s *daemonExtensionService) resolveExtensionInstallProfile(
-	ctx context.Context, target extensionInstallTarget, name string, actor taskpkg.ActorContext,
-) (extensionInstallTarget, error) {
+func (s *daemonExtensionService) resolveExtensionScopeProfile(
+	ctx context.Context, target extensionMutationTarget, name string, actor taskpkg.ActorContext,
+) (extensionMutationTarget, error) {
 	name = strings.TrimSpace(name)
 	if name != "" {
 		if s.profiles == nil {
 			if name != daemonDefaultProfileName {
-				return target, extensionInstallSelectorError("profile", "profile manager is required")
+				return target, extensionScopeError("profile", "profile manager is required")
 			}
 		} else {
 			profile, err := s.profiles.GetByName(ctx, name)
 			if err != nil {
-				return target, extensionInstallSelectorError("profile", err.Error())
+				return target, extensionScopeError("profile", err.Error())
 			}
 			profileName, err := s.profiles.ProfileName(ctx, profile.ID)
 			if err != nil {
-				return target, extensionInstallSelectorError("profile", err.Error())
+				return target, extensionScopeError("profile", err.Error())
 			}
 			target.profile = extensionpkg.ProfileLens{ID: profile.ID, Name: profileName}
 		}
@@ -87,12 +87,12 @@ func (s *daemonExtensionService) resolveExtensionInstallProfile(
 	return target, nil
 }
 
-func extensionInstallSelectorError(field, message string) error {
+func extensionScopeError(field, message string) error {
 	return &extensionpkg.ManifestValidationError{Field: field, Message: message}
 }
 
 func (s *daemonExtensionService) installedTargetStatus(
-	ctx context.Context, name string, target extensionInstallTarget,
+	ctx context.Context, name string, target extensionMutationTarget,
 ) (contract.ExtensionPayload, error) {
 	if target.scope == (extensionpkg.InstallationScope{}) {
 		return s.Status(ctx, name)
@@ -122,9 +122,9 @@ func (s *daemonExtensionService) installedTargetStatus(
 }
 
 func (s *daemonExtensionService) applyManifestInstallScope(
-	ctx context.Context, target extensionInstallTarget, request contract.InstallExtensionRequest,
+	ctx context.Context, target extensionMutationTarget, request contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext, manifest *extensionpkg.Manifest,
-) (extensionInstallTarget, error) {
+) (extensionMutationTarget, error) {
 	if strings.TrimSpace(request.Scope) != "" || strings.TrimSpace(request.WorkspaceID) != "" || !actor.Scope.Operator {
 		return target, nil
 	}
@@ -135,7 +135,7 @@ func (s *daemonExtensionService) applyManifestInstallScope(
 			scope = "global"
 		}
 		if defaultScope != "" && scope != defaultScope {
-			return target, extensionInstallSelectorError("scope", "servers have different defaults; select global or workspace")
+			return target, extensionScopeError("scope", "servers have different defaults; select global or workspace")
 		}
 		defaultScope = scope
 	}
@@ -143,5 +143,13 @@ func (s *daemonExtensionService) applyManifestInstallScope(
 		return target, nil
 	}
 	request.Scope = defaultScope
-	return s.resolveExtensionInstallTarget(ctx, request, actor)
+	return s.resolveExtensionScope(ctx, request.Scope, request.WorkspaceID, request.Profile, actor)
+}
+
+func extensionMutationKeys(names []string, target extensionMutationTarget) []extensionpkg.InstanceKey {
+	keys := make([]extensionpkg.InstanceKey, 0, len(names)*2)
+	for _, name := range names {
+		keys = append(keys, extensionpkg.GlobalInstanceKey(name), target.key(name))
+	}
+	return keys
 }

@@ -43,3 +43,29 @@ func (s *daemonExtensionService) finalizeMarketplaceUpdateBatch(
 	}
 	return payloads, resultErr
 }
+
+func (s *daemonExtensionService) scopedMarketplaceUpdateNames(
+	ctx context.Context, request contract.UpdateExtensionsRequest, target extensionMutationTarget,
+) ([]string, error) {
+	candidates, err := extensionpkg.SelectMarketplaceUpdateTargets(s.registry, request.Names, request.All)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(candidates))
+	for _, info := range candidates {
+		installation, err := s.registry.ResolveInstallation(ctx, info.Name, extensionpkg.InstallationScope{
+			ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID,
+		})
+		if err == nil && installation.Scope.WorkspaceID != target.scope.WorkspaceID {
+			err = &extensionpkg.ExtensionNotFoundError{Name: info.Name}
+		}
+		if err != nil {
+			if request.All && errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		names = append(names, info.Name)
+	}
+	return normalizeLifecycleNames(names), nil
+}

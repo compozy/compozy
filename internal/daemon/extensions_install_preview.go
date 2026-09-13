@@ -21,7 +21,7 @@ func (s *daemonExtensionService) PreviewInstall(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
-	target, err := s.resolveExtensionInstallTarget(ctx, req, actor)
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}

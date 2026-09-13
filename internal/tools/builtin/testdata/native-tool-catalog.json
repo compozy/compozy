@@ -824,7 +824,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f48eaf2f80eecf17b37d250c6cc545ac775ff8cdc9a205bbdaa195e0e370dade",
+    "input_schema_digest": "dbd1bd3ef516ddf163f51ca45d09a592a6da399da0b511e13af2614143861d1b",
     "output_schema_digest": "3354ff3c6159df3c84e1e99f8c7ae84f0c9145f842c00f4f689338a37e8c2f70"
   },
   {

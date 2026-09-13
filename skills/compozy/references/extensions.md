@@ -54,6 +54,13 @@ With neither scope nor workspace selected, operators use the manifest servers' c
 trusted workspace context or an explicit workspace selector. Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
 extension/profile/workspace under `vault:extensions/`; manual MCP references are not imported.
 
+Update requests accept the same scope/workspace/profile selectors. CLI `extension update` uses
+`--scope`, `--workspace`, and `--profile` (or `COMPOZY_PROFILE`); `--all` filters to that selected
+installation scope/profile. HTTP/UDS and `compozy__extensions_update` also accept typed `inputs`
+for one named extension. Updates retain every attachment and its creation time; package bytes are
+shared, while supplied inputs and rollback before-images address only the selected cell. A workspace
+caller cannot mutate an inherited global attachment as though it belonged to the workspace.
+
 ## Built-in Open Design
 
 The bundled `open-design` extension creates or binds the `open-design` profile. Its default agent
