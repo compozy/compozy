@@ -130,5 +130,8 @@ export function useExtensionInstallDialog(
 }
 
 function requestsMatch(left: ExtensionInstallRequest, right: ExtensionInstallRequest): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return (
+    JSON.stringify({ ...left, inputs: undefined }) ===
+    JSON.stringify({ ...right, inputs: undefined })
+  );
 }

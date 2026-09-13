@@ -5,7 +5,6 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  extensionNetworkConfirmation,
   extensionTrustFacts,
   ExtensionNetworkConfirmDialog,
   previewExtensionInstall,
@@ -18,11 +17,7 @@ import {
   useInstallMarketplaceExtension,
   useUpdateMarketplaceExtension,
 } from "../hooks/use-marketplace-actions";
-import type {
-  ExtensionInstallRequest,
-  ExtensionUpdateRequest,
-  MarketplaceCatalogListing,
-} from "../types";
+import type { ExtensionInstallRequest, MarketplaceCatalogListing } from "../types";
 import { marketplaceCatalogEntryOptions } from "../lib/query-options";
 import { marketplaceOriginKey } from "../lib/marketplace-installed-view";
 import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
@@ -34,6 +29,8 @@ import {
   marketplaceErrorMessage,
   marketplaceErrorCode,
 } from "./marketplace-ui";
+import { useMarketplaceUpdateRecovery } from "./use-marketplace-update-recovery";
+import { prepareExtensionInputs, type ExtensionInputDraft } from "./extension-install-model";
 import { useMarketplacePending } from "./use-marketplace-pending";
 
 interface MarketplaceActionController {
@@ -55,18 +52,6 @@ interface MarketplaceActionController {
     items: readonly InstalledExtensionView[],
     action: () => Promise<T>
   ) => Promise<T>;
-}
-
-interface UpdateRequest {
-  body: ExtensionUpdateRequest;
-  name: string;
-}
-
-interface NetworkConfirm {
-  digest: string;
-  label: string;
-  request: UpdateRequest;
-  track: <T>(action: () => Promise<T>) => Promise<T>;
 }
 
 interface InstallPreview {
@@ -114,7 +99,8 @@ function useMarketplaceActionController(): MarketplaceActionController {
   const updateExtension = useUpdateMarketplaceExtension();
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
-  const [networkConfirm, setNetworkConfirm] = useState<NetworkConfirm | null>(null);
+  const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
+  const { runUpdate } = updateFlow;
   const [installPreview, setInstallPreview] = useState<InstallPreview | null>(null);
   const [installedTrust, setInstalledTrust] = useState<InstalledExtensionView | null>(null);
   const store = useStore(marketplaceActionControllerLogic);
@@ -131,23 +117,6 @@ function useMarketplaceActionController(): MarketplaceActionController {
         onClick: () => void navigate({ search: {}, to: "/marketplace/installed" }),
       },
     });
-  };
-
-  /** Returns false when the daemon asked for a network confirmation instead of updating. */
-  const runUpdate = async (
-    label: string,
-    request: UpdateRequest,
-    track: NetworkConfirm["track"]
-  ): Promise<boolean> => {
-    try {
-      await updateExtension.mutateAsync(request);
-      return true;
-    } catch (error) {
-      const confirmation = extensionNetworkConfirmation(error);
-      if (!confirmation) throw error;
-      setNetworkConfirm({ digest: confirmation.digest, label, request, track });
-      return false;
-    }
   };
 
   const withPendingEntry = async (
@@ -270,28 +239,6 @@ function useMarketplaceActionController(): MarketplaceActionController {
     });
   };
 
-  const submitNetworkConfirm = () => {
-    const confirm = networkConfirm;
-    if (!confirm) return;
-    void confirm
-      .track(async () => {
-        const done = await runUpdate(
-          confirm.label,
-          {
-            ...confirm.request,
-            body: { ...confirm.request.body, confirm_network_digest: confirm.digest },
-          },
-          confirm.track
-        );
-        if (!done) return;
-        setNetworkConfirm(null);
-        updatedToast(confirm.label, confirm.request.body.version);
-      })
-      .catch((error: unknown) => {
-        toast.error(marketplaceErrorMessage(error, `Failed to update ${confirm.label}`));
-      });
-  };
-
   const reopenCurrentInstall = async (previous: MarketplaceCatalogListing) => {
     const options = marketplaceCatalogEntryOptions({
       entryId: previous.entry_id,
@@ -314,13 +261,16 @@ function useMarketplaceActionController(): MarketplaceActionController {
     await loadInstallPreview(entry, false);
   };
 
-  const confirmInstall = () => {
+  const confirmInstall = (draft: ExtensionInputDraft = {}) => {
     const selected = installPreview;
     if (!selected) return;
+    const prepared = prepareExtensionInputs(selected.preview.inputs, draft);
+    if (!prepared.valid) return;
     void withPendingEntry(selected.entry, async () => {
       try {
         await installExtension.mutateAsync({
           ...selected.request,
+          ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
           ...(selected.preview.network_requirement_digest
             ? { confirm_network_digest: selected.preview.network_requirement_digest }
             : {}),
@@ -370,20 +320,36 @@ function useMarketplaceActionController(): MarketplaceActionController {
           warnings={trustEntry.trust?.warnings}
         />
       ) : null}
-      {networkConfirm ? (
+      {updateFlow.recovery?.kind === "network" ? (
         <ExtensionNetworkConfirmDialog
-          digest={networkConfirm.digest}
-          extensionName={networkConfirm.label}
-          onConfirm={submitNetworkConfirm}
+          digest={updateFlow.recovery.digest}
+          extensionName={updateFlow.recovery.label}
+          onConfirm={() => updateFlow.confirm()}
           onOpenChange={open => {
-            if (!open) setNetworkConfirm(null);
+            if (!open) updateFlow.dismiss();
           }}
           open
-          pending={updateExtension.isPending}
+          pending={updateFlow.pending}
+        />
+      ) : null}
+      {updateFlow.recovery?.kind === "inputs" ? (
+        <ExtensionInstallSummaryDialog
+          action="update"
+          name={updateFlow.recovery.label}
+          definitions={updateFlow.recovery.definitions}
+          key={JSON.stringify(updateFlow.recovery.definitions)}
+          onConfirm={updateFlow.confirm}
+          onOpenChange={open => {
+            if (!open) updateFlow.dismiss();
+          }}
+          open
+          pending={updateFlow.pending}
         />
       ) : null}
       {installPreview ? (
         <ExtensionInstallSummaryDialog
+          action="install"
+          key={JSON.stringify([installPreview.request, installPreview.preview.inputs])}
           onConfirm={confirmInstall}
           onOpenChange={open => {
             if (!open && !entryActions.current.has(marketplaceOriginKey(installPreview.entry)))

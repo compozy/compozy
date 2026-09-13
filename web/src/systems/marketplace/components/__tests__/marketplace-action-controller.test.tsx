@@ -1,8 +1,9 @@
+import { useMarketplaceUpdateRecovery } from "../use-marketplace-update-recovery";
 // Invariant: catalog and installed actions retain acquisition identity, consent, and pending ownership.
 // Owner: Marketplace action controller; canonical suite: marketplace-action-controller.test.tsx.
 // HTTP adapters, navigation, and notifications are the only mocked I/O boundaries.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -545,5 +546,135 @@ describe("useMarketplaceActionController", () => {
         version: portable.version,
       })
     );
+  });
+});
+
+// Invariant: input/network recovery retries the same scoped update without losing prior fields or consent.
+// Owner: Marketplace update controller; canonical suite: marketplace-action-controller.test.tsx.
+describe("Marketplace update recovery", () => {
+  const definitions = [
+    {
+      id: "region",
+      prompt: "Region",
+      type: "identifier",
+      required: true,
+      binding: { type: "url_query", name: "region" },
+    },
+  ];
+  it("Should preserve scope and prior inputs across network and input confirmation", async () => {
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Confirm network", 409, "daemon", {
+          code: "extension_network_confirmation_required",
+          currentDigest: "a".repeat(64),
+        })
+      )
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: definitions,
+        })
+      )
+      .mockResolvedValue(undefined);
+    const notify = vi.fn();
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, notify));
+    const request = {
+      name: "kit",
+      body: {
+        scope: "workspace" as const,
+        workspace_id: "ws-one",
+        profile: "growth",
+        allow_unverified: true,
+        inputs: { token: { vault_ref: "vault:extensions/kit/TOKEN" } },
+      },
+    };
+    await act(async () => {
+      await result.current.runUpdate("Kit", request, action => action());
+    });
+    expect(result.current.recovery?.kind).toBe("network");
+    await act(async () => {
+      result.current.confirm();
+    });
+    expect(result.current.recovery?.kind).toBe("inputs");
+    act(() => result.current.confirm({}));
+    expect(mutate).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      result.current.confirm({ region: "eu" });
+      result.current.confirm({ region: "eu" });
+    });
+    expect(mutate).toHaveBeenCalledTimes(3);
+    expect(mutate).toHaveBeenLastCalledWith({
+      ...request,
+      body: {
+        ...request.body,
+        confirm_network_digest: "a".repeat(64),
+        inputs: { ...request.body.inputs, region: { value: "eu" } },
+      },
+    });
+    expect(result.current.recovery).toBeNull();
+    expect(notify).toHaveBeenCalledOnce();
+  });
+  it("Should preserve entered inputs when another required field appears", async () => {
+    const missing = (id: string) =>
+      new MarketplaceApiError("Configure", 422, "extension_inputs_required", false, {
+        requiredInputs: [id],
+        inputDefinitions: [{ ...definitions[0]!, id }],
+      });
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(missing("region"))
+      .mockRejectedValueOnce(missing("project"))
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, vi.fn()));
+    await act(async () => {
+      await result.current.runUpdate("Kit", { name: "kit", body: {} }, action => action());
+    });
+    await act(async () => {
+      result.current.confirm({ region: "eu" });
+    });
+    await act(async () => {
+      result.current.confirm({ project: "app" });
+    });
+    expect(mutate).toHaveBeenLastCalledWith({
+      name: "kit",
+      body: { inputs: { region: { value: "eu" }, project: { value: "app" } } },
+    });
+  });
+  it("Should keep a refused update editable and prevent dismissal while submitting", async () => {
+    let rejectUpdate!: (error: Error) => void;
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: definitions,
+        })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject;
+          })
+      );
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, vi.fn()));
+    await act(async () => {
+      await result.current.runUpdate("Kit", { name: "kit", body: {} }, action => action());
+    });
+    act(() => {
+      result.current.confirm({ region: "eu" });
+      result.current.dismiss();
+    });
+    expect(result.current.pending).toBe(true);
+    expect(result.current.recovery?.kind).toBe("inputs");
+    await act(async () => {
+      rejectUpdate(new Error("publication failed"));
+    });
+    expect(result.current.pending).toBe(false);
+    expect(result.current.recovery?.kind).toBe("inputs");
+    act(() => result.current.dismiss());
+    expect(result.current.recovery).toBeNull();
   });
 });

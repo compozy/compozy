@@ -1,3 +1,8 @@
+import {
+  createExtensionInputDraft,
+  prepareExtensionInputs,
+  type ExtensionInputDefinitions,
+} from "../extension-install-model";
 // Invariant: one Marketplace surface reflects complete catalog and installed inventory truth.
 // Owner: Marketplace components; canonical suite for browse/card/logo/shelf and source install.
 // HTTP and notification boundaries are mocked; routing, query hooks, and UI primitives run normally.
@@ -901,5 +906,87 @@ describe("Extension source installation", () => {
       "blocked by policy"
     );
     expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
+  });
+});
+
+// Invariant: input form values retain daemon wire types, byte limits and optional omission.
+// Owner: Marketplace acquisition form; canonical suite: marketplace-components.test.tsx.
+describe("Extension input form", () => {
+  const definitions: ExtensionInputDefinitions = [
+    {
+      id: "token",
+      prompt: "API key",
+      type: "secret",
+      required: true,
+      binding: { type: "env", name: "TOKEN" },
+    },
+    {
+      id: "region",
+      prompt: "Region",
+      type: "identifier",
+      required: false,
+      default: "eu",
+      binding: { type: "url_query", name: "region" },
+    },
+    {
+      id: "enabled",
+      prompt: "Enabled",
+      type: "boolean",
+      required: true,
+      default: false,
+      binding: { type: "env", name: "ENABLED" },
+    },
+    {
+      id: "note",
+      prompt: "Note",
+      type: "string",
+      required: false,
+      binding: { type: "env", name: "NOTE" },
+    },
+  ];
+  it("Should prefill defaults and preserve false without inventing a secret", () => {
+    const draft = createExtensionInputDraft(definitions);
+    expect(draft).toEqual({ region: "eu", enabled: false });
+    expect(prepareExtensionInputs(definitions, draft)).toMatchObject({
+      valid: false,
+      errors: { token: "Required" },
+    });
+  });
+  it("Should preserve secret bytes, normalize identifiers and omit empty optional fields", () => {
+    expect(
+      prepareExtensionInputs(definitions, {
+        token: "  literal-secret  ",
+        region: " us-west ",
+        enabled: false,
+        note: "",
+        ignored: "unused",
+      })
+    ).toEqual({
+      valid: true,
+      errors: {},
+      inputs: {
+        token: { value: "  literal-secret  " },
+        region: { value: "us-west" },
+        enabled: { value: false },
+      },
+    });
+    const optional = definitions.map(input => ({ ...input, required: false }));
+    expect(prepareExtensionInputs(optional, {})).toEqual({ valid: true, errors: {}, inputs: {} });
+  });
+  it("Should enforce the UTF-8 byte limit including multibyte input", () => {
+    const note = definitions.filter(input => input.id === "note");
+    expect(prepareExtensionInputs(note, { note: "é".repeat(4096) }).valid).toBe(true);
+    expect(prepareExtensionInputs(note, { note: "é".repeat(4096) + "a" }).errors).toEqual({
+      note: "Too long (max 8 KB)",
+    });
+    expect(prepareExtensionInputs(note, { note: "a".repeat(8193) }).valid).toBe(false);
+  });
+  it.each([
+    { token: "   ", enabled: false },
+    { token: "secret", enabled: "false" },
+    { token: "secret", enabled: false, region: "has space" },
+    { token: "secret", enabled: false, note: "nul\0value" },
+  ])("Should refuse invalid typed input %#", draft => {
+    expect(prepareExtensionInputs(definitions, draft).valid).toBe(false);
   });
 });

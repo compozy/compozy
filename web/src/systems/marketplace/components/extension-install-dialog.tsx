@@ -1,3 +1,5 @@
+import { useExtensionInputForm } from "./use-extension-input-form";
+
 import { useState } from "react";
 
 import {
@@ -63,6 +65,10 @@ export function ExtensionInstallDialog({
   const [form, setForm] = useState<ExtensionInstallForm>(() =>
     createExtensionInstallForm(initialSource)
   );
+  const inputForm = useExtensionInputForm(
+    preview?.inputs ?? [],
+    JSON.stringify([form.source, form.ref, form.version, form.asset, preview?.digest_sha256])
+  );
   const [fieldErrors, setFieldErrors] = useState<ExtensionInstallFieldError>({});
   const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
   const patch = (next: Partial<ExtensionInstallForm>) => {
@@ -92,8 +98,11 @@ export function ExtensionInstallDialog({
             event.preventDefault();
             const errors = validateExtensionInstallForm(form);
             setFieldErrors(errors);
-            if (Object.keys(errors).length > 0) return;
-            onSubmit(buildExtensionInstallRequest(form));
+            if (Object.keys(errors).length > 0 || !inputForm.valid) return;
+            onSubmit({
+              ...buildExtensionInstallRequest(form),
+              ...(Object.keys(inputForm.inputs).length ? { inputs: inputForm.inputs } : {}),
+            });
           }}
         >
           <DialogHeader variant="ruled">
@@ -233,7 +242,11 @@ export function ExtensionInstallDialog({
             >
               Cancel
             </Button>
-            <Button data-testid="extension-install-submit" disabled={pending} type="submit">
+            <Button
+              data-testid="extension-install-submit"
+              disabled={pending || !inputForm.valid}
+              type="submit"
+            >
               {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
               {pending ? "Working…" : preview ? "Install" : "Review install"}
             </Button>

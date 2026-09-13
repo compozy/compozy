@@ -1,3 +1,4 @@
+import type { ExtensionInstallPreview } from "@/systems/extensions";
 import type { ExtensionInstallRequest } from "../types";
 
 export type ExtensionInstallSource = "local_path" | "github" | "git";
@@ -154,4 +155,59 @@ export function buildExtensionInstallRequest(form: ExtensionInstallForm): Extens
     source: form.source,
     ...(version !== "" ? { version } : {}),
   };
+}
+
+export type ExtensionInputDefinitions = ExtensionInstallPreview["inputs"];
+export type ExtensionInputDraft = Partial<Record<string, string | boolean>>;
+
+export function createExtensionInputDraft(
+  definitions: ExtensionInputDefinitions
+): ExtensionInputDraft {
+  return Object.fromEntries(
+    definitions.flatMap(input => {
+      if (typeof input.default === "string" || typeof input.default === "boolean") {
+        return [[input.id, input.default]];
+      }
+      return input.type === "boolean" && input.required ? [[input.id, false]] : [];
+    })
+  );
+}
+
+export function prepareExtensionInputs(
+  definitions: ExtensionInputDefinitions,
+  draft: ExtensionInputDraft
+) {
+  const inputs: NonNullable<ExtensionInstallRequest["inputs"]> = {};
+  const errors: Record<string, string> = {};
+  for (const input of definitions) {
+    const value = draft[input.id];
+    const error = extensionInputError(input, value);
+    if (error) {
+      errors[input.id] = error;
+      continue;
+    }
+    if (value === undefined || value === "") continue;
+    inputs[input.id] = {
+      value: input.type === "identifier" && typeof value === "string" ? value.trim() : value,
+    };
+  }
+  return { inputs, errors, valid: Object.keys(errors).length === 0 };
+}
+
+function extensionInputError(
+  input: ExtensionInputDefinitions[number],
+  value: string | boolean | undefined
+): string | undefined {
+  const blank = value === undefined || value === "";
+  if (blank) return input.required ? "Required" : undefined;
+  if (input.type === "boolean")
+    return typeof value === "boolean" ? undefined : "Choose true or false";
+  if (typeof value !== "string") return "Enter a text value";
+  if (new TextEncoder().encode(value).length > 8192) return "Too long (max 8 KB)";
+  if (value.includes("\0")) return "Null characters are not allowed";
+  if (input.type === "identifier" && !/^[A-Za-z0-9._~-]+$/.test(value.trim())) {
+    return "Use letters, numbers, dots, underscores, tildes or hyphens";
+  }
+  if (input.type === "secret" && value.trim() === "") return "Required";
+  return undefined;
 }
