@@ -67,23 +67,7 @@ func (m *Manager) startLocked(ctx context.Context) error {
 
 	var errs []error
 	for _, info := range infos {
-		key := GlobalInstanceKey(info.Name)
-		ext := &managedExtension{
-			key:     key,
-			info:    info,
-			phase:   ExtensionPhaseDiscover,
-			logRing: m.logRingFor(key),
-		}
-		m.mu.Lock()
-		m.extensions[info.Name] = ext
-		m.mu.Unlock()
-
-		if !info.Enabled {
-			ext.lastError = ""
-			continue
-		}
-
-		if err := m.startOne(ctx, ext); err != nil {
+		if err := m.startInstalledPackage(ctx, info); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -97,6 +81,46 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		}
 	}
 
+	return errors.Join(errs...)
+}
+
+func (m *Manager) startInstalledPackage(ctx context.Context, info ExtensionInfo) error {
+	key := GlobalInstanceKey(info.Name)
+	ext := &managedExtension{
+		key:     key,
+		info:    info,
+		phase:   ExtensionPhaseDiscover,
+		logRing: m.logRingFor(key),
+	}
+	m.mu.Lock()
+	m.extensions[info.Name] = ext
+	m.mu.Unlock()
+
+	installations, err := m.registry.activeInstallations(ctx, info.Name)
+	if err != nil {
+		return fmt.Errorf("extension: list installations for %q: %w", info.Name, err)
+	}
+	var errs []error
+	for _, installation := range installations {
+		if installation.Scope.WorkspaceID != "" {
+			continue
+		}
+		instance := ext
+		if installation.Scope.ProfileID != "" {
+			instanceKey := InstanceKey{Name: info.Name, ProfileID: installation.Scope.ProfileID}
+			instance, err = m.newInstalledProfileInstance(ctx, instanceKey)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			m.mu.Lock()
+			m.profileExtensions[instanceKey] = instance
+			m.mu.Unlock()
+		}
+		if instance.info.Enabled {
+			errs = append(errs, m.startOne(ctx, instance))
+		}
+	}
 	return errors.Join(errs...)
 }
 

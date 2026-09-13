@@ -158,7 +158,37 @@ describe("settings shell MSW handlers", () => {
 });
 
 describe("settings MCP auth MSW handlers", () => {
+  // Invariant: MSW response identity follows the request's definition owner and profile.
+  // Owner: Settings mock API boundary; canonical suite: handlers.test.ts.
   it.each([
+    {
+      label: "extension profile exchange",
+      action: "exchange",
+      name: "linear",
+      query: "scope=profile&profile=marketing&owner=extension%3Alinear",
+      expected: {
+        server_name: "linear",
+        owner: "extension:linear",
+        scope: "profile",
+        profile: "marketing",
+        status: "authenticated",
+        token_present: true,
+      },
+    },
+    {
+      label: "extension workspace logout",
+      action: "logout",
+      name: "linear",
+      query: "scope=workspace&workspace_id=ws-beta&owner=extension%3Alinear",
+      expected: {
+        server_name: "linear",
+        owner: "extension:linear",
+        scope: "workspace",
+        workspace_id: "ws-beta",
+        status: "needs_login",
+        token_present: false,
+      },
+    },
     {
       label: "global exchange",
       action: "exchange",

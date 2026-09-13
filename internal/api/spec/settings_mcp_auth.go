@@ -14,6 +14,11 @@ func settingsMCPAuthOperations() []OperationSpec {
 		},
 		queryParam("workspace_id", "Required when scope is workspace", false),
 		queryParam("profile", "Required when scope is profile", false),
+		queryParam(
+			"owner",
+			"Definition owner: manual or extension:<name>; omitted names resolve by runtime name",
+			false,
+		),
 	}
 	responses := func(success any) []ResponseSpec {
 		return []ResponseSpec{

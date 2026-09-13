@@ -39,6 +39,8 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		CmdPalette:               state.cmdPalette,
 		MCPAuth:                  surface,
 		MCPRuntime:               surface,
+		MCPExtensions:            settingsMCPExtensionDefinitions{state: state},
+		MCPExtensionManagement:   settingsMCPExtensionDefinitions{state: state, auth: surface},
 		MCPCatalog:               settingsMarketplaceCatalogDependency(state.marketplace),
 		MarketplaceInstallEvents: state.marketplaceNotifier,
 		MCPDefinitionRetirer:     state.mcpToolProvider,
@@ -73,6 +75,9 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: detect settings update install method: %w", err)
 	}
 
+	if extensions, ok := state.deps.Extensions.(*daemonExtensionService); ok && extensions.mcpDetails != nil {
+		extensions.mcpDetails.runtime = surface
+	}
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = newSettingsUpdateController(d, updateManager)

@@ -20,6 +20,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -30,7 +31,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
+// Invariant: inventory enrichment uses persisted origin and retains local inventory on catalog failure.
+// Owner: core installed-extension joins; canonical suite: extensions_test.go.
+func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should enrich installed extension without browsing the capped catalog", func(t *testing.T) {
@@ -44,12 +47,22 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "http",
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{{
-					Name: "extension", Version: "1.0.0", Type: "wasm", Source: "marketplace",
-					Provenance: &contract.ExtensionProvenancePayload{
-						Slug: "acme/extension", CatalogEntryID: entry.EntryID,
+				return []contract.ExtensionPayload{
+					{
+						Name:    "extension",
+						Version: "1.0.0",
+						Type:    "wasm",
+						Source:  "marketplace",
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    marketplacepkg.CompozyCatalogSource,
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   entry.EntryID,
+						},
+						Provenance: &contract.ExtensionProvenancePayload{
+							Slug: "acme/extension", CatalogEntryID: entry.EntryID,
+						},
 					},
-				}}, nil
+				}, nil
 			}},
 			MarketplaceCatalog: marketplaceCatalogStub{
 				browseFn: func(
@@ -121,10 +134,18 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "http",
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{{
-					Name: "offline-extension", Version: "1.0.0",
-					Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "extension.offline"},
-				}}, nil
+				return []contract.ExtensionPayload{
+					{
+						Name:    "offline-extension",
+						Version: "1.0.0",
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    marketplacepkg.CompozyCatalogSource,
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   "extension.offline",
+						},
+						Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "extension.offline"},
+					},
+				}, nil
 			}},
 			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
 				context.Context,
@@ -932,6 +953,64 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 
 func TestExtensionOperationErrorPayloads(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: lifecycle input/source errors preserve their structured fields and 409/422 status over HTTP.
+	// Owner: extension HTTP boundary. Canonical suite: operation error payload tests.
+	for _, tc := range []struct {
+		name   string
+		cause  error
+		status int
+		code   string
+	}{
+		{"runtime name taken", extensionmcp.ErrNameTaken, http.StatusUnprocessableEntity, "mcp_server_name_taken"},
+		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
+		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
+		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
+	} {
+		t.Run("Should report "+tc.name+" with structured details", func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					return contract.ExtensionPayload{}, tc.cause
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"curated","ref":"compozy/example"}`),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Code != tc.code {
+				t.Fatalf("code = %s want %s", payload.Code, tc.code)
+			}
+			switch tc.code {
+			case diagnosticcontract.CodeExtensionSourceChanged:
+				if payload.ListedDigest != strings.Repeat("a", 64) || payload.FetchedDigest != strings.Repeat("b", 64) {
+					t.Fatalf("source mismatch = %#v", payload)
+				}
+			case diagnosticcontract.CodeExtensionInputsRequired:
+				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
+					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("required inputs = %#v", payload)
+				}
+			case diagnosticcontract.CodeExtensionInputInvalid:
+				if payload.InputID != "workspace" {
+					t.Fatalf("invalid input id = %s", payload.InputID)
+				}
+			}
+		})
+	}
 
 	t.Run("Should return current digest and retry command for network confirmation", func(t *testing.T) {
 		t.Parallel()

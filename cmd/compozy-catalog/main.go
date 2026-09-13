@@ -52,6 +52,11 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 			return fmt.Errorf("write catalog digest: %w", err)
 		}
 		return nil
+	case "publish":
+		if len(args) != 3 {
+			return catalogUsageError()
+		}
+		return publishCatalog(ctx, args[1], args[2])
 	case "package":
 		if len(args) != 3 {
 			return catalogUsageError()
@@ -64,6 +69,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 
 func catalogUsageError() error {
 	return errors.New(
-		"usage: compozy-catalog <validate DIRECTORY|digest ARTIFACT|package SOURCE_DIRECTORY OUTPUT_ARCHIVE>",
+		"usage: compozy-catalog <validate DIRECTORY|digest ARTIFACT|" +
+			"package SOURCE_DIRECTORY OUTPUT_ARCHIVE|publish SOURCE_DIRECTORY OUTPUT_DIRECTORY>",
 	)
 }

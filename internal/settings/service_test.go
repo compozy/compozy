@@ -4419,11 +4419,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceID := "workspace-a"
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace-a")
-		otherPrefix, err := vault.MCPSecretOwnerPrefix(
-			vault.MCPWorkspaceScope,
-			"workspace-b",
-			"GitHub",
-		)
+		otherPrefix, err := vault.MCPSecretOwnerPrefix(vault.MCPSecretTarget{Scope: vault.MCPWorkspaceScope, WorkspaceID: "workspace-b", ServerName: "GitHub"})
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
 		}

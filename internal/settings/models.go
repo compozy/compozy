@@ -169,6 +169,8 @@ const (
 type SourceKind string
 
 const (
+	// SourceKindExtension identifies an extension-provided definition.
+	SourceKindExtension SourceKind = "extension"
 	// SourceKindBuiltinProvider identifies the builtin provider registry.
 	SourceKindBuiltinProvider SourceKind = "builtin-provider"
 	// SourceKindGlobalConfig identifies the global TOML config.
@@ -244,6 +246,7 @@ type SkillSourcesOverride struct {
 
 // CollectionRequest identifies one collection read.
 type CollectionRequest struct {
+	Owner       string
 	Collection  CollectionName
 	Scope       ScopeKind
 	WorkspaceID string

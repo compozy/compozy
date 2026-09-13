@@ -63,8 +63,8 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	for index := range items {
 		item := &items[index]
 		catalogEntryID := ""
-		if item.Provenance != nil {
-			catalogEntryID = strings.TrimSpace(item.Provenance.CatalogEntryID)
+		if item.Origin != nil && item.Origin.SourceRef == marketplacepkg.CompozyCatalogRef {
+			catalogEntryID = strings.TrimSpace(item.Origin.EntryID)
 		}
 		name := strings.TrimSpace(item.Name)
 		if name != entryID && (exactName || catalogEntryID != entryID) {
@@ -74,13 +74,42 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 		if item.Provenance != nil && strings.TrimSpace(item.Provenance.InstalledFrom) != "" {
 			source = strings.TrimSpace(item.Provenance.InstalledFrom)
 		}
-		return contract.MarketplaceEntryResponse{Entry: contract.MarketplaceListingPayload{
-			Kind: contract.MarketplaceKindExtension, EntryID: entryID, Name: name,
-			Version: strings.TrimSpace(item.Version), Source: source, Installed: true,
-			Format:        strings.TrimSpace(item.Format),
-			InstalledName: name, InstalledVersion: strings.TrimSpace(item.Version),
-			ManagePath: marketplaceExtensionsInstalledPath, Trust: item.Trust,
-		}}, nil
+		listing := contract.MarketplaceListingPayload{
+			Kind:    contract.MarketplaceKindExtension,
+			EntryID: entryID,
+			Name:    name,
+			Version: strings.TrimSpace(
+				item.Version,
+			),
+			Source:           source,
+			Installed:        true,
+			Format:           strings.TrimSpace(item.Format),
+			InstalledName:    name,
+			InstalledVersion: strings.TrimSpace(item.Version),
+			ManagePath:       marketplaceExtensionsInstalledPath,
+			Trust:            item.Trust,
+		}
+		detail := &contract.MarketplaceExtensionDetailPayload{
+			Contents:   item.Contents,
+			MCPServers: item.MCPServers,
+			Inputs:     []contract.MarketplaceInputPayload{},
+		}
+		if detail.MCPServers == nil {
+			detail.MCPServers = []contract.MarketplaceServerPayload{}
+		}
+		if item.Origin != nil {
+			listing.Source = item.Origin.Source
+			listing.SourceRef = item.Origin.SourceRef
+			listing.EntryID = item.Origin.EntryID
+		}
+		if item.Provenance != nil {
+			listing.DigestSHA256 = item.Provenance.ArchiveDigestSHA256
+			detail.DigestSHA256 = item.Provenance.ArchiveDigestSHA256
+			detail.ResolvedRef = item.Provenance.ResolvedRef
+			detail.Layout = item.Provenance.Layout
+			detail.InstallSlug = item.Provenance.Slug
+		}
+		return contract.MarketplaceEntryResponse{Entry: listing, Extension: detail}, nil
 	}
 	return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
 		contract.MarketplaceKindExtension,

@@ -154,6 +154,7 @@ const (
 type SettingsSourceKind string
 
 const (
+	SettingsSourceExtension                  SettingsSourceKind = "extension"
 	SettingsSourceBuiltinProvider            SettingsSourceKind = "builtin-provider"
 	SettingsSourceGlobalConfig               SettingsSourceKind = "global-config"
 	SettingsSourceProfileConfig              SettingsSourceKind = "profile-config"

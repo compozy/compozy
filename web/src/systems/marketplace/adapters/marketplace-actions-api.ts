@@ -2,6 +2,8 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import { marketplaceApiError } from "./marketplace-api-error";
 import type {
+  ExtensionBatchUpdateRequest,
+  ExtensionBatchUpdateResponse,
   ExtensionInstallRequest,
   ExtensionInstallResponse,
   MarketplaceKind,
@@ -89,4 +91,18 @@ export async function installMarketplaceExtension(
   }
 
   return requireResponseData(data, response, "Failed to install the extension");
+}
+
+export async function updateMarketplaceExtensions(
+  body: ExtensionBatchUpdateRequest,
+  signal?: AbortSignal
+): Promise<ExtensionBatchUpdateResponse> {
+  const { data, error, response } = await apiClient.POST("/api/extensions/update", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw marketplaceApiError("Failed to update extensions", response, error);
+  }
+  return requireResponseData(data, response, "Failed to update extensions");
 }

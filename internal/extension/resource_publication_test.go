@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -307,6 +309,42 @@ func TestManifestToolResourcesRemainColdUntilRuntimeHandleExists(t *testing.T) {
 func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: publication preserves manifest OAuth policy and its install-scope default without sharing mutable slices.
+	// Owner: extension resource resolution. Canonical suite: resource_publication_test.go.
+	t.Run("Should carry OAuth and default scope into resolved MCP resources", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
+			"linear": {
+				Transport:    "http",
+				URL:          "https://mcp.linear.app/mcp",
+				DefaultScope: "workspace",
+				Auth: &MCPServerAuthConfig{
+					Method:       "oauth",
+					Registration: "dynamic",
+					IssuerURL:    "https://mcp.linear.app",
+					Scopes:       []string{"read", "write"},
+				},
+			},
+		}}}
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, InputState{}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(servers) != 1 {
+			t.Fatalf("servers = %#v", servers)
+		}
+		server := servers[0]
+		if server.DefaultScope != "workspace" || server.Auth.Registration != compozyconfig.MCPAuthRegistrationAuto ||
+			server.Auth.IssuerURL != "https://mcp.linear.app" ||
+			!slices.Equal(server.Auth.Scopes, []string{"read", "write"}) {
+			t.Fatalf("server = %#v", server)
+		}
+		server.Auth.Scopes[0] = "altered"
+		if manifest.Resources.MCPServers["linear"].Auth.Scopes[0] != "read" {
+			t.Fatal("publication shares auth scope storage")
+		}
+	})
+
 	t.Run("Should Resolve Templates", func(t *testing.T) {
 		t.Parallel()
 
@@ -329,7 +367,7 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 			},
 		}
 
-		servers, err := ResolveManifestMCPServerResources(rootDir, manifest, func(key string) string {
+		servers, err := ResolveManifestMCPServerResources(rootDir, manifest, InputState{}, func(key string) string {
 			if key == "GIT_MODE" {
 				return "readonly"
 			}
@@ -378,7 +416,7 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 				Headers:   map[string]string{"X-Tenant": "{{env:MCP_TENANT}}"},
 			},
 		}}}
-		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, func(key string) string {
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, InputState{}, func(key string) string {
 			switch key {
 			case "MCP_HOST":
 				return "example.com"
@@ -461,4 +499,152 @@ func (p coldManifestToolProvider) Resolve(
 	toolspkg.ToolID,
 ) (toolspkg.Handle, bool, error) {
 	return nil, false, nil
+}
+
+// Invariant: instance inputs bind to every declaring server, stay literal, and absent optional bindings disappear.
+// Owner: extension MCP publication. Canonical suite: resource_publication_test.go.
+func TestResolveManifestMCPServerInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should apply scoped multi-server bindings without interpreting user templates [UT-057]", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{Inputs: []ManifestInput{
+			{
+				ID:       "mode",
+				Prompt:   "Mode",
+				Type:     "string",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "MODE"},
+			},
+			{
+				ID:      "token",
+				Prompt:  "Token",
+				Type:    "secret",
+				Binding: marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+			},
+			{
+				ID:       "workspace",
+				Prompt:   "Workspace",
+				Type:     "string",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+			},
+			{
+				ID:      "optional",
+				Prompt:  "Optional",
+				Type:    "string",
+				Binding: marketplace.InputBinding{Type: "url_query", Name: "optional"},
+			},
+		}, Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
+			"a": {
+				Command:   "server-a",
+				Env:       map[string]string{"MODE": "mode", "FIXED": "keep"},
+				SecretEnv: map[string]string{"TOKEN": "token"},
+			},
+			"b": {Command: "server-b", Env: map[string]string{"MODE": "mode"}},
+			"c": {Transport: "http", URL: "https://example.com/mcp?ws=&optional=placeholder&fixed=one&fixed=two"},
+			"d": {Transport: "http", URL: "https://other.example.com/mcp?ws="},
+			"e": {Transport: "http", URL: "https://other.example.com/mcp?fixed=unchanged"},
+		}}}
+		literal := "{{env:PRIVATE}} & + / ? #"
+		raw, err := json.Marshal(literal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := InputState{Values: map[string]InputValueRecord{
+			"mode":      {Type: "string", Value: raw, Active: true},
+			"workspace": {Type: "string", Value: raw, Active: true},
+		}}
+		servers, err := ResolveManifestMCPServerResources(
+			t.TempDir(),
+			manifest,
+			state,
+			func(string) string { return "" },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(servers) != 5 {
+			t.Fatalf("server count = %d", len(servers))
+		}
+		for _, server := range servers {
+			switch server.Name {
+			case "a", "b":
+				if server.Env["MODE"] != literal {
+					t.Fatalf("%s mode was interpreted: %q", server.Name, server.Env["MODE"])
+				}
+				if _, exists := server.SecretEnv["TOKEN"]; exists {
+					t.Fatal("absent optional secret remained bound")
+				}
+			case "c", "d":
+				parsed, err := url.Parse(server.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				query := parsed.Query()
+				if query.Get("ws") != literal || len(query["ws"]) != 1 || query.Has("optional") {
+					t.Fatalf("%s query = %#v", server.Name, query)
+				}
+				if server.Name == "c" && !slices.Equal(query["fixed"], []string{"one", "two"}) {
+					t.Fatalf("fixed query changed: %v", query)
+				}
+			case "e":
+				if server.URL != manifest.Resources.MCPServers["e"].URL {
+					t.Fatal("input applied to a non-declaring server")
+				}
+			}
+		}
+		if manifest.Resources.MCPServers["a"].Env["MODE"] != "mode" ||
+			manifest.Resources.MCPServers["a"].SecretEnv["TOKEN"] != "token" {
+			t.Fatal("publication mutated its manifest")
+		}
+	})
+	t.Run("Should retain secret references and never publish process secret plaintext [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: runtime declarations retain the owner and secret references, without secret plaintext.
+		// Owner: manifest publication; canonical suite: resource_publication_test.go.
+		manifest := &Manifest{
+			Name: "kit",
+			Inputs: []ManifestInput{
+				{
+					ID:       "token",
+					Prompt:   "Token",
+					Type:     "secret",
+					Required: true,
+					Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+				},
+			},
+			Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
+				"server": {Command: "server", SecretEnv: map[string]string{"TOKEN": "token"}},
+			}},
+		}
+		for _, state := range []InputState{{},
+			{Values: map[string]InputValueRecord{"token": {Type: "secret", SecretRef: "vault:mcp/server/TOKEN", Active: true}}},
+			{Values: map[string]InputValueRecord{"token": {Type: "secret", SecretRef: "vault:extensions/global/kit/profiles/default/env/TOKEN", Active: true}}},
+		} {
+			servers, err := ResolveManifestMCPServerResources(
+				t.TempDir(),
+				manifest,
+				state,
+				func(string) string { return "private-secret-value" },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "env:TOKEN"
+			if len(state.Values) > 0 {
+				want = state.Values["token"].SecretRef
+			}
+			if servers[0].SecretEnv["TOKEN"] != want || len(servers[0].Env) != 0 ||
+				servers[0].Owner != "extension:kit" {
+				t.Fatal("secret was not published by reference")
+			}
+			encoded, err := json.Marshal(servers)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(encoded, []byte("private-secret-value")) {
+				t.Fatal("publication contains secret plaintext")
+			}
+		}
+	})
 }

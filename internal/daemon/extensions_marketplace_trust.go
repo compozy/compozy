@@ -16,6 +16,9 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 	req contract.InstallExtensionRequest,
 	installedBy string,
 ) (extensionpkg.MarketplaceInstallRequest, error) {
+	if err := extensionpkg.ValidateExpectedDigest(req.ExpectedDigest); err != nil {
+		return extensionpkg.MarketplaceInstallRequest{}, err
+	}
 	ref, embeddedVersion := splitExtensionDistributionRef(req.Ref)
 	version := strings.TrimSpace(req.Version)
 	if version == "" {
@@ -31,6 +34,9 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 		if trust == nil {
 			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrEntryNotFound
 		}
+		if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, trust.ArchiveDigestSHA256); err != nil {
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
 	}
 	sourceFilter := string(req.Source)
 	if req.Source == contract.InstallExtensionSourceCurated {
@@ -38,6 +44,7 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 	}
 	cfg := s.marketplaceConfig()
 	return extensionpkg.MarketplaceInstallRequest{
+		ExpectedDigest:         req.ExpectedDigest,
 		Slug:                   ref,
 		SourceFilter:           sourceFilter,
 		Version:                version,

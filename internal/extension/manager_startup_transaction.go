@@ -167,14 +167,6 @@ func (m *Manager) prepareExtensionStartup(
 	return prepared, nil
 }
 
-func (m *Manager) commitPreparedExtension(
-	ctx context.Context,
-	ext *managedExtension,
-	prepared *preparedExtensionStartup,
-) error {
-	return m.commitPreparedExtensionWithPublish(ctx, ext, prepared, nil)
-}
-
 func (m *Manager) commitPreparedExtensionWithPublish(
 	ctx context.Context,
 	ext *managedExtension,

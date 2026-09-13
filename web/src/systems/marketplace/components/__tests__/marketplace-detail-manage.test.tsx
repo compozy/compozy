@@ -331,6 +331,7 @@ function extensionDetailStateStub() {
                   title: "Healthy",
                 },
               ],
+              inputs: [],
               declared_profiles: mocks.extensionDeclaredProfiles,
               dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
               enabled: true,
@@ -920,6 +921,7 @@ describe("Marketplace installed-detail management", () => {
         refreshable: true,
         scope: "user",
         server_name: "oauth-server",
+        owner: "manual",
         status: "needs_login",
         token_present: false,
       },
@@ -996,6 +998,7 @@ describe("Marketplace installed-detail management", () => {
       refreshable: true,
       scope: "user",
       server_name: "oauth-server",
+      owner: "manual",
       status: "authenticated",
       token_present: true,
     };

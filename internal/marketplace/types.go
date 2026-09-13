@@ -9,6 +9,9 @@ import (
 
 const ManifestVersion = 2
 
+// ManifestVersionV3 is the extension-only catalog family.
+const ManifestVersionV3 = 3
+
 // RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
 const RemoteSkillEntryPrefix = "skill_"
 
@@ -46,22 +49,33 @@ type Document struct {
 
 // Entry is the durable common projection plus the kind-specific payload.
 type Entry struct {
-	Kind         Kind
-	EntryID      string
-	Name         string
-	Description  string
-	Version      string
-	PublishedAt  *time.Time
-	UpdatedAt    *time.Time
-	DigestSHA256 string
-	Tier         string
-	InstallSlug  string
-	Payload      json.RawMessage
-	FetchedAt    time.Time
+	Inputs         []EntryInput
+	Diagnostics    []CatalogDiagnostic
+	SourceName     string
+	Layout         string
+	Icon           string
+	Installable    bool
+	InstallBlocker string
+	ResolvedRef    string
+	Kind           Kind
+	EntryID        string
+	Name           string
+	Description    string
+	Version        string
+	PublishedAt    *time.Time
+	UpdatedAt      *time.Time
+	DigestSHA256   string
+	Tier           string
+	InstallSlug    string
+	Payload        json.RawMessage
+	FetchedAt      time.Time
 }
 
 // KindState reports the freshness and failure state for one feed projection.
 type KindState struct {
+	Source          string
+	Generation      int64
+	Revision        string
 	Kind            Kind
 	ManifestVersion int
 	GeneratedAt     time.Time
@@ -87,6 +101,8 @@ type ListResult struct {
 
 // RefreshOutcome is the canonical per-kind refresh result.
 type RefreshOutcome struct {
+	Source     string `json:"source,omitempty"`
+	Generation int64  `json:"generation"`
 	Kind       Kind   `json:"kind"`
 	Outcome    string `json:"outcome"`
 	EntryCount int    `json:"entry_count"`
@@ -96,10 +112,12 @@ type RefreshOutcome struct {
 
 // InstallOutcome is the redacted canonical observation for one marketplace install attempt.
 type InstallOutcome struct {
-	Kind       Kind   `json:"kind"`
-	EntryID    string `json:"entry_id"`
-	Outcome    string `json:"outcome"`
-	PolicyGate string `json:"policy_gate"`
+	Origin      *Origin `json:"origin,omitempty"`
+	ResolvedRef string  `json:"resolved_ref,omitempty"`
+	Kind        Kind    `json:"kind"`
+	EntryID     string  `json:"entry_id"`
+	Outcome     string  `json:"outcome"`
+	PolicyGate  string  `json:"policy_gate"`
 }
 
 // RefreshReport contains deterministic per-kind refresh outcomes.
@@ -115,7 +133,11 @@ type Source interface {
 
 // Store persists the curated projection and freshness state.
 type Store interface {
+	AdvanceSourceGeneration(ctx context.Context, source string) (int64, error)
 	ReplaceKind(ctx context.Context, kind Kind, document *Document) error
+	ReplaceSource(ctx context.Context, source string, generation int64, document *Document) error
+	MarkSourceStale(ctx context.Context, source string, generation int64, errorClass, lastError string) error
+	BrowseSource(ctx context.Context, source, query string, offset, limit int) (BrowseResult, error)
 	MarkKindStale(ctx context.Context, kind Kind, errorClass string, lastError string) error
 	ListKind(ctx context.Context, kind Kind, query string, offset int, limit int) (ListResult, error)
 	GetEntry(ctx context.Context, kind Kind, entryID string) (*Entry, error)

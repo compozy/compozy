@@ -32,15 +32,10 @@ func (m *Manager) ProjectForProfile(
 		return nil, false, err
 	}
 
-	extension, err := m.GetForInstance(key)
+	key = ProfileInstanceKey(key.Name, profile.ID, key.WorkspaceID)
+	extension, err := m.loadProfileProjectionSource(ctx, key)
 	if err != nil {
 		return nil, false, err
-	}
-	if extension.Manifest == nil && extension.Status.LastError == "" {
-		extension, err = m.inspectProjectionSource(ctx, key)
-		if err != nil {
-			return nil, false, err
-		}
 	}
 	enabled := extension.Info.Enabled
 	if m.registry != nil {
@@ -60,6 +55,7 @@ func (m *Manager) ProjectForProfile(
 		return extension, enabled, nil
 	}
 
+	key.WorkspaceID = extension.Status.WorkspaceID
 	manifest := cloneManifest(extension.Manifest)
 	projectedManifest := cloneManifest(extension.Manifest)
 	projectManifestResourcesForProfile(&projectedManifest.Resources, profile.Name)
@@ -88,6 +84,23 @@ func (m *Manager) ProjectForProfile(
 	extension.AutomationTriggers = loaded.automationTriggers
 	extension.Layouts = loaded.layouts
 	return extension, enabled, nil
+}
+
+func (m *Manager) loadProfileProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {
+	extension, err := m.getForInstance(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if extension.Manifest == nil && extension.Status.LastError == "" {
+		workspaceID := extension.Status.WorkspaceID
+		key.WorkspaceID = workspaceID
+		extension, err = m.inspectProjectionSource(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		extension.Status.WorkspaceID = workspaceID
+	}
+	return extension, nil
 }
 
 func (m *Manager) inspectProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {

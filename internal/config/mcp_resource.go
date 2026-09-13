@@ -40,6 +40,8 @@ func validateMCPServerSpec(
 func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 	normalized := cloneMCPServer(spec)
 	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.Owner = strings.TrimSpace(normalized.Owner)
+	normalized.RuntimeName = strings.TrimSpace(normalized.RuntimeName)
 	normalized.Transport = MCPServerTransport(strings.TrimSpace(string(normalized.Transport)))
 	normalized.Command = strings.TrimSpace(normalized.Command)
 	normalized.CWD = strings.TrimSpace(normalized.CWD)

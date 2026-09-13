@@ -60,16 +60,17 @@ type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, 
 type toolMCPConfigDeclarationProvider func(context.Context, *compozyconfig.Config) (toolMCPDesiredResources, error)
 
 type toolMCPSourceSyncer struct {
-	raw       resources.RawStore
-	toolStore resources.Store[toolspkg.Tool]
-	toolCodec resources.KindCodec[toolspkg.Tool]
-	mcpStore  resources.Store[compozyconfig.MCPServer]
-	mcpCodec  resources.KindCodec[compozyconfig.MCPServer]
-	actor     resources.MutationActor
-	logger    *slog.Logger
-	trigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	config    toolMCPConfigDeclarationProvider
-	providers []toolMCPDeclarationProvider
+	raw        resources.RawStore
+	toolStore  resources.Store[toolspkg.Tool]
+	toolCodec  resources.KindCodec[toolspkg.Tool]
+	mcpStore   resources.Store[compozyconfig.MCPServer]
+	mcpCodec   resources.KindCodec[compozyconfig.MCPServer]
+	actor      resources.MutationActor
+	logger     *slog.Logger
+	trigger    func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	config     toolMCPConfigDeclarationProvider
+	providers  []toolMCPDeclarationProvider
+	prepareMCP func(context.Context, []toolMCPDesiredResources) error
 }
 
 func newToolMCPSourceSyncer(
@@ -83,7 +84,7 @@ func newToolMCPSourceSyncer(
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
 	providers ...toolMCPDeclarationProvider,
 ) toolMCPPublisher {
-	return newToolMCPSourceSyncerWithConfigProvider(
+	syncer := newToolMCPSourceSyncerWithConfigProvider(
 		raw,
 		toolStore,
 		toolCodec,
@@ -95,6 +96,10 @@ func newToolMCPSourceSyncer(
 		nil,
 		providers...,
 	)
+	if syncer == nil {
+		return nil
+	}
+	return syncer
 }
 
 func newToolMCPSourceSyncerWithConfigProvider(
@@ -108,7 +113,7 @@ func newToolMCPSourceSyncerWithConfigProvider(
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
 	configProvider toolMCPConfigDeclarationProvider,
 	providers ...toolMCPDeclarationProvider,
-) toolMCPPublisher {
+) *toolMCPSourceSyncer {
 	if raw == nil || toolStore == nil || toolCodec == nil || mcpStore == nil || mcpCodec == nil {
 		return nil
 	}
@@ -232,6 +237,11 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozy
 		providers = append(providers, items)
 	}
 
+	if s.prepareMCP != nil {
+		if err := s.prepareMCP(ctx, providers); err != nil {
+			return desired, err
+		}
+	}
 	for _, items := range providers {
 		for i := range items.tools {
 			item := &items.tools[i]

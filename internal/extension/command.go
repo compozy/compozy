@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -41,6 +42,9 @@ func (m *Manager) Commands(workspaceID string) ([]CommandDescriptor, []CommandGr
 			continue
 		}
 		extension, err := m.GetForInstance(InstanceKey{Name: info.Name, WorkspaceID: workspaceID})
+		if errors.Is(err, ErrExtensionNotFound) {
+			continue
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("extension: resolve command source %q: %w", info.Name, err)
 		}

@@ -1,7 +1,7 @@
 package core
 
 const (
-	marketplaceExtensionsInstalledPath = "/marketplace/extensions"
+	marketplaceExtensionsInstalledPath = "/marketplace/installed"
 	marketplaceMCPsInstalledPath       = "/marketplace/mcps"
 	marketplaceSkillsInstalledPath     = "/marketplace/skills"
 )

@@ -20,7 +20,7 @@ func (e *CallExecutor) descriptorFromTool(
 	server compozyconfig.MCPServer,
 	tool mcpsdk.Tool,
 ) (toolspkg.MCPToolDescriptor, error) {
-	id, err := toolspkg.Canonicalize(server.Name, tool.Name)
+	id, err := toolspkg.Canonicalize(server.EffectiveRuntimeName(), tool.Name)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
 	}
@@ -39,7 +39,7 @@ func (e *CallExecutor) descriptorFromTool(
 	mcpSource := toolspkg.SourceRef{
 		Kind:            toolspkg.SourceMCP,
 		Owner:           owner,
-		RawServerName:   strings.TrimSpace(server.Name),
+		RawServerName:   server.EffectiveRuntimeName(),
 		RawToolName:     strings.TrimSpace(tool.Name),
 		ResourceID:      source.ResourceID,
 		ResourceVersion: source.ResourceVersion,

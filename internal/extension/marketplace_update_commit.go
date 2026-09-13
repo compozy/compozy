@@ -3,25 +3,28 @@ package extensionpkg
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 type marketplaceUpdateCommitInput struct {
-	registry        LifecycleRegistry
-	info            ExtensionInfo
-	installDir      string
-	result          *registrypkg.InstallResult
-	manifest        *Manifest
-	change          *stagedExtensionDirChange
-	slug            string
-	registryName    string
-	latestVersion   string
-	allowUnverified bool
-	installedBy     string
-	trust           *MarketplaceTrustEvidence
-	commitCandidate MarketplaceUpdateCommit
-	reload          MutationReload
+	registry          LifecycleRegistry
+	info              ExtensionInfo
+	installDir        string
+	result            *registrypkg.InstallResult
+	manifest          *Manifest
+	change            *stagedExtensionDirChange
+	slug              string
+	registryName      string
+	latestVersion     string
+	allowUnverified   bool
+	installedBy       string
+	trust             *MarketplaceTrustEvidence
+	commitCandidate   MarketplaceUpdateCommit
+	rollbackCandidate MarketplaceUpdateRollback
+	reload            MutationReload
 }
 
 func committedMarketplaceUpdateResult(
@@ -70,10 +73,11 @@ func commitMarketplaceUpdateCandidate(
 	}
 	if input.commitCandidate != nil {
 		if err := input.commitCandidate(input.info, input.manifest); err != nil {
-			return "", errors.Join(
-				err,
-				restoreUpdatedExtensionRecord(input.registry, input.info, input.installDir, input.change),
-			)
+			rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancel()
+			return "", errors.Join(err, restoreMarketplaceUpdateCandidate(
+				rollbackCtx, input.registry, input.info, input.installDir, input.change, input.rollbackCandidate,
+			))
 		}
 	}
 	if err := reloadMarketplaceExtensionUpdate(
@@ -83,8 +87,58 @@ func commitMarketplaceUpdateCandidate(
 		input.info,
 		input.installDir,
 		input.change,
+		input.rollbackCandidate,
 	); err != nil {
 		return "", err
 	}
 	return remoteVersion, nil
+}
+
+func reloadMarketplaceExtensionUpdate(
+	ctx context.Context,
+	reload MutationReload,
+	registry LifecycleRegistry,
+	info ExtensionInfo,
+	installDir string,
+	change *stagedExtensionDirChange,
+	rollbackCandidate MarketplaceUpdateRollback,
+) error {
+	if reload == nil {
+		return nil
+	}
+	if err := reload(ctx); err != nil {
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		restoreErr := restoreMarketplaceUpdateCandidate(
+			rollbackCtx,
+			registry,
+			info,
+			installDir,
+			change,
+			rollbackCandidate,
+		)
+		if restoreErr == nil {
+			restoreErr = reload(rollbackCtx)
+		}
+		return errors.Join(
+			fmt.Errorf("extension: reload after update %q: %w", info.Name, err),
+			restoreErr,
+		)
+	}
+	return nil
+}
+
+// Restore the package before releasing candidate-only resources. A failed package restoration
+// retains its resources and never reloads a partially restored installation.
+func restoreMarketplaceUpdateCandidate(
+	ctx context.Context, registry LifecycleRegistry, info ExtensionInfo, installDir string,
+	change *stagedExtensionDirChange, rollbackCandidate MarketplaceUpdateRollback,
+) error {
+	if err := restoreUpdatedExtensionRecord(registry, info, installDir, change); err != nil {
+		return err
+	}
+	if rollbackCandidate != nil {
+		return rollbackCandidate(ctx, info)
+	}
+	return nil
 }

@@ -5,6 +5,7 @@ import {
   settingsSandboxesListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
+  settingsMCPServerDetailOptions,
   settingsNotificationPresetsOptions,
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
@@ -12,6 +13,7 @@ import {
 import type {
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
+  SettingsMCPServerGetFilter,
   SettingsNotificationPresetFilter,
 } from "../types";
 
@@ -41,6 +43,16 @@ export function useSettingsSandbox(name: string, options: QueryEnabledOptions = 
 
 export function useSettingsHooks(filter: SettingsHookListFilter = {}) {
   return useQuery(settingsHooksListOptions(filter));
+}
+
+export function useSettingsMCPServer(
+  name: string,
+  filter: SettingsMCPServerGetFilter = {},
+  options: MCPQueryOptions = {}
+) {
+  return useQuery(
+    settingsMCPServerDetailOptions(name, filter, options.enabled ?? true, options.refetchInterval)
+  );
 }
 
 export function useSettingsMCPServers(

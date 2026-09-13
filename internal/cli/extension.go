@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
@@ -131,6 +132,7 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
+	var inputs extensionInputFlags
 	var version string
 	var asset string
 	var allowUnverified bool
@@ -149,9 +151,15 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			for index := range plan.Attempts {
 				plan.Attempts[index].ConfirmNetworkDigest = strings.TrimSpace(confirmNetworkDigest)
 			}
-			preview, err := previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
+			plan, preview, err := prepareExtensionCLIInputs(cmd.Context(), deps, plan, inputs)
 			if err != nil {
 				return err
+			}
+			if preview == nil || plan.Attempts[0].Source == contract.InstallExtensionSourceLocalPath {
+				preview, err = previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
+				if err != nil {
+					return err
+				}
 			}
 			if err := writeExtensionInstallPreview(cmd, preview); err != nil {
 				return err
@@ -167,6 +175,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, extensionInstallSuccessBundle(&item, report))
 		},
 	}
+	inputs.register(cmd)
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(

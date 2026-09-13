@@ -4,17 +4,22 @@ area: ET
 title: Enter and browse the Web marketplace
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The Marketplace sidebar entry and `/marketplace` route land on Skills in Installed scope; choosing Marketplace records `tab=market`, and the shared kind template remains truthful and keyboard operable at desktop and mobile widths.
-entry_points: /marketplace; /marketplace/skills; Marketplace sidebar item
-qa_status: pass
+expected: The sidebar and /marketplace open one extension catalog with search, installed markers, the installed-count shelf, Refresh and the two Add install items. One source has no section header; loading, stale, empty and narrow-window states remain truthful and keyboard operable.
+entry_points: /marketplace; Marketplace sidebar item
+qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-installed-default.png
 last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
+
+Marketplace catalog task 01 (2026-09-12): Browse the default catalog, narrow search, refresh a cached unavailable source, open the shelf, and check the one-column layout. Verify old kind links redirect without restoring a kind control.
+
+Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
+
 
 Added by marketplace Task 06. The next Web QA cycle should compare the landing against VC01, VC02, VC03, and VC06, including installed and update states with an active workspace.
 

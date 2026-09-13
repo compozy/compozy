@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -127,12 +128,20 @@ func (e *extensionOperationAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
+	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired {
+		return fmt.Sprintf("extension inputs required: %s. Pass --input id=value or --input-file inputs.json. (%s)",
+			strings.Join(e.payload.Inputs, ", "), e.payload.Code)
+	}
 	return apiErrorMessage(e.payload.Error, e.status)
 }
 
 func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
+	}
+	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired ||
+		e.payload.Code == diagnosticcontract.CodeExtensionInputInvalid {
+		return 2
 	}
 	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), extensionAgentPluginDiagnosticPrefix) {
 		return 1

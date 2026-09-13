@@ -183,6 +183,9 @@ const (
 
 const (
 	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
+	CodeExtensionSourceChanged           = "extension_source_changed"
+	CodeExtensionInputsRequired          = "extension_inputs_required"
+	CodeExtensionInputInvalid            = "extension_input_invalid"
 	CodeExtensionAgentConflict           = "extension_agent_conflict"
 	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
 	CodeExtensionEnvBindingInvalid       = "extension_env_binding_invalid"
@@ -229,6 +232,9 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
 	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
+	{Code: CodeExtensionSourceChanged, Category: CategoryExtension},
+	{Code: CodeExtensionInputsRequired, Category: CategoryExtension},
+	{Code: CodeExtensionInputInvalid, Category: CategoryExtension},
 	{Code: CodeExtensionAgentConflict, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionEnvBindingDangling, Category: CategoryExtension},

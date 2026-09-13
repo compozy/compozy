@@ -442,6 +442,72 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: attachment migration preserves every installed package and its global/all-profile reach.
+	// Owner: global database upgrade. Canonical suite: reopen/preservation tests.
+	t.Run(
+		"Should backfill global extension installations without changing package or enablement state",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00113_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			const installedAt = "2026-09-01T00:00:00Z"
+			for _, name := range []string{"first", "second"} {
+				if _, err := prior.ExecContext(ctx, `INSERT INTO extensions
+   (name, version, source, manifest_path, installed_at, checksum) VALUES (?, '1.0.0', 'user', '/fixture/extension.toml', ?, 'digest')`, name, installedAt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO extension_profile_enablement
+   (extension_name, profile_id, enabled) VALUES ('second', ?, 0)`, store.DefaultProfileID); err != nil {
+				t.Fatal(err)
+			}
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				upgraded, err := OpenGlobalDB(ctx, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{"first", "second"} {
+					var profile, workspace, createdAt, version, checksum string
+					if err := upgraded.db.QueryRowContext(ctx, `SELECT i.profile_id, i.workspace_id, i.created_at, e.version, e.checksum
+     FROM extension_installations i JOIN extensions e ON e.name = i.extension_name WHERE e.name = ?`, name).
+						Scan(&profile, &workspace, &createdAt, &version, &checksum); err != nil {
+						t.Fatal(err)
+					}
+					if profile != "" || workspace != "" || createdAt != installedAt || version != "1.0.0" ||
+						checksum != "digest" {
+						t.Fatalf("migrated %s = %q %q %q %q %q", name, profile, workspace, createdAt, version, checksum)
+					}
+				}
+				var count, disabled int
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM extension_installations`).
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT enabled FROM extension_profile_enablement WHERE extension_name = 'second'`).
+					Scan(&disabled); err != nil {
+					t.Fatal(err)
+				}
+				if count != 2 || disabled != 0 {
+					t.Fatalf("count/disabled = %d/%d", count, disabled)
+				}
+				status, err := store.Status(ctx, upgraded.db, MigrationStream())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertCompleteMigrationStream(t, status, MigrationStream())
+				if err := upgraded.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
 	for _, migration := range []string{"00102_schema.sql", "00103_schema.sql", "00104_schema.sql", "00105_schema.sql"} {
 		t.Run("Should preserve sessions and queued inputs through "+migration, func(t *testing.T) {
 			t.Parallel()

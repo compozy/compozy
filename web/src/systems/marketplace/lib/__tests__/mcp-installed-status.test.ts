@@ -28,6 +28,7 @@ describe("marketplaceMCPInstalledStatus", () => {
           auth: { client_secret_configured: false, registration: "auto" },
           auth_status: {
             server_name: "linear",
+            owner: "manual",
             scope: "workspace",
             status: "needs_login",
             token_present: false,
@@ -54,6 +55,7 @@ describe("marketplaceMCPInstalledStatus", () => {
           auth: { client_secret_configured: false, registration: "auto" },
           auth_status: {
             server_name: "sentry",
+            owner: "manual",
             scope: "workspace",
             status: "authenticated",
             token_present: true,

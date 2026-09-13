@@ -104,6 +104,7 @@ type Manifest struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
+	Inputs               []ManifestInput             `toml:"inputs,omitempty"                json:"inputs,omitempty"`
 	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
@@ -216,15 +217,26 @@ type HookMatcherConfig struct {
 
 // MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
-	Profile   string            `toml:"profile,omitempty"    json:"profile,omitempty"`
-	Command   string            `toml:"command,omitempty"    json:"command,omitempty"`
-	CWD       string            `toml:"-"                    json:"-"`
-	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
-	Env       map[string]string `toml:"env,omitempty"        json:"env,omitempty"`
-	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
-	Transport string            `toml:"transport,omitempty"  json:"transport,omitempty"`
-	URL       string            `toml:"url,omitempty"        json:"url,omitempty"`
-	Headers   map[string]string `toml:"headers,omitempty"    json:"headers,omitempty"`
+	Auth         *MCPServerAuthConfig `toml:"auth,omitempty"          json:"auth,omitempty"`
+	DefaultScope string               `toml:"default_scope,omitempty" json:"default_scope,omitempty"`
+	Profile      string               `toml:"profile,omitempty"       json:"profile,omitempty"`
+	Command      string               `toml:"command,omitempty"       json:"command,omitempty"`
+	CWD          string               `toml:"-"                       json:"-"`
+	Args         []string             `toml:"args,omitempty"          json:"args,omitempty"`
+	Env          map[string]string    `toml:"env,omitempty"           json:"env,omitempty"`
+	SecretEnv    map[string]string    `toml:"secret_env,omitempty"    json:"secret_env,omitempty"`
+	Transport    string               `toml:"transport,omitempty"     json:"transport,omitempty"`
+	URL          string               `toml:"url,omitempty"           json:"url,omitempty"`
+	Headers      map[string]string    `toml:"headers,omitempty"       json:"headers,omitempty"`
+}
+
+// MCPServerAuthConfig declares authentication policy without embedding credentials.
+type MCPServerAuthConfig struct {
+	Method       string   `toml:"method"                 json:"method"`
+	Registration string   `toml:"registration,omitempty" json:"registration,omitempty"`
+	IssuerURL    string   `toml:"issuer_url,omitempty"   json:"issuer_url,omitempty"`
+	ClientID     string   `toml:"client_id,omitempty"    json:"client_id,omitempty"`
+	Scopes       []string `toml:"scopes,omitempty"       json:"scopes,omitempty"`
 }
 
 // ToolConfig declares one static tool packaged with the extension.
@@ -276,6 +288,7 @@ type manifestDocument struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
+	Inputs               []manifestInputDocument     `toml:"inputs,omitempty"                json:"inputs,omitempty"`
 	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`

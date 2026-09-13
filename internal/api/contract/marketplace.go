@@ -1,6 +1,9 @@
 package contract
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // MarketplaceKind identifies one supported marketplace catalog.
 type MarketplaceKind string
@@ -26,7 +29,14 @@ func MarketplaceKindValues() []string {
 
 // MarketplaceListingPayload is the common discovery row shared by every marketplace kind.
 type MarketplaceListingPayload struct {
-	Kind             MarketplaceKind              `json:"kind"`
+	SourceRef        string                       `json:"source_ref,omitempty"`
+	Icon             string                       `json:"icon,omitempty"`
+	Layout           string                       `json:"layout,omitempty"`
+	Installable      bool                         `json:"installable"`
+	InstallBlocker   string                       `json:"install_blocker,omitempty"`
+	DigestSHA256     string                       `json:"digest_sha256"`
+	NameConflict     *MarketplaceOriginPayload    `json:"name_conflict,omitempty"`
+	Kind             MarketplaceKind              `json:"kind,omitempty"`
 	EntryID          string                       `json:"entry_id"`
 	Name             string                       `json:"name"`
 	Description      string                       `json:"description"`
@@ -120,10 +130,16 @@ type MarketplaceMCPDetailPayload struct {
 
 // MarketplaceExtensionDetailPayload contains curated extension acquisition metadata.
 type MarketplaceExtensionDetailPayload struct {
-	InstallSlug  string `json:"install_slug"`
-	ArtifactURL  string `json:"artifact_url"`
-	DigestSHA256 string `json:"digest_sha256"`
-	Repository   string `json:"repository,omitempty"`
+	ResolvedRef  string                     `json:"resolved_ref,omitempty"`
+	Layout       string                     `json:"layout,omitempty"`
+	Inputs       []MarketplaceInputPayload  `json:"inputs"`
+	MCPServers   []MarketplaceServerPayload `json:"mcp_servers"`
+	Contents     ExtensionContentsPayload   `json:"contents"`
+	Diagnostics  []DiagnosticItem           `json:"diagnostics,omitempty"`
+	InstallSlug  string                     `json:"install_slug"`
+	ArtifactURL  string                     `json:"artifact_url"`
+	DigestSHA256 string                     `json:"digest_sha256"`
+	Repository   string                     `json:"repository,omitempty"`
 }
 
 // MarketplaceSkillDetailPayload contains skill registry detail and acquisition metadata.
@@ -157,4 +173,84 @@ type MarketplaceRefreshKindPayload struct {
 // MarketplaceRefreshResponse reports deterministic per-kind refresh outcomes.
 type MarketplaceRefreshResponse struct {
 	Kinds []MarketplaceRefreshKindPayload `json:"kinds"`
+}
+
+// MarketplaceOriginPayload identifies acquisition independently of its display name.
+type MarketplaceOriginPayload struct {
+	Source    string `json:"source"`
+	SourceRef string `json:"source_ref"`
+	EntryID   string `json:"entry_id"`
+}
+
+// ExtensionContentsPayload summarizes the resources shipped by one extension.
+type ExtensionContentsPayload struct {
+	Skills     int `json:"skills"`
+	MCPServers int `json:"mcp_servers"`
+	Hooks      int `json:"hooks"`
+	Loops      int `json:"loops"`
+	Agents     int `json:"agents"`
+	Bridges    int `json:"bridges"`
+}
+
+// MarketplaceListResponse preserves the source and cursor metadata of the catalog page.
+type MarketplaceListResponse struct {
+	Total      int                         `json:"total"`
+	NextCursor string                      `json:"next_cursor,omitempty"`
+	Revision   string                      `json:"revision"`
+	Stale      bool                        `json:"stale"`
+	ErrorClass string                      `json:"error_class,omitempty"`
+	Error      string                      `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary  `json:"sources"`
+	Items      []MarketplaceListingPayload `json:"items"`
+}
+
+type MarketplaceSourceSummary struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	Count      int        `json:"count"`
+	LastReadAt *time.Time `json:"last_read_at,omitempty"`
+}
+
+type MarketplaceCursorStalePayload struct {
+	Error   string `json:"error"`
+	Code    string `json:"code"`
+	Restart bool   `json:"restart"`
+}
+
+type MarketplaceInputPayload struct {
+	ID       string                            `json:"id"`
+	Prompt   string                            `json:"prompt"`
+	Type     string                            `json:"type"`
+	Required bool                              `json:"required"`
+	Binding  MarketplaceMCPInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                   `json:"default,omitempty"`
+}
+
+// MCPAuthSummary excludes credentials and credential references.
+type MCPAuthSummary struct {
+	Method       string   `json:"method"`
+	Registration string   `json:"registration,omitempty"`
+	IssuerURL    string   `json:"issuer_url,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+}
+
+type MarketplaceServerPayload struct {
+	Name        string          `json:"name"`
+	Owner       string          `json:"owner"`
+	Scope       string          `json:"scope,omitempty"`
+	Transport   string          `json:"transport"`
+	Launch      string          `json:"launch"`
+	Status      string          `json:"status,omitempty"`
+	RuntimeName string          `json:"runtime_name,omitempty"`
+	Auth        *MCPAuthSummary `json:"auth,omitempty"`
+	Profile     string          `json:"profile,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+}
+
+type ExtensionInputStatePayload struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Set    bool   `json:"set"`
+	Active bool   `json:"active"`
 }

@@ -9,6 +9,7 @@ interface SettingsSourceBadgeProps {
 }
 
 const KIND_LABELS: Record<SettingsSourceKind, string> = {
+  extension: "EXTENSION",
   "builtin-provider": "BUILTIN",
   "global-config": "CONFIG",
   "profile-config": "PROFILE",

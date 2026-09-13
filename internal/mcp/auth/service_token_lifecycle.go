@@ -131,6 +131,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	}
 	if strings.TrimSpace(cfg.Type) == "" {
 		return Status{
+			Owner:       cfg.Target.Owner,
 			ServerName:  cfg.Target.ServerName,
 			Scope:       cfg.Target.Scope,
 			WorkspaceID: cfg.Target.WorkspaceID,

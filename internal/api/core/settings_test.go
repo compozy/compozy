@@ -26,6 +26,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -602,6 +603,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PUT("/providers/:name", handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.POST("/mcp-servers/install", handlers.InstallSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
 	settings.POST("/mcp-servers/:name/auth/begin", handlers.BeginSettingsMCPAuth)
@@ -636,6 +638,11 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			) (mcpauth.Status, error) {
 				if req.Name != "linear" {
 					t.Fatalf("GetMCPAuthStatus target = %#v, want linear", req)
+				}
+				if req.Owner == "extension:linear" {
+					status := confirmedWorkspaceMCPAuthStatus(expiresAt)
+					status.Owner = req.Owner
+					return status, nil
 				}
 				if req.Scope == settingspkg.ScopeProfile {
 					if req.ProfileName != "marketing" || req.WorkspaceID != "" {
@@ -716,12 +723,24 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		}
 		var statusPayload contract.SettingsMCPAuthStatusPayload
 		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
+		// Invariant: redacted status exposes the normalized definition owner.
+		// Owner: HTTP/UDS contract mapping; canonical suite: settings_test.go.
 		if statusPayload.Scope != "workspace" || statusPayload.WorkspaceID != "workspace-a" ||
-			statusPayload.ServerName != "linear" || !statusPayload.TokenPresent {
+			statusPayload.ServerName != "linear" || statusPayload.Owner != "manual" || !statusPayload.TokenPresent {
 			t.Fatalf("status payload = %#v, want redacted workspace auth state", statusPayload)
 		}
 		if service.ListCollectionCalls != 0 {
 			t.Fatalf("GetSettingsMCPAuthStatus triggered collection listing %d times", service.ListCollectionCalls)
+		}
+		ownedResponse := performRequest(t, fixture.Engine, http.MethodGet,
+			targetPath+"status"+query+"&owner=extension%3Alinear", nil)
+		if ownedResponse.Code != http.StatusOK {
+			t.Fatalf("owner-qualified status failed: %s", ownedResponse.Body.String())
+		}
+		var ownedPayload contract.SettingsMCPAuthStatusPayload
+		decodeJSON(t, ownedResponse.Body.Bytes(), &ownedPayload)
+		if ownedPayload.Owner != "extension:linear" {
+			t.Fatalf("request/response lost its extension owner: %#v", ownedPayload)
 		}
 
 		profileStatusResponse := performRequest(
@@ -4438,6 +4457,186 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 
 func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetadata(t *testing.T) {
 	t.Parallel()
+	// Invariant: PUT/DELETE retain owner-qualified selectors and permit only partial override fields to reach the owning service.
+	// Owner: HTTP/UDS request decoder; canonical suite: settings_test.go.
+	t.Run("Should pass partial MCP overrides and owner-qualified deletes through both transports", func(t *testing.T) {
+		t.Parallel()
+		for _, transport := range []string{"api-core-http", "api-core-uds"} {
+			t.Run(transport, func(t *testing.T) {
+				t.Parallel()
+				service := &stubSettingsService{}
+				fixture := newSettingsHandlerFixture(t, transport, service, nil)
+				path := "/api/settings/mcp-servers/remote?scope=profile&profile=marketing&workspace_id=workspace-a&owner=extension:bundle"
+				result := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPut,
+					path,
+					[]byte(`{"server":{"url":"https://example.com/changed","headers":{"X-Region":"eu"}}}`),
+				)
+				if result.Code != http.StatusOK {
+					t.Fatalf("partial override rejected: %d %s", result.Code, result.Body.String())
+				}
+				req := service.LastPutCollectionRequest
+				if req.Owner != "extension:bundle" || req.Scope != settingspkg.ScopeProfile ||
+					req.ProfileName != "marketing" ||
+					req.WorkspaceID != "workspace-a" ||
+					req.MCPServer == nil ||
+					req.MCPServer.Headers["X-Region"] != "eu" ||
+					req.MCPServer.Command != "" ||
+					req.MCPServer.Transport != "" {
+					t.Fatalf("partial override lost selectors or acquired package fields: %#v", req)
+				}
+				result = performRequest(t, fixture.Engine, http.MethodDelete, path, nil)
+				if result.Code != http.StatusOK || service.LastDeleteRequest.Owner != "extension:bundle" {
+					t.Fatalf("owner lost on DELETE: %d %#v", result.Code, service.LastDeleteRequest)
+				}
+			})
+		}
+	})
+
+	// Invariant: ownerless detail is manual-first; extension lookup prefers the local definition, inherits its parent, and excludes siblings.
+	// Owner: Settings HTTP/UDS detail boundary; canonical suite: settings_test.go.
+	t.Run(
+		"Should resolve MCP detail by owner or allocated name without crossing scope",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, transport := range []string{"api-core-http", "api-core-uds"} {
+				t.Run(transport, func(t *testing.T) {
+					t.Parallel()
+					service := &stubSettingsService{
+						ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+							return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
+								{
+									Name:        "github",
+									Owner:       "extension:github",
+									RuntimeName: "github.github",
+									Scope:       settingspkg.ScopeUser,
+								},
+								{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
+								{
+									Name:        "github",
+									Owner:       "extension:github",
+									RuntimeName: "github.github.2",
+									Scope:       settingspkg.ScopeWorkspace,
+									WorkspaceID: "workspace-a",
+								},
+							}}, nil
+						},
+					}
+					fixture := newSettingsHandlerFixture(t, transport, service, nil)
+					for _, tc := range []struct {
+						path, owner, runtimeName string
+						status                   int
+					}{
+						{"github", "manual", "github", http.StatusOK},
+						{"github?owner=manual", "manual", "github", http.StatusOK},
+						{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
+						{"github.github", "extension:github", "github.github", http.StatusOK},
+						{"github?owner=extension:other", "", "", http.StatusNotFound},
+						{"github.github?owner=manual", "", "", http.StatusNotFound},
+						{"github?owner=bad", "", "", http.StatusBadRequest},
+						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
+						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
+						{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
+					} {
+						result := performRequest(
+							t,
+							fixture.Engine,
+							http.MethodGet,
+							"/api/settings/mcp-servers/"+tc.path,
+							nil,
+						)
+						if result.Code != tc.status {
+							t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
+						}
+						if tc.status != http.StatusOK {
+							continue
+						}
+						var payload contract.SettingsMCPServerResponse
+						if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+							t.Fatal(err)
+						}
+						if payload.Server.Owner != tc.owner ||
+							payload.Server.RuntimeName != tc.runtimeName {
+							t.Fatalf("wrong detail for %s: %#v", tc.path, payload)
+						}
+					}
+				})
+			}
+		},
+	)
+	// Invariant: HTTP and UDS expose the same actionable MCP collision code and extension row identity without secret bindings.
+	// Owner: API Settings boundary; canonical suite: settings_test.go.
+	t.Run("Should co-ship extension identities and structured name conflicts across transports", func(t *testing.T) {
+		t.Parallel()
+		for _, transport := range []string{"api-core-http", "api-core-uds"} {
+			t.Run(transport, func(t *testing.T) {
+				t.Parallel()
+
+				service := &stubSettingsService{
+					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+						return settingspkg.CollectionEnvelope{
+							Collection: settingspkg.CollectionMCPServers,
+							Scope:      settingspkg.ScopeUser,
+							MCPServers: []settingspkg.MCPServerItem{
+								{
+									Name:        "github",
+									Owner:       "extension:github",
+									RuntimeName: "github.github",
+									Scope:       settingspkg.ScopeUser,
+									Override: &extensionmcp.Override{
+										Env: map[string]string{"REGION": "eu"},
+									},
+									SecretEnvKeys: []string{"TOKEN"},
+									SourceMetadata: settingspkg.SourceMetadata{
+										EffectiveSource: settingspkg.SourceRef{
+											Kind:  settingspkg.SourceKindExtension,
+											Scope: settingspkg.ScopeUser,
+										},
+									},
+								},
+							},
+						}, nil
+					},
+					PutCollectionItemFn: func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
+						return settingspkg.MutationResult{}, errors.Join(
+							settingspkg.ErrUnprocessable,
+							settingspkg.ErrMCPServerNameTaken,
+						)
+					},
+				}
+				fixture := newSettingsHandlerFixture(t, transport, service, nil)
+				list := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/mcp-servers", nil)
+				var response contract.SettingsMCPServersResponse
+				if err := json.Unmarshal(list.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if list.Code != http.StatusOK || len(response.MCPServers) != 1 {
+					t.Fatalf("wrong collection response: %d %s", list.Code, list.Body.String())
+				}
+				item := response.MCPServers[0]
+				if item.Owner != "extension:github" || item.RuntimeName != "github.github" || item.Override == nil ||
+					item.Override.Env["REGION"] != "eu" ||
+					item.SourceMetadata.EffectiveSource.Kind != contract.SettingsSourceExtension {
+					t.Fatalf("missing extension identity/override: %#v", item)
+				}
+				put := performRequest(
+					t, fixture.Engine,
+					http.MethodPut,
+					"/api/settings/mcp-servers/github.github",
+					[]byte(`{"server":{"name":"github.github","command":"manual-mcp"}}`),
+				)
+				var failure contract.ErrorPayload
+				if err := json.Unmarshal(put.Body.Bytes(), &failure); err != nil {
+					t.Fatal(err)
+				}
+				if put.Code != http.StatusUnprocessableEntity || failure.Code != "mcp_server_name_taken" {
+					t.Fatalf("wrong collision response: %d %#v", put.Code, failure)
+				}
+			})
+		}
+	})
 
 	service := &stubSettingsService{
 		PutCollectionItemFn: func(_ context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {

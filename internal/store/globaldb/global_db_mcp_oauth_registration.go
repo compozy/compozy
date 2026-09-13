@@ -253,11 +253,7 @@ func normalizeMCPOAuthRegistration(
 			"store: MCP OAuth registration access token and client URI must be set together",
 		)
 	}
-	refs, err := vault.MCPDCRSecretRefsForTarget(
-		string(registration.Target.Scope),
-		registration.Target.WorkspaceID,
-		registration.Target.ServerName,
-	)
+	refs, err := vault.MCPDCRSecretRefsForTarget(registration.Target.VaultTarget())
 	if err != nil {
 		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf(
 			"store: build MCP OAuth registration refs: %w",
@@ -281,6 +277,7 @@ func registrationUpsertParams(
 ) sqlcgen.UpsertMCPOAuthRegistrationParams {
 	return sqlcgen.UpsertMCPOAuthRegistrationParams{
 		Scope:                      string(registration.Target.Scope),
+		Owner:                      registration.Target.Owner,
 		WorkspaceID:                registration.Target.WorkspaceID,
 		ServerName:                 registration.Target.ServerName,
 		DefinitionFingerprint:      registration.DefinitionFingerprint,
@@ -303,6 +300,7 @@ func mcpOAuthRegistrationFromGenerated(row sqlcgen.McpOauthRegistration) (mcpaut
 	registration := mcpauth.ClientRegistration{
 		Target: mcpauth.Target{
 			Scope:       mcpauth.Scope(row.Scope),
+			Owner:       row.Owner,
 			WorkspaceID: row.WorkspaceID,
 			ServerName:  row.ServerName,
 		},
@@ -429,18 +427,21 @@ func deleteMCPAuthorizationSecret(
 
 func mcpOAuthRegistrationTargetParams(target mcpauth.Target) sqlcgen.GetMCPOAuthRegistrationParams {
 	return sqlcgen.GetMCPOAuthRegistrationParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }
 
 func mcpOAuthRegistrationDeleteParams(target mcpauth.Target) sqlcgen.DeleteMCPOAuthRegistrationParams {
 	return sqlcgen.DeleteMCPOAuthRegistrationParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }
 
 func mcpOAuthRegistrationRefsParams(target mcpauth.Target) sqlcgen.GetMCPOAuthRegistrationRefsParams {
 	return sqlcgen.GetMCPOAuthRegistrationRefsParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }

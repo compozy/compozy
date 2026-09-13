@@ -292,10 +292,20 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 				actor taskpkg.ActorContext,
 			) ([]contract.ExtensionPayload, error) {
 				capturedActor = actor
-				return []contract.ExtensionPayload{{
-					Name: "workspace-extension", Version: "1.0.0", WorkspaceID: "ws-native",
-					Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: entry.EntryID},
-				}}, nil
+				return []contract.ExtensionPayload{
+					{
+						Name:        "workspace-extension",
+						Version:     "1.0.0",
+						WorkspaceID: "ws-native",
+						Provenance:  &contract.ExtensionProvenancePayload{CatalogEntryID: entry.EntryID},
+						// The scoped inventory owns the exact acquisition origin in the unified catalog contract.
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    "compozy-catalog",
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   entry.EntryID,
+						},
+					},
+				}, nil
 			},
 		}
 		state := &bootState{

@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -150,6 +152,9 @@ func TestExtensionInstallUsesReachableDaemonWhenProcessTimestampMetadataLags(t *
 
 	installCalled := false
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
+		previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+			return ExtensionInstallPreviewRecord{Name: "late-boot-ext", DigestSHA256: strings.Repeat("a", 64)}, nil
+		},
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{Status: "running", PID: 999}, nil
 		},
@@ -184,6 +189,114 @@ func TestExtensionInstallUsesReachableDaemonWhenProcessTimestampMetadataLags(t *
 	if !installCalled {
 		t.Fatal("InstallExtension was not called through the reachable daemon")
 	}
+}
+
+// Invariant: the CLI pins the inspected acquisition and preserves manifest types and vault references.
+// Owner: CLI command boundary. Canonical suite: extension_marketplace_test.go.
+func TestExtensionInstallCommandInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should pin the inspected digest and merge typed flags over input file values", func(t *testing.T) {
+		t.Parallel()
+		inputFile := filepath.Join(t.TempDir(), "inputs.json")
+		if err := os.WriteFile(
+			inputFile,
+			[]byte(`{"label":{"value":"from file"},"token":{"vault_ref":"vault:mcp/shared/TOKEN"}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		digest := strings.Repeat("a", 64)
+		var captured InstallExtensionRequest
+		previewCalls := 0
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				previewCalls++
+				if len(req.Inputs) != 0 || req.ExpectedDigest != "" {
+					t.Fatal("metadata request should not send input values or an unreviewed pin")
+				}
+				return ExtensionInstallPreviewRecord{
+					Name:         "typed",
+					DigestSHA256: digest,
+					Inputs: []contract.MarketplaceInputPayload{
+						{ID: "label", Type: "string"},
+						{ID: "enabled", Type: "boolean"},
+					},
+				}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				captured = req
+				return ExtensionRecord{Name: "typed"}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		_, stderr, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"install",
+			"compozy/typed",
+			"--input-file",
+			inputFile,
+			"--input",
+			"label=true",
+			"--input",
+			"enabled=false",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if previewCalls != 1 || stderr != "" || captured.ExpectedDigest != digest ||
+			captured.Source != contract.InstallExtensionSourceCurated {
+			t.Fatalf(
+				"preview calls=%d, stderr=%q, digest=%q, source=%q",
+				previewCalls,
+				stderr,
+				captured.ExpectedDigest,
+				captured.Source,
+			)
+		}
+		if string(captured.Inputs["label"].Value) != `"true"` || string(captured.Inputs["enabled"].Value) != "false" {
+			t.Fatal("CLI did not preserve string and boolean types")
+		}
+		if ref := captured.Inputs["token"].VaultRef; ref == nil || *ref != "vault:mcp/shared/TOKEN" {
+			t.Fatal("CLI did not preserve the vault reference")
+		}
+	})
+	t.Run("Should preserve an explicit digest pin during inspection and installation", func(t *testing.T) {
+		t.Parallel()
+		digest := strings.Repeat("b", 64)
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				if req.ExpectedDigest != digest || req.RuntimeName != "pinned-server" {
+					t.Fatal("inspection lost the reviewed digest")
+				}
+				return ExtensionInstallPreviewRecord{DigestSHA256: digest}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				if req.ExpectedDigest != digest || req.RuntimeName != "pinned-server" {
+					t.Fatal("installation lost the reviewed digest")
+				}
+				return ExtensionRecord{Name: "pinned"}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"install",
+			"compozy/pinned",
+			"--runtime-name", "pinned-server",
+			"--expected-digest",
+			digest,
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestExtensionMarketplaceInstallRequiresDaemon(t *testing.T) {

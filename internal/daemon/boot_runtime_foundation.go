@@ -8,6 +8,8 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -105,6 +107,12 @@ func (d *Daemon) bootRegistryState(
 	}
 	if bindings, ok := any(registry).(extensionpkg.EnvBindingStore); ok {
 		state.extensionEnvBindings = bindings
+	}
+	if inputs, ok := any(state.registry).(interface{ ExtensionInputStore() extensioninput.Store }); ok {
+		state.extensionInputs = inputs.ExtensionInputStore()
+	}
+	if overrides, ok := any(state.registry).(interface{ ExtensionMCPStore() extensionmcp.Store }); ok {
+		state.extensionMCP = overrides.ExtensionMCPStore()
 	}
 	if err := d.bootDeadEntityRegistry(state); err != nil {
 		return err

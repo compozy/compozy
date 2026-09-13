@@ -43,6 +43,8 @@ export type {
   SettingsMCPServerCollection,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerEntry,
+  SettingsMCPServerDetail,
+  SettingsMCPServerGetFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,

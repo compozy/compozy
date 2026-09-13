@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -14,6 +15,8 @@ import (
 var putNetworkCoordinationInvitationRequestType = reflect.TypeFor[contract.PutNetworkCoordinationInvitationRequest]()
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
+	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary

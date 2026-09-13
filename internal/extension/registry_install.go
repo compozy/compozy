@@ -41,7 +41,7 @@ func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum s
 	if err != nil {
 		return err
 	}
-	return r.persistInstalledInfo(info, sourceText, config.replaceExisting)
+	return r.persistInstalledInfo(info, sourceText, config.replaceExisting, config.scope)
 }
 
 func applyInstallOptions(config *installConfig, opts ...InstallOption) {
@@ -225,6 +225,7 @@ func (r *Registry) persistInstalledInfo(
 	info ExtensionInfo,
 	sourceText string,
 	replaceExisting bool,
+	scope *InstallationScope,
 ) error {
 	encoded, err := marshalInstalledInfoFields(info)
 	if err != nil {
@@ -258,6 +259,23 @@ func (r *Registry) persistInstalledInfo(
 				return fmt.Errorf("extension: persist %q: %w", info.Name, execErr)
 			}
 			return mapRegistryConstraintError(execErr, info.Name)
+		}
+		if !existed && scope != nil {
+			if _, err := tx.ExecContext(
+				ctx,
+				`DELETE FROM extension_installations WHERE extension_name = ?`,
+				info.Name,
+			); err != nil {
+				return err
+			}
+			if err := insertInstallation(
+				ctx,
+				tx,
+				info.Name,
+				Installation{Scope: *scope, CreatedAt: info.InstalledAt},
+			); err != nil {
+				return err
+			}
 		}
 		if !existed && !info.Enabled {
 			if _, err := tx.ExecContext(

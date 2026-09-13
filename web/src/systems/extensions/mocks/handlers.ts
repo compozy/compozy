@@ -88,6 +88,7 @@ export const handlers: HttpHandler[] = [
     }
     const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
     return HttpResponse.json({
+      inputs: [],
       declared_profiles: [{ create: false, credentials: [], name: "default" }],
       name,
       ...(digest ? { network_requirement_digest: digest } : {}),

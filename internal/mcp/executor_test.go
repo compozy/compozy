@@ -1909,6 +1909,26 @@ func TestListMCPTools(t *testing.T) {
 }
 
 func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.T) {
+	// Invariant: tool discovery uses the allocated runtime name, retaining resource routing identity.
+	// Owner: MCP descriptor projection; canonical suite: executor_test.go.
+	t.Run("Should keep allocated and manual tool names distinct", func(t *testing.T) {
+		t.Parallel()
+		executor := &CallExecutor{}
+		tool := mcpsdk.Tool{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}
+		manual, err := executor.descriptorFromTool(toolspkg.SourceRef{}, compozyconfig.MCPServer{Name: "github"}, tool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		owned, err := executor.descriptorFromTool(toolspkg.SourceRef{ResourceID: "extension-record"},
+			compozyconfig.MCPServer{Name: "github", Owner: "extension:github", RuntimeName: "github.github"}, tool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if owned.ID == manual.ID || owned.Source.RawServerName != "github.github" ||
+			owned.Source.ResourceID != "extension-record" {
+			t.Fatalf("allocated tool lost its runtime/resource identity: %#v", owned)
+		}
+	})
 	t.Run("Should preserve valid presentation metadata", func(t *testing.T) {
 		t.Parallel()
 

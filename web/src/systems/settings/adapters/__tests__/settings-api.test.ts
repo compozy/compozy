@@ -7,6 +7,7 @@ import {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   getSettingsGeneral,
+  getSettingsMCPServer,
   getSettingsCmdPalette,
   getSettingsObservability,
   getSettingsPersona,
@@ -618,6 +619,61 @@ describe("collection endpoints", () => {
 
     await expectFetchRequest({
       path: "/api/settings/mcp-servers?scope=workspace&workspace_id=ws_alpha",
+    });
+  });
+
+  // Invariant: Settings data consumers receive the daemon's actionable collision code.
+  // Owner: HTTP adapter; canonical suite: settings-api.test.ts.
+  it("preserves the reserved MCP name error for callers", async () => {
+    mockJsonResponse(
+      { error: "MCP runtime name is reserved", code: "mcp_server_name_taken" },
+      { status: 422 }
+    );
+    await expect(
+      putSettingsMCPServer("github", { server: { name: "github", command: "gh" } })
+    ).rejects.toMatchObject({
+      name: "SettingsApiError",
+      status: 422,
+      code: "mcp_server_name_taken",
+    });
+  });
+
+  // Invariant: a detail request preserves the exact owner/profile/workspace selector and response identity.
+  // Owner: Settings API adapter; canonical suite: settings-api.test.ts.
+  it("gets an extension MCP detail with its owner-qualified scope", async () => {
+    const server = { name: "github", owner: "extension:github", runtime_name: "github.github" };
+    mockJsonResponse({ server });
+    const response = await getSettingsMCPServer("github", {
+      owner: " extension:github ",
+      scope: "profile",
+      profile: " marketing ",
+      workspace_id: " ws_alpha ",
+    });
+    expect(response.server).toEqual(server);
+    await expectFetchRequest({
+      path: "/api/settings/mcp-servers/github?scope=profile&workspace_id=ws_alpha&profile=marketing&owner=extension%3Agithub",
+    });
+  });
+
+  // Invariant: mutation requests preserve extension ownership without selecting a manual config file.
+  // Owner: Settings transport adapter; canonical suite: settings-api.test.ts.
+  it("puts and resets owner-qualified extension overrides", async () => {
+    const body = {
+      server: { name: "remote", url: "https://example.com/changed", headers: { "X-Region": "eu" } },
+    };
+    mockJsonResponse(mutationFixture);
+    await putSettingsMCPServer("remote", body, { scope: "user", owner: " extension:bundle " });
+    await expectFetchRequest({
+      method: "PUT",
+      body,
+      path: "/api/settings/mcp-servers/remote?scope=user&owner=extension%3Abundle",
+    });
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    await deleteSettingsMCPServer("remote", { scope: "user", owner: "extension:bundle" });
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/settings/mcp-servers/remote?scope=user&owner=extension%3Abundle",
     });
   });
 

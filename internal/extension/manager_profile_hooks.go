@@ -27,30 +27,9 @@ func (m *Manager) HookDeclarationsForProfiles(
 	}
 
 	profiles = normalizeHookProfileLenses(profiles)
-	decls := make([]hookspkg.HookDecl, 0)
-	for _, info := range m.List() {
-		for _, profile := range profiles {
-			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(info.Name), profile)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"extension: project hooks for %q and profile %q: %w",
-					info.Name,
-					profile.Name,
-					err,
-				)
-			}
-			if enabled {
-				decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, "")
-				if err != nil {
-					return nil, fmt.Errorf(
-						"extension: bind hooks for %q and profile %q: %w",
-						info.Name,
-						profile.Name,
-						err,
-					)
-				}
-			}
-		}
+	decls, err := m.installedHooksForProfiles(ctx, profiles)
+	if err != nil {
+		return nil, err
 	}
 
 	links, err := m.registry.ListDevLinks()
@@ -92,6 +71,39 @@ func (m *Manager) HookDeclarationsForProfiles(
 			}
 		}
 	}
+	return decls, nil
+}
+
+func (m *Manager) installedHooksForProfiles(ctx context.Context, profiles []ProfileLens) ([]hookspkg.HookDecl, error) {
+	decls := make([]hookspkg.HookDecl, 0)
+	for _, info := range m.List() {
+		for _, profile := range profiles {
+			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(info.Name), profile)
+			if errors.Is(err, ErrExtensionNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf(
+					"extension: project hooks for %q and profile %q: %w",
+					info.Name,
+					profile.Name,
+					err,
+				)
+			}
+			if enabled {
+				decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, "")
+				if err != nil {
+					return nil, fmt.Errorf(
+						"extension: bind hooks for %q and profile %q: %w",
+						info.Name,
+						profile.Name,
+						err,
+					)
+				}
+			}
+		}
+	}
+
 	return decls, nil
 }
 

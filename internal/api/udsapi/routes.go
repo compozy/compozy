@@ -308,6 +308,8 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace := api.Group("/marketplace")
 	{
+		marketplace.GET("", handlers.ListMarketplace)
+		marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 		marketplace.GET("/search", handlers.SearchMarketplace)
 		marketplace.GET("/:kind", handlers.BrowseMarketplaceKind)
 		marketplace.GET("/:kind/:entry_id", handlers.GetMarketplaceEntry)
@@ -448,6 +450,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.POST("/mcp-servers/install", handlers.InstallSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
 	settings.POST("/mcp-servers/:name/auth/begin", handlers.BeginSettingsMCPAuth)

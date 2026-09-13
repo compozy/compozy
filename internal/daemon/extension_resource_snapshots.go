@@ -49,17 +49,64 @@ func extensionResourceSnapshots(
 		return strings.Compare(left.Name, right.Name)
 	})
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos))
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, info := range infos {
 		if !info.Enabled {
 			continue
 		}
-		ext, loadErr := loadExtensionSnapshot(registry, runtime, logger, info.Name)
-		if loadErr != nil {
-			return nil, fmt.Errorf("daemon: load installed extension %q for resource sync: %w", info.Name, loadErr)
+		snapshot, loadErr := installedDefaultProfileResourceSnapshot(registry, runtime, logger, info.Name)
+		if errors.Is(loadErr, extensionpkg.ErrExtensionNotFound) {
+			continue
 		}
-		snapshots = append(snapshots, scopedExtensionResourceSnapshot{extension: ext, scope: globalScope})
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		snapshots = append(snapshots, snapshot)
 	}
+
+	development, err := developmentExtensionResourceSnapshots(registry, runtime, logger)
+	return append(snapshots, development...), err
+}
+
+func installedDefaultProfileResourceSnapshot(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	logger *slog.Logger,
+	name string,
+) (scopedExtensionResourceSnapshot, error) {
+	installation, err := registry.ResolveInstallation(context.Background(), name, extensionpkg.InstallationScope{
+		ProfileID: store.DefaultProfileID,
+	})
+	if err != nil {
+		return scopedExtensionResourceSnapshot{}, err
+	}
+	ext, err := loadExtensionSnapshot(registry, runtime, logger, name)
+	if err != nil {
+		return scopedExtensionResourceSnapshot{}, fmt.Errorf(
+			"daemon: load installed extension %q for resource sync: %w",
+			name,
+			err,
+		)
+	}
+	snapshot := scopedExtensionResourceSnapshot{
+		extension: ext,
+		scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+	}
+	if installation.Scope.ProfileID != "" {
+		snapshot.scope = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindProfile,
+			ID:   installation.Scope.ProfileID,
+		}
+		snapshot.profileID = installation.Scope.ProfileID
+	}
+	return snapshot, nil
+}
+
+func developmentExtensionResourceSnapshots(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	logger *slog.Logger,
+) ([]scopedExtensionResourceSnapshot, error) {
+	snapshots := make([]scopedExtensionResourceSnapshot, 0)
 
 	links, err := registry.ListDevLinks()
 	if err != nil {
@@ -193,6 +240,9 @@ func installedExtensionProfileSnapshots(
 				extensionpkg.GlobalInstanceKey(info.Name),
 				profile,
 			)
+			if errors.Is(projectErr, extensionpkg.ErrExtensionNotFound) {
+				continue
+			}
 			if projectErr != nil {
 				return nil, fmt.Errorf(
 					"daemon: project installed extension %q for profile %q: %w",

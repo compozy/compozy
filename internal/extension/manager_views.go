@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Get returns the current snapshot for one installed extension.
@@ -19,35 +20,31 @@ func (m *Manager) Get(name string) (*Extension, error) {
 	return m.GetForInstance(GlobalInstanceKey(name))
 }
 
-// GetForInstance resolves a workspace dev overlay before the global published instance.
+// GetForInstance resolves a workspace dev overlay before a visible published installation.
 func (m *Manager) GetForInstance(key InstanceKey) (*Extension, error) {
+	return m.getForInstance(context.Background(), key)
+}
+
+func (m *Manager) getForInstance(ctx context.Context, key InstanceKey) (*Extension, error) {
 	if m == nil {
 		return nil, ErrManagerRequired
 	}
-
 	key = key.Normalize()
 	if err := key.Validate(); err != nil {
 		return nil, err
 	}
-
-	m.mu.RLock()
-	ext := m.instanceLocked(key)
-	if ext == nil && key.IsProfileScoped() {
-		baseKey := key
-		baseKey.ProfileID = ""
-		ext = m.instanceLocked(baseKey)
-		if ext == nil && !baseKey.IsGlobal() {
-			ext = m.extensions[baseKey.Name]
-		}
-	} else if ext == nil && !key.IsGlobal() {
-		ext = m.extensions[key.Name]
+	sourceKey, development, err := m.readInstanceSource(ctx, key)
+	if err != nil {
+		return nil, err
 	}
+	m.mu.RLock()
+	ext := m.readInstanceLocked(key, sourceKey)
 	m.mu.RUnlock()
 	if ext != nil {
 		snapshot := m.cloneExtension(ext)
-		if !ext.instanceKey().IsGlobal() {
-			link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
-			if err == nil {
+		if development && m.registry != nil {
+			link, linkErr := m.registry.GetDevLink(key.Name, sourceKey.WorkspaceID)
+			if linkErr == nil {
 				snapshot.DevLink = link
 				_, publishedErr := m.registry.Get(key.Name)
 				snapshot.OverridesPublished = publishedErr == nil
@@ -55,7 +52,6 @@ func (m *Manager) GetForInstance(key InstanceKey) (*Extension, error) {
 		}
 		return snapshot, nil
 	}
-
 	if m.registry == nil {
 		return nil, &ExtensionNotFoundError{Name: key.Name}
 	}
@@ -64,9 +60,60 @@ func (m *Manager) GetForInstance(key InstanceKey) (*Extension, error) {
 		return nil, err
 	}
 	return &Extension{
-		Info:   *info,
-		Status: ExtensionStatus{Name: info.Name, Version: info.Version, Source: info.Source, Enabled: info.Enabled},
+		Info: *info,
+		Status: ExtensionStatus{
+			Name: info.Name, Version: info.Version, Source: info.Source, Enabled: info.Enabled,
+			WorkspaceID: sourceKey.WorkspaceID,
+		},
 	}, nil
+}
+
+// readInstanceSource retains the owning attachment instead of promoting a
+// package row to an installation in every workspace and profile.
+func (m *Manager) readInstanceSource(ctx context.Context, key InstanceKey) (InstanceKey, bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.readInstanceSourceLocked(ctx, key)
+}
+
+func (m *Manager) readInstanceSourceLocked(ctx context.Context, key InstanceKey) (InstanceKey, bool, error) {
+	baseKey := key.Normalize()
+	baseKey.ProfileID = ""
+	development := !baseKey.IsGlobal() && m.devExtensions[baseKey] != nil
+	if development {
+		return baseKey, true, nil
+	}
+	if m.registry == nil {
+		return GlobalInstanceKey(key.Name), false, nil
+	}
+	profileID := key.ProfileID
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	installation, err := m.registry.ResolveInstallation(ctx, key.Name, InstallationScope{
+		ProfileID: profileID, WorkspaceID: key.WorkspaceID,
+	})
+	if err != nil {
+		return InstanceKey{}, false, err
+	}
+	return InstanceKey{Name: key.Name, ProfileID: installation.Scope.ProfileID,
+		WorkspaceID: installation.Scope.WorkspaceID}, false, nil
+}
+
+func (m *Manager) readInstanceLocked(view, source InstanceKey) *managedExtension {
+	if ext := m.instanceLocked(runtimeKeyForInstallation(view, source)); ext != nil {
+		return ext
+	}
+	return m.instanceLocked(source)
+}
+
+// Explicit default-profile attachments retain a profile runtime identity;
+// only all-profiles installations reuse the unqualified base process.
+func runtimeKeyForInstallation(view, source InstanceKey) InstanceKey {
+	if source.IsProfileScoped() {
+		return source
+	}
+	return ProfileInstanceKey(view.Name, view.ProfileID, source.WorkspaceID)
 }
 
 // ListForWorkspace returns the effective extension registry for one trusted workspace.
@@ -78,7 +125,7 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	m.mu.RLock()
 	byName := make(map[string]ExtensionInfo, len(m.extensions)+len(m.devExtensions))
 	for name, ext := range m.extensions {
-		byName[name] = ext.info
+		byName[name] = cloneExtensionInfo(ext.info)
 	}
 	if workspaceID != "" {
 		for key, ext := range m.devExtensions {
@@ -90,6 +137,20 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	m.mu.RUnlock()
 	infos := make([]ExtensionInfo, 0, len(byName))
 	for _, info := range byName {
+		if m.registry != nil {
+			key := InstanceKey{Name: info.Name, WorkspaceID: workspaceID}
+			m.mu.RLock()
+			development := workspaceID != "" && m.devExtensions[key] != nil
+			m.mu.RUnlock()
+			if !development {
+				installations, err := m.registry.Installations(context.Background(), info.Name)
+				if err != nil || !slices.ContainsFunc(installations, func(item Installation) bool {
+					return item.Scope.WorkspaceID == "" || item.Scope.WorkspaceID == workspaceID
+				}) {
+					continue
+				}
+			}
+		}
 		infos = append(infos, info)
 	}
 	slices.SortFunc(infos, func(left, right ExtensionInfo) int {

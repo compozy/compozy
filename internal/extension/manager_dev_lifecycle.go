@@ -246,12 +246,19 @@ func (m *Manager) Logs(key InstanceKey, cursor ExtensionLogCursor) (ExtensionLog
 	if err := key.Validate(); err != nil {
 		return ExtensionLogSnapshot{}, err
 	}
-	if !key.IsGlobal() {
+	source, development, err := m.readInstanceSource(context.Background(), key)
+	if !key.IsGlobal() &&
+		(errors.Is(err, ErrExtensionNotFound) || (err == nil && source.WorkspaceID != key.WorkspaceID)) {
+		return ExtensionLogSnapshot{}, ErrExtensionNotDevLinked
+	}
+	if err != nil {
+		return ExtensionLogSnapshot{}, err
+	}
+	key = runtimeKeyForInstallation(key, source)
+	if development && m.registry != nil {
 		if _, err := m.registry.GetDevLink(key.Name, key.WorkspaceID); err != nil {
 			return ExtensionLogSnapshot{}, err
 		}
-	} else if _, err := m.registry.Get(key.Name); err != nil {
-		return ExtensionLogSnapshot{}, err
 	}
 	return m.logRingFor(key).snapshot(cursor), nil
 }

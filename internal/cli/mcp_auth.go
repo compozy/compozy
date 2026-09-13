@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +23,7 @@ const (
 )
 
 type mcpAuthCommandOptions struct {
+	owner                  string
 	scope                  string
 	workspaceID            string
 	profile                string
@@ -184,6 +186,7 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 }
 
 func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
+	cmd.Flags().StringVar(&opts.owner, "owner", "", "Definition owner: manual or extension:<name>")
 	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: user, profile, or workspace")
 	cmd.Flags().
 		StringVar(&opts.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
@@ -239,6 +242,9 @@ func (o mcpAuthCommandOptions) resolveTarget(
 }
 
 func (o mcpAuthCommandOptions) target(name string) (SettingsMCPAuthTarget, error) {
+	if err := vault.ValidateMCPOwner(o.owner); err != nil {
+		return SettingsMCPAuthTarget{}, err
+	}
 	if err := o.validateScope(); err != nil {
 		return SettingsMCPAuthTarget{}, err
 	}
@@ -250,6 +256,7 @@ func (o mcpAuthCommandOptions) target(name string) (SettingsMCPAuthTarget, error
 		return SettingsMCPAuthTarget{}, errors.New("cli: MCP server name cannot contain a slash")
 	}
 	return SettingsMCPAuthTarget{
+		Owner:       strings.TrimSpace(o.owner),
 		Name:        name,
 		Scope:       contract.SettingsLayeredScopeKind(strings.TrimSpace(o.scope)),
 		WorkspaceID: strings.TrimSpace(o.workspaceID),

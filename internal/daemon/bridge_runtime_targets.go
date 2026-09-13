@@ -69,6 +69,9 @@ func (r *bridgeRuntime) bridgeProviderFromInfo(
 	}
 
 	ext, err := loadExtensionSnapshot(r.registry, extensions, r.logger, info.Name)
+	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return nil, false
+	}
 	if err != nil {
 		r.logger.Warn("daemon: skip invalid bridge provider extension", "extension_name", info.Name, "error", err)
 		return nil, false

@@ -126,6 +126,16 @@ func (s *CatalogService) Browse(
 		return BrowseResult{}, err
 	}
 	refreshErr := s.ensureFresh(ctx, kind)
+	if kind == KindExtension {
+		result, err := s.store.BrowseSource(ctx, CompozyCatalogSource, query, offset, limit)
+		if err != nil {
+			return BrowseResult{}, errors.Join(refreshErr, err)
+		}
+		if len(result.Entries) == 0 {
+			return result, refreshErr
+		}
+		return result, nil
+	}
 	page, listErr := s.store.ListKind(ctx, kind, query, offset, limit)
 	if listErr != nil {
 		return BrowseResult{}, errors.Join(refreshErr, listErr)
@@ -135,7 +145,7 @@ func (s *CatalogService) Browse(
 		return BrowseResult{}, errors.Join(refreshErr, stateErr)
 	}
 	if refreshErr != nil && len(page.Entries) == 0 {
-		return BrowseResult{}, refreshErr
+		return BrowseResult{Entries: page.Entries, Total: page.Total, State: *state}, refreshErr
 	}
 	return BrowseResult{Entries: page.Entries, Total: page.Total, State: *state}, nil
 }

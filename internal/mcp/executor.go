@@ -361,10 +361,10 @@ func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {
 	if target == "" {
 		return false
 	}
-	if strings.TrimSpace(server.Name) == target {
+	if strings.TrimSpace(server.Name) == target || server.EffectiveRuntimeName() == target {
 		return true
 	}
-	id, err := toolspkg.Canonicalize(server.Name, "tool")
+	id, err := toolspkg.Canonicalize(server.EffectiveRuntimeName(), "tool")
 	if err != nil {
 		return false
 	}

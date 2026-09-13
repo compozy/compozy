@@ -20,6 +20,7 @@ func registryExtensionOperations() []OperationSpec {
 		setExtensionSecretsOperationSpec(),
 		deleteExtensionSecretOperationSpec(),
 		updateExtensionOperationSpec(),
+		updateExtensionsOperationSpec(),
 		removeExtensionOperationSpec(),
 		getExtensionProvenanceOperationSpec(),
 		listExtensionEnablementOperationSpec(),
@@ -66,6 +67,11 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 		RequestBody: contract.InstallExtensionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionInstallPreviewPayload{}},
+			{
+				Status:      409,
+				Description: "The approved source digest changed",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Package validation failure", Body: contract.ExtensionValidationErrorPayload{}},
@@ -286,6 +292,13 @@ func installExtensionOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.ExtensionResponse{}},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "The approved source changed or the extension already exists",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
+				),
+			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      422,
@@ -353,6 +366,11 @@ func setExtensionEnablementOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionEnablementPayload{}},
 			{Status: 400, Description: "Invalid profile or enablement state", Body: contract.ErrorPayload{}},
+			{
+				Status:      422,
+				Description: "Extension inputs are required",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
@@ -381,7 +399,9 @@ func updateExtensionOperationSpec() OperationSpec {
 				Description: "Network confirmation required",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
-			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Extension trust or input configuration is required", Bodies: responseBodiesOf(
+				responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
+			)},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

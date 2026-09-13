@@ -1,4 +1,6 @@
 export {
+  marketplaceCatalogFixture,
+  marketplaceCatalogDetailFixture,
   marketplaceDetails,
   marketplaceKindFixture,
   marketplaceListings,

@@ -1,15 +1,21 @@
 package settings
 
 import (
+	"maps"
 	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
+	Owner                  string
+	RuntimeName            string
+	Override               *extensionmcp.Override
 	Name                   string
 	Transport              compozyconfig.MCPServerTransport
 	Command                string
@@ -46,6 +52,8 @@ func baseMCPServerItem(
 	auth.ClientSecretRef = ""
 	return MCPServerItem{
 		Name:                   effective.Server.Name,
+		Owner:                  vault.NormalizeMCPOwner(effective.Server.Owner),
+		RuntimeName:            effective.Server.EffectiveRuntimeName(),
 		Transport:              effective.Server.EffectiveTransport(),
 		Command:                effective.Server.Command,
 		Args:                   append([]string(nil), effective.Server.Args...),
@@ -96,6 +104,11 @@ func mcpSecretEnvKeys(secretEnv map[string]string) []string {
 }
 
 func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
+	if value.Override != nil {
+		copy := *value.Override
+		copy.Env, copy.Headers = maps.Clone(copy.Env), maps.Clone(copy.Headers)
+		value.Override = &copy
+	}
 	value.Args = append([]string(nil), value.Args...)
 	value.EnvKeys = append([]string(nil), value.EnvKeys...)
 	value.SecretEnvKeys = append([]string(nil), value.SecretEnvKeys...)

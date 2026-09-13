@@ -56,6 +56,7 @@ type MCPInputBindingDetails struct {
 }
 
 type ExtensionEntryDetails struct {
+	Inputs       []EntryInput
 	InstallSlug  string
 	ArtifactURL  string
 	DigestSHA256 string
@@ -129,6 +130,7 @@ func projectExtensionEntry(entry Entry) (EntryDetails, error) {
 	return EntryDetails{
 		Author: strings.TrimSpace(value.Author), Source: CatalogSource,
 		Extension: &ExtensionEntryDetails{
+			Inputs:       value.Inputs,
 			InstallSlug:  strings.TrimSpace(value.InstallSlug),
 			ArtifactURL:  strings.TrimSpace(value.ArtifactURL),
 			DigestSHA256: strings.ToLower(strings.TrimSpace(value.DigestSHA256)),

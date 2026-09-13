@@ -10,6 +10,7 @@ export const kitExtensionFixture = {
   enabled: false,
   missing_env: ["DEP_KIT_WEBHOOK"],
   name: "dep-kit-ops",
+  inputs: [],
   declared_profiles: [
     {
       created_by_extension: true,

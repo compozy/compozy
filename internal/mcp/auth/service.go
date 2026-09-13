@@ -405,6 +405,7 @@ func statusFromTokenWithDiagnostic(
 ) Status {
 	cfg.Target = cfg.Target.Normalize()
 	status := Status{
+		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,

@@ -151,14 +151,17 @@ residual cleanup state.
 | Field               | Type         | Default     | Valid values                    | Description                                                               |
 | ------------------- | ------------ | ----------- | ------------------------------- | ------------------------------------------------------------------------- |
 | `registration`      | string       | `auto`      | `auto`, `pre_registered`.       | `auto` resolves protected-resource metadata, CIMD, then one DCR fallback. |
-| `issuer_url`        | string URL   | conditional | Absolute `http` or `https` URL. | Required with `pre_registered`; must match the discovered issuer.         |
+| `issuer_url`        | string URL   | conditional | HTTPS URL; HTTP only on loopback. | Required with `pre_registered`; optional issuer restriction with `auto`. |
 | `client_id`         | string       | conditional | Non-empty.                      | Required with `pre_registered`.                                           |
 | `client_secret_ref` | string       | empty       | `vault:mcp/**`.                 | Optional client secret for `pre_registered` only.                         |
 | `scopes`            | string array | empty       | Unique non-empty strings.       | Requested OAuth scopes.                                                   |
 
 For `registration = "auto"`, CompozyOS resolves protected-resource metadata, uses the provider's
 client metadata document support when available, and otherwise makes one Dynamic Client Registration
-attempt. A pre-registered entry must provide both `issuer_url` and `client_id`.
+attempt. An optional `issuer_url` restricts selection to that issuer among the authorities advertised
+by protected-resource metadata. The discovered authorization-server metadata must identify the same
+issuer; a mismatch fails before registration or token use. A pre-registered entry must provide both
+`issuer_url` and `client_id`. Automatic registration does not accept a configured client ID or secret.
 
 ## Client metadata identity
 
@@ -282,7 +285,12 @@ compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o j
 ```
 
 Inside a CompozyOS session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
-redacted status. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
+redacted status. Both accept `server_name` and an optional `owner`, such as
+`{"server_name":"github","owner":"extension:github"}`. Without an owner, use the
+allocated runtime name; a manual definition takes precedence. The caller's
+profile and workspace determine the effective registry. Returned auth diagnostics
+include the owning scope and owner, and CLI repair commands preserve those
+selectors. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
 
 The web repair action appears only for OAuth-capable HTTP servers that need their first login,
 have expired or invalid auth, or report `auth_refresh_failed`. Authorization success still requires
@@ -469,3 +477,41 @@ skill root.
 - [AGENT.md](/docs/configuration/agent-md) documents agent-local MCP declarations.
 - [SKILL.md](/docs/configuration/skill-md) documents skill-local MCP declarations.
 - [Marketplace](/docs/marketplace) covers discovery, guided install, updates, and trust.
+
+## Extension-provided servers
+
+The Settings MCP collection includes installed extension declarations alongside manual
+servers. Each row carries `owner` (`manual` or `extension:<name>`) and `runtime_name`.
+The logical `name` remains the name declared by the package and used with the owner
+for OAuth credentials. The runtime name identifies the server when names overlap.
+
+An extension's allocated runtime name is retained while it is disabled. A committed
+global removal releases that installation's allocations; a failed retirement
+keeps its names and overrides. A manual
+Settings write that claims a reserved name fails with HTTP 422 and
+`code: "mcp_server_name_taken"`; choose another manual server name.
+Extension rows use the `extension` source kind and have no config-file write target.
+Their `override` field contains only non-secret env, header, and URL overrides.
+
+Read one row with `GET /api/settings/mcp-servers/{name}` on HTTP or UDS. Pass
+`owner=extension:<name>` with the logical server name and the row's scope,
+workspace, and profile selectors. Without an owner, lookup selects a manual
+server first, then the allocated runtime name. An explicit extension owner never
+falls through to a manual server. Lookup uses the effective registry: a workspace
+can inherit its parent definitions, while a local definition takes precedence.
+Definitions from sibling workspaces or other profiles are excluded. The returned
+source identifies the scope that owns the definition and its credentials.
+
+Use `PUT /api/settings/mcp-servers/{name}` with the same owner selectors to replace
+an extension server's overrides. The body accepts only `env`, `headers`, and
+`url`; packaged command, arguments, transport, auth, and secret bindings remain
+part of the extension declaration. Overrides must also be valid for that
+declaration's transport. Omitted override fields revert to the package values.
+`DELETE` on an extension-owned row resets its overrides without removing the
+server or changing its allocated runtime name. Both operations apply live and
+clear only that definition's OAuth state, so it can authorize the updated server.
+
+Extension overrides are stored with the owning instance and have no config-file
+`target`. When creating or editing a manual server whose name also identifies an
+extension runtime, pass `owner=manual`; reserved runtime names still fail with
+`mcp_server_name_taken`.

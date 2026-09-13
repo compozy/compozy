@@ -26,7 +26,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
-	key, tracked := settingsMCPDeadEntityKey(target, server.Name)
+	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
 	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
 	} else if suppressed != nil {
@@ -66,8 +66,8 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 
 	tools, protocolVersion, err := executor.ListToolsWithProtocol(ctx, toolspkg.SourceRef{
 		Kind:          toolspkg.SourceMCP,
-		Owner:         strings.TrimSpace(server.Name),
-		RawServerName: strings.TrimSpace(server.Name),
+		Owner:         server.EffectiveRuntimeName(),
+		RawServerName: server.EffectiveRuntimeName(),
 		RawToolName:   "*",
 		WorkspaceID:   strings.TrimSpace(target.WorkspaceID),
 	})

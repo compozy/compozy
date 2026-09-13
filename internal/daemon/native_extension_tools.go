@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extensioninput"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -33,25 +34,21 @@ type extensionMarketplaceSourceLoader func(
 ) ([]registrypkg.Source, error)
 
 type extensionNameInput struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Owner string `json:"owner"`
 }
 
-type extensionInstallInput struct {
-	Source               contract.InstallExtensionSource `json:"source"`
-	Ref                  string                          `json:"ref"`
-	Version              string                          `json:"version"`
-	Asset                string                          `json:"asset"`
-	AllowUnverified      bool                            `json:"allow_unverified"`
-	ConfirmNetworkDigest string                          `json:"confirm_network_digest"`
-}
+type extensionInstallInput contract.InstallExtensionRequest
 
 type extensionUpdateInput struct {
-	Name                 string `json:"name"`
-	All                  bool   `json:"all"`
-	CheckOnly            bool   `json:"check_only"`
-	Version              string `json:"version"`
-	AllowUnverified      bool   `json:"allow_unverified"`
-	ConfirmNetworkDigest string `json:"confirm_network_digest"`
+	Owner                string                          `json:"owner"`
+	Inputs               map[string]extensioninput.Value `json:"inputs"`
+	Name                 string                          `json:"name"`
+	All                  bool                            `json:"all"`
+	CheckOnly            bool                            `json:"check_only"`
+	Version              string                          `json:"version"`
+	AllowUnverified      bool                            `json:"allow_unverified"`
+	ConfirmNetworkDigest string                          `json:"confirm_network_digest"`
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
@@ -129,64 +126,6 @@ func (n *daemonNativeTools) extensionToolBindings(
 	}
 }
 
-func (n *daemonNativeTools) extensionList(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input struct{}
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	service := n.extensionService()
-	actor, err := nativeExtensionScopedActorContext(scope, req)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	var items []contract.ExtensionPayload
-	if strings.TrimSpace(actor.Scope.WorkspaceID) == "" {
-		items, err = service.List(ctx)
-	} else {
-		items, err = service.ListScoped(ctx, actor)
-	}
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	return structuredResult(
-		map[string]any{nativeExtensionToolsExtensionsKey: items},
-		fmt.Sprintf("%d installed extensions", len(items)),
-	)
-}
-
-func (n *daemonNativeTools) extensionInfo(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input extensionNameInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	actor, err := nativeExtensionScopedActorContext(scope, req)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	var item contract.ExtensionPayload
-	if strings.TrimSpace(actor.Scope.WorkspaceID) == "" {
-		item, err = n.extensionService().Status(ctx, name)
-	} else {
-		item, err = n.extensionService().StatusScoped(ctx, name, actor)
-	}
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
-}
-
 func (n *daemonNativeTools) extensionInstall(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -221,10 +160,22 @@ func (n *daemonNativeTools) extensionUpdate(
 		return toolspkg.ToolResult{}, err
 	}
 	name := strings.TrimSpace(input.Name)
+	if input.Owner != "" {
+		if _, err := requiredNativeExtensionName(req.ToolID, name, input.Owner); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
+
 	if input.All && name != "" {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(
 			req.ToolID,
 			errors.New("extension update accepts name or all, not both"),
+		)
+	}
+	if input.All && len(input.Inputs) > 0 {
+		return toolspkg.ToolResult{}, nativeExtensionValidationError(
+			req.ToolID,
+			errors.New("inputs apply only to a single extension update"),
 		)
 	}
 	if input.All && strings.TrimSpace(input.ConfirmNetworkDigest) != "" {
@@ -240,7 +191,10 @@ func (n *daemonNativeTools) extensionUpdate(
 
 	if name != "" {
 		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
-			Version: input.Version, CheckOnly: input.CheckOnly, AllowUnverified: input.AllowUnverified,
+			Version:              input.Version,
+			CheckOnly:            input.CheckOnly,
+			AllowUnverified:      input.AllowUnverified,
+			Inputs:               input.Inputs,
 			ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
 		}, actor)
 		if updateErr != nil {
@@ -272,7 +226,7 @@ func (n *daemonNativeTools) extensionRemove(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -302,7 +256,7 @@ func (n *daemonNativeTools) extensionEnable(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -326,7 +280,7 @@ func (n *daemonNativeTools) extensionDisable(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

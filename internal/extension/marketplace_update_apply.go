@@ -39,6 +39,7 @@ func applyResolvedMarketplaceUpdate(
 		req.ObserveDigestVerification,
 		req.PreflightCandidate,
 		req.CommitCandidate,
+		req.RollbackCandidate,
 		reload,
 		marketplaceUpdateCleanupForRequest(req),
 	)

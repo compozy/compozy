@@ -90,12 +90,17 @@ function applyRecordsForUrl(request: Request) {
 
 function mcpAuthTarget(request: Request, serverName: string) {
   const url = new URL(request.url);
-  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "user";
+  const requestedScope = url.searchParams.get("scope");
+  const scope =
+    requestedScope === "workspace" || requestedScope === "profile" ? requestedScope : "user";
   const workspaceId = url.searchParams.get("workspace_id")?.trim();
+  const profile = url.searchParams.get("profile")?.trim();
   return {
     server_name: serverName,
+    owner: url.searchParams.get("owner")?.trim() || "manual",
     scope,
-    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+    ...(scope !== "user" && workspaceId ? { workspace_id: workspaceId } : {}),
+    ...(scope === "profile" && profile ? { profile } : {}),
   };
 }
 

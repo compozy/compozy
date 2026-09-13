@@ -87,6 +87,14 @@ func (s *service) buildMCPServerItems(
 			entry: effective,
 		})
 	}
+	items, err = s.appendExtensionMCPItems(
+		ctx,
+		items,
+		MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName},
+	)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.populateMCPCollectionStatuses(ctx, items); err != nil {
 		return nil, err
 	}

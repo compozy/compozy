@@ -1351,6 +1351,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Update installed extensions and report each outcome */
+    post: operations["updateExtensions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}": {
     parameters: {
       query?: never;
@@ -1790,6 +1807,40 @@ export interface paths {
     };
     /** Stream runtime logs */
     get: operations["streamLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/marketplace": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the extension catalog with source state and a content revision */
+    get: operations["listMarketplace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/marketplace/entries/{entry_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a catalog entry or an explicitly selected installed extension */
+    get: operations["getMarketplaceCatalogEntry"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3576,7 +3627,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List settings-backed MCP servers */
+    /** List manual and extension-owned MCP servers */
     get: operations["listSettingsMCPServers"];
     put?: never;
     post?: never;
@@ -3610,11 +3661,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
-    /** Create or replace one settings-backed MCP server */
+    /** Get one owner-qualified MCP server */
+    get: operations["getSettingsMCPServer"];
+    /** Replace a manual MCP server or its extension override */
     put: operations["putSettingsMCPServer"];
     post?: never;
-    /** Delete one settings-backed MCP server */
+    /** Delete a manual MCP server or reset its extension override */
     delete: operations["deleteSettingsMCPServer"];
     options?: never;
     head?: never;
@@ -36007,6 +36059,14 @@ export interface operations {
               bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
               daemon_running: boolean;
               declared_profiles?: {
                 created_by_extension: boolean;
@@ -36049,24 +36109,41 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
+              inputs: {
+                active: boolean;
+                id: string;
+                set: boolean;
+                type: string;
+              }[];
               last_error?: string;
               marketplace?: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -36094,10 +36171,33 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               missing_env?: string[];
+              missing_inputs: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
+              origin?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -36117,13 +36217,18 @@ export interface operations {
                 checksum_sha256: string;
                 checksum_verified: boolean;
                 digest_matched: boolean;
+                entry_id?: string;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
                 installed_from: string;
+                layout?: string;
                 permissions?: string[];
                 registry_tier: string;
+                resolved_ref?: string;
                 slug?: string;
+                source_name?: string;
+                source_ref?: string;
                 source_url?: string;
                 trust?: {
                   allow_unverified: boolean;
@@ -36275,7 +36380,19 @@ export interface operations {
           allow_unverified?: boolean;
           asset?: string;
           confirm_network_digest?: string;
+          expected_digest?: string;
+          inputs?: {
+            [key: string]:
+              | {
+                  /** @description A manifest-typed value. Strings are limited to 8 KiB of UTF-8 and must not contain NUL. */
+                  value: string | boolean;
+                }
+              | {
+                  vault_ref: string;
+                };
+          };
           ref: string;
+          runtime_name?: string;
           source: string;
           version?: string;
         };
@@ -36293,6 +36410,14 @@ export interface operations {
               bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
               daemon_running: boolean;
               declared_profiles?: {
                 created_by_extension: boolean;
@@ -36335,24 +36460,41 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
+              inputs: {
+                active: boolean;
+                id: string;
+                set: boolean;
+                type: string;
+              }[];
               last_error?: string;
               marketplace?: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -36380,10 +36522,33 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               missing_env?: string[];
+              missing_inputs: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
+              origin?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -36403,13 +36568,18 @@ export interface operations {
                 checksum_sha256: string;
                 checksum_verified: boolean;
                 digest_matched: boolean;
+                entry_id?: string;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
                 installed_from: string;
+                layout?: string;
                 permissions?: string[];
                 registry_tier: string;
+                resolved_ref?: string;
                 slug?: string;
+                source_name?: string;
+                source_ref?: string;
                 source_url?: string;
                 trust?: {
                   allow_unverified: boolean;
@@ -36542,6 +36712,64 @@ export interface operations {
           };
         };
       };
+      /** @description The approved source changed or the extension already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                agents?: string[];
+                code: string;
+                current_digest?: string;
+                declared_env?: string[];
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                env_name?: string;
+                error: string;
+                fetched_digest?: string;
+                input_id?: string;
+                inputs?: string[];
+                listed_digest?: string;
+                missing_env?: string[];
+              };
+        };
+      };
       /** @description Extension trust decision or package validation failure */
       422: {
         headers: {
@@ -36592,6 +36820,11 @@ export interface operations {
                 } | null;
                 env_name?: string;
                 error: string;
+                fetched_digest?: string;
+                input_id?: string;
+                inputs?: string[];
+                listed_digest?: string;
+                missing_env?: string[];
               }
             | {
                 diagnostic?: {
@@ -36837,6 +37070,14 @@ export interface operations {
               bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
               daemon_running: boolean;
               declared_profiles?: {
                 created_by_extension: boolean;
@@ -36879,24 +37120,41 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
+              inputs: {
+                active: boolean;
+                id: string;
+                set: boolean;
+                type: string;
+              }[];
               last_error?: string;
               marketplace?: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -36924,10 +37182,33 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               missing_env?: string[];
+              missing_inputs: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
+              origin?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -36947,13 +37228,18 @@ export interface operations {
                 checksum_sha256: string;
                 checksum_verified: boolean;
                 digest_matched: boolean;
+                entry_id?: string;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
                 installed_from: string;
+                layout?: string;
                 permissions?: string[];
                 registry_tier: string;
+                resolved_ref?: string;
                 slug?: string;
+                source_name?: string;
+                source_ref?: string;
                 source_url?: string;
                 trust?: {
                   allow_unverified: boolean;
@@ -37135,7 +37421,19 @@ export interface operations {
           allow_unverified?: boolean;
           asset?: string;
           confirm_network_digest?: string;
+          expected_digest?: string;
+          inputs?: {
+            [key: string]:
+              | {
+                  /** @description A manifest-typed value. Strings are limited to 8 KiB of UTF-8 and must not contain NUL. */
+                  value: string | boolean;
+                }
+              | {
+                  vault_ref: string;
+                };
+          };
           ref: string;
+          runtime_name?: string;
           source: string;
           version?: string;
         };
@@ -37158,6 +37456,18 @@ export interface operations {
                 source_extension: string;
               }[];
               name: string;
+            }[];
+            digest_sha256?: string;
+            inputs: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
             }[];
             name: string;
             network_requirement_digest?: string;
@@ -37231,6 +37541,41 @@ export interface operations {
           };
         };
       };
+      /** @description The approved source digest changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
+          };
+        };
+      };
       /** @description Package validation failure */
       422: {
         headers: {
@@ -37298,6 +37643,331 @@ export interface operations {
       };
     };
   };
+  updateExtensions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          all?: boolean;
+          allow_unverified?: boolean;
+          check_only?: boolean;
+          inputs?: {
+            [key: string]:
+              | {
+                  /** @description A manifest-typed value. Strings are limited to 8 KiB of UTF-8 and must not contain NUL. */
+                  value: string | boolean;
+                }
+              | {
+                  vault_ref: string;
+                };
+          };
+          names?: string[];
+          version?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Per-extension outcomes, including partial failures */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            updates: {
+              current_version?: string;
+              error?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              } | null;
+              latest_version?: string;
+              name: string;
+              path: string;
+              registry: string;
+              slug: string;
+              status: string;
+              warnings?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+            }[];
+          };
+        };
+      };
+      /** @description Invalid update request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network confirmation required */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
+          };
+        };
+      };
+      /** @description Extension trust or input configuration is required */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                agents?: string[];
+                code: string;
+                current_digest?: string;
+                declared_env?: string[];
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                env_name?: string;
+                error: string;
+                fetched_digest?: string;
+                input_id?: string;
+                inputs?: string[];
+                listed_digest?: string;
+                missing_env?: string[];
+              };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getExtension: {
     parameters: {
       query?: {
@@ -37326,6 +37996,14 @@ export interface operations {
               bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
               daemon_running: boolean;
               declared_profiles?: {
                 created_by_extension: boolean;
@@ -37368,24 +38046,41 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
+              inputs: {
+                active: boolean;
+                id: string;
+                set: boolean;
+                type: string;
+              }[];
               last_error?: string;
               marketplace?: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -37413,10 +38108,33 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               missing_env?: string[];
+              missing_inputs: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
+              origin?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -37436,13 +38154,18 @@ export interface operations {
                 checksum_sha256: string;
                 checksum_verified: boolean;
                 digest_matched: boolean;
+                entry_id?: string;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
                 installed_from: string;
+                layout?: string;
                 permissions?: string[];
                 registry_tier: string;
+                resolved_ref?: string;
                 slug?: string;
+                source_name?: string;
+                source_ref?: string;
                 source_url?: string;
                 trust?: {
                   allow_unverified: boolean;
@@ -37627,6 +38350,16 @@ export interface operations {
           allow_unverified?: boolean;
           check_only?: boolean;
           confirm_network_digest?: string;
+          inputs?: {
+            [key: string]:
+              | {
+                  /** @description A manifest-typed value. Strings are limited to 8 KiB of UTF-8 and must not contain NUL. */
+                  value: string | boolean;
+                }
+              | {
+                  vault_ref: string;
+                };
+          };
           version?: string;
         };
       };
@@ -37796,37 +38529,70 @@ export interface operations {
             } | null;
             env_name?: string;
             error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
           };
         };
       };
-      /** @description Extension trust decision required */
+      /** @description Extension trust or input configuration is required */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                agents?: string[];
+                code: string;
+                current_digest?: string;
+                declared_env?: string[];
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                env_name?: string;
+                error: string;
+                fetched_digest?: string;
+                input_id?: string;
+                inputs?: string[];
+                listed_digest?: string;
+                missing_env?: string[];
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Internal server error */
@@ -38307,6 +39073,41 @@ export interface operations {
           };
         };
       };
+      /** @description Extension inputs are required */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
+          };
+        };
+      };
       /** @description Extension service is not configured */
       503: {
         headers: {
@@ -38652,6 +39453,7 @@ export interface operations {
             }[];
             extension: string;
             missing_env: string[];
+            missing_inputs: string[];
             network_confirmation_required: boolean;
             network_requirement_digest: string;
           };
@@ -38780,13 +39582,18 @@ export interface operations {
               checksum_sha256: string;
               checksum_verified: boolean;
               digest_matched: boolean;
+              entry_id?: string;
               /** Format: date-time */
               installed_at: string;
               installed_by: string;
               installed_from: string;
+              layout?: string;
               permissions?: string[];
               registry_tier: string;
+              resolved_ref?: string;
               slug?: string;
+              source_name?: string;
+              source_ref?: string;
               source_url?: string;
               trust?: {
                 allow_unverified: boolean;
@@ -38954,6 +39761,14 @@ export interface operations {
               bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
               daemon_running: boolean;
               declared_profiles?: {
                 created_by_extension: boolean;
@@ -38996,24 +39811,41 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
+              inputs: {
+                active: boolean;
+                id: string;
+                set: boolean;
+                type: string;
+              }[];
               last_error?: string;
               marketplace?: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -39041,10 +39873,33 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               missing_env?: string[];
+              missing_inputs: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
+              origin?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -39064,13 +39919,18 @@ export interface operations {
                 checksum_sha256: string;
                 checksum_verified: boolean;
                 digest_matched: boolean;
+                entry_id?: string;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
                 installed_from: string;
+                layout?: string;
                 permissions?: string[];
                 registry_tier: string;
+                resolved_ref?: string;
                 slug?: string;
+                source_name?: string;
+                source_ref?: string;
                 source_url?: string;
                 trust?: {
                   allow_unverified: boolean;
@@ -39230,6 +40090,11 @@ export interface operations {
             } | null;
             env_name?: string;
             error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
           };
         };
       };
@@ -39439,6 +40304,11 @@ export interface operations {
             } | null;
             env_name?: string;
             error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
           };
         };
       };
@@ -39557,6 +40427,11 @@ export interface operations {
             } | null;
             env_name?: string;
             error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
           };
         };
       };
@@ -42485,6 +43360,552 @@ export interface operations {
       };
     };
   };
+  listMarketplace: {
+    parameters: {
+      query?: {
+        /** @description Optional kind search query */
+        q?: string;
+        /** @description Maximum results from 1 to 100 */
+        limit?: number;
+        /** @description Opaque next_cursor from the previous page */
+        cursor?: string;
+        /** @description Installed-state projection scope */
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile installed-state projection */
+        profile?: string;
+        /** @description Required for workspace installed-state projection */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Catalog page, including degraded cached sources */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            error_class?: string;
+            items: {
+              author?: string;
+              description: string;
+              digest_sha256: string;
+              downloads?: number | null;
+              entry_id: string;
+              format?: string;
+              icon?: string;
+              install_blocker?: string;
+              install_slug?: string;
+              installable: boolean;
+              installed: boolean;
+              installed_name?: string;
+              installed_version?: string;
+              /** @enum {string} */
+              kind?: "mcp" | "extension" | "skill";
+              layout?: string;
+              manage_path?: string;
+              name: string;
+              name_conflict?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
+              /** Format: date-time */
+              published_at?: string | null;
+              source: string;
+              source_ref?: string;
+              tier?: string;
+              transport?: string;
+              trust?: {
+                allow_unverified: boolean;
+                checksum_verified: boolean;
+                decision: string;
+                registry_tier: string;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              update_available: boolean;
+              /** Format: date-time */
+              updated_at?: string | null;
+              version?: string;
+            }[];
+            next_cursor?: string;
+            revision: string;
+            sources: {
+              count: number;
+              kind: string;
+              /** Format: date-time */
+              last_read_at?: string | null;
+              name: string;
+              state: string;
+            }[];
+            stale: boolean;
+            total: number;
+          };
+        };
+      };
+      /** @description Invalid catalog query or cursor scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Catalog content changed; restart pagination */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            error: string;
+            restart: boolean;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Catalog is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getMarketplaceCatalogEntry: {
+    parameters: {
+      query?: {
+        /** @description Exact installed MCP, extension, or skill identity */
+        installed_name?: string;
+        /** @description Installed-state projection scope */
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile installed-state projection */
+        profile?: string;
+        /** @description Required for workspace installed-state projection */
+        workspace_id?: string;
+        /** @description Catalog source name; defaults to the Compozy catalog */
+        source?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Stable URL-safe marketplace entry id */
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entry: {
+              author?: string;
+              description: string;
+              digest_sha256: string;
+              downloads?: number | null;
+              entry_id: string;
+              format?: string;
+              icon?: string;
+              install_blocker?: string;
+              install_slug?: string;
+              installable: boolean;
+              installed: boolean;
+              installed_name?: string;
+              installed_version?: string;
+              /** @enum {string} */
+              kind?: "mcp" | "extension" | "skill";
+              layout?: string;
+              manage_path?: string;
+              name: string;
+              name_conflict?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
+              /** Format: date-time */
+              published_at?: string | null;
+              source: string;
+              source_ref?: string;
+              tier?: string;
+              transport?: string;
+              trust?: {
+                allow_unverified: boolean;
+                checksum_verified: boolean;
+                decision: string;
+                registry_tier: string;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              update_available: boolean;
+              /** Format: date-time */
+              updated_at?: string | null;
+              version?: string;
+            };
+            extension?: {
+              artifact_url: string;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              digest_sha256: string;
+              inputs: {
+                binding: {
+                  name: string;
+                  type: string;
+                };
+                default?: unknown;
+                id: string;
+                prompt: string;
+                required: boolean;
+                type: string;
+              }[];
+              install_slug: string;
+              layout?: string;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
+              repository?: string;
+              resolved_ref?: string;
+            } | null;
+            mcp?: {
+              auth?: {
+                method: string;
+                registration: string;
+                scopes?: string[];
+              } | null;
+              default_scope: string;
+              inputs?: {
+                binding: {
+                  name: string;
+                  type: string;
+                };
+                default?: unknown;
+                id: string;
+                prompt: string;
+                required: boolean;
+                type: string;
+              }[];
+              launch: {
+                args?: string[];
+                digest?: string;
+                image?: string;
+                package?: string;
+                type: string;
+                url?: string;
+                version?: string;
+              };
+            } | null;
+            skill?: {
+              display_name?: string;
+              install_slug: string;
+              license?: string;
+              readme?: string;
+              repository?: string;
+              tags?: string[];
+              versions?: string[];
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid marketplace detail request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Marketplace kind or entry not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Package bytes differ from the listed digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Marketplace detail dependency is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   refreshMarketplaceCatalog: {
     parameters: {
       query?: {
@@ -42669,20 +44090,31 @@ export interface operations {
               items: {
                 author?: string;
                 description: string;
+                digest_sha256: string;
                 downloads?: number | null;
                 entry_id: string;
                 format?: string;
+                icon?: string;
+                install_blocker?: string;
                 install_slug?: string;
+                installable: boolean;
                 installed: boolean;
                 installed_name?: string;
                 installed_version?: string;
                 /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
+                kind?: "mcp" | "extension" | "skill";
+                layout?: string;
                 manage_path?: string;
                 name: string;
+                name_conflict?: {
+                  entry_id: string;
+                  source: string;
+                  source_ref: string;
+                } | null;
                 /** Format: date-time */
                 published_at?: string | null;
                 source: string;
+                source_ref?: string;
                 tier?: string;
                 transport?: string;
                 trust?: {
@@ -42849,20 +44281,31 @@ export interface operations {
             items: {
               author?: string;
               description: string;
+              digest_sha256: string;
               downloads?: number | null;
               entry_id: string;
               format?: string;
+              icon?: string;
+              install_blocker?: string;
               install_slug?: string;
+              installable: boolean;
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
               /** @enum {string} */
-              kind: "mcp" | "extension" | "skill";
+              kind?: "mcp" | "extension" | "skill";
+              layout?: string;
               manage_path?: string;
               name: string;
+              name_conflict?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               /** Format: date-time */
               published_at?: string | null;
               source: string;
+              source_ref?: string;
               tier?: string;
               transport?: string;
               trust?: {
@@ -43053,20 +44496,31 @@ export interface operations {
             entry: {
               author?: string;
               description: string;
+              digest_sha256: string;
               downloads?: number | null;
               entry_id: string;
               format?: string;
+              icon?: string;
+              install_blocker?: string;
               install_slug?: string;
+              installable: boolean;
               installed: boolean;
               installed_name?: string;
               installed_version?: string;
               /** @enum {string} */
-              kind: "mcp" | "extension" | "skill";
+              kind?: "mcp" | "extension" | "skill";
+              layout?: string;
               manage_path?: string;
               name: string;
+              name_conflict?: {
+                entry_id: string;
+                source: string;
+                source_ref: string;
+              } | null;
               /** Format: date-time */
               published_at?: string | null;
               source: string;
+              source_ref?: string;
               tier?: string;
               transport?: string;
               trust?: {
@@ -43096,9 +44550,61 @@ export interface operations {
             };
             extension?: {
               artifact_url: string;
+              contents: {
+                agents: number;
+                bridges: number;
+                hooks: number;
+                loops: number;
+                mcp_servers: number;
+                skills: number;
+              };
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
               digest_sha256: string;
+              inputs: {
+                binding: {
+                  name: string;
+                  type: string;
+                };
+                default?: unknown;
+                id: string;
+                prompt: string;
+                required: boolean;
+                type: string;
+              }[];
               install_slug: string;
+              layout?: string;
+              mcp_servers: {
+                auth?: {
+                  issuer_url?: string;
+                  method: string;
+                  registration?: string;
+                  scopes?: string[];
+                } | null;
+                launch: string;
+                name: string;
+                owner: string;
+                profile?: string;
+                runtime_name?: string;
+                scope?: string;
+                status?: string;
+                transport: string;
+                workspace_id?: string;
+              }[];
               repository?: string;
+              resolved_ref?: string;
             } | null;
             mcp?: {
               auth?: {
@@ -43197,6 +44703,41 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Package bytes differ from the listed digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+            fetched_digest?: string;
+            input_id?: string;
+            inputs?: string[];
+            listed_digest?: string;
+            missing_env?: string[];
           };
         };
       };
@@ -62977,6 +64518,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -62997,6 +64539,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -63303,6 +64846,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -63323,6 +64867,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -64321,6 +65866,7 @@ export interface operations {
                 /** Format: date-time */
                 expires_at?: string | null;
                 issuer?: string;
+                owner: string;
                 profile?: string;
                 refreshable: boolean;
                 remote_url?: string;
@@ -64338,7 +65884,18 @@ export interface operations {
               command?: string;
               env_keys?: string[];
               name: string;
+              override?: {
+                env?: {
+                  [key: string]: string;
+                };
+                headers?: {
+                  [key: string]: string;
+                };
+                url?: string;
+              } | null;
+              owner?: string;
               profile?: string;
+              runtime_name?: string;
               runtime_status?: {
                 configured: boolean;
                 diagnostic?: string;
@@ -64367,6 +65924,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -64387,6 +65945,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -64634,6 +66193,7 @@ export interface operations {
                 /** Format: date-time */
                 expires_at?: string | null;
                 issuer?: string;
+                owner: string;
                 profile?: string;
                 refreshable: boolean;
                 remote_url?: string;
@@ -64651,7 +66211,18 @@ export interface operations {
               command?: string;
               env_keys?: string[];
               name: string;
+              override?: {
+                env?: {
+                  [key: string]: string;
+                };
+                headers?: {
+                  [key: string]: string;
+                };
+                url?: string;
+              } | null;
+              owner?: string;
               profile?: string;
+              runtime_name?: string;
               runtime_status?: {
                 configured: boolean;
                 diagnostic?: string;
@@ -64680,6 +66251,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -64700,6 +66272,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -64952,6 +66525,246 @@ export interface operations {
       };
     };
   };
+  getSettingsMCPServer: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        owner?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Logical MCP name with owner, otherwise manual or allocated runtime name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            server: {
+              args?: string[];
+              auth?: {
+                client_id?: string;
+                client_secret_configured: boolean;
+                issuer_url?: string;
+                registration?: string;
+                scopes?: string[];
+              } | null;
+              auth_status?: {
+                auth_type?: string;
+                client_id?: string;
+                diagnostic?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                issuer?: string;
+                owner: string;
+                profile?: string;
+                refreshable: boolean;
+                remote_url?: string;
+                scope: string;
+                scopes?: string[];
+                server_name: string;
+                status: string;
+                token_present: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+                workspace_id?: string;
+              } | null;
+              catalog_entry?: string;
+              catalog_version?: string;
+              command?: string;
+              env_keys?: string[];
+              name: string;
+              override?: {
+                env?: {
+                  [key: string]: string;
+                };
+                headers?: {
+                  [key: string]: string;
+                };
+                url?: string;
+              } | null;
+              owner?: string;
+              profile?: string;
+              runtime_name?: string;
+              runtime_status?: {
+                configured: boolean;
+                diagnostic?: string;
+                initialized: boolean;
+                probe: string;
+                protocol_version?: string;
+                reason?: string;
+                state: string;
+                tool_count: number;
+              } | null;
+              /** @enum {string} */
+              scope: "user" | "profile" | "workspace" | "agent";
+              secret_env_keys?: string[];
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "profile-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
+                )[];
+                effective_source: {
+                  agent_name?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "extension"
+                    | "builtin-provider"
+                    | "global-config"
+                    | "profile-config"
+                    | "workspace-config"
+                    | "workspace-profile-config"
+                    | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
+                    | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
+                  profile?: string;
+                  /** @enum {string} */
+                  scope: "user" | "profile" | "workspace" | "agent";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  agent_name?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "extension"
+                    | "builtin-provider"
+                    | "global-config"
+                    | "profile-config"
+                    | "workspace-config"
+                    | "workspace-profile-config"
+                    | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
+                    | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
+                  profile?: string;
+                  /** @enum {string} */
+                  scope: "user" | "profile" | "workspace" | "agent";
+                  workspace_id?: string;
+                }[];
+              };
+              transport: string;
+              url?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid MCP server owner or scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   putSettingsMCPServer: {
     parameters: {
       query?: {
@@ -64961,6 +66774,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Select the profile layer */
         profile?: string;
+        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        owner?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";
       };
@@ -64997,6 +66812,9 @@ export interface operations {
             } | null;
             command?: string;
             env?: {
+              [key: string]: string;
+            };
+            headers?: {
               [key: string]: string;
             };
             name: string;
@@ -65210,6 +67028,36 @@ export interface operations {
           };
         };
       };
+      /** @description MCP runtime name reserved by an extension (mcp_server_name_taken) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -65251,6 +67099,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Select the profile layer */
         profile?: string;
+        /** @description Select manual or extension:<name>; omitted owner resolves manual first */
+        owner?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";
       };
@@ -65504,6 +67354,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        owner?: string;
       };
       header?: never;
       path: {
@@ -65701,6 +67553,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        owner?: string;
       };
       header?: never;
       path: {
@@ -65731,6 +67585,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            owner: string;
             profile?: string;
             refreshable: boolean;
             remote_url?: string;
@@ -65906,6 +67761,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        owner?: string;
       };
       header?: never;
       path: {
@@ -65929,6 +67786,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            owner: string;
             profile?: string;
             refreshable: boolean;
             remote_url?: string;
@@ -66104,6 +67962,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        owner?: string;
       };
       header?: never;
       path: {
@@ -66127,6 +67987,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            owner: string;
             profile?: string;
             refreshable: boolean;
             remote_url?: string;
@@ -68099,6 +69960,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -68197,6 +70059,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -68217,6 +70080,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -68396,6 +70260,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -68494,6 +70359,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -68514,6 +70380,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -69940,6 +71807,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -69960,6 +71828,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -70080,6 +71949,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"
@@ -70100,6 +71970,7 @@ export interface operations {
                   agent_name?: string;
                   /** @enum {string} */
                   kind:
+                    | "extension"
                     | "builtin-provider"
                     | "global-config"
                     | "profile-config"

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -812,4 +813,88 @@ func newMarketplaceTestService(
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return service
+}
+
+// Invariant: a fetch captures generation before I/O; obsolete success and failure cannot mutate or notify current state.
+// Owner: catalog refresh lifecycle; canonical suite: service_test.go (UT-008, UT-069).
+func TestCatalogServiceSourceGeneration(t *testing.T) {
+	t.Parallel()
+	for _, fetchFails := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should discard an obsolete fetch with failure=%t", fetchFails), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			catalog := openMarketplaceTestStore(t)
+			at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+			started, release := make(chan struct{}), make(chan struct{})
+			source := &recordingSource{kind: KindExtension, fetch: func(ctx context.Context) (*Document, error) {
+				close(started)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-release:
+				}
+				if fetchFails {
+					return nil, errors.New("old source unreachable")
+				}
+				return testDocument(at, testEntry(KindExtension, "old", "Old", "Obsolete fetch")), nil
+			}}
+			notifier := &recordingRefreshNotifier{}
+			service := newMarketplaceTestService(t, catalog, source, at, notifier)
+			finished := make(chan error, 1)
+			go func() { _, err := service.Refresh(ctx, KindExtension); finished <- err }()
+			select {
+			case <-started:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			generation, err := catalog.repository.AdvanceMarketplaceCatalogGeneration(ctx, CompozyCatalogSource)
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := testDocument(at, testEntry(KindExtension, "current", "Current", "New source configuration"))
+			if err := catalog.ReplaceSource(ctx, CompozyCatalogSource, generation, current); err != nil {
+				t.Fatal(err)
+			}
+			close(release)
+			select {
+			case err := <-finished:
+				if !errors.Is(err, storepkg.ErrMarketplaceCatalogGenerationStale) {
+					t.Fatalf("refresh error=%v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			page, err := catalog.BrowseSource(ctx, CompozyCatalogSource, "", 0, 100)
+			if err != nil || len(page.Entries) != 1 || page.Entries[0].EntryID != "current" || page.State.Stale ||
+				page.State.Generation != generation {
+				t.Fatalf("current page=%#v error=%v", page, err)
+			}
+			if events := notifier.snapshot(); len(events) != 0 {
+				t.Fatalf("obsolete fetch emitted events: %#v", events)
+			}
+		})
+	}
+	t.Run("Should include the captured source generation in a successful refresh event", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		catalog := openMarketplaceTestStore(t)
+		generation, err := catalog.repository.AdvanceMarketplaceCatalogGeneration(ctx, CompozyCatalogSource)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+		notifier := &recordingRefreshNotifier{}
+		source := &recordingSource{kind: KindExtension, fetch: func(context.Context) (*Document, error) {
+			return testDocument(at, testEntry(KindExtension, "current", "Current", "Published")), nil
+		}}
+		service := newMarketplaceTestService(t, catalog, source, at, notifier)
+		if _, err := service.Refresh(ctx, KindExtension); err != nil {
+			t.Fatal(err)
+		}
+		events := notifier.snapshot()
+		if len(events) != 1 || events[0].Source != CompozyCatalogSource || events[0].Generation != generation ||
+			events[0].Outcome != RefreshOutcomeSucceeded {
+			t.Fatalf("refresh events=%#v", events)
+		}
+	})
 }

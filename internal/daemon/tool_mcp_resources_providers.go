@@ -10,6 +10,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/resources"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -67,9 +68,10 @@ func extensionManifestToolMCPDeclarationProvider(
 	runtime func() extensionRuntime,
 	getenv func(string) string,
 	profiles extensionProfileCatalog,
+	inputs extensionInputReader,
 ) toolMCPDeclarationProvider {
 	return func(ctx context.Context) (toolMCPDesiredResources, error) {
-		return collectExtensionManifestToolMCPDeclarations(ctx, registry, runtime, getenv, profiles)
+		return collectExtensionManifestToolMCPDeclarations(ctx, registry, runtime, getenv, profiles, inputs)
 	}
 }
 
@@ -79,6 +81,7 @@ func collectExtensionManifestToolMCPDeclarations(
 	runtime func() extensionRuntime,
 	getenv func(string) string,
 	profiles extensionProfileCatalog,
+	inputs extensionInputReader,
 ) (toolMCPDesiredResources, error) {
 	if err := ctx.Err(); err != nil {
 		return toolMCPDesiredResources{}, err
@@ -127,7 +130,13 @@ func collectExtensionManifestToolMCPDeclarations(
 			})
 		}
 
-		if err := appendExtensionMCPServerDeclarations(&desired, ext, getenv, snapshot.scope); err != nil {
+		inputState, err := inputs.load(ctx, extensioninput.Instance{
+			Extension: ext.Info.Name, ProfileID: snapshot.profileID, WorkspaceID: ext.Status.WorkspaceID,
+		}, ext.Manifest)
+		if err != nil {
+			return toolMCPDesiredResources{}, err
+		}
+		if err := appendExtensionMCPServerDeclarations(&desired, ext, inputState, getenv, snapshot.scope); err != nil {
 			return toolMCPDesiredResources{}, err
 		}
 	}
@@ -138,10 +147,11 @@ func collectExtensionManifestToolMCPDeclarations(
 func appendExtensionMCPServerDeclarations(
 	desired *toolMCPDesiredResources,
 	ext *extensionpkg.Extension,
+	inputState extensionpkg.InputState,
 	getenv func(string) string,
 	scope resources.ResourceScope,
 ) error {
-	servers, err := extensionpkg.ResolveManifestMCPServerResources(ext.RootDir, ext.Manifest, getenv)
+	servers, err := extensionpkg.ResolveManifestMCPServerResources(ext.RootDir, ext.Manifest, inputState, getenv)
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension %q mcp servers: %w", ext.Info.Name, err)
 	}
@@ -150,7 +160,7 @@ func appendExtensionMCPServerDeclarations(
 			sourceKey: "extension/" + ext.Info.Name + "/mcp_server/" + strings.TrimSpace(server.Name),
 			scope:     scope,
 			owner:     extensionOwner(ext.Info.Name),
-			spec:      cloneDaemonMCPServer(server),
+			spec:      cloneDaemonMCPServer(server.MCPServer),
 		})
 	}
 	return nil

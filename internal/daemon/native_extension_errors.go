@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -76,6 +78,9 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
+	case errors.Is(err, extensionmcp.ErrNameTaken):
+		return toolspkg.NewToolError("mcp_server_name_taken", id, err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonExtensionValidationFailed)
 	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired),
 		errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
 		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
@@ -173,4 +178,20 @@ func isExtensionSourceError(err error) bool {
 		errors.Is(err, registrygit.ErrRepositoryDestinationBlocked) ||
 		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
 		errors.Is(err, errExtensionRegistryUnsupported)
+}
+
+// An explicit definition owner must address the same named extension; it never selects manual MCP state.
+func requiredNativeExtensionName(toolID toolspkg.ToolID, name, owner string) (string, error) {
+	name, err := requiredNativeString(toolID, "name", name)
+	if err != nil {
+		return "", err
+	}
+	owner = strings.TrimSpace(owner)
+	if owner != "" && owner != "extension:"+name {
+		return "", nativeExtensionValidationError(
+			toolID,
+			errors.New("owner must equal extension:<name> for the requested extension"),
+		)
+	}
+	return name, nil
 }

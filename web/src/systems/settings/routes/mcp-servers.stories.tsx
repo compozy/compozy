@@ -184,6 +184,7 @@ export const AuthFailure: Story = {
         compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
           HttpResponse.json({
             server_name: "linear",
+            owner: "manual",
             scope: "workspace",
             status: "needs_login",
             token_present: false,

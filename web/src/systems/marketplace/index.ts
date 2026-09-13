@@ -1,6 +1,8 @@
 export * from "./adapters/marketplace-api";
 export * from "./adapters/marketplace-actions-api";
 export * from "./hooks/use-marketplace";
+export * from "./hooks/use-marketplace-page";
+export { useMarketplaceExtensionMCPServer } from "./hooks/use-marketplace-detail-mcp-server";
 export * from "./hooks/use-marketplace-actions";
 export * from "./hooks/use-marketplace-kind-page";
 export * from "./lib/query-keys";

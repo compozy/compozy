@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
@@ -341,4 +342,51 @@ func assertMarketplaceInstallEvent(t *testing.T, registry *globaldb.GlobalDB) {
 		outcome.PolicyGate != marketplace.InstallPolicyGatePassed {
 		t.Fatalf("marketplace.install summary = %#v, outcome = %#v", summaries[0], outcome)
 	}
+}
+
+// Invariant: canonical install observations carry persisted origin/ref and no distribution credentials.
+// Owner: daemon marketplace event persistence; canonical suite: marketplace_test.go (UT-069).
+func TestMarketplaceExtensionInstallEvent(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist one classified install observation without inferring sideload origin", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		registry := openDaemonTestGlobalDB(t)
+		service := &daemonExtensionService{eventWriter: registry, logger: discardLogger()}
+		item := contract.ExtensionPayload{Name: "custom-name", Origin: &contract.MarketplaceOriginPayload{
+			Source: marketplace.CompozyCatalogSource, SourceRef: marketplace.CompozyCatalogRef, EntryID: "published-id",
+		}, Provenance: &contract.ExtensionProvenancePayload{ResolvedRef: strings.Repeat("a", 40), SourceURL: "https://user:password@example.test/private"}}
+		if err := service.notifyMarketplaceExtensionInstalled(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.notifyMarketplaceExtensionInstalled(
+			ctx,
+			contract.ExtensionPayload{
+				Name:       "local",
+				Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "published-id"},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := registry.ListEventSummaries(ctx, store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Type: eventspkg.MarketplaceInstall, Limit: 10,
+		})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("events=%#v error=%v", rows, err)
+		}
+		var outcome marketplace.InstallOutcome
+		if err := json.Unmarshal(rows[0].Content, &outcome); err != nil {
+			t.Fatal(err)
+		}
+		want := marketplace.Origin{SourceRef: marketplace.CompozyCatalogRef, EntryID: "published-id"}
+		if outcome.Origin == nil || *outcome.Origin != want || outcome.ResolvedRef != item.Provenance.ResolvedRef ||
+			outcome.Kind != marketplace.KindExtension ||
+			outcome.Outcome != marketplace.InstallOutcomeSucceeded {
+			t.Fatalf("install observation=%#v", outcome)
+		}
+		if strings.Contains(string(rows[0].Content), "password") ||
+			strings.Contains(string(rows[0].Content), "SourceURL") {
+			t.Fatal("install event leaked acquisition credentials")
+		}
+	})
 }

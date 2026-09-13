@@ -240,7 +240,10 @@ func (s *service) validateCatalogInputVaultRef(
 	if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
 		return "", validationError(fmt.Errorf("settings: %s.vault_ref must use vault:mcp/**: %w", path, err))
 	}
-	if err := vault.ValidateMCPSecretRefAccess(ref, string(scope), workspaceID, serverName); err != nil {
+	if err := vault.ValidateMCPSecretRefAccess(
+		ref,
+		vault.MCPSecretTarget{Scope: string(scope), WorkspaceID: workspaceID, ServerName: serverName},
+	); err != nil {
 		return "", validationError(fmt.Errorf("settings: %s.vault_ref is not accessible: %w", path, err))
 	}
 	return s.validateExistingMCPRef(ctx, path, ref)

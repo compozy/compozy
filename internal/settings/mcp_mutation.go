@@ -128,6 +128,12 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	preservation MCPSecretPreservation,
 	envPreservation []string,
 ) (compozyconfig.MCPServer, error) {
+	if err := s.validateManualMCPName(
+		ctx,
+		MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName, Name: name},
+	); err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
 	server.Name = strings.TrimSpace(server.Name)
 	if server.Name == "" {
 		server.Name = name

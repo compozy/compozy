@@ -50,10 +50,16 @@ func validateNativeManifestCompatibility(manifest *Manifest) error {
 }
 
 func validateManifestResources(manifest *Manifest) error {
+	if err := ValidateManifestInputs(manifest); err != nil {
+		return err
+	}
+	if err := validateManifestMCPPolicies(manifest.Resources.MCPServers); err != nil {
+		return err
+	}
 	if err := validateManifestHookEnv(manifest.Resources.Hooks); err != nil {
 		return err
 	}
-	if err := validateManifestMCPServerEnv(manifest.Resources.MCPServers); err != nil {
+	if err := validateManifestMCPServerEnv(manifest); err != nil {
 		return err
 	}
 	if err := validateManifestCommandResources(manifest); err != nil {

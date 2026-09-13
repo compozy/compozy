@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 type mcpSourceEntry struct {
-	Source SourceRef
-	Target WriteTargetKind
-	Server compozyconfig.MCPServer
+	AuthTarget *mcpauth.Target
+	Source     SourceRef
+	Target     WriteTargetKind
+	Server     compozyconfig.MCPServer
 }
 
 func (s *service) resolveMCPTargetContext(

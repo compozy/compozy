@@ -25,6 +25,13 @@ const (
 
 // DescribeExtension projects one extension snapshot into the shared CLI/API payload.
 func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contract.ExtensionPayload {
+	return DescribeExtensionForProfile(ext, daemonRunning, now, hostAPIBridgesDefaultKey)
+}
+
+// DescribeExtensionForProfile projects package metadata through the selected profile placement.
+func DescribeExtensionForProfile(
+	ext *Extension, daemonRunning bool, now time.Time, profileName string,
+) contract.ExtensionPayload {
 	if ext == nil {
 		return contract.ExtensionPayload{}
 	}
@@ -57,8 +64,12 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	}
 
 	return contract.ExtensionPayload{
-		Name:                     ext.Info.Name,
-		Profile:                  hostAPIBridgesDefaultKey,
+		Name:       ext.Info.Name,
+		Contents:   extensionSnapshotContentsForProfile(ext, profileName),
+		MCPServers: extensionServerPayloads(ext, profileName),
+		Inputs:     []contract.ExtensionInputStatePayload{}, MissingInputs: []string{},
+		Origin:                   extensionOriginPayload(ext.Info.Provenance),
+		Profile:                  profileName,
 		WorkspaceID:              ext.Status.WorkspaceID,
 		Version:                  ext.Info.Version,
 		Type:                     extensionType(ext.Manifest, ext.Info),
@@ -156,6 +167,11 @@ func extensionProvenancePayload(
 	}
 	return &contract.ExtensionProvenancePayload{
 		Slug:                value.Slug,
+		SourceName:          value.SourceName,
+		SourceRef:           value.SourceRef,
+		EntryID:             value.EntryID,
+		ResolvedRef:         value.ResolvedRef,
+		Layout:              value.Layout,
 		CatalogEntryID:      value.CatalogEntryID,
 		InstalledFrom:       value.InstalledFrom,
 		SourceURL:           value.SourceURL,
@@ -187,7 +203,7 @@ func extensionTrustPayload(value ExtensionProvenance) *contract.ExtensionTrustRe
 }
 
 func hasExtensionProvenance(value ExtensionProvenance) bool {
-	return value.Slug != "" ||
+	return value.SourceRef != "" || value.EntryID != "" || value.Slug != "" ||
 		value.CatalogEntryID != "" ||
 		value.InstalledFrom != "" ||
 		value.SourceURL != "" ||

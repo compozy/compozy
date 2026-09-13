@@ -1,0 +1,13 @@
+name = "stripe"
+version = "1.0.0"
+description = "Inspect Stripe customers, payments, invoices, and subscriptions through Stripe's hosted MCP server."
+min_compozy_version = "0.5.0"
+
+[resources.mcp_servers.stripe]
+transport = "http"
+url = "https://mcp.stripe.com"
+default_scope = "workspace"
+
+[resources.mcp_servers.stripe.auth]
+method = "oauth"
+registration = "dynamic"

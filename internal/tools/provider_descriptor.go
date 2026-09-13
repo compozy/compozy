@@ -105,6 +105,9 @@ type MCPToolCallResponse struct {
 
 // MCPAuthStatus is a redacted auth diagnostic for external MCP sources.
 type MCPAuthStatus struct {
+	Owner        string     `json:"owner,omitempty"`
+	Scope        string     `json:"scope,omitempty"`
+	WorkspaceID  string     `json:"workspace_id,omitempty"`
 	ServerName   string     `json:"server_name"`
 	Status       string     `json:"status"`
 	AuthType     string     `json:"auth_type,omitempty"`

@@ -124,15 +124,17 @@ func (k SourceKind) Validate(field string) error {
 
 // SourceRef preserves provenance without creating alternate tool identities.
 type SourceRef struct {
-	Kind            SourceKind `json:"kind"`
-	Owner           string     `json:"owner"`
-	RawServerName   string     `json:"raw_server_name,omitempty"`
-	RawToolName     string     `json:"raw_tool_name,omitempty"`
-	ResourceID      string     `json:"resource_id,omitempty"`
-	ResourceVersion string     `json:"resource_version,omitempty"`
-	ProfileID       string     `json:"profile_id,omitempty"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	Scope           string     `json:"scope,omitempty"`
+	// MCPDefinitionOwner selects a definition for diagnostics; persisted provenance uses ResourceID.
+	MCPDefinitionOwner string     `json:"-"`
+	Kind               SourceKind `json:"kind"`
+	Owner              string     `json:"owner"`
+	RawServerName      string     `json:"raw_server_name,omitempty"`
+	RawToolName        string     `json:"raw_tool_name,omitempty"`
+	ResourceID         string     `json:"resource_id,omitempty"`
+	ResourceVersion    string     `json:"resource_version,omitempty"`
+	ProfileID          string     `json:"profile_id,omitempty"`
+	WorkspaceID        string     `json:"workspace_id,omitempty"`
+	Scope              string     `json:"scope,omitempty"`
 }
 
 // Validate ensures source provenance can support deterministic diagnostics.

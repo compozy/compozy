@@ -524,3 +524,74 @@ func testEntry(kind Kind, entryID string, name string, description string) Entry
 		Payload:      json.RawMessage(`{"entry_id":"` + entryID + `"}`),
 	}
 }
+
+// Invariant: content-identical refreshes retain their cursor revision across freshness and order changes.
+// Owner: catalog source projection; canonical suite: store_test.go (UT-068).
+func TestSQLiteStoreSourceContentRevision(t *testing.T) {
+	t.Parallel()
+	// Invariant: source projection retains v3 inputs through SQLite; owner: catalog persistence.
+	t.Run("Should preserve v3 typed inputs and icon through the source projection", func(t *testing.T) {
+		t.Parallel()
+		store := openMarketplaceTestStore(t)
+		document, err := DecodeDocument(KindExtension, v3ExtensionJSON(t, "https://images.example.test/icon.png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		document.FetchedAt = time.Now().UTC()
+		if err := store.ReplaceSource(t.Context(), CompozyCatalogSource, 0, document); err != nil {
+			t.Fatal(err)
+		}
+		result, err := store.BrowseSource(t.Context(), CompozyCatalogSource, "", 0, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Entries) != 1 || len(result.Entries[0].Inputs) != 2 ||
+			result.Entries[0].Icon != document.Entries[0].Icon {
+			t.Fatalf("projection = %#v", result)
+		}
+	})
+
+	t.Run("Should keep the revision for identical content and change it for edited entries", func(t *testing.T) {
+		t.Parallel()
+		store := openMarketplaceTestStore(t)
+		ctx := t.Context()
+		at := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+		first := testDocument(
+			at,
+			testEntry(KindExtension, "b", "Beta", "Original"),
+			testEntry(KindExtension, "a", "Alpha", "Original"),
+		)
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, first); err != nil {
+			t.Fatal(err)
+		}
+		before, err := store.KindState(ctx, KindExtension)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refreshed := testDocument(at.Add(time.Hour), first.Entries[1], first.Entries[0])
+		for i := range refreshed.Entries {
+			refreshed.Entries[i].FetchedAt = refreshed.FetchedAt
+		}
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
+			t.Fatal(err)
+		}
+		after, err := store.KindState(ctx, KindExtension)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before.Revision == "" || before.Revision != after.Revision || !after.FetchedAt.Equal(refreshed.FetchedAt) {
+			t.Fatalf("before=%#v after=%#v", before, after)
+		}
+		refreshed.Entries[0].Description = "Changed"
+		if err := store.ReplaceSource(ctx, CompozyCatalogSource, 0, refreshed); err != nil {
+			t.Fatal(err)
+		}
+		changed, err := store.KindState(ctx, KindExtension)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed.Revision == after.Revision {
+			t.Fatal("edited content kept the old revision")
+		}
+	})
+}

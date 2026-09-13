@@ -4,23 +4,42 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
+	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// Invariant: extension auth policy survives desired-resource persistence and boot reconstruction.
+// Owner: daemon resource publication, canonical real SQLite integration suite.
 func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
+	t.Parallel()
+	// Invariant: explicit profile installations publish only into their owning
+	// profile, including default; owner: daemon resource projection, canonical integration suite.
+	t.Run("Should publish explicit profile installations from the real manager", func(t *testing.T) {
+		t.Parallel()
+		testInstalledProfileMCPPublication(t)
+	})
 	t.Run("Should Publish Static Resources And Rebuild On Boot", func(t *testing.T) {
+		t.Parallel()
 		db := openDaemonTestGlobalDB(t)
 		kernel, err := resources.NewKernel(db.DB())
 		if err != nil {
@@ -46,6 +65,31 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 
 		registry := extensionpkg.NewRegistry(db.DB())
 		extensionDir := writeToolMCPIntegrationExtension(t)
+		manifestPath := filepath.Join(extensionDir, "extension.toml")
+		raw, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw = append(raw, []byte(`
+[resources.mcp_servers.remote]
+transport = "http"
+url = "https://mcp.example.com/mcp?workspace="
+default_scope = "global"
+[resources.mcp_servers.remote.auth]
+method = "oauth"
+registration = "dynamic"
+issuer_url = "https://issuer.example.com"
+scopes = ["tools.read"]
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "workspace" }
+`)...)
+		if err := os.WriteFile(manifestPath, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
 		manifest, err := extensionpkg.LoadManifest(extensionDir)
 		if err != nil {
 			t.Fatalf("extensionpkg.LoadManifest() error = %v", err)
@@ -62,6 +106,19 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("registry.Get() error = %v", err)
 		}
 
+		// Invariant: publication reloads the exact instance URL input from SQLite without process env.
+		// Owner: daemon input application; canonical publication and boot integration suite.
+		input := extensioninput.Record{
+			Type:      "identifier",
+			Value:     json.RawMessage(`"team-a"`),
+			Active:    true,
+			UpdatedAt: time.Now().UTC(),
+		}
+		if err := db.ExtensionInputs.Apply(testutil.Context(t), extensioninput.Instance{
+			Extension: manifest.Name, ProfileID: store.DefaultProfileID,
+		}, []extensioninput.Mutation{{InputID: "workspace", After: &input}}); err != nil {
+			t.Fatal(err)
+		}
 		initialToolCatalog := newResourceCatalog(cloneToolSpec)
 		initialMCPServerCatalog := newResourceCatalog(cloneDaemonMCPServer)
 		driver := newToolMCPIntegrationDriver(
@@ -104,8 +161,11 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			toolMCPSyncActor(),
 			discardLogger(),
 			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				_, err := driver.Trigger(ctx, kind, reason)
-				return err
+				ticket, err := driver.Trigger(ctx, kind, reason)
+				if err != nil {
+					return err
+				}
+				return driver.WaitForIdle(ctx, ticket)
 			},
 			daemonConfigMCPDeclarationProvider(&publishedConfig, nil, nil, discardLogger()),
 			extensionManifestToolMCPDeclarationProvider(
@@ -113,10 +173,241 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 				func() extensionRuntime { return runtime },
 				nil,
 				defaultToolMCPProfileCatalog{},
+				extensionInputReader{inputs: db.ExtensionInputs},
 			),
 		)
+		syncer.prepareMCP = extensionMCPPublicationPreparer(&bootState{extensionMCP: db.ExtensionMCP})
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync() error = %v", err)
+		}
+
+		// Invariant: actual persisted/projected extension declarations reach Settings without copying them to manual config.
+		// Owner: publication-to-Settings integration; canonical tagged suite.
+		settingsAdapter := settingsMCPExtensionDefinitions{
+			state: &bootState{extensionMCP: db.ExtensionMCP, mcpServerCatalog: initialMCPServerCatalog},
+		}
+		settingsHome := testHomePaths(t)
+		settingsProfiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(settingsHome),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authManager, err := newSettingsMCPAuthManagerWithConfig(db, nil, nil, nil, compozyconfig.MCPOAuthConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		settingsAdapter.auth = &settingsRuntimeSurface{mcpAuthManager: authManager}
+		for _, owner := range []string{"manual", "extension:" + manifest.Name} {
+			target := mcpauth.Target{Scope: mcpauth.ScopeUser, Owner: owner, ServerName: "remote"}
+			cfg, err := mcpauth.ServerConfigFromMCP(testutil.Context(t), target, compozyconfig.MCPServer{
+				Name:      "remote",
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       "https://mcp.example.com/mcp?workspace=team-a",
+				Auth: compozyconfig.MCPAuthConfig{
+					Registration: compozyconfig.MCPAuthRegistrationAuto,
+					IssuerURL:    "https://issuer.example.com",
+				},
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.SaveMCPAuthToken(testutil.Context(t), mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint,
+				Issuer:      "https://issuer.example.com",
+				ClientID:    "fixture",
+				AccessToken: "fixture-secret",
+				TokenType:   "Bearer",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		settingsService, err := settingspkg.NewService(
+			settingsHome,
+			settingspkg.Dependencies{
+				MCPExtensionManagement:  settingsAdapter,
+				MCPExtensions:           settingsAdapter,
+				ProfileResolver:         settingsProfiles,
+				AttentionWorkspaceMutes: db,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collection, err := settingsService.ListCollection(
+			testutil.Context(t),
+			settingspkg.CollectionRequest{Collection: settingspkg.CollectionMCPServers},
+		)
+		if err != nil || len(collection.MCPServers) != 2 {
+			t.Fatalf("published extensions missing from Settings: %#v %v", collection.MCPServers, err)
+		}
+		for _, item := range collection.MCPServers {
+			if item.Owner != "extension:"+manifest.Name || item.RuntimeName == "" ||
+				item.SourceMetadata.EffectiveSource.Kind != settingspkg.SourceKindExtension ||
+				len(item.SourceMetadata.AvailableTargets) != 0 {
+				t.Fatalf("published Settings row lost identity: %#v", item)
+			}
+		}
+		_, err = settingsService.PutCollectionItem(testutil.Context(t), settingspkg.CollectionItemPutRequest{
+			CollectionRequest: settingspkg.CollectionRequest{
+				Collection: settingspkg.CollectionMCPServers, Owner: "manual",
+			},
+			Name:      "remote",
+			MCPServer: &compozyconfig.MCPServer{Name: "remote", Command: "manual-mcp"},
+		})
+		if !errors.Is(err, settingspkg.ErrMCPServerNameTaken) {
+			t.Fatalf("real published allocation did not protect manual mutation: %v", err)
+		}
+
+		// Invariant: overrides validate against the declaration, publish live, and reset without reallocating the runtime name.
+		// Owner: daemon override transaction; canonical real SQLite/resource publisher integration suite.
+		settingsAdapter.state.toolMCPResources = syncer
+		settingsAdapter.state.deps.Extensions = &daemonExtensionService{
+			runtime:   runtime,
+			inputs:    db.ExtensionInputs,
+			lifecycle: newExtensionLifecycleCoordinator(),
+		}
+		overrideRequest := settingspkg.MCPAuthTargetRequest{
+			Scope: settingspkg.ScopeUser,
+			Name:  "remote",
+			Owner: "extension:" + manifest.Name,
+		}
+		for _, invalid := range []extensionmcp.Override{
+			{Env: map[string]string{"REGION": "eu"}},
+			{Headers: map[string]string{"Authorization": "Bearer forbidden"}},
+		} {
+			if _, err := settingsAdapter.UpdateMCPExtensionOverride(
+				testutil.Context(t),
+				overrideRequest,
+				invalid,
+			); !errors.Is(
+				err,
+				settingspkg.ErrValidation,
+			) {
+				t.Fatalf("invalid override bypassed actual HTTP/auth policy: %v", err)
+			}
+		}
+		edited, err := settingsAdapter.UpdateMCPExtensionOverride(
+			testutil.Context(t),
+			overrideRequest,
+			extensionmcp.Override{URL: "https://mcp.example.com/changed"},
+		)
+		if err != nil || edited.Server.URL != "https://mcp.example.com/changed" ||
+			edited.Server.RuntimeName != "remote" {
+			t.Fatalf("override not applied: %#v %v", edited, err)
+		}
+		_, published, found, err := settingsAdapter.ResolveMCPExtensionDefinition(testutil.Context(t), overrideRequest)
+		if err != nil || !found || published.URL != edited.Server.URL {
+			t.Fatalf("override not reconciled: %#v %v", published, err)
+		}
+		reset, err := settingsAdapter.UpdateMCPExtensionOverride(
+			testutil.Context(t),
+			overrideRequest,
+			extensionmcp.Override{},
+		)
+		if err != nil || reset.Server.URL != "https://mcp.example.com/mcp?workspace=team-a" ||
+			reset.Server.RuntimeName != "remote" {
+			t.Fatalf("reset did not restore declaration/runtime name: %#v %v", reset, err)
+		}
+
+		if _, err := db.GetMCPAuthToken(
+			testutil.Context(t),
+			mcpauth.Target{Scope: mcpauth.ScopeUser, Owner: "extension:" + manifest.Name, ServerName: "remote"},
+		); !errors.Is(
+			err,
+			mcpauth.ErrTokenNotFound,
+		) {
+			t.Fatalf("override retained its previous auth state: %v", err)
+		}
+		if _, err := db.GetMCPAuthToken(
+			testutil.Context(t),
+			mcpauth.Target{Scope: mcpauth.ScopeUser, Owner: "manual", ServerName: "remote"},
+		); err != nil {
+			t.Fatalf("extension override deleted manual credentials: %v", err)
+		}
+		mutation, err := settingsService.PutCollectionItem(testutil.Context(t), settingspkg.CollectionItemPutRequest{
+			CollectionRequest: settingspkg.CollectionRequest{
+				Collection: settingspkg.CollectionMCPServers,
+				Owner:      "extension:" + manifest.Name,
+			},
+			Name:      "remote",
+			MCPServer: &compozyconfig.MCPServer{URL: "https://mcp.example.com/settings-edit"},
+		})
+		if err != nil || mutation.MCPServer == nil ||
+			mutation.MCPServer.URL != "https://mcp.example.com/settings-edit" {
+			t.Fatalf("Settings override dispatch failed: %#v %v", mutation, err)
+		}
+		mutation, err = settingsService.DeleteCollectionItem(
+			testutil.Context(t),
+			settingspkg.CollectionItemDeleteRequest{
+				CollectionRequest: settingspkg.CollectionRequest{
+					Collection: settingspkg.CollectionMCPServers,
+					Owner:      "extension:" + manifest.Name,
+				},
+				Name: "remote",
+			},
+		)
+		if err != nil || mutation.MCPServer == nil ||
+			mutation.MCPServer.URL != "https://mcp.example.com/mcp?workspace=team-a" {
+			t.Fatalf("Settings reset dispatch failed: %#v %v", mutation, err)
+		}
+
+		// Invariant: reset publication and persisted OAuth retirement are observable through native diagnostics.
+		// Owner: real publication/credential integration; canonical tagged suite.
+		executor, err := mcppkg.NewMCPCallExecutor(
+			newDaemonMCPServerResolver(settingsAdapter.state),
+			mcppkg.WithTokenStore(db),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nativeRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(""),
+			MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return executor },
+			Settings: func() core.SettingsService { return settingsService },
+		}, nativeApproveAllPolicyInputs())
+		for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus, toolspkg.ToolIDMCPStatus} {
+			input, err := json.Marshal(
+				map[string]string{"server_name": "remote", "owner": "extension:" + manifest.Name},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := nativeRegistry.Call(
+				testutil.Context(t),
+				toolspkg.Scope{SessionID: "sess-1"},
+				toolspkg.CallRequest{ToolID: toolID, Input: input},
+			)
+			if err != nil {
+				t.Fatalf("native status after reset: %v", err)
+			}
+			var payload struct {
+				Status toolspkg.MCPAuthStatus `json:"status"`
+				Auth   toolspkg.MCPAuthStatus `json:"auth"`
+			}
+			if toolID == toolspkg.ToolIDMCPStatus {
+				var statusPayload mcpStatusPayload
+				if err := json.Unmarshal(result.Structured, &statusPayload); err != nil {
+					t.Fatal(err)
+				}
+				payload.Auth = statusPayload.Auth
+			} else {
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				payload.Auth = payload.Status
+			}
+			if payload.Auth.Owner != "extension:"+manifest.Name || payload.Auth.Status != "needs_login" ||
+				payload.Auth.TokenPresent {
+				t.Fatalf("native status missed owned credential retirement: %#v", payload.Auth)
+			}
 		}
 
 		source := toolMCPSyncActor().Source
@@ -156,8 +447,25 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("mcpStore.List() error = %v", err)
 		}
-		if got, want := len(servers), 2; got != want {
+		if got, want := len(servers), 3; got != want {
 			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
+		}
+		remote := requireMCPServerRecord(t, servers, "remote")
+		// Invariant: persisted publication retains allocated runtime identity and declaration owner.
+		// Owner: daemon publication; canonical real SQLite integration suite.
+		if remote.Spec.Owner != "extension:"+manifest.Name || remote.Spec.RuntimeName != "remote" {
+			t.Fatalf("published MCP lost its allocated identity: %#v", remote.Spec)
+		}
+		if remote.Spec.URL != "https://mcp.example.com/mcp?workspace=team-a" {
+			t.Fatalf("stored URL input was not applied: %s", remote.Spec.URL)
+		}
+		if remote.Spec.Auth.Registration != compozyconfig.MCPAuthRegistrationAuto ||
+			remote.Spec.Auth.IssuerURL != "https://issuer.example.com" ||
+			!slices.Equal(remote.Spec.Auth.Scopes, []string{"tools.read"}) {
+			t.Fatalf("persisted remote auth = %#v", remote.Spec.Auth)
+		}
+		if remote.Scope.Kind != resources.ResourceScopeKindProfile || remote.Scope.ID != store.DefaultProfileID {
+			t.Fatalf("manifest default broadened installed scope: %#v", remote.Scope)
 		}
 		extensionServer := requireMCPServerRecord(t, servers, "kubectl")
 		if got, want := extensionServer.ID, "extension/"+manifest.Name+"/mcp_server/kubectl/profile/"+store.DefaultProfileID; got != want {
@@ -209,7 +517,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("mcpStore.List(candidate) error = %v", err)
 		}
-		if got, want := mcpServerNames(servers), []string{"github", "kubectl"}; !slices.Equal(got, want) {
+		if got, want := mcpServerNames(servers), []string{"github", "kubectl", "remote"}; !slices.Equal(got, want) {
 			t.Fatalf("candidate MCP servers = %#v, want %#v", got, want)
 		}
 		if got := publishedConfig.MCPServers[0].Name; got != "git" {
@@ -218,11 +526,11 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if err := syncer.SyncConfig(testutil.Context(t), &compozyconfig.Config{}); err != nil {
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
-		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 1)
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
 			t.Fatalf("syncer.Sync(published config) error = %v", err)
 		}
-		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 3)
 
 		rebuiltToolCatalog := newResourceCatalog(cloneToolSpec)
 		rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
@@ -234,10 +542,98 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if got, want := len(rebuiltToolCatalog.Snapshot()), 1; got != want {
 			t.Fatalf("len(rebuiltToolCatalog.Snapshot()) = %d, want %d", got, want)
 		}
-		if got, want := len(rebuiltMCPCatalog.Snapshot()), 2; got != want {
+		if got, want := len(rebuiltMCPCatalog.Snapshot()), 3; got != want {
 			t.Fatalf("len(rebuiltMCPCatalog.Snapshot()) = %d, want %d", got, want)
 		}
+		rebuilt := requireMCPServerRecord(t, rebuiltMCPCatalog.Snapshot(), "remote")
+		if rebuilt.Spec.URL != remote.Spec.URL || rebuilt.Spec.Auth.IssuerURL != remote.Spec.Auth.IssuerURL ||
+			!slices.Equal(rebuilt.Spec.Auth.Scopes, remote.Spec.Auth.Scopes) ||
+			rebuilt.Scope != remote.Scope {
+			t.Fatalf("rebuilt remote = %#v", rebuilt)
+		}
+
 	})
+}
+
+func testInstalledProfileMCPPublication(t *testing.T) {
+	t.Helper()
+	db := openDaemonTestGlobalDB(t)
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(testHomePaths(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marketing, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "finance"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(`[extension]
+name = "installed-profile-mcp"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+[resources.mcp_servers.lookup]
+transport = "http"
+url = "https://mcp.example.invalid/mcp"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := extensionpkg.LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := extensionpkg.NewRegistry(db.DB())
+	if err := registry.Install(manifest, dir, checksum, extensionpkg.WithInstallScope(extensionpkg.InstallationScope{
+		ProfileID: marketing.ID,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.AttachInstallation(t.Context(), manifest.Name, extensionpkg.InstallationScope{
+		ProfileID: store.DefaultProfileID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manager := extensionpkg.NewManager(registry, extensionpkg.WithProfileNameResolver(profiles))
+	if err := manager.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 10*time.Second)
+		defer cancel()
+		if err := manager.Stop(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	provider := extensionManifestToolMCPDeclarationProvider(registry, func() extensionRuntime { return manager },
+		nil, profiles, extensionInputReader{})
+	desired, err := provider(t.Context())
+	if err != nil || len(desired.mcpServers) != 2 {
+		t.Fatalf("profile MCP declarations = %#v, %v", desired, err)
+	}
+	owners := make([]string, 0, 2)
+	for _, server := range desired.mcpServers {
+		if server.scope.Kind != resources.ResourceScopeKindProfile || server.spec.Owner != "extension:"+manifest.Name {
+			t.Fatalf("profile MCP declaration widened its owner: %#v", server)
+		}
+		owners = append(owners, server.scope.ID)
+	}
+	slices.Sort(owners)
+	want := []string{store.DefaultProfileID, marketing.ID}
+	slices.Sort(want)
+	if !slices.Equal(owners, want) {
+		t.Fatalf("MCP profile owners = %#v, want %#v", owners, want)
+	}
+	legacy, err := extensionResourceSnapshots(registry, manager, discardLogger())
+	if err != nil || len(legacy) != 1 || legacy[0].scope.Kind != resources.ResourceScopeKindProfile ||
+		legacy[0].scope.ID != store.DefaultProfileID {
+		t.Fatalf("default-only publisher widened profile scope: %#v, %v", legacy, err)
+	}
 }
 
 func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
@@ -273,6 +669,15 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
 		}
+		// Invariant: the requested reservation is consumed by actual desired-state publication.
+		// Owner: publication integration; canonical tagged suite.
+		allocationService := &daemonExtensionService{registry: registry, mcpAllocations: db.ExtensionMCP,
+			resourceStore: kernel, resourceActor: resourceReconcileActor()}
+		if _, err := allocationService.prepareInstallMCPAllocations(t.Context(), preparedDaemonExtensionInstall{
+			name: manifest.Name, manifest: manifest,
+		}, "requested-server"); err != nil {
+			t.Fatal(err)
+		}
 		if err := registry.Install(manifest, extensionDir, checksum); err != nil {
 			t.Fatalf("registry.Install() error = %v", err)
 		}
@@ -300,7 +705,7 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		toolCatalog := newResourceCatalog(cloneToolSpec)
 		mcpCatalog := newResourceCatalog(cloneDaemonMCPServer)
 		driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, toolCatalog, mcpCatalog)
-		syncer := newToolMCPSourceSyncer(
+		syncer := newToolMCPSourceSyncerWithConfigProvider(
 			kernel,
 			toolStore,
 			toolCodec,
@@ -312,15 +717,24 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 				_, err := driver.Trigger(ctx, kind, reason)
 				return err
 			},
+			nil,
 			extensionManifestToolMCPDeclarationProvider(
 				registry,
 				func() extensionRuntime { return runtime },
 				nil,
 				defaultToolMCPProfileCatalog{},
+				extensionInputReader{},
 			),
 		)
 
+		syncer.prepareMCP = extensionMCPPublicationPreparer(&bootState{extensionMCP: db.ExtensionMCP})
+
 		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 1)
+		publishedServers, err := mcpStore.List(t.Context(), toolMCPSyncActor(), resources.ResourceFilter{})
+		if err != nil || len(publishedServers) != 1 || publishedServers[0].Spec.RuntimeName != "requested-server" ||
+			publishedServers[0].Spec.Owner != "extension:"+manifest.Name {
+			t.Fatalf("publication lost requested identity: %#v %v", publishedServers, err)
+		}
 
 		if err := registry.Disable(manifest.Name); err != nil {
 			t.Fatalf("registry.Disable() error = %v", err)

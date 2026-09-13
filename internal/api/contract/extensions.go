@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"github.com/compozy/compozy/internal/extensioninput"
 	"time"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -19,12 +20,15 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
-	Source               InstallExtensionSource `json:"source"`
-	Ref                  string                 `json:"ref"`
-	Version              string                 `json:"version,omitempty"`
-	Asset                string                 `json:"asset,omitempty"`
-	AllowUnverified      bool                   `json:"allow_unverified,omitempty"`
-	ConfirmNetworkDigest string                 `json:"confirm_network_digest,omitempty"`
+	RuntimeName          string                          `json:"runtime_name,omitempty"`
+	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
+	ExpectedDigest       string                          `json:"expected_digest,omitempty"`
+	Source               InstallExtensionSource          `json:"source"`
+	Ref                  string                          `json:"ref"`
+	Version              string                          `json:"version,omitempty"`
+	Asset                string                          `json:"asset,omitempty"`
+	AllowUnverified      bool                            `json:"allow_unverified,omitempty"`
+	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
 }
 
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
@@ -36,6 +40,11 @@ type ExtensionValidationErrorPayload struct {
 
 // ExtensionOperationErrorPayload is the deterministic extension lifecycle error envelope.
 type ExtensionOperationErrorPayload struct {
+	ListedDigest  string          `json:"listed_digest,omitempty"`
+	FetchedDigest string          `json:"fetched_digest,omitempty"`
+	InputID       string          `json:"input_id,omitempty"`
+	Inputs        []string        `json:"inputs,omitempty"`
+	MissingEnv    []string        `json:"missing_env,omitempty"`
 	Error         string          `json:"error"`
 	Code          string          `json:"code"`
 	Diagnostic    *DiagnosticItem `json:"diagnostic,omitempty"`
@@ -47,19 +56,21 @@ type ExtensionOperationErrorPayload struct {
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.
 type UpdateExtensionRequest struct {
-	Version              string `json:"version,omitempty"`
-	CheckOnly            bool   `json:"check_only,omitempty"`
-	AllowUnverified      bool   `json:"allow_unverified,omitempty"`
-	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
+	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
+	Version              string                          `json:"version,omitempty"`
+	CheckOnly            bool                            `json:"check_only,omitempty"`
+	AllowUnverified      bool                            `json:"allow_unverified,omitempty"`
+	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
 }
 
 // UpdateExtensionsRequest selects one or more managed extension updates.
 type UpdateExtensionsRequest struct {
-	Names           []string `json:"names,omitempty"`
-	All             bool     `json:"all,omitempty"`
-	Version         string   `json:"version,omitempty"`
-	CheckOnly       bool     `json:"check_only,omitempty"`
-	AllowUnverified bool     `json:"allow_unverified,omitempty"`
+	Inputs          map[string]extensioninput.Value `json:"inputs,omitempty"`
+	Names           []string                        `json:"names,omitempty"`
+	All             bool                            `json:"all,omitempty"`
+	Version         string                          `json:"version,omitempty"`
+	CheckOnly       bool                            `json:"check_only,omitempty"`
+	AllowUnverified bool                            `json:"allow_unverified,omitempty"`
 }
 
 // DevLinkExtensionRequest links one immutable generation under the caller's trusted workspace.
@@ -129,6 +140,11 @@ type ExtensionTrustReportPayload struct {
 
 // ExtensionProvenancePayload contains the persisted source and trust record.
 type ExtensionProvenancePayload struct {
+	SourceName          string                       `json:"source_name,omitempty"`
+	SourceRef           string                       `json:"source_ref,omitempty"`
+	EntryID             string                       `json:"entry_id,omitempty"`
+	ResolvedRef         string                       `json:"resolved_ref,omitempty"`
+	Layout              string                       `json:"layout,omitempty"`
 	Slug                string                       `json:"slug,omitempty"`
 	CatalogEntryID      string                       `json:"catalog_entry_id,omitempty"`
 	InstalledFrom       string                       `json:"installed_from"`
@@ -148,6 +164,11 @@ type ExtensionProvenancePayload struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
+	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers"`
+	Inputs                      []ExtensionInputStatePayload      `json:"inputs"`
+	MissingInputs               []string                          `json:"missing_inputs"`
+	Contents                    ExtensionContentsPayload          `json:"contents"`
+	Origin                      *MarketplaceOriginPayload         `json:"origin,omitempty"`
 	Name                        string                            `json:"name"`
 	Profile                     string                            `json:"profile"`
 	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
@@ -249,6 +270,7 @@ type ExtensionKitChangePayload struct {
 
 // ExtensionEnablePreviewPayload is the mutation-free enable projection.
 type ExtensionEnablePreviewPayload struct {
+	MissingInputs               []string                    `json:"missing_inputs"`
 	Extension                   string                      `json:"extension"`
 	Changes                     []ExtensionKitChangePayload `json:"changes"`
 	AgentConflicts              []string                    `json:"agent_conflicts"`

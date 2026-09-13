@@ -31,6 +31,11 @@ func marketplaceEntryOperation() OperationSpec {
 			{Status: 400, Description: "Invalid marketplace detail request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Marketplace kind or entry not found", Body: contract.ErrorPayload{}},
 			{
+				Status:      409,
+				Description: "Package bytes differ from the listed digest",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{
 				Status: 503, Description: "Marketplace detail dependency is not configured",
 				Body: contract.ErrorPayload{},
 			},

@@ -1,6 +1,7 @@
 CREATE TABLE mcp_auth_tokens (
 			scope          TEXT NOT NULL CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')),
 			workspace_id   TEXT NOT NULL DEFAULT '',
+			owner          TEXT NOT NULL DEFAULT 'manual' CHECK (owner = 'manual' OR (owner LIKE 'extension:%' AND length(owner) > 10)),
 			server_name    TEXT NOT NULL CHECK (trim(server_name) <> ''),
 			definition_fingerprint TEXT NOT NULL DEFAULT '',
 			issuer         TEXT NOT NULL DEFAULT '',
@@ -12,7 +13,7 @@ CREATE TABLE mcp_auth_tokens (
 			expires_at     TEXT,
 			obtained_at    TEXT NOT NULL,
 			updated_at     TEXT NOT NULL,
-			PRIMARY KEY (scope, workspace_id, server_name),
+			PRIMARY KEY (scope, workspace_id, owner, server_name),
 			CHECK (
 				(scope = 'user' AND workspace_id = '') OR
 				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')
@@ -25,6 +26,7 @@ CREATE INDEX idx_mcp_auth_tokens_updated_at
 CREATE TABLE mcp_oauth_registrations (
 			scope                         TEXT NOT NULL CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')),
 			workspace_id                  TEXT NOT NULL DEFAULT '',
+			owner                         TEXT NOT NULL DEFAULT 'manual' CHECK (owner = 'manual' OR (owner LIKE 'extension:%' AND length(owner) > 10)),
 			server_name                   TEXT NOT NULL CHECK (trim(server_name) <> ''),
 			definition_fingerprint        TEXT NOT NULL CHECK (trim(definition_fingerprint) <> ''),
 			resource_url                  TEXT NOT NULL CHECK (trim(resource_url) <> ''),
@@ -39,7 +41,7 @@ CREATE TABLE mcp_oauth_registrations (
 			redirect_uri                  TEXT NOT NULL CHECK (trim(redirect_uri) <> ''),
 			scopes_json                   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(scopes_json)),
 			updated_at                    TEXT NOT NULL CHECK (trim(updated_at) <> ''),
-			PRIMARY KEY (scope, workspace_id, server_name),
+			PRIMARY KEY (scope, workspace_id, owner, server_name),
 			CHECK (
 				(scope = 'user' AND workspace_id = '') OR
 				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')

@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -40,6 +42,9 @@ type daemonExtensionService struct {
 	eventWriter        extensionLifecycleEventWriter
 	workspaceResolver  workspacepkg.RuntimeResolver
 	envBindings        extensionpkg.EnvBindingLifecycleStore
+	inputs             extensioninput.Store
+	mcpAllocations     extensionmcp.Store
+	mcpDetails         *extensionMCPDetails
 	secretVault        extensionSecretVault
 	automation         extensionAutomationPreviewer
 	lifecycle          *extensionLifecycleCoordinator
@@ -206,4 +211,8 @@ func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg compozyconfig.Ex
 	s.marketplaceMu.Lock()
 	s.extensionConfig = cfg
 	s.marketplaceMu.Unlock()
+}
+
+func withDaemonExtensionMCPAllocations(allocations extensionmcp.Store) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.mcpAllocations = allocations }
 }

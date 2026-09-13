@@ -5,6 +5,7 @@ import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query
 import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
 
 import {
+  updateMarketplaceExtensions,
   installMarketplaceExtension,
   installMarketplaceMCP,
   installMarketplaceSkill,
@@ -13,6 +14,7 @@ import {
 } from "../adapters/marketplace-actions-api";
 import { marketplaceKeys } from "../lib/query-keys";
 import type {
+  ExtensionBatchUpdateRequest,
   ExtensionInstallRequest,
   ExtensionUpdateRequest,
   MarketplaceKind,
@@ -142,6 +144,14 @@ export function useUpdateMarketplaceExtension() {
   return useMutation({
     mutationFn: ({ name, body }: { name: string; body: ExtensionUpdateRequest }) =>
       updateExtension(name, body),
+    onSettled: () => reconcileInstalledExtensionCaches(queryClient),
+  });
+}
+
+export function useUpdateMarketplaceExtensions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ExtensionBatchUpdateRequest) => updateMarketplaceExtensions(body),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
 }

@@ -1058,7 +1058,12 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 			if name != "env-ext" {
 				t.Fatalf("ExtensionStatus() name = %q, want env-ext", name)
 			}
-			return localExtensionRecord(*getInstalledExtension(t, homePaths, "env-ext"), deps.now, deps.getenv), nil
+			return localExtensionRecord(
+				t.Context(),
+				*getInstalledExtension(t, homePaths, "env-ext"),
+				deps.now,
+				deps.getenv,
+			)
 		},
 	}
 	deps.newClient = func(ClientTarget) (DaemonClient, error) {

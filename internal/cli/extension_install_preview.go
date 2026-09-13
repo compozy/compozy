@@ -44,6 +44,13 @@ func writeExtensionInstallPreview(cmd *cobra.Command, preview *ExtensionInstallP
 	if preview == nil {
 		return nil
 	}
+	mode, err := resolveInheritedOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode != OutputHuman {
+		return nil
+	}
 	var output strings.Builder
 	name := strings.TrimSpace(preview.Name)
 	if name == "" {

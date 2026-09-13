@@ -1,5 +1,10 @@
 import { apiClient, apiErrorMessage, apiRequestFailed } from "@/lib/api-client";
 
+import {
+  extensionOperationErrorMetadata,
+  type ExtensionOperationErrorMetadata,
+} from "./extension-operation-error";
+
 import type {
   ExtensionEnablement,
   ExtensionEntry,
@@ -35,10 +40,7 @@ function workspaceQuery(
 
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
-export interface ExtensionsApiErrorMetadata {
-  readonly code?: string;
-  readonly currentDigest?: string;
-}
+export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
 
 export class ExtensionsApiError extends Error {
   /** Daemon error code, e.g. `extension_network_confirmation_required`. */
@@ -46,6 +48,10 @@ export class ExtensionsApiError extends Error {
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
   public readonly currentDigest: string | undefined;
+  public readonly listedDigest: string | undefined;
+  public readonly fetchedDigest: string | undefined;
+  public readonly inputId: string | undefined;
+  public readonly requiredInputs: readonly string[] | undefined;
 
   constructor(
     message: string,
@@ -57,26 +63,11 @@ export class ExtensionsApiError extends Error {
     this.name = "ExtensionsApiError";
     this.code = metadata.code;
     this.currentDigest = metadata.currentDigest;
+    this.listedDigest = metadata.listedDigest;
+    this.fetchedDigest = metadata.fetchedDigest;
+    this.inputId = metadata.inputId;
+    this.requiredInputs = metadata.requiredInputs;
   }
-}
-
-type DaemonErrorField = "code" | "current_digest";
-
-function errorField(error: unknown, field: DaemonErrorField): string | undefined {
-  if (error == null || typeof error !== "object") return undefined;
-  const value = Reflect.get(error, field);
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
-
-function daemonErrorMetadata(error: unknown): ExtensionsApiErrorMetadata {
-  const code = errorField(error, "code");
-  const currentDigest = errorField(error, "current_digest");
-  return {
-    ...(code ? { code } : {}),
-    ...(currentDigest ? { currentDigest } : {}),
-  };
 }
 
 function responseError(fallback: string, response: Response, error: unknown): ExtensionsApiError {
@@ -85,7 +76,7 @@ function responseError(fallback: string, response: Response, error: unknown): Ex
     daemonMessage ?? (response.status ? `${fallback} (${response.status})` : fallback),
     response.status,
     daemonMessage ? "daemon" : "transport",
-    daemonErrorMetadata(error)
+    extensionOperationErrorMetadata(error)
   );
 }
 
@@ -240,6 +231,7 @@ export async function previewExtensionInstall(
   requiredString(preview.name, response, fallback, "name");
   requiredArray(preview.declared_profiles, response, fallback, "declared_profiles");
   requiredArray(preview.placements, response, fallback, "placements");
+  requiredArray(preview.inputs, response, fallback, "inputs");
   return preview;
 }
 

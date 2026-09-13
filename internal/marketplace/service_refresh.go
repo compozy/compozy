@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type refreshFlight struct {
@@ -99,20 +100,30 @@ func canceledRefreshOutcome(kind Kind) RefreshOutcome {
 func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOutcome, error) {
 	source := s.sources[kind]
 	now := s.now().UTC()
+	generation := int64(0)
+	if kind == KindExtension {
+		state, err := s.store.KindState(ctx, kind)
+		if err != nil && !errors.Is(err, ErrKindStateMissing) {
+			return canceledRefreshOutcome(kind), err
+		}
+		if state != nil {
+			generation = state.Generation
+		}
+	}
 	document, err := source.Fetch(ctx)
 	if err != nil {
 		if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
 			return canceledRefreshOutcome(kind), errors.Join(lifecycleErr, err)
 		}
 		return s.recordFailure(
-			kind,
+			kind, generation,
 			classifyFetchError(err),
 			errors.Join(ErrSourceUnavailable, err),
 		)
 	}
 	if document == nil {
 		return s.recordFailure(
-			kind,
+			kind, generation,
 			"validation",
 			errors.Join(ErrSourceUnavailable, errors.New("marketplace catalog: source returned nil document")),
 		)
@@ -124,11 +135,17 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 	if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
 		return canceledRefreshOutcome(kind), lifecycleErr
 	}
-	if err := s.store.ReplaceKind(ctx, kind, document); err != nil {
-		return s.recordFailure(kind, "store", err)
+	if kind == KindExtension {
+		err = s.store.ReplaceSource(ctx, CompozyCatalogSource, generation, document)
+	} else {
+		err = s.store.ReplaceKind(ctx, kind, document)
+	}
+	if err != nil {
+		return s.recordFailure(kind, generation, "store", err)
 	}
 	outcome := RefreshOutcome{
-		Kind:       kind,
+		Kind:   kind,
+		Source: refreshSourceName(kind), Generation: generation,
 		Outcome:    RefreshOutcomeSucceeded,
 		EntryCount: len(document.Entries),
 	}
@@ -140,6 +157,7 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 
 func (s *CatalogService) recordFailure(
 	kind Kind,
+	generation int64,
 	errorClass string,
 	cause error,
 ) (RefreshOutcome, error) {
@@ -149,12 +167,22 @@ func (s *CatalogService) recordFailure(
 	failureCtx, cancel := s.boundedLifecycleContext()
 	defer cancel()
 	redacted := diagnostics.RedactAndBound(cause.Error(), maxStoredErrorBytes)
-	markErr := s.store.MarkKindStale(failureCtx, kind, errorClass, redacted)
+	var markErr error
+	if kind == KindExtension {
+		markErr = s.store.MarkSourceStale(failureCtx, CompozyCatalogSource, generation, errorClass, redacted)
+	} else {
+		markErr = s.store.MarkKindStale(failureCtx, kind, errorClass, redacted)
+	}
+	if errors.Is(markErr, storepkg.ErrMarketplaceCatalogGenerationStale) {
+		return RefreshOutcome{Kind: kind, Source: refreshSourceName(kind), Generation: generation,
+			Outcome: RefreshOutcomeFailed, ErrorClass: "generation_stale"}, errors.Join(cause, markErr)
+	}
 	state, stateErr := s.store.KindState(failureCtx, kind)
 	outcome := RefreshOutcome{
-		Kind:       kind,
-		Outcome:    RefreshOutcomeFailed,
-		Stale:      true,
+		Kind:    kind,
+		Outcome: RefreshOutcomeFailed,
+		Stale:   true,
+		Source:  refreshSourceName(kind), Generation: generation,
 		ErrorClass: errorClass,
 	}
 	if stateErr == nil {
@@ -208,4 +236,11 @@ func classifyFetchError(err error) string {
 		return errorClassNetwork
 	}
 	return errorClassNetwork
+}
+
+func refreshSourceName(kind Kind) string {
+	if kind == KindExtension {
+		return CompozyCatalogSource
+	}
+	return ""
 }

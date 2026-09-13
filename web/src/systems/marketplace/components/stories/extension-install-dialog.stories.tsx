@@ -7,6 +7,7 @@ import { ExtensionInstallDialog } from "../extension-install-dialog";
 
 const PREVIEW = {
   name: "growth-kit",
+  inputs: [],
   declared_profiles: [
     {
       create: true,

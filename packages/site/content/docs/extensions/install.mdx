@@ -42,6 +42,69 @@ submit the structured union directly; the shorthand is a CLI convenience.
 
 `--version` and `--asset` select a specific registry version or archive for published sources.
 
+## Supply package inputs
+
+The package declares its input IDs, types, prompts, defaults, and required values. Pass repeatable
+`--input id=value` flags; the CLI reads the manifest type, so a boolean becomes a JSON boolean while
+a string such as `true` stays a string.
+
+```bash
+compozy extension install compozy/supabase --input project_ref=my-project
+compozy extension install compozy/context7
+compozy extension install compozy/grafana --input-file inputs.json
+```
+
+Context7's API key is optional. For Grafana, `inputs.json` can provide both the URL and an existing
+secret reference:
+
+```json
+{
+  "grafana_url": { "value": "https://grafana.example.com" },
+  "grafana_service_account_token": { "vault_ref": "vault:mcp/shared/GRAFANA_TOKEN" }
+}
+```
+
+Each entry accepts exactly one `value` or `vault_ref`. Secret values go to the vault; other values
+stay with the extension instance. Vault references must already exist and be accessible to every
+server receiving the binding. Flags override matching IDs from the file. Inputs are limited to
+8 KiB each; the JSON file is limited to 1 MiB. Installing a package with inputs requires a running
+daemon, including local-path packages.
+
+Required inputs are checked before installed files or stored values change. Updates reuse saved
+values and ask for newly required inputs. Removed declarations retain their values as inactive;
+reintroducing an ID reactivates its saved value. URL parameters use saved values or manifest
+defaults, without reading the daemon environment. An unconfigured package remains inspectable,
+but cannot be enabled until its required inputs are available in the selected profile.
+
+HTTP and UDS callers send the same envelopes in `inputs` on `POST /api/extensions`,
+`PUT /api/extensions/{name}`, or `POST /api/extensions/update` for a single named extension.
+The native `compozy__extensions_install` tool accepts the same inputs.
+
+The CLI reads the current catalog acquisition digest and sends it as `expected_digest`. To use a
+digest reviewed earlier, pass `--expected-digest <sha256>`. A changed listing or mismatched acquired
+archive returns `409 extension_source_changed` with `listed_digest` and `fetched_digest`; review the
+current entry before retrying. `422 extension_inputs_required` names missing input IDs, and
+`422 extension_input_invalid` identifies `input_id`. Missing or invalid inputs exit with code `2`
+when reported by the daemon.
+
+## Choose an MCP runtime name
+
+For a package declaring exactly one MCP server, pass `--runtime-name <name>` when installing:
+
+```bash
+compozy extension install compozy/context7 --runtime-name docs-context
+```
+
+HTTP, UDS, and `compozy__extensions_install` accept the optional `runtime_name` field on the
+install request. This requires a running daemon, including for local-path packages. The name is
+reserved before installation and remains stable while the instance exists, including while disabled.
+An occupied name returns `422 mcp_server_name_taken`; choosing another name requires a new install.
+Packages with zero or multiple MCP servers reject an explicit runtime name.
+
+Without an explicit name, CompozyOS allocates one during publication, adding the extension name and
+a numeric suffix when needed to avoid collisions. Failed installations release newly created
+reservations after package rollback; existing reservations and workspace instances are preserved.
+
 ## Review declared profiles before install
 
 A [profile](/docs/profiles) is a named working context that decides which extensions are on for it.
@@ -269,9 +332,25 @@ registry row with rollback handling. Post-commit cleanup failure leaves `status:
 `extension_remove_cleanup_failed` warning and a residual path — treat that path as cleanup debt, not
 as a live extension.
 
-For an Agent Plugins installation, removal also deletes `PLUGIN_DATA`. If direct deletion fails,
-CompozyOS first renames the directory into the extension-data quarantine and reports the cleanup
-warning. If the quarantine rename also fails, removal fails and the extension remains installed.
+A committed global removal releases the installation's MCP runtime names and overrides across
+its profile projections. Workspace-owned allocations remain separate. If retiring the allocations
+fails, CompozyOS restores the managed files, registry entry, per-profile enablement, profile
+creation records, and secret bindings before reloading the extension. Its allocated names and
+overrides remain unchanged.
+
+Workspace dev unlink releases that instance's MCP names and overrides across its profiles in the
+same transaction as its completion event. If either write fails, the dev link and its secret
+bindings are restored; the published installation and other workspaces retain their allocations.
+
+Failed updates release names introduced by the candidate only after the previous package, registry,
+and inputs have been restored. Existing names remain reserved, including for temporarily removed
+server declarations. A failure restoring the package preserves reservations and prevents reloading
+a partially restored installation.
+
+For an Agent Plugins installation, removal also deletes `PLUGIN_DATA`. CompozyOS first moves the
+data into quarantine so it can restore the directory if the durable removal fails. After the
+removal commits, deletion of quarantined data is cleanup: a failure reports the retained path as a
+warning. If the initial quarantine move fails, removal fails and the extension remains installed.
 
 ## Validate an Agent Plugins package
 
@@ -332,10 +411,57 @@ Bind required values through the instance-scoped Vault flow described in
 instance, while stale bindings remain visible but are never injected when the new manifest stops
 declaring that name.
 
+## Inspect extension MCP servers
+
+Before installation, catalog detail downloads the listed artifact, verifies its SHA-256 digest,
+and reads its declared contents, MCP servers, and inputs. Inspection does not install the package,
+start a server, or grant permission to run community code. Uninstalled servers have no observed
+status or allocated runtime name. If the downloaded bytes differ from the listing, the detail route
+returns `409 extension_source_changed`; refresh the listing before retrying.
+
+For an installed entry with the same source and entry identity, detail uses the selected profile's
+installed inventory and published server state without fetching the artifact again.
+
+Extension responses include `mcp_servers` with the manifest server name, extension owner, scope,
+profile, workspace, transport, and a launch summary. Published definitions include their allocated
+`runtime_name`; disabling the extension preserves that name. Auth metadata contains only the method,
+registration mode, issuer URL, and scopes. Launch summaries omit arguments and URL credentials,
+paths, and query values.
+
+For a published server, CompozyOS uses the same bounded MCP status probe as Settings. `running`
+means the server initialized and listed tools; `needs_authorization` means its own OAuth state needs
+attention. Unreachable or unpublished enabled servers report `stopped`. A disabled extension reports
+`disabled` without probing. Before the runtime status provider is available, status remains `unknown`.
+
+## Authorize extension MCP servers
+
+An extension's MCP server uses its own OAuth credentials. A manually configured server with the same
+name keeps a separate token and client registration. Select the extension explicitly with `--owner`:
+
+```bash
+compozy mcp auth login linear --scope user --owner extension:linear
+compozy mcp auth status linear --scope user --owner extension:linear
+compozy mcp auth logout linear --scope user --owner extension:linear
+```
+
+Use the manifest server name as the positional argument and `extension:<extension-name>` as the owner.
+For a named profile, pass `--profile <name> --scope profile`; for a workspace definition, pass
+`--scope workspace --workspace <id>`. Logging out removes only the selected definition's credentials.
+
+HTTP and UDS OAuth routes accept the same selector. For example,
+`GET /api/settings/mcp-servers/linear/auth/status?scope=user&owner=extension%3Alinear` returns redacted
+status with `owner: "extension:linear"`. The `begin`, `exchange`, and `logout` routes carry that owner
+through the complete authorization session. An explicit `owner=manual` selects the manual definition.
+
 ## Agent surfaces
 
 Extension lifecycle is agent-manageable. The `compozy__extensions` toolset reaches the same services
-as the CLI:
+as the CLI. Named operations accept optional `owner: "extension:<name>"` and reject an owner that
+does not match `name` before reading or mutating the instance. This applies to info, inventory,
+provenance, update, remove, enable, disable, reload, and logs. `extensions_list` accepts the same
+owner as a filter. List, info, and provenance retain the caller's selected profile even when no
+workspace is selected. Owner selection does not change the caller's workspace or profile authority.
+
 
 | Action             | Tool                                    | CLI                                |
 | ------------------ | --------------------------------------- | ---------------------------------- |

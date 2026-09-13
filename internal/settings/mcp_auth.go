@@ -17,6 +17,7 @@ type MCPAuthTargetRequest struct {
 	WorkspaceID string
 	ProfileName string
 	Name        string
+	Owner       string
 }
 
 // MCPAuthBeginRequest starts one daemon-owned OAuth session.
@@ -145,6 +146,7 @@ func mcpAuthTargetRequest(target mcpauth.Target) MCPAuthTargetRequest {
 	target = target.Normalize()
 	request := MCPAuthTargetRequest{
 		Scope: ScopeKind(target.Scope), WorkspaceID: target.WorkspaceID, Name: target.ServerName,
+		Owner: target.Owner,
 	}
 	switch target.Scope {
 	case mcpauth.ScopeProfile:
@@ -187,6 +189,9 @@ func (s *service) resolveMCPAuthTarget(
 	if err != nil {
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
 	}
+	if target.Owner != "manual" {
+		return s.resolveExtensionMCPAuthTarget(ctx, req)
+	}
 	_, sources, err := s.resolveMCPTargetContext(
 		ctx,
 		req.Scope,
@@ -198,6 +203,15 @@ func (s *service) resolveMCPAuthTarget(
 	}
 	targetKind, ok := preferredMCPAuthTarget(req, target.ServerName, sources)
 	if !ok {
+		entries := sources[target.ServerName]
+		if len(entries) > 0 {
+			effective := entries[len(entries)-1]
+			inherited, err := mcpAuthTargetForSource(effective)
+			return inherited, effective.Server, err
+		}
+		if strings.TrimSpace(req.Owner) == "" {
+			return s.resolveExtensionMCPAuthTarget(ctx, req)
+		}
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
@@ -251,8 +265,8 @@ func normalizeMCPAuthTarget(req MCPAuthTargetRequest) (mcpauth.Target, error) {
 	}
 	target := mcpauth.Target{
 		Scope: authScope, WorkspaceID: scopeID,
-		ServerName: strings.TrimSpace(req.Name),
-	}
+		ServerName: strings.TrimSpace(req.Name), Owner: req.Owner,
+	}.Normalize()
 	if err := target.Validate(); err != nil {
 		return mcpauth.Target{}, validationError(err)
 	}
@@ -260,6 +274,13 @@ func normalizeMCPAuthTarget(req MCPAuthTargetRequest) (mcpauth.Target, error) {
 }
 
 func mcpAuthTargetForSource(entry mcpSourceEntry) (mcpauth.Target, error) {
+	if entry.AuthTarget != nil {
+		target := entry.AuthTarget.Normalize()
+		if err := target.Validate(); err != nil {
+			return mcpauth.Target{}, err
+		}
+		return target, nil
+	}
 	target := mcpauth.Target{ServerName: strings.TrimSpace(entry.Server.Name)}
 	switch entry.Target {
 	case WriteTargetGlobalConfig, WriteTargetGlobalMCPSidecar:

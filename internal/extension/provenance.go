@@ -36,6 +36,11 @@ var ErrExtensionChecksumUnverified = errors.New("extension: checksum is unverifi
 
 // ExtensionProvenance records one installed extension's source and trust state.
 type ExtensionProvenance struct {
+	SourceName          string                    `json:"source_name,omitempty"`
+	SourceRef           string                    `json:"source_ref,omitempty"`
+	EntryID             string                    `json:"entry_id,omitempty"`
+	ResolvedRef         string                    `json:"resolved_ref,omitempty"`
+	Layout              string                    `json:"layout,omitempty"`
 	Slug                string                    `json:"slug,omitempty"`
 	CatalogEntryID      string                    `json:"catalog_entry_id,omitempty"`
 	InstalledFrom       string                    `json:"installed_from"`
@@ -200,6 +205,18 @@ func normalizeExtensionProvenance(value ExtensionProvenance, fallback ExtensionP
 	if len(value.Warnings) > 0 {
 		value.Warnings = append([]contract.DiagnosticItem(nil), value.Warnings...)
 	}
+	if value.SourceRef == "" && value.EntryID == "" {
+		value.SourceName = fallback.SourceName
+		value.SourceRef = fallback.SourceRef
+		value.EntryID = fallback.EntryID
+		value.ResolvedRef = fallback.ResolvedRef
+		value.Layout = fallback.Layout
+	}
+	value.SourceName = strings.TrimSpace(value.SourceName)
+	value.SourceRef = strings.TrimSpace(value.SourceRef)
+	value.EntryID = strings.TrimSpace(value.EntryID)
+	value.ResolvedRef = strings.TrimSpace(value.ResolvedRef)
+	value.Layout = strings.TrimSpace(value.Layout)
 	value.Slug = strings.TrimSpace(value.Slug)
 	value.CatalogEntryID = strings.TrimSpace(value.CatalogEntryID)
 	value.InstalledFrom = strings.TrimSpace(value.InstalledFrom)

@@ -88,6 +88,9 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 		response.MCP = mcpDetail
 	case marketplacepkg.KindExtension:
 		response.Extension = marketplaceExtensionDetail(details)
+		if err := h.populateMarketplaceExtensionDetail(ctx, *entry, installed, scope, response.Extension); err != nil {
+			return contract.MarketplaceEntryResponse{}, err
+		}
 	case marketplacepkg.KindSkill:
 		response.Skill = marketplaceSkillDetail(details, nil)
 	}
@@ -215,12 +218,22 @@ func marketplaceExtensionDetail(
 	if details.Extension == nil {
 		return nil
 	}
-	return &contract.MarketplaceExtensionDetailPayload{
+	result := &contract.MarketplaceExtensionDetailPayload{
+		Inputs:       []contract.MarketplaceInputPayload{},
+		MCPServers:   []contract.MarketplaceServerPayload{},
 		InstallSlug:  details.Extension.InstallSlug,
 		ArtifactURL:  details.Extension.ArtifactURL,
 		DigestSHA256: details.Extension.DigestSHA256,
 		Repository:   details.Extension.Repository,
 	}
+	for _, input := range details.Extension.Inputs {
+		result.Inputs = append(result.Inputs, contract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+			Binding: contract.MarketplaceMCPInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+			Default: append(json.RawMessage(nil), input.Default...),
+		})
+	}
+	return result
 }
 
 func marketplaceSkillDetail(

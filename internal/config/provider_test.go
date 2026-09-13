@@ -1464,6 +1464,32 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 func TestMCPServerValidateSupportsRemotePreRegisteredOAuth(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: automatic OAuth may pin a secure issuer but cannot embed client credentials.
+	// Owner: MCP config validation. Canonical suite: provider_test.go.
+	t.Run("Should validate a pinned issuer for automatic registration", func(t *testing.T) {
+		t.Parallel()
+		auth := MCPAuthConfig{
+			Registration: MCPAuthRegistrationAuto,
+			IssuerURL:    "https://issuer.example",
+			Scopes:       []string{"read"},
+		}
+		if err := auth.Validate("auth"); err != nil {
+			t.Fatal(err)
+		}
+		insecure := auth
+		insecure.IssuerURL = "http://issuer.example"
+		if err := insecure.Validate("auth"); err == nil {
+			t.Fatal("insecure issuer accepted")
+		}
+		for _, mutate := range []func(*MCPAuthConfig){func(a *MCPAuthConfig) { a.ClientID = "client" }, func(a *MCPAuthConfig) { a.ClientSecretRef = "vault:mcp/secret" }} {
+			invalid := auth
+			mutate(&invalid)
+			if err := invalid.Validate("auth"); err == nil {
+				t.Fatal("automatic registration accepted client credentials")
+			}
+		}
+	})
+
 	server := MCPServer{
 		Name:      "linear",
 		Transport: MCPServerTransportHTTP,
@@ -1521,6 +1547,31 @@ func TestMCPOAuthConfigValidatesClientMetadataURL(t *testing.T) {
 
 func TestMCPServerValidateRejectsUnsafeStdioEnv(t *testing.T) {
 	t.Parallel()
+	// Invariant: published extension inputs may reference only their extension's secret namespace.
+	// Owner: MCP config validation; canonical suite: provider_test.go.
+	t.Run("Should allow owned extension inputs without opening sibling secret namespaces", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			owner   string
+			ref     string
+			allowed bool
+		}{
+			{"extension:github", "vault:extensions/global/github/profiles/profile-a/env/TOKEN", true},
+			{"extension:github", "vault:extensions/ws/workspace-a/github/profiles/profile-a/env/TOKEN", true},
+			{"extension:github", "vault:extensions/global/other/env/TOKEN", false},
+			{"extension:github", "vault:extensions/ws/workspace-a/other/env/TOKEN", false},
+			{"manual", "vault:extensions/global/github/env/TOKEN", false},
+			{"", "vault:extensions/global/github/env/TOKEN", false},
+			{"extension:github", "vault:providers/github/TOKEN", false},
+			{"extension:github", "env:GITHUB_TOKEN", true},
+		} {
+			server := MCPServer{Name: "github", Owner: tc.owner, Command: "github-mcp",
+				SecretEnv: map[string]string{"TOKEN": tc.ref}}
+			if err := server.Validate("mcp_server"); (err == nil) != tc.allowed {
+				t.Fatalf("owner %q ref %q allowed=%t: %v", tc.owner, tc.ref, tc.allowed, err)
+			}
+		}
+	})
 
 	tests := []struct {
 		name string

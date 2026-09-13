@@ -23,6 +23,9 @@ type preparedExtensionSecret struct {
 	value      *string
 	mcpServer  string
 	headerName string
+	inputID    string
+	inactive   bool
+	snapshot   *extensionSecretSnapshot
 }
 
 type extensionSecretSnapshot struct {
@@ -202,11 +205,19 @@ func (s *daemonExtensionService) applyExtensionSecret(
 		mutation.previousBinding = &previousCopy
 	}
 	if write.value != nil {
-		snapshot, err := s.snapshotExtensionSecret(ctx, write.ref)
-		if err != nil {
-			return extensionSecretMutation{}, fmt.Errorf("daemon: snapshot extension secret %q: %w", write.envName, err)
+		snapshot := write.snapshot
+		if snapshot == nil {
+			current, err := s.snapshotExtensionSecret(ctx, write.ref)
+			if err != nil {
+				return extensionSecretMutation{}, fmt.Errorf(
+					"daemon: snapshot extension secret %q: %w",
+					write.envName,
+					err,
+				)
+			}
+			snapshot = &current
 		}
-		mutation.secret = &snapshot
+		mutation.secret = snapshot
 		if _, err := s.secretVault.PutSecret(
 			ctx,
 			write.ref,
@@ -222,13 +233,18 @@ func (s *daemonExtensionService) applyExtensionSecret(
 	}
 	now := s.now().UTC()
 	createdAt := now
+	inputID := write.inputID
 	if mutation.previousBinding != nil && !mutation.previousBinding.CreatedAt.IsZero() {
 		createdAt = mutation.previousBinding.CreatedAt
+	}
+	if inputID == "" && write.mcpServer == "" {
+		inputID = previous.InputID
 	}
 	binding := extensionpkg.EnvBinding{
 		ExtensionName: key.Name, ProfileID: profileID,
 		WorkspaceID: key.WorkspaceID, EnvName: write.envName,
 		SecretRef: write.ref, MCPServer: write.mcpServer, HeaderName: write.headerName,
+		InputID: inputID, Inactive: write.inactive,
 		Kind: extensionpkg.ExtensionEnvBindingKind, CreatedAt: createdAt, UpdatedAt: now,
 	}
 	if err := s.envBindings.PutEnvBinding(ctx, binding); err != nil {

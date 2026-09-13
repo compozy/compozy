@@ -553,25 +553,36 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				AgentProbeTimeout: time.Nanosecond,
 			},
 		}}
-		status, err := surface.MCPServerRuntimeStatus(ctx, globalMCPTestTarget("docs"), compozyconfig.MCPServer{
-			Name:      "docs",
-			Transport: compozyconfig.MCPServerTransportHTTP,
-			URL:       server.URL,
-		})
-		if err != nil {
-			t.Fatalf("MCPServerRuntimeStatus() error = %v", err)
-		}
-		if got, want := status.State, settingspkg.MCPServerRuntimeStateReady; got != want {
-			t.Fatalf("MCPServerRuntimeStatus().State = %q, want %q", got, want)
-		}
-		if got, want := status.Probe, settingspkg.MCPServerProbeSucceeded; got != want {
-			t.Fatalf("MCPServerRuntimeStatus().Probe = %q, want %q", got, want)
-		}
-		if !status.Initialized || status.ToolCount != 1 {
-			t.Fatalf("MCPServerRuntimeStatus() = %#v, want initialized with one tool", status)
-		}
-		if got, want := status.ProtocolVersion, mcpfixture.ModernProtocolVersion; got != want {
-			t.Fatalf("MCPServerRuntimeStatus().ProtocolVersion = %q, want %q", got, want)
+		// Invariant: allocated extension names remain probeable through the real MCP HTTP transport.
+		// Owner: daemon Settings runtime; canonical suite: settings_test.go.
+		for _, owner := range []string{"manual", "extension:docs"} {
+			target := globalMCPTestTarget("docs")
+			target.Owner = owner
+			runtimeName := "docs"
+			if owner != "manual" {
+				runtimeName = "docs.docs"
+			}
+			status, err := surface.MCPServerRuntimeStatus(ctx, target, compozyconfig.MCPServer{
+				Name:  "docs",
+				Owner: owner, RuntimeName: runtimeName,
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       server.URL,
+			})
+			if err != nil {
+				t.Fatalf("MCPServerRuntimeStatus() error = %v", err)
+			}
+			if got, want := status.State, settingspkg.MCPServerRuntimeStateReady; got != want {
+				t.Fatalf("MCPServerRuntimeStatus().State = %q, want %q", got, want)
+			}
+			if got, want := status.Probe, settingspkg.MCPServerProbeSucceeded; got != want {
+				t.Fatalf("MCPServerRuntimeStatus().Probe = %q, want %q", got, want)
+			}
+			if !status.Initialized || status.ToolCount != 1 {
+				t.Fatalf("MCPServerRuntimeStatus() = %#v, want initialized with one tool", status)
+			}
+			if got, want := status.ProtocolVersion, mcpfixture.ModernProtocolVersion; got != want {
+				t.Fatalf("MCPServerRuntimeStatus().ProtocolVersion = %q, want %q", got, want)
+			}
 		}
 	})
 

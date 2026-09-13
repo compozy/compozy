@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -20,6 +21,10 @@ type extensionErrorKind uint8
 
 const (
 	extensionErrorUnknown extensionErrorKind = iota
+	extensionErrorMCPNameTaken
+	extensionErrorSourceChanged
+	extensionErrorInputsRequired
+	extensionErrorInputInvalid
 	extensionErrorNotFound
 	extensionErrorConflict
 	extensionErrorUnprocessable
@@ -45,9 +50,13 @@ func ExtensionStatusCode(err error) int {
 	switch classifyExtensionError(err) {
 	case extensionErrorNotFound:
 		return http.StatusNotFound
-	case extensionErrorConflict, extensionErrorNetworkConfirmationRequired, extensionErrorAgentConflict:
+	case extensionErrorConflict,
+		extensionErrorNetworkConfirmationRequired,
+		extensionErrorAgentConflict,
+		extensionErrorSourceChanged:
 		return http.StatusConflict
-	case extensionErrorUnprocessable,
+	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
+		extensionErrorInputsRequired, extensionErrorInputInvalid,
 		extensionErrorAgentPluginClientLayout,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
@@ -67,6 +76,14 @@ func ExtensionStatusCode(err error) int {
 
 func classifyExtensionError(err error) extensionErrorKind {
 	switch {
+	case errors.Is(err, extensionmcp.ErrNameTaken):
+		return extensionErrorMCPNameTaken
+	case errors.Is(err, extensionpkg.ErrExtensionSourceChanged):
+		return extensionErrorSourceChanged
+	case errors.Is(err, extensionpkg.ErrExtensionInputsRequired):
+		return extensionErrorInputsRequired
+	case errors.Is(err, extensionpkg.ErrExtensionInputInvalid):
+		return extensionErrorInputInvalid
 	case errors.Is(err, extensionpkg.ErrAgentPluginClientLayout):
 		return extensionErrorAgentPluginClientLayout
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):

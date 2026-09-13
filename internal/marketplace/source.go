@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,6 +37,8 @@ type documentEnvelope struct {
 type HTTPSource struct {
 	kind             Kind
 	endpoint         string
+	v3Endpoint       string
+	rootWarning      sync.Once
 	client           http.Client
 	timeout          time.Duration
 	maxResponseBytes int64
@@ -83,6 +87,8 @@ func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HT
 		timeout:          timeout,
 		maxResponseBytes: defaultMaxResponseBytes,
 	}
+	parsed.Path = strings.TrimSuffix(parsed.Path, filename) + "v3/" + filename
+	source.v3Endpoint = parsed.String()
 	for _, option := range options {
 		if option != nil {
 			option(source)
@@ -99,7 +105,38 @@ func (s *HTTPSource) Kind() Kind {
 }
 
 // Fetch downloads and validates the source document without mutating projection state.
-func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) {
+func (s *HTTPSource) Fetch(ctx context.Context) (*Document, error) {
+	if s == nil || ctx == nil || s.kind != KindExtension {
+		return s.fetch(ctx, "")
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	document, err := s.fetch(requestCtx, s.v3Endpoint)
+	if err == nil {
+		if document.ManifestVersion != ManifestVersionV3 {
+			return nil, fmt.Errorf("marketplace catalog v3 family requires manifest_version 3")
+		}
+		return document, nil
+	}
+	status, ok := errors.AsType[*httpStatusError](err)
+	if !ok || (status.status != http.StatusNotFound && status.status != http.StatusGone) {
+		return nil, err
+	}
+	document, err = s.fetch(requestCtx, s.endpoint)
+	if err == nil {
+		s.rootWarning.Do(func() {
+			slog.WarnContext(
+				ctx,
+				"marketplace.feed.root_family",
+				"message",
+				"Catalog mirror has no v3 family; using the retained root family until v0.6.0",
+			)
+		})
+	}
+	return document, err
+}
+
+func (s *HTTPSource) fetch(ctx context.Context, endpoint string) (document *Document, err error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
@@ -108,7 +145,10 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, s.endpoint, http.NoBody)
+	if endpoint == "" {
+		endpoint = s.endpoint
+	}
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: create %q request: %w", s.kind, err)
 	}
@@ -187,7 +227,7 @@ func joinHTTPResponseErrors(primary error, additional ...error) error {
 	}
 }
 
-// DecodeDocument strictly validates one complete v2 document.
+// DecodeDocument strictly validates a v2 document or the v3 extension family.
 func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	document, err := decodeDocument(kind, raw)
 	if err == nil || errors.Is(err, ErrCatalogDecode) {
@@ -210,7 +250,8 @@ func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 	if envelope.ManifestVersion == nil || *envelope.ManifestVersion == 0 {
 		return nil, fmt.Errorf("marketplace catalog %q manifest_version is required", kind)
 	}
-	if *envelope.ManifestVersion != ManifestVersion {
+	if *envelope.ManifestVersion != ManifestVersion &&
+		(*envelope.ManifestVersion != ManifestVersionV3 || kind != KindExtension) {
 		return nil, &UnsupportedManifestVersionError{Kind: kind, Version: *envelope.ManifestVersion}
 	}
 	if envelope.Entries == nil {

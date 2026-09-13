@@ -49,6 +49,8 @@ import {
 } from "../use-extensions";
 
 const otelMarketplace: NonNullable<ExtensionEntry["marketplace"]> = {
+  digest_sha256: "a".repeat(64),
+  installable: true,
   description: "Export session spans.",
   entry_id: "otel-bridge",
   installed: true,

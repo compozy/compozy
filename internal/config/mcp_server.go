@@ -1,8 +1,12 @@
 package config
 
+import "strings"
+
 // MCPServer describes an MCP server passed through to the agent runtime.
 type MCPServer struct {
 	Name           string             `json:"name"                      yaml:"name"                      toml:"name"`
+	Owner          string             `json:"owner,omitempty"           yaml:"-"                         toml:"-"`
+	RuntimeName    string             `json:"runtime_name,omitempty"    yaml:"-"                         toml:"-"`
 	Transport      MCPServerTransport `json:"transport,omitempty"       yaml:"transport,omitempty"       toml:"transport,omitempty"`
 	Command        string             `json:"command,omitempty"         yaml:"command,omitempty"         toml:"command,omitempty"`
 	CWD            string             `json:"cwd,omitempty"             yaml:"-"                         toml:"-"`
@@ -15,4 +19,12 @@ type MCPServer struct {
 	Auth           MCPAuthConfig      `json:"auth"                      yaml:"auth,omitempty"            toml:"auth,omitempty"`
 	CatalogEntry   string             `json:"catalog_entry,omitempty"   yaml:"catalog_entry,omitempty"   toml:"catalog_entry,omitempty"`
 	CatalogVersion string             `json:"catalog_version,omitempty" yaml:"catalog_version,omitempty" toml:"catalog_version,omitempty"`
+}
+
+// EffectiveRuntimeName is the published launch/tool name; credentials retain Name.
+func (s MCPServer) EffectiveRuntimeName() string {
+	if name := strings.TrimSpace(s.RuntimeName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(s.Name)
 }

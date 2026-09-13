@@ -7,6 +7,35 @@ import (
 
 func TestTargetKeyRejectsIdentitySeparatorBytes(t *testing.T) {
 	t.Parallel()
+	t.Run("Should isolate equal server names by owner and normalize omitted owners to manual", func(t *testing.T) {
+		t.Parallel()
+		manual := Target{Scope: ScopeUser, ServerName: "github"}
+		manualKey, err := manual.Key()
+		if err != nil {
+			t.Fatal(err)
+		}
+		explicit := manual
+		explicit.Owner = "manual"
+		explicitKey, err := explicit.Key()
+		if err != nil || explicitKey != manualKey {
+			t.Fatalf("legacy owner normalization changed identity: %v", err)
+		}
+		extension := manual
+		extension.Owner = "extension:github"
+		extensionKey, err := extension.Key()
+		if err != nil || extensionKey == manualKey {
+			t.Fatalf("extension and manual credentials share a key: %v", err)
+		}
+		if extension.VaultTarget().Owner != extension.Owner {
+			t.Fatal("Vault boundary lost the extension owner")
+		}
+		for _, owner := range []string{"extension:", "extension:bad/name", "extension:bad\x00name", "other"} {
+			extension.Owner = owner
+			if _, err := extension.Key(); err == nil {
+				t.Fatalf("invalid owner %q was accepted", owner)
+			}
+		}
+	})
 
 	t.Run("Should reject NUL in workspace and server identity fields", func(t *testing.T) {
 		t.Parallel()

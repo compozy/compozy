@@ -37,30 +37,21 @@ func resolveDaemonMCPServer(
 		return mcppkg.ResolvedServer{}, errors.New("daemon: MCP source server name is required")
 	}
 
-	if resourceID := strings.TrimSpace(source.ResourceID); resourceID != "" {
-		if state.mcpServerCatalog == nil {
-			return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
+	if strings.TrimSpace(source.ResourceID) == "" {
+		resolved, found, err := mcpSourceResource(ctx, state, source)
+		if err != nil {
+			return mcppkg.ResolvedServer{}, err
 		}
-		for _, record := range state.mcpServerCatalog.Snapshot() {
-			if strings.TrimSpace(record.ID) != resourceID {
-				continue
-			}
-			if strings.TrimSpace(record.Spec.Name) != name {
-				return mcppkg.ResolvedServer{}, errors.New("daemon: MCP resource identity does not match source")
-			}
-			target, err := mcpAuthTargetForResource(record.Scope, name)
-			if err != nil {
-				return mcppkg.ResolvedServer{}, err
-			}
-			server, err := projectExtensionSecretHeaders(ctx, state, record, source.ProfileID)
-			if err != nil {
-				return mcppkg.ResolvedServer{}, err
-			}
-			return mcppkg.ResolvedServer{
-				Server: server, Target: target, HealthKey: extensionMCPHealthKey(state, record),
-			}, nil
+		if found {
+			return resolveDaemonMCPServer(ctx, state, resolved)
 		}
-		return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
+		if owner := strings.TrimSpace(source.MCPDefinitionOwner); owner != "" && owner != "manual" {
+			return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP definition %s/%s is unavailable", owner, name)
+		}
+	}
+
+	if strings.TrimSpace(source.ResourceID) != "" {
+		return resolveDaemonMCPResource(ctx, state, source, name)
 	}
 
 	for _, server := range state.cfg.MCPServers {
@@ -83,6 +74,38 @@ func resolveDaemonMCPServer(
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP server %q is unavailable", name)
 }
 
+func resolveDaemonMCPResource(
+	ctx context.Context, state *bootState, source toolspkg.SourceRef, name string,
+) (mcppkg.ResolvedServer, error) {
+	resourceID := strings.TrimSpace(source.ResourceID)
+	if state.mcpServerCatalog == nil {
+		return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
+	}
+	for _, record := range state.mcpServerCatalog.Snapshot() {
+		if strings.TrimSpace(record.ID) != resourceID {
+			continue
+		}
+		if strings.TrimSpace(record.Spec.Name) != name && record.Spec.EffectiveRuntimeName() != name {
+			return mcppkg.ResolvedServer{}, errors.New("daemon: MCP resource identity does not match source")
+		}
+		target, err := mcpAuthTargetForResource(ctx, state, record.Scope, record.Spec.Name, record.Owner)
+		if err != nil {
+			return mcppkg.ResolvedServer{}, err
+		}
+		if owner := strings.TrimSpace(source.MCPDefinitionOwner); owner != "" && owner != target.Owner {
+			return mcppkg.ResolvedServer{}, errors.New("daemon: MCP resource owner does not match source")
+		}
+		server, err := projectExtensionSecretHeaders(ctx, state, record, source.ProfileID)
+		if err != nil {
+			return mcppkg.ResolvedServer{}, err
+		}
+		return mcppkg.ResolvedServer{
+			Server: server, Target: target, HealthKey: extensionMCPHealthKey(state, record),
+		}, nil
+	}
+	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
+}
+
 func projectExtensionSecretHeaders(
 	ctx context.Context,
 	state *bootState,
@@ -91,6 +114,10 @@ func projectExtensionSecretHeaders(
 ) (compozyconfig.MCPServer, error) {
 	server := cloneDaemonMCPServer(record.Spec)
 	owner := record.Owner.Normalize()
+	server.Owner = "manual"
+	if owner.Kind == extensionResourceOwnerKind {
+		server.Owner = "extension:" + owner.ID
+	}
 	if owner.Kind != extensionResourceOwnerKind || state.extensionEnvBindings == nil ||
 		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return server, nil
@@ -161,13 +188,24 @@ func userResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
 		Server: cloneDaemonMCPServer(server),
-		Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name},
+		Target: (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
 	}
 }
 
-func mcpAuthTargetForResource(scope resources.ResourceScope, serverName string) (mcpauth.Target, error) {
+func mcpAuthTargetForResource(
+	ctx context.Context,
+	state *bootState,
+	scope resources.ResourceScope,
+	serverName string,
+	owner resources.ResourceOwner,
+) (mcpauth.Target, error) {
 	scope = scope.Normalize()
 	target := mcpauth.Target{ServerName: strings.TrimSpace(serverName)}
+	owner = owner.Normalize()
+	if owner.Kind == extensionResourceOwnerKind {
+		target.Owner = "extension:" + owner.ID
+	}
+	target = target.Normalize()
 	switch scope.Kind {
 	case resources.ResourceScopeKindUser:
 		target.Scope = mcpauth.ScopeUser
@@ -175,9 +213,29 @@ func mcpAuthTargetForResource(scope resources.ResourceScope, serverName string) 
 		target.Scope = mcpauth.ScopeWorkspace
 		target.WorkspaceID = scope.ID
 	case resources.ResourceScopeKindProfile:
+		if scope.ID == store.DefaultProfileID {
+			target.Scope = mcpauth.ScopeUser
+			break
+		}
+		if state == nil || state.profiles == nil {
+			return mcpauth.Target{}, errors.New("daemon: profile MCP auth requires profile catalog")
+		}
+		profileName, err := state.profiles.ProfileName(ctx, scope.ID)
+		if err != nil {
+			return mcpauth.Target{}, fmt.Errorf("daemon: resolve MCP auth profile %q: %w", scope.ID, err)
+		}
 		target.Scope = mcpauth.ScopeProfile
-		target.WorkspaceID = scope.ID
+		target.WorkspaceID = profileName
 	case resources.ResourceScopeKindWorkspaceProfile:
+		if workspaceID, profileName, ok := strings.Cut(
+			scope.ID,
+			"@pf:",
+		); ok &&
+			profileName == daemonDefaultProfileName {
+			target.Scope = mcpauth.ScopeWorkspace
+			target.WorkspaceID = workspaceID
+			break
+		}
 		target.Scope = mcpauth.ScopeWorkspaceProfile
 		target.WorkspaceID = scope.ID
 	default:
@@ -196,7 +254,7 @@ func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceR
 	sources := make([]toolspkg.SourceRef, 0, len(state.cfg.MCPServers))
 	seen := map[string]struct{}{}
 	add := func(server compozyconfig.MCPServer, source toolspkg.SourceRef) {
-		name := strings.TrimSpace(server.Name)
+		name := server.EffectiveRuntimeName()
 		if name == "" {
 			return
 		}

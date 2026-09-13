@@ -17,6 +17,7 @@ type InstallSettingsMCPServerRecord = contract.InstallSettingsMCPServerResponse
 
 // SettingsMCPAuthTarget selects one exact daemon-owned MCP credential set.
 type SettingsMCPAuthTarget struct {
+	Owner       string
 	Name        string
 	Scope       contract.SettingsLayeredScopeKind
 	WorkspaceID string
@@ -181,6 +182,9 @@ func settingsMCPAuthPath(target SettingsMCPAuthTarget, action string) string {
 
 func settingsMCPAuthQuery(target SettingsMCPAuthTarget) url.Values {
 	query := url.Values{}
+	if owner := strings.TrimSpace(target.Owner); owner != "" {
+		query.Set("owner", owner)
+	}
 	query.Set("scope", strings.TrimSpace(string(target.Scope)))
 	if workspaceID := strings.TrimSpace(target.WorkspaceID); workspaceID != "" {
 		query.Set("workspace_id", workspaceID)

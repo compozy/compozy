@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -8,6 +9,45 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
+
+// Invariant: invalid command input is refused without echoing supplied values.
+// Owner: CLI input decoding. Canonical suite: extension_install_parse_test.go.
+func TestExtensionInputParsing(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject malformed typed flags without exposing their values", func(t *testing.T) {
+		t.Parallel()
+		for _, value := range []string{"unknown=private-marker", "enabled=private-marker", "token=" + strings.Repeat("x", 8193)} {
+			_, err := mergeExtensionInputFlags(
+				nil,
+				[]string{value},
+				map[string]string{"enabled": "boolean", "token": "secret"},
+			)
+			if err == nil || strings.Contains(err.Error(), "private-marker") ||
+				strings.Contains(err.Error(), strings.Repeat("x", 50)) {
+				t.Fatal("invalid typed input must fail without echoing its supplied value")
+			}
+		}
+	})
+	t.Run("Should reject ambiguous or malformed file envelopes without exposing values", func(t *testing.T) {
+		t.Parallel()
+		for _, data := range []string{
+			`{"token":{"value":"private-marker","vault_ref":"vault:mcp/shared/TOKEN"}}`,
+			`{"token":{"unknown":"private-marker"}}`,
+			`{"token":{"value":"private-marker"}} {}`,
+			`{"token":{"value":private-marker}}`,
+			`null`,
+		} {
+			path := filepath.Join(t.TempDir(), "inputs.json")
+			if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := readExtensionInputFile(path)
+			if err == nil || strings.Contains(err.Error(), "private-marker") {
+				t.Fatal("invalid input file must fail without echoing its content")
+			}
+		}
+	})
+}
 
 func TestParseExtensionInstallPlan(t *testing.T) {
 	t.Parallel()

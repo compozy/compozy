@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -26,6 +27,106 @@ import (
 
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: extension override applies live without activating unrelated pending config; DELETE resets only the override.
+	// Owner: Settings config-apply coordinator; canonical suite: config_apply_service_test.go with real apply records.
+	t.Run("Should record extension overrides without applying pending config changes", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var written []extensionmcp.Override
+		management := &fakeMCPExtensionManagement{
+			update: func(_ context.Context, req MCPAuthTargetRequest, override extensionmcp.Override) (MCPExtensionDefinition, error) {
+				if req.Owner != "extension:linear" || req.Name != "linear" || req.Scope != ScopeUser {
+					t.Fatalf("wrong mutation identity: %#v", req)
+				}
+				target, base, _, err := (extensionMCPDefinitionStub{}).ResolveMCPExtensionDefinition(ctx, req)
+				if err != nil {
+					return MCPExtensionDefinition{}, err
+				}
+				server, err := override.Apply(base)
+				if err != nil {
+					return MCPExtensionDefinition{}, err
+				}
+				written = append(written, override)
+				return MCPExtensionDefinition{Target: target, Server: server, Override: override}, nil
+			},
+		}
+		service := testService(
+			t,
+			homePaths,
+			Dependencies{
+				MCPExtensions:          extensionMCPDefinitionStub{},
+				MCPExtensionManagement: management,
+				ApplyRecords:           NewConfigApplyRecordRepository(db.DB(), nil),
+			},
+		)
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(
+			t,
+			homePaths.ConfigFile,
+			strings.Replace(baseSettingsConfig(), "max_concurrent_agents = 11", "max_concurrent_agents = 17", 1),
+		)
+		pending := readFile(t, homePaths.ConfigFile)
+		put, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{
+				Collection: CollectionMCPServers,
+				Owner:      "extension:linear",
+			},
+			Name:      "linear",
+			MCPServer: &compozyconfig.MCPServer{URL: "https://extension.example/changed"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !put.Applied || put.RestartRequired || put.Record.Lifecycle != lifecycle.Live || put.MCPServer == nil ||
+			put.MCPServer.URL != "https://extension.example/changed" {
+			t.Fatalf("wrong live result: %#v", put)
+		}
+		after, err := service.ActiveConfig(ctx)
+		if err != nil || after.Limits.MaxConcurrentAgents != active.Limits.MaxConcurrentAgents ||
+			put.Record.ActiveHash == put.Record.DesiredHash {
+			t.Fatalf("MCP override activated pending config: %#v %v", put.Record, err)
+		}
+		reset, err := service.ApplyCollectionDelete(
+			ctx,
+			CollectionItemDeleteRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+				Name:              "linear.linear",
+			},
+		)
+		if err != nil || !reset.Applied || reset.RestartRequired || reset.MCPServer == nil ||
+			reset.MCPServer.URL != "https://extension.example/mcp" {
+			t.Fatalf("DELETE failed to reset the same extension override: %#v %v", reset, err)
+		}
+		if len(written) != 2 || written[1].URL != "" || readFile(t, homePaths.ConfigFile) != pending {
+			t.Fatal("override reset changed config or did not clear the override")
+		}
+		_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{
+				Collection: CollectionMCPServers,
+				Owner:      "extension:linear",
+			},
+			Name:      "linear",
+			MCPServer: &compozyconfig.MCPServer{Command: "forbidden"},
+		})
+		if !errors.Is(err, ErrValidation) || len(written) != 2 {
+			t.Fatalf("package field reached mutation: %v", err)
+		}
+	})
 
 	t.Run("Should persist and apply follow-up preferences without restarting", func(t *testing.T) {
 		t.Parallel()

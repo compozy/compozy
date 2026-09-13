@@ -102,6 +102,7 @@ func (s *daemonExtensionService) previewExtension(
 		Changes:                     changes,
 		AgentConflicts:              conflicts,
 		MissingEnv:                  slices.Clone(status.MissingEnv),
+		MissingInputs:               slices.Clone(status.MissingInputs),
 		AutomationStarting:          automationStarting,
 		NetworkRequirementDigest:    networkDigest,
 		NetworkConfirmationRequired: networkConfirmationRequired,
@@ -166,6 +167,10 @@ func (s *daemonExtensionService) extensionKitSpecMatches(
 	desired extensionpkg.KitItem,
 	live resources.RawRecord,
 ) (bool, error) {
+	// Unconfigured declarations remain inspectable, but have no runnable spec to compare.
+	if len(desired.SpecJSON) == 0 {
+		return false, nil
+	}
 	desiredSpec, desiredValidated, err := resources.ValidateAndCanonicalizeIfRegistered(
 		ctx,
 		s.resourceCodecs,
@@ -212,7 +217,7 @@ func (s *daemonExtensionService) desiredExtensionKit(
 			strings.TrimSpace(ext.Info.ManifestPath),
 		)
 	}
-	items, err := projectExtensionKitItems(ctx, ext, s.resourceCodecs, s.getenv)
+	items, err := s.projectExtensionInputKitItems(ctx, ext, extensionDefaultProfileLens().ID)
 	if err != nil {
 		return nil, nil, err
 	}

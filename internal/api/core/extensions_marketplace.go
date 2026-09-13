@@ -21,10 +21,10 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 	joinErrors := make([]error, 0)
 	for index := range items {
 		item := &items[index]
-		if item.Provenance == nil {
+		if item.Origin == nil || item.Origin.SourceRef != marketplacepkg.CompozyCatalogRef {
 			continue
 		}
-		entryID := strings.TrimSpace(item.Provenance.CatalogEntryID)
+		entryID := strings.TrimSpace(item.Origin.EntryID)
 		if entryID == "" {
 			continue
 		}
@@ -53,10 +53,7 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 			version:    strings.TrimSpace(item.Version),
 			managePath: marketplaceExtensionsInstalledPath,
 		}
-		installed.byEntryID[strings.TrimSpace(entry.EntryID)] = installation
-		if slug := strings.TrimSpace(entry.InstallSlug); slug != "" {
-			installed.bySlug[slug] = installation
-		}
+		installed.byOrigin[marketplacepkg.Origin{SourceRef: item.Origin.SourceRef, EntryID: entryID}] = installation
 		listing, err := h.curatedMarketplaceListing(ctx, *entry, installed)
 		if err != nil {
 			joinErrors = append(

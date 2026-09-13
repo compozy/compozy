@@ -1201,6 +1201,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "linear",
+      owner: "manual",
       scope: "workspace",
       status: "needs_login",
       token_present: false,
@@ -1230,6 +1231,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "sentry",
+      owner: "manual",
       scope: "workspace",
       status: "authenticated",
       token_present: true,
@@ -1260,6 +1262,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "notion",
+      owner: "manual",
       scope: "workspace",
       status: "expired",
       token_present: true,
@@ -1287,6 +1290,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "grafana",
+      owner: "manual",
       scope: "user",
       status: "invalid",
       token_present: true,
@@ -1313,6 +1317,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "github-remote",
+      owner: "manual",
       scope: "user",
       status: "authenticated",
       token_present: true,
@@ -1355,6 +1360,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "pagerduty",
+      owner: "manual",
       scope: "workspace",
       status: "authenticated",
       token_present: true,
@@ -1382,6 +1388,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "buildkite",
+      owner: "manual",
       scope: "user",
       status: "authenticated",
       token_present: true,
@@ -1419,6 +1426,7 @@ export const mcpAuthBeginFixture = {
 
 export const mcpAuthStatusAuthenticatedFixture = {
   server_name: "linear",
+  owner: "manual",
   scope: "workspace",
   workspace_id: "ws-platform",
   status: "authenticated",

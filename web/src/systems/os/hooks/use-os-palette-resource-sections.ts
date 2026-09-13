@@ -1,12 +1,11 @@
 import { useExtensionInventory } from "@/systems/extensions";
 import { useMemories } from "@/systems/knowledge";
-import { useMarketplaceSearch } from "@/systems/marketplace";
+import { useMarketplaceCatalog } from "@/systems/marketplace";
 import { useNetworkChannels } from "@/systems/network";
 import { useVaultSecrets } from "@/systems/vault";
 
 import {
   knowledgeRoute,
-  marketplaceCatalogTotal,
   marketplaceEntryRoute,
   networkChannelRoute,
   projectVaultRows,
@@ -168,20 +167,22 @@ function useNetworkSection(context: OsPaletteDomainContext, catalogs: OsPaletteW
 
 function useMarketplaceSection(context: OsPaletteDomainContext) {
   const enabled = paletteDomainEnabled(context, "Marketplace");
-  const marketplace = useMarketplaceSearch(
+  const marketplace = useMarketplaceCatalog(
     {
       q: context.query,
+      profileName: context.profile,
       ...(context.scopedWorkspace ? { workspaceId: context.scopedWorkspace } : {}),
     },
     enabled
   );
+  usePaletteInfiniteCatalog(marketplace, enabled);
   if (context.signals === null) return EMPTY_SECTION("Marketplace");
   return section(
     "Marketplace",
-    (marketplace.data?.kinds ?? []).flatMap(kind =>
-      kind.items.map(item =>
+    (marketplace.data?.pages ?? []).flatMap(page =>
+      page.items.map(item =>
         rowSeed("Marketplace", {
-          key: `marketplace:${item.kind}:${item.entry_id}`,
+          key: `marketplace:${item.source_ref}:${item.entry_id}`,
           label: item.name,
           detail: item.description,
           workspaceLabel: workspaceLabel(
@@ -191,7 +192,8 @@ function useMarketplaceSection(context: OsPaletteDomainContext) {
           ),
           app: "marketplace",
           route: marketplaceEntryRoute({
-            kind: item.kind,
+            source: item.source,
+            profileName: context.profile,
             entryId: item.entry_id,
             scope: context.scope,
             workspaceId: context.scopedWorkspace,
@@ -207,7 +209,7 @@ function useMarketplaceSection(context: OsPaletteDomainContext) {
     context.signals,
     {
       limit: context.domainLimit,
-      catalogTotal: marketplaceCatalogTotal(marketplace.data?.kinds),
+      catalogTotal: marketplace.data?.pages[0]?.total ?? 0,
     }
   );
 }
@@ -242,7 +244,8 @@ function useExtensionSection(
         workspaceLabel: workspaceLabel(context.scope, workspaceId, context.workspaceNames),
         app: "marketplace",
         route: marketplaceEntryRoute({
-          kind: "extension",
+          source: extension.marketplace?.source,
+          profileName: context.profile,
           entryId: extension.marketplace?.entry_id ?? extension.name,
           scope: workspaceId ? "workspace" : "global",
           workspaceId,

@@ -117,7 +117,9 @@ client_id = "client-id"
 `)
 		runtime := &recordingMCPAuthRuntime{}
 		service := testService(t, homePaths, Dependencies{MCPAuth: runtime})
-		target := mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "linear"}
+		// Invariant: manual definition changes retain manual ownership during OAuth invalidation and cleanup.
+		// Owner: Settings mutation lifecycle; canonical suite: mcp_target_test.go.
+		target := mcpauth.Target{Owner: "manual", Scope: mcpauth.ScopeUser, ServerName: "linear"}
 
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},

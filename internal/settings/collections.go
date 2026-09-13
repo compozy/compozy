@@ -156,7 +156,7 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 	case CollectionProviders:
 		return finalize(s.deleteProvider(name))
 	case CollectionMCPServers:
-		return finalize(s.deleteMCPServer(ctx, scope, workspaceID, profileName, name, req.Target))
+		return finalize(s.deleteMCPCollectionItem(ctx, scope, workspaceID, profileName, name, req))
 	case CollectionSandboxes:
 		return finalize(s.deleteSandbox(name))
 	case CollectionHooks:

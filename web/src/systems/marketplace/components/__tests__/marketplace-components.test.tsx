@@ -407,6 +407,7 @@ describe("MarketplaceKindPage", () => {
     mocks.installExtension.mockResolvedValue({});
     mocks.previewExtensionInstall.mockReset();
     mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+      inputs: [],
       declared_profiles: [{ create: false, credentials: [], name: "default" }],
       name: request.ref.split("/").pop() ?? request.ref,
       placements: [],
@@ -631,6 +632,7 @@ describe("MarketplaceKindPage", () => {
         auth: { registration: "auto" },
         auth_status: {
           server_name: "linear",
+          owner: "manual",
           scope: "user",
           status: "needs_login",
           token_present: false,
@@ -1241,6 +1243,7 @@ describe("MarketplaceKindPage", () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
     mocks.previewExtensionInstall.mockResolvedValueOnce({
+      inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
       network_requirement_digest: "sha256:local-network",

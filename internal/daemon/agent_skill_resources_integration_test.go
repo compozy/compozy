@@ -472,6 +472,7 @@ Use the global agents convention.
 				func() extensionRuntime { return manager },
 				nil,
 				defaultToolMCPProfileCatalog{},
+				extensionInputReader{},
 			),
 		)
 		if err := agentSkillSyncer.Sync(ctx); err != nil {

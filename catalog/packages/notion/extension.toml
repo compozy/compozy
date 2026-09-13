@@ -1,0 +1,13 @@
+name = "notion"
+version = "1.0.0"
+description = "Search and manage Notion workspace content through Notion's hosted MCP server."
+min_compozy_version = "0.5.0"
+
+[resources.mcp_servers.notion]
+transport = "http"
+url = "https://mcp.notion.com/mcp"
+default_scope = "workspace"
+
+[resources.mcp_servers.notion.auth]
+method = "oauth"
+registration = "dynamic"

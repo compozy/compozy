@@ -577,6 +577,27 @@ func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 
 func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
+	// Invariant: --owner addresses the selected definition and rejects malformed identities.
+	// Owner: MCP CLI commands; canonical suite: mcp_auth_test.go.
+	t.Run("Should pass the selected extension owner to status and logout", func(t *testing.T) {
+		t.Parallel()
+		read := func(_ context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error) {
+			if target.Owner != "extension:linear" || target.Name != "linear" {
+				t.Fatalf("command lost its definition owner: %#v", target)
+			}
+			return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
+		}
+		client := &stubClient{getSettingsMCPAuthStatusFn: read, logoutSettingsMCPAuthFn: read}
+		for _, action := range []string{"status", "logout"} {
+			if _, _, err := executeRootCommand(t, newTestDeps(t, client), "mcp", "auth", action, "linear",
+				"--owner", " extension:linear ", "-o", "json"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := (mcpAuthCommandOptions{scope: "user", owner: "extension:bad/name"}).target("linear"); err == nil {
+			t.Fatal("malformed extension owner accepted")
+		}
+	})
 
 	t.Run("Should honor workspace identity for status and logout", func(t *testing.T) {
 		t.Parallel()

@@ -13,6 +13,40 @@ import (
 
 func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
+	// Invariant: all OAuth UDS requests preserve an explicit definition owner.
+	// Owner: daemon CLI client; canonical suite: client_mcp_test.go.
+	t.Run("Should retain the extension owner through every OAuth request", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				if req.URL.Query().Get("owner") != "extension:linear" || req.URL.Query().Get("scope") != "user" {
+					return nil, fmt.Errorf("OAuth request lost its definition owner: %s", req.URL)
+				}
+				return newHTTPResponse(http.StatusOK, confirmedClientMCPAuthStatusJSON), nil
+			})}}
+		target := SettingsMCPAuthTarget{
+			Name:  "linear",
+			Owner: " extension:linear ",
+			Scope: contract.SettingsLayeredScopeUser,
+		}
+		if _, err := client.GetSettingsMCPAuthStatus(t.Context(), target); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.BeginSettingsMCPAuth(t.Context(), target, SettingsMCPAuthBeginRequest{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.ExchangeSettingsMCPAuth(t.Context(), target, SettingsMCPAuthExchangeRequest{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.LogoutSettingsMCPAuth(t.Context(), target); err != nil {
+			t.Fatal(err)
+		}
+		if calls != 4 {
+			t.Fatalf("OAuth calls = %d, want 4", calls)
+		}
+	})
 
 	t.Run("Should carry exact workspace identity through the MCP auth lifecycle", func(t *testing.T) {
 		t.Parallel()

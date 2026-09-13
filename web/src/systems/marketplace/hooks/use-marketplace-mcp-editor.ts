@@ -84,7 +84,7 @@ function useMarketplaceMCPEditor({
   const openEdit = (entry: SettingsMCPServerEntry) => {
     if (!enabled) return;
     const management = deriveMCPManagementFilter(entry);
-    if (!management) return;
+    if (!management?.target) return;
     resetPutMutation();
     editorLogic.trigger.editorOpened({
       editor: {

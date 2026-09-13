@@ -13,6 +13,10 @@ import (
 )
 
 func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
+	return m.startOneWithPublish(ctx, ext, nil)
+}
+
+func (m *Manager) startOneWithPublish(ctx context.Context, ext *managedExtension, publish func()) error {
 	if err := m.discoverExtension(ext); err != nil {
 		return err
 	}
@@ -26,7 +30,7 @@ func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
 	if err != nil {
 		return err
 	}
-	return m.commitPreparedExtension(ctx, ext, prepared)
+	return m.commitPreparedExtensionWithPublish(ctx, ext, prepared, publish)
 }
 
 func (m *Manager) discoverExtension(ext *managedExtension) error {

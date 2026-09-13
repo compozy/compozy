@@ -71,7 +71,7 @@ func (r *ExtensionEnvRepo) ResolveEnvBindings(
 		return nil, errors.New("store: profile id is required to resolve extension env bindings")
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT extension_name, profile_id, workspace_id, env_name, secret_ref,
+		SELECT extension_name, profile_id, workspace_id, env_name, secret_ref, input_id, active,
 		       mcp_server, header_name, kind, created_at, updated_at
 		FROM (
 			SELECT extension_env_bindings.*,
@@ -86,6 +86,7 @@ func (r *ExtensionEnvRepo) ResolveEnvBindings(
 			       ) AS priority
 			FROM extension_env_bindings
 			WHERE extension_name = ?
+			  AND active = 1
 			  AND profile_id IN (?, '')
 			  AND workspace_id IN (?, '')
 		)
@@ -105,8 +106,18 @@ func (r *ExtensionEnvRepo) ResolveEnvBindings(
 	for rows.Next() {
 		var row sqlcgen.ExtensionEnvBinding
 		if scanErr := rows.Scan(
-			&row.ExtensionName, &row.ProfileID, &row.WorkspaceID, &row.EnvName, &row.SecretRef,
-			&row.McpServer, &row.HeaderName, &row.Kind, &row.CreatedAt, &row.UpdatedAt,
+			&row.ExtensionName,
+			&row.ProfileID,
+			&row.WorkspaceID,
+			&row.EnvName,
+			&row.SecretRef,
+			&row.InputID,
+			&row.Active,
+			&row.McpServer,
+			&row.HeaderName,
+			&row.Kind,
+			&row.CreatedAt,
+			&row.UpdatedAt,
 		); scanErr != nil {
 			return nil, fmt.Errorf("store: scan resolved extension env binding: %w", scanErr)
 		}
@@ -137,6 +148,8 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 		WorkspaceID:   normalized.WorkspaceID,
 		EnvName:       normalized.EnvName,
 		SecretRef:     normalized.SecretRef,
+		InputID:       normalized.InputID,
+		Active:        extensionEnvBindingActive(normalized),
 		McpServer:     normalized.MCPServer,
 		HeaderName:    normalized.HeaderName,
 		Kind:          normalized.Kind,
@@ -237,22 +250,15 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 	binding.WorkspaceID = workspace
 	binding.EnvName = strings.TrimSpace(binding.EnvName)
 	binding.SecretRef = vault.NormalizeRef(binding.SecretRef)
+	binding.InputID = strings.TrimSpace(binding.InputID)
 	binding.MCPServer = strings.TrimSpace(binding.MCPServer)
 	binding.HeaderName = strings.TrimSpace(binding.HeaderName)
 	binding.Kind = strings.TrimSpace(binding.Kind)
 	if !vault.EnvNamePattern.MatchString(binding.EnvName) {
 		return extensionenv.Binding{}, fmt.Errorf("store: invalid extension env name %q", binding.EnvName)
 	}
-	if err := vault.ValidateSecretRefNamespace(binding.SecretRef, "extensions"); err != nil {
+	if err := validateExtensionEnvBindingRef(binding); err != nil {
 		return extensionenv.Binding{}, err
-	}
-	if !strings.HasPrefix(
-		binding.SecretRef,
-		vault.ExtensionProfileSecretOwnerPrefix(name, binding.ProfileID, workspace),
-	) {
-		return extensionenv.Binding{}, errors.New(
-			"store: extension env binding secret ref is outside its instance namespace",
-		)
 	}
 	if binding.Kind != extensionenv.BindingKind {
 		return extensionenv.Binding{}, fmt.Errorf(
@@ -273,6 +279,23 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 		binding.UpdatedAt = now
 	}
 	return binding, nil
+}
+
+func validateExtensionEnvBindingRef(binding extensionenv.Binding) error {
+	// Typed MCP refs have already passed target access validation in the input binder.
+	// Legacy public secret setters cannot populate InputID and retain their existing namespace policy.
+	if binding.InputID != "" && strings.HasPrefix(binding.SecretRef, "vault:mcp/") {
+		return vault.ValidateSecretRefNamespace(binding.SecretRef, "mcp")
+	}
+	if err := vault.ValidateSecretRefNamespace(binding.SecretRef, "extensions"); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(binding.SecretRef, vault.ExtensionProfileSecretOwnerPrefix(
+		binding.ExtensionName, binding.ProfileID, binding.WorkspaceID,
+	)) {
+		return errors.New("store: extension env binding secret ref is outside its instance namespace")
+	}
+	return nil
 }
 
 func normalizeExtensionBindingInstance(extension, workspaceID string) (string, string, error) {
@@ -313,6 +336,14 @@ func extensionEnvBindingFromGenerated(row sqlcgen.ExtensionEnvBinding) (extensio
 		ExtensionName: row.ExtensionName, ProfileID: row.ProfileID,
 		WorkspaceID: row.WorkspaceID, EnvName: row.EnvName,
 		SecretRef: row.SecretRef, MCPServer: row.McpServer, HeaderName: row.HeaderName,
+		InputID: row.InputID, Inactive: row.Active == 0,
 		Kind: row.Kind, CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
+}
+
+func extensionEnvBindingActive(binding extensionenv.Binding) int64 {
+	if binding.Inactive {
+		return 0
+	}
+	return 1
 }

@@ -80,3 +80,28 @@ export interface MarketplaceEntryOptions extends MarketplaceScopeOptions {
   kind: MarketplaceKind;
   installedName?: string | null;
 }
+
+export type MarketplaceCatalogResponse = OperationResponse<"listMarketplace", 200>;
+export type MarketplaceCatalogEntryResponse = OperationResponse<"getMarketplaceCatalogEntry", 200>;
+export type MarketplaceExtensionServer = NonNullable<
+  MarketplaceCatalogEntryResponse["extension"]
+>["mcp_servers"][number];
+export type MarketplaceCatalogQuery = OperationQuery<"listMarketplace">;
+export type MarketplaceCatalogEntryQuery = OperationQuery<"getMarketplaceCatalogEntry">;
+
+export interface MarketplaceCatalogOptions extends MarketplaceSearchOptions {
+  profileName?: string | null;
+}
+export interface MarketplaceCatalogPageOptions extends MarketplaceCatalogOptions {
+  cursor?: string;
+}
+export interface MarketplaceCatalogEntryOptions extends MarketplaceScopeOptions {
+  entryId: string;
+  source?: string | null;
+  installedName?: string | null;
+  profileName?: string | null;
+}
+
+export type MarketplaceCatalogListing = MarketplaceCatalogResponse["items"][number];
+export type ExtensionBatchUpdateRequest = OperationRequestBody<"updateExtensions">;
+export type ExtensionBatchUpdateResponse = OperationResponse<"updateExtensions", 200>;

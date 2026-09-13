@@ -4,17 +4,22 @@ area: ET
 title: Manage every installed Marketplace kind
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
-entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
-qa_status: pass
+expected: The installed shelf opens a flat local extension inventory independent of catalog pagination or availability. Rows show contents, enablement and overflow actions; the updates line and Update all preserve per-item results, including partial failure.
+entry_points: /marketplace/installed; Marketplace installed-count shelf
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status:
+retest_status: untested
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
 last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
+
+Marketplace catalog task 01 (2026-09-12): Use catalog, GitHub and local-folder installations. Filter the inventory, toggle an extension, inspect details, and update two entries with one download failing. The successful entry remains updated and the failed entry retains its prior version.
+
+Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
+
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: retained capture covers MCP installed UI only, not every Marketplace kind and its management actions.
 

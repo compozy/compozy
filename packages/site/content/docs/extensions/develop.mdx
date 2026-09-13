@@ -229,7 +229,12 @@ compozy extension remove my-ext
 ```
 
 Inside a workspace this unlinks the overlay only, and the published installation resumes. `--global`
-removes the published installation.
+removes the published installation. A completed unlink releases this workspace instance's MCP
+runtime names and overrides across its profiles. Failure to persist the unlink event or release the
+names restores the dev link and secret bindings. The published installation's names are unaffected.
+
+Failed dev activation or publication releases newly allocated MCP names only after the previous
+link is restored. Names allocated before the attempted change remain stable.
 
 ## Ship it
 

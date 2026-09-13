@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -216,6 +217,7 @@ func applyMarketplaceExtensionUpdate(
 	observeDigestVerification MarketplaceDigestVerificationObserver,
 	preflightCandidate MarketplaceUpdatePreflight,
 	commitCandidate MarketplaceUpdateCommit,
+	rollbackCandidate MarketplaceUpdateRollback,
 	reload MutationReload,
 	cleanup marketplaceUpdateCleanup,
 ) (out marketplaceUpdateApplyResult, err error) {
@@ -258,50 +260,27 @@ func applyMarketplaceExtensionUpdate(
 		return marketplaceUpdateApplyResult{}, err
 	}
 	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry:        registry,
-		info:            info,
-		installDir:      installDir,
-		result:          result,
-		manifest:        manifest,
-		change:          change,
-		slug:            slug,
-		registryName:    registryName,
-		latestVersion:   latestVersion,
-		allowUnverified: allowUnverified,
-		installedBy:     installedBy,
-		trust:           trust,
-		commitCandidate: commitCandidate,
-		reload:          reload,
+		registry:          registry,
+		info:              info,
+		installDir:        installDir,
+		result:            result,
+		manifest:          manifest,
+		change:            change,
+		slug:              slug,
+		registryName:      registryName,
+		latestVersion:     latestVersion,
+		allowUnverified:   allowUnverified,
+		installedBy:       installedBy,
+		trust:             trust,
+		commitCandidate:   commitCandidate,
+		rollbackCandidate: rollbackCandidate,
+		reload:            reload,
 	})
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
 	out = committedMarketplaceUpdateResult(cleanup, info.Name, remoteVersion, change)
 	return out, nil
-}
-
-func reloadMarketplaceExtensionUpdate(
-	ctx context.Context,
-	reload MutationReload,
-	registry LifecycleRegistry,
-	info ExtensionInfo,
-	installDir string,
-	change *stagedExtensionDirChange,
-) error {
-	if reload == nil {
-		return nil
-	}
-	if err := reload(ctx); err != nil {
-		restoreErr := restoreUpdatedExtensionRecord(registry, info, installDir, change)
-		if restoreErr == nil {
-			restoreErr = reload(ctx)
-		}
-		return errors.Join(
-			fmt.Errorf("extension: reload after update %q: %w", info.Name, err),
-			restoreErr,
-		)
-	}
-	return nil
 }
 
 func installMarketplaceExtensionUpdateRecord(
@@ -371,6 +350,9 @@ func marketplaceUpdateProvenance(
 	if trust != nil {
 		registryTier := normalizedMarketplaceRegistryTier(trust.RegistryTier)
 		provenance.CatalogEntryID = strings.TrimSpace(trust.CatalogEntryID)
+		provenance.SourceName = marketplacepkg.CompozyCatalogSource
+		provenance.SourceRef = marketplacepkg.CompozyCatalogRef
+		provenance.EntryID = strings.TrimSpace(trust.CatalogEntryID)
 		provenance.SourceURL = firstNonEmpty(curatedMarketplaceSourceURL(trust), provenance.SourceURL)
 		provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 		provenance.DigestMatched = result.DigestMatched
@@ -381,6 +363,11 @@ func marketplaceUpdateProvenance(
 		return provenance
 	}
 	provenance.CatalogEntryID = ""
+	provenance.SourceName = ""
+	provenance.SourceRef = ""
+	provenance.EntryID = ""
+	provenance.ResolvedRef = ""
+	provenance.Layout = ""
 	provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 	provenance.DigestMatched = result.DigestMatched
 	provenance.ChecksumVerified = false

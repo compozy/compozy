@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -539,7 +540,7 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 	t.Run("Should reject a malformed typed default", func(t *testing.T) {
 		t.Parallel()
 
-		input := mcpInput{Type: mcpInputTypeBoolean, Default: json.RawMessage(`true false`)}
+		input := EntryInput{Type: mcpInputTypeBoolean, Default: json.RawMessage(`true false`)}
 		if err := input.validateDefault("input"); err == nil || !strings.Contains(err.Error(), "trailing JSON") {
 			t.Fatalf("validateDefault() error = %v, want trailing JSON validation", err)
 		}
@@ -554,19 +555,19 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 		}
 		tests := []struct {
 			name    string
-			input   mcpInput
+			input   EntryInput
 			wantErr string
 		}{
 			{
 				name: "Should reject NUL in an identifier default",
-				input: mcpInput{
+				input: EntryInput{
 					Type: mcpInputTypeIdentifier, Default: json.RawMessage(`"unsafe\u0000identifier"`),
 				},
 				wantErr: "must not contain NUL",
 			},
 			{
 				name:    "Should reject an oversized string default",
-				input:   mcpInput{Type: mcpInputTypeString, Default: oversized},
+				input:   EntryInput{Type: mcpInputTypeString, Default: oversized},
 				wantErr: "exceeds 8192 bytes",
 			},
 		}
@@ -1247,4 +1248,121 @@ func validSkillDocumentJSON() string {
 		`"description":"Operate Compozy through its structured surfaces","version":"1.0.0",` +
 		`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]` +
 		`}]}`
+}
+
+// Invariant: v3 entries retain inputs and safe icons; invalid optional icons never hide the extension.
+// Owner: catalog decoding. Canonical suite: source_test.go.
+func TestDecodeV3ExtensionFields(t *testing.T) {
+	t.Parallel()
+	t.Run("Should decode v3 inputs and validate an extension-only family [UT-001]", func(t *testing.T) {
+		t.Parallel()
+		raw := v3ExtensionJSON(t, "https://images.example.test/icon.png")
+		document, err := DecodeDocument(KindExtension, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry := document.Entries[0]
+		if entry.Icon != "https://images.example.test/icon.png" || len(entry.Inputs) != 2 {
+			t.Fatalf("entry = %#v", entry)
+		}
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "extensions.json"), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		presets := `{"manifest_version":3,"generated_at":"2026-09-12T10:00:00Z","entries":[]}`
+		if err := os.WriteFile(filepath.Join(root, "marketplaces.json"), []byte(presets), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidateCatalogDirectory(root); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, icon := range []string{"http://images.example.test/icon.png", "https://images.example.test/icon.gif", "data:image/png;base64," + strings.Repeat("A", 70*1024)} {
+		t.Run("Should drop an unsafe icon with a diagnostic [UT-006]", func(t *testing.T) {
+			t.Parallel()
+			document, err := DecodeDocument(KindExtension, v3ExtensionJSON(t, icon))
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry := document.Entries[0]
+			if entry.Icon != "" || len(entry.Diagnostics) != 1 || entry.Diagnostics[0].Field != "icon" {
+				t.Fatalf("entry = %#v", entry)
+			}
+			if strings.Contains(string(entry.Payload), icon) {
+				t.Fatal("unsafe icon retained in payload")
+			}
+		})
+	}
+}
+
+func v3ExtensionJSON(t *testing.T, icon string) []byte {
+	t.Helper()
+	rawIcon, err := json.Marshal(icon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := `,"icon":` + string(
+		rawIcon,
+	) + `,"inputs":[{"id":"region","prompt":"Region","type":"identifier","required":true,"binding":{"type":"env","name":"REGION"}},{"id":"debug","prompt":"Debug","type":"boolean","required":false,"default":false,"binding":{"type":"env","name":"DEBUG"}}]`
+	return []byte(strings.Replace(extensionDocumentJSON(fields), `"manifest_version":2`, `"manifest_version":3`, 1))
+}
+
+// Invariant: only an absent v3 family permits root fallback; malformed/unavailable v3 stays visible as failure.
+// Owner: HTTP feed family resolution. Canonical suite: source_test.go.
+func TestHTTPSourceV3Family(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		status       int
+		wrongVersion bool
+		wantErr      bool
+		wantRoot     int64
+	}{
+		{name: "prefer v3", status: 200},
+		{name: "fallback for an absent family", status: 404, wantRoot: 1},
+		{name: "fallback for a removed family", status: 410, wantRoot: 1},
+		{name: "reject v3 server errors", status: 503, wantErr: true},
+		{name: "reject a v2 document at the v3 address", status: 200, wrongVersion: true, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run("Should "+test.name+" [UT-055]", func(t *testing.T) {
+			t.Parallel()
+			v3 := v3ExtensionJSON(t, "")
+			if test.wrongVersion {
+				v3 = []byte(validExtensionDocumentJSON())
+			}
+			var rootCalls atomic.Int64
+			var v3Calls atomic.Int64
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/catalog/v3/extensions.json":
+					v3Calls.Add(1)
+					w.WriteHeader(test.status)
+					if test.status == 200 {
+						_, _ = w.Write(v3)
+					}
+				case "/catalog/extensions.json":
+					rootCalls.Add(1)
+					_, _ = io.WriteString(w, validExtensionDocumentJSON())
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			source, err := NewHTTPSource(KindExtension, server.URL+"/catalog", &http.Client{Timeout: time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
+			document, err := source.Fetch(t.Context())
+			if (err != nil) != test.wantErr {
+				t.Fatalf("fetch = %v", err)
+			}
+			if rootCalls.Load() != test.wantRoot || v3Calls.Load() != 1 {
+				t.Fatalf("requests v3/root = %d/%d", v3Calls.Load(), rootCalls.Load())
+			}
+			if !test.wantErr && test.wantRoot == 0 && document.ManifestVersion != 3 {
+				t.Fatalf("version = %d", document.ManifestVersion)
+			}
+		})
+	}
 }

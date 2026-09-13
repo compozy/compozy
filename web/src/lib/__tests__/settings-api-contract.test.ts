@@ -134,6 +134,7 @@ describe("settings openapi contract", () => {
           scope: string;
           scopes?: string[];
           server_name: string;
+          owner: string;
           status: string;
           token_present: boolean;
           updated_at?: string | null;
@@ -148,6 +149,7 @@ describe("settings openapi contract", () => {
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["effective_source"]["kind"]
     >().toEqualTypeOf<
+      | "extension"
       | "builtin-provider"
       | "global-config"
       | "profile-config"
@@ -178,6 +180,7 @@ describe("settings openapi contract", () => {
       | {
           agent_name?: string;
           kind:
+            | "extension"
             | "builtin-provider"
             | "global-config"
             | "profile-config"

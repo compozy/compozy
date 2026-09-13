@@ -4,10 +4,10 @@ import "fmt"
 
 type mcpEntry struct {
 	entryCommon
-	Launch       mcpLaunch  `json:"launch"`
-	Auth         *mcpAuth   `json:"auth,omitempty"`
-	Inputs       []mcpInput `json:"inputs,omitempty"`
-	DefaultScope string     `json:"default_scope"`
+	Launch       mcpLaunch    `json:"launch"`
+	Auth         *mcpAuth     `json:"auth,omitempty"`
+	Inputs       []EntryInput `json:"inputs,omitempty"`
+	DefaultScope string       `json:"default_scope"`
 }
 
 type mcpAuth struct {

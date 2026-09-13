@@ -72,6 +72,9 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 			err,
 		)
 	}
+	if isExtensionMCPMutation(result) {
+		return s.recordExtensionMCPApply(ctx, result)
+	}
 	result = applyCollectionLifecycle(result, req.Collection, collectionMutationPut, before)
 	if req.Collection == CollectionProviders &&
 		result.Lifecycle == lifecycle.Live &&
@@ -100,6 +103,9 @@ func (s *service) ApplyCollectionDelete(
 			expected.Lifecycle,
 			err,
 		)
+	}
+	if isExtensionMCPMutation(result) {
+		return s.recordExtensionMCPApply(ctx, result)
 	}
 	result = applyCollectionLifecycle(result, req.Collection, collectionMutationDelete, true)
 	return s.recordMutationApply(ctx, result)

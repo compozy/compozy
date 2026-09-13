@@ -193,6 +193,7 @@ func (h *BaseHandlers) curatedSkillEntryIDs(
 }
 
 type marketplaceInstall struct {
+	extension  *contract.ExtensionPayload
 	name       string
 	version    string
 	managePath string
@@ -201,12 +202,14 @@ type marketplaceInstall struct {
 }
 
 type marketplaceInstallIndex struct {
+	byOrigin  map[marketplacepkg.Origin]marketplaceInstall
 	byEntryID map[string]marketplaceInstall
 	bySlug    map[string]marketplaceInstall
 }
 
 func newMarketplaceInstallIndex() marketplaceInstallIndex {
 	return marketplaceInstallIndex{
+		byOrigin:  make(map[marketplacepkg.Origin]marketplaceInstall),
 		byEntryID: make(map[string]marketplaceInstall),
 		bySlug:    make(map[string]marketplaceInstall),
 	}
@@ -274,21 +277,17 @@ func (h *BaseHandlers) extensionInstallIndex(
 	index := newMarketplaceInstallIndex()
 	for itemIndex := range items {
 		item := &items[itemIndex]
-		if item.Provenance == nil {
+		if item.Origin == nil || item.Origin.SourceRef == "" || item.Origin.EntryID == "" {
 			continue
 		}
 		installation := marketplaceInstall{
+			extension:  item,
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
 			managePath: marketplaceExtensionsInstalledPath,
 			format:     strings.TrimSpace(item.Format),
 		}
-		if entryID := strings.TrimSpace(item.Provenance.CatalogEntryID); entryID != "" {
-			index.byEntryID[entryID] = installation
-		}
-		if slug := strings.TrimSpace(item.Provenance.Slug); slug != "" {
-			index.bySlug[slug] = installation
-		}
+		index.byOrigin[marketplacepkg.Origin{SourceRef: item.Origin.SourceRef, EntryID: item.Origin.EntryID}] = installation
 	}
 	return index, nil
 }
@@ -348,6 +347,11 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 	if !isInstalled && entry.InstallSlug != "" {
 		installation, isInstalled = installed.bySlug[entry.InstallSlug]
 	}
+	if entry.Kind == marketplacepkg.KindExtension {
+		installation, isInstalled = installed.byOrigin[marketplacepkg.Origin{
+			SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: entry.EntryID,
+		}]
+	}
 	updateAvailable := false
 	if entry.Kind == marketplacepkg.KindExtension || entry.Kind == marketplacepkg.KindSkill {
 		updateAvailable = isInstalled && registrypkg.VersionIsNewer(installation.version, entry.Version)
@@ -384,6 +388,12 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 	if err != nil {
 		return contract.MarketplaceListingPayload{}, err
 	}
+	result.SourceRef = marketplacepkg.CompozyCatalogRef
+	result.DigestSHA256 = entry.DigestSHA256
+	result.Icon = entry.Icon
+	result.Layout = entry.Layout
+	result.Installable = entry.InstallBlocker == ""
+	result.InstallBlocker = entry.InstallBlocker
 	result.Trust = &trust
 	return result, nil
 }

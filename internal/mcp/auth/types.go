@@ -9,6 +9,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // ErrTokenNotFound reports missing persisted MCP auth state for one server.
@@ -39,6 +40,7 @@ const (
 
 // Target is the complete identity of one MCP OAuth credential set.
 type Target struct {
+	Owner       string `json:"owner"`
 	Scope       Scope  `json:"scope"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	ServerName  string `json:"server_name"`
@@ -46,6 +48,7 @@ type Target struct {
 
 // Normalize trims target fields without changing their meaning.
 func (t Target) Normalize() Target {
+	t.Owner = vault.NormalizeMCPOwner(t.Owner)
 	t.Scope = Scope(strings.TrimSpace(string(t.Scope)))
 	t.WorkspaceID = strings.TrimSpace(t.WorkspaceID)
 	t.ServerName = strings.TrimSpace(t.ServerName)
@@ -55,6 +58,9 @@ func (t Target) Normalize() Target {
 // Validate ensures the target has one unambiguous owner.
 func (t Target) Validate() error {
 	t = t.Normalize()
+	if err := vault.ValidateMCPOwner(t.Owner); err != nil {
+		return fmt.Errorf("mcp auth: %w", err)
+	}
 	switch {
 	case strings.ContainsRune(t.WorkspaceID, '\x00'):
 		return errors.New("mcp auth: workspace_id cannot contain NUL")
@@ -88,7 +94,18 @@ func (t Target) Key() (string, error) {
 	if err := t.Validate(); err != nil {
 		return "", err
 	}
-	return string(t.Scope) + "\x00" + t.WorkspaceID + "\x00" + t.ServerName, nil
+	return t.Owner + "\x00" + string(t.Scope) + "\x00" + t.WorkspaceID + "\x00" + t.ServerName, nil
+}
+
+// VaultTarget preserves the full credential owner at the Vault boundary.
+func (t Target) VaultTarget() vault.MCPSecretTarget {
+	t = t.Normalize()
+	return vault.MCPSecretTarget{
+		Scope:       string(t.Scope),
+		WorkspaceID: t.WorkspaceID,
+		ServerName:  t.ServerName,
+		Owner:       t.Owner,
+	}
 }
 
 // StatusValue is the redacted operator-facing authentication state.
@@ -180,6 +197,7 @@ type ClientRegistration struct {
 
 // Status is the token-redacted state used by CLI and settings APIs.
 type Status struct {
+	Owner        string      `json:"owner"`
 	ServerName   string      `json:"server_name"`
 	Scope        Scope       `json:"scope"`
 	WorkspaceID  string      `json:"workspace_id,omitempty"`

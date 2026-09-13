@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -11,11 +12,64 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
+	// Invariant: extension collection rows and runtime probes share an exact owner-qualified identity; manual collisions fail before file writes.
+	// Owner: Settings collection service; canonical suite: mcp_runtime_status_test.go.
+	t.Run("Should include extension rows and reject reserved manual names without writing config", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		original := readFile(t, homePaths.ConfigFile)
+		target := mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "github", Owner: "extension:github"}
+		runtime := &fakeMCPRuntimeProvider{targets: map[string]mcpauth.Target{}}
+		management := &fakeMCPExtensionManagement{definitions: []MCPExtensionDefinition{
+			{
+				Target: target,
+				Server: compozyconfig.MCPServer{
+					Name:        "github",
+					Owner:       target.Owner,
+					RuntimeName: "github.github",
+					Command:     "github-mcp",
+					SecretEnv:   map[string]string{"TOKEN": "vault:extensions/github/profiles/default/TOKEN"},
+				},
+				Override: extensionmcp.Override{Env: map[string]string{"REGION": "eu"}},
+			},
+		}, nameError: extensionmcp.ErrNameTaken}
+		service := testService(t, homePaths, Dependencies{MCPRuntime: runtime, MCPExtensionManagement: management})
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{Collection: CollectionMCPServers})
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := findMCPItem(t, envelope.MCPServers, "github")
+		if item.Owner != target.Owner || item.RuntimeName != "github.github" ||
+			item.SourceMetadata.EffectiveSource.Kind != SourceKindExtension ||
+			len(item.SourceMetadata.AvailableTargets) != 0 ||
+			item.Override == nil ||
+			item.Override.Env["REGION"] != "eu" ||
+			runtime.targets["github"] != target {
+			t.Fatalf("extension row lost ownership or probe identity: %#v %#v", item, runtime.targets)
+		}
+		item.Override.Env["REGION"] = "changed"
+		if management.definitions[0].Override.Env["REGION"] != "eu" {
+			t.Fatal("collection exposed mutable backing state")
+		}
+		_, err = service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers}, Name: "github.github",
+			MCPServer: &compozyconfig.MCPServer{Name: "github.github", Command: "manual-mcp"},
+		})
+		if !errors.Is(err, ErrUnprocessable) || !errors.Is(err, ErrMCPServerNameTaken) {
+			t.Fatalf("wrong collision error: %v", err)
+		}
+		after, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil || string(after) != original {
+			t.Fatalf("rejected collision changed config: %v", err)
+		}
+	})
 	t.Run("Should attach daemon-backed runtime status to configured MCP servers", func(t *testing.T) {
 		t.Parallel()
 
@@ -319,6 +373,55 @@ func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 
 func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Parallel()
+	// Invariant: selecting an extension never falls through to same-named manual credentials.
+	// Owner: Settings auth target resolution; canonical suite: mcp_runtime_status_test.go.
+	t.Run("Should preserve the extension owner through OAuth operations and callback addressing", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"linear\"\ncommand = \"manual-server\"\n")
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, home, Dependencies{MCPAuth: runtime,
+			MCPExtensions: extensionMCPDefinitionStub{}})
+		request := MCPAuthTargetRequest{Scope: ScopeUser, Name: "linear", Owner: "extension:linear"}
+		if _, err := service.GetMCPAuthStatus(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		want := mcpauth.Target{Owner: "extension:linear", Scope: mcpauth.ScopeUser, ServerName: "linear"}
+		if runtime.statusTarget != want || runtime.statusServer.URL != "https://extension.example/mcp" {
+			t.Fatalf("explicit extension resolved to another definition: %#v", runtime.statusTarget)
+		}
+		if _, err := service.BeginMCPAuth(t.Context(), MCPAuthBeginRequest{MCPAuthTargetRequest: request}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.ExchangeMCPAuth(
+			t.Context(),
+			MCPAuthExchangeRequest{MCPAuthTargetRequest: request},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.LogoutMCPAuth(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if runtime.beginTarget != want || runtime.exchangeTarget != want || runtime.logoutTarget != want ||
+			mcpAuthTargetRequest(want) != request {
+			t.Fatal("OAuth lifecycle or callback request lost the definition owner")
+		}
+		request.Owner = "extension:missing"
+		if _, err := service.GetMCPAuthStatus(t.Context(), request); err == nil {
+			t.Fatal("missing extension fell through to manual credentials")
+		}
+		request.Owner = "manual"
+		if _, err := service.GetMCPAuthStatus(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if runtime.statusTarget.Owner != "manual" || runtime.statusServer.Command != "manual-server" {
+			t.Fatal("manual definition did not retain its identity")
+		}
+		request.Owner, request.Name = "", "linear.linear"
+		if _, err := service.GetMCPAuthStatus(t.Context(), request); err != nil || runtime.statusTarget != want {
+			t.Fatalf("owner-less runtime name did not resolve the extension: %v", err)
+		}
+	})
 	t.Run("Should resolve the exact workspace sidecar target for every auth operation", func(t *testing.T) {
 		t.Parallel()
 
@@ -372,7 +475,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			t.Fatalf("GetMCPAuthStatus(workspace sidecar) = %#v", authStatus)
 		}
 		if runtime.statusTarget != (mcpauth.Target{
-			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear",
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear", Owner: "manual",
 		}) ||
 			runtime.statusServer.URL != "https://workspace.linear.example/mcp" ||
 			runtime.statusServer.Auth.ClientID != "workspace-client" {
@@ -478,7 +581,10 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			t.Fatalf("GetMCPAuthStatus(workspace profile) error = %v", err)
 		}
 		want := mcpauth.Target{
-			Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "workspace-a@pf:marketing", ServerName: "linear",
+			Scope:       mcpauth.ScopeWorkspaceProfile,
+			WorkspaceID: "workspace-a@pf:marketing",
+			ServerName:  "linear",
+			Owner:       "manual",
 		}
 		if runtime.statusTarget != want || runtime.statusServer.URL != "https://marketing.linear.example/mcp" {
 			t.Fatalf(
@@ -497,6 +603,19 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			t.Fatalf("workspace-profile begin target = %#v, want %#v", runtime.beginTarget, want)
 		}
 	})
+}
+
+type extensionMCPDefinitionStub struct{}
+
+func (extensionMCPDefinitionStub) ResolveMCPExtensionDefinition(
+	_ context.Context, req MCPAuthTargetRequest,
+) (mcpauth.Target, compozyconfig.MCPServer, bool, error) {
+	if (req.Owner == "extension:linear" && req.Name == "linear") || (req.Owner == "" && req.Name == "linear.linear") {
+		return mcpauth.Target{Owner: "extension:linear", Scope: mcpauth.ScopeUser, ServerName: "linear"},
+			compozyconfig.MCPServer{Name: "linear", Owner: "extension:linear", RuntimeName: "linear.linear",
+				Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://extension.example/mcp"}, true, nil
+	}
+	return mcpauth.Target{}, compozyconfig.MCPServer{}, false, nil
 }
 
 type recordingMCPAuthRuntime struct {
@@ -748,4 +867,30 @@ func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
 		Probe:      MCPServerProbeFailed,
 		Reason:     "test_missing_runtime_status",
 	}, nil
+}
+
+// fakeMCPExtensionManagement substitutes the daemon publication/store I/O boundary.
+type fakeMCPExtensionManagement struct {
+	definitions []MCPExtensionDefinition
+	nameError   error
+	update      func(context.Context, MCPAuthTargetRequest, extensionmcp.Override) (MCPExtensionDefinition, error)
+}
+
+func (f *fakeMCPExtensionManagement) ListMCPExtensionDefinitions(
+	context.Context,
+	MCPAuthTargetRequest,
+) ([]MCPExtensionDefinition, error) {
+	return f.definitions, nil
+}
+func (f *fakeMCPExtensionManagement) ValidateManualMCPName(context.Context, MCPAuthTargetRequest) error {
+	return f.nameError
+}
+
+func (f *fakeMCPExtensionManagement) UpdateMCPExtensionOverride(
+	ctx context.Context, req MCPAuthTargetRequest, override extensionmcp.Override,
+) (MCPExtensionDefinition, error) {
+	if f.update != nil {
+		return f.update(ctx, req, override)
+	}
+	return MCPExtensionDefinition{}, errors.New("unexpected MCP override mutation")
 }

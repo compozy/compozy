@@ -28,6 +28,7 @@ const serverEntry = {
     refreshable: true,
     scope: "workspace",
     server_name: "linear",
+    owner: "manual",
     scopes: ["read"],
     status: "needs_login",
     token_present: false,
@@ -54,6 +55,7 @@ const beginResponse = {
 function authenticatedStatus() {
   return {
     server_name: "linear",
+    owner: "manual",
     scope: "workspace",
     status: "authenticated",
     token_present: true,

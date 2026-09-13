@@ -14,6 +14,7 @@ import (
 
 type preparedDaemonExtensionInstall struct {
 	name     string
+	digest   string
 	manifest *extensionpkg.Manifest
 	commit   func() error
 	cleanup  func() error
@@ -79,10 +80,13 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, checksum); err != nil {
+		return preparedDaemonExtensionInstall{}, err
+	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
 	return preparedDaemonExtensionInstall{
-		name: manifest.Name, manifest: manifest,
+		name: manifest.Name, manifest: manifest, digest: checksum,
 		commit: func() error {
 			return extensionpkg.InstallLocalManaged(
 				s.homePaths,
@@ -127,8 +131,13 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	digest := req.ExpectedDigest
+	if installReq.Trust != nil {
+		digest = installReq.Trust.ArchiveDigestSHA256
+	}
 	return preparedDaemonExtensionInstall{
 		name: prepared.Name(), manifest: prepared.Manifest(),
+		digest: digest,
 		commit: func() error {
 			_, commitErr := prepared.Commit()
 			return commitErr

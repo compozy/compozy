@@ -90,6 +90,69 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		}
 	})
 
+	// Invariant: both native diagnostics preserve an explicit owner and repair the owning scope.
+	// Owner: native tool adapter; canonical suite: TestDaemonNativeMCPAuthStatusTool.
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDMCPStatus, toolspkg.ToolIDMCPAuthStatus} {
+		t.Run("Should preserve extension ownership for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			provider := &nativeMCPAuthStatusProvider{status: toolspkg.MCPAuthStatus{
+				ServerName:  "github",
+				Owner:       "extension:github",
+				Scope:       "workspace",
+				WorkspaceID: "ws-owned",
+				Status:      "needs_login",
+			}}
+			settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{
+				{
+					Name:          "github",
+					Owner:         "manual",
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{State: settingspkg.MCPServerRuntimeStateReady},
+				},
+				{
+					Name:        "github",
+					Owner:       "extension:github",
+					RuntimeName: "github.github",
+					WorkspaceID: "ws-owned",
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+						State: settingspkg.MCPServerRuntimeStateAuthRequired,
+					},
+				},
+			}}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: nativeNetworkTestSessionManager("ws-owned"),
+				MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return provider },
+				Settings: func() core.SettingsService { return settingsService },
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-owned"},
+				toolspkg.CallRequest{
+					ToolID: toolID, Input: json.RawMessage(`{"server_name":"github","owner":"extension:github"}`),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if provider.source.MCPDefinitionOwner != "extension:github" {
+				t.Fatalf("source lost owner: %#v", provider.source)
+			}
+			var payload struct {
+				RepairPaths mcpAuthRepairPaths                  `json:"repair_paths"`
+				Runtime     *settingspkg.MCPServerRuntimeStatus `json:"runtime"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.RepairPaths.LoginCLI != `compozy mcp auth login "github" --owner "extension:github" --scope workspace --workspace "ws-owned"` {
+				t.Fatalf("wrong repair target: %#v", payload.RepairPaths)
+			}
+			if toolID == toolspkg.ToolIDMCPStatus &&
+				(payload.Runtime == nil || payload.Runtime.State != settingspkg.MCPServerRuntimeStateAuthRequired) {
+				t.Fatalf("selected manual runtime: %#v", payload.Runtime)
+			}
+		})
+	}
+
 	t.Run("Should expose workspace-scoped dead runtime state and reason", func(t *testing.T) {
 		t.Parallel()
 

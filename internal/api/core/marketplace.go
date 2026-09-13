@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
@@ -399,6 +400,21 @@ func normalizeCuratedMarketplaceError(err error) error {
 }
 
 func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {
+	if errors.Is(err, extensionpkg.ErrExtensionSourceChanged) {
+		h.respondExtensionError(c, http.StatusConflict, err)
+		return
+	}
+	if errors.Is(err, ErrMarketplaceCursorStale) {
+		c.JSON(
+			http.StatusConflict,
+			contract.MarketplaceCursorStalePayload{
+				Error:   "Catalog changed; restart from the first page",
+				Code:    "marketplace_cursor_stale",
+				Restart: true,
+			},
+		)
+		return
+	}
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, ErrMarketplaceValidation):

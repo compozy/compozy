@@ -46,7 +46,7 @@ func (s *daemonExtensionService) Install(
 	}
 	var item contract.ExtensionPayload
 	mutation := func() error {
-		return s.commitPreparedInstall(ctx, prepared, confirmation, actor, event, &item)
+		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
 	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
@@ -55,7 +55,7 @@ func (s *daemonExtensionService) Install(
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
-	return item, nil
+	return item, s.notifyMarketplaceExtensionInstalled(ctx, item)
 }
 
 func (s *daemonExtensionService) commitPreparedInstall(
@@ -65,51 +65,55 @@ func (s *daemonExtensionService) commitPreparedInstall(
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
+	inputs *extensionInputPlan,
 ) error {
 	if err := prepared.commit(); err != nil {
 		return err
+	}
+	if _, err := (extensionInputBinder{service: s}).Commit(ctx, inputs); err != nil {
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	if confirmation != nil {
 		if err := s.registry.ConfirmNetworkRequirement(
 			extensionpkg.GlobalInstanceKey(prepared.name), confirmation.Digest,
 			confirmation.ConfirmedBy, confirmation.ConfirmedAt,
 		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 		if err := s.recordExtensionNetworkConfirmedEvent(
 			ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
 		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
 	if prepared.manifest != nil && len(prepared.manifest.Profiles) > 0 {
 		if s.profiles == nil {
 			return s.rollbackFailedInstall(
-				ctx, prepared.name, errors.New("daemon: profile manager is required for declared profiles"),
+				ctx, prepared.name, errors.New("daemon: profile manager is required for declared profiles"), inputs,
 			)
 		}
 		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, prepared.manifest)
 		if err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 		if err := s.recordDeclaredProfileCreatedEvents(ctx, actor, prepared.name, results); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
 	if err := s.reload(ctx); err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	var err error
 	*item, err = s.Status(ctx, prepared.name)
 	if err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	completedEvent := event
 	completedEvent.Type = eventspkg.ExtensionInstallCompleted
 	completedEvent.ExtensionName = item.Name
 	completedEvent.DigestMatched = item.DigestMatched
 	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	return nil
 }
@@ -154,6 +158,7 @@ func (s *daemonExtensionService) Update(
 			Version:         req.Version,
 			CheckOnly:       req.CheckOnly,
 			AllowUnverified: req.AllowUnverified,
+			Inputs:          req.Inputs,
 		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest))
 		return updateErr
 	})
@@ -196,6 +201,12 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	actor taskpkg.ActorContext,
 	confirmNetworkDigest string,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
+	if len(req.Inputs) > 0 && (req.All || len(req.Names) != 1) {
+		return nil, &extensionpkg.ManifestValidationError{
+			Field:   "inputs",
+			Message: "inputs require exactly one extension update",
+		}
+	}
 	cfg := s.marketplaceConfig()
 	domainReq := extensionpkg.MarketplaceUpdateRequest{
 		Names:                  req.Names,
@@ -236,6 +247,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		}
 		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
 	}
+	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,
@@ -268,7 +280,31 @@ func (s *daemonExtensionService) Remove(
 		if retireErr != nil {
 			return retireErr
 		}
-		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, s.reload)
+		removed, removeErr := extensionpkg.RemoveManagedExtension(
+			ctx,
+			s.homePaths,
+			s.registry,
+			name,
+			func(reloadCtx context.Context) error {
+				// A restored registry row means the domain coordinator is compensating the removal.
+				// Restore credentials before consumers resolve the reinstalled declaration.
+				if _, err := s.registry.Get(name); err == nil {
+					if err := retirement.rollback(reloadCtx, s); err != nil {
+						return err
+					}
+					retirement = nil
+				} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+					return err
+				}
+				return s.reload(reloadCtx)
+			},
+			func(ctx context.Context) error {
+				if s.mcpAllocations == nil {
+					return nil
+				}
+				return s.mcpAllocations.DeleteWorkspace(ctx, name, "")
+			},
+		)
 		if removeErr != nil {
 			return errors.Join(removeErr, retirement.rollback(ctx, s))
 		}
@@ -290,6 +326,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 	ctx context.Context,
 	name string,
 	installErr error,
+	inputs *extensionInputPlan,
 ) error {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
@@ -298,7 +335,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
 	defer cancel()
 
-	var rollbackErr error
+	rollbackErr := (extensionInputBinder{service: s}).Rollback(rollbackCtx, inputs)
 	if err := s.registry.Uninstall(trimmedName); err != nil && !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		rollbackErr = errors.Join(
 			rollbackErr,
@@ -342,6 +379,11 @@ func (s *daemonExtensionService) Enable(
 		preview, previewErr := s.previewExtension(ctx, name)
 		if previewErr != nil {
 			return previewErr
+		}
+		if len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0 {
+			return &extensionpkg.InputsRequiredError{
+				MissingInputs: slices.Clone(preview.MissingInputs), MissingEnv: slices.Clone(preview.MissingEnv),
+			}
 		}
 		if len(preview.AgentConflicts) > 0 {
 			return &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}

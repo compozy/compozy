@@ -20,9 +20,16 @@ func (h *BaseHandlers) marketplaceReadActorContext(
 		h.respondMarketplaceError(c, err)
 		return nil, false
 	}
+	return h.marketplaceReadActorForScope(c, action, scope)
+}
+
+func (h *BaseHandlers) marketplaceReadActorForScope(
+	c *gin.Context, action string, scope marketplaceReadScope,
+) (*taskpkg.ActorContext, bool) {
 	if scope.scope == settingspkg.ScopeUser {
 		return nil, true
 	}
+	var err error
 
 	action = "marketplace." + strings.TrimSpace(action)
 	var actor taskpkg.ActorContext

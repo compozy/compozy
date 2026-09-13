@@ -27,6 +27,17 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+type marketplaceInspectionService struct {
+	extensionServiceStub
+	inspectFn func(context.Context, marketplacepkg.Entry, string) (contract.MarketplaceExtensionDetailPayload, error)
+}
+
+func (s marketplaceInspectionService) InspectCatalogExtension(
+	ctx context.Context, entry marketplacepkg.Entry, profile string,
+) (contract.MarketplaceExtensionDetailPayload, error) {
+	return s.inspectFn(ctx, entry, profile)
+}
+
 type marketplaceCatalogStub struct {
 	browseFn     func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
 	browsePageFn func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
@@ -1094,7 +1105,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			{
 				name: "extension", path: "/marketplace/extension/local-extension",
 				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
-				managePath: "/marketplace/extensions", format: "agent-plugin",
+				managePath: "/marketplace/installed", format: "agent-plugin",
 			},
 			{
 				name: "mcp", path: "/marketplace/mcp/local-mcp",
@@ -1157,11 +1168,21 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 					actor.ReadScope.ProfileID != store.DefaultProfileID {
 					t.Fatalf("scoped extension actor = %#v, want resolved readable workspace actor", actor)
 				}
-				return []contract.ExtensionPayload{{
-					Name: "epoch-probe", Version: "0.1.0", Source: "workspace", Dev: true,
-					WorkspaceID: "ws-alpha",
-					Provenance:  &contract.ExtensionProvenancePayload{Slug: entry.InstallSlug},
-				}}, nil
+				return []contract.ExtensionPayload{
+					{
+						Name:        "epoch-probe",
+						Version:     "0.1.0",
+						Source:      "workspace",
+						Dev:         true,
+						WorkspaceID: "ws-alpha",
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    marketplacepkg.CompozyCatalogSource,
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   entry.EntryID,
+						},
+						Provenance: &contract.ExtensionProvenancePayload{Slug: entry.InstallSlug},
+					},
+				}, nil
 			},
 		}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
@@ -1569,12 +1590,23 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 	if installedSlug == "" && fixture.extensionCatalogEntryID == "" {
 		installedSlug = "acme/extension"
 	}
+	// The fixture represents an installation with persisted acquisition evidence.
+	// Origin is explicit; tests for unclassified records construct a payload without it.
+	originEntryID := fixture.extensionCatalogEntryID
+	if originEntryID == "" && installedSlug == "acme/extension" {
+		originEntryID = "extension-entry"
+	}
+	var origin *contract.MarketplaceOriginPayload
+	if originEntryID != "" {
+		origin = &contract.MarketplaceOriginPayload{Source: marketplacepkg.CompozyCatalogSource,
+			SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: originEntryID}
+	}
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{
 		MarketplaceCatalog: catalog,
 		Settings:           &stubSettingsService{ListCollectionFn: settingsList},
 		Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 			return []contract.ExtensionPayload{{
-				Name: "extension", Version: "1.0.0", Format: fixture.extensionInstalledFormat,
+				Name: "extension", Version: "1.0.0", Format: fixture.extensionInstalledFormat, Origin: origin,
 				Provenance: &contract.ExtensionProvenancePayload{
 					Slug: installedSlug, CatalogEntryID: fixture.extensionCatalogEntryID,
 				},
@@ -1650,4 +1682,405 @@ func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {
 			),
 		},
 	}
+}
+
+// Invariant: catalog pages join installed state only by origin and retain exact source/cursor metadata.
+// Owner: API core catalog projection; canonical suite: marketplace_test.go (UT-004, UT-011, UT-068).
+func TestMarketplaceCatalog(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: exact-origin installed details preserve observed state; acquisition details use pinned inspection.
+	// Owner: shared marketplace transport. Canonical suite: TestMarketplaceCatalog.
+	t.Run("Should distinguish installed observations from pinned package declarations", func(t *testing.T) {
+		t.Parallel()
+		for _, installed := range []bool{false, true} {
+			entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+			handlers.MarketplaceCatalog = marketplaceCatalogStub{
+				detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+			}
+			inspections := 0
+			servers := []contract.MarketplaceServerPayload{
+				{Name: "remote", Owner: "extension:custom-instance", Transport: "http"},
+			}
+			if installed {
+				servers[0].Status, servers[0].RuntimeName = "running", "custom-instance.remote"
+			}
+			handlers.Extensions = marketplaceInspectionService{
+				extensionServiceStub: extensionServiceStub{
+					listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+						sourceRef := "github:team/other"
+						if installed {
+							sourceRef = marketplacepkg.CompozyCatalogRef
+						}
+						return []contract.ExtensionPayload{{Name: "custom-instance", Version: "1.0.0",
+							Origin:   &contract.MarketplaceOriginPayload{SourceRef: sourceRef, EntryID: entry.EntryID},
+							Contents: contract.ExtensionContentsPayload{MCPServers: 1}, MCPServers: servers,
+						}}, nil
+					},
+				},
+				inspectFn: func(_ context.Context, got marketplacepkg.Entry, profile string) (contract.MarketplaceExtensionDetailPayload, error) {
+					inspections++
+					if got.EntryID != entry.EntryID || got.DigestSHA256 != entry.DigestSHA256 || profile != "" {
+						t.Fatalf("inspection selection = %#v profile=%q", got, profile)
+					}
+					return contract.MarketplaceExtensionDetailPayload{
+						Contents: contract.ExtensionContentsPayload{MCPServers: 1}, MCPServers: servers,
+					}, nil
+				},
+			}
+			engine := gin.New()
+			engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+			response := performRequest(t, engine, http.MethodGet, "/marketplace/entries/"+entry.EntryID, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("detail = %d %s", response.Code, response.Body.String())
+			}
+			var result contract.MarketplaceEntryResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.Extension == nil || result.Extension.Contents.MCPServers != 1 ||
+				len(result.Extension.MCPServers) != 1 {
+				t.Fatalf("detail = %#v", result.Extension)
+			}
+			if diff := cmp.Diff(servers, result.Extension.MCPServers); diff != "" {
+				t.Fatalf("MCP state (-want +got): %s", diff)
+			}
+			if (inspections == 0) != installed {
+				t.Fatalf("installed=%t inspections=%d", installed, inspections)
+			}
+		}
+	})
+	t.Run("Should report changed inspection bytes as a typed conflict", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+		}
+		listed, fetched := strings.Repeat("a", 64), strings.Repeat("b", 64)
+		handlers.Extensions = marketplaceInspectionService{
+			inspectFn: func(context.Context, marketplacepkg.Entry, string) (contract.MarketplaceExtensionDetailPayload, error) {
+				return contract.MarketplaceExtensionDetailPayload{}, &extensionpkg.SourceChangedError{
+					ListedDigest:  listed,
+					FetchedDigest: fetched,
+				}
+			},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace/entries/"+entry.EntryID, nil)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("detail = %d %s", response.Code, response.Body.String())
+		}
+		var result contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Code != "extension_source_changed" || result.ListedDigest != listed ||
+			result.FetchedDigest != fetched {
+			t.Fatalf("conflict = %#v", result)
+		}
+	})
+	// Invariant: discovery detail exposes install prompts and typed defaults before installation.
+	// Owner: shared HTTP/UDS detail payload. Canonical suite: marketplace_test.go.
+	t.Run("Should expose packaged input declarations before installation", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		var payload map[string]json.RawMessage
+		if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		payload["inputs"] = json.RawMessage(
+			`[{"id":"debug","prompt":"Debug","type":"boolean","required":false,"binding":{"type":"env","name":"DEBUG"},"default":false}]`,
+		)
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry.Payload = raw
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+		}
+		engine := gin.New()
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace/entries/"+entry.EntryID, nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("detail = %d %s", response.Code, response.Body.String())
+		}
+		var result contract.MarketplaceEntryResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Extension == nil || len(result.Extension.Inputs) != 1 {
+			t.Fatalf("detail = %#v", result.Extension)
+		}
+		input := result.Extension.Inputs[0]
+		if input.ID != "debug" || input.Prompt != "Debug" || string(input.Default) != "false" ||
+			input.Binding.Name != "DEBUG" {
+			t.Fatalf("input = %#v", input)
+		}
+	})
+
+	t.Run("Should join only the exact origin and emit the one-catalog envelope", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		query := strings.Repeat("é", 201)
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			browsePageFn: func(_ context.Context, kind marketplacepkg.Kind, q string, offset, limit int) (marketplacepkg.BrowseResult, error) {
+				if kind != marketplacepkg.KindExtension || q != strings.Repeat("é", 200) || offset != 0 ||
+					limit != 100 {
+					t.Fatalf("browse %q %q %d %d", kind, q, offset, limit)
+				}
+				return marketplacepkg.BrowseResult{
+					Entries: []marketplacepkg.Entry{entry},
+					Total:   1,
+					State: marketplacepkg.KindState{
+						Revision:   "content-a",
+						EntryCount: 9,
+						FetchedAt:  time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC),
+					},
+				}, nil
+			},
+		}
+		origins := []*contract.MarketplaceOriginPayload{
+			nil,
+			{Source: "team", SourceRef: "github:team/plugins", EntryID: entry.EntryID},
+			{Source: "old-display", SourceRef: "catalog:compozy", EntryID: entry.EntryID},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		for index, origin := range origins {
+			handlers.Extensions = extensionServiceStub{
+				listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					return []contract.ExtensionPayload{
+						{
+							Name:    "custom-instance",
+							Version: "0.0.1",
+							Origin:  origin,
+							Provenance: &contract.ExtensionProvenancePayload{
+								Slug:           entry.InstallSlug,
+								CatalogEntryID: entry.EntryID,
+							},
+						},
+					}, nil
+				},
+			}
+			response := performRequest(t, engine, http.MethodGet, "/marketplace?q="+query, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			var body contract.MarketplaceListResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Total != 1 || body.Revision != "content-a" || len(body.Sources) != 1 ||
+				body.Sources[0].Count != 9 ||
+				len(body.Items) != 1 {
+				t.Fatalf("envelope=%#v", body)
+			}
+			item := body.Items[0]
+			if item.Installed != (index == 2) || item.UpdateAvailable != (index == 2) {
+				t.Fatalf("origin=%#v listing=%#v", origin, item)
+			}
+			if item.Source != "compozy-catalog" || item.SourceRef != "catalog:compozy" ||
+				item.InstallSlug != "compozy/"+entry.EntryID ||
+				item.ManagePath != "/marketplace/installed" ||
+				!item.Installable ||
+				item.DigestSHA256 != entry.DigestSHA256 {
+				t.Fatalf("listing=%#v", item)
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+				t.Fatal(err)
+			}
+			if _, exists := wire["next_cursor"]; exists {
+				t.Fatal("final page emitted next_cursor")
+			}
+			var items []map[string]json.RawMessage
+			if err := json.Unmarshal(wire["items"], &items); err != nil {
+				t.Fatal(err)
+			}
+			if _, exists := items[0]["kind"]; exists {
+				t.Fatal("one-catalog listing emitted kind")
+			}
+			if _, exists := items[0]["icon"]; exists {
+				t.Fatal("absent icon must be omitted")
+			}
+		}
+	})
+	t.Run("Should reject a stale content revision and cursors from a different query", func(t *testing.T) {
+		t.Parallel()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		revision := "content-a"
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			browsePageFn: func(_ context.Context, _ marketplacepkg.Kind, _ string, offset, limit int) (marketplacepkg.BrowseResult, error) {
+				entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+				return marketplacepkg.BrowseResult{
+					Entries: []marketplacepkg.Entry{entry},
+					Total:   2,
+					State:   marketplacepkg.KindState{Revision: revision, EntryCount: 2},
+				}, nil
+			},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		first := performRequest(t, engine, http.MethodGet, "/marketplace?limit=1", nil)
+		if first.Code != 200 {
+			t.Fatalf("first=%d %s", first.Code, first.Body.String())
+		}
+		var page contract.MarketplaceListResponse
+		if err := json.Unmarshal(first.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.NextCursor == "" {
+			t.Fatal("missing continuation")
+		}
+		matching := performRequest(t, engine, http.MethodGet, "/marketplace?limit=1&cursor="+page.NextCursor, nil)
+		if matching.Code != 200 {
+			t.Fatalf("same revision=%d %s", matching.Code, matching.Body.String())
+		}
+		revision = "content-b"
+		stale := performRequest(t, engine, http.MethodGet, "/marketplace?limit=1&cursor="+page.NextCursor, nil)
+		var failure contract.MarketplaceCursorStalePayload
+		if err := json.Unmarshal(stale.Body.Bytes(), &failure); err != nil {
+			t.Fatal(err)
+		}
+		if stale.Code != 409 || failure.Code != "marketplace_cursor_stale" || !failure.Restart {
+			t.Fatalf("stale=%d %#v", stale.Code, failure)
+		}
+		mismatch := performRequest(t, engine, http.MethodGet, "/marketplace?q=different&cursor="+page.NextCursor, nil)
+		if mismatch.Code != 400 || !strings.Contains(mismatch.Body.String(), "cursor") {
+			t.Fatalf("mismatch=%d %s", mismatch.Code, mismatch.Body.String())
+		}
+	})
+	t.Run("Should return truthful degraded source state with no cached entries", func(t *testing.T) {
+		t.Parallel()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			browseFn: func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error) {
+				return marketplacepkg.BrowseResult{
+					Entries: []marketplacepkg.Entry{},
+					State: marketplacepkg.KindState{
+						Stale:      true,
+						ErrorClass: "network",
+						LastError:  "source unreachable",
+					},
+				}, marketplacepkg.ErrSourceUnavailable
+			},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace", handlers.ListMarketplace)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace", nil)
+		var body contract.MarketplaceListResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != 200 || !body.Stale || body.ErrorClass != "network" || body.Items == nil ||
+			len(body.Sources) != 1 ||
+			body.Sources[0].State != "degraded" {
+			t.Fatalf("degraded=%d %#v", response.Code, body)
+		}
+	})
+	t.Run("Should retain an unclassified installed detail without inventing catalog identity", func(t *testing.T) {
+		t.Parallel()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.Extensions = extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+			return []contract.ExtensionPayload{
+				{Name: "sideload", Source: "local_path", Contents: contract.ExtensionContentsPayload{Skills: 2}},
+			}, nil
+		}}
+		engine := gin.New()
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/marketplace/entries/sideload?installed_name=sideload",
+			nil,
+		)
+		var body contract.MarketplaceEntryResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != 200 || body.Entry.SourceRef != "" || body.Entry.Source != "local_path" ||
+			body.Entry.InstallSlug != "" ||
+			!body.Entry.Installed ||
+			body.Extension == nil ||
+			body.Extension.Contents.Skills != 2 {
+			t.Fatalf("installed=%d %#v", response.Code, body)
+		}
+		missing := performRequest(t, engine, http.MethodGet, "/marketplace/entries/sideload?source=foreign", nil)
+		if missing.Code != 404 || !strings.Contains(missing.Body.String(), "not found") {
+			t.Fatalf("unknown source=%d %s", missing.Code, missing.Body.String())
+		}
+	})
+}
+
+// Invariant: catalog installed joins use the selected profile within its workspace overlay.
+// Owner: shared catalog read boundary; canonical suite: marketplace_test.go.
+func TestMarketplaceCatalogProfileWorkspace(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain both profile and workspace in a catalog continuation", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"operator",
+			"ws-a",
+			taskpkg.OriginKindHTTP,
+			"marketplace.browse",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: "profile-work"}
+		h := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		h.MarketplaceCatalog = marketplaceCatalogStub{
+			browsePageFn: func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error) {
+				return marketplacepkg.BrowseResult{
+					Entries: []marketplacepkg.Entry{entry},
+					Total:   2,
+					State:   marketplacepkg.KindState{Revision: "same"},
+				}, nil
+			},
+		}
+		h.Extensions = extensionServiceStub{
+			listScopedFn: func(_ context.Context, got taskpkg.ActorContext) ([]contract.ExtensionPayload, error) {
+				if got.Scope.WorkspaceID != "ws-a" || got.ReadScope.ProfileID != "profile-work" {
+					t.Fatalf("actor=%#v", got)
+				}
+				return []contract.ExtensionPayload{
+					{
+						Name:    "installed",
+						Version: entry.Version,
+						Origin: &contract.MarketplaceOriginPayload{
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   entry.EntryID,
+						},
+					},
+				}, nil
+			},
+		}
+		request := core.MarketplaceKindRequest{
+			Scope:       "workspace",
+			WorkspaceID: "ws-a",
+			ProfileName: "work",
+			Actor:       &actor,
+			Limit:       1,
+		}
+		first, err := h.MarketplaceList(t.Context(), request)
+		if err != nil || len(first.Items) != 1 || !first.Items[0].Installed || first.NextCursor == "" {
+			t.Fatalf("page=%#v error=%v", first, err)
+		}
+		request.Cursor = first.NextCursor
+		if _, err := h.MarketplaceList(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		request.ProfileName = "personal"
+		if _, err := h.MarketplaceList(t.Context(), request); !errors.Is(err, core.ErrMarketplaceValidation) {
+			t.Fatalf("cross-profile cursor error=%v", err)
+		}
+	})
 }

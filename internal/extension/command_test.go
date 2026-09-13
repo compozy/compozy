@@ -10,6 +10,7 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -432,6 +433,60 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 // Canonical suite: extension command projection tests.
 func TestManagerCmdPaletteFiltersByProfileEnablementAndPlacement(t *testing.T) {
 	t.Parallel()
+	// Invariant: palette contributions come from the authorized profile runtime,
+	// including an explicit default attachment. Owner: palette projection; canonical suite: this suite.
+	t.Run(
+		"Should select explicit profile runtime contributions without widening palette visibility",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			profileID := insertActiveRegistryProfile(t, env, "marketing")
+			dir, manifest, checksum := createRegistryTestExtension(t, "installed-palette", registryManifestOptions{})
+			if err := env.registry.Install(
+				manifest,
+				dir,
+				checksum,
+				WithInstallScope(InstallationScope{ProfileID: profileID}),
+			); err != nil {
+				t.Fatal(err)
+			}
+			manager := NewManager(env.registry)
+			manager.extensions[manifest.Name] = &managedExtension{
+				info: ExtensionInfo{Name: manifest.Name, Enabled: true},
+			}
+			key := InstanceKey{Name: manifest.Name, ProfileID: profileID}
+			manager.profileExtensions[key] = &managedExtension{
+				key: key, info: ExtensionInfo{Name: manifest.Name, Enabled: true},
+				manifest: cmdPaletteTestManifest(manifest.Name), registered: true, active: true,
+			}
+			for _, profile := range []ProfileLens{{ID: profileID, Name: "marketing"}, {ID: store.DefaultProfileID, Name: "default"}} {
+				projection, err := manager.CmdPalette("", profile)
+				want := 0
+				if profile.ID == profileID {
+					want = 3
+				}
+				if err != nil || len(projection.Commands) != want {
+					t.Fatalf("profile %q palette = %#v, %v", profile.Name, projection, err)
+				}
+			}
+			if err := env.registry.AttachInstallation(
+				t.Context(),
+				manifest.Name,
+				InstallationScope{ProfileID: store.DefaultProfileID},
+			); err != nil {
+				t.Fatal(err)
+			}
+			key.ProfileID = store.DefaultProfileID
+			manager.profileExtensions[key] = &managedExtension{
+				key: key, info: ExtensionInfo{Name: manifest.Name, Enabled: true},
+				manifest: cmdPaletteTestManifest(manifest.Name), registered: true, active: true,
+			}
+			projection, err := manager.CmdPalette("", ProfileLens{ID: store.DefaultProfileID, Name: "default"})
+			if err != nil || len(projection.Commands) != 3 {
+				t.Fatalf("default-profile runtime palette = %#v, %v", projection, err)
+			}
+		},
+	)
 	t.Run("Should hide commands whose target view is placed in another profile", func(t *testing.T) {
 		t.Parallel()
 		testManagerCmdPaletteFiltersByProfileEnablementAndPlacement(t)

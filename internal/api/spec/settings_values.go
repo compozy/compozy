@@ -164,6 +164,7 @@ func settingsPermissionModeValues() []string {
 
 func settingsSourceKindValues() []string {
 	return []string{
+		string(contract.SettingsSourceExtension),
 		string(contract.SettingsSourceBuiltinProvider),
 		string(contract.SettingsSourceGlobalConfig),
 		string(contract.SettingsSourceProfileConfig),

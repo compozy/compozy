@@ -214,6 +214,8 @@ type Dependencies struct {
 	CmdPalette                  CmdPaletteCatalog
 	MCPAuth                     MCPAuthRuntimeProvider
 	MCPRuntime                  MCPRuntimeProvider
+	MCPExtensions               MCPExtensionDefinitionResolver
+	MCPExtensionManagement      MCPExtensionManagement
 	MCPCatalog                  MCPCatalog
 	MarketplaceInstallEvents    MarketplaceInstallNotifier
 	MCPDefinitionWriter         MCPDefinitionWriter
@@ -247,6 +249,8 @@ type service struct {
 	cmdPalette                  CmdPaletteCatalog
 	mcpAuth                     MCPAuthRuntimeProvider
 	mcpRuntime                  MCPRuntimeProvider
+	mcpExtensions               MCPExtensionDefinitionResolver
+	mcpExtensionManagement      MCPExtensionManagement
 	mcpCatalog                  MCPCatalog
 	marketplaceInstallEvents    MarketplaceInstallNotifier
 	mcpDefinitionWriter         MCPDefinitionWriter
@@ -314,6 +318,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		cmdPalette:                  deps.CmdPalette,
 		mcpAuth:                     deps.MCPAuth,
 		mcpRuntime:                  deps.MCPRuntime,
+		mcpExtensions:               deps.MCPExtensions,
+		mcpExtensionManagement:      deps.MCPExtensionManagement,
 		mcpCatalog:                  deps.MCPCatalog,
 		marketplaceInstallEvents:    deps.MarketplaceInstallEvents,
 		mcpDefinitionWriter:         mcpDefinitionWriter,

@@ -44,6 +44,7 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
         ? null
         : ({
             server_name: "srv",
+            owner: "manual",
             scope: "workspace",
             status: "unconfigured",
             refreshable: false,
@@ -246,6 +247,33 @@ describe("authorize gating", () => {
 });
 
 describe("authorization target", () => {
+  // Invariant: extension rows use their source scope and owner for both mutation and OAuth targets.
+  // Owner: Settings target derivation; canonical suite: mcp-status-view-model.test.ts.
+  it("preserves the extension owner and exact workspace-profile source", () => {
+    const server = {
+      ...makeEntry({
+        scope: "workspace",
+        workspaceId: "unrelated",
+        effectiveSource: {
+          kind: "extension",
+          scope: "profile",
+          profile: "marketing",
+          workspace_id: "ws-owner",
+        },
+      }),
+      owner: "extension:bundle",
+    };
+    const expected = {
+      scope: "profile",
+      profile: "marketing",
+      workspace_id: "ws-owner",
+      owner: "extension:bundle",
+    };
+    expect(deriveMCPManagementFilter(server)).toEqual(expected);
+    expect(deriveMCPAuthFilter(server)).toEqual(expected);
+    expect(deriveMCPAuthFilter({ ...server, owner: undefined })).toBeNull();
+  });
+
   it("uses a user effective source even when the collection row is workspace-scoped", () => {
     const server = makeEntry({
       effectiveSource: { kind: "global-config", scope: "user" },

@@ -79,6 +79,7 @@ export {
   deleteSettingsProvider,
   getSettingsAutomation,
   getSettingsSandbox,
+  getSettingsMCPServer,
   getSettingsCmdPalette,
   getSettingsGeneral,
   getSettingsPersona,
@@ -218,6 +219,7 @@ export {
   settingsHooksListOptions,
   settingsNotificationPresetsOptions,
   settingsMCPServersListOptions,
+  settingsMCPServerDetailOptions,
   settingsMemoryOptions,
   settingsAttentionOptions,
   settingsShellOptions,
@@ -350,6 +352,7 @@ export {
   useSettingsNotificationPresets,
   useSettingsHooks,
   useSettingsMCPServers,
+  useSettingsMCPServer,
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";

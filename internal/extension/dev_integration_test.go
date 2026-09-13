@@ -28,6 +28,60 @@ import (
 
 func TestManagerDevelopmentLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: an active development overlay is visible only in its workspace,
+	// independently of the published package's profile attachment. Owner: manager lifecycle.
+	t.Run("Should restore attachment visibility after unlinking a development overlay", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		published := createManagerTestExtension(t, devManifest("scoped-overlay", "0.1.0", ""), nil)
+		if err := env.registry.Install(published.manifest, published.dir, published.checksum, WithInstallScope(
+			InstallationScope{ProfileID: profileID},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		workspace := newDevTestWorkspace(t, "workspace-scoped-overlay")
+		origin := filepath.Join(workspace.RootDir, "overlay")
+		generation := writeDevTestGeneration(t, origin, devManifest("scoped-overlay", "0.2.0", ""))
+		manager := NewManager(env.registry, WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)))
+		startDevTestManager(t, manager)
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			t.Context(),
+			workspace.WorkspaceID,
+			origin,
+			generation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		key := InstanceKey{Name: published.manifest.Name, WorkspaceID: workspace.WorkspaceID}
+		overlay, err := manager.GetForInstance(key)
+		if err != nil || overlay.Info.Version != "0.2.0" || overlay.DevLink == nil {
+			t.Fatalf("active overlay = %#v, %v", overlay, err)
+		}
+		if _, err := manager.GetForInstance(
+			InstanceKey{Name: key.Name, WorkspaceID: "foreign"},
+		); !errors.Is(
+			err,
+			ErrExtensionNotFound,
+		) {
+			t.Fatalf("foreign workspace read = %v, want not found", err)
+		}
+		if err := manager.UnlinkDevelopment(t.Context(), key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.GetForInstance(key); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("default profile after unlink = %v, want not found", err)
+		}
+		publishedRead, _, err := manager.ProjectForProfile(
+			t.Context(),
+			key,
+			ProfileLens{ID: profileID, Name: "marketing"},
+		)
+		if err != nil || publishedRead.Info.Version != "0.1.0" || publishedRead.DevLink != nil ||
+			publishedRead.Status.WorkspaceID != "" {
+			t.Fatalf("owning profile after unlink = %#v, %v", publishedRead, err)
+		}
+	})
 
 	t.Run("Should drain an admitted development candidate before stop snapshots instances", func(t *testing.T) {
 		t.Parallel()

@@ -34,11 +34,7 @@ func (g *VaultRepo) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRec
 	if err != nil {
 		return fmt.Errorf("store: marshal MCP auth token scopes: %w", err)
 	}
-	prefix, err := vault.MCPSecretOwnerPrefix(
-		string(normalized.Target.Scope),
-		normalized.Target.WorkspaceID,
-		normalized.Target.ServerName,
-	)
+	prefix, err := vault.MCPSecretOwnerPrefix(normalized.Target.VaultTarget())
 	if err != nil {
 		return fmt.Errorf("store: build MCP auth token ref: %w", err)
 	}
@@ -76,13 +72,22 @@ func (g *VaultRepo) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRec
 		}
 
 		err = sqlcgen.New(tx).UpsertMCPAuthToken(ctx, sqlcgen.UpsertMCPAuthTokenParams{
-			Scope: string(normalized.Target.Scope), WorkspaceID: normalized.Target.WorkspaceID,
-			ServerName: normalized.Target.ServerName, DefinitionFingerprint: normalized.DefinitionFingerprint,
-			Issuer: normalized.Issuer, ClientID: normalized.ClientID,
-			ScopesJson: string(scopesJSON), AccessTokenRef: accessTokenRef, RefreshTokenRef: refreshTokenRef,
-			TokenType: normalized.TokenType, ExpiresAt: nullableMCPTime(normalized.ExpiresAt),
-			ObtainedAt: store.FormatTimestamp(normalized.ObtainedAt),
-			UpdatedAt:  store.FormatTimestamp(normalized.UpdatedAt),
+			Scope: string(
+				normalized.Target.Scope,
+			),
+			WorkspaceID:           normalized.Target.WorkspaceID,
+			Owner:                 normalized.Target.Owner,
+			ServerName:            normalized.Target.ServerName,
+			DefinitionFingerprint: normalized.DefinitionFingerprint,
+			Issuer:                normalized.Issuer,
+			ClientID:              normalized.ClientID,
+			ScopesJson:            string(scopesJSON),
+			AccessTokenRef:        accessTokenRef,
+			RefreshTokenRef:       refreshTokenRef,
+			TokenType:             normalized.TokenType,
+			ExpiresAt:             nullableMCPTime(normalized.ExpiresAt),
+			ObtainedAt:            store.FormatTimestamp(normalized.ObtainedAt),
+			UpdatedAt:             store.FormatTimestamp(normalized.UpdatedAt),
 		})
 		if err != nil {
 			return fmt.Errorf("store: save MCP auth token for %q: %w", normalized.Target.ServerName, err)
@@ -306,7 +311,7 @@ func nullableMCPTime(value time.Time) sql.NullString {
 func mcpAuthTokenFromGenerated(row sqlcgen.McpAuthToken) (mcpauth.TokenRecord, error) {
 	token := mcpauth.TokenRecord{
 		Target: mcpauth.Target{
-			Scope: mcpauth.Scope(row.Scope), WorkspaceID: row.WorkspaceID, ServerName: row.ServerName,
+			Scope: mcpauth.Scope(row.Scope), WorkspaceID: row.WorkspaceID, Owner: row.Owner, ServerName: row.ServerName,
 		},
 		DefinitionFingerprint: row.DefinitionFingerprint, Issuer: row.Issuer, ClientID: row.ClientID,
 		AccessToken: row.AccessTokenRef, RefreshToken: row.RefreshTokenRef, TokenType: row.TokenType,
@@ -337,18 +342,21 @@ func mcpAuthTokenFromGenerated(row sqlcgen.McpAuthToken) (mcpauth.TokenRecord, e
 
 func mcpAuthTargetParams(target mcpauth.Target) sqlcgen.GetMCPAuthTokenParams {
 	return sqlcgen.GetMCPAuthTokenParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }
 
 func mcpAuthDeleteParams(target mcpauth.Target) sqlcgen.DeleteMCPAuthTokenParams {
 	return sqlcgen.DeleteMCPAuthTokenParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }
 
 func mcpAuthRefsParams(target mcpauth.Target) sqlcgen.GetMCPAuthTokenRefsParams {
 	return sqlcgen.GetMCPAuthTokenRefsParams{
-		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, ServerName: target.ServerName,
+		Scope: string(target.Scope), WorkspaceID: target.WorkspaceID,
+		Owner: vault.NormalizeMCPOwner(target.Owner), ServerName: target.ServerName,
 	}
 }

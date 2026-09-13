@@ -281,6 +281,7 @@ beforeEach(() => {
   });
   mocks.installMCP.mockResolvedValue({});
   mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+    inputs: [],
     declared_profiles: [{ create: false, credentials: [], name: "default" }],
     name: request.ref.split("/").pop() ?? request.ref,
     placements: [],
@@ -326,6 +327,7 @@ describe("useMarketplaceActionController", () => {
           refreshable: true,
           scope: "workspace",
           server_name: "linear",
+          owner: "manual",
           status: "needs_login",
           token_present: false,
         },
@@ -649,6 +651,7 @@ describe("useMarketplaceActionController", () => {
       </QueryClientProvider>
     );
     mocks.previewExtensionInstall.mockResolvedValueOnce({
+      inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "observability" }],
       name: "otel-bridge",
       network_requirement_digest: "sha256:otel-network",

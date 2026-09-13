@@ -162,6 +162,52 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	// Invariant: global native reads retain the selected profile even without a workspace.
+	// Owner: native extension boundary. Canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should forward named profiles for list info and provenance", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, baseRuntime := newNativeExtensionToolDeps(t)
+		root := writeNativeLocalExtensionFixture(t, "profile-kit", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := extensionpkg.InstallLocalManaged(deps.HomePaths, extRegistry, manifest, root, checksum); err != nil {
+			t.Fatal(err)
+		}
+		ext, err := baseRuntime.Get("profile-kit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := &profileReadProjectedRuntime{profileReadDevRuntime: &profileReadDevRuntime{ext: ext}}
+		deps.ExtensionRuntime = func() extensionRuntime { return runtime }
+		profile, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		for _, toolID := range []toolspkg.ToolID{
+			toolspkg.ToolIDExtensionsList, toolspkg.ToolIDExtensionsInfo, toolspkg.ToolIDExtensionsProvenance,
+		} {
+			runtime.lastProfile = extensionpkg.ProfileLens{}
+			input := json.RawMessage(`{"name":"profile-kit","owner":"extension:profile-kit"}`)
+			if toolID == toolspkg.ToolIDExtensionsList {
+				input = json.RawMessage(`{"owner":"extension:profile-kit"}`)
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, ProfileID: profile.ID},
+				toolspkg.CallRequest{ToolID: toolID, Input: input})
+			if err != nil {
+				t.Fatalf("%s: %v", toolID, err)
+			}
+			if runtime.lastProfile.ID != profile.ID || runtime.lastProfile.Name != "marketing" {
+				t.Fatalf("%s profile = %#v", toolID, runtime.lastProfile)
+			}
+		}
+	})
 	t.Run("Should expose inventory through native bindings", func(t *testing.T) {
 		t.Parallel()
 
@@ -567,13 +613,59 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			t.Fatalf("Registry.Call(extensions_info) error = %v", err)
 		}
 		requireNativeStructuredContains(t, infoResult, []byte(`"tool-ext"`))
+		// Invariant: explicit owner selectors cannot redirect a named extension read or mutation.
+		// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+		for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDExtensionsInfo, toolspkg.ToolIDExtensionsInventory,
+			toolspkg.ToolIDExtensionsProvenance, toolspkg.ToolIDExtensionsRemove, toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsDisable, toolspkg.ToolIDExtensionsUpdate, toolspkg.ToolIDExtensionsReload, toolspkg.ToolIDExtensionsLogs} {
+			if _, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolID,
+					Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:other"}`),
+				},
+			); err == nil {
+				t.Fatalf("%s accepted a mismatched owner", toolID)
+			}
+		}
+		if retained, err := extRegistry.Get(
+			"tool-ext",
+		); err != nil || retained.Version != updated.Version ||
+			retained.Enabled != updated.Enabled {
+			t.Fatalf("owner rejection changed installed state: %#v %v", retained, err)
+		}
+		ownedInfo, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDExtensionsInfo,
+				Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:tool-ext"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, ownedInfo, []byte(`"tool-ext"`))
+		ownedList, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDExtensionsList,
+				Input:  json.RawMessage(`{"owner":"extension:missing"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, ownedList, []byte(`"extensions":[]`))
 
 		removeResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsRemove,
-				Input:  json.RawMessage(`{"name":"tool-ext"}`),
+				Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:tool-ext"}`),
 			},
 		)
 		if err != nil {
@@ -933,7 +1025,12 @@ func nativeExtensionTarGz(t *testing.T, version string) []byte {
 	return nativeExtensionTarGzWithNetwork(t, version, "")
 }
 
-func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope string) []byte {
+func nativeExtensionTarGzWithNetwork(
+	t *testing.T,
+	version string,
+	channelScope string,
+	manifestSections ...string,
+) []byte {
 	t.Helper()
 
 	integrationManifestSections := ""
@@ -953,6 +1050,7 @@ channel_scopes = [%q]
 `, channelScope)
 	}
 
+	integrationManifestSections += "\n" + strings.Join(manifestSections, "\n")
 	files := map[string]string{
 		filepath.Join("tool-ext", "extension.toml"): fmt.Sprintf(`[extension]
 name = "tool-ext"

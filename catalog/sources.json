@@ -1,0 +1,223 @@
+{
+    "generated_at": "2026-09-12T10:00:00Z",
+    "artifact_base_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts",
+    "entries": [
+        {
+            "entry_id": "repository-orientation",
+            "name": "Repository Orientation",
+            "description": "Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths",
+            "published_at": "2026-07-17T00:40:00Z",
+            "install_slug": "compozy/repository-orientation",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/repository-orientation"
+        },
+        {
+            "entry_id": "batuta",
+            "name": "Batuta",
+            "description": "Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates",
+            "published_at": "2026-08-18T17:41:41Z",
+            "install_slug": "franciscpd/batuta-compozy",
+            "tier": "community",
+            "format": "compozy",
+            "author": "Francisross Soares de Oliveira",
+            "repository": "https://github.com/franciscpd/batuta-compozy"
+        },
+        {
+            "entry_id": "herdr-bridge",
+            "name": "herdr bridge",
+            "description": "Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup",
+            "published_at": "2026-09-08T15:26:31Z",
+            "install_slug": "AlexandreAkao/herdr-bridge-compozy",
+            "tier": "community",
+            "format": "compozy",
+            "author": "Alexandre Akira",
+            "repository": "https://github.com/AlexandreAkao/herdr-bridge-compozy"
+        },
+        {
+            "entry_id": "context7",
+            "name": "Context7",
+            "description": "Fetch current, version-specific library documentation and code examples.",
+            "install_slug": "compozy/context7",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/context7"
+        },
+        {
+            "entry_id": "github",
+            "name": "GitHub",
+            "description": "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.",
+            "install_slug": "compozy/github",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/github"
+        },
+        {
+            "entry_id": "linear",
+            "name": "Linear",
+            "description": "Work with Linear issues, projects, and team knowledge through its hosted MCP server.",
+            "install_slug": "compozy/linear",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/linear"
+        },
+        {
+            "entry_id": "notion",
+            "name": "Notion",
+            "description": "Search and manage Notion workspace content through Notion's hosted MCP server.",
+            "install_slug": "compozy/notion",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/notion"
+        },
+        {
+            "entry_id": "sentry",
+            "name": "Sentry",
+            "description": "Investigate Sentry issues, events, projects, and releases through its hosted MCP server.",
+            "install_slug": "compozy/sentry",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/sentry"
+        },
+        {
+            "entry_id": "postgres",
+            "name": "PostgreSQL (Yaw Labs)",
+            "description": "Query PostgreSQL with Yaw Labs' maintained MCP server; it is read-only by default.",
+            "install_slug": "compozy/postgres",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/postgres"
+        },
+        {
+            "entry_id": "supabase",
+            "name": "Supabase",
+            "description": "Work with a selected Supabase project through Supabase's hosted MCP server in read-only mode.",
+            "install_slug": "compozy/supabase",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/supabase"
+        },
+        {
+            "entry_id": "brave-search",
+            "name": "Brave Search",
+            "description": "Search the web through Brave's official MCP server.",
+            "install_slug": "compozy/brave-search",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/brave-search"
+        },
+        {
+            "entry_id": "playwright",
+            "name": "Playwright",
+            "description": "Automate browser workflows with Microsoft's Playwright MCP server in headless mode.",
+            "install_slug": "compozy/playwright",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/playwright"
+        },
+        {
+            "entry_id": "stripe",
+            "name": "Stripe",
+            "description": "Inspect Stripe customers, payments, invoices, and subscriptions through Stripe's hosted MCP server.",
+            "install_slug": "compozy/stripe",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/stripe"
+        },
+        {
+            "entry_id": "posthog",
+            "name": "PostHog",
+            "description": "Analyze product data, feature flags, and observability signals through PostHog's hosted MCP server.",
+            "install_slug": "compozy/posthog",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/posthog"
+        },
+        {
+            "entry_id": "airtable",
+            "name": "Airtable",
+            "description": "Search and manage Airtable bases through Airtable's hosted MCP server.",
+            "install_slug": "compozy/airtable",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/airtable"
+        },
+        {
+            "entry_id": "gitlab",
+            "name": "GitLab",
+            "description": "Work with GitLab projects, issues, merge requests, and pipelines through GitLab's hosted MCP server.",
+            "install_slug": "compozy/gitlab",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/gitlab"
+        },
+        {
+            "entry_id": "atlassian",
+            "name": "Atlassian",
+            "description": "Work with Atlassian products through Atlassian's hosted MCP server.",
+            "install_slug": "compozy/atlassian",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/atlassian"
+        },
+        {
+            "entry_id": "grafana",
+            "name": "Grafana",
+            "description": "Inspect Grafana dashboards, metrics, logs, traces, and alerts with write tools disabled.",
+            "install_slug": "compozy/grafana",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/grafana"
+        },
+        {
+            "entry_id": "calcom",
+            "name": "Cal.com",
+            "description": "Manage Cal.com scheduling through Cal.com's hosted MCP server.",
+            "install_slug": "compozy/calcom",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/calcom"
+        },
+        {
+            "entry_id": "cloudflare",
+            "name": "Cloudflare Code Mode",
+            "description": "Use Cloudflare's Code Mode MCP server to progressively discover and call Cloudflare APIs.",
+            "install_slug": "compozy/cloudflare",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/cloudflare"
+        }
+    ],
+    "retained_skills": [
+        {
+            "entry_id": "documentation-writer",
+            "name": "Documentation Writer",
+            "description": "Create and improve READMEs, API references, user guides, and code documentation",
+            "version": "1.0.0",
+            "published_at": "2026-03-16T17:06:25Z",
+            "updated_at": "2026-05-11T09:32:33Z",
+            "install_slug": "documentation-writer",
+            "display_name": "Documentation Writer",
+            "author": "engsathiago",
+            "tags": ["documentation", "writing"]
+        }
+    ]
+}

@@ -119,6 +119,8 @@ export type SettingsHookListFilter = NonNullable<OperationQuery<"listSettingsHoo
 export type SettingsHookPutFilter = NonNullable<OperationQuery<"putSettingsHook">>;
 export type SettingsHookDeleteFilter = NonNullable<OperationQuery<"deleteSettingsHook">>;
 
+export type SettingsMCPServerDetail = OperationResponse<"getSettingsMCPServer", 200>;
+export type SettingsMCPServerGetFilter = NonNullable<OperationQuery<"getSettingsMCPServer">>;
 export type SettingsMCPServerCollection = OperationResponse<"listSettingsMCPServers", 200>;
 export type SettingsMCPServerEntry = SettingsMCPServerCollection["mcp_servers"][number];
 export type SettingsMCPServerRequest = OperationRequestBody<"putSettingsMCPServer">;

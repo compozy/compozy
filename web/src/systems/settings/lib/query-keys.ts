@@ -4,6 +4,7 @@ import type {
   SettingsCmdPaletteFilter,
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
+  SettingsMCPServerGetFilter,
   SettingsNotificationPresetFilter,
   SettingsPersonaFilter,
   SettingsSectionName,
@@ -106,6 +107,16 @@ export const settingsKeys = {
 
   mcpRoot: () => [...settingsKeys.collections(), "mcp-servers"] as const,
   mcpLists: () => [...settingsKeys.mcpRoot(), "list"] as const,
+  mcpDetail: (name: string, filter: SettingsMCPServerGetFilter = {}) =>
+    [
+      ...settingsKeys.mcpRoot(),
+      "detail",
+      normalizeText(name),
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
+      normalizeText(filter.owner),
+    ] as const,
   mcpList: (filter: SettingsMCPServerListFilter = {}) =>
     [
       ...settingsKeys.mcpLists(),

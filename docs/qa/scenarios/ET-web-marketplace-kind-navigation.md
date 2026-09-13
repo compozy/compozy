@@ -6,15 +6,18 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Entering Marketplace through the sidebar or `/marketplace` lands on Skills in Installed scope; RouteNav switches among exactly Extensions, Skills, and MCPs, preserves explicit `tab=market`, no Bundle route exists, and detail Back returns to the same scope.
 entry_points: Marketplace sidebar item; /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcps; retired /marketplace/bundles
-qa_status: pass
+qa_status: skipped
 bug_ids: BUG-20260802-retired-marketplace-kind-alias
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: 7701a3f
 evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-extension-evidence.md
 last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-route-chrome-topbar
 ---
+
+Retired by marketplace-catalog task 01 (2026-09-12). One catalog and a separate Installed page replace kind navigation. Redirect coverage belongs to ET-web-marketplace-landing-browse; inventory management belongs to ET-web-marketplace-installed-management. The contract and evidence below are historical.
+
 
 Added by the unified Marketplace hard cut. Walk redirect-mediated entry, every kind link, a detail
 deep link, then a non-Marketplace sibling route to exercise retained route context.

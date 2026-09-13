@@ -37,12 +37,17 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		return Manifest{}, err
 	}
 
+	inputs, err := decodeManifestInputs(d.Inputs)
+	if err != nil {
+		return Manifest{}, err
+	}
 	manifest := Manifest{
+		Inputs:               inputs,
 		Name:                 name,
 		Version:              versionValue,
 		Description:          description,
 		MinCompozyVersion:    minVersion,
-		RequiresEnv:          normalizeStrings(requiresEnv),
+		RequiresEnv:          manifestRequiredEnv(requiresEnv, inputs),
 		NetworkParticipation: d.NetworkParticipation.Normalize(),
 		Resources:            normalizeResourcesConfig(d.Resources),
 		Capabilities:         normalizeCapabilitiesConfig(d.Capabilities),
@@ -328,11 +333,18 @@ func validateManifestHookEnv(hooks []HookConfig) error {
 	return nil
 }
 
-func validateManifestMCPServerEnv(servers map[string]MCPServerConfig) error {
+func validateManifestMCPServerEnv(manifest *Manifest) error {
+	servers := manifest.Resources.MCPServers
 	for _, name := range sortedMapKeys(servers) {
 		field := "resources.mcp_servers." + strings.TrimSpace(name)
 		server := servers[name]
-		if err := validateManifestEnvMaps(field, "mcp", server.Env, server.SecretEnv); err != nil {
+		secretEnv := normalizeStringMap(server.SecretEnv)
+		for _, input := range manifest.Inputs {
+			if input.Type == "secret" && input.Binding.Type == "env" && secretEnv[input.Binding.Name] == input.ID {
+				delete(secretEnv, input.Binding.Name)
+			}
+		}
+		if err := validateManifestEnvMaps(field, "mcp", server.Env, secretEnv); err != nil {
 			return err
 		}
 	}

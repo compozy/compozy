@@ -4,17 +4,22 @@ area: ET
 title: Operate the unified marketplace API namespace
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: Search, kind browse, stable entry detail, and refresh expose matching HTTP and UDS contracts; extension detail includes its exact HTTPS artifact URL; native discovery uses the caller's exact workspace installed-state projection; every deleted skills and extensions browse route returns 404.
-entry_points: GET /api/marketplace/search; GET /api/marketplace/:kind; GET /api/marketplace/:kind/:entry_id; POST /api/marketplace/refresh; compozy__marketplace_search
-qa_status: pass
+expected: GET /api/marketplace and /api/marketplace/entries/{entry_id} have matching HTTP and UDS contracts, origin-only installed joins, source state and revision-fenced pagination. Retained kind routes continue to work. Batch update reports each committed or failed extension without losing progress.
+entry_points: GET /api/marketplace; GET /api/marketplace/entries/{entry_id}; POST /api/marketplace/refresh; POST /api/extensions/update; retained Marketplace discovery routes
+qa_status: untested
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 8eeb8a38;351f3535
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json;/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/022-marketplace-namespace;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-007; ET-008; ET-016
 ---
+
+Marketplace catalog task 01 (2026-09-12): Compare HTTP and UDS responses in the same profile and workspace. Exercise stale cursors, unchanged refresh revisions, same-name different-origin records, installed_name selection and cached source failure. Attempt two updates with the second artifact returning 404 and inspect both persisted versions.
+
+Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
+
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no equivalent HTTP and UDS API read was retained.
 

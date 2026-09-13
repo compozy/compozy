@@ -35,6 +35,7 @@ export {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   deleteSettingsSandbox,
+  getSettingsMCPServer,
   getSettingsProvider,
   getSettingsSandbox,
   listSettingsHooks,

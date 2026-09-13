@@ -1,0 +1,22 @@
+name = "context7"
+version = "3.2.3"
+description = "Fetch current, version-specific library documentation and code examples."
+min_compozy_version = "0.5.0"
+
+# Asked at install. A secret goes to the vault under the bound env name; other
+# values are stored with the installed extension and reloaded on restart.
+[[inputs]]
+id = "context7_api_key"
+prompt = "Context7 API key (optional)"
+type = "secret"            # secret | string | identifier | boolean
+required = false
+binding = { type = "env", name = "CONTEXT7_API_KEY" }
+
+[resources.mcp_servers.context7]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@upstash/context7-mcp@3.2.3"]
+# env / secret_env keep their map shape: ENV_NAME = "<binding name>". For an
+# input-backed variable the binding name is the input id.
+secret_env = { CONTEXT7_API_KEY = "context7_api_key" }
+default_scope = "global"

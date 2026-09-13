@@ -187,6 +187,10 @@ func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *compozyco
 		r.mu.Unlock()
 		return errors.Join(errors.New("daemon: marketplace runtime is stopped"), next.Close(ctx))
 	}
+	if _, err := r.store.AdvanceSourceGeneration(ctx, marketplace.CompozyCatalogSource); err != nil {
+		r.mu.Unlock()
+		return errors.Join(fmt.Errorf("daemon: invalidate marketplace source configuration: %w", err), next.Close(ctx))
+	}
 	previous := r.service
 	if previous != nil {
 		if err := previous.Close(ctx); err != nil {

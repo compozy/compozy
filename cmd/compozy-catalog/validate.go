@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -24,7 +26,13 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 		return err
 	}
 	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
-	raw, err := os.ReadFile(filepath.Join(directory, "extensions.json"))
+	feedPath := filepath.Join(directory, "extensions.json")
+	if _, statErr := os.Stat(filepath.Join(directory, "v3")); statErr == nil {
+		feedPath = filepath.Join(directory, "v3", "extensions.json")
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return statErr
+	}
+	raw, err := os.ReadFile(feedPath)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)
 	}
@@ -40,7 +48,13 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 		err = errors.Join(err, removeCatalogValidationDirectory(temporaryRoot))
 	}()
 	for _, entry := range document.Entries {
-		if err := validateExtensionArtifact(ctx, directory, temporaryRoot, entry); err != nil {
+		if err := validateExtensionArtifact(
+			ctx,
+			directory,
+			temporaryRoot,
+			entry,
+			document.ManifestVersion == marketplace.ManifestVersionV3,
+		); err != nil {
 			return err
 		}
 	}
@@ -52,6 +66,7 @@ func validateExtensionArtifact(
 	catalogDir string,
 	temporaryRoot string,
 	entry marketplace.Entry,
+	requireInputs bool,
 ) error {
 	details, err := marketplace.ProjectEntry(entry)
 	if err != nil {
@@ -87,6 +102,16 @@ func validateExtensionArtifact(
 			manifest.Version,
 			entry.Version,
 		)
+	}
+
+	var payload struct {
+		Inputs []marketplace.EntryInput `json:"inputs"`
+	}
+	if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+		return err
+	}
+	if requireInputs && !reflect.DeepEqual(payload.Inputs, manifest.Inputs) {
+		return fmt.Errorf("compozy-catalog: extension %q feed inputs differ from packaged manifest", entry.EntryID)
 	}
 	return nil
 }

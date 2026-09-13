@@ -45,6 +45,8 @@ import {
   exchangeSettingsMCPAuth,
   logoutSettingsMCPAuth,
 } from "../../adapters/settings-mcp-auth-api";
+import { extensionKeys } from "@/systems/extensions";
+import { marketplaceKeys } from "@/systems/marketplace";
 import { settingsKeys } from "../../lib/query-keys";
 import {
   settingsHooksExtensionsSectionFixture,
@@ -383,6 +385,7 @@ describe("mcp auth mutations", () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     vi.mocked(exchangeSettingsMCPAuth).mockResolvedValue({
       server_name: "linear",
+      owner: "manual",
       scope: "workspace",
       status: "authenticated",
       token_present: true,
@@ -416,6 +419,7 @@ describe("mcp auth mutations", () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     vi.mocked(logoutSettingsMCPAuth).mockResolvedValue({
       server_name: "linear",
+      owner: "manual",
       scope: "user",
       status: "needs_login",
       token_present: false,
@@ -432,4 +436,83 @@ describe("mcp auth mutations", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.mcpRoot() });
     });
   });
+});
+
+// Invariant: owner-qualified MCP mutations refresh the installed extension and catalog observations too.
+// Owner: Settings mutation effects. Canonical suite: use-settings-mutations.test.tsx.
+describe("extension-owned MCP reconciliation", () => {
+  it.each(["put", "delete", "exchange", "logout"] as const)(
+    "Should invalidate all affected views after %s",
+    async operation => {
+      const { queryClient, wrapper } = createWrapper();
+      const filter = {
+        scope: "profile" as const,
+        profile: "work",
+        workspace_id: "ws-a",
+        owner: "extension:kit",
+      };
+      const keys = [
+        settingsKeys.mcpDetail("shared", filter),
+        extensionKeys.list("ws-a", "work"),
+        [...marketplaceKeys.all, "observed-extension"],
+      ];
+      for (const key of keys) queryClient.setQueryData(key, { observed: "before" });
+      vi.mocked(putSettingsMCPServer).mockResolvedValue(generalMutation);
+      vi.mocked(deleteSettingsMCPServer).mockResolvedValue(generalMutation);
+      const auth = {
+        server_name: "shared",
+        owner: "extension:kit",
+        scope: "profile",
+        profile: "work",
+        workspace_id: "ws-a",
+        status: "authenticated",
+        token_present: true,
+        refreshable: true,
+      };
+      vi.mocked(exchangeSettingsMCPAuth).mockResolvedValue(auth);
+      vi.mocked(logoutSettingsMCPAuth).mockResolvedValue({
+        ...auth,
+        status: "needs_login",
+        token_present: false,
+      });
+      const { result, unmount } = renderHook(
+        () => ({
+          put: usePutSettingsMCPServer(),
+          delete: useDeleteSettingsMCPServer(),
+          exchange: useExchangeMCPAuth(),
+          logout: useLogoutMCPAuth(),
+        }),
+        { wrapper }
+      );
+      await act(async () => {
+        const params = { name: "shared", filter };
+        switch (operation) {
+          case "put":
+            await result.current.put.mutateAsync({
+              ...params,
+              body: { server: { name: "shared", env: { DEBUG: "true" } } },
+            });
+            break;
+          case "delete":
+            await result.current.delete.mutateAsync(params);
+            break;
+          case "exchange":
+            await result.current.exchange.mutateAsync({
+              ...params,
+              body: { redirect_url: "https://callback.example.test" },
+            });
+            break;
+          case "logout":
+            await result.current.logout.mutateAsync(params);
+            break;
+        }
+      });
+      for (const key of keys) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+      if (operation === "exchange" || operation === "logout") {
+        expect(settingsRestartStore.getSnapshot().context.lastMutation).toBeNull();
+      }
+      unmount();
+      queryClient.clear();
+    }
+  );
 });

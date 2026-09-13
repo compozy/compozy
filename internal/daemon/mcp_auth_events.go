@@ -27,6 +27,7 @@ type daemonMCPAuthNotifier struct {
 }
 
 type mcpAuthEventPayload struct {
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name,omitempty"`
 	Scope       string `json:"scope,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -44,6 +45,7 @@ func (n *daemonMCPAuthNotifier) NotifyMCPAuth(ctx context.Context, lifecycle mcp
 		return
 	}
 	payload := mcpAuthEventPayload{
+		Owner:       lifecycle.Target.Normalize().Owner,
 		ServerName:  lifecycle.Target.ServerName,
 		Scope:       string(lifecycle.Target.Scope),
 		WorkspaceID: lifecycle.Target.WorkspaceID,

@@ -165,7 +165,7 @@ func (d *Daemon) newToolMCPPublisher(
 		profiles = state.deps.Profiles
 	}
 
-	return newToolMCPSourceSyncerWithConfigProvider(
+	syncer := newToolMCPSourceSyncerWithConfigProvider(
 		state.resourceKernel,
 		toolStore,
 		toolCodec,
@@ -189,6 +189,13 @@ func (d *Daemon) newToolMCPPublisher(
 			state.currentExtensionRuntime,
 			d.getenv,
 			profiles,
+			extensionInputReader{
+				inputs:   state.extensionInputs,
+				bindings: state.extensionEnvBindings,
+				secrets:  state.providerVault,
+			},
 		),
-	), nil
+	)
+	syncer.prepareMCP = extensionMCPPublicationPreparer(state)
+	return syncer, nil
 }

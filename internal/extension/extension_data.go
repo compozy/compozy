@@ -26,47 +26,66 @@ func defaultExtensionDataRemovalOps() extensionDataRemovalOps {
 	return extensionDataRemovalOps{removeAll: os.RemoveAll, rename: os.Rename, now: time.Now}
 }
 
-func removeAgentPluginDataForInstall(
-	info ExtensionInfo,
-	homePaths compozyconfig.HomePaths,
-	ops extensionDataRemovalOps,
-) (extensionDataCleanup, error) {
-	if normalizeExtensionFormat(info.Format) != FormatAgentPlugin {
-		return extensionDataCleanup{}, nil
-	}
-	dataPath, err := homePaths.ExtensionDataPath(info.Name, "", "")
-	if err != nil {
-		return extensionDataCleanup{}, fmt.Errorf("extension: resolve data path for %q: %w", info.Name, err)
-	}
-	cleanup, cleanupErr := removeExtensionDataPath(dataPath, ops)
-	cleanup.dataPath = dataPath
-	return cleanup, cleanupErr
+// stagedExtensionData keeps plugin data recoverable until durable removal commits.
+type stagedExtensionData struct {
+	dataPath, stagedPath string
+	ops                  extensionDataRemovalOps
 }
 
-func removeExtensionDataPath(path string, ops extensionDataRemovalOps) (extensionDataCleanup, error) {
-	target := strings.TrimSpace(path)
-	if target == "" {
-		return extensionDataCleanup{}, errors.New("extension: data path is required")
+func stageAgentPluginDataForRemoval(
+	info ExtensionInfo, homePaths compozyconfig.HomePaths, ops extensionDataRemovalOps,
+) (*stagedExtensionData, error) {
+	data := &stagedExtensionData{ops: ops}
+	if normalizeExtensionFormat(info.Format) != FormatAgentPlugin {
+		return data, nil
 	}
-	if _, err := os.Lstat(target); errors.Is(err, os.ErrNotExist) {
-		return extensionDataCleanup{}, nil
+	path, err := homePaths.ExtensionDataPath(info.Name, "", "")
+	if err != nil {
+		return nil, err
+	}
+	return stageExtensionDataPath(path, ops)
+}
+
+func stageExtensionDataPath(path string, ops extensionDataRemovalOps) (*stagedExtensionData, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, errors.New("extension: data path is required")
+	}
+	data := &stagedExtensionData{dataPath: path, ops: ops}
+	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+		return data, nil
 	} else if err != nil {
-		return extensionDataCleanup{}, fmt.Errorf("extension: inspect data path %q: %w", target, err)
+		return nil, err
 	}
 	if ops.removeAll == nil || ops.rename == nil || ops.now == nil {
-		return extensionDataCleanup{}, errors.New("extension: data removal operations are required")
+		return nil, errors.New("extension: data removal operations are required")
 	}
-	removeErr := ops.removeAll(target)
-	if removeErr == nil || errors.Is(removeErr, os.ErrNotExist) {
-		return extensionDataCleanup{}, nil
+	staged := fmt.Sprintf("%s.compozy-quarantine-%d", path, ops.now().UTC().UnixNano())
+	if err := ops.rename(path, staged); err != nil {
+		return nil, fmt.Errorf("extension: stage data removal: %w", err)
 	}
-	quarantine := fmt.Sprintf("%s.compozy-quarantine-%d", target, ops.now().UTC().UnixNano())
-	if renameErr := ops.rename(target, quarantine); renameErr != nil {
-		return extensionDataCleanup{}, errors.Join(
-			fmt.Errorf("extension: remove data path %q: %w", target, removeErr),
-			fmt.Errorf("extension: quarantine data path %q: %w", target, renameErr),
-		)
+	data.stagedPath = staged
+	return data, nil
+}
+
+func (data *stagedExtensionData) rollback() error {
+	if data.stagedPath == "" {
+		return nil
 	}
-	return extensionDataCleanup{quarantined: true, quarantinePath: quarantine},
-		fmt.Errorf("extension: remove data path %q; residue quarantined at %q: %w", target, quarantine, removeErr)
+	if err := data.ops.rename(data.stagedPath, data.dataPath); err != nil {
+		return fmt.Errorf("extension: restore staged plugin data: %w", err)
+	}
+	return nil
+}
+
+func (data *stagedExtensionData) commit() (extensionDataCleanup, error) {
+	cleanup := extensionDataCleanup{dataPath: data.dataPath}
+	if data.stagedPath == "" {
+		return cleanup, nil
+	}
+	if err := data.ops.removeAll(data.stagedPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		cleanup.quarantined, cleanup.quarantinePath = true, data.stagedPath
+		return cleanup, fmt.Errorf("extension: plugin data residue remains quarantined: %w", err)
+	}
+	return cleanup, nil
 }

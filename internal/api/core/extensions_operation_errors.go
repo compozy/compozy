@@ -25,6 +25,23 @@ func extensionOperationErrorPayload(
 
 	kind := classifyExtensionError(err)
 	switch kind {
+	case extensionErrorMCPNameTaken:
+		payload.Code = "mcp_server_name_taken"
+	case extensionErrorSourceChanged:
+		if changed, ok := errors.AsType[*extensionpkg.SourceChangedError](err); ok {
+			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
+		}
+		payload.Code = diagnosticcontract.CodeExtensionSourceChanged
+	case extensionErrorInputsRequired:
+		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
+			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+		}
+		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
+	case extensionErrorInputInvalid:
+		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
+			payload.InputID = invalid.InputID
+		}
+		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
 	case extensionErrorNetworkConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
 		if ok && confirmationErr != nil {

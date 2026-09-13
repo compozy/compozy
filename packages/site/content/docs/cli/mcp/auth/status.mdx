@@ -15,6 +15,7 @@ compozy mcp auth status [server] [flags]
 
 ```
   -h, --help               help for status
+      --owner string       Definition owner: manual or extension:<name>
       --scope string       MCP server scope: user, profile, or workspace (default "user")
       --workspace string   Override workspace (ID, name, or path)
 ```
@@ -31,13 +32,12 @@ compozy mcp auth status [server] [flags]
 
 The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
 
-| Format  | Command result                          |
-| ------- | --------------------------------------- |
-| `human` | Interactive terminal rendering          |
-| `json`  | Machine-readable JSON rendering         |
+| Format | Command result |
+| --- | --- |
+| `human` | Interactive terminal rendering |
+| `json` | Machine-readable JSON rendering |
 | `jsonl` | One JSON record per line when supported |
-| `toon`  | Compact agent-readable rendering        |
-
+| `toon` | Compact agent-readable rendering |
 Example:
 
 ```bash

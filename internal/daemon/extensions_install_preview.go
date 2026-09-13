@@ -48,8 +48,17 @@ func (s *daemonExtensionService) PreviewInstall(
 	}
 	result := contract.ExtensionInstallPreviewPayload{
 		Name: prepared.name, NetworkRequirementDigest: digest,
+		DigestSHA256:     prepared.digest,
+		Inputs:           make([]contract.MarketplaceInputPayload, 0, len(prepared.manifest.Inputs)),
 		DeclaredProfiles: make([]contract.ExtensionInstallDeclaredProfilePayload, 0, len(plan.Profiles)),
 		Placements:       make([]contract.ExtensionPlacementPayload, 0),
+	}
+	for _, input := range prepared.manifest.Inputs {
+		result.Inputs = append(result.Inputs, contract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+			Default: input.Default,
+			Binding: contract.MarketplaceMCPInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+		})
 	}
 	for _, entry := range plan.Profiles {
 		item := contract.ExtensionInstallDeclaredProfilePayload{

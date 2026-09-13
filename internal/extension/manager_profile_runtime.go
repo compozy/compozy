@@ -27,6 +27,11 @@ func (m *Manager) ensureProfileRuntime(ctx context.Context, key InstanceKey) (In
 	if err := key.Validate(); err != nil {
 		return InstanceKey{}, err
 	}
+	sourceKey, _, err := m.readInstanceSource(ctx, key)
+	if err != nil {
+		return InstanceKey{}, err
+	}
+	key = runtimeKeyForInstallation(key, sourceKey)
 	if !key.IsProfileScoped() {
 		return key, nil
 	}
@@ -55,6 +60,9 @@ func (m *Manager) ensureProfileRuntime(ctx context.Context, key InstanceKey) (In
 	}
 	if exists {
 		return InstanceKey{}, runtimeErr
+	}
+	if sourceKey.IsProfileScoped() {
+		return m.startInstalledProfileRuntime(ctx, key)
 	}
 	profileRuntime, err := m.newProfileRuntime(key)
 	if err != nil {
@@ -98,7 +106,14 @@ func (m *Manager) InvalidateProfileRuntime(ctx context.Context, key InstanceKey)
 		return err
 	}
 	if !key.IsProfileScoped() {
-		return nil
+		source, _, err := m.readInstanceSource(ctx, key)
+		if err != nil {
+			return err
+		}
+		key = runtimeKeyForInstallation(key, source)
+		if !key.IsProfileScoped() {
+			return nil
+		}
 	}
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
@@ -134,7 +149,7 @@ func (m *Manager) profileRuntimeState(key InstanceKey) (bool, bool, error) {
 	if extension == nil {
 		return false, false, nil
 	}
-	if extension.active && extension.process != nil {
+	if extension.active && (extension.process != nil || !requiresSubprocess(extension.manifest)) {
 		return true, true, nil
 	}
 	message := strings.TrimSpace(extension.lastError)
@@ -142,6 +157,32 @@ func (m *Manager) profileRuntimeState(key InstanceKey) (bool, bool, error) {
 		message = "profile runtime is recovering"
 	}
 	return true, false, fmt.Errorf("extension: extension %q is unavailable: %s", key.Name, message)
+}
+
+func (m *Manager) newInstalledProfileInstance(ctx context.Context, key InstanceKey) (*managedExtension, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	info, err := m.registry.Get(key.Name)
+	if err != nil {
+		return nil, err
+	}
+	info.Enabled, err = m.registry.IsEnabledForProfile(key.Name, key.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	return &managedExtension{key: key, info: *info, phase: ExtensionPhaseDiscover, logRing: m.logRingFor(key)}, nil
+}
+
+func (m *Manager) startInstalledProfileRuntime(ctx context.Context, key InstanceKey) (InstanceKey, error) {
+	ext, err := m.newInstalledProfileInstance(ctx, key)
+	if err != nil {
+		return InstanceKey{}, err
+	}
+	if err := m.startOneWithPublish(ctx, ext, func() { m.profileExtensions[key] = ext }); err != nil {
+		return InstanceKey{}, err
+	}
+	return key, nil
 }
 
 func (m *Manager) newProfileRuntime(key InstanceKey) (*managedExtension, error) {

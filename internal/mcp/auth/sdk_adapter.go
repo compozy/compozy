@@ -30,12 +30,10 @@ func (s *Service) beginHostedOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
-	if len(prm.AuthorizationServers) == 0 {
-		return LoginState{}, errors.New(
-			"mcp auth: protected resource metadata has no authorization servers",
-		)
+	issuer, err := hostedAuthorizationServer(cfg, prm.AuthorizationServers)
+	if err != nil {
+		return LoginState{}, err
 	}
-	issuer := strings.TrimSpace(prm.AuthorizationServers[0])
 	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {
 		return LoginState{}, err
@@ -97,12 +95,11 @@ func (s *Service) hostedRefreshConfig(
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}
-	if len(prm.AuthorizationServers) == 0 {
-		return ServerConfig{}, Metadata{}, errors.New(
-			"mcp auth: protected resource metadata has no authorization servers",
-		)
+	issuer, err := hostedAuthorizationServer(cfg, prm.AuthorizationServers)
+	if err != nil {
+		return ServerConfig{}, Metadata{}, err
 	}
-	asm, err := s.authServerMetadata(ctx, cfg, prm.AuthorizationServers[0])
+	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}

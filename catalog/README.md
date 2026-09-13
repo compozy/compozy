@@ -1,24 +1,61 @@
 # Curated Marketplace Catalog
 
-The three JSON documents in this directory are CompozyOS's default discovery feeds. Each feed must remain
-non-empty and pass the same schema parser used by the daemon.
+`sources.json` owns listing metadata, the artifact base URL, the publication timestamp, and the
+retained skill declaration. `packages/<entry_id>/` owns each extension's manifest and packaged files;
+`marketplaces.json` owns the ordered plugin marketplace presets. Version, inputs, archive bytes and
+SHA-256 digests come from the packages, not from hand-edited feeds.
 
-Extension entries point to one exact HTTPS `.tar.gz` artifact and pin its SHA-256 digest. Keep the
-reviewable source under `packages/<name>/` and the deterministic archive under `artifacts/`.
-
-Package and validate a first-party extension from the repository root:
+Generate and validate both feed families from the repository root:
 
 ```bash
-go run ./cmd/compozy-catalog package \
-  ./catalog/packages/repository-orientation \
-  ./catalog/artifacts/repository-orientation-v1.0.0.tar.gz
-
-./scripts/catalog-digest.sh \
-  ./catalog/artifacts/repository-orientation-v1.0.0.tar.gz
-
+go run ./cmd/compozy-catalog publish ./catalog ./catalog
 go run ./cmd/compozy-catalog validate ./catalog
 ```
 
-Update `extensions.json` with the generated digest and a versioned `artifact_url`. Validation runs
-the local artifact through the production installer, including archive limits, manifest discovery,
-content scanning, digest verification, and version matching.
+For an isolated publication, replace the second `./catalog` with another output directory. The
+publisher stages the complete output, validates its manifests and artifacts through the production
+installer, checks packaged inputs against v3 entries, and runs the released v2 decoder and semantic
+validator before replacing output files. Artifacts are written before feeds. Invalid sources leave
+the existing output untouched; filesystem failures during replacement are reported and require a
+retry. Unrelated files in the destination are preserved.
+
+Generated output:
+
+- `v3/extensions.json`: the twenty extensions, including seventeen packaged MCP servers.
+- `v3/marketplaces.json`: ordered plugin marketplace presets.
+- `extensions.json`, `mcp.json`, `skills.json`: the retained v2 family, published until v0.6.0.
+- `artifacts/*.tar.gz`: deterministic package archives referenced by both extension feeds.
+
+Do not edit generated feeds or artifacts. The v2 extension projection omits `icon` and `inputs`.
+The v2 MCP projection removes input-bound URL parameters while preserving fixed parameters, because
+the released decoder rejects a query binding already present in the launch URL. Documentation Writer
+is retained only in the v2 skills feed.
+
+The daemon tries `<base_url>/v3/extensions.json` first. A missing or removed family (HTTP 404/410)
+falls back to the root with one `marketplace.feed.root_family` warning per source instance. Other
+HTTP errors and invalid v3 documents remain errors. Mirrors keep their configured base URL.
+
+## Packaged MCP manifests
+
+Each package declares its launch in `resources.mcp_servers`, its default scope, and any OAuth policy.
+Remote packages without an upstream package version use extension version `1.0.0`; this versions the
+manifest, not the hosted service. Manifest OAuth uses `method = "oauth"` and
+`registration = "dynamic"` for automatic registration. An optional `issuer_url` restricts discovery
+to that issuer. `default_scope` is the installation default; it does not broaden an installed
+extension's workspace scope.
+
+Use `[[inputs]]` for install values. Every declaration needs a unique id and binding, a prompt, and a
+type (`string`, `identifier`, `boolean`, or `secret`). An environment binding must name a variable in
+at least one server's `env` or `secret_env` map, with the input id as its value. A URL binding must name
+a query parameter already declared by an HTTP server. Secrets require `secret_env`, cannot have
+defaults, and cannot bind URL parameters. Boolean defaults are TOML booleans; other non-secret defaults
+are strings. Required environment inputs contribute their variable names to `requires_env`.
+
+Validate a manifest without starting its server:
+
+```bash
+go run ./cmd/compozy extension validate ./catalog/packages/context7 --output json
+```
+
+Listing icons accept HTTPS PNG/SVG/WebP URLs or matching data URLs up to 64 KiB. Publication rejects
+invalid icons; runtime decoding drops an invalid optional icon and returns an entry diagnostic.

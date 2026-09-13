@@ -1,0 +1,42 @@
+---
+title: Installed
+description: Enable, update, and remove extensions from your complete local inventory.
+---
+
+Open the installed count in Marketplace to reach `/marketplace/installed`. This flat list includes
+extensions installed from the catalog, GitHub, and local folders. It reads your local inventory,
+so catalog search, pagination, and source failures do not hide an installed extension.
+
+Each row shows its contents and current state. Use the switch to enable or disable an extension,
+or open its menu for the available management actions. Select the row to inspect runtime details,
+diagnostics, and provenance. Installation, authorization, and runtime health are separate signals.
+
+## Update
+
+When updates are available, the updates line shows their count. Update all attempts the eligible
+extensions and reports each result. A failed update does not undo another extension's successful
+update; inspect the failed row and retry it after resolving the error. A failed extension retains its
+previous installed version.
+
+The structured batch endpoint is shared by HTTP and UDS:
+
+```http
+POST /api/extensions/update
+Content-Type: application/json
+
+{"all":true}
+```
+
+Read each item's status and error. A successful HTTP response can contain both updated and failed
+items; it is not proof that every extension updated.
+
+## Remove
+
+Choose Remove in the row menu and confirm using the installed extension's name. Removal targets
+that local installation, rather than a similarly named catalog entry. After removal, the Installed
+list and catalog marker refresh. A catalog entry remains available for installation while its source
+continues to publish it.
+
+For scripted management, use the existing `compozy extension` commands or the generated
+[Extensions API reference](/docs/api/extensions). Use the returned local `name` for lifecycle actions;
+keep the catalog's `entry_id` and `source_ref` for catalog lookup.

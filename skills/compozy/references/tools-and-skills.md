@@ -86,28 +86,34 @@ contract.
 
 ## Marketplace Discovery
 
-Use `compozy__marketplace_search` for read-only MCP, extension, and skill discovery. Results carry
-stable `entry_id` values and scoped installed state. CLI fallback:
-`compozy marketplace search [query] [--kind mcp|extension|skill] [--scope user|profile|workspace]
-[--workspace <id>] [--profile <name>] [--cursor <opaque>] -o json`. Continuation requires one kind
-and unchanged query, scope, profile, and workspace. Curated cursors fence the source; remote-skill cursors validate the prior
-page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
-adds a Page block; JSONL adds a `type: "page"` record after items.
+Marketplace in the app is one extension catalog at `/marketplace`; its installed shelf opens
+`/marketplace/installed`. Extension contents describe the included MCP servers, skills, tools, and
+other resources. Do not reconstruct kind-specific app paths.
 
-Exact detail is `compozy marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
-applies to MCPs, extensions, and skills. User is default; profile uses the active profile and workspace
-requires an ID.
-Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`.
-Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
-Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
-feed-owned and `manage_path` is an opaque presentation path to follow, not reconstruct.
+For structured catalog discovery, use `GET /api/marketplace` over HTTP or UDS. Read `items`, `total`,
+`sources`, `revision`, `stale`, and optional `next_cursor`. Continue with the same query, profile, and
+workspace. On `marketplace_cursor_stale` with `restart: true`, discard prior pages and restart.
+Failed refreshes preserve cached entries; read source diagnostics before interpreting an empty list.
 
-Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
-`allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
-Curated extension detail also carries an absolute HTTPS `artifact_url` and its `digest_sha256`; the
-daemon installs that exact feed-owned archive instead of guessing among GitHub release assets.
-`github`, `git`, and `local_path` installs bypass this feed and carry their own install-time consent
-gate, not a marketplace row.
+Inspect `GET /api/marketplace/entries/{entry_id}?source=<source>` and optionally
+`installed_name=<local-name>`. Identity is `(source_ref, entry_id)`, never the display name.
+Use the returned `install_slug` with `compozy extension install`; use the installed extension's
+local name for management, and follow `manage_path` rather than inventing a URL. The complete
+installed inventory comes from `GET /api/extensions`, independent of catalog pagination.
+`POST /api/extensions/update` with `{"all":true}` returns per-extension outcomes: a failed item does
+not undo earlier successful updates. Inspect every status, even on HTTP 200.
+
+The existing native `compozy__marketplace_search` and CLI discovery verbs retain their current
+selectors: `compozy marketplace search [query] --kind extension -o json`,
+`compozy marketplace info extension <entry_id> [--installed-name <name>]`, and
+`compozy marketplace refresh --kind extension`. Consult their returned envelope for continuation
+metadata; do not interpret the retained CLI kind selector as an app navigation control.
+
+Entries carry the daemon's pre-install `trust` report. Read `decision`, `registry_tier`,
+`allow_unverified`, and `warnings`; `checksum_verified` remains false until download verification.
+Curated detail carries an HTTPS `artifact_url` and `digest_sha256`. The daemon installs that exact
+archive and rejects digest mismatches regardless of unverified-install consent. GitHub, Git, and
+local-folder installs have their own policy and consent gate.
 
 Install MCP catalog entries with
 `compozy mcp install <entry> --scope user|profile|workspace [--workspace <id>] -o json` or
