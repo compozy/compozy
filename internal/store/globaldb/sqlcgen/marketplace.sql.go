@@ -91,6 +91,8 @@ func (q *Queries) GetMarketplaceCatalogEntry(ctx context.Context, arg GetMarketp
 
 const getMarketplaceCatalogState = `-- name: GetMarketplaceCatalogState :one
 SELECT s.source, s.generation, s.revision, s.manifest_version, s.generated_at, s.fetched_at, s.stale, s.last_error,
+       s.source_ref, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
+       s.installable, s.error_class, s.document_path, s.owner,
        CAST((SELECT COUNT(*) FROM marketplace_catalog_entries e WHERE e.source = s.source) AS INTEGER) AS entry_count
 FROM marketplace_catalog_state s
 WHERE s.source = ?1
@@ -105,6 +107,15 @@ type GetMarketplaceCatalogStateRow struct {
 	FetchedAt       string         `json:"fetched_at"`
 	Stale           int64          `json:"stale"`
 	LastError       string         `json:"last_error"`
+	SourceRef       string         `json:"source_ref"`
+	DocumentDigest  string         `json:"document_digest"`
+	DiagnosticsJson string         `json:"diagnostics_json"`
+	KindOfSource    string         `json:"kind_of_source"`
+	Enabled         int64          `json:"enabled"`
+	Installable     int64          `json:"installable"`
+	ErrorClass      string         `json:"error_class"`
+	DocumentPath    string         `json:"document_path"`
+	Owner           string         `json:"owner"`
 	EntryCount      int64          `json:"entry_count"`
 }
 
@@ -120,6 +131,15 @@ func (q *Queries) GetMarketplaceCatalogState(ctx context.Context, source string)
 		&i.FetchedAt,
 		&i.Stale,
 		&i.LastError,
+		&i.SourceRef,
+		&i.DocumentDigest,
+		&i.DiagnosticsJson,
+		&i.KindOfSource,
+		&i.Enabled,
+		&i.Installable,
+		&i.ErrorClass,
+		&i.DocumentPath,
+		&i.Owner,
 		&i.EntryCount,
 	)
 	return i, err
@@ -274,11 +294,11 @@ func (q *Queries) ListMarketplaceCatalogEntries(ctx context.Context, arg ListMar
 
 const markMarketplaceCatalogStateStale = `-- name: MarkMarketplaceCatalogStateStale :execrows
 INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, generation
+  source, manifest_version, generated_at, fetched_at, stale, last_error, generation, error_class
 ) VALUES (
-  ?1, 0, NULL, '', 1, ?2, ?3
+  ?1, 0, NULL, '', 1, ?2, ?3, ?4
 )
-ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error
+ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error, error_class = excluded.error_class
 WHERE marketplace_catalog_state.generation = excluded.generation
 `
 
@@ -286,10 +306,16 @@ type MarkMarketplaceCatalogStateStaleParams struct {
 	Source     string `json:"source"`
 	LastError  string `json:"last_error"`
 	Generation int64  `json:"generation"`
+	ErrorClass string `json:"error_class"`
 }
 
 func (q *Queries) MarkMarketplaceCatalogStateStale(ctx context.Context, arg MarkMarketplaceCatalogStateStaleParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, markMarketplaceCatalogStateStale, arg.Source, arg.LastError, arg.Generation)
+	result, err := q.db.ExecContext(ctx, markMarketplaceCatalogStateStale,
+		arg.Source,
+		arg.LastError,
+		arg.Generation,
+		arg.ErrorClass,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -298,10 +324,13 @@ func (q *Queries) MarkMarketplaceCatalogStateStale(ctx context.Context, arg Mark
 
 const upsertMarketplaceCatalogStateFresh = `-- name: UpsertMarketplaceCatalogStateFresh :exec
 INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, revision, generation, plugins, installable
+  source, manifest_version, generated_at, fetched_at, stale, last_error, revision, generation, plugins, installable,
+  source_ref, document_digest, diagnostics_json, kind_of_source, document_path, owner, error_class
 ) VALUES (
   ?1, ?2, ?3,
-  ?4, 0, '', ?5, ?6, ?7, ?8
+  ?4, 0, '', ?5, ?6, ?7, ?8,
+  ?9, ?10, ?11, ?12,
+  ?13, ?14, ''
 )
 ON CONFLICT(source) DO UPDATE SET
   manifest_version = excluded.manifest_version,
@@ -311,7 +340,14 @@ ON CONFLICT(source) DO UPDATE SET
   last_error = '',
   revision = excluded.revision,
   plugins = excluded.plugins,
-  installable = excluded.installable
+  installable = excluded.installable,
+  source_ref = excluded.source_ref,
+  document_digest = excluded.document_digest,
+  diagnostics_json = excluded.diagnostics_json,
+  kind_of_source = excluded.kind_of_source,
+  document_path = excluded.document_path,
+  owner = excluded.owner,
+  error_class = ''
 `
 
 type UpsertMarketplaceCatalogStateFreshParams struct {
@@ -323,6 +359,12 @@ type UpsertMarketplaceCatalogStateFreshParams struct {
 	Generation      int64          `json:"generation"`
 	Plugins         int64          `json:"plugins"`
 	Installable     int64          `json:"installable"`
+	SourceRef       string         `json:"source_ref"`
+	DocumentDigest  string         `json:"document_digest"`
+	DiagnosticsJson string         `json:"diagnostics_json"`
+	KindOfSource    string         `json:"kind_of_source"`
+	DocumentPath    string         `json:"document_path"`
+	Owner           string         `json:"owner"`
 }
 
 func (q *Queries) UpsertMarketplaceCatalogStateFresh(ctx context.Context, arg UpsertMarketplaceCatalogStateFreshParams) error {
@@ -335,6 +377,12 @@ func (q *Queries) UpsertMarketplaceCatalogStateFresh(ctx context.Context, arg Up
 		arg.Generation,
 		arg.Plugins,
 		arg.Installable,
+		arg.SourceRef,
+		arg.DocumentDigest,
+		arg.DiagnosticsJson,
+		arg.KindOfSource,
+		arg.DocumentPath,
+		arg.Owner,
 	)
 	return err
 }

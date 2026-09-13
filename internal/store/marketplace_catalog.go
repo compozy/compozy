@@ -30,6 +30,12 @@ type MarketplaceCatalogEntry struct {
 
 // MarketplaceCatalogReplacement is one validated, atomic source projection.
 type MarketplaceCatalogReplacement struct {
+	SourceRef       string
+	Kind            string
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	DiagnosticsJSON string
 	Source          string
 	Generation      int64
 	Revision        string
@@ -41,6 +47,15 @@ type MarketplaceCatalogReplacement struct {
 
 // MarketplaceCatalogState is the storage-boundary freshness record for one source.
 type MarketplaceCatalogState struct {
+	SourceRef       string
+	Kind            string
+	Enabled         bool
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	DiagnosticsJSON string
+	Installable     int64
+	ErrorClass      string
 	Source          string
 	Generation      int64
 	Revision        string
@@ -63,7 +78,7 @@ type MarketplaceCatalogRepository interface {
 	ReplaceMarketplaceCatalog(context.Context, MarketplaceCatalogReplacement) error
 	ReadMarketplaceCatalogSnapshot(context.Context, string, int64) (MarketplaceCatalogSnapshot, error)
 	AdvanceMarketplaceCatalogGeneration(context.Context, string) (int64, error)
-	MarkMarketplaceCatalogStale(context.Context, string, int64, string) error
+	MarkMarketplaceCatalogStale(context.Context, string, int64, string, string) error
 	ListMarketplaceCatalogEntries(context.Context, string, int64) ([]MarketplaceCatalogEntry, error)
 	GetMarketplaceCatalogEntry(context.Context, string, string) (MarketplaceCatalogEntry, error)
 	GetMarketplaceExtensionByInstallSlug(context.Context, string, string) (MarketplaceCatalogEntry, error)

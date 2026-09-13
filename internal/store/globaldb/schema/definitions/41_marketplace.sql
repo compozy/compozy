@@ -24,6 +24,9 @@ CREATE INDEX idx_marketplace_catalog_entries_source_name
 
 CREATE TABLE marketplace_catalog_state (
 	source           TEXT NOT NULL PRIMARY KEY CHECK (trim(source) <> ''),
+	source_ref       TEXT NOT NULL DEFAULT '',
+	document_digest  TEXT NOT NULL DEFAULT '',
+	diagnostics_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(diagnostics_json) AND json_type(diagnostics_json) = 'array'),
 	manifest_version INTEGER NOT NULL CHECK (manifest_version >= 0),
 	generated_at     TEXT,
 	fetched_at       TEXT NOT NULL DEFAULT '',

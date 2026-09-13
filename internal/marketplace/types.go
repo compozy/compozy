@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 const ManifestVersion = 3
@@ -21,6 +23,12 @@ const (
 
 // Document is one validated catalog snapshot.
 type Document struct {
+	SourceRef       string
+	SourceKind      string
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	Diagnostics     []pluginsource.Diagnostic
 	ManifestVersion int
 	GeneratedAt     time.Time
 	FetchedAt       time.Time
@@ -52,6 +60,14 @@ type Entry struct {
 
 // SourceState reports the freshness and failure state for one feed projection.
 type SourceState struct {
+	SourceRef       string
+	Kind            string
+	Enabled         bool
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	Diagnostics     []pluginsource.Diagnostic
+	Installable     int
 	Source          string
 	Generation      int64
 	Revision        string

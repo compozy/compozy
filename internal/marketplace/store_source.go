@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -26,11 +27,25 @@ func (s *SQLiteStore) ReplaceSource(ctx context.Context, source string, generati
 	if err := validateReplacement(document); err != nil {
 		return err
 	}
-	revision, err := sourceContentRevision(source, document.Entries)
+	sourceRef := document.SourceRef
+	if sourceRef == "" && source == CompozyCatalogSource {
+		sourceRef = CompozyCatalogRef
+	}
+	revision, err := sourceContentRevision(source, sourceRef, document)
+	if err != nil {
+		return err
+	}
+	diagnostics := document.Diagnostics
+	if diagnostics == nil {
+		diagnostics = []pluginsource.Diagnostic{}
+	}
+	encodedDiagnostics, err := json.Marshal(diagnostics)
 	if err != nil {
 		return err
 	}
 	replacement := storepkg.MarketplaceCatalogReplacement{
+		SourceRef: sourceRef, Kind: document.SourceKind, DocumentDigest: document.DocumentDigest,
+		DocumentPath: document.DocumentPath, Owner: document.Owner, DiagnosticsJSON: string(encodedDiagnostics),
 		Source: source, Generation: generation, Revision: revision,
 		ManifestVersion: int64(document.ManifestVersion),
 		GeneratedAt:     storepkg.FormatNullableTimestamp(document.GeneratedAt),
@@ -49,9 +64,9 @@ func (s *SQLiteStore) ReplaceSource(ctx context.Context, source string, generati
 	return nil
 }
 
-func sourceContentRevision(source string, entries []Entry) (string, error) {
-	content := make([]Entry, len(entries))
-	copy(content, entries)
+func sourceContentRevision(source, sourceRef string, document *Document) (string, error) {
+	content := make([]Entry, len(document.Entries))
+	copy(content, document.Entries)
 	for index := range content {
 		content[index].FetchedAt = time.Time{}
 		content[index].SourceName = source
@@ -59,9 +74,11 @@ func sourceContentRevision(source string, entries []Entry) (string, error) {
 	}
 	slices.SortFunc(content, func(a, b Entry) int { return strings.Compare(a.EntryID, b.EntryID) })
 	bytes, err := json.Marshal(struct {
-		Source  string
-		Entries []Entry
-	}{source, content})
+		Source         string
+		SourceRef      string
+		DocumentDigest string
+		Entries        []Entry
+	}{source, sourceRef, document.DocumentDigest, content})
 	if err != nil {
 		return "", fmt.Errorf("marketplace catalog: encode source revision: %w", err)
 	}
@@ -102,7 +119,7 @@ func (s *SQLiteStore) MarkSourceStale(
 	if err := s.checkReady(ctx); err != nil {
 		return err
 	}
-	return s.repository.MarkMarketplaceCatalogStale(ctx, source, generation, encodeStoredError(errorClass, lastError))
+	return s.repository.MarkMarketplaceCatalogStale(ctx, source, generation, errorClass, lastError)
 }
 
 // AdvanceSourceGeneration invalidates outstanding reads when a source configuration changes.

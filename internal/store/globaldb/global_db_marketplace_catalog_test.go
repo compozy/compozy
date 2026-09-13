@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -45,6 +46,21 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		seedMarketplaceMigrationProjection(t, openMarketplaceMigrationStore(t, first))
+		empty := &marketplace.Document{
+			ManifestVersion: marketplace.ManifestVersion,
+			FetchedAt:       time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC),
+			SourceRef:       "github:example/empty", SourceKind: "custom", DocumentDigest: "document-digest",
+			DocumentPath: ".claude-plugin/marketplace.json", Owner: "Example",
+			Diagnostics: []pluginsource.Diagnostic{{Code: "invalid_plugin", Message: "Missing name"}},
+		}
+		catalog := openMarketplaceMigrationStore(t, first)
+		if err := catalog.ReplaceSource(ctx, "empty", 0, empty); err != nil {
+			t.Fatal(err)
+		}
+		before, err := catalog.SourceState(ctx, "empty")
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := first.Close(ctx); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
 		}
@@ -59,6 +75,13 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			}
 		})
 		assertMarketplaceMigrationProjection(t, openMarketplaceMigrationStore(t, second))
+		after, err := openMarketplaceMigrationStore(t, second).SourceState(ctx, "empty")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(before, after) {
+			t.Fatalf("empty source changed across restart: before=%#v after=%#v", before, after)
+		}
 	})
 }
 
@@ -182,6 +205,76 @@ func assertMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLit
 // Owner: global database upgrade; canonical suite: global_db_marketplace_catalog_test.go.
 func TestMarketplaceCatalogSourceMigration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: source-state upgrades preserve rows and replace error prefixes with durable fields once.
+	// Owner: global database upgrade; canonical suite: TestMarketplaceCatalogSourceMigration.
+	t.Run("Should preserve v114 sources and separate error metadata across restart", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		previous, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00115_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := previous.Close(); err != nil {
+				t.Errorf("close previous: %v", err)
+			}
+		})
+		if _, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_state
+(source,manifest_version,fetched_at,stale,last_error,kind_of_source,enabled,plugins,installable,error_class,document_path,owner,revision,generation)
+VALUES ('compozy-catalog',3,'2026-09-13T12:00:00Z',1,'[network] unavailable','feed',1,0,0,'','','','feed-rev',4),
+       ('team',3,'2026-09-13T12:00:00Z',1,'[remote] missing','custom',0,0,0,'validation','.claude-plugin/marketplace.json','Team','team-rev',7)`); err != nil {
+			t.Fatal(err)
+		}
+		if err := previous.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("close reopened: %v", err)
+			}
+		})
+		catalog := openMarketplaceMigrationStore(t, reopened)
+		for _, want := range []struct {
+			name, ref, kind, class, message, path, owner, revision string
+			enabled                                                bool
+			generation                                             int64
+		}{
+			{"compozy-catalog", marketplace.CompozyCatalogRef, "feed", "network", "unavailable", "", "", "feed-rev", true, 4},
+			{"team", "", "custom", "validation", "[remote] missing", ".claude-plugin/marketplace.json", "Team", "team-rev", false, 7},
+		} {
+			state, err := catalog.SourceState(ctx, want.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.SourceRef != want.ref || state.Kind != want.kind || state.Enabled != want.enabled ||
+				state.ErrorClass != want.class || state.LastError != want.message || state.DocumentPath != want.path ||
+				state.Owner != want.owner || state.Revision != want.revision || state.Generation != want.generation ||
+				state.ManifestVersion != 3 || !state.Stale || state.FetchedAt.Format(time.RFC3339) != "2026-09-13T12:00:00Z" ||
+				state.DocumentDigest != "" || state.Diagnostics == nil || len(state.Diagnostics) != 0 ||
+				state.EntryCount != 0 || state.Installable != 0 {
+				t.Fatalf("source %q after upgrade and reopen = %#v", want.name, state)
+			}
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 
 	// Invariant: removing the fixed discriminator preserves every variable catalog and source-state value.
 	// Owner: global database upgrade; canonical suite: TestMarketplaceCatalogSourceMigration.

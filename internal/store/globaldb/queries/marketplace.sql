@@ -14,10 +14,13 @@ INSERT INTO marketplace_catalog_entries (
 
 -- name: UpsertMarketplaceCatalogStateFresh :exec
 INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, revision, generation, plugins, installable
+  source, manifest_version, generated_at, fetched_at, stale, last_error, revision, generation, plugins, installable,
+  source_ref, document_digest, diagnostics_json, kind_of_source, document_path, owner, error_class
 ) VALUES (
   sqlc.arg(source), sqlc.arg(manifest_version), sqlc.narg(generated_at),
-  sqlc.arg(fetched_at), 0, '', sqlc.arg(revision), sqlc.arg(generation), sqlc.arg(plugins), sqlc.arg(installable)
+  sqlc.arg(fetched_at), 0, '', sqlc.arg(revision), sqlc.arg(generation), sqlc.arg(plugins), sqlc.arg(installable),
+  sqlc.arg(source_ref), sqlc.arg(document_digest), sqlc.arg(diagnostics_json), sqlc.arg(kind_of_source),
+  sqlc.arg(document_path), sqlc.arg(owner), ''
 )
 ON CONFLICT(source) DO UPDATE SET
   manifest_version = excluded.manifest_version,
@@ -27,15 +30,22 @@ ON CONFLICT(source) DO UPDATE SET
   last_error = '',
   revision = excluded.revision,
   plugins = excluded.plugins,
-  installable = excluded.installable;
+  installable = excluded.installable,
+  source_ref = excluded.source_ref,
+  document_digest = excluded.document_digest,
+  diagnostics_json = excluded.diagnostics_json,
+  kind_of_source = excluded.kind_of_source,
+  document_path = excluded.document_path,
+  owner = excluded.owner,
+  error_class = '';
 
 -- name: MarkMarketplaceCatalogStateStale :execrows
 INSERT INTO marketplace_catalog_state (
-  source, manifest_version, generated_at, fetched_at, stale, last_error, generation
+  source, manifest_version, generated_at, fetched_at, stale, last_error, generation, error_class
 ) VALUES (
-  sqlc.arg(source), 0, NULL, '', 1, sqlc.arg(last_error), sqlc.arg(generation)
+  sqlc.arg(source), 0, NULL, '', 1, sqlc.arg(last_error), sqlc.arg(generation), sqlc.arg(error_class)
 )
-ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error
+ON CONFLICT(source) DO UPDATE SET stale = 1, last_error = excluded.last_error, error_class = excluded.error_class
 WHERE marketplace_catalog_state.generation = excluded.generation;
 
 -- name: ListMarketplaceCatalogEntries :many
@@ -59,6 +69,8 @@ WHERE source = 'compozy-catalog'
 
 -- name: GetMarketplaceCatalogState :one
 SELECT s.source, s.generation, s.revision, s.manifest_version, s.generated_at, s.fetched_at, s.stale, s.last_error,
+       s.source_ref, s.document_digest, s.diagnostics_json, s.kind_of_source, s.enabled,
+       s.installable, s.error_class, s.document_path, s.owner,
        CAST((SELECT COUNT(*) FROM marketplace_catalog_entries e WHERE e.source = s.source) AS INTEGER) AS entry_count
 FROM marketplace_catalog_state s
 WHERE s.source = sqlc.arg(source);

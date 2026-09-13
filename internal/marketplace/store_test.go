@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -97,6 +99,7 @@ func TestMarketplaceSourceStateRejectsUnrepresentableStoredCounts(t *testing.T) 
 		for _, row := range []storepkg.MarketplaceCatalogState{
 			{ManifestVersion: -1},
 			{ManifestVersion: 1, EntryCount: -1},
+			{ManifestVersion: 1, Installable: -1},
 		} {
 			if _, err := marketplaceSourceStateFromRow(row); err == nil {
 				t.Fatalf("marketplaceSourceStateFromRow(%#v) error = nil, want range failure", row)
@@ -531,6 +534,66 @@ func testEntry(entryID string, name string, description string) Entry {
 // Owner: catalog source projection; canonical suite: store_test.go (UT-068).
 func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 	t.Parallel()
+	// Invariant: empty sources retain identity and diagnostics; document or origin changes invalidate cursors.
+	// Owner: catalog persistence; canonical suite: TestSQLiteStoreSourceContentRevision.
+	t.Run("Should retain empty source metadata and invalidate revisions when its identity changes", func(t *testing.T) {
+		t.Parallel()
+		catalog := openMarketplaceTestStore(t)
+		ctx := t.Context()
+		document := testDocument(time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC))
+		document.SourceRef = "github:example/plugins"
+		document.SourceKind = "custom"
+		document.DocumentDigest = strings.Repeat("a", 64)
+		document.DocumentPath = ".claude-plugin/marketplace.json"
+		document.Owner = "Example"
+		document.Diagnostics = []pluginsource.Diagnostic{{Code: "invalid_plugin", Message: "Missing name"}}
+		if err := catalog.ReplaceSource(ctx, "team", 0, document); err != nil {
+			t.Fatal(err)
+		}
+		state, err := catalog.SourceState(ctx, "team")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.SourceRef != document.SourceRef || state.Kind != document.SourceKind || !state.Enabled ||
+			state.DocumentDigest != document.DocumentDigest || state.DocumentPath != document.DocumentPath ||
+			state.Owner != document.Owner || !reflect.DeepEqual(state.Diagnostics, document.Diagnostics) ||
+			state.EntryCount != 0 || state.Installable != 0 || state.Revision == "" {
+			t.Fatalf("empty source state = %#v", state)
+		}
+		if err := catalog.MarkSourceStale(ctx, "team", 0, "network", "[remote] unavailable"); err != nil {
+			t.Fatal(err)
+		}
+		stale, err := catalog.SourceState(ctx, "team")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !stale.Stale || stale.ErrorClass != "network" || stale.LastError != "[remote] unavailable" ||
+			stale.Revision != state.Revision || !reflect.DeepEqual(stale.Diagnostics, state.Diagnostics) {
+			t.Fatalf("stale state = %#v", stale)
+		}
+		for _, change := range []struct {
+			field *string
+			value string
+		}{
+			{&document.DocumentDigest, strings.Repeat("b", 64)},
+			{&document.SourceRef, "github:example/replacement"},
+		} {
+			*change.field = change.value
+			if err := catalog.ReplaceSource(ctx, "team", 0, document); err != nil {
+				t.Fatal(err)
+			}
+			changed, err := catalog.SourceState(ctx, "team")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed.Revision == state.Revision || changed.Stale || changed.LastError != "" ||
+				changed.ErrorClass != "" {
+				t.Fatalf("refresh failed to publish new identity and clear failure: %#v", changed)
+			}
+			state = changed
+		}
+	})
+
 	// Invariant: source projection retains v3 inputs through SQLite; owner: catalog persistence.
 	t.Run("Should preserve v3 typed inputs and icon through the source projection", func(t *testing.T) {
 		t.Parallel()
@@ -571,6 +634,7 @@ func TestSQLiteStoreSourceContentRevision(t *testing.T) {
 			t.Fatal(err)
 		}
 		refreshed := testDocument(at.Add(time.Hour), first.Entries[1], first.Entries[0])
+		refreshed.SourceRef = CompozyCatalogRef
 		for i := range refreshed.Entries {
 			refreshed.Entries[i].FetchedAt = refreshed.FetchedAt
 		}

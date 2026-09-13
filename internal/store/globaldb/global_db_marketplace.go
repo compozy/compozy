@@ -62,7 +62,16 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 			return err
 		}
 	}
+	kind, diagnostics := replacement.Kind, replacement.DiagnosticsJSON
+	if kind == "" {
+		kind = "feed"
+	}
+	if diagnostics == "" {
+		diagnostics = "[]"
+	}
 	if err := queries.UpsertMarketplaceCatalogStateFresh(ctx, sqlcgen.UpsertMarketplaceCatalogStateFreshParams{
+		SourceRef: replacement.SourceRef, KindOfSource: kind, DocumentDigest: replacement.DocumentDigest,
+		DocumentPath: replacement.DocumentPath, Owner: replacement.Owner, DiagnosticsJson: diagnostics,
 		Source:          replacement.Source,
 		Generation:      replacement.Generation,
 		Revision:        replacement.Revision,
@@ -83,13 +92,13 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 
 // MarkMarketplaceCatalogStale records a refresh failure without changing entries.
 func (r *MarketplaceRepo) MarkMarketplaceCatalogStale(
-	ctx context.Context, source string, generation int64, lastError string,
+	ctx context.Context, source string, generation int64, errorClass, lastError string,
 ) error {
 	if err := r.checkReady(ctx, "mark marketplace catalog stale"); err != nil {
 		return err
 	}
 	changed, err := r.queries.MarkMarketplaceCatalogStateStale(ctx, sqlcgen.MarkMarketplaceCatalogStateStaleParams{
-		Source: source, Generation: generation, LastError: lastError,
+		Source: source, Generation: generation, ErrorClass: errorClass, LastError: lastError,
 	})
 	if err != nil {
 		return fmt.Errorf("store: mark marketplace catalog %q stale: %w", source, err)
@@ -164,6 +173,9 @@ func (r *MarketplaceRepo) GetMarketplaceCatalogState(
 
 func marketplaceCatalogStateFromRow(row sqlcgen.GetMarketplaceCatalogStateRow) store.MarketplaceCatalogState {
 	return store.MarketplaceCatalogState{
+		SourceRef: row.SourceRef, Kind: row.KindOfSource, Enabled: row.Enabled != 0,
+		DocumentDigest: row.DocumentDigest, DocumentPath: row.DocumentPath, Owner: row.Owner,
+		DiagnosticsJSON: row.DiagnosticsJson, Installable: row.Installable, ErrorClass: row.ErrorClass,
 		Source:          row.Source,
 		Generation:      row.Generation,
 		Revision:        row.Revision,

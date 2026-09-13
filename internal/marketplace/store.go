@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
+
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -114,7 +116,14 @@ func marketplaceSourceStateFromRow(row storepkg.MarketplaceCatalogState) (Source
 	if err != nil {
 		return SourceState{}, err
 	}
+	installable, err := storedCatalogInt(row.Installable, "installable")
+	if err != nil {
+		return SourceState{}, err
+	}
 	state := SourceState{
+		SourceRef: row.SourceRef, Kind: row.Kind, Enabled: row.Enabled, Installable: installable,
+		DocumentDigest: row.DocumentDigest, DocumentPath: row.DocumentPath, Owner: row.Owner,
+		ErrorClass: row.ErrorClass, LastError: row.LastError,
 		Source:          row.Source,
 		Generation:      row.Generation,
 		Revision:        row.Revision,
@@ -136,7 +145,12 @@ func marketplaceSourceStateFromRow(row storepkg.MarketplaceCatalogState) (Source
 		}
 		state.FetchedAt = parsed
 	}
-	state.ErrorClass, state.LastError = decodeStoredError(row.LastError)
+	state.Diagnostics = []pluginsource.Diagnostic{}
+	if row.DiagnosticsJSON != "" {
+		if err := json.Unmarshal([]byte(row.DiagnosticsJSON), &state.Diagnostics); err != nil {
+			return SourceState{}, fmt.Errorf("marketplace catalog: decode source diagnostics: %w", err)
+		}
+	}
 	return state, nil
 }
 
@@ -171,8 +185,11 @@ func validateReplacement(document *Document) error {
 	if document.ManifestVersion != ManifestVersion {
 		return &UnsupportedManifestVersionError{Version: document.ManifestVersion}
 	}
-	if document.GeneratedAt.IsZero() || document.FetchedAt.IsZero() {
+	if document.SourceKind != "preset" && document.SourceKind != "custom" && document.GeneratedAt.IsZero() {
 		return errors.New("marketplace catalog generated_at and fetched_at are required")
+	}
+	if document.FetchedAt.IsZero() {
+		return errors.New("marketplace catalog fetched_at is required")
 	}
 	return validateDocumentEntries(document.Entries)
 }
@@ -260,25 +277,4 @@ func normalizeListLimit(limit int) int {
 		return maxListLimit
 	}
 	return limit
-}
-
-func encodeStoredError(errorClass string, lastError string) string {
-	trimmedClass := strings.TrimSpace(errorClass)
-	trimmedError := strings.TrimSpace(lastError)
-	if trimmedClass == "" {
-		return trimmedError
-	}
-	return "[" + trimmedClass + "] " + trimmedError
-}
-
-func decodeStoredError(stored string) (string, string) {
-	trimmed := strings.TrimSpace(stored)
-	if !strings.HasPrefix(trimmed, "[") {
-		return "", trimmed
-	}
-	end := strings.IndexByte(trimmed, ']')
-	if end <= 1 {
-		return "", trimmed
-	}
-	return strings.TrimSpace(trimmed[1:end]), strings.TrimSpace(trimmed[end+1:])
 }

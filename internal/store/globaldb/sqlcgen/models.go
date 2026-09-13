@@ -1150,6 +1150,9 @@ type MarketplaceCatalogEntry struct {
 
 type MarketplaceCatalogState struct {
 	Source          string         `json:"source"`
+	SourceRef       string         `json:"source_ref"`
+	DocumentDigest  string         `json:"document_digest"`
+	DiagnosticsJson string         `json:"diagnostics_json"`
 	ManifestVersion int64          `json:"manifest_version"`
 	GeneratedAt     sql.NullString `json:"generated_at"`
 	FetchedAt       string         `json:"fetched_at"`
