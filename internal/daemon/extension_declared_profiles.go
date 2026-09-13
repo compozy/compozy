@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -31,7 +30,7 @@ func reconcileDeclaredExtensionProfiles(
 		if manifestPath == "" {
 			continue
 		}
-		manifest, err := extensionpkg.LoadManifest(filepath.Dir(manifestPath))
+		manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(manifestPath))
 		if err != nil {
 			logger.Warn("daemon: skip declared profiles from invalid extension", "extension", info.Name, "error", err)
 			continue

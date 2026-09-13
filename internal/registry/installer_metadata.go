@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -110,9 +111,6 @@ func locateInstallManifestRoot(
 		if !descend {
 			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
 		}
-		if isClientSpecificInstallDirectory(nextName) {
-			return nil, "", nil, &ClientSpecificPluginLayoutError{Layout: nextName}
-		}
 		if descended {
 			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
 		}
@@ -167,15 +165,6 @@ func closeInstallManifestSearchOnError(
 	return cause
 }
 
-func isClientSpecificInstallDirectory(name string) bool {
-	switch strings.TrimSpace(name) {
-	case installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin":
-		return true
-	default:
-		return false
-	}
-}
-
 func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 	hasExtensionManifest, err := manifestFileExists(root, installerExtensionManifestName)
 	if err != nil {
@@ -219,7 +208,7 @@ func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 			return "", fmt.Errorf("%w: unrelated plugin.json", errInstallMissingManifest)
 		}
 	default:
-		return "", nil
+		return clientManifestNameAtRoot(root)
 	}
 }
 
@@ -229,7 +218,6 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 		return "", false, fmt.Errorf("registry: read extracted root: %w", err)
 	}
 	directoryName := ""
-	clientSpecificDirectoryName := ""
 	fileCount := 0
 	for _, name := range names {
 		directory, openErr := root.OpenDirectory(name)
@@ -238,9 +226,6 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 				return "", false, fmt.Errorf("registry: close extracted directory %q: %w", name, closeErr)
 			}
 			directoryName = name
-			if isClientSpecificInstallDirectory(name) {
-				clientSpecificDirectoryName = name
-			}
 			continue
 		}
 		if !errors.Is(openErr, fileutil.ErrNotDirectory) {
@@ -263,18 +248,15 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 		}
 		fileCount++
 	}
-	if clientSpecificDirectoryName != "" {
-		return clientSpecificDirectoryName, true, nil
-	}
 	return directoryName, directoryName != "" && fileCount == 0 && len(names) == 1, nil
 }
 
 func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string) (installedPackageMetadata, error) {
-	content, err := readExtractionFile(root, manifestName)
+	content, err := readInstalledManifest(root, manifestName)
 	if err != nil {
 		return installedPackageMetadata{}, fmt.Errorf("registry: read manifest %q: %w", manifestName, err)
 	}
-	switch manifestName {
+	switch filepath.Base(manifestName) {
 	case installerSkillManifestName:
 		var meta skillManifestHeader
 		parts, err := frontmatter.Split(content)

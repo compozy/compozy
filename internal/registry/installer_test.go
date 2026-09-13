@@ -132,7 +132,7 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a client-only manifest below the single archive wrapper", func(t *testing.T) {
+	t.Run("Should preserve a client-only package root during extraction", func(t *testing.T) {
 		t.Parallel()
 		archive := mustTarGz(t, []tarEntry{
 			{name: "._.claude-plugin", content: "appledouble", format: tar.FormatPAX},
@@ -156,18 +156,25 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 				Reader:      io.NopCloser(bytes.NewReader(archive)),
 			}, nil
 		}}
-		_, err := NewInstaller(downloader).Install(
+		target := filepath.Join(t.TempDir(), "client-only")
+		result, err := NewInstaller(downloader).Install(
 			t.Context(),
 			"client-only",
 			DownloadOpts{},
-			filepath.Join(t.TempDir(), "client-only"),
+			target,
 		)
-		if !errors.Is(err, ErrClientSpecificPluginLayout) {
-			t.Fatalf("Install(client-only) error = %v, want ErrClientSpecificPluginLayout", err)
+		if err != nil {
+			t.Fatal(err)
 		}
-		var layoutErr *ClientSpecificPluginLayoutError
-		if !errors.As(err, &layoutErr) || layoutErr.Layout != installerClaudePluginDirectory {
-			t.Fatalf("Install(client-only) error = %#v, want .claude-plugin layout", err)
+		if result.Name != "client-only" {
+			t.Fatalf("installed name = %q", result.Name)
+		}
+		content, err := os.ReadFile(filepath.Join(target, ".claude-plugin", "plugin.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(content), "client-only") {
+			t.Fatalf("manifest = %s", content)
 		}
 	})
 }

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"path/filepath"
-
 	"strings"
 	"time"
 )
@@ -41,7 +39,7 @@ func (m *Manager) discoverExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseDiscover, err)
 	}
 
-	rootDir := filepath.Dir(manifestPath)
+	rootDir := PackageRootFromManifest(manifestPath)
 	if rootDir == "." || rootDir == "" {
 		err := fmt.Errorf("invalid manifest path %q", manifestPath)
 		m.setFailure(ext, ExtensionPhaseDiscover, err)

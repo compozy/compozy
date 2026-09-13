@@ -29,9 +29,32 @@ declared tools. OpenClaw's direct Agent Plugins support is separate from deliver
 bridge.
 
 CompozyOS does not fetch a schema while detecting a package. Schema `1.0.0` is the accepted contract.
-Client-specific layouts are rejected, `sse` MCP servers are recorded as skipped, and sensitive
+Client layouts use the adapter below. `sse` MCP servers are recorded as skipped, and sensitive
 package header values are never projected into runtime config. Bind remote credentials through the
 extension Vault flow instead.
+
+## Client plugin layouts
+
+Without a native manifest, lookup selects the first existing manifest in this order:
+`plugin.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
+`.cursor-plugin/plugin.json`. A selected invalid manifest fails; lookup does not fall through.
+Root `plugin.json` keeps the strict Agent Plugins schema. Client manifests may omit `$schema`;
+a declared unsupported Agent Plugins version still fails with the path of the file read.
+
+Client metadata is adapted in memory, without rewriting the package. Skills are discovered
+under `skills/` and at declared `skills` paths. `mcpServers` accepts a contained JSON file
+with a `mcpServers` object or an inline server map. Stdio and HTTP declarations become
+extension MCP resources. Commands, agents and hooks are not loaded and produce
+`client_component_ignored` diagnostics when declared or present.
+
+The installed provenance records `standard`, `claude-plugin`, `codex-plugin` or
+`cursor-plugin` as `layout`. Layout grants no trust: existing consent, digest verification,
+credential isolation and lifecycle rules still apply. Paths must remain inside the package.
+Codex and Cursor currently use the same client grammar as Claude Code.
+
+The vendored Open Design plugin contains one MCP server and no packaged skills;
+loop-engineering contains seven skills and no MCP declaration. The manifest description
+does not substitute for resources actually present in the package.
 
 ## Native manifest precedence
 

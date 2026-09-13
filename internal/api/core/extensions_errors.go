@@ -36,7 +36,6 @@ const (
 	extensionErrorEnvBindingUndeclared
 	extensionErrorEnvBindingDangling
 	extensionErrorEnvBindingInvalid
-	extensionErrorAgentPluginClientLayout
 	extensionErrorAgentPluginNotManifest
 	extensionErrorAgentPluginSchemaUnsupported
 	extensionErrorAgentPluginManifestInvalid
@@ -57,7 +56,6 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusConflict
 	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
-		extensionErrorAgentPluginClientLayout,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
 		extensionErrorAgentPluginManifestInvalid:
@@ -84,8 +82,6 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return extensionErrorInputsRequired
 	case errors.Is(err, extensionpkg.ErrExtensionInputInvalid):
 		return extensionErrorInputInvalid
-	case errors.Is(err, extensionpkg.ErrAgentPluginClientLayout):
-		return extensionErrorAgentPluginClientLayout
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
 		return extensionErrorAgentPluginNotManifest
 	case errors.Is(err, extensionpkg.ErrAgentPluginSchemaUnsupported):

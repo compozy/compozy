@@ -81446,6 +81446,9 @@
                           "last_error": {
                             "type": "string"
                           },
+                          "layout": {
+                            "type": "string"
+                          },
                           "marketplace": {
                             "nullable": true,
                             "properties": {
@@ -82603,6 +82606,9 @@
                           "type": "array"
                         },
                         "last_error": {
+                          "type": "string"
+                        },
+                        "layout": {
                           "type": "string"
                         },
                         "marketplace": {
@@ -84658,6 +84664,9 @@
                           "type": "array"
                         },
                         "last_error": {
+                          "type": "string"
+                        },
+                        "layout": {
                           "type": "string"
                         },
                         "marketplace": {
@@ -87934,6 +87943,9 @@
                           "type": "array"
                         },
                         "last_error": {
+                          "type": "string"
+                        },
+                        "layout": {
                           "type": "string"
                         },
                         "marketplace": {
@@ -92294,6 +92306,9 @@
                           "type": "array"
                         },
                         "last_error": {
+                          "type": "string"
+                        },
+                        "layout": {
                           "type": "string"
                         },
                         "marketplace": {

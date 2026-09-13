@@ -4,28 +4,35 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
-// ClassifyManifest reads a regular, non-symlinked root plugin.json and triages
-// its declared schema identifier.
+// ClassifyManifest locates the authored manifest and triages its declared schema.
 func ClassifyManifest(dir string) (SchemaStatus, string, error) {
-	path := filepath.Join(dir, manifestFileName)
-	info, err := os.Lstat(path)
+	path, layout, err := LocateManifest(dir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if _, ok := errors.AsType[*NotManifestError](err); ok {
 			return SchemaUnrelated, "", nil
 		}
-		return SchemaUnrelated, "", fmt.Errorf("inspect Agent Plugins manifest %q: %w", path, err)
+		if errors.Is(err, fileutil.ErrSymlink) || errors.Is(err, fileutil.ErrDirectory) ||
+			errors.Is(err, fileutil.ErrNotRegular) {
+			return SchemaUnrelated, "", nil
+		}
+		return SchemaUnrelated, "", err
 	}
-	if !info.Mode().IsRegular() {
-		return SchemaUnrelated, "", nil
-	}
-	content, err := os.ReadFile(path)
+	content, _, err := fileutil.ReadRegularFile(path)
 	if err != nil {
 		return SchemaUnrelated, "", fmt.Errorf("read Agent Plugins manifest %q: %w", path, err)
+	}
+	if layout != LayoutStandard {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(content, &fields) == nil && fields != nil {
+			if _, declared := fields[fieldSchema]; !declared {
+				return SchemaSupported, "", nil
+			}
+		}
 	}
 	status, declared := ClassifyManifestContent(content)
 	return status, declared, nil

@@ -309,13 +309,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			err  error
 			code string
 		}{
-			{
-				name: "Should classify a client-specific layout",
-				err: &extensionpkg.AgentPluginClientLayoutError{
-					Root: "/srv/aws-core", Layout: ".claude-plugin",
-				},
-				code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
-			},
+
 			{
 				name: "Should classify an unrelated root plugin manifest",
 				err:  &extensionpkg.AgentPluginNotManifestError{Root: "/srv/npm"},
@@ -798,7 +792,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map undeclared bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingUndeclared, want: http.StatusBadRequest},
 		{name: "Should map dangling bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingDangling, want: http.StatusBadRequest},
 		{name: "Should map missing local paths to bad request", err: os.ErrNotExist, want: http.StatusBadRequest},
-		{name: "Should map a client layout to unprocessable", err: extensionpkg.ErrAgentPluginClientLayout, want: http.StatusUnprocessableEntity},
+
 		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
 		{name: "Should map an unsupported plugin schema to unprocessable", err: extensionpkg.ErrAgentPluginSchemaUnsupported, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},

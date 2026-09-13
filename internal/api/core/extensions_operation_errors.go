@@ -82,8 +82,7 @@ func extensionOperationErrorPayload(
 			message,
 			"",
 		)
-	case extensionErrorAgentPluginClientLayout,
-		extensionErrorAgentPluginNotManifest,
+	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
 	default:
@@ -96,8 +95,6 @@ func extensionOperationErrorPayload(
 // ExtensionAgentPluginErrorCode returns the stable branch key for one portable-package failure.
 func ExtensionAgentPluginErrorCode(err error) string {
 	switch classifyExtensionError(err) {
-	case extensionErrorAgentPluginClientLayout:
-		return diagnosticcontract.CodeExtensionAgentPluginClientLayout
 	case extensionErrorAgentPluginNotManifest:
 		return diagnosticcontract.CodeExtensionAgentPluginNotManifest
 	case extensionErrorAgentPluginSchemaUnsupported:

@@ -37,6 +37,11 @@ writes of these acquisition fields.
 
 ### Features
 
+- Client plugins with manifests under `.claude-plugin/`, `.codex-plugin/` or
+  `.cursor-plugin/` load through the extension lifecycle. Supported skills and
+  MCPs are adapted without rewriting packages; ignored client commands, agents
+  and hooks produce diagnostics. Installed provenance records the actual layout.
+
 - Extension MCP runtime names are allocated automatically and remain stable.
   Install requests no longer accept `--runtime-name` or `runtime_name`; failed
   installs restore prior allocations. Extension inputs accept secrets owned by

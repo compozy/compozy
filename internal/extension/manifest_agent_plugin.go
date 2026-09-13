@@ -82,6 +82,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 
 	manifest := &Manifest{
 		Format:            FormatAgentPlugin,
+		Layout:            pkg.Layout,
 		IngestDiagnostics: AgentPluginDiagnostics(pkg.Name, pkg.Diagnostics),
 		Name:              strings.TrimSpace(pkg.Name),
 		Version:           strings.TrimSpace(pkg.Version),
@@ -104,9 +105,13 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 		scope := strings.TrimSpace(value.Scope)
 		message := strings.TrimSpace(value.Message)
 		component := agentPluginDiagnosticComponent(scope)
+		code := diagnosticcontract.CodeExtensionAgentPluginComponentSkipped
+		if value.Code == agentplugin.ClientComponentIgnored {
+			code = diagnosticcontract.CodeExtensionClientComponentIgnored
+		}
 		items = append(items, diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 			ID:            "extension/" + strings.TrimSpace(name) + "/agent-plugin/" + scope,
-			Code:          diagnosticcontract.CodeExtensionAgentPluginComponentSkipped,
+			Code:          code,
 			Category:      diagnosticcontract.CategoryExtension,
 			Title:         "Component skipped",
 			Message:       agentPluginDiagnosticMessage(component, scope, message),
@@ -140,6 +145,8 @@ func diagnosticEvidenceString(item diagnosticcontract.DiagnosticItem, key string
 
 func agentPluginDiagnosticComponent(scope string) string {
 	switch {
+	case scope == "commands" || scope == "agents" || scope == "hooks":
+		return scope
 	case scope == agentPluginMCPKind || strings.HasPrefix(scope, agentPluginMCPKind+":"):
 		return agentPluginMCPServerKind
 	case scope == manifestSkillsKey || strings.HasPrefix(scope, agentPluginSkillKind+":"):

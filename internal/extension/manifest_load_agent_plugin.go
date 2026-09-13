@@ -4,29 +4,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func loadAgentPluginManifest(root, dataDir, manifestPath string) (*Manifest, bool, error) {
-	status, declared, err := agentplugin.ClassifyManifest(root)
+func loadAgentPluginManifest(root, dataDir string) (*Manifest, error) {
+	path, layout, err := agentplugin.LocateManifest(root)
 	if err != nil {
-		return nil, false, fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+		return nil, err
 	}
-	switch status {
-	case agentplugin.SchemaSupported:
-		manifest, loadErr := loadSupportedAgentPluginManifest(root, dataDir, manifestPath)
-		return manifest, true, loadErr
-	case agentplugin.SchemaUnsupportedVersion:
-		return nil, true, &AgentPluginSchemaUnsupportedError{Root: root, Declared: declared}
-	case agentplugin.SchemaUnrelated:
-		recognized, loadErr := validateUnrelatedAgentPluginManifest(root, dataDir, manifestPath)
-		return nil, recognized, loadErr
-	default:
-		return nil, false, nil
+	content, _, err := fileutil.ReadRegularFile(path)
+	if err != nil {
+		return nil, err
 	}
+	status, declared := agentplugin.ClassifyManifestContent(content)
+	if status == agentplugin.SchemaUnsupportedVersion {
+		return nil, &AgentPluginSchemaUnsupportedError{Root: root, Path: path, Declared: declared}
+	}
+	if layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && json.Valid(content) {
+		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{path}}
+	}
+	manifest, err := loadSupportedAgentPluginManifest(root, dataDir, path)
+	return manifest, err
 }
 
 func loadSupportedAgentPluginManifest(root, dataDir, manifestPath string) (*Manifest, error) {
@@ -66,40 +67,4 @@ func loadAgentPluginPackage(root, dataDir, manifestPath string) (*agentplugin.Pa
 		return nil, newAgentPluginManifestValidationError(manifestPath, manifestErr)
 	}
 	return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", manifestPath, err)
-}
-
-func validateUnrelatedAgentPluginManifest(root, dataDir, manifestPath string) (bool, error) {
-	info, err := os.Lstat(manifestPath)
-	if errors.Is(err, os.ErrNotExist) {
-		if layout := detectAgentPluginClientLayout(root); layout != "" {
-			return true, &AgentPluginClientLayoutError{Root: root, Layout: layout}
-		}
-		return false, nil
-	}
-	if err != nil {
-		return true, fmt.Errorf("extension: stat %q: %w", manifestPath, err)
-	}
-	if !info.Mode().IsRegular() {
-		_, loadErr := loadAgentPluginPackage(root, dataDir, manifestPath)
-		return true, loadErr
-	}
-	content, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return true, fmt.Errorf("extension: read Agent Plugins manifest %q: %w", manifestPath, err)
-	}
-	if !json.Valid(content) {
-		_, loadErr := loadAgentPluginPackage(root, dataDir, manifestPath)
-		return true, loadErr
-	}
-	return true, &AgentPluginNotManifestError{Root: root}
-}
-
-func detectAgentPluginClientLayout(root string) string {
-	for _, layout := range []string{".claude-plugin", ".codex-plugin", ".cursor-plugin"} {
-		path := filepath.Join(root, layout, agentPluginManifestFileName)
-		if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
-			return layout
-		}
-	}
-	return ""
 }

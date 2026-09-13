@@ -49,7 +49,7 @@ func resolveInstallArtifact(path string) (artifactRoot string, manifestPath stri
 
 	switch filepath.Base(absPath) {
 	case manifestTOMLFileName, manifestJSONFileName, agentPluginManifestFileName:
-		return filepath.Dir(absPath), absPath, nil
+		return PackageRootFromManifest(absPath), absPath, nil
 	default:
 		return "", "", fmt.Errorf("extension: install path %q must be an extension directory or manifest file", absPath)
 	}
@@ -77,7 +77,8 @@ func resolveManifestPath(dir string) (string, error) {
 	}
 	switch status {
 	case agentplugin.SchemaSupported:
-		return pluginPath, nil
+		path, _, err := agentplugin.LocateManifest(dir)
+		return path, err
 	case agentplugin.SchemaUnsupportedVersion:
 		return "", &AgentPluginSchemaUnsupportedError{Root: dir, Declared: declared}
 	}
@@ -123,4 +124,16 @@ func mapRegistryConstraintError(err error, name string) error {
 		return &ExtensionExistsError{Name: name}
 	}
 	return fmt.Errorf("extension: persist %q: %w", name, err)
+}
+
+// PackageRootFromManifest returns the artifact root for native and client manifests.
+func PackageRootFromManifest(path string) string {
+	root := filepath.Dir(strings.TrimSpace(path))
+	if filepath.Base(path) == agentPluginManifestFileName {
+		switch filepath.Base(root) {
+		case ".claude-plugin", ".codex-plugin", ".cursor-plugin":
+			return filepath.Dir(root)
+		}
+	}
+	return root
 }

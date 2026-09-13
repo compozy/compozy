@@ -3,7 +3,6 @@ package extensionpkg
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -96,7 +95,7 @@ func InspectPackageContents(
 	projectManifestResourcesForProfile(&manifest.Resources, profileName)
 	root := ext.RootDir
 	if root == "" {
-		root = filepath.Dir(ext.Info.ManifestPath)
+		root = PackageRootFromManifest(ext.Info.ManifestPath)
 	}
 	packageState := &managedExtension{info: ext.Info, manifest: manifest, rootDir: root}
 	// These declarative readers use only the package snapshot, never manager runtime state.

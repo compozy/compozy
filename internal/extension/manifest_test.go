@@ -2534,3 +2534,64 @@ func TestManifestInputReadiness(t *testing.T) {
 		})
 	}
 }
+
+func TestClientPluginManifestPackages(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		skills, servers int
+	}{
+		{"open-design", 0, 1}, {"loop-engineering", 7, 0},
+	} {
+		t.Run("Should load the authored "+tc.name+" resources without changing files", func(t *testing.T) {
+			t.Parallel()
+			root := filepath.Join("testdata", "client-plugins", tc.name)
+			before, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manifest, err := LoadManifestWithAgentPluginDataDir(root, filepath.Join(t.TempDir(), "data"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if manifest.Layout != "claude-plugin" || manifest.Name != tc.name ||
+				len(manifest.Resources.Skills) != tc.skills ||
+				len(manifest.Resources.MCPServers) != tc.servers {
+				t.Fatalf("unexpected client projection: %#v, diagnostics=%#v", manifest, manifest.IngestDiagnostics)
+			}
+			if tc.servers == 1 && manifest.Resources.MCPServers["open-design"].Command != "od" {
+				t.Fatalf("MCP command = %#v", manifest.Resources.MCPServers)
+			}
+			after, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before != after {
+				t.Fatal("loading changed package bytes")
+			}
+			metadata, err := resolveManifestPath(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filepath.Clean(PackageRootFromManifest(metadata)) != filepath.Clean(root) {
+				t.Fatalf("package root = %q", PackageRootFromManifest(metadata))
+			}
+			loaded, err := loadManifestAtPath(metadata)
+			if err != nil || loaded.Layout != manifest.Layout {
+				t.Fatalf("reload located manifest = %#v, %v", loaded, err)
+			}
+		})
+	}
+	t.Run("Should retain the actual path in unsupported client schema errors", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		file := filepath.Join(root, ".codex-plugin", "plugin.json")
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, file, `{"name":"future","$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json"}`)
+		_, err := LoadManifest(root)
+		if !errors.Is(err, ErrAgentPluginSchemaUnsupported) || !strings.Contains(err.Error(), file) {
+			t.Fatalf("schema error = %v", err)
+		}
+	})
+}

@@ -5,8 +5,8 @@ title: Install an Agent Plugins catalog entry from Marketplace
 persona: Bruno
 journey: J-marketplace-acquisition
 expected: A catalog entry marked `format: agent-plugin` shows a neutral Agent Plugin badge on the card and detail view, follows the normal trust and install flow, lands on extension management with format and skipped diagnostics visible, and still relies on acquired-package detection when catalog metadata is absent or stale.
-entry_points: Web /marketplace/extensions?tab=market and /marketplace/extension/:entryId; Web extension trust/install dialog, /marketplace/extensions, and /settings/extensions; compozy marketplace search --kind extension; GET /api/extensions/marketplace over HTTP and UDS; curated catalog feed
-qa_status: blocked-verify
+entry_points: Web /marketplace and entry detail; Web extension trust/install dialog and /settings/extensions; compozy marketplace search; GET /api/marketplace over HTTP and UDS; POST /api/extensions; curated catalog feed
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pending
@@ -24,3 +24,12 @@ QA 2026-08-16: card, detail, neutral badge, trust dialog, installed management, 
 were walked in the real browser. The fixture catalog's synthetic GitHub release URL returned 404 at
 the final install mutation, so acquisition itself remains `blocked-verify`; the same bytes were then
 installed through the public CLI to verify the installed Web state without weakening HTTPS/SSRF rules.
+
+QA impact 2026-09-13 (task_06; final live/visual owner task_10 VC-05): install client
+layouts from local paths and sources through the current extension surfaces. Verify root
+manifest precedence, recorded layout, unchanged source/package bytes, and only authored
+resources. Open Design contributes one MCP and zero packaged skills; loop-engineering
+contributes seven skills and no MCP. An explicit package with commands/agents/hooks must
+report `client_component_ignored` with zero loaded hooks. Verify update, removal, dev reload,
+trust and scoped resource delivery. Focused Go lifecycle evidence does not close this live row;
+previous browser evidence above predates the client adapter and current Marketplace routes.

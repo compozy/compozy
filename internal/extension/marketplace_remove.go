@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"path/filepath"
 	"strings"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // RemovalRegistry includes profile records needed to compensate an uninstall.
@@ -139,7 +140,7 @@ func InstalledExtensionDir(info ExtensionInfo) (string, error) {
 	default:
 		return "", fmt.Errorf("extension: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
 	}
-	installDir := filepath.Dir(manifestPath)
+	installDir := PackageRootFromManifest(manifestPath)
 	if installDir == "." || installDir == string(filepath.Separator) {
 		return "", fmt.Errorf("extension: extension %q has an invalid install directory %q", info.Name, installDir)
 	}

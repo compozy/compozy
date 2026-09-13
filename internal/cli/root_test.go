@@ -120,12 +120,7 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 			name    string
 			payload any
 		}{
-			{
-				name: "Should use exit one for a client-specific layout",
-				payload: contract.ExtensionOperationErrorPayload{
-					Error: "client-specific layout", Code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
-				},
-			},
+
 			{
 				name: "Should use exit one and preserve issues for an invalid manifest",
 				payload: contract.ExtensionValidationErrorPayload{

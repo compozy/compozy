@@ -174,7 +174,7 @@ const (
 )
 
 const (
-	CodeExtensionAgentPluginClientLayout      = "extension_agent_plugin_client_layout"
+	CodeExtensionClientComponentIgnored       = "client_component_ignored"
 	CodeExtensionAgentPluginComponentSkipped  = "extension_agent_plugin_component_skipped"
 	CodeExtensionAgentPluginManifestInvalid   = "extension_agent_plugin_manifest_invalid"
 	CodeExtensionAgentPluginNotManifest       = "extension_agent_plugin_not_manifest"
@@ -254,8 +254,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeExtensionRuntimeUnavailable, Category: CategoryExtension},
 	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
-	{Code: CodeExtensionAgentPluginClientLayout, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
+	{Code: CodeExtensionClientComponentIgnored, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginManifestInvalid, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginNotManifest, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginSchemaUnsupported, Category: CategoryExtension},

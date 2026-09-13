@@ -95,6 +95,7 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
+	Layout            string                              `toml:"-" json:"-"`
 	Format            ExtensionFormat                     `toml:"-" json:"-"`
 	IngestDiagnostics []diagnosticcontract.DiagnosticItem `toml:"-" json:"-"`
 

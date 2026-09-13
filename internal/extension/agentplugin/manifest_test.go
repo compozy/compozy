@@ -172,3 +172,68 @@ func TestLoadEmptyAndDeterministic(t *testing.T) {
 		}
 	})
 }
+
+func TestClientManifestAdapter(t *testing.T) {
+	t.Run("Should load declared skills and both MCP transports and report ignored components", func(t *testing.T) {
+		t.Parallel()
+		root := canonicalPathForTest(t, t.TempDir())
+		writeJSONFile(t, filepath.Join(root, ".cursor-plugin", "plugin.json"), map[string]any{
+			"name": "client", "version": "1.0.0", "skills": []string{"./extra/review", "./extra/review"},
+			"commands": "./commands", "agents": []string{"./agents"}, "hooks": map[string]any{},
+			"mcpServers": map[string]any{
+				"local": map[string]any{"command": "node", "args": []string{"${PLUGIN_ROOT}/server.js"}},
+				"remote": map[string]any{
+					"type":    "http",
+					"url":     "https://example.com/mcp",
+					"headers": map[string]string{"X-Tenant": "client"},
+				},
+			},
+		})
+		writeFile(
+			t,
+			filepath.Join(root, "extra", "review", "SKILL.md"),
+			[]byte("---\nname: review\ndescription: Review code\n---\nReview carefully.\n"),
+		)
+		pkg := loadForTest(t, root)
+		if pkg.Layout != "cursor-plugin" || len(pkg.Skills) != 1 || pkg.Skills[0].Name != "review" ||
+			len(pkg.Servers) != 2 {
+			t.Fatalf("package = %#v", pkg)
+		}
+		if pkg.Servers[0].Transport != transportStdio || pkg.Servers[0].Args[0] != filepath.Join(root, "server.js") ||
+			pkg.Servers[1].Transport != transportStreamableHTTP {
+			t.Fatalf("servers = %#v", pkg.Servers)
+		}
+		if len(pkg.Diagnostics) != 3 {
+			t.Fatalf("diagnostics = %#v", pkg.Diagnostics)
+		}
+		for _, diagnostic := range pkg.Diagnostics {
+			if diagnostic.Code != ClientComponentIgnored {
+				t.Fatalf("diagnostic = %#v", diagnostic)
+			}
+		}
+	})
+	t.Run("Should reject components that escape the package root", func(t *testing.T) {
+		t.Parallel()
+		parent := canonicalPathForTest(t, t.TempDir())
+		root := filepath.Join(parent, "package")
+		writeJSONFile(
+			t,
+			filepath.Join(root, ".claude-plugin", "plugin.json"),
+			map[string]any{"name": "client", "skills": "../outside", "mcpServers": "../mcp.json"},
+		)
+		writeFile(
+			t,
+			filepath.Join(parent, "outside", "SKILL.md"),
+			[]byte("---\nname: outside\ndescription: Must not load\n---\nOutside\n"),
+		)
+		writeJSONFile(
+			t,
+			filepath.Join(parent, "mcp.json"),
+			map[string]any{"mcpServers": map[string]any{"outside": map[string]any{"command": "node"}}},
+		)
+		pkg := loadForTest(t, root)
+		if len(pkg.Skills) != 0 || len(pkg.Servers) != 0 || len(pkg.Diagnostics) != 2 {
+			t.Fatalf("escaped resources = %#v", pkg)
+		}
+	})
+}

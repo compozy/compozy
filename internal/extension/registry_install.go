@@ -196,6 +196,7 @@ func registryInstallInfo(
 	if config.provenance != nil {
 		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
 	}
+	provenance.Layout = resolvedManifest.Layout
 	networkDigest, err := NetworkParticipationRequirementDigest(resolvedManifest.NetworkParticipation)
 	if err != nil {
 		return ExtensionInfo{}, err

@@ -113,6 +113,7 @@ func LocalPathProvenance(
 		AllowUnverified:  allowUnverified,
 	}
 	if manifest != nil {
+		provenance.Layout = manifest.Layout
 		provenance.Permissions = extensionPermissions(manifest)
 		provenance.Warnings = []contract.DiagnosticItem{
 			extensionChecksumUnverifiedDiagnostic(manifest.Name, sourcePath, allowUnverified),
@@ -210,6 +211,8 @@ func normalizeExtensionProvenance(value ExtensionProvenance, fallback ExtensionP
 		value.SourceRef = fallback.SourceRef
 		value.EntryID = fallback.EntryID
 		value.ResolvedRef = fallback.ResolvedRef
+	}
+	if strings.TrimSpace(value.Layout) == "" {
 		value.Layout = fallback.Layout
 	}
 	value.SourceName = strings.TrimSpace(value.SourceName)

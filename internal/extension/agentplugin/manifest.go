@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -22,24 +20,34 @@ const (
 	jsonObjectIssueMessage = "must be a JSON object"
 )
 
-// Load validates the root manifest and independently discovers portable
-// components. Only root-manifest failures are returned as errors.
+// Load validates the selected manifest and independently discovers its components.
+// Only manifest failures are returned as errors.
 func Load(dir string, opts LoadOptions) (*Package, error) {
 	root, err := canonicalExistingPrefix(dir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
 	}
-	content, err := readManifestContent(root)
+	content, layout, err := readManifestContent(root)
 	if err != nil {
 		return nil, err
 	}
 
-	pkg, schema, err := decodeManifest(content)
+	var pkg *Package
+	if layout == LayoutStandard {
+		var schema string
+		pkg, schema, err = decodeManifest(content)
+		if err == nil {
+			discoverSkills(root, pkg)
+			loadMCP(root, opts.DataDir, schema, pkg)
+		}
+	} else {
+		pkg, err = clientAdapters[layout](root, content, opts)
+	}
 	if err != nil {
 		return nil, err
 	}
-	discoverSkills(root, pkg)
-	loadMCP(root, opts.DataDir, schema, pkg)
+	pkg.Layout = layout
+
 	sort.Slice(pkg.Diagnostics, func(left, right int) bool {
 		if pkg.Diagnostics[left].Scope == pkg.Diagnostics[right].Scope {
 			return pkg.Diagnostics[left].Message < pkg.Diagnostics[right].Message
@@ -56,7 +64,7 @@ func ReadManifestName(dir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
 	}
-	content, err := readManifestContent(root)
+	content, _, err := readManifestContent(root)
 	if err != nil {
 		return "", err
 	}
@@ -77,22 +85,19 @@ func ReadManifestName(dir string) (string, error) {
 	return name, nil
 }
 
-func readManifestContent(root string) ([]byte, error) {
-	manifestPath := filepath.Join(root, manifestFileName)
-	content, _, err := fileutil.ReadRegularFile(manifestPath)
-	if err == nil {
-		return content, nil
+func readManifestContent(root string) ([]byte, string, error) {
+	path, layout, err := LocateManifest(root)
+	if err != nil {
+		if _, ok := errors.AsType[*NotManifestError](err); ok {
+			return nil, "", err
+		}
+		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
 	}
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json is required"}}}
-	case errors.Is(err, fileutil.ErrSymlink),
-		errors.Is(err, fileutil.ErrDirectory),
-		errors.Is(err, fileutil.ErrNotRegular):
-		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
-	default:
-		return nil, fmt.Errorf("read Agent Plugins manifest %q: %w", manifestPath, err)
+	content, _, err := fileutil.ReadRegularFile(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("read plugin manifest %q: %w", path, err)
 	}
+	return content, layout, nil
 }
 
 func decodeManifest(content []byte) (*Package, string, error) {

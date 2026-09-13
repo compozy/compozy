@@ -54,6 +54,7 @@ type LoadOptions struct {
 
 // Package is the validated, portable package projection.
 type Package struct {
+	Layout      string
 	Name        string
 	Version     string
 	Description string
@@ -95,6 +96,7 @@ type ServerSpec struct {
 
 // Diagnostic records one non-fatal component skip.
 type Diagnostic struct {
+	Code    string
 	Scope   string
 	Message string
 }

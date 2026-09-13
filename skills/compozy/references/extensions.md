@@ -76,7 +76,11 @@ check. Source attribution and licenses ship with the extension; the selected con
 CompozyOS detects a package layout after source acquisition; there is no format flag. A root
 `extension.toml` or `extension.json` selects `compozy`. Root `plugin.json` alone selects
 `agent-plugin` and accepts Agent Plugins schema `1.0.0`. When both exist, the native manifest wins
-and install records the unused portable manifest as a note. Client-specific layouts are rejected.
+and install records the unused portable manifest as a note. Without a root manifest, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, then
+`.cursor-plugin/plugin.json` are tried in that order. Their client grammar adapter loads skills
+from `skills/` and declared paths, and MCP servers from a contained `mcpServers` JSON file or
+inline map. Authored commands/agents/hooks emit `client_component_ignored` and are not loaded.
+Package bytes are unchanged; provenance records the selected layout. Layout grants no trust.
 
 Portable ingestion synthesizes a resource-only extension from immediate child skills and `mcp.json`
 servers. `stdio` and `streamable-http` map into extension MCP resources; invalid components and `sse`
@@ -91,7 +95,7 @@ provider launch; direct Agent Plugins support inside OpenClaw is a separate path
 Recorded ingestion skips use `extension_agent_plugin_component_skipped`. Runtime availability uses
 live codes such as `extension_mcp_server_unhealthy`; reads sort ingest diagnostics before live ones so
 package validity is never confused with server health. Fatal detection codes are
-`extension_agent_plugin_client_layout`, `extension_agent_plugin_schema_unsupported`,
+`extension_agent_plugin_schema_unsupported`,
 `extension_agent_plugin_not_manifest`, and `extension_agent_plugin_manifest_invalid`.
 
 `compozy extension validate <path> -o json` takes the portable branch without installing or executing

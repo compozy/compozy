@@ -336,3 +336,13 @@ Do not ignore the entire `.compozy/` directory when the repository commits `.com
 definitions, skills, agents, or workspace configuration. After backup and manual translation, run a
 dry delivery plan first, inspect the reported input origins/runtime provenance, then start the real
 run and follow the final-line `/loop-runs/<id>` URL.
+
+## Authoring portable Agent Plugins
+
+For new cross-client packages, keep the standard Agent Plugins `1.0.0` layout:
+a root `plugin.json` with its canonical `$schema`, `skills/` and optional `mcp.json`.
+CompozyOS also loads client manifests under `.claude-plugin/`, `.codex-plugin/` and
+`.cursor-plugin/` through adapters. Existing client packages do not need to be rewritten
+for installation; only supported skills and MCP declarations are loaded, and unsupported
+commands, agents and hooks are reported as `client_component_ignored`.
+See [Agent Plugins interoperability](packages/site/content/docs/extensions/agent-plugins.mdx).

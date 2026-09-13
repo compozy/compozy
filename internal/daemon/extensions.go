@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -193,7 +192,7 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 		return
 	}
 
-	manifest, err := extensionpkg.LoadManifest(filepath.Dir(ext.Info.ManifestPath))
+	manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(ext.Info.ManifestPath))
 	if err != nil {
 		if logger != nil {
 			logger.Debug(

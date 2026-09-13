@@ -427,7 +427,7 @@ func (s *lifecycleSource) packageSlug() string {
 
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
 	t.Run(
-		"Should refresh a data-named package while preserving its isolated data and reject layout drift",
+		"Should refresh a data-named package while preserving its isolated data and reject unsupported schemas",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -443,7 +443,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			source.archives["2.0.0"] = lifecycleAgentPluginTarGz(t, "data", "2.0.0", false, map[string]string{
 				"skills/review/SKILL.md": "---\nname: review\n---\nMissing description.\n",
 			})
-			source.archives["3.0.0"] = lifecycleAgentPluginTarGz(t, "data", "3.0.0", true, nil)
+			source.archives["3.0.0"] = lifecycleTarGzFiles(t, map[string]string{
+				"data/.claude-plugin/plugin.json": `{"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json","name":"data","version":"3.0.0"}`,
+			})
 			loader := func(context.Context) ([]registrypkg.Source, error) {
 				return []registrypkg.Source{source}, nil
 			}
@@ -521,14 +523,14 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				},
 				nil,
 			)
-			if !errors.Is(updateErr, ErrAgentPluginClientLayout) {
+			if !errors.Is(updateErr, ErrAgentPluginSchemaUnsupported) {
 				t.Fatalf(
-					"UpdateMarketplaceManaged(client-layout drift) error = %v, want ErrAgentPluginClientLayout",
+					"UpdateMarketplaceManaged(unsupported schema) error = %v, want ErrAgentPluginSchemaUnsupported",
 					updateErr,
 				)
 			}
 			if !strings.Contains(updateErr.Error(), ".claude-plugin/plugin.json") {
-				t.Fatalf("client-layout drift error = %q, want layout path", updateErr)
+				t.Fatalf("unsupported schema error = %q, want layout path", updateErr)
 			}
 			retained, err := env.registry.Get(installed.Name)
 			if err != nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -63,7 +62,7 @@ func failedMarketplaceUpdateResult(
 	}
 	if strings.TrimSpace(item.Path) == "" {
 		if manifestPath := strings.TrimSpace(info.ManifestPath); manifestPath != "" {
-			item.Path = filepath.Dir(manifestPath)
+			item.Path = PackageRootFromManifest(manifestPath)
 		}
 	}
 	item.Status = MarketplaceUpdateStatusFailed
@@ -324,7 +323,7 @@ func installMarketplaceUpdateArchive(
 		ExpectedSHA256: expectedDigest,
 	}, stagingDir)
 	if err != nil {
-		err = mapMarketplaceRegistryError(slug, wrapCuratedDigestMismatch(err, trust))
+		err = wrapCuratedDigestMismatch(err, trust)
 	}
 	if observeDigestVerification != nil {
 		observeDigestVerification(trust, err)
@@ -367,7 +366,7 @@ func marketplaceUpdateProvenance(
 	provenance.SourceRef = ""
 	provenance.EntryID = ""
 	provenance.ResolvedRef = ""
-	provenance.Layout = ""
+	provenance.Layout = manifest.Layout
 	provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 	provenance.DigestMatched = result.DigestMatched
 	provenance.ChecksumVerified = false

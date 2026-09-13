@@ -35997,6 +35997,7 @@ export interface operations {
                 type: string;
               }[];
               last_error?: string;
+              layout?: string;
               marketplace?: {
                 author?: string;
                 description: string;
@@ -36343,6 +36344,7 @@ export interface operations {
                 type: string;
               }[];
               last_error?: string;
+              layout?: string;
               marketplace?: {
                 author?: string;
                 description: string;
@@ -36999,6 +37001,7 @@ export interface operations {
                 type: string;
               }[];
               last_error?: string;
+              layout?: string;
               marketplace?: {
                 author?: string;
                 description: string;
@@ -37920,6 +37923,7 @@ export interface operations {
                 type: string;
               }[];
               last_error?: string;
+              layout?: string;
               marketplace?: {
                 author?: string;
                 description: string;
@@ -39681,6 +39685,7 @@ export interface operations {
                 type: string;
               }[];
               last_error?: string;
+              layout?: string;
               marketplace?: {
                 author?: string;
                 description: string;

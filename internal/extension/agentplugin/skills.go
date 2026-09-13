@@ -21,7 +21,10 @@ type skillMetadata struct {
 }
 
 func discoverSkills(root string, pkg *Package) {
-	skillsDir := filepath.Join(root, "skills")
+	discoverSkillsDirectory(root, filepath.Join(root, "skills"), pkg)
+}
+
+func discoverSkillsDirectory(root, skillsDir string, pkg *Package) {
 	info, err := os.Lstat(skillsDir)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -48,52 +51,52 @@ func discoverSkills(root string, pkg *Package) {
 		return
 	}
 	for _, entry := range entries {
-		scope := "skill:" + entry.Name()
 		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: "skill entry must be an in-root directory",
-			})
+			pkg.Diagnostics = append(
+				pkg.Diagnostics,
+				Diagnostic{Scope: "skill:" + entry.Name(), Message: "skill entry must be an in-root directory"},
+			)
 			continue
 		}
-		dir := filepath.Join(skillsDir, entry.Name())
-		skillFile := filepath.Join(dir, "SKILL.md")
-		fileInfo, err := os.Lstat(skillFile)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: "cannot inspect SKILL.md",
-			})
-			continue
-		}
-		if !fileInfo.Mode().IsRegular() {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: "SKILL.md must be a regular in-root file",
-			})
-			continue
-		}
-		if _, err := resolveContained(skillFile, root); err != nil {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: "SKILL.md must remain inside the package root",
-			})
-			continue
-		}
-		metadata, err := readSkillMetadata(skillFile)
-		if err != nil {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: err.Error(),
-			})
-			continue
-		}
-		if err := validateSkillMetadata(entry.Name(), metadata); err != nil {
-			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: scope, Message: err.Error(),
-			})
-			continue
-		}
-		pkg.Skills = append(pkg.Skills, SkillRef{Name: metadata.Name, Dir: dir, SkillFile: skillFile})
+		discoverSkill(root, filepath.Join(skillsDir, entry.Name()), pkg)
 	}
+}
+
+func discoverSkill(root, dir string, pkg *Package) {
+	name := filepath.Base(dir)
+	scope := "skill:" + name
+	skillFile := filepath.Join(dir, "SKILL.md")
+	info, err := os.Lstat(skillFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{Scope: scope, Message: "cannot inspect SKILL.md"})
+		return
+	}
+	if !info.Mode().IsRegular() {
+		pkg.Diagnostics = append(
+			pkg.Diagnostics,
+			Diagnostic{Scope: scope, Message: "SKILL.md must be a regular in-root file"},
+		)
+		return
+	}
+	if _, err := resolveContained(skillFile, root); err != nil {
+		pkg.Diagnostics = append(
+			pkg.Diagnostics,
+			Diagnostic{Scope: scope, Message: "SKILL.md must remain inside the package root"},
+		)
+		return
+	}
+	metadata, err := readSkillMetadata(skillFile)
+	if err == nil {
+		err = validateSkillMetadata(name, metadata)
+	}
+	if err != nil {
+		pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{Scope: scope, Message: err.Error()})
+		return
+	}
+	pkg.Skills = append(pkg.Skills, SkillRef{Name: metadata.Name, Dir: dir, SkillFile: skillFile})
 }
 
 func readSkillMetadata(path string) (skillMetadata, error) {

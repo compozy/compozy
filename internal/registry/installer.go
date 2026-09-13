@@ -2,9 +2,7 @@ package registry
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -31,33 +29,15 @@ const (
 var (
 	// ErrArchiveTooLargeCompressed reports a compressed archive stream above its configured limit.
 	ErrArchiveTooLargeCompressed = errors.New("registry: archive exceeds max compressed size")
-	// ErrClientSpecificPluginLayout reports a plugin manifest nested below a client-owned directory.
-	ErrClientSpecificPluginLayout = errors.New("registry: client-specific plugin layout")
 
 	errArchiveTooLargeCompressed = ErrArchiveTooLargeCompressed
 	errInstallMissingManifest    = errors.New(
-		"registry: archive missing extension.toml, SKILL.md, or Agent Plugins plugin.json at root",
+		"registry: archive missing extension.toml, SKILL.md, plugin.json, .claude-plugin/plugin.json, " +
+			".codex-plugin/plugin.json or .cursor-plugin/plugin.json",
 	)
 	errUnexpectedContentType = errors.New("registry: unexpected download content type")
 	errVerificationBlocked   = errors.New("registry: install blocked by content verification")
 )
-
-// ClientSpecificPluginLayoutError identifies the client-owned manifest directory in an archive.
-type ClientSpecificPluginLayoutError struct {
-	Layout string
-}
-
-func (e *ClientSpecificPluginLayoutError) Error() string {
-	return fmt.Sprintf(
-		"%s: archive contains client-specific layout %q; Agent Plugins require plugin.json at the package root",
-		ErrClientSpecificPluginLayout,
-		strings.TrimSpace(e.Layout)+"/plugin.json",
-	)
-}
-
-func (e *ClientSpecificPluginLayoutError) Unwrap() error {
-	return ErrClientSpecificPluginLayout
-}
 
 type installerVerificationRule struct {
 	key     string

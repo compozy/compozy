@@ -129,8 +129,8 @@ CompozyOS detects the package layout after acquiring the source. You do not sele
 
 An Agent Plugins package may provide immediate child directories under `skills/` and MCP servers in
 `mcp.json`. CompozyOS maps `stdio` and `streamable-http` servers, records unsupported components as
-skipped diagnostics, and keeps the rest of the package usable. Client-specific layouts are rejected
-instead of being guessed.
+skipped diagnostics, and keeps the rest of the package usable. Client layouts use the [client grammar adapter](/docs/extensions/agent-plugins#client-plugin-layouts),
+which reports unsupported client components without rewriting the package.
 
 ```bash
 compozy extension install ./acme-tools --allow-unverified --yes
@@ -165,7 +165,6 @@ Deterministic failures:
 | `extension_archive_digest_mismatch`         | A curated archive differs from the catalog-pinned bytes.  | Stop. No `--allow-unverified` bypass exists for this.                                |
 | `extension_git_unavailable`                 | No `git` executable on the daemon host.                   | Install `git` or use another source.                                                 |
 | `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                  | Install Git 2.37 or newer, then retry.                                               |
-| `extension_agent_plugin_client_layout`      | The package uses a client-specific plugin layout.         | Repackage it with root `plugin.json`, `skills/`, and optional `mcp.json`.            |
 | `extension_agent_plugin_schema_unsupported` | `plugin.json` declares a schema other than `1.0.0`.       | Publish an Agent Plugins `1.0.0` package.                                            |
 | `extension_agent_plugin_not_manifest`       | `plugin.json` is not a valid Agent Plugins manifest.      | Replace the file with a valid object containing the required identity.               |
 | `extension_agent_plugin_manifest_invalid`   | The portable manifest failed semantic validation.         | Fix the named field and validate the package again.                                  |
@@ -362,7 +361,7 @@ compozy extension validate ./acme-tools -o json
 ```
 
 The result includes `format: "agent-plugin"`, `would_ingest`, and positioned `issues`. Use it before a
-local or git install to catch an unsupported schema or client-specific layout. Unsupported portable
+local or git install to catch an unsupported schema or malformed client manifest. Unsupported portable
 components appear as skipped issues rather than hiding the resources that can still be ingested.
 
 For a valid package with two skills, two usable servers, and three skipped components, the shipped
@@ -538,7 +537,6 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 | `extension_archive_digest_mismatch`             | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
 | `extension_git_unavailable`                     | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
 | `extension_git_version_unsupported`             | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
-| `extension_agent_plugin_client_layout`          | The package uses a client-specific plugin layout.                                 | Repackage it with the portable root layout.                                 |
 | `extension_agent_plugin_schema_unsupported`     | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
 | Extension is `enabled` but not `active`         | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
 | Install or update asks for Network confirmation | The candidate declares an unconfirmed or changed Live requirement digest.         | Review the exact digest, then retry with `--confirm-network-requirement`.   |

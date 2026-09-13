@@ -41,9 +41,11 @@ func DescribeExtensionForProfile(
 		uptimeSeconds = max(int64(now.Sub(ext.Status.LastStartedAt).Seconds()), 0)
 	}
 
+	layout := ext.Info.Provenance.Layout
 	requiresEnv := []string(nil)
 	missingEnv := []string(nil)
 	if ext.Manifest != nil {
+		layout = ext.Manifest.Layout
 		requiresEnv = append(requiresEnv, ext.Manifest.RequiresEnv...)
 		if !ext.Status.MissingEnvChecked {
 			missingEnv = ext.Manifest.MissingEnv(nil)
@@ -65,6 +67,7 @@ func DescribeExtensionForProfile(
 
 	return contract.ExtensionPayload{
 		Name:       ext.Info.Name,
+		Layout:     layout,
 		Contents:   extensionSnapshotContentsForProfile(ext, profileName),
 		MCPServers: extensionServerPayloads(ext, profileName),
 		Inputs:     []contract.ExtensionInputStatePayload{}, MissingInputs: []string{},

@@ -1,8 +1,9 @@
 package contract
 
 import (
-	"github.com/compozy/compozy/internal/extensioninput"
 	"time"
+
+	"github.com/compozy/compozy/internal/extensioninput"
 
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -163,6 +164,7 @@ type ExtensionProvenancePayload struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
+	Layout                      string                            `json:"layout,omitempty"`
 	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers"`
 	Inputs                      []ExtensionInputStatePayload      `json:"inputs"`
 	MissingInputs               []string                          `json:"missing_inputs"`
