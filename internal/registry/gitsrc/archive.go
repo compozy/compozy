@@ -65,9 +65,9 @@ func classifyArchiveError(err error, limits archiveLimits) error {
 			registry.ErrArchiveTooLargeCompressed,
 			limits.maxCompressedSize,
 		)
-	case errors.Is(err, fileutil.ErrTarGzipUncompressedLimit):
+	case errors.Is(err, fileutil.ErrTarSizeLimit):
 		return fmt.Errorf("%w: limit=%d", ErrRepositoryTooLarge, limits.maxUncompressedSize)
-	case errors.Is(err, fileutil.ErrTarGzipFileCountLimit):
+	case errors.Is(err, fileutil.ErrTarFileCountLimit):
 		return fmt.Errorf("%w: limit=%d", ErrRepositoryTooManyFiles, limits.maxFileCount)
 	default:
 		return err

@@ -96,45 +96,48 @@ func TestClientCheckout(t *testing.T) {
 		t.Parallel()
 		injected := errors.New("commit inspection failed")
 		for _, failure := range []string{"clone", "resolve", "invalid_commit", "wrong_commit", "cancel"} {
-			root := t.TempDir()
-			client := newFixtureGitClient(t, t.TempDir(), 1)
-			WithCheckoutTempDir(root)(client)
-			ref := "main"
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			client.output = func(context.Context, string, ...string) (string, error) {
-				if failure == "resolve" {
-					return "", injected
+			t.Run("Should clean up "+failure, func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				client := newFixtureGitClient(t, t.TempDir(), 1)
+				WithCheckoutTempDir(root)(client)
+				ref := "main"
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				client.output = func(context.Context, string, ...string) (string, error) {
+					if failure == "resolve" {
+						return "", injected
+					}
+					if failure == "wrong_commit" {
+						return strings.Repeat("b", 40), nil
+					}
+					return "not-a-commit", nil
+				}
+				if failure == "clone" || failure == "cancel" {
+					client.run = func(context.Context, string, ...string) error {
+						if failure == "cancel" {
+							cancel()
+						}
+						return injected
+					}
 				}
 				if failure == "wrong_commit" {
-					return strings.Repeat("b", 40), nil
+					ref = strings.Repeat("a", 40)
+					client.run = func(context.Context, string, ...string) error { return nil }
 				}
-				return "not-a-commit", nil
-			}
-			if failure == "clone" || failure == "cancel" {
-				client.run = func(context.Context, string, ...string) error {
-					if failure == "cancel" {
-						cancel()
-					}
-					return injected
+				checkout, err := client.Checkout(ctx, "https://example.com/acme/repo", ref)
+				cancel()
+				if err == nil || checkout != nil {
+					t.Fatalf("%s returned checkout %+v, %v", failure, checkout, err)
 				}
-			}
-			if failure == "wrong_commit" {
-				ref = strings.Repeat("a", 40)
-				client.run = func(context.Context, string, ...string) error { return nil }
-			}
-			checkout, err := client.Checkout(ctx, "https://example.com/acme/repo", ref)
-			cancel()
-			if err == nil || checkout != nil {
-				t.Fatalf("%s returned checkout %+v, %v", failure, checkout, err)
-			}
-			if (failure == "resolve" || failure == "clone") && !errors.Is(err, injected) {
-				t.Fatalf("%s lost original failure: %v", failure, err)
-			}
-			if failure == "cancel" && !errors.Is(err, context.Canceled) {
-				t.Fatalf("cancellation lost context error: %v", err)
-			}
-			assertEmptyDirectory(t, root)
+				if (failure == "resolve" || failure == "clone") && !errors.Is(err, injected) {
+					t.Fatalf("%s lost original failure: %v", failure, err)
+				}
+				if failure == "cancel" && !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancellation lost context error: %v", err)
+				}
+				assertEmptyDirectory(t, root)
+			})
 		}
 	})
 }

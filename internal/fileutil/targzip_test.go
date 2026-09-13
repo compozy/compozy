@@ -2,12 +2,78 @@ package fileutil
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+func TestWriteTarDirectory(t *testing.T) {
+	t.Parallel()
+	t.Run("Should share canonical package bytes with gzip archives across timestamp changes", func(t *testing.T) {
+		t.Parallel()
+		root := writeTarGzipFixture(t)
+		compressed, compressedStats := writeTarGzipFixtureArchive(t, root, TarGzipLimits{})
+		reader, err := gzip.NewReader(bytes.NewReader(compressed))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, readErr := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if readErr != nil || closeErr != nil {
+			t.Fatalf("read gzip envelope: %v, %v", readErr, closeErr)
+		}
+		stamp := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+		if err := os.Chtimes(filepath.Join(root, "a.txt"), stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		stats, err := WriteTarDirectory(t.Context(), &archive, root, nil, TarLimits{})
+		if err != nil || !bytes.Equal(archive.Bytes(), want) || stats.Bytes != compressedStats.UncompressedSize ||
+			stats.FileCount != compressedStats.FileCount {
+			t.Fatalf("canonical tar changed: stats %+v, gzip stats %+v, error %v", stats, compressedStats, err)
+		}
+	})
+	t.Run("Should refuse a file swapped for an external symlink before its bytes are read", func(t *testing.T) {
+		t.Parallel()
+		root := writeTarGzipFixture(t)
+		outside := filepath.Join(t.TempDir(), "private.txt")
+		if err := os.WriteFile(outside, []byte("leak!"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		swapped := false
+		writer := archiveWriteFunc(func(raw []byte) (int, error) {
+			if !swapped {
+				swapped = true
+				path := filepath.Join(root, "a.txt")
+				if err := os.Remove(path); err != nil {
+					return 0, err
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					return 0, err
+				}
+			}
+			return archive.Write(raw)
+		})
+		_, err := WriteTarDirectory(t.Context(), writer, root, nil, TarLimits{})
+		if !errors.Is(err, ErrSymlink) || bytes.Contains(archive.Bytes(), []byte("leak!")) {
+			t.Fatalf(
+				"symlink replacement = %v, external bytes archived: %t",
+				err,
+				bytes.Contains(archive.Bytes(), []byte("leak!")),
+			)
+		}
+	})
+}
+
+type archiveWriteFunc func([]byte) (int, error)
+
+func (f archiveWriteFunc) Write(raw []byte) (int, error) { return f(raw) }
 
 func TestWriteTarGzipDirectory(t *testing.T) {
 	t.Parallel()
@@ -40,8 +106,8 @@ func TestWriteTarGzipDirectory(t *testing.T) {
 			nil,
 			TarGzipLimits{MaxFileCount: 2},
 		)
-		if !errors.Is(err, ErrTarGzipFileCountLimit) {
-			t.Fatalf("WriteTarGzipDirectory() error = %v, want ErrTarGzipFileCountLimit", err)
+		if !errors.Is(err, ErrTarFileCountLimit) {
+			t.Fatalf("WriteTarGzipDirectory() error = %v, want ErrTarFileCountLimit", err)
 		}
 	})
 
@@ -56,8 +122,8 @@ func TestWriteTarGzipDirectory(t *testing.T) {
 			nil,
 			TarGzipLimits{MaxUncompressedSize: 128},
 		)
-		if !errors.Is(err, ErrTarGzipUncompressedLimit) {
-			t.Fatalf("WriteTarGzipDirectory() error = %v, want ErrTarGzipUncompressedLimit", err)
+		if !errors.Is(err, ErrTarSizeLimit) {
+			t.Fatalf("WriteTarGzipDirectory() error = %v, want ErrTarSizeLimit", err)
 		}
 		if stats.UncompressedSize > 128 {
 			t.Fatalf("UncompressedSize = %d, want at most 128", stats.UncompressedSize)

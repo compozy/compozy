@@ -606,3 +606,11 @@ acquisition for existing archive downloads. Failed acquisition releases the comp
 archive callers still receive the same gzip format. New source composition will use the checkout parent
 under the marketplace home. Focused registry/gitsrc race tests, lint and Windows compilation pass;
 live Git source acquisition and public source integration remain pending in task07/final QA.
+
+### Task07 canonical package tar
+
+Raw package tar and existing gzip archives now share the fileutil serializer. All raw tar limit consumers
+use the renamed internal errors directly. The serializer refuses a file replaced by a symlink before
+reading, preventing external bytes from entering a marketplace package. Existing gzip bytes, limits
+and cancellation remain covered by the same suite; no extension package/state migration is introduced.
+Scoped race checks pass. Final gate still owns baseline formatting/coverage gaps and integrated QA.
