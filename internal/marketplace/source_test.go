@@ -1507,3 +1507,77 @@ func duplicateExtensionInstallSlugsJSON(t *testing.T) string {
 	}
 	return string(raw)
 }
+
+// Invariant: both published feed transports read bounded, ordered v3 presets without root fallback.
+// Owner: feed acquisition; canonical suite: source_test.go.
+func TestCatalogPresetFetch(t *testing.T) {
+	t.Parallel()
+	valid := `{"manifest_version":3,"generated_at":"2026-09-13T00:00:00Z","entries":[{"name":"second","source":"github:Team/Second","description":"Second","default":"off"},{"name":"first","source":"github:team/first","description":"First","default":"on"}]}`
+	for _, test := range []struct {
+		name     string
+		body     string
+		missing  bool
+		wantErr  bool
+		tooLarge bool
+	}{
+		{name: "read ordered presets", body: valid},
+		{name: "reject a root-only preset feed", body: valid, missing: true, wantErr: true},
+		{name: "reject an obsolete preset version", body: strings.Replace(valid, `"manifest_version":3`, `"manifest_version":2`, 1), wantErr: true},
+		{name: "reject oversized presets", body: strings.Repeat(" ", int(defaultMaxResponseBytes)+1), wantErr: true, tooLarge: true},
+	} {
+		for _, transport := range []string{"HTTP", "file"} {
+			t.Run("Should "+test.name+" through "+transport, func(t *testing.T) {
+				t.Parallel()
+				var rootCalls atomic.Int64
+				var baseURL string
+				if transport == "HTTP" {
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if r.URL.Path != "/catalog/v3/marketplaces.json" {
+							rootCalls.Add(1)
+							http.NotFound(w, r)
+							return
+						}
+						if test.missing {
+							http.NotFound(w, r)
+							return
+						}
+						if _, err := io.WriteString(w, test.body); err != nil && !test.tooLarge {
+							t.Errorf("write preset response: %v", err)
+						}
+					}))
+					t.Cleanup(server.Close)
+					baseURL = server.URL + "/catalog"
+				} else {
+					root := t.TempDir()
+					if err := os.Mkdir(filepath.Join(root, "v3"), 0o700); err != nil {
+						t.Fatal(err)
+					}
+					path := filepath.Join(root, "v3", "marketplaces.json")
+					if test.missing {
+						path = filepath.Join(root, "marketplaces.json")
+					}
+					if err := os.WriteFile(path, []byte(test.body), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					baseURL = (&url.URL{Scheme: "file", Path: root}).String()
+				}
+				source, err := NewSource(baseURL, &http.Client{Timeout: time.Second})
+				if err != nil {
+					t.Fatal(err)
+				}
+				document, err := source.FetchPresets(t.Context())
+				if (err != nil) != test.wantErr || rootCalls.Load() != 0 {
+					t.Fatalf("presets=%+v err=%v root requests=%d", document, err, rootCalls.Load())
+				}
+				if test.tooLarge && !errors.Is(err, ErrResponseTooLarge) {
+					t.Fatalf("oversized presets error=%v", err)
+				}
+				if !test.wantErr && (len(document.Entries) != 2 || document.Entries[0].Name != "second" ||
+					document.Entries[0].Source != "github:team/second" || document.Entries[1].Name != "first" ||
+					document.Entries[0].Default != "off" || document.Entries[1].Default != "on") {
+					t.Fatalf("preset order or policy changed: %+v", document)
+				}
+			})
+		}
+	}
+}

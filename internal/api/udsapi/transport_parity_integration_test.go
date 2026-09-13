@@ -1973,6 +1973,17 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		})
 	}
 	runtimeHarness := startMarketplaceHarness(t)
+	// Establish one committed snapshot before comparing nonblocking reads across transports.
+	var refreshed compozycontract.MarketplaceRefreshResponse
+	if err := runtimeHarness.HTTPJSON(
+		t.Context(),
+		http.MethodPost,
+		"/api/marketplace/refresh",
+		nil,
+		&refreshed,
+	); err != nil {
+		t.Fatalf("refresh parity fixture: %v", err)
+	}
 
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {
@@ -2128,6 +2139,13 @@ requires = []
 		case "/package.tgz":
 			if _, err := response.Write(archive.Bytes()); err != nil {
 				t.Errorf("write package: %v", err)
+			}
+		case "/v3/marketplaces.json":
+			if _, err := io.WriteString(
+				response,
+				`{"manifest_version":3,"generated_at":"2026-09-13T00:00:00Z","entries":[]}`,
+			); err != nil {
+				t.Errorf("write presets: %v", err)
 			}
 		case "/v3/extensions.json":
 			response.Header().Set("Content-Type", "application/json")

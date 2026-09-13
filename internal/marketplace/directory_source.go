@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // DirectorySource reads the extension catalog from an absolute file URL.
@@ -17,7 +18,7 @@ type DirectorySource struct {
 	maxResponseBytes int64
 }
 
-var _ Source = (*DirectorySource)(nil)
+var _ FeedSource = (*DirectorySource)(nil)
 
 // NewDirectorySource creates a bounded local-checkout catalog source.
 func NewDirectorySource(baseURL string) (*DirectorySource, error) {
@@ -37,7 +38,32 @@ func NewDirectorySource(baseURL string) (*DirectorySource, error) {
 }
 
 // Fetch reads and validates the local document without mutating projection state.
-func (s *DirectorySource) Fetch(ctx context.Context) (document *Document, err error) {
+func (s *DirectorySource) Fetch(ctx context.Context) (*Document, error) {
+	if s == nil {
+		return nil, errors.New("marketplace catalog: directory source is required")
+	}
+	body, err := s.read(ctx, s.path)
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodeDocument(body)
+	return document, errors.Join(err, decodeErr)
+}
+
+// FetchPresets reads only the v3 preset catalog from the configured directory.
+func (s *DirectorySource) FetchPresets(ctx context.Context) (*PresetDocument, error) {
+	if s == nil {
+		return nil, errors.New("marketplace catalog: directory source is required")
+	}
+	body, err := s.read(ctx, filepath.Join(filepath.Dir(s.path), "marketplaces.json"))
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodePresets(body)
+	return document, errors.Join(err, decodeErr)
+}
+
+func (s *DirectorySource) read(ctx context.Context, path string) (_ []byte, err error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
@@ -45,40 +71,36 @@ func (s *DirectorySource) Fetch(ctx context.Context) (document *Document, err er
 		return nil, errors.New("marketplace catalog: directory source is required")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read extension feed canceled: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: read feed canceled: %w", err)
 	}
-	file, err := os.Open(s.path)
+	file, err := fileutil.OpenRegularFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: open extension feed: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: open feed: %w", err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("marketplace catalog: close extension feed: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("marketplace catalog: close feed: %w", closeErr))
 		}
 	}()
 	info, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: stat extension feed: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: stat feed: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("marketplace catalog: extension feed must be a regular file")
+		return nil, errors.New("marketplace catalog: feed must be a regular file")
 	}
 	if info.Size() > s.maxResponseBytes {
 		return nil, ErrResponseTooLarge
 	}
 	body, err := io.ReadAll(io.LimitReader(file, s.maxResponseBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read extension feed: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: read feed: %w", err)
 	}
 	if int64(len(body)) > s.maxResponseBytes {
 		return nil, ErrResponseTooLarge
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read extension feed canceled: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: read feed canceled: %w", err)
 	}
-	document, err = DecodeDocument(body)
-	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: validate extension feed: %w", err)
-	}
-	return document, nil
+	return body, nil
 }

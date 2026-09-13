@@ -10,12 +10,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -24,11 +27,212 @@ import (
 func TestBootMarketplaceLifecycle(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: feed presets are data, defaults overlay by origin, and the last valid set survives restart.
+	// Owner: daemon source composition and derived preset cache; canonical lifecycle suite.
+	t.Run(
+		"Should refresh newly discovered presets and retain disabled choices after a rename and restart",
+		func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(root, "marketplace.json"),
+				[]byte(`{"plugins":[]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			ref := (&url.URL{Scheme: "file", Path: root}).String()
+			var presetName atomic.Value
+			presetName.Store("original")
+			feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var entries any = []any{}
+				if r.URL.Path == "/v3/marketplaces.json" {
+					entries = []marketplace.Preset{
+						{Name: presetName.Load().(string), Source: ref, Description: "Local preset", Default: "on"},
+					}
+				}
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"manifest_version": 3, "generated_at": "2026-09-13T00:00:00Z", "entries": entries,
+				}); err != nil {
+					t.Errorf("write feed: %v", err)
+				}
+			}))
+			t.Cleanup(feed.Close)
+			home := testHomePaths(t)
+			cfg := testConfig(t, home)
+			cfg.Marketplace.Catalog.BaseURL = feed.URL
+			cfg.Marketplace.Catalog.Timeout = "1s"
+			repository := openDaemonTestGlobalDB(t)
+			store, err := marketplace.NewSQLiteStore(repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime, err := newMarketplaceRuntime(t.Context(), store, nil, cfg.Marketplace, home, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			report, err := runtime.Refresh(t.Context())
+			if err != nil || len(report.Outcomes) != 2 || report.Outcomes[1].Source != "original" ||
+				report.Outcomes[1].Outcome != marketplace.RefreshOutcomeSucceeded {
+				t.Fatalf("new preset was not refreshed: %+v, %v", report, err)
+			}
+			cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{
+				{Name: "original", Source: ref, Enabled: new(false)},
+			}
+			if err := runtime.ReconcileConfig(t.Context(), &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(
+				filepath.Join(root, "marketplace.json"),
+				filepath.Join(root, "disabled.json"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			presetName.Store("renamed")
+			report, err = runtime.Refresh(t.Context())
+			if err != nil || len(report.Outcomes) != 1 {
+				t.Fatalf("disabled preset was contacted: %+v, %v", report, err)
+			}
+			if err := runtime.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			feed.Close()
+			reopened, err := newMarketplaceRuntime(t.Context(), store, nil, cfg.Marketplace, home, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			states, err := reopened.Status(t.Context())
+			if err != nil || len(states) != 2 || states[1].Source != "renamed" || states[1].Enabled ||
+				states[1].SourceRef != ref || states[1].Kind != marketplace.SourceKindPreset {
+				t.Fatalf("preset choice after offline restart=%+v err=%v", states, err)
+			}
+		},
+	)
+
+	// Invariant: daemon config composes the real plugin loader/cache, excludes disabled sources,
+	// and retains last-good plugin rows after acquisition failure. Owner: marketplace runtime.
+	t.Run(
+		"Should project configured plugins through the install loader and retain cached bytes while degraded",
+		func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.CopyFS(
+				filepath.Join(root, "plugin"),
+				os.DirFS(filepath.Join("..", "extension", "testdata", "client-plugins", "open-design")),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(root, "marketplace.json"),
+				[]byte(`{"plugins":[{"name":"design","source":"./plugin"}]}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			var disabledRequests atomic.Int64
+			disabled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				disabledRequests.Add(1)
+				http.NotFound(w, r)
+			}))
+			t.Cleanup(disabled.Close)
+			feed := newMarketplaceFeedServer(t, "feed")
+			home := testHomePaths(t)
+			cfg := testConfig(t, home)
+			cfg.Marketplace.Catalog.BaseURL = feed.URL
+			cfg.Marketplace.Catalog.Timeout = "1s"
+			cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{
+				{Name: "team", Source: (&url.URL{Scheme: "file", Path: root}).String()},
+				{Name: "disabled", Source: "github:team/disabled", Enabled: new(false)},
+			}
+			repository := openDaemonTestGlobalDB(t)
+			store, err := marketplace.NewSQLiteStore(repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime, err := newMarketplaceRuntime(t.Context(), store, nil, cfg.Marketplace, home, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.resolver.Sources.GitHubOptions = []pluginsource.GitHubOption{
+				pluginsource.WithGitHubBaseURL(disabled.URL),
+			}
+			t.Cleanup(func() {
+				if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			report, err := runtime.Refresh(t.Context())
+			if err != nil || len(report.Outcomes) != 2 || disabledRequests.Load() != 0 {
+				t.Fatalf("refresh=%+v err=%v disabled requests=%d", report, err, disabledRequests.Load())
+			}
+			page, err := runtime.Browse(t.Context(), "", 0, 20)
+			if err != nil || page.Total != 2 || len(page.Sources) != 3 ||
+				page.Entries[0].SourceName != marketplace.CompozyCatalogSource {
+				t.Fatalf("merged listing=%+v err=%v", page, err)
+			}
+			entry := page.Entries[1]
+			projected, err := marketplace.ProjectEntry(entry)
+			if err != nil || !entry.Installable || entry.SourceName != "team" ||
+				projected.Extension.Contents.MCPServers != 1 ||
+				projected.Extension.Acquisition == nil ||
+				projected.SourceRef != cfg.Marketplace.PluginSources[0].Source {
+				t.Fatalf("projected plugin=%+v entry=%+v err=%v", projected, entry, err)
+			}
+			if err := os.Rename(
+				filepath.Join(root, "marketplace.json"),
+				filepath.Join(root, "unreachable.json"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runtime.Refresh(t.Context(), "team"); err == nil {
+				t.Fatal("unreachable source refresh succeeded")
+			}
+			retained, err := runtime.Detail(t.Context(), "team", "design")
+			if err != nil || retained.DigestSHA256 != entry.DigestSHA256 {
+				t.Fatalf("last-good entry=%+v err=%v", retained, err)
+			}
+			reader, err := runtime.resolver.Acquire(t.Context(), *projected.Extension.Acquisition, entry.DigestSHA256)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.Close(); err != nil {
+				t.Fatal(err)
+			}
+			cfg.Marketplace.PluginSources[0].Enabled = new(false)
+			if err := runtime.ReconcileConfig(t.Context(), &cfg); err != nil {
+				t.Fatal(err)
+			}
+			page, err = runtime.Browse(t.Context(), "", 0, 20)
+			if err != nil || page.Total != 1 || page.Sources[1].Enabled || disabledRequests.Load() != 0 {
+				t.Fatalf(
+					"disabled source visible or fetched: %+v err=%v requests=%d",
+					page,
+					err,
+					disabledRequests.Load(),
+				)
+			}
+		},
+	)
+
 	t.Run("Should browse a checkout catalog through a file source", func(t *testing.T) {
 		t.Parallel()
 
 		catalogDir := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(catalogDir, "v3"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(catalogDir, "v3", "marketplaces.json"),
+			[]byte(`{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		catalogPath := filepath.Join(catalogDir, "v3", "extensions.json")
@@ -45,11 +249,12 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			t.Fatalf("NewSQLiteStore() error = %v", err)
 		}
 		seedRemoteMarketplaceProjection(t, marketplaceStore, time.Now().UTC())
-		cfg := testConfig(t, testHomePaths(t))
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
 		cfg.Marketplace.Catalog.BaseURL = (&url.URL{Scheme: "file", Path: catalogDir}).String()
 		cfg.Marketplace.Catalog.TTL = "1h"
 		cfg.Marketplace.Catalog.Timeout = "1s"
-		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace, homePaths, time.Now)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}
@@ -200,11 +405,12 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewSQLiteStore() error = %v", err)
 		}
-		cfg := testConfig(t, testHomePaths(t))
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
 		cfg.Marketplace.Catalog.BaseURL = oldServer.URL
 		cfg.Marketplace.Catalog.TTL = "1h"
 		cfg.Marketplace.Catalog.Timeout = "1m"
-		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, cfg.Marketplace, homePaths, time.Now)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}

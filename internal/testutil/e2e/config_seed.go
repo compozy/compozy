@@ -172,17 +172,15 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 			Provider: cfg.Defaults.Provider,
 			Sandbox:  cfg.Defaults.Sandbox,
 		},
-		Session: cloneSessionConfig(cfg.Session),
-		Roles:   cloneRolesConfig(&cfg.Roles),
-		Memory:  cloneMemoryConfig(&cfg.Memory),
-		Network: &cfg.Network,
-		Tools:   cloneToolsConfig(&cfg.Tools),
-		Marketplace: &compozyconfig.MarketplaceRuntimeConfig{
-			Catalog: cfg.Marketplace.Catalog,
-		},
-		Extensions: &cfg.Extensions,
-		Providers:  cloneProviders(cfg.Providers),
-		Sandboxes:  cloneSandboxProfiles(cfg.Sandboxes),
+		Session:     cloneSessionConfig(cfg.Session),
+		Roles:       cloneRolesConfig(&cfg.Roles),
+		Memory:      cloneMemoryConfig(&cfg.Memory),
+		Network:     &cfg.Network,
+		Tools:       cloneToolsConfig(&cfg.Tools),
+		Marketplace: &cfg.Marketplace,
+		Extensions:  &cfg.Extensions,
+		Providers:   cloneProviders(cfg.Providers),
+		Sandboxes:   cloneSandboxProfiles(cfg.Sandboxes),
 	}
 	if cfg.Permissions.Mode != "" {
 		overlay.Permissions = &configSeedPermissionsSection{Mode: cfg.Permissions.Mode}

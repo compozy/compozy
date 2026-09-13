@@ -39,7 +39,7 @@ type HTTPSource struct {
 	maxResponseBytes int64
 }
 
-var _ Source = (*HTTPSource)(nil)
+var _ FeedSource = (*HTTPSource)(nil)
 
 // HTTPSourceOption customizes bounded feed fetching.
 type HTTPSourceOption func(*HTTPSource)
@@ -86,7 +86,33 @@ func NewHTTPSource(baseURL string, client *http.Client, options ...HTTPSourceOpt
 }
 
 // Fetch downloads and validates the extension catalog without mutating projection state.
-func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) {
+func (s *HTTPSource) Fetch(ctx context.Context) (*Document, error) {
+	if s == nil {
+		return nil, errors.New("marketplace catalog: HTTP source is required")
+	}
+	body, err := s.read(ctx, s.endpoint)
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodeDocument(body)
+	return document, errors.Join(err, decodeErr)
+}
+
+// FetchPresets reads the ordered v3 preset catalog through the same bounded transport.
+func (s *HTTPSource) FetchPresets(ctx context.Context) (*PresetDocument, error) {
+	if s == nil {
+		return nil, errors.New("marketplace catalog: HTTP source is required")
+	}
+	endpoint := strings.TrimSuffix(s.endpoint, "extensions.json") + "marketplaces.json"
+	body, err := s.read(ctx, endpoint)
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodePresets(body)
+	return document, errors.Join(err, decodeErr)
+}
+
+func (s *HTTPSource) read(ctx context.Context, endpoint string) (_ []byte, err error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
@@ -95,14 +121,14 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, s.endpoint, http.NoBody)
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: create extension catalog request: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: create feed request: %w", err)
 	}
 	request.Header.Set("Accept", "application/json")
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: fetch extension feed: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: fetch feed: %w", err)
 	}
 	defer func() {
 		err = joinHTTPResponseErrors(err, drainAndCloseHTTPResponseBody(response.Body))
@@ -116,25 +142,21 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	limitedBody := &io.LimitedReader{R: response.Body, N: s.maxResponseBytes}
 	body, err := io.ReadAll(limitedBody)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read extension catalog response: %w", err)
+		return nil, fmt.Errorf("marketplace catalog: read feed response: %w", err)
 	}
 	if limitedBody.N == 0 {
 		extra, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
 		if len(extra) > 0 {
 			if readErr != nil {
-				readErr = fmt.Errorf("marketplace catalog: read extension catalog response: %w", readErr)
+				readErr = fmt.Errorf("marketplace catalog: read feed response: %w", readErr)
 			}
 			return nil, joinHTTPResponseErrors(ErrResponseTooLarge, readErr)
 		}
 		if readErr != nil {
-			return nil, fmt.Errorf("marketplace catalog: read extension catalog response: %w", readErr)
+			return nil, fmt.Errorf("marketplace catalog: read feed response: %w", readErr)
 		}
 	}
-	document, err = DecodeDocument(body)
-	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: validate extension feed: %w", err)
-	}
-	return document, nil
+	return body, nil
 }
 
 // drainAndCloseHTTPResponseBody discards at most maxHTTPResponseDrainBytes before closing the body.

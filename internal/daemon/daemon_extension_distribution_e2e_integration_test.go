@@ -92,6 +92,14 @@ func testDaemonCatalogPublication(t *testing.T) {
 	if len(feed.Entries) != 20 {
 		t.Fatalf("published entries = %d, want 3 preserved extensions and 17 packaged servers", len(feed.Entries))
 	}
+	presetRaw, err := os.ReadFile(filepath.Join(published, "v3", "marketplaces.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presets, err := marketplacepkg.DecodePresets(presetRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name     string
 		rootOnly bool
@@ -121,6 +129,17 @@ func testDaemonCatalogPublication(t *testing.T) {
 			options := &e2etest.RuntimeHarnessOptions{
 				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 					cfg.Marketplace.Catalog.BaseURL = server.URL
+					// This suite verifies the published feed; upstream plugin acquisition has its own fixture.
+					for _, preset := range presets.Entries {
+						cfg.Marketplace.PluginSources = append(
+							cfg.Marketplace.PluginSources,
+							compozyconfig.MarketplacePluginSourceConfig{
+								Name:    preset.Name,
+								Source:  preset.Source,
+								Enabled: new(false),
+							},
+						)
+					}
 				}},
 			}
 			runtime := e2etest.StartRuntimeHarness(t, options)

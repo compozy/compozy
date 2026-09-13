@@ -61,6 +61,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
 | `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
+| `[[marketplace.plugin_sources]]` | Plugin marketplace registrations and preset choices. | Preset defaults; custom registrations enabled by default |
 | `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                             |
 | `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                                |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
@@ -1776,7 +1777,7 @@ This section is global-only because the projection and refresh service are globa
 | Key        | Type     | Default                                                          | Validation                                     | Effect                                                                            |
 | ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
 | `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for the v3 feed family; applies live.                              |
-| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | HTTP(S) catalog cache age before browse refreshes; local files refresh on access. |
+| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | Projection freshness for HTTP(S) and file catalogs; browse schedules stale refreshes. |
 | `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                      |
 
 ```toml
@@ -1806,6 +1807,48 @@ Agent-side config mutation is narrower than the operator CLI. `compozy__config_s
 live lifecycle. It rejects `marketplace.catalog.base_url` with
 `config_trust_root_forbidden`; changing the feed root remains an operator action through
 `compozy config set`. Both surfaces require global scope for every `marketplace.catalog.*` write.
+
+
+## `[[marketplace.plugin_sources]]`
+
+Register plugin marketplaces in the global `config.toml`. Source identity is the normalized repository
+or folder reference; the display name does not identify installed packages.
+
+```toml
+[[marketplace.plugin_sources]]
+name = "team-plugins"
+source = "github:my-team/plugins"
+enabled = true
+
+[[marketplace.plugin_sources]]
+name = "local-plugins"
+source = "file:///absolute/path/to/plugins"
+enabled = false
+```
+
+| Key | Type | Default | Validation |
+| --- | --- | --- | --- |
+| `name` | string | Required | Unique, 1–64 lowercase letters, digits, dots, underscores or hyphens. `compozy`, `compozy-catalog`, `.` and `..` are reserved. |
+| `source` | string | Required | `github:owner/repo`, `git+https://host/repository`, or an absolute local `file` URL. Credentials, query strings and fragments are rejected. |
+| `enabled` | boolean | Preset default, or `true` for a custom source | Explicit `false` disables the source. |
+
+Distinct names may register the same acquisition reference. Equivalent GitHub spellings resolve to one
+origin, so those catalog items share installed state.
+Preset choices match `source`, so an upstream preset rename keeps the operator's enabled choice and uses
+the preset's current name. If several rows share that source, the current preset name selects its
+override; otherwise the first matching row does. Other rows remain custom registrations. The catalog order is the Compozy feed, presets in publication order, then
+custom sources in configuration order. A custom name that collides with a resolved preset is rejected.
+
+An overlay that omits `plugin_sources` preserves the current rows; an explicit
+`[marketplace] plugin_sources = []` clears the operator rows. Clearing an override restores the preset's
+default, so use `enabled = false` to disable a preset. Workspace and profile overlays cannot register
+global marketplaces. Plugin marketplace packages remain unverified; a digest identifies the listed
+bytes and does not establish publisher trust.
+
+The daemon restores the last valid preset document from its local cache on startup. Feed refreshes
+read the current presets and apply operator choices by source reference. Catalog reads use stored
+projections while refreshes run; disabling a source excludes its entries and cancels its refresh.
+
 
 ## `[observability]`
 

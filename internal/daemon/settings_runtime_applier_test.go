@@ -654,7 +654,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewSQLiteStore() error = %v", err)
 		}
-		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, previous.Marketplace.Catalog, nil)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, previous.Marketplace, homePaths, nil)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}

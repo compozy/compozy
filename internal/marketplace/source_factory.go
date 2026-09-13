@@ -1,14 +1,21 @@
 package marketplace
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
+// FeedSource reads both documents in the published v3 catalog family.
+type FeedSource interface {
+	Source
+	FetchPresets(context.Context) (*PresetDocument, error)
+}
+
 // NewSource creates a catalog source for an HTTP(S) endpoint or absolute file URL.
-func NewSource(baseURL string, client *http.Client) (Source, error) {
+func NewSource(baseURL string, client *http.Client) (FeedSource, error) {
 	parsed, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
 		return nil, errors.New("marketplace catalog: base URL must use http, https, or file")
