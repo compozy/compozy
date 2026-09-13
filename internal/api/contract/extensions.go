@@ -43,19 +43,20 @@ type ExtensionValidationErrorPayload struct {
 
 // ExtensionOperationErrorPayload is the deterministic extension lifecycle error envelope.
 type ExtensionOperationErrorPayload struct {
-	InstalledOrigin *MarketplaceOriginPayload `json:"installed_origin,omitempty"`
-	ListedDigest    string                    `json:"listed_digest,omitempty"`
-	FetchedDigest   string                    `json:"fetched_digest,omitempty"`
-	InputID         string                    `json:"input_id,omitempty"`
-	Inputs          []string                  `json:"inputs,omitempty"`
-	MissingEnv      []string                  `json:"missing_env,omitempty"`
-	Error           string                    `json:"error"`
-	Code            string                    `json:"code"`
-	Diagnostic      *DiagnosticItem           `json:"diagnostic,omitempty"`
-	CurrentDigest   string                    `json:"current_digest,omitempty"`
-	Agents          []string                  `json:"agents,omitempty"`
-	EnvName         string                    `json:"env_name,omitempty"`
-	DeclaredEnv     []string                  `json:"declared_env,omitempty"`
+	InputDefinitions []MarketplaceInputPayload `json:"input_definitions,omitempty"`
+	InstalledOrigin  *MarketplaceOriginPayload `json:"installed_origin,omitempty"`
+	ListedDigest     string                    `json:"listed_digest,omitempty"`
+	FetchedDigest    string                    `json:"fetched_digest,omitempty"`
+	InputID          string                    `json:"input_id,omitempty"`
+	Inputs           []string                  `json:"inputs,omitempty"`
+	MissingEnv       []string                  `json:"missing_env,omitempty"`
+	Error            string                    `json:"error"`
+	Code             string                    `json:"code"`
+	Diagnostic       *DiagnosticItem           `json:"diagnostic,omitempty"`
+	CurrentDigest    string                    `json:"current_digest,omitempty"`
+	Agents           []string                  `json:"agents,omitempty"`
+	EnvName          string                    `json:"env_name,omitempty"`
+	DeclaredEnv      []string                  `json:"declared_env,omitempty"`
 }
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.

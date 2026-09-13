@@ -39,3 +39,9 @@ reopen confirmation for the current digest without sending another install until
 A newly unverified entry requires fresh trust consent; a blocked or different-origin response cannot
 be installed. Duplicate preview/confirm presses, including two events before React renders, dispatch
 one request. Network failure closes the stale confirmation and returns the trail to Install.
+
+Task03 input recovery contract (final tasks09/10): publish an update that adds a required input.
+The refused update must leave the installed version and values intact and return only the missing
+candidate declarations in input_definitions. The configuration step uses those declarations without
+another preview acquisition; a retry keeps the original profile/workspace selector. Secret values
+and refs must not appear in error metadata. UI recovery remains pending until UT039 is complete.

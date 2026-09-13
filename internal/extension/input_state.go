@@ -37,15 +37,22 @@ func (r Readiness) RequiredError(manifest *Manifest) error {
 		return nil
 	}
 	missing := slices.Clone(r.MissingInputs)
+	var definitions []ManifestInput
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
 			if input.Binding.Type == "env" && slices.Contains(r.MissingEnv, input.Binding.Name) {
 				missing = append(missing, input.ID)
 			}
+			if slices.Contains(missing, input.ID) {
+				input.Default = slices.Clone(input.Default)
+				definitions = append(definitions, input)
+			}
 		}
 	}
 	slices.Sort(missing)
-	return &InputsRequiredError{MissingInputs: missing, MissingEnv: slices.Clone(r.MissingEnv)}
+	return &InputsRequiredError{
+		MissingInputs: slices.Compact(missing), MissingEnv: slices.Clone(r.MissingEnv), InputDefinitions: definitions,
+	}
 }
 
 var ErrExtensionInputInvalid = errors.New("extension: invalid input")
@@ -64,8 +71,9 @@ func (e *InputValidationError) Unwrap() error { return ErrExtensionInputInvalid 
 
 // InputsRequiredError reports the information required before an extension can run.
 type InputsRequiredError struct {
-	MissingInputs []string
-	MissingEnv    []string
+	InputDefinitions []ManifestInput
+	MissingInputs    []string
+	MissingEnv       []string
 }
 
 func (e *InputsRequiredError) Unwrap() error { return ErrExtensionInputsRequired }

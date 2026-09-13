@@ -993,7 +993,9 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			InstalledOrigin: marketplacepkg.Origin{SourceRef: "https://example.com/catalog", EntryID: "team/example"}},
 			http.StatusConflict, diagnosticcontract.CodeExtensionNameConflict},
 		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
-		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
+		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"},
+			InputDefinitions: []extensionpkg.ManifestInput{{ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
+				Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "workspace"}}}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
 		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
 	} {
 		for _, transport := range []string{"http", "uds"} {
@@ -1038,6 +1040,11 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 					if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
 						!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
 						t.Fatalf("required inputs = %#v", payload)
+					}
+					if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||
+						payload.InputDefinitions[0].Prompt != "Workspace" || payload.InputDefinitions[0].Type != "identifier" ||
+						!payload.InputDefinitions[0].Required || payload.InputDefinitions[0].Binding.Name != "workspace" {
+						t.Fatalf("candidate definitions = %#v", payload.InputDefinitions)
 					}
 				case diagnosticcontract.CodeExtensionInputInvalid:
 					if payload.InputID != "workspace" {

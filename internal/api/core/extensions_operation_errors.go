@@ -27,24 +27,8 @@ func extensionOperationErrorPayload(
 	switch kind {
 	case extensionErrorMCPNameTaken:
 		payload.Code = "mcp_server_name_taken"
-	case extensionErrorNameConflict:
-		payload.InstalledOrigin = ExtensionNameConflictOrigin(err)
-		payload.Code = diagnosticcontract.CodeExtensionNameConflict
-	case extensionErrorSourceChanged:
-		if changed, ok := errors.AsType[*extensionpkg.SourceChangedError](err); ok {
-			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
-		}
-		payload.Code = diagnosticcontract.CodeExtensionSourceChanged
-	case extensionErrorInputsRequired:
-		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
-			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
-		}
-		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
-	case extensionErrorInputInvalid:
-		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
-			payload.InputID = invalid.InputID
-		}
-		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
+	case extensionErrorNameConflict, extensionErrorSourceChanged, extensionErrorInputsRequired, extensionErrorInputInvalid:
+		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorNetworkConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
 		if ok && confirmationErr != nil {
@@ -148,15 +132,43 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 	}
 }
 
-// ExtensionNameConflictOrigin exposes the installed acquisition consistently across public transports.
-func ExtensionNameConflictOrigin(err error) *contract.MarketplaceOriginPayload {
-	conflict, ok := errors.AsType[*extensionpkg.ExtensionNameConflictError](err)
-	if !ok {
-		return nil
+// ExtensionAcquisitionErrorPayload maps candidate failures consistently across public transports.
+func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
+	payload := contract.ExtensionOperationErrorPayload{}
+	switch classifyExtensionError(err) {
+	case extensionErrorNameConflict:
+		payload.Code = diagnosticcontract.CodeExtensionNameConflict
+		if conflict, ok := errors.AsType[*extensionpkg.ExtensionNameConflictError](err); ok {
+			payload.InstalledOrigin = &contract.MarketplaceOriginPayload{
+				Source: conflict.SourceName, SourceRef: conflict.InstalledOrigin.SourceRef,
+				EntryID: conflict.InstalledOrigin.EntryID,
+			}
+		}
+	case extensionErrorSourceChanged:
+		payload.Code = diagnosticcontract.CodeExtensionSourceChanged
+		if changed, ok := errors.AsType[*extensionpkg.SourceChangedError](err); ok {
+			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
+		}
+	case extensionErrorInputsRequired:
+		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
+		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
+			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+			for _, input := range required.InputDefinitions {
+				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
+					ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+					Default: slices.Clone(input.Default),
+					Binding: contract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+				})
+			}
+		}
+	case extensionErrorInputInvalid:
+		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
+		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
+			payload.InputID = invalid.InputID
+		}
+	default:
+		return payload, false
 	}
-	return &contract.MarketplaceOriginPayload{
-		Source:    conflict.SourceName,
-		SourceRef: conflict.InstalledOrigin.SourceRef,
-		EntryID:   conflict.InstalledOrigin.EntryID,
-	}
+	payload.Error = err.Error()
+	return payload, true
 }

@@ -83592,6 +83592,49 @@
                         "fetched_digest": {
                           "type": "string"
                         },
+                        "input_definitions": {
+                          "items": {
+                            "properties": {
+                              "binding": {
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "default": {},
+                              "id": {
+                                "type": "string"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "required": {
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "binding",
+                              "id",
+                              "prompt",
+                              "required",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "input_id": {
                           "type": "string"
                         },
@@ -83791,6 +83834,49 @@
                         },
                         "fetched_digest": {
                           "type": "string"
+                        },
+                        "input_definitions": {
+                          "items": {
+                            "properties": {
+                              "binding": {
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "default": {},
+                              "id": {
+                                "type": "string"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "required": {
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "binding",
+                              "id",
+                              "prompt",
+                              "required",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "input_id": {
                           "type": "string"
@@ -86111,6 +86197,49 @@
                     "fetched_digest": {
                       "type": "string"
                     },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "input_id": {
                       "type": "string"
                     },
@@ -86904,6 +87033,49 @@
                     "fetched_digest": {
                       "type": "string"
                     },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "input_id": {
                       "type": "string"
                     },
@@ -87101,6 +87273,49 @@
                         },
                         "fetched_digest": {
                           "type": "string"
+                        },
+                        "input_definitions": {
+                          "items": {
+                            "properties": {
+                              "binding": {
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "default": {},
+                              "id": {
+                                "type": "string"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "required": {
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "binding",
+                              "id",
+                              "prompt",
+                              "required",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "input_id": {
                           "type": "string"
@@ -89549,6 +89764,49 @@
                     "fetched_digest": {
                       "type": "string"
                     },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "input_id": {
                       "type": "string"
                     },
@@ -89746,6 +90004,49 @@
                         },
                         "fetched_digest": {
                           "type": "string"
+                        },
+                        "input_definitions": {
+                          "items": {
+                            "properties": {
+                              "binding": {
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "default": {},
+                              "id": {
+                                "type": "string"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "required": {
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "binding",
+                              "id",
+                              "prompt",
+                              "required",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "input_id": {
                           "type": "string"
@@ -90551,6 +90852,49 @@
                     },
                     "fetched_digest": {
                       "type": "string"
+                    },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "input_id": {
                       "type": "string"
@@ -93427,6 +93771,49 @@
                     "fetched_digest": {
                       "type": "string"
                     },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "input_id": {
                       "type": "string"
                     },
@@ -94022,6 +94409,49 @@
                     "fetched_digest": {
                       "type": "string"
                     },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "input_id": {
                       "type": "string"
                     },
@@ -94354,6 +94784,49 @@
                     },
                     "fetched_digest": {
                       "type": "string"
+                    },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "input_id": {
                       "type": "string"
@@ -103437,6 +103910,49 @@
                     },
                     "fetched_digest": {
                       "type": "string"
+                    },
+                    "input_definitions": {
+                      "items": {
+                        "properties": {
+                          "binding": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "default": {},
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binding",
+                          "id",
+                          "prompt",
+                          "required",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "input_id": {
                       "type": "string"

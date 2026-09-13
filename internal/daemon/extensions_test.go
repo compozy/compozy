@@ -1977,6 +1977,19 @@ binding = { type = "url_query", name = "region" }
 				extensionpkg.ErrExtensionInputsRequired,
 			) {
 				t.Fatalf("new required input update error = %v", err)
+			} else {
+				// Invariant: recovery describes only missing candidate inputs before changing installed state.
+				// Owner: daemon input lifecycle; canonical suite: TestDaemonExtensionInputLifecycle.
+				required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+				if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) || len(required.InputDefinitions) != 1 {
+					t.Fatalf("candidate recovery = %#v", err)
+				}
+				definition := required.InputDefinitions[0]
+				if definition.ID != "region" || definition.Prompt != "Region" || definition.Type != "identifier" ||
+					!definition.Required || definition.Binding.Type != "url_query" || definition.Binding.Name != "region" ||
+					len(definition.Default) != 0 {
+					t.Fatalf("candidate definition = %#v", definition)
+				}
 			}
 			info, err := registry.Get("tool-ext")
 			if err != nil || info.Version != "1.0.0" {

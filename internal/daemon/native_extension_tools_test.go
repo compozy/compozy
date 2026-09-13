@@ -336,6 +336,52 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: native acquisition failures retain recovery metadata, including after partial batch progress.
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should retain missing candidate fields after a partial native update", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.InputsRequiredError{
+			MissingInputs: []string{"region"},
+			InputDefinitions: []extensionpkg.ManifestInput{{ID: "region", Prompt: "Region", Type: "identifier",
+				Required: true, Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "region"}}},
+		}
+		err := nativeExtensionUpdateToolError(toolspkg.ToolIDExtensionsUpdate,
+			[]contract.ManagedExtensionUpdatePayload{{Name: "completed"}},
+			&extensionpkg.MarketplaceUpdateBatchError{FailedName: "kit", Cause: cause})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_inputs_required" || !errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native input recovery = %#v", err)
+		}
+		var payload nativeExtensionUpdatePartialPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.CompletedCount != 1 || payload.FailedTarget != "kit" || len(payload.Updates) != 1 ||
+			payload.Updates[0].Name != "completed" || payload.OperationError == nil ||
+			len(payload.OperationError.InputDefinitions) != 1 || payload.OperationError.InputDefinitions[0].Prompt != "Region" {
+			t.Fatalf("native partial recovery = %#v", payload)
+		}
+	})
+
+	t.Run("Should retain changed source digests in a native conflict", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}
+		err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_source_changed" || !errors.Is(err, toolspkg.ErrToolConflict) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native source conflict = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.ListedDigest != cause.ListedDigest || payload.FetchedDigest != cause.FetchedDigest {
+			t.Fatalf("native source digests = %#v", payload)
+		}
+	})
+
 	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
 		t.Parallel()
 

@@ -133,6 +133,61 @@ describe("marketplace acquisition transport", () => {
     await expectFetchRequest({ method: "POST", path: "/api/extensions", body });
   });
 
+  it("Should expose candidate input definitions without unrecognized value fields", async () => {
+    const definition = {
+      id: "token",
+      prompt: "API key",
+      type: "secret",
+      required: true,
+      binding: { type: "env", name: "TOKEN" },
+    };
+    mockJsonResponse(
+      {
+        code: "extension_inputs_required",
+        error: "configuration required",
+        inputs: ["token"],
+        input_definitions: [{ ...definition, value: "must-not-be-retained" }],
+      },
+      { status: 422 }
+    );
+    await expect(
+      installMarketplaceExtension({ source: "curated", ref: "compozy/kit" })
+    ).rejects.toHaveProperty("inputDefinitions", [definition]);
+  });
+
+  it.each([
+    { id: "region", type: "identifier" },
+    {
+      id: "token",
+      prompt: "API key",
+      type: "secret",
+      required: true,
+      binding: { type: "env", name: "TOKEN" },
+      default: "forbidden",
+    },
+    {
+      id: "enabled",
+      prompt: "Enabled",
+      type: "boolean",
+      required: true,
+      binding: { type: "env", name: "ENABLED" },
+      default: "false",
+    },
+  ])("Should reject malformed candidate definitions %#", async definition => {
+    mockJsonResponse(
+      {
+        code: "extension_inputs_required",
+        error: "configuration required",
+        inputs: [definition.id],
+        input_definitions: [definition],
+      },
+      { status: 422 }
+    );
+    await expect(
+      installMarketplaceExtension({ source: "curated", ref: "compozy/kit" })
+    ).rejects.toMatchObject({ inputDefinitions: undefined, requiredInputs: [definition.id] });
+  });
+
   it("Should retain an invalid input id without treating a malformed input list as configuration", async () => {
     mockJsonResponse(
       { code: "extension_input_invalid", error: "invalid input", input_id: "region", inputs: [42] },

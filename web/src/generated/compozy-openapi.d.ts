@@ -36646,6 +36646,17 @@ export interface operations {
                 env_name?: string;
                 error: string;
                 fetched_digest?: string;
+                input_definitions?: {
+                  binding: {
+                    name: string;
+                    type: string;
+                  };
+                  default?: unknown;
+                  id: string;
+                  prompt: string;
+                  required: boolean;
+                  type: string;
+                }[];
                 input_id?: string;
                 inputs?: string[];
                 installed_origin?: {
@@ -36709,6 +36720,17 @@ export interface operations {
                 env_name?: string;
                 error: string;
                 fetched_digest?: string;
+                input_definitions?: {
+                  binding: {
+                    name: string;
+                    type: string;
+                  };
+                  default?: unknown;
+                  id: string;
+                  prompt: string;
+                  required: boolean;
+                  type: string;
+                }[];
                 input_id?: string;
                 inputs?: string[];
                 installed_origin?: {
@@ -37467,6 +37489,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -37752,6 +37785,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -37815,6 +37859,17 @@ export interface operations {
                 env_name?: string;
                 error: string;
                 fetched_digest?: string;
+                input_definitions?: {
+                  binding: {
+                    name: string;
+                    type: string;
+                  };
+                  default?: unknown;
+                  id: string;
+                  prompt: string;
+                  required: boolean;
+                  type: string;
+                }[];
                 input_id?: string;
                 inputs?: string[];
                 installed_origin?: {
@@ -38456,6 +38511,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -38519,6 +38585,17 @@ export interface operations {
                 env_name?: string;
                 error: string;
                 fetched_digest?: string;
+                input_definitions?: {
+                  binding: {
+                    name: string;
+                    type: string;
+                  };
+                  default?: unknown;
+                  id: string;
+                  prompt: string;
+                  required: boolean;
+                  type: string;
+                }[];
                 input_id?: string;
                 inputs?: string[];
                 installed_origin?: {
@@ -39037,6 +39114,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -40029,6 +40117,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -40248,6 +40347,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -40376,6 +40486,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {
@@ -43745,6 +43866,17 @@ export interface operations {
             env_name?: string;
             error: string;
             fetched_digest?: string;
+            input_definitions?: {
+              binding: {
+                name: string;
+                type: string;
+              };
+              default?: unknown;
+              id: string;
+              prompt: string;
+              required: boolean;
+              type: string;
+            }[];
             input_id?: string;
             inputs?: string[];
             installed_origin?: {

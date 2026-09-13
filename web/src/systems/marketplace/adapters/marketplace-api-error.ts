@@ -10,6 +10,7 @@ export class MarketplaceApiError extends Error {
   public readonly fetchedDigest: string | undefined;
   public readonly inputId: string | undefined;
   public readonly requiredInputs: readonly string[] | undefined;
+  public readonly inputDefinitions: ExtensionOperationErrorMetadata["inputDefinitions"];
   constructor(
     message: string,
     public readonly status: number,
@@ -24,6 +25,7 @@ export class MarketplaceApiError extends Error {
     this.fetchedDigest = metadata.fetchedDigest;
     this.inputId = metadata.inputId;
     this.requiredInputs = metadata.requiredInputs;
+    this.inputDefinitions = metadata.inputDefinitions;
   }
 }
 

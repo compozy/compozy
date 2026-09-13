@@ -3,12 +3,12 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -16,6 +16,7 @@ import (
 )
 
 type nativeExtensionUpdatePartialPayload struct {
+	OperationError *contract.ExtensionOperationErrorPayload `json:"operation_error,omitempty"`
 	Updates        []contract.ManagedExtensionUpdatePayload `json:"updates"`
 	FailedTarget   string                                   `json:"failed_target"`
 	CompletedCount int                                      `json:"completed_count"`
@@ -40,7 +41,12 @@ func nativeExtensionUpdateToolError(
 			return mappedErr
 		}
 	}
+	var operationError *contract.ExtensionOperationErrorPayload
+	if payload, mapped := core.ExtensionAcquisitionErrorPayload(err); mapped {
+		operationError = &payload
+	}
 	partial, marshalErr := structuredResult(nativeExtensionUpdatePartialPayload{
+		OperationError: operationError,
 		Updates:        append([]contract.ManagedExtensionUpdatePayload(nil), items...),
 		FailedTarget:   batchErr.FailedName,
 		CompletedCount: len(items),
@@ -58,6 +64,9 @@ func nativeExtensionUpdateToolError(
 }
 
 func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
+	if payload, ok := core.ExtensionAcquisitionErrorPayload(err); ok {
+		return nativeExtensionAcquisitionError(id, err, payload)
+	}
 	switch {
 	case err == nil:
 		return nil
@@ -77,8 +86,6 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
-	case errors.Is(err, extensionpkg.ErrExtensionNameConflict):
-		return nativeExtensionNameConflictError(id, err)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionmcp.ErrNameTaken):
@@ -199,19 +206,20 @@ func requiredNativeExtensionName(toolID toolspkg.ToolID, name, owner string) (st
 	return name, nil
 }
 
-func nativeExtensionNameConflictError(id toolspkg.ToolID, err error) error {
-	result := toolspkg.NewToolError(diagnosticcontract.CodeExtensionNameConflict, id, err.Error(),
-		fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err), toolspkg.ReasonExtensionValidationFailed)
-	origin := core.ExtensionNameConflictOrigin(err)
-	if origin == nil {
-		return result
+func nativeExtensionAcquisitionError(
+	id toolspkg.ToolID,
+	err error,
+	payload contract.ExtensionOperationErrorPayload,
+) error {
+	cause := toolspkg.ErrToolInvalidInput
+	if core.ExtensionStatusCode(err) == http.StatusConflict {
+		cause = toolspkg.ErrToolConflict
 	}
-	payload, encodeErr := structuredResult(contract.ExtensionOperationErrorPayload{
-		Code: diagnosticcontract.CodeExtensionNameConflict, Error: err.Error(),
-		InstalledOrigin: origin,
-	}, err.Error())
+	result := toolspkg.NewToolError(toolspkg.ErrorCode(payload.Code), id, payload.Error,
+		fmt.Errorf("%w: %w", cause, err), toolspkg.ReasonExtensionValidationFailed)
+	partial, encodeErr := structuredResult(payload, payload.Error)
 	if encodeErr != nil {
 		return errors.Join(result, encodeErr)
 	}
-	return result.WithPartialResult(payload)
+	return result.WithPartialResult(partial)
 }

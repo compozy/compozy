@@ -120,6 +120,10 @@ local-folder installs have their own policy and consent gate.
 Marketplace installs extension packages through the extension install API/CLI. Inspect the
 entry's digest-pinned manifest inputs before installing. Secret input refs must belong to the
 same extension instance; manual MCP credentials are not imported into extension inputs.
+On `extension_inputs_required`, collect the missing fields described by `input_definitions`
+and retry the same scoped operation with typed inputs. Definitions come from the validated
+candidate and contain no stored values or secret refs. A native batch failure keeps this
+metadata in `operation_error` alongside completed updates; retry the failed target only.
 
 Manual MCP definitions remain managed through `GET /api/settings/mcp-servers` and
 `PUT /api/settings/mcp-servers/{name}` with their exact scope. Existing MCP sidecars and credentials

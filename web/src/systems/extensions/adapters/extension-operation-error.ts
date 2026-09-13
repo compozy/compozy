@@ -1,4 +1,6 @@
-import type { ExtensionEntry } from "../types";
+import { z } from "zod";
+
+import type { ExtensionEntry, ExtensionInstallPreview } from "../types";
 
 /** Safe structured fields used to recover from a refused extension lifecycle operation. */
 export interface ExtensionOperationErrorMetadata {
@@ -9,6 +11,7 @@ export interface ExtensionOperationErrorMetadata {
   readonly fetchedDigest?: string;
   readonly inputId?: string;
   readonly requiredInputs?: readonly string[];
+  readonly inputDefinitions?: ExtensionInstallPreview["inputs"];
 }
 
 function errorString(error: object, field: string): string | undefined {
@@ -21,6 +24,7 @@ export function extensionOperationErrorMetadata(error: unknown): ExtensionOperat
   const inputs: unknown = Reflect.get(error, "inputs");
   return {
     code: errorString(error, "code"),
+    inputDefinitions: inputDefinitions(error),
     installedOrigin: installedOrigin(error),
     currentDigest: errorString(error, "current_digest"),
     listedDigest: errorString(error, "listed_digest"),
@@ -40,4 +44,27 @@ function installedOrigin(error: object): ExtensionOperationErrorMetadata["instal
   const entryId = errorString(origin, "entry_id");
   if (!sourceRef || !entryId) return undefined;
   return { source: errorString(origin, "source") ?? "", source_ref: sourceRef, entry_id: entryId };
+}
+
+const inputFields = {
+  id: z.string().min(1),
+  prompt: z.string(),
+  required: z.boolean(),
+  binding: z.object({ type: z.enum(["env", "url_query"]), name: z.string().min(1) }),
+};
+const inputDefinitionsSchema = z.array(
+  z.discriminatedUnion("type", [
+    z.object({ ...inputFields, type: z.literal("secret"), default: z.never().optional() }),
+    z.object({ ...inputFields, type: z.literal("boolean"), default: z.boolean().optional() }),
+    z.object({
+      ...inputFields,
+      type: z.enum(["string", "identifier"]),
+      default: z.string().optional(),
+    }),
+  ])
+);
+
+function inputDefinitions(error: object): ExtensionOperationErrorMetadata["inputDefinitions"] {
+  const result = inputDefinitionsSchema.safeParse(Reflect.get(error, "input_definitions"));
+  return result.success ? result.data : undefined;
 }

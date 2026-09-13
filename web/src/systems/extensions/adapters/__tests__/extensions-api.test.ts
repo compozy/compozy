@@ -83,14 +83,30 @@ describe("extensions management reads", () => {
 describe("extensions management mutations", () => {
   // Invariant: update recovery retains the requested input IDs at the owning HTTP adapter boundary.
   it("Should preserve required input ids and send typed values when retrying an update", async () => {
+    const inputDefinitions = [
+      {
+        id: "region",
+        prompt: "Region",
+        type: "identifier",
+        required: true,
+        binding: { type: "url_query", name: "region" },
+        default: "eu",
+      },
+    ];
     mockJsonResponse(
-      { code: "extension_inputs_required", error: "configuration required", inputs: ["region"] },
+      {
+        code: "extension_inputs_required",
+        error: "configuration required",
+        inputs: ["region"],
+        input_definitions: inputDefinitions,
+      },
       { status: 422 }
     );
     await expect(updateExtension("sentry", {})).rejects.toMatchObject({
       status: 422,
       code: "extension_inputs_required",
       requiredInputs: ["region"],
+      inputDefinitions,
     });
     const body = {
       scope: "workspace" as const,

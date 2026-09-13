@@ -53,6 +53,7 @@ export class ExtensionsApiError extends Error {
   public readonly fetchedDigest: string | undefined;
   public readonly inputId: string | undefined;
   public readonly requiredInputs: readonly string[] | undefined;
+  public readonly inputDefinitions: ExtensionsApiErrorMetadata["inputDefinitions"];
 
   constructor(
     message: string,
@@ -69,6 +70,7 @@ export class ExtensionsApiError extends Error {
     this.fetchedDigest = metadata.fetchedDigest;
     this.inputId = metadata.inputId;
     this.requiredInputs = metadata.requiredInputs;
+    this.inputDefinitions = metadata.inputDefinitions;
   }
 }
 

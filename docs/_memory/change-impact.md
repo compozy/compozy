@@ -128,6 +128,9 @@ Owning spec: `.compozy/tasks/session-context/_spec.md` (Part II §Impact Analysi
 
 ## Marketplace catalog — one kind, plugin marketplaces as sources
 
+Task03 input recovery: the validated candidate manifest supplies `input_definitions` with missing IDs in `extension_inputs_required`. HTTP/UDS and native tools share acquisition error mapping; native partial updates retain `operation_error` with completed results. Generated OpenAPI/Web types, Web error adapters and the install guide co-ship. Clients retry the same scoped update; no second preview, source reconstruction, compatibility decoder, config change or persistence migration. Only absent declarations are exposed, never stored values or secret refs. Final input-dialog journeys remain with tasks09/10.
+
+
 Owning spec: `.compozy/tasks/marketplace-catalog/_spec.md`; Pedro's explicit 2026-09-12 Marketplace-only hard-cut authorization is recorded in ADR-005/007. This amendment supersedes the previous one-release translations, dual feeds and v0.6.0 removal plan. It is an approved implementation contract, not a claim that branch cleanup is finished. `hardcut-removal-plan.md` records observed code and owning tasks.
 
 - **Preserved boundary:** existing extension packages, IDs, versions, artifact bytes/digests, manifests, supported acquisition/update refs, lifecycle APIs, installed records, enablement, provenance and credentials. Manual MCP definitions/auth and installed local/ClawHub-origin skills continue loading. User-state migrations remain lossless; only derived old-kind projection rows have ADR-001 deletion approval.
