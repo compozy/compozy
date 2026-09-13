@@ -748,56 +748,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 				t.Fatal(err)
 			}
 			ctx := testutil.Context(t)
-			const prefix = "vault:mcp/user/github/oauth/"
-			const timestamp = "2026-09-12T12:00:00Z"
-			for _, suffix := range []string{"access-token", "refresh-token", "dcr-client-secret", "registration-access-token"} {
-				if _, err := previous.ExecContext(
-					ctx,
-					`INSERT INTO vault_secrets(ref, kind, encrypted_value, created_at, updated_at)
-				VALUES (?, 'mcp-oauth', ?, ?, ?)`,
-					prefix+suffix,
-					"ciphertext:"+suffix,
-					timestamp,
-					timestamp,
-				); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if _, err := previous.ExecContext(ctx, `INSERT INTO mcp_auth_tokens(
-			scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
-			access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at
-		) VALUES ('user', '', 'github', ?, 'https://issuer.example', 'preserved-client', '["read"]', ?, ?,
-			'Bearer', ?, ?, ?)`, testMCPDefinitionFingerprint, prefix+"access-token", prefix+"refresh-token",
-				timestamp, timestamp, timestamp); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := previous.ExecContext(
-				ctx,
-				`INSERT INTO mcp_oauth_registrations(
-			scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
-			token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
-			client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at
-		) VALUES ('user', '', 'github', ?, 'https://mcp.example', 'https://issuer.example', 'preserved-client',
-			'client_secret_basic', ?, ?, 'https://issuer.example/register/client', ?, ?,
-			'http://127.0.0.1:8787/callback', '["read"]', ?)`,
-				testMCPDefinitionFingerprint,
-				prefix+"dcr-client-secret",
-				prefix+"registration-access-token",
-				timestamp,
-				timestamp,
-				timestamp,
-			); err != nil {
-				t.Fatal(err)
-			}
-			queries := []string{
-				`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
-				access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at) FROM mcp_auth_tokens`,
-				`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
-				token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
-				client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at) FROM mcp_oauth_registrations`,
-				`SELECT json_group_array(json_array(ref, kind, encrypted_value, created_at, updated_at))
-				FROM (SELECT * FROM vault_secrets ORDER BY ref)`,
-			}
+			queries := seedMCPOwnerMigrationFixture(t, previous)
 			before := make([]string, len(queries))
 			for i, query := range queries {
 				if err := previous.QueryRowContext(ctx, query).Scan(&before[i]); err != nil {
@@ -1237,4 +1188,60 @@ func mcpAuthorizationSecretRefs(
 		registration.ClientSecretRef,
 		registration.RegistrationAccessTokenRef,
 	}
+}
+
+func seedMCPOwnerMigrationFixture(t *testing.T, previous *sql.DB) []string {
+	t.Helper()
+	ctx := testutil.Context(t)
+	const prefix = "vault:mcp/user/github/oauth/"
+	const timestamp = "2026-09-12T12:00:00Z"
+	for _, suffix := range []string{"access-token", "refresh-token", "dcr-client-secret", "registration-access-token"} {
+		if _, err := previous.ExecContext(
+			ctx,
+			`INSERT INTO vault_secrets(ref, kind, encrypted_value, created_at, updated_at)
+		VALUES (?, 'mcp-oauth', ?, ?, ?)`,
+			prefix+suffix,
+			"ciphertext:"+suffix,
+			timestamp,
+			timestamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := previous.ExecContext(ctx, `INSERT INTO mcp_auth_tokens(
+	scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+	access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at
+) VALUES ('user', '', 'github', ?, 'https://issuer.example', 'preserved-client', '["read"]', ?, ?,
+	'Bearer', ?, ?, ?)`, testMCPDefinitionFingerprint, prefix+"access-token", prefix+"refresh-token",
+		timestamp, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := previous.ExecContext(
+		ctx,
+		`INSERT INTO mcp_oauth_registrations(
+	scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+	token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
+	client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at
+) VALUES ('user', '', 'github', ?, 'https://mcp.example', 'https://issuer.example', 'preserved-client',
+	'client_secret_basic', ?, ?, 'https://issuer.example/register/client', ?, ?,
+	'http://127.0.0.1:8787/callback', '["read"]', ?)`,
+		testMCPDefinitionFingerprint,
+		prefix+"dcr-client-secret",
+		prefix+"registration-access-token",
+		timestamp,
+		timestamp,
+		timestamp,
+	); err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{
+		`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+		access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at) FROM mcp_auth_tokens`,
+		`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+		token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
+		client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at) FROM mcp_oauth_registrations`,
+		`SELECT json_group_array(json_array(ref, kind, encrypted_value, created_at, updated_at))
+		FROM (SELECT * FROM vault_secrets ORDER BY ref)`,
+	}
+	return queries
 }

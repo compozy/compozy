@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -260,11 +263,13 @@ VALUES (?,3,'2026-09-01T00:00:00Z','2026-09-02T00:00:00Z',1,'cached error','cust
 		}
 		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
-	t.Run("Should upgrade a v108 catalog losslessly and preserve unclassified provenance", func(t *testing.T) {
+	// Invariant: the complete upgrade preserves installed state and credentials while replacing only retired catalog rows.
+	// Owner: global database migration; canonical suite: TestMarketplaceCatalogSourceMigration, IT-016.
+	t.Run("Should preserve the complete v109 marketplace upgrade across repeated boots [IT-016]", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		previous, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00109_schema.sql"))
+		previous, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00110_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -273,12 +278,22 @@ VALUES (?,3,'2026-09-01T00:00:00Z','2026-09-02T00:00:00Z',1,'cached error','cust
 				t.Errorf("close previous: %v", err)
 			}
 		})
-		for _, kind := range []string{"extension", "mcp", "skill"} {
-			_, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_entries
+		for _, family := range []struct {
+			kind  string
+			count int
+		}{{"extension", 3}, {"mcp", 17}, {"skill", 1}} {
+			kind := family.kind
+			for i := range family.count {
+				id := "same-id"
+				if i > 0 {
+					id = fmt.Sprintf("%s-%02d", kind, i)
+				}
+				_, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_entries
  (kind, entry_id, name, description, version, published_at, updated_at, digest_sha256, tier, install_slug, payload_json, fetched_at)
- VALUES (?, 'same-id', ' Original name ', 'Original description', '1.2.3', NULL, '2026-09-01T00:00:00Z', 'digest', 'official', 'compozy/original', '{ "name": "original" }', '2026-09-02T00:00:00Z')`, kind)
-			if err != nil {
-				t.Fatal(err)
+ VALUES (?, ?, ' Original name ', 'Original description', '1.2.3', NULL, '2026-09-01T00:00:00Z', 'digest', 'official', 'compozy/original', '{ "name": "original" }', '2026-09-02T00:00:00Z')`, kind, id)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			if _, err := previous.ExecContext(ctx, `INSERT INTO marketplace_catalog_state
  (kind, manifest_version, generated_at, fetched_at, stale, last_error)
@@ -292,16 +307,25 @@ VALUES (?,3,'2026-09-01T00:00:00Z','2026-09-02T00:00:00Z',1,'cached error','cust
 			"no-evidence":    `{ "installed_from": "marketplace_registry", "slug": "compozy/same-id" }`,
 			"empty-evidence": `{ "installed_from": "marketplace_registry", "catalog_entry_id": " " }`,
 		}
+		packageBytes := make(map[string]string, len(originals))
 		for name, raw := range originals {
+			manifestPath := filepath.Join(filepath.Dir(path), name+".toml")
+			contents := fmt.Sprintf("name = %q\nversion = \"1.0.0\"\n", name)
+			if err := os.WriteFile(manifestPath, []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			packageBytes[manifestPath] = contents
 			if _, err := previous.ExecContext(ctx, `INSERT INTO extensions
  (name, version, source, manifest_path, installed_at, checksum, provenance_json)
- VALUES (?, '1.0.0', 'marketplace', '/fixture/extension.toml', '2026-09-01T00:00:00Z', 'tree', ?)`, name, raw); err != nil {
+ VALUES (?, '1.0.0', 'marketplace', ?, '2026-09-01T00:00:00Z', 'tree', ?)`, name, manifestPath, raw); err != nil {
 				t.Fatal(err)
 			}
 		}
+		preservedQueries := seedMarketplaceUpgradeState(t, previous)
+		preservedBefore := captureMarketplaceUpgradeState(t, previous, preservedQueries)
 		const projection = `json_array(entry_id,name,description,version,published_at,updated_at,digest_sha256,tier,install_slug,payload_json,fetched_at)`
 		var before string
-		if err := previous.QueryRowContext(ctx, "SELECT "+projection+" FROM marketplace_catalog_entries WHERE kind = 'extension'").
+		if err := previous.QueryRowContext(ctx, "SELECT json_group_array(json("+projection+")) FROM (SELECT * FROM marketplace_catalog_entries WHERE kind = 'extension' ORDER BY entry_id)").
 			Scan(&before); err != nil {
 			t.Fatal(err)
 		}
@@ -315,73 +339,97 @@ VALUES (?,3,'2026-09-01T00:00:00Z','2026-09-02T00:00:00Z',1,'cached error','cust
 		if err := upgraded.Close(ctx); err != nil {
 			t.Fatal(err)
 		}
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := reopened.Close(testutil.Context(t)); err != nil {
-				t.Errorf("close reopened: %v", err)
-			}
-		})
-		var after, source string
-		if err := reopened.db.QueryRowContext(ctx, "SELECT source,"+projection+" FROM marketplace_catalog_entries").
-			Scan(&source, &after); err != nil {
-			t.Fatal(err)
-		}
-		if before != after || source != "compozy-catalog" {
-			t.Fatalf("projection source=%q before=%s after=%s", source, before, after)
-		}
-		var count int
-		if err := reopened.db.QueryRowContext(ctx, "SELECT count(*) FROM marketplace_catalog_entries").
-			Scan(&count); err != nil ||
-			count != 1 {
-			t.Fatalf("entries count=%d err=%v", count, err)
-		}
-		if err := reopened.db.QueryRowContext(ctx, "SELECT count(*) FROM marketplace_catalog_state").
-			Scan(&count); err != nil ||
-			count != 1 {
-			t.Fatalf("states count=%d err=%v", count, err)
-		}
-		var state string
-		if err := reopened.db.QueryRowContext(ctx, `SELECT json_array(source,manifest_version,generated_at,fetched_at,stale,last_error,plugins,installable,generation) FROM marketplace_catalog_state`).
-			Scan(&state); err != nil {
-			t.Fatal(err)
-		}
-		if want := `["compozy-catalog",2,"2026-09-01T00:00:00Z","2026-09-02T00:00:00Z",1,"cached failure",1,1,0]`; state != want {
-			t.Fatalf("state=%s want=%s", state, want)
-		}
-		for name, raw := range originals {
-			var got string
-			if err := reopened.db.QueryRowContext(ctx, "SELECT provenance_json FROM extensions WHERE name = ?", name).
-				Scan(&got); err != nil {
+		for boot := range 2 {
+			reopened, err := OpenGlobalDB(ctx, path)
+			if err != nil {
 				t.Fatal(err)
 			}
-			if name != "classified" {
-				if got != raw {
-					t.Fatalf("unclassified %s changed: %s", name, got)
+			t.Cleanup(func() {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
+					t.Errorf("close reopened: %v", err)
 				}
-				continue
-			}
-			var wantMap, gotMap map[string]any
-			if err := json.Unmarshal([]byte(raw), &wantMap); err != nil {
+			})
+			var after, source string
+			if err := reopened.db.QueryRowContext(ctx, "SELECT source, json_group_array(json("+projection+")) FROM (SELECT * FROM marketplace_catalog_entries ORDER BY entry_id)").
+				Scan(&source, &after); err != nil {
 				t.Fatal(err)
 			}
-			if err := json.Unmarshal([]byte(got), &gotMap); err != nil {
+			if before != after || source != "compozy-catalog" {
+				t.Fatalf("projection source=%q before=%s after=%s", source, before, after)
+			}
+			var count int
+			if err := reopened.db.QueryRowContext(ctx, "SELECT count(*) FROM marketplace_catalog_entries").
+				Scan(&count); err != nil ||
+				count != 3 {
+				t.Fatalf("entries count=%d err=%v", count, err)
+			}
+			if err := reopened.db.QueryRowContext(ctx, "SELECT count(*) FROM marketplace_catalog_state").
+				Scan(&count); err != nil ||
+				count != 1 {
+				t.Fatalf("states count=%d err=%v", count, err)
+			}
+			var state string
+			if err := reopened.db.QueryRowContext(ctx, `SELECT json_array(source,manifest_version,generated_at,fetched_at,stale,last_error,plugins,installable,generation) FROM marketplace_catalog_state`).
+				Scan(&state); err != nil {
 				t.Fatal(err)
 			}
-			wantMap["source_name"] = "compozy-catalog"
-			wantMap["source_ref"] = "catalog:compozy"
-			wantMap["entry_id"] = "same-id"
-			if !reflect.DeepEqual(gotMap, wantMap) {
-				t.Fatalf("classified=%#v want=%#v", gotMap, wantMap)
+			if want := `["compozy-catalog",2,"2026-09-01T00:00:00Z","2026-09-02T00:00:00Z",1,"cached failure",3,3,0]`; state != want {
+				t.Fatalf("state=%s want=%s", state, want)
+			}
+			for name, raw := range originals {
+				var got string
+				if err := reopened.db.QueryRowContext(ctx, "SELECT provenance_json FROM extensions WHERE name = ?", name).
+					Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if name != "classified" {
+					if got != raw {
+						t.Fatalf("unclassified %s changed: %s", name, got)
+					}
+					continue
+				}
+				var wantMap, gotMap map[string]any
+				if err := json.Unmarshal([]byte(raw), &wantMap); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal([]byte(got), &gotMap); err != nil {
+					t.Fatal(err)
+				}
+				wantMap["source_name"] = "compozy-catalog"
+				wantMap["source_ref"] = "catalog:compozy"
+				wantMap["entry_id"] = "same-id"
+				if !reflect.DeepEqual(gotMap, wantMap) {
+					t.Fatalf("classified=%#v want=%#v", gotMap, wantMap)
+				}
+			}
+			status, err := store.Status(ctx, reopened.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			afterState := captureMarketplaceUpgradeState(t, reopened.db, preservedQueries)
+			if !reflect.DeepEqual(afterState, preservedBefore) {
+				t.Fatalf("upgrade changed installed state on boot %d", boot)
+			}
+			assertMarketplaceUpgradeBackfills(t, reopened.db, len(originals))
+			if boot == 1 {
+				refreshMarketplaceUpgradeCatalog(t, reopened)
+				afterRefresh := captureMarketplaceUpgradeState(t, reopened.db, preservedQueries)
+				if !reflect.DeepEqual(afterRefresh, preservedBefore) {
+					t.Fatal("catalog refresh changed installed state")
+				}
+			}
+			for manifestPath, before := range packageBytes {
+				after, err := os.ReadFile(manifestPath)
+				if err != nil || string(after) != before {
+					t.Fatalf("upgrade changed installed manifest %s: %v", manifestPath, err)
+				}
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
 			}
 		}
-		status, err := store.Status(ctx, reopened.db, MigrationStream())
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
+
 	})
 }
 
@@ -533,4 +581,119 @@ func TestMarketplaceCatalogSourceSnapshot(t *testing.T) {
 			t.Error(err)
 		}
 	})
+}
+
+func seedMarketplaceUpgradeState(t *testing.T, db *sql.DB) []string {
+	t.Helper()
+	ctx := t.Context()
+	statements := []string{
+		`INSERT INTO workspaces(id, root_dir, name, created_at, updated_at)
+ VALUES ('upgrade-workspace', '/upgrade', 'Upgrade', '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z')`,
+		`INSERT INTO extension_profile_enablement(extension_name, profile_id, enabled)
+ VALUES ('classified', '00000000000000000000000000', 0)`,
+		`INSERT INTO extension_env_bindings
+ (extension_name, profile_id, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at)
+ VALUES ('classified', '', '', 'API_KEY', 'vault:extensions/global/classified/env/API_KEY', '', '',
+ 'extension_env', '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z')`,
+		`INSERT INTO extension_env_bindings
+ (extension_name, profile_id, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at)
+ VALUES ('classified', '00000000000000000000000000', 'upgrade-workspace', 'HEADER_TOKEN',
+ 'vault:extensions/ws/upgrade-workspace/classified/env/HEADER_TOKEN', 'remote', 'Authorization',
+ 'extension_env', '2026-09-01T00:00:00Z', '2026-09-03T00:00:00Z')`,
+		`INSERT INTO vault_secrets(ref, kind, encrypted_value, created_at, updated_at)
+ SELECT secret_ref, 'extension_env', 'ciphertext:' || env_name, created_at, updated_at FROM extension_env_bindings`,
+	}
+	for _, statement := range statements {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	queries := seedMCPOwnerMigrationFixture(t, db)
+	return append(queries,
+		`SELECT json_group_array(json_array(name,version,source,manifest_path,format,ingest_diagnostics_json,
+ installed_at,provides_json,permissions_json,checksum,lifecycle_token,registry_slug,registry_name,remote_version,
+ network_requirement_digest,network_confirmed_by,network_confirmed_at)) FROM (SELECT * FROM extensions ORDER BY name)`,
+		`SELECT json_group_array(json_array(extension_name,profile_id,enabled))
+ FROM (SELECT * FROM extension_profile_enablement ORDER BY extension_name,profile_id)`,
+		`SELECT json_group_array(json_array(extension_name,profile_id,workspace_id,env_name,secret_ref,
+ mcp_server,header_name,kind,created_at,updated_at))
+ FROM (SELECT * FROM extension_env_bindings ORDER BY extension_name,profile_id,workspace_id,env_name)`,
+	)
+}
+
+func captureMarketplaceUpgradeState(t *testing.T, db *sql.DB, queries []string) []string {
+	t.Helper()
+	values := make([]string, len(queries))
+	for i, query := range queries {
+		if err := db.QueryRowContext(t.Context(), query).Scan(&values[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return values
+}
+
+func assertMarketplaceUpgradeBackfills(t *testing.T, db *sql.DB, installations int) {
+	t.Helper()
+	for _, expected := range []struct {
+		query string
+		count int
+	}{
+		{`SELECT count(*) FROM extension_inputs`, 0},
+		{`SELECT count(*) FROM extension_mcp_overrides`, 0},
+		{`SELECT count(*) FROM extension_env_bindings WHERE input_id = '' AND active = 1`, 2},
+		{`SELECT count(*) FROM mcp_auth_tokens WHERE owner = 'manual'`, 1},
+		{`SELECT count(*) FROM mcp_oauth_registrations WHERE owner = 'manual'`, 1},
+		{`SELECT count(*) FROM extension_installations`, installations},
+		{`SELECT count(*) FROM extension_installations i JOIN extensions e ON e.name = i.extension_name
+ WHERE i.profile_id = '' AND i.workspace_id = '' AND i.created_at = e.installed_at`, installations},
+	} {
+		var count int
+		if err := db.QueryRowContext(t.Context(), expected.query).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != expected.count {
+			t.Fatalf("upgrade invariant %s = %d, want %d", expected.query, count, expected.count)
+		}
+	}
+}
+
+func refreshMarketplaceUpgradeCatalog(t *testing.T, db *GlobalDB) {
+	t.Helper()
+	ctx := t.Context()
+	const provenanceQuery = `SELECT json_group_array(json_array(name,provenance_json)) FROM (SELECT * FROM extensions ORDER BY name)`
+	before := captureMarketplaceUpgradeState(t, db.db, []string{provenanceQuery})
+	server := httptest.NewServer(http.StripPrefix("/custom-base", http.FileServer(http.Dir("../../../catalog"))))
+	t.Cleanup(server.Close)
+	client := server.Client()
+	client.Timeout = 10 * time.Second
+	source, err := marketplace.NewHTTPSource(server.URL+"/custom-base", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := marketplace.NewSQLiteStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := marketplace.NewService(catalog, source, time.Hour, 10*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := service.Close(testutil.Context(t)); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := service.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	page, err := catalog.BrowseSource(ctx, marketplace.CompozyCatalogSource, "", 0, 100)
+	if err != nil || page.Total != 20 || len(page.Entries) != 20 {
+		t.Fatalf("v3 refresh after upgrade = %d/%d entries: %v", page.Total, len(page.Entries), err)
+	}
+	if after := captureMarketplaceUpgradeState(t, db.db, []string{provenanceQuery}); !reflect.DeepEqual(before, after) {
+		t.Fatal("catalog refresh reclassified existing installations")
+	}
+	if err := service.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
 }

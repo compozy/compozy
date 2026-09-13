@@ -508,3 +508,14 @@ weighted semaphore pattern and adds no public surface, migration, hook, config o
 adapter. HTTP/UDS/CLI/native updates share this lifecycle; official skill selectors stay accurate.
 The install guide and ET-extension-published-source-installs describe final task10 acceptance.
 Focused race evidence lives in marketplace-catalog/memory/task_04.md; full IT016/021 and UI remain open.
+
+Task04 complete migration fixture now starts at v109 with3 extension/17 MCP/1 skill catalog
+rows and installed package files, enablement, scoped env/header bindings, token/DCR rows and
+vault bytes. The normal stream applies00110–00114; repeated opens preserve exact installed
+state and authority. A subsequent HTTP refresh from a custom base path loads20 checked-in v3
+entries without classifying unrelated installations. Existing owner/attachment suites retain
+their detailed validation and cleanup invariants; the combined fixture reuses credential seeding.
+The IT016 generation reference is corrected from1 to0, matching fresh source initialization,
+existing store tests and immutable00110; generation fencing is unchanged. No SQL history,
+public interface, hook, config, native tool, extension SDK or UI behavior changed in this slice.
+Final task10 still owns the live upgrade/operator journey; focused receipts are in task04 memory.
