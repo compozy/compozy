@@ -580,3 +580,12 @@ corruption repair, cancellation, capacity, pins, symlink refusal and readers sur
 This is an internal foundation: source fetching/projection/install composition is still pending,
 so there is no new callable CLI/HTTP/UDS/native surface, config, hook, SDK, Web or installed-state
 change yet. Task07's existing audit will expand when those consumers are wired.
+
+### Task07 source document reader foundation
+
+The plugin-source owner now normalizes acquisition refs, decodes bounded marketplace documents with
+per-plugin diagnostics, and reads root or `.claude-plugin/marketplace.json` through held directory
+handles without following symlinks. Existing registry installers and extension behavior are unchanged.
+The public-source/config/daemon composition remains assigned to task07/08; no new routes or native
+tools are exposed by this checkpoint. Canonical coverage: pluginsource reader_test.go (origin identity,
+metadata/source decoding, local document selection, size/cancellation and confinement).
