@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/fileutil"
+
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/skills"
 )
@@ -56,7 +58,7 @@ func InstallWithRegistry(
 			normalizedSlug,
 		)
 	}
-	result.InstallPath, err = PathInsideRoot(tempRoot, result.InstallPath)
+	result.InstallPath, err = fileutil.ResolvePathWithinRoot(tempRoot, result.InstallPath)
 	if err != nil {
 		return InstallResult{}, fmt.Errorf("validate staged install path for %q: %w", normalizedSlug, err)
 	}

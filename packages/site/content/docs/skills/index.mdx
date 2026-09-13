@@ -109,7 +109,7 @@ when the same skill name is visible.
 | Precedence | Tier                | Directory or owner                                                       | Notes                                                                        |
 | ---------- | ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
-| 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
+| 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Previously acquired skills retain their provenance. Load-time hash verification must pass. |
 | 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                      |
 | 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                             |
 | 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                   |

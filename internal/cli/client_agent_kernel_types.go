@@ -101,21 +101,6 @@ type MarketplaceEntryRecord = contract.MarketplaceEntryResponse
 // MarketplaceRefreshRecord is one marketplace refresh response.
 type MarketplaceRefreshRecord = contract.MarketplaceRefreshResponse
 
-// SkillMarketplaceInstallRequest captures one daemon marketplace install request.
-type SkillMarketplaceInstallRequest = contract.SkillMarketplaceInstallRequest
-
-// SkillMarketplaceUpdateRequest captures one daemon marketplace update request.
-type SkillMarketplaceUpdateRequest = contract.SkillMarketplaceUpdateRequest
-
-// SkillMarketplaceInstallRecord is one daemon marketplace install result.
-type SkillMarketplaceInstallRecord = contract.SkillMarketplaceInstallPayload
-
-// SkillMarketplaceUpdateRecord is one daemon marketplace update result.
-type SkillMarketplaceUpdateRecord = contract.SkillMarketplaceUpdatePayload
-
-// SkillMarketplaceRemoveRecord is one daemon marketplace remove result.
-type SkillMarketplaceRemoveRecord = contract.SkillMarketplaceRemovePayload
-
 // WorkspaceCreateRequest captures the shared workspace registration payload.
 type WorkspaceCreateRequest = contract.CreateWorkspaceRequest
 

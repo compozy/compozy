@@ -226,15 +226,6 @@ type DaemonClient interface {
 	GetSkillShadows(ctx context.Context, name string, query SkillQuery) (SkillShadowsRecord, error)
 	EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
-	InstallSkillMarketplace(
-		ctx context.Context,
-		request SkillMarketplaceInstallRequest,
-	) (SkillMarketplaceInstallRecord, error)
-	UpdateSkillMarketplace(
-		ctx context.Context,
-		request SkillMarketplaceUpdateRequest,
-	) ([]SkillMarketplaceUpdateRecord, error)
-	RemoveSkillMarketplace(ctx context.Context, name string) (SkillMarketplaceRemoveRecord, error)
 	ToolClient
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
 	HookRuns(ctx context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error)

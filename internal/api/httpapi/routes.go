@@ -245,12 +245,8 @@ func registerSchedulerRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
-	privileged := handlers.privilegedMutationGuard()
 	skillsGroup := api.Group("/skills")
 	skillsGroup.GET("", handlers.ListSkills)
-	skillsGroup.POST("/marketplace/install", privileged, handlers.InstallSkillMarketplace)
-	skillsGroup.POST("/marketplace/update", privileged, handlers.UpdateSkillMarketplace)
-	skillsGroup.DELETE("/marketplace/:name", privileged, handlers.RemoveSkillMarketplace)
 	skillsGroup.GET("/:name", handlers.GetSkill)
 	skillsGroup.GET("/:name/content", handlers.GetSkillContent)
 	skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)

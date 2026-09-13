@@ -3,31 +3,16 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  useDisableSkill,
-  useEnableSkill,
-  useInstallSkillMarketplace,
-  useRemoveSkillMarketplace,
-  useUpdateSkillMarketplace,
-} from "@/systems/skill/hooks/use-skill-actions";
+import { useDisableSkill, useEnableSkill } from "@/systems/skill/hooks/use-skill-actions";
 
 vi.mock("@/systems/skill/adapters/skill-api", () => ({
   listSkills: vi.fn(),
   getSkill: vi.fn(),
   enableSkill: vi.fn(),
   disableSkill: vi.fn(),
-  installSkillMarketplace: vi.fn(),
-  updateSkillMarketplace: vi.fn(),
-  removeSkillMarketplace: vi.fn(),
 }));
 
-import {
-  disableSkill,
-  enableSkill,
-  installSkillMarketplace,
-  removeSkillMarketplace,
-  updateSkillMarketplace,
-} from "@/systems/skill/adapters/skill-api";
+import { disableSkill, enableSkill } from "@/systems/skill/adapters/skill-api";
 
 describe("useEnableSkill", () => {
   beforeEach(() => {
@@ -175,136 +160,6 @@ describe("useDisableSkill", () => {
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
-    });
-  });
-});
-
-describe("useInstallSkillMarketplace", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("installs by slug and invalidates the installed list", async () => {
-    vi.mocked(installSkillMarketplace).mockResolvedValue({
-      name: "demo",
-      slug: "@compozy/demo",
-      status: "installed",
-      hash: "sha256:demo",
-      path: "/opt/compozy/skills/demo",
-      registry: "clawhub",
-      version: "1.0.0",
-    });
-
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    const wrapper = ({ children }: { children: ReactNode }) =>
-      createElement(QueryClientProvider, { client: queryClient }, children);
-
-    const { result } = renderHook(() => useInstallSkillMarketplace(), { wrapper });
-
-    act(() => {
-      result.current.mutate({
-        body: { slug: "@compozy/demo" },
-        workspace: "ws_123",
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(installSkillMarketplace).toHaveBeenCalledWith({ slug: "@compozy/demo" });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
-    });
-  });
-});
-
-describe("useUpdateSkillMarketplace", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("updates the named skill and invalidates the installed list", async () => {
-    vi.mocked(updateSkillMarketplace).mockResolvedValue([]);
-
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    const wrapper = ({ children }: { children: ReactNode }) =>
-      createElement(QueryClientProvider, { client: queryClient }, children);
-
-    const { result } = renderHook(() => useUpdateSkillMarketplace(), { wrapper });
-
-    act(() => {
-      result.current.mutate({
-        body: { name: "demo" },
-        workspace: "ws_123",
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(updateSkillMarketplace).toHaveBeenCalledWith({ name: "demo" });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
-    });
-  });
-});
-
-describe("useRemoveSkillMarketplace", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("removes by name and invalidates the installed list", async () => {
-    vi.mocked(removeSkillMarketplace).mockResolvedValue({
-      name: "demo",
-      slug: "@compozy/demo",
-      status: "removed",
-      path: "/opt/compozy/skills/demo",
-    });
-
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    const wrapper = ({ children }: { children: ReactNode }) =>
-      createElement(QueryClientProvider, { client: queryClient }, children);
-
-    const { result } = renderHook(() => useRemoveSkillMarketplace(), { wrapper });
-
-    act(() => {
-      result.current.mutate({ name: "demo", workspace: "ws_123" });
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(removeSkillMarketplace).toHaveBeenCalledWith("demo");
-    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
     });
   });
 });

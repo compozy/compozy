@@ -13,8 +13,10 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// ErrPathOutsideRoot identifies an existing path whose resolved target escapes
-// the resolved root.
+// ErrPathRootRequired reports a blank root in a containment request.
+var ErrPathRootRequired = errors.New("fileutil: root path is required")
+
+// ErrPathOutsideRoot identifies a path whose resolved target escapes the resolved root.
 var ErrPathOutsideRoot = errors.New("fileutil: resolved path is outside root")
 
 // CanonicalPathWithExistingPrefix resolves symlinks in the deepest existing
@@ -163,4 +165,28 @@ func ResolveExistingPathWithinRoot(root string, candidate string) (
 		)
 	}
 	return resolvedRoot, resolvedCandidate, nil
+}
+
+// ResolvePathWithinRoot resolves a target path and validates it remains under root.
+func ResolvePathWithinRoot(root string, target string) (string, error) {
+	if strings.TrimSpace(root) == "" {
+		return "", ErrPathRootRequired
+	}
+	resolvedRoot, err := CanonicalPathWithExistingPrefix(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve root %q: %w", root, err)
+	}
+	resolvedTarget, err := CanonicalPathWithExistingPrefix(target)
+	if err != nil {
+		return "", fmt.Errorf("resolve target %q: %w", target, err)
+	}
+
+	contained, err := PathWithinRoot(resolvedRoot, resolvedTarget)
+	if err != nil {
+		return "", fmt.Errorf("resolve target %q within %q: %w", resolvedTarget, resolvedRoot, err)
+	}
+	if !contained {
+		return "", ErrPathOutsideRoot
+	}
+	return resolvedTarget, nil
 }

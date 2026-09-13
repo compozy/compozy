@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/compozy/compozy/internal/fileutil"
+
 	"github.com/compozy/compozy/internal/skills"
 )
 
@@ -26,7 +28,7 @@ func RemoveSkill(skillsDir string, name string) (RemoveResult, error) {
 }
 
 func removeInstalledSkill(skillsDir string, installed InstalledSkill) (RemoveResult, error) {
-	canonicalDir, err := PathInsideRoot(skillsDir, installed.Dir)
+	canonicalDir, err := fileutil.ResolvePathWithinRoot(skillsDir, installed.Dir)
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("resolve installed skill %q for removal: %w", installed.Name, err)
 	}
@@ -76,7 +78,7 @@ func ResolveInstalledSkillRegistry(
 
 // FindInstalledSkill reads one local marketplace-installed skill.
 func FindInstalledSkill(skillsDir string, name string) (InstalledSkill, error) {
-	skillDir, err := PathInsideRoot(skillsDir, filepath.Join(skillsDir, name))
+	skillDir, err := fileutil.ResolvePathWithinRoot(skillsDir, filepath.Join(skillsDir, name))
 	if err != nil {
 		return InstalledSkill{}, fmt.Errorf("resolve skill path for %q: %w", name, err)
 	}
@@ -123,7 +125,7 @@ func ListInstalledSkills(skillsDir string) ([]InstalledSkill, error) {
 			continue
 		}
 
-		skillDir, err := PathInsideRoot(skillsDir, filepath.Join(skillsDir, entry.Name()))
+		skillDir, err := fileutil.ResolvePathWithinRoot(skillsDir, filepath.Join(skillsDir, entry.Name()))
 		if err != nil {
 			return nil, fmt.Errorf(
 				"resolve installed skill path for %q: %w",
@@ -163,7 +165,7 @@ func ReadInstalledSkill(skillDir string) (InstalledSkill, error) {
 		return InstalledSkill{}, classifiedf(ErrNotMarketplace, "missing provenance for %q", skillDir)
 	}
 
-	skillFile, err := PathInsideRoot(skillDir, filepath.Join(skillDir, SkillMarkdownFileName))
+	skillFile, err := fileutil.ResolvePathWithinRoot(skillDir, filepath.Join(skillDir, SkillMarkdownFileName))
 	if err != nil {
 		return InstalledSkill{}, fmt.Errorf("resolve skill file in %q: %w", skillDir, err)
 	}

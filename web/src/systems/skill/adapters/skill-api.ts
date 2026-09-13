@@ -7,11 +7,6 @@ import {
 
 import type {
   SkillActionResponse,
-  SkillMarketplaceInstallPayload,
-  SkillMarketplaceInstallRequest,
-  SkillMarketplaceRemovePayload,
-  SkillMarketplaceUpdatePayload,
-  SkillMarketplaceUpdateRequest,
   SkillExposeRequest,
   SkillExposeFailureResponse,
   SkillExposeResponse,
@@ -248,68 +243,4 @@ export async function disableSkill(
     );
   }
   return requireResponseData(data, response, `Failed to disable skill "${name}"`);
-}
-
-export async function installSkillMarketplace(
-  body: SkillMarketplaceInstallRequest,
-  signal?: AbortSignal
-): Promise<SkillMarketplaceInstallPayload> {
-  const { data, error, response } = await apiClient.POST("/api/skills/marketplace/install", {
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    if (response.status === 404) {
-      throw new SkillApiError(`Marketplace skill not found: ${body.slug}`, 404);
-    }
-    throw new SkillApiError(
-      defaultApiErrorMessage(`Failed to install marketplace skill "${body.slug}"`, response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, `Failed to install marketplace skill "${body.slug}"`)
-    .skill;
-}
-
-export async function updateSkillMarketplace(
-  body: SkillMarketplaceUpdateRequest,
-  signal?: AbortSignal
-): Promise<SkillMarketplaceUpdatePayload[]> {
-  const { data, error, response } = await apiClient.POST("/api/skills/marketplace/update", {
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    if (response.status === 404) {
-      throw new SkillApiError(
-        `Installed marketplace skill not found: ${body.name ?? "<all>"}`,
-        404
-      );
-    }
-    throw new SkillApiError(
-      defaultApiErrorMessage("Failed to update marketplace skills", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to update marketplace skills").skills;
-}
-
-export async function removeSkillMarketplace(
-  name: string,
-  signal?: AbortSignal
-): Promise<SkillMarketplaceRemovePayload> {
-  const { data, error, response } = await apiClient.DELETE("/api/skills/marketplace/{name}", {
-    params: { path: { name } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    if (response.status === 404) {
-      throw new SkillApiError(`Installed marketplace skill not found: ${name}`, 404);
-    }
-    throw new SkillApiError(
-      defaultApiErrorMessage(`Failed to remove marketplace skill "${name}"`, response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, `Failed to remove marketplace skill "${name}"`).skill;
 }

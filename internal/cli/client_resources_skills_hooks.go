@@ -155,52 +155,6 @@ func (c *daemonClient) UnexposeSkill(
 	return response, nil
 }
 
-func (c *daemonClient) InstallSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceInstallRequest,
-) (SkillMarketplaceInstallRecord, error) {
-	var response struct {
-		Skill SkillMarketplaceInstallRecord `json:"skill"`
-	}
-	if err := c.doJSON(ctx, http.MethodPost, "/api/skills/marketplace/install", nil, request, &response); err != nil {
-		return SkillMarketplaceInstallRecord{}, err
-	}
-	return response.Skill, nil
-}
-
-func (c *daemonClient) UpdateSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceUpdateRequest,
-) ([]SkillMarketplaceUpdateRecord, error) {
-	var response struct {
-		Skills []SkillMarketplaceUpdateRecord `json:"skills"`
-	}
-	if err := c.doJSON(ctx, http.MethodPost, "/api/skills/marketplace/update", nil, request, &response); err != nil {
-		return nil, err
-	}
-	return response.Skills, nil
-}
-
-func (c *daemonClient) RemoveSkillMarketplace(
-	ctx context.Context,
-	name string,
-) (SkillMarketplaceRemoveRecord, error) {
-	var response struct {
-		Skill SkillMarketplaceRemoveRecord `json:"skill"`
-	}
-	if err := c.doJSON(
-		ctx,
-		http.MethodDelete,
-		"/api/skills/marketplace/"+url.PathEscape(strings.TrimSpace(name)),
-		nil,
-		nil,
-		&response,
-	); err != nil {
-		return SkillMarketplaceRemoveRecord{}, err
-	}
-	return response.Skill, nil
-}
-
 func (c *daemonClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
 	var response struct {
 		Hooks []HookCatalogRecord `json:"hooks"`

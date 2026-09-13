@@ -12,16 +12,17 @@ import (
 )
 
 const (
-	skillCommandsCreatedKey       = "created"
-	skillCommandsListKey          = "list"
-	skillCommandsSearchQueryValue = "search <query>"
-	skillCommandsSkillKey         = "skill"
+	skillCommandsCreatedKey = "created"
+	skillCommandsListKey    = "list"
+	skillCommandsSkillKey   = "skill"
 )
 
 func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   skillCommandsSkillKey,
 		Short: "Manage local AgentSkills",
+		Args:  cobra.NoArgs,
+		RunE:  func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return ensureSkillCLIUsesSupportedSurface(cmd, deps)
 		},
@@ -29,8 +30,7 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 
 	commands := []*cobra.Command{
 		newSkillListCommand(deps), newSkillSourcesCommand(deps), newSkillViewCommand(deps),
-		newSkillInfoCommand(deps), newSkillWhereCommand(deps), newSkillSearchCommand(deps),
-		newSkillInstallCommand(deps), newSkillRemoveCommand(deps), newSkillUpdateCommand(deps),
+		newSkillInfoCommand(deps), newSkillWhereCommand(deps),
 		newSkillCreateCommand(deps), newSkillEnableCommand(deps), newSkillDisableCommand(deps),
 		newSkillExposeCommand(deps), newSkillUnexposeCommand(deps),
 	}

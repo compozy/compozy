@@ -33,10 +33,6 @@ var (
 	ErrUnsupportedArchiveEntryType = errors.New("unsupported archive entry type")
 	// ErrArchiveDuplicateEntry reports that an archive declared the same path more than once.
 	ErrArchiveDuplicateEntry = errors.New("archive contains duplicate entry")
-	// ErrPathRootRequired reports that PathWithinRoot received a blank root path.
-	ErrPathRootRequired = errors.New("root path is required")
-	// ErrPathOutsideRoot reports that a path resolves outside the provided root.
-	ErrPathOutsideRoot = errors.New("path must stay within the root directory")
 	// ErrPathTraversesSymlink reports a symlink or reparse point in the staging tree.
 	ErrPathTraversesSymlink = errors.New("path traverses symlink")
 

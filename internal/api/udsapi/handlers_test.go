@@ -84,7 +84,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/settings/mcp-servers/:name",
 			"DELETE /api/settings/providers/:name",
 			"DELETE /api/resources/:kind/:id",
-			"DELETE /api/skills/marketplace/:name",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
@@ -493,8 +492,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/skills/:name/enable",
 			"POST /api/skills/:name/expose",
 			"POST /api/skills/:name/unexpose",
-			"POST /api/skills/marketplace/install",
-			"POST /api/skills/marketplace/update",
 			"POST /api/task-runs/:id/attach-session",
 			"POST /api/task-runs/:id/cancel",
 			"POST /api/task-runs/:id/complete",
@@ -643,19 +640,23 @@ func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
 		t,
 		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 	)
-	for _, path := range []string{
-		"/api/skills/marketplace/search",
-		"/api/skills/marketplace/info",
-		"/api/extensions/marketplace",
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/skills/marketplace/search"},
+		{http.MethodGet, "/api/skills/marketplace/info"},
+		{http.MethodGet, "/api/extensions/marketplace"},
+		{http.MethodPost, "/api/skills/marketplace/install"},
+		{http.MethodPost, "/api/skills/marketplace/update"},
+		{http.MethodDelete, "/api/skills/marketplace/review"},
 	} {
-		t.Run("Should return 404 for "+path, func(t *testing.T) {
+		t.Run("Should return 404 for "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
 
-			response := performRequest(t, engine, http.MethodGet, path, nil)
+			response := performRequest(t, engine, route.method, route.path, nil)
 			if response.Code != http.StatusNotFound {
 				t.Fatalf(
-					"GET %s status = %d, want %d; body=%s",
-					path,
+					"%s %s status = %d, want %d; body=%s",
+					route.method,
+					route.path,
 					response.Code,
 					http.StatusNotFound,
 					response.Body.String(),

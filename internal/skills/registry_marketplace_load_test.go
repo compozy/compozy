@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,6 +18,32 @@ func TestRegistryMarketplaceLoadVerifiesProvenanceContract(t *testing.T) {
 		name string
 		run  func(*testing.T, *Registry, *Skill, string)
 	}{
+		{
+			name: "Should load an installed ClawHub skill and preserve its provenance across reload",
+			run: func(t *testing.T, registry *Registry, skill *Skill, skillPath string) {
+				t.Helper()
+				before := *skill.Provenance
+				content, err := registry.LoadContent(t.Context(), skill)
+				if err != nil || !strings.Contains(content, "Original marketplace body") {
+					t.Fatalf("LoadContent() = %q, %v", content, err)
+				}
+				resource, err := registry.LoadResource(t.Context(), skill, "references/guide.md")
+				if err != nil || resource != "original resource" {
+					t.Fatalf("LoadResource() = %q, %v", resource, err)
+				}
+				if err := registry.LoadAll(t.Context()); err != nil {
+					t.Fatalf("LoadAll() after reload: %v", err)
+				}
+				reloaded, ok := registry.Get(skill.Meta.Name)
+				if !ok || reloaded.Source != SourceMarketplace || reloaded.FilePath != skillPath {
+					t.Fatalf("reloaded skill = %#v, found=%v", reloaded, ok)
+				}
+				after, err := ReadSidecar(filepath.Dir(skillPath))
+				if err != nil || after == nil || !reflect.DeepEqual(before, *after) {
+					t.Fatalf("provenance changed: before=%#v after=%#v err=%v", before, after, err)
+				}
+			},
+		},
 		{
 			name: "Should reject tampered marketplace skill content before loading body",
 			run: func(t *testing.T, registry *Registry, skill *Skill, skillPath string) {

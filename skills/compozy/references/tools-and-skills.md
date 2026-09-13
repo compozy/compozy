@@ -159,11 +159,10 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 `secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
-`compozy skill search` and `compozy skill info <entry_id>` read the same skill discovery namespace.
 Extension source search is separate: `compozy extension search <query> [--sources curated,github]
 [--limit N] [--cursor <opaque>]` and native `compozy__extensions_search` page
 `GET /api/extensions/search`, tagging rows with `source`, `tier`, `integrity`, and `digest_matched`
-and naming any failed or slow source in `sources_degraded`. Use `compozy skill inspect
+and naming any failed or slow source in `sources_degraded`. Use `compozy skill info
 <installed-name>` for effective installed metadata and resources, and do not call the deleted skill-
 or extension-specific browse endpoints.
 

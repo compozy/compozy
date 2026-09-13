@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 )
 
 // SkillPayloadFromSkill converts a skills.Skill into the shared HTTP payload.
@@ -143,73 +142,6 @@ func SkillPayloadsFromSkills(skillList []*skills.Skill) []contract.SkillPayload 
 		payload = append(payload, SkillPayloadFromSkill(skill))
 	}
 	return payload
-}
-
-// SkillMarketplaceInstallPayloadFromResult converts an install result into the shared payload.
-func SkillMarketplaceInstallPayloadFromResult(
-	result skillmarketplace.InstallResult,
-) contract.SkillMarketplaceInstallPayload {
-	return contract.SkillMarketplaceInstallPayload{
-		Name:     result.Name,
-		Slug:     result.Slug,
-		Version:  result.Version,
-		Registry: result.Registry,
-		Path:     result.Path,
-		Hash:     result.Hash,
-		Status:   result.Status,
-		CleanupDiagnostics: SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
-			result.CleanupDiagnostics,
-		),
-	}
-}
-
-// SkillMarketplaceCleanupDiagnosticPayloadsFromDomain converts cleanup diagnostics into wire payloads.
-func SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
-	diagnostics []skillmarketplace.CleanupDiagnostic,
-) []contract.SkillMarketplaceCleanupDiagnosticPayload {
-	if len(diagnostics) == 0 {
-		return nil
-	}
-	payloads := make([]contract.SkillMarketplaceCleanupDiagnosticPayload, 0, len(diagnostics))
-	for _, diagnostic := range diagnostics {
-		payloads = append(payloads, contract.SkillMarketplaceCleanupDiagnosticPayload{
-			Operation: diagnostic.Operation,
-		})
-	}
-	return payloads
-}
-
-// SkillMarketplaceUpdatePayloadsFromResults converts update results into shared payloads.
-func SkillMarketplaceUpdatePayloadsFromResults(
-	results []skillmarketplace.UpdateResult,
-) []contract.SkillMarketplaceUpdatePayload {
-	payload := make([]contract.SkillMarketplaceUpdatePayload, 0, len(results))
-	for _, result := range results {
-		payload = append(payload, contract.SkillMarketplaceUpdatePayload{
-			Name:           result.Name,
-			Slug:           result.Slug,
-			CurrentVersion: result.CurrentVersion,
-			LatestVersion:  result.LatestVersion,
-			Path:           result.Path,
-			Status:         result.Status,
-			CleanupDiagnostics: SkillMarketplaceCleanupDiagnosticPayloadsFromDomain(
-				result.CleanupDiagnostics,
-			),
-		})
-	}
-	return payload
-}
-
-// SkillMarketplaceRemovePayloadFromResult converts a removal result into the shared payload.
-func SkillMarketplaceRemovePayloadFromResult(
-	result skillmarketplace.RemoveResult,
-) contract.SkillMarketplaceRemovePayload {
-	return contract.SkillMarketplaceRemovePayload{
-		Name:   result.Name,
-		Slug:   result.Slug,
-		Path:   result.Path,
-		Status: result.Status,
-	}
 }
 
 func sessionWorkspaceFromInfo(info *session.Info) (string, string) {

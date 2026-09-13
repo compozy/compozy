@@ -3,9 +3,6 @@ import type {
   SkillExposeResponse,
   SkillExposeFailureResponse,
   SkillExposurePayload,
-  SkillMarketplaceInstallPayload,
-  SkillMarketplaceRemovePayload,
-  SkillMarketplaceUpdatePayload,
   SkillPayload,
 } from "../types";
 import {
@@ -190,27 +187,6 @@ export const skillActionFixture: SkillActionResponse = {
   ok: true,
 };
 
-export const skillMarketplaceInstallFixture: SkillMarketplaceInstallPayload = {
-  name: "merchant-escalation-handoff",
-  slug: "@community/merchant-escalation-handoff",
-  status: "installed",
-  hash: "sha256:fixture",
-  path: "/opt/compozy/skills/merchant-escalation-handoff",
-  registry: "clawhub",
-  version: "0.9.0",
-};
-
-export const skillMarketplaceUpdateFixtures: SkillMarketplaceUpdatePayload[] = [
-  {
-    name: "merchant-escalation-handoff",
-    slug: "@community/merchant-escalation-handoff",
-    status: "updated",
-    path: "/opt/compozy/skills/merchant-escalation-handoff",
-    current_version: "0.8.2",
-    latest_version: "0.9.0",
-  },
-];
-
 /** The four reconciled expose states, one row each. */
 export const skillExposuresFixture: SkillExposurePayload[] = [
   {
@@ -270,11 +246,4 @@ export const skillExposePartialFailureFixture: SkillExposeFailureResponse = {
     { target: "agents", ok: false, error: { code: "rolled_back" } },
   ],
   rolled_back: true,
-};
-
-export const skillMarketplaceRemoveFixture: SkillMarketplaceRemovePayload = {
-  name: "merchant-escalation-handoff",
-  slug: "@community/merchant-escalation-handoff",
-  status: "removed",
-  path: "/opt/compozy/skills/merchant-escalation-handoff",
 };

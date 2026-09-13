@@ -356,9 +356,6 @@ type stubClient struct {
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	exposeSkillFn                 func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillExposeResponse, error)
 	unexposeSkillFn               func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillUnexposeResponse, error)
-	installSkillMarketplaceFn     func(context.Context, SkillMarketplaceInstallRequest) (SkillMarketplaceInstallRecord, error)
-	updateSkillMarketplaceFn      func(context.Context, SkillMarketplaceUpdateRequest) ([]SkillMarketplaceUpdateRecord, error)
-	removeSkillMarketplaceFn      func(context.Context, string) (SkillMarketplaceRemoveRecord, error)
 	listToolsFn                   func(context.Context, ToolQuery) (ToolsResponseRecord, error)
 	searchToolsFn                 func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
 	getToolFn                     func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
@@ -3037,36 +3034,6 @@ func (s *stubClient) UnexposeSkill(
 		return s.unexposeSkillFn(ctx, name, request, query)
 	}
 	return contract.SkillUnexposeResponse{}, errors.New("unexpected UnexposeSkill call")
-}
-
-func (s *stubClient) InstallSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceInstallRequest,
-) (SkillMarketplaceInstallRecord, error) {
-	if s.installSkillMarketplaceFn != nil {
-		return s.installSkillMarketplaceFn(ctx, request)
-	}
-	return SkillMarketplaceInstallRecord{}, errors.New("unexpected InstallSkillMarketplace call")
-}
-
-func (s *stubClient) UpdateSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceUpdateRequest,
-) ([]SkillMarketplaceUpdateRecord, error) {
-	if s.updateSkillMarketplaceFn != nil {
-		return s.updateSkillMarketplaceFn(ctx, request)
-	}
-	return nil, errors.New("unexpected UpdateSkillMarketplace call")
-}
-
-func (s *stubClient) RemoveSkillMarketplace(
-	ctx context.Context,
-	name string,
-) (SkillMarketplaceRemoveRecord, error) {
-	if s.removeSkillMarketplaceFn != nil {
-		return s.removeSkillMarketplaceFn(ctx, name)
-	}
-	return SkillMarketplaceRemoveRecord{}, errors.New("unexpected RemoveSkillMarketplace call")
 }
 
 func (s *stubClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {

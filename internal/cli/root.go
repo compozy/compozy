@@ -64,7 +64,6 @@ type mcpServeRunner func(context.Context, mcpServeOptions) error
 type commandDeps struct {
 	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
-	loadSkillRegistrySources    skillRegistrySourceLoader
 	resolveHome                 func() (compozyconfig.HomePaths, error)
 	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
 	ensureHome                  func(compozyconfig.HomePaths) error
