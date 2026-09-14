@@ -217,8 +217,7 @@ function SkillsDisabledPolicy({ page, envelope, draft }: LoadedSkillsProps) {
 }
 
 function skillsScopeLabel(page: SkillsPageModel): string {
-  return;
-  page.selection.scope === "user"
+  return page.selection.scope === "user"
     ? page.personalLabel.toLowerCase()
     : page.selection.scope === "workspace"
       ? `workspace ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
