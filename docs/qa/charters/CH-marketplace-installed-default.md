@@ -1,5 +1,8 @@
 # CH-marketplace-installed-default: Marketplace kind pages open on Installed and preserve explicit catalog scope
 
+Retired by marketplace-catalog task 01 (2026-09-12). The app now opens one catalog; its installed shelf opens a separate flat inventory. Use ET-web-marketplace-landing-browse and ET-web-marketplace-installed-management for the replacement journeys. The original charter below is retained as historical evidence and must not be used for a new run.
+
+
 ```yaml
 charter:
   id: CH-marketplace-installed-default

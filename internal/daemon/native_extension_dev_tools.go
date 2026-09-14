@@ -37,12 +37,14 @@ type extensionDevInput struct {
 }
 
 type extensionReloadInput struct {
+	Owner                string `json:"owner"`
 	Name                 string `json:"name"`
 	GenerationHash       string `json:"generation_hash"`
 	ConfirmNetworkDigest string `json:"confirm_network_digest"`
 }
 
 type extensionLogsInput struct {
+	Owner       string `json:"owner"`
 	Name        string `json:"name"`
 	After       int64  `json:"after"`
 	StreamEpoch string `json:"stream_epoch"`
@@ -143,11 +145,15 @@ func (n *daemonNativeTools) extensionReload(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.extensionService().ReloadDev(ctx, input.Name, contract.ReloadExtensionRequest{
+	item, err := n.extensionService().ReloadDev(ctx, name, contract.ReloadExtensionRequest{
 		GenerationHash:       input.GenerationHash,
 		ConfirmNetworkDigest: input.ConfirmNetworkDigest,
 	}, actor)
@@ -172,12 +178,16 @@ func (n *daemonNativeTools) extensionLogs(
 			errors.New("stream_epoch is required when after is greater than zero"),
 		)
 	}
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 	logs, err := n.extensionService().ExtensionLogs(
-		ctx, input.Name, input.After, input.StreamEpoch, actor,
+		ctx, name, input.After, input.StreamEpoch, actor,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)

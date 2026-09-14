@@ -165,7 +165,7 @@ func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleSt
 		}
 		if _, err := os.Stat(newPath); err == nil {
 			if _, oldErr := os.Stat(oldPath); errors.Is(oldErr, os.ErrNotExist) {
-				return nil
+				return compozyconfig.RewriteProfileSecretRefs(newPath, filepath.Base(oldPath), filepath.Base(newPath))
 			}
 			return fmt.Errorf("profile: rename target %q already exists", newPath)
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -175,14 +175,14 @@ func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleSt
 			if err := os.MkdirAll(newPath, 0o700); err != nil {
 				return fmt.Errorf("profile: create recovered profile directory %q: %w", newPath, err)
 			}
-			return nil
+			return compozyconfig.RewriteProfileSecretRefs(newPath, filepath.Base(oldPath), filepath.Base(newPath))
 		} else if err != nil {
 			return fmt.Errorf("profile: inspect rename source %q: %w", oldPath, err)
 		}
 		if err := os.Rename(oldPath, newPath); err != nil {
 			return fmt.Errorf("profile: rename %q to %q: %w", oldPath, newPath, err)
 		}
-		return nil
+		return compozyconfig.RewriteProfileSecretRefs(newPath, filepath.Base(oldPath), filepath.Base(newPath))
 	case stepRemoveProfile:
 		path, err := m.containedProfilePath(step.PathOld)
 		if err != nil {

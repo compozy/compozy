@@ -2,29 +2,36 @@ import { FileText, Fingerprint, ShieldCheck } from "lucide-react";
 
 import { MonoId, PropertyRow, Time } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionInstalled } from "./marketplace-detail-extension-installed";
+import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   MarketplaceDetailColumns,
   MarketplaceDetailKvRow,
   MarketplaceDetailRailCard,
   MarketplaceDetailSection,
+  MarketplaceRepositoryRow,
 } from "./marketplace-detail-shell";
-import { MarketplaceRepositoryRow } from "./marketplace-detail-skill";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
-import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
+import { formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionViewProps {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
+  liveDataEnabled?: boolean;
 }
 
 /**
  * Extension detail: installed entries put the kit and its runtime in the body;
- * browse entries lead with the pinned artifact provenance.
+ * browse entries lead with the pinned artifact provenance. An entry whose manifest
+ * provides MCP servers opens the rail with a Server card per server (summaries only
+ * until installed).
  */
-function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionViewProps) {
+function MarketplaceDetailExtensionView({
+  data,
+  liveDataEnabled = true,
+}: MarketplaceDetailExtensionViewProps) {
   if (data.entry.installed) {
-    return <MarketplaceDetailExtensionInstalled data={data} />;
+    return <MarketplaceDetailExtensionInstalled data={data} liveDataEnabled={liveDataEnabled} />;
   }
   return (
     <MarketplaceDetailColumns
@@ -36,6 +43,10 @@ function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionView
       }
       rail={
         <>
+          <MarketplaceExtensionServerSection
+            inputs={data.extension?.inputs ?? []}
+            servers={data.extension?.mcp_servers ?? []}
+          />
           <MarketplaceExtensionDetailsCard data={data} />
           <MarketplaceExtensionTrustCard trust={data.entry.trust} />
         </>
@@ -47,7 +58,7 @@ function MarketplaceDetailExtensionView({ data }: MarketplaceDetailExtensionView
 function MarketplaceExtensionArtifactSection({
   extension,
 }: {
-  extension: MarketplaceEntryResponse["extension"];
+  extension: MarketplaceCatalogEntryResponse["extension"];
 }) {
   if (!extension) return null;
   return (
@@ -93,7 +104,7 @@ function MarketplaceExtensionDetailsCard({
   data,
   defaultOpen = true,
 }: {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
   defaultOpen?: boolean;
 }) {
   const entry = data.entry;
@@ -118,11 +129,7 @@ function MarketplaceExtensionDetailsCard({
         <PropertyRow label="Source" mono>
           {entry.source}
         </PropertyRow>
-        {entry.downloads !== undefined && entry.downloads !== null ? (
-          <PropertyRow label="Downloads" mono>
-            {formatMarketplaceCount(entry.downloads)}
-          </PropertyRow>
-        ) : null}
+
         {entry.published_at ? (
           <PropertyRow label="Published">
             <Time iso={entry.published_at} />
@@ -142,7 +149,7 @@ function MarketplaceExtensionDetailsCard({
 function MarketplaceExtensionTrustCard({
   trust,
 }: {
-  trust: MarketplaceEntryResponse["entry"]["trust"];
+  trust: MarketplaceCatalogEntryResponse["entry"]["trust"];
 }) {
   if (!trust) return null;
   return (

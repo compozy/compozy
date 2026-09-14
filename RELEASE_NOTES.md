@@ -1,3 +1,60 @@
+## Unreleased
+
+### Breaking & migrations
+
+The Marketplace catalog moves to one extension catalog. Global migration `00111`
+preserves existing extension catalog rows under `compozy-catalog` and removes
+only the cached MCP and skill listings (ADR-001). Installed extensions, manual
+MCP server configuration, and installed skill files remain intact. Provenance
+receives `catalog:compozy` origin only when an existing marketplace installation
+records a non-empty catalog entry ID; other installations stay unclassified.
+The migration also creates storage for scoped extension inputs and MCP overrides.
+Migration `00112` adds input identity and activity to extension secret bindings.
+Existing bindings remain active with their references, scopes, timestamps, and
+header mappings preserved. Removing an input from a manifest deactivates its
+stored value; reintroducing the input can reactivate that value.
+Migration `00113` includes the credential owner in both MCP OAuth token and
+client-registration keys. Existing rows become `manual`; their token references,
+registration metadata, and encrypted vault values remain unchanged. Extension
+credentials use a separate `vault:mcp/ext/<extension>/` namespace.
+Migration `00114` separates stored extension packages from their profile/workspace
+installation attachments. Existing packages receive one global, all-profiles
+attachment with their original installation timestamp; enablement exceptions,
+package files, provenance, and credentials are preserved.
+Migration `00115` removes the fixed extension discriminator from catalog rows;
+source/entry identity and all catalog content and installed extension state are preserved.
+
+The Marketplace switches directly to the extension catalog contract. Retired kind routes,
+remote skill acquisition and MCP catalog installation are removed without aliases.
+Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
+Refresh accepts no `kind` selector and reports `sources[]` outcomes.
+Existing extension packages, acquisition references, installed skills and manual MCPs remain.
+CLI callers remove `--kind` and the first kind argument to `marketplace info`.
+`compozy mcp install` and remote `compozy skill search|install|update|remove` are removed;
+local skill inspection and management remain. Native `compozy__marketplace_search`
+rejects the removed `kind` argument. See [migration steps](MIGRATION_GUIDE.md#marketplace-acquisition-hard-cut).
+MCP declarations embedded in previously installed ClawHub/Marketplace skills are now disabled.
+The skill files and provenance, manual MCP configuration and credentials, and extension-provided
+MCP servers remain intact. Existing extension removal still retires its instance bindings and
+exclusive secrets while preserving shared or foreign secrets and compensating failed removals.
+Retired `skills.marketplace.registry`, `skills.marketplace.base_url` and `skills.allowed_marketplace_mcp` settings
+are archived as inactive comments in the same config file on load. The archive
+and active configuration are written atomically, once; unrelated settings and
+extension configuration are preserved. Settings and `config set` reject new
+writes of these acquisition fields.
+
+### Features
+
+- Client plugins with manifests under `.claude-plugin/`, `.codex-plugin/` or
+  `.cursor-plugin/` load through the extension lifecycle. Supported skills and
+  MCPs are adapted without rewriting packages; ignored client commands, agents
+  and hooks produce diagnostics. Installed provenance records the actual layout.
+
+- Extension MCP runtime names are allocated automatically and remain stable.
+  Install requests no longer accept `--runtime-name` or `runtime_name`; failed
+  installs restore prior allocations. Extension inputs accept secrets owned by
+  the same extension instance, without importing manual MCP vault references.
+
 ## 0.3.0 - 2026-09-11
 
 ### ♻️ Refactoring

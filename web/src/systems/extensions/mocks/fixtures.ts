@@ -84,6 +84,10 @@ const skippedStdioServer: ExtensionInventoryDiagnostic = {
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    inputs: [],
+    mcp_servers: [],
+    missing_inputs: [],
     profile: "default",
     capabilities: ["loop.watch_source", "tool.provider"],
     consecutive_failures: 0,
@@ -118,6 +122,10 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "0.5.2",
   },
   {
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    inputs: [],
+    mcp_servers: [],
+    missing_inputs: [],
     profile: "default",
     capabilities: ["tool.provider"],
     consecutive_failures: 0,
@@ -162,6 +170,10 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Ships a static kit and declares Live network participation the operator has not ratified. */
   {
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    inputs: [],
+    mcp_servers: [],
+    missing_inputs: [],
     profile: "default",
     bound_env_keys: ["DEP_KIT_TOKEN"],
     capabilities: ["tool.provider"],
@@ -186,6 +198,10 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Portable package ingested from the Agent Plugins format, with one recorded component skip. */
   {
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    inputs: [],
+    mcp_servers: [],
+    missing_inputs: [],
     profile: "default",
     capabilities: [],
     consecutive_failures: 0,
@@ -208,6 +224,10 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Fully degraded: every declared component was skipped, so nothing was ingested. */
   {
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    inputs: [],
+    mcp_servers: [],
+    missing_inputs: [],
     profile: "default",
     capabilities: [],
     consecutive_failures: 0,
@@ -264,6 +284,10 @@ export const extensionInventoryDiagnosticsFixtures: Record<string, ExtensionInve
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
 
 export const devExtensionFixture: ExtensionEntry = {
+  contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+  inputs: [],
+  mcp_servers: [],
+  missing_inputs: [],
   profile: "default",
   capabilities: ["tool.provider"],
   consecutive_failures: 2,

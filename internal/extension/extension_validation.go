@@ -129,7 +129,7 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 	if status == agentplugin.SchemaSupported {
 		return FormatAgentPlugin, false, nil
 	}
-	if pluginExists || status == agentplugin.SchemaUnsupportedVersion || detectAgentPluginClientLayout(root) != "" {
+	if pluginExists || status == agentplugin.SchemaUnsupportedVersion {
 		return "", false, agentPluginFormatDetectionError(root)
 	}
 	return FormatCompozy, false, nil

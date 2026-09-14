@@ -17,6 +17,8 @@ import (
 // ErrArchiveDigestMismatch reports an archive that differs from its digest pin.
 var ErrArchiveDigestMismatch = errors.New("registry: archive digest mismatch")
 
+const TarContentType = "application/x-tar"
+
 // ArchiveDigestMismatchError contains expected and actual archive digests.
 type ArchiveDigestMismatchError struct {
 	ExpectedSHA256 string
@@ -133,7 +135,7 @@ func (i *Installer) installDownloadedPackage(
 		}
 	}()
 
-	packageRoot, metadata, err := i.extractInstallPackage(ctx, archive, staging.temporary)
+	packageRoot, metadata, err := i.extractInstallPackage(ctx, archive, download.ContentType, staging.temporary)
 	if err != nil {
 		return nil, err
 	}

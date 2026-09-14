@@ -237,7 +237,7 @@ func (r *Registry) currentNetworkRequirementDigest(key InstanceKey) (string, err
 		if err != nil {
 			return "", err
 		}
-		installDir, err := InstalledExtensionDir(*info)
+		installDir, err := InstalledExtensionDir(info)
 		if err != nil {
 			return "", err
 		}

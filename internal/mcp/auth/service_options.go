@@ -24,11 +24,6 @@ func WithClientMetadataURL(raw string) ServiceOption {
 	return func(service *Service) { service.clientMetadataURL = strings.TrimSpace(raw) }
 }
 
-// WithDefaultRedirectURL supplies the global redirect URI used during refresh.
-func WithDefaultRedirectURL(raw string) ServiceOption {
-	return func(service *Service) { service.defaultRedirectURL = strings.TrimSpace(raw) }
-}
-
 // withHTTPClientForTest bypasses the production network policy for local test fixtures.
 func withHTTPClientForTest(client *http.Client) ServiceOption {
 	return func(service *Service) {

@@ -26,7 +26,7 @@ const (
 	extensionMarketplaceStatusValue       = "Status"
 	extensionMarketplaceTierValue         = "Tier"
 	extensionMarketplaceCurrentVersionKey = "current_version"
-	extensionMarketplaceDescriptionKey    = "description"
+	cliDescriptionKey                     = "description"
 	extensionMarketplacePathKey           = "path"
 	extensionMarketplaceTierKey           = "tier"
 )
@@ -49,6 +49,9 @@ type extensionSearchPageRecord struct {
 }
 
 type extensionUpdateOptions struct {
+	Scope                string
+	WorkspaceID          string
+	Profile              string
 	Names                []string
 	All                  bool
 	CheckOnly            bool
@@ -128,6 +131,7 @@ func updateMarketplaceExtensions(
 	}
 	if !options.All && len(names) == 1 {
 		item, err := client.UpdateExtension(ctx, names[0], UpdateExtensionRequest{
+			Scope: options.Scope, WorkspaceID: options.WorkspaceID, Profile: options.Profile,
 			Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
 			AllowUnverified:      options.AllowUnverified && !options.CheckOnly,
 			ConfirmNetworkDigest: strings.TrimSpace(options.ConfirmNetworkDigest),
@@ -138,6 +142,7 @@ func updateMarketplaceExtensions(
 		return []extensionUpdateItem{item}, nil
 	}
 	items, err := client.UpdateExtensions(ctx, UpdateExtensionsRequest{
+		Scope: options.Scope, WorkspaceID: options.WorkspaceID, Profile: options.Profile,
 		Names: names, All: options.All, Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
 		AllowUnverified: options.AllowUnverified && !options.CheckOnly,
 	})
@@ -168,7 +173,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 		[]string{
 			extensionMarketplaceSlugKey,
 			automationNameKey,
-			extensionMarketplaceDescriptionKey,
+			cliDescriptionKey,
 			"author",
 			versionKey,
 			"update_available",

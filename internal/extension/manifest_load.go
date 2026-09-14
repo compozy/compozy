@@ -13,6 +13,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
@@ -52,19 +53,14 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 		return loadManifestJSON(jsonPath)
 	}
 
-	pluginPath := filepath.Join(manifestDir, agentPluginManifestFileName)
-	manifest, recognized, err := loadAgentPluginManifest(manifestDir, dataDir, pluginPath)
-	if err != nil {
-		return nil, err
+	manifest, err := loadAgentPluginManifest(manifestDir, dataDir)
+	if missing, ok := errors.AsType[*agentplugin.NotManifestError](err); ok {
+		return nil, &ManifestNotFoundError{
+			Dir:   manifestDir,
+			Paths: append([]string{tomlPath, jsonPath}, missing.Checked...),
+		}
 	}
-	if recognized {
-		return manifest, nil
-	}
-
-	return nil, &ManifestNotFoundError{
-		Dir:   manifestDir,
-		Paths: []string{tomlPath, jsonPath, pluginPath},
-	}
+	return manifest, err
 }
 
 func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) {

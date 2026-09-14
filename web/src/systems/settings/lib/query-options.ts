@@ -9,6 +9,7 @@ import {
   getSettingsHooksExtensions,
   getSettingsMemory,
   getSettingsNetwork,
+  getSettingsMarketplace,
   listSettingsNotificationPresets,
   getSettingsObservability,
   getSettingsPersona,
@@ -23,6 +24,7 @@ import {
   listSettingsSandboxes,
   listSettingsHooks,
   listSettingsMCPServers,
+  getSettingsMCPServer,
   listSettingsProviders,
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
@@ -31,6 +33,7 @@ import type {
   SettingsApplyRecordsFilter,
   SettingsAttentionFilter,
   SettingsMCPServerListFilter,
+  SettingsMCPServerGetFilter,
   SettingsNotificationPresetFilter,
   SettingsCmdPaletteFilter,
   SettingsHookListFilter,
@@ -163,6 +166,16 @@ export function settingsNetworkOptions() {
   });
 }
 
+export function settingsMarketplaceOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("marketplace"),
+    queryFn: ({ signal }) => getSettingsMarketplace(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
 export function settingsCmdPaletteOptions(filter: SettingsCmdPaletteFilter = {}) {
   return queryOptions({
     queryKey: settingsKeys.cmdPaletteSection(filter),
@@ -262,6 +275,23 @@ export function settingsHooksListOptions(filter: SettingsHookListFilter = {}) {
     queryFn: ({ signal }) => listSettingsHooks(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsMCPServerDetailOptions(
+  name: string,
+  filter: SettingsMCPServerGetFilter = {},
+  enabled = true,
+  refetchInterval = COLLECTION_REFETCH_INTERVAL
+) {
+  const normalizedName = name.trim();
+  return queryOptions({
+    queryKey: settingsKeys.mcpDetail(normalizedName, filter),
+    queryFn: ({ signal }) => getSettingsMCPServer(normalizedName, filter, signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval,
+    enabled: enabled && normalizedName !== "",
     retry: shouldRetrySettingsQuery,
   });
 }

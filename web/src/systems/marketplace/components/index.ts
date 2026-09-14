@@ -1,3 +1,5 @@
+export { AddMarketplaceDialog } from "./add-marketplace-dialog";
+export type { AddMarketplaceDialogProps } from "./add-marketplace-dialog";
 export { ExtensionInstallDialog } from "./extension-install-dialog";
 export type { ExtensionInstallDialogProps } from "./extension-install-dialog";
 export { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
@@ -14,48 +16,44 @@ export type {
 } from "./extension-install-model";
 export { ExtensionTrustDialog } from "./extension-trust-dialog";
 export type { ExtensionTrustDialogProps } from "./extension-trust-dialog";
+export { useAddMarketplaceDialog } from "./use-add-marketplace-dialog";
+export type { AddMarketplaceDialogController } from "./use-add-marketplace-dialog";
 export { useExtensionInstallDialog } from "./use-extension-install-dialog";
-export { MarketplaceCard } from "./marketplace-card";
-export type { MarketplaceCardProps } from "./marketplace-card";
-export { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
+export { MarketplaceAddMenu } from "./marketplace-add-menu";
+export type { MarketplaceAddMenuProps } from "./marketplace-add-menu";
+export { MarketplaceCatalogSection } from "./marketplace-catalog-section";
+export type { MarketplaceCatalogSectionProps } from "./marketplace-catalog-section";
 export {
   MarketplaceDetail,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
 } from "./marketplace-detail";
 export type { MarketplaceDetailProps } from "./marketplace-detail";
-export { MarketplaceMCPDetailTopbarActions } from "./marketplace-detail-mcp-topbar";
-export type { MarketplaceMCPDetailTopbarActionsProps } from "./marketplace-detail-mcp-topbar";
+export { MarketplaceEntryCard } from "./marketplace-entry-card";
+export type { MarketplaceEntryCardProps } from "./marketplace-entry-card";
+export { MarketplaceEntryLogo } from "./marketplace-entry-logo";
+export type {
+  MarketplaceEntryLogoEntry,
+  MarketplaceEntryLogoProps,
+  MarketplaceEntryLogoSize,
+} from "./marketplace-entry-logo";
+export { MarketplaceCatalogTrail, MarketplaceInstalledTrail } from "./marketplace-entry-trail";
+export type {
+  MarketplaceCatalogTrailProps,
+  MarketplaceInstalledTrailProps,
+} from "./marketplace-entry-trail";
 export { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
 export type { MarketplaceGridProps } from "./marketplace-grid";
-export { MarketplaceInstalledCard } from "./marketplace-installed-card";
-export type { MarketplaceInstalledCardProps } from "./marketplace-installed-card";
-export { MarketplaceKindPage } from "./marketplace-kind-page";
-export type { MarketplaceKindPageProps } from "./marketplace-kind-page";
-export { MCPInstallDialog } from "./mcp-install-dialog";
-export type { MCPInstallDialogProps } from "./mcp-install-dialog";
+export { MarketplaceInstalledPage } from "./marketplace-installed-page";
+export type { MarketplaceInstalledPageProps } from "./marketplace-installed-page";
+export { MarketplaceInstalledShelf } from "./marketplace-installed-shelf";
+export type { MarketplaceInstalledShelfProps } from "./marketplace-installed-shelf";
+export { MarketplacePage } from "./marketplace-page";
+export type { MarketplacePageProps } from "./marketplace-page";
 export {
-  bindingValuePresent,
-  buildMCPInstallRequest,
-  createInitialMCPBindings,
-} from "./mcp-install-model";
-export type { MCPFieldBinding } from "./mcp-install-model";
-export {
-  MARKETPLACE_KIND_LABEL,
-  MARKETPLACE_KIND_ORDER,
-  MARKETPLACE_KIND_SINGULAR,
-  formatMarketplaceCount,
   formatMarketplaceVersion,
-  isMarketplaceKind,
-  isMarketplaceViewSort,
   marketplaceEntrySlug,
   marketplaceErrorMessage,
-  marketplaceKindIcon,
-  sortMarketplaceEntries,
 } from "./marketplace-ui";
-export type { MarketplaceViewSort } from "./marketplace-ui";
 export { useMarketplaceActionController } from "./use-marketplace-action-controller";
-export type {
-  MarketplaceActionController,
-  MarketplaceActionControllerOptions,
-} from "./use-marketplace-action-controller";
+export type { MarketplaceActionController } from "./use-marketplace-action-controller";

@@ -1,834 +1,1061 @@
+import { useMarketplaceUpdateRecovery } from "../use-marketplace-update-recovery";
+// Invariant: catalog and installed actions retain acquisition identity, consent, and pending ownership.
+// Owner: Marketplace action controller; canonical suite: marketplace-action-controller.test.tsx.
+// HTTP adapters, navigation, and notifications are the only mocked I/O boundaries.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-
-import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
-import type { MarketplaceInstalledItem } from "../../hooks/use-marketplace-kind-page";
-import type { MarketplaceListing } from "../../types";
-import { marketplaceDetails, marketplaceListings } from "../../mocks";
-import { useMarketplaceActionController } from "../use-marketplace-action-controller";
 import {
-  MarketplaceKindResults,
-  type MarketplaceKindResultsProps,
-} from "../marketplace-kind-results";
-import { marketplaceKindConfig } from "../../lib/marketplace-kind-config";
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { handlers as profileHandlers } from "@/systems/profiles/mocks";
+import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
+import { handlers as statusHandlers } from "@/systems/status/mocks";
+import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
+import {
+  useExtensionInstanceScope,
+  type InstalledExtensionView,
+  type ExtensionInstanceScope,
+} from "@/systems/extensions";
+import { setActiveWorkspaceId } from "@/systems/workspace";
+import { workspaceFixtures } from "@/systems/workspace/mocks";
+import { resetProfileViews, setProfileView } from "@/systems/profiles/stores/profile-view-store";
+import { extensionFixtures } from "@/systems/extensions/mocks";
+import { marketplaceCatalogFixture, marketplaceCatalogDetailFixture } from "../../mocks";
+import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
+import { marketplaceCatalogEntryOptions } from "../../lib/query-options";
+import type { MarketplaceCatalogListing } from "../../types";
+import { MarketplaceInstalledTrail } from "../marketplace-entry-trail";
+import { useMarketplaceActionController } from "../use-marketplace-action-controller";
 
-const mocks = vi.hoisted(() => ({
-  requestAuthorize: vi.fn(),
-  installExtension: vi.fn(),
-  installMCP: vi.fn(),
-  installSkill: vi.fn(),
+const io = vi.hoisted(() => ({
+  install: vi.fn(),
+  update: vi.fn(),
+  preview: vi.fn(),
+  toggle: vi.fn(),
   navigate: vi.fn(),
-  previewExtensionInstall: vi.fn(),
-  toastError: vi.fn(),
-  toastSuccess: vi.fn(),
-  updateSkill: vi.fn(),
-  updateExtension: vi.fn(),
-  removeSkill: vi.fn(),
-  removeExtension: vi.fn(),
-  deleteMCP: vi.fn(),
-  toggleExtension: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
 }));
-
-vi.mock("@/systems/extensions", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/extensions")>()),
-  previewExtensionInstall: mocks.previewExtensionInstall,
+vi.mock("../../adapters/marketplace-actions-api", async original => ({
+  ...(await original<typeof import("../../adapters/marketplace-actions-api")>()),
+  installMarketplaceExtension: io.install,
 }));
-
-vi.mock("sonner", () => ({
-  toast: { error: mocks.toastError, success: mocks.toastSuccess },
+vi.mock("@/systems/extensions/adapters/extensions-api", async original => ({
+  ...(await original<typeof import("@/systems/extensions/adapters/extensions-api")>()),
+  updateExtension: io.update,
+  previewExtensionInstall: io.preview,
+  setExtensionEnablement: io.toggle,
 }));
-
-vi.mock("@tanstack/react-router", async () => {
-  const actual =
-    await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
-  return {
-    ...actual,
-    Link: ({ children }: { children: ReactNode }) => <a href="#marketplace">{children}</a>,
-    useNavigate: () => mocks.navigate,
-  };
+vi.mock("sonner", () => ({ toast: { error: io.error, success: io.success } }));
+vi.mock("@tanstack/react-router", async original => ({
+  ...(await original<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => io.navigate,
+}));
+const server = setupServer(...profileHandlers, ...workspaceHandlers, ...statusHandlers);
+const clients: QueryClient[] = [];
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterAll(() => server.close());
+afterEach(() => {
+  cleanup();
+  setActiveWorkspaceId(null);
+  resetProfileViews();
+  clients.splice(0).forEach(client => client.clear());
+  server.resetHandlers();
 });
-
-vi.mock("@/systems/skill/hooks/use-skill-actions", () => ({
-  useRemoveSkillMarketplace: () => ({ mutateAsync: mocks.removeSkill }),
-}));
-
-vi.mock("@/systems/extensions/hooks/use-extension-actions", () => ({
-  useRemoveExtension: () => ({ mutateAsync: mocks.removeExtension }),
-  useToggleExtension: () => ({ mutateAsync: mocks.toggleExtension }),
-}));
-
-vi.mock("@/systems/settings/hooks/use-mcp-authorize", async importOriginal => {
-  const actual =
-    await importOriginal<typeof import("@/systems/settings/hooks/use-mcp-authorize")>();
-  const { useState } = await vi.importActual<typeof import("react")>("react");
-  return {
-    ...actual,
-    useMCPAuthorize: () => {
-      const [phase, setPhase] = useState("idle");
-      return {
-        phase,
-        server: phase === "idle" ? null : "linear",
-        begin: null,
-        error: null,
-        prior: null,
-        mode: null,
-        approvedScopes: [],
-        requestAuthorize: (...args: unknown[]) => {
-          mocks.requestAuthorize(...args);
-          setPhase("waiting");
-        },
-        confirmScopeEscalation: vi.fn(),
-        retryBegin: vi.fn(),
-        enterManual: vi.fn(),
-        submitManual: vi.fn(),
-        acknowledgeStatus: vi.fn(),
-        cancel: vi.fn(),
-      };
-    },
-  };
-});
-
-vi.mock("@/systems/settings/hooks/use-settings-mutations", () => ({
-  useDeleteSettingsMCPServer: () => ({ mutateAsync: mocks.deleteMCP }),
-}));
-
-vi.mock("@/systems/settings/components", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/settings/components")>()),
-  MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
-    <output aria-label="Authorization scope">{scope}</output>
-  ),
-}));
-
-vi.mock("../../hooks/use-marketplace-actions", () => ({
-  useInstallMarketplaceExtension: () => ({
-    isPending: false,
-    mutateAsync: mocks.installExtension,
-  }),
-  useInstallMarketplaceMCP: () => ({ mutateAsync: mocks.installMCP }),
-  useInstallMarketplaceSkill: () => ({ mutateAsync: mocks.installSkill }),
-  useUpdateMarketplaceSkill: () => ({ mutateAsync: mocks.updateSkill }),
-  useUpdateMarketplaceExtension: () => ({
-    isPending: false,
-    mutateAsync: mocks.updateExtension,
-  }),
-}));
-
-function ActionHarness({
-  entry,
-  workspaceId = "ws-a",
-}: {
-  entry: MarketplaceListing;
-  workspaceId?: string;
-}) {
-  const controller = useMarketplaceActionController(workspaceId);
-  return (
-    <>
-      <button onClick={() => controller.handleAction(entry)} type="button">
-        Run action
-      </button>
-      <button onClick={() => controller.handleFlashEnd(entry)} type="button">
-        End install flash
-      </button>
-      <output aria-label="Pending entry">
-        {controller.isEntryPending(entry) ? "pending" : "idle"}
-      </output>
-      <output aria-label="Flashing entry">
-        {controller.isEntryFlashing(entry) ? "flashing" : "idle"}
-      </output>
-      {controller.dialogs}
-    </>
-  );
-}
-
-function ConcurrentActionHarness({
-  first,
-  second,
-}: {
-  first: MarketplaceListing;
-  second: MarketplaceListing;
-}) {
-  const controller = useMarketplaceActionController("ws-a");
-  return (
-    <>
-      <button onClick={() => controller.handleAction(first)} type="button">
-        Run first
-      </button>
-      <button onClick={() => controller.handleAction(second)} type="button">
-        Run second
-      </button>
-      <output aria-label="First pending">
-        {controller.isEntryPending(first) ? "pending" : "idle"}
-      </output>
-      <output aria-label="Second pending">
-        {controller.isEntryPending(second) ? "pending" : "idle"}
-      </output>
-      {controller.dialogs}
-    </>
-  );
-}
-
-function InstalledExtensionResultsHarness({ item }: { item: MarketplaceInstalledItem }) {
-  const controller = useMarketplaceActionController("ws-a");
-  const page: MarketplaceKindResultsProps["page"] = {
-    clearSearch: vi.fn(),
-    error: null,
-    fetchNextMarketplacePage: vi.fn(),
-    hasNextMarketplacePage: false,
-    installedItems: [item],
-    isFetchingNextMarketplacePage: false,
-    isLoading: false,
-    marketEntries: [],
-    marketplaceContinuationError: null,
-    query: "",
-    refetch: vi.fn(),
-    scope: "installed",
-    setScope: vi.fn(),
-  };
-
-  return (
-    <>
-      <MarketplaceKindResults
-        actions={controller}
-        config={marketplaceKindConfig("extension")}
-        kind="extension"
-        onEditMCP={vi.fn()}
-        page={page}
-      />
-      {controller.dialogs}
-    </>
-  );
-}
-
-function AuthorizeHarness({ item }: { item: MarketplaceInstalledItem }) {
-  const controller = useMarketplaceActionController("ws-a", { installedItems: [item] });
-  return (
-    <>
-      <button onClick={() => controller.handleAuthorize(item)} type="button">
-        Authorize MCP
-      </button>
-      {controller.dialogs}
-    </>
-  );
-}
-
-function RemoveHarness({ item }: { item: MarketplaceInstalledItem }) {
-  const controller = useMarketplaceActionController("ws-a");
-  return (
-    <>
-      <button onClick={() => void controller.handleRemove(item)} type="button">
-        Remove installed item
-      </button>
-      <output aria-label="Pending installed item">
-        {controller.isInstalledItemPending(item) ? "pending" : "idle"}
-      </output>
-    </>
-  );
-}
-
-function ConcurrentInstalledHarness({
-  first,
-  second,
-}: {
-  first: MarketplaceInstalledItem;
-  second: MarketplaceInstalledItem;
-}) {
-  const controller = useMarketplaceActionController("ws-a");
-  return (
-    <>
-      <button onClick={() => void controller.handleRemove(first)} type="button">
-        Remove first
-      </button>
-      <button onClick={() => void controller.handleRemove(second)} type="button">
-        Remove second
-      </button>
-      <output aria-label="First installed pending">
-        {controller.isInstalledItemPending(first) ? "pending" : "idle"}
-      </output>
-      <output aria-label="Second installed pending">
-        {controller.isInstalledItemPending(second) ? "pending" : "idle"}
-      </output>
-    </>
-  );
-}
-
-function setup(entry: MarketplaceListing) {
-  const client = new QueryClient({
-    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
-  });
-  const result = render(
-    <QueryClientProvider client={client}>
-      <ActionHarness entry={entry} />
-    </QueryClientProvider>
-  );
-  return { client, ...result };
-}
-
 beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.installExtension.mockResolvedValue({
-    extension: {
-      daemon_running: false,
-      enabled: true,
-      name: "installed-extension",
-      source: "marketplace",
-      state: "installed",
-      type: "native",
-      version: "1.0.0",
-    },
-  });
-  mocks.installMCP.mockResolvedValue({});
-  mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+  vi.resetAllMocks();
+  io.install.mockResolvedValue({ extension: extensionFixtures[0] });
+  io.update.mockResolvedValue(undefined);
+  io.toggle.mockResolvedValue({});
+  io.preview.mockImplementation(async (request: { ref: string }) => ({
+    inputs: [],
     declared_profiles: [{ create: false, credentials: [], name: "default" }],
-    name: request.ref.split("/").pop() ?? request.ref,
+    name: request.ref.split("/").pop(),
     placements: [],
   }));
-  mocks.installSkill.mockResolvedValue({
-    skill: {
-      hash: "sha256:installed-skill",
-      name: "installed-skill",
-      path: "/skills/installed-skill",
-      registry: "compozy",
-      slug: "compozy/installed-skill",
-      status: "installed",
-      version: "1.0.0",
-    },
-  });
-  mocks.updateExtension.mockResolvedValue(undefined);
-  mocks.updateSkill.mockResolvedValue({});
-  mocks.removeSkill.mockResolvedValue({});
-  mocks.removeExtension.mockResolvedValue({});
-  mocks.toggleExtension.mockResolvedValue({});
-  mocks.deleteMCP.mockResolvedValue({});
 });
 
-afterEach(() => {
-  vi.clearAllMocks();
-});
+const verified = marketplaceCatalogFixture.items[0]!;
+const unverified = marketplaceCatalogFixture.items[1]!;
+const blocked = marketplaceCatalogFixture.items[2]!;
+function Harness({
+  entries,
+  item,
+  scope,
+}: {
+  entries: MarketplaceCatalogListing[];
+  item?: InstalledExtensionView;
+  scope?: ExtensionInstanceScope;
+}) {
+  const actions = useMarketplaceActionController(scope);
+  const destination = useExtensionInstanceScope();
+  return (
+    <>
+      <output aria-label="Destination">
+        {destination.workspaceId}:{destination.profileName}
+      </output>
+      {entries.map((entry, index) => (
+        <div key={`${entry.source_ref}:${entry.entry_id}`}>
+          <button
+            type="button"
+            onClick={() =>
+              entry.update_available ? actions.update(entry) : actions.install(entry)
+            }
+          >
+            Run {index}
+          </button>
+          <output aria-label={`Pending ${index}`}>
+            {actions.isEntryPending(entry) ? "pending" : "idle"}
+          </output>
+          <output aria-label={`Flash ${index}`}>
+            {actions.isEntryFlashing(entry) ? "flashing" : "idle"}
+          </output>
+          <button type="button" onClick={() => actions.endEntryFlash(entry)}>
+            End flash {index}
+          </button>
+        </div>
+      ))}
+      {item ? (
+        <MarketplaceInstalledTrail
+          item={item}
+          pending={actions.isItemPending(item)}
+          onUpdate={actions.updateInstalled}
+          onToggleEnabled={actions.toggleEnabled}
+        />
+      ) : null}
+      {actions.dialogs}
+    </>
+  );
+}
+function setup(
+  entries: MarketplaceCatalogListing[],
+  item?: InstalledExtensionView,
+  scope?: ExtensionInstanceScope
+) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  clients.push(client);
+  server.use(
+    http.get("*/api/extensions", () =>
+      HttpResponse.json({
+        extensions: item
+          ? [item.extension]
+          : entries
+              .filter(entry => entry.installed_name)
+              .map(entry => ({
+                ...extensionFixtures[0]!,
+                name: entry.installed_name,
+                marketplace: entry,
+              })),
+      })
+    )
+  );
+  return render(
+    <QueryClientProvider client={client}>
+      <Harness entries={entries} item={item} scope={scope} />
+    </QueryClientProvider>
+  );
+}
+function installed(entry: MarketplaceCatalogListing): InstalledExtensionView {
+  return {
+    extension: { ...extensionFixtures[0]!, name: "local-kit", enabled: false, marketplace: entry },
+    listing: entry,
+    updateAvailable: true,
+  };
+}
 
 describe("useMarketplaceActionController", () => {
-  it("Should dispatch one authorization begin when the auth state rerenders", async () => {
-    const user = userEvent.setup();
-    const item: MarketplaceInstalledItem = {
-      entry: marketplaceListings.mcp[1]!,
-      mcpServer: {
-        name: "linear",
-        transport: "http",
-        scope: "workspace",
-        workspace_id: "ws-a",
-        auth: {
-          client_secret_configured: false,
-          registration: "auto",
+  // Invariant: the shared form validates declared fields and submits the approved catalog acquisition once.
+  // Owner: Marketplace controller/form integration; canonical suite: marketplace-action-controller.test.tsx.
+  it("Should collect typed inputs and submit the approved digest with Enter [UT-039]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "token",
+          prompt: "API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
         },
-        auth_status: {
-          refreshable: true,
-          scope: "workspace",
-          server_name: "linear",
-          status: "needs_login",
-          token_present: false,
+        {
+          id: "region",
+          prompt: "Region",
+          type: "identifier",
+          required: false,
+          default: "eu",
+          binding: { type: "url_query", name: "region" },
         },
-        source_metadata: {
-          available_targets: ["global-config"],
-          effective_source: {
-            kind: "global-config",
-            scope: "user",
-          },
-          shadowed_sources: [],
+        {
+          id: "enabled",
+          prompt: "Enabled",
+          type: "boolean",
+          required: true,
+          default: false,
+          binding: { type: "env", name: "ENABLED" },
         },
-      },
-    };
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <AuthorizeHarness item={item} />
-      </QueryClientProvider>
-    );
-
-    await user.click(screen.getByRole("button", { name: "Authorize MCP" }));
-
-    await waitFor(() => expect(mocks.requestAuthorize).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("user");
-    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "user" }, item.mcpServer);
-  });
-
-  it("Should remove MCP servers from the exact effective source target", async () => {
-    const user = userEvent.setup();
-    mocks.deleteMCP.mockResolvedValueOnce({ restart_required: true });
-    const item: MarketplaceInstalledItem = {
-      entry: { ...marketplaceListings.mcp[0]!, installed: true, installed_name: "github" },
-      mcpServer: {
-        name: "github",
-        transport: "stdio",
-        scope: "workspace",
-        workspace_id: "ws-a",
-        source_metadata: {
-          available_targets: ["global-mcp-sidecar"],
-          effective_source: { kind: "global-mcp-sidecar", scope: "user" },
-          shadowed_sources: [],
-        },
-      },
-    };
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <RemoveHarness item={item} />
-      </QueryClientProvider>
-    );
-
-    await user.click(screen.getByRole("button", { name: "Remove installed item" }));
-
-    await waitFor(() =>
-      expect(mocks.deleteMCP).toHaveBeenCalledWith({
-        filter: { scope: "user", target: "sidecar" },
-        name: "github",
-      })
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("github removed · restart required");
-  });
-
-  it("Should track installed extension actions by their installed identity", async () => {
-    const user = userEvent.setup();
-    let resolveFirst: (() => void) | undefined;
-    let resolveSecond: (() => void) | undefined;
-    mocks.removeExtension
-      .mockReturnValueOnce(new Promise<void>(resolve => (resolveFirst = resolve)))
-      .mockReturnValueOnce(new Promise<void>(resolve => (resolveSecond = resolve)));
-    const base = { ...marketplaceListings.extension[0]!, installed: true };
-    const first = { entry: { ...base, installed_name: "otel-bridge" } };
-    const second = { entry: { ...base, installed_name: "otel-bridge-canary" } };
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ConcurrentInstalledHarness first={first} second={second} />
-      </QueryClientProvider>
-    );
-    await user.click(screen.getByRole("button", { name: "Remove first" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "First installed pending" })).toHaveTextContent(
-        "pending"
-      )
-    );
-    expect(screen.getByRole("status", { name: "Second installed pending" })).toHaveTextContent(
-      "idle"
-    );
-
-    await user.click(screen.getByRole("button", { name: "Remove second" }));
-    expect(screen.getByRole("status", { name: "Second installed pending" })).toHaveTextContent(
-      "pending"
-    );
-
-    await act(async () => resolveFirst?.());
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "First installed pending" })).toHaveTextContent(
-        "idle"
-      )
-    );
-    expect(screen.getByRole("status", { name: "Second installed pending" })).toHaveTextContent(
-      "pending"
-    );
-
-    await act(async () => resolveSecond?.());
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "Second installed pending" })).toHaveTextContent(
-        "idle"
-      )
-    );
-  });
-
-  it("Should disable the installed extension card while its update is pending", async () => {
-    const user = userEvent.setup();
-    let resolveUpdate: (() => void) | undefined;
-    mocks.updateExtension.mockReturnValueOnce(
-      new Promise<void>(resolve => {
-        resolveUpdate = resolve;
-      })
-    );
-    const item: MarketplaceInstalledItem = {
-      entry: {
-        ...marketplaceListings.extension[0]!,
-        installed: true,
-        installed_name: "otel-bridge",
-        update_available: true,
-      },
-    };
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <InstalledExtensionResultsHarness item={item} />
-      </QueryClientProvider>
-    );
-
-    const update = screen.getByRole("button", { name: "Update" });
-    await user.click(update);
-
-    await waitFor(() => expect(update).toBeDisabled());
-    await user.click(update);
-    expect(mocks.updateExtension).toHaveBeenCalledTimes(1);
-
-    await act(async () => resolveUpdate?.());
-    await waitFor(() => expect(update).toBeEnabled());
-  });
-
-  it("Should install and update skills while clearing pending state", async () => {
-    const user = userEvent.setup();
-    const { rerender } = setup(marketplaceListings.skill[1]!);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    await waitFor(() =>
-      expect(mocks.installSkill).toHaveBeenCalledWith({
-        slug: "compozy/docs-sync",
-        version: "0.9.1",
-      })
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      "docs-sync installed",
-      expect.objectContaining({ action: expect.objectContaining({ label: "View installed →" }) })
-    );
-    const skillToast = mocks.toastSuccess.mock.calls.find(
-      call => call[0] === "docs-sync installed"
-    );
-    skillToast?.[1].action.onClick();
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      search: {},
-      to: "/marketplace/skills",
+      ],
+      declared_profiles: [],
+      placements: [],
     });
-    expect(screen.getByRole("status", { name: "Pending entry" })).toHaveTextContent("idle");
-    expect(screen.getByRole("status", { name: "Flashing entry" })).toHaveTextContent("flashing");
-    await user.click(screen.getByRole("button", { name: "End install flash" }));
-    expect(screen.getByRole("status", { name: "Flashing entry" })).toHaveTextContent("idle");
-
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ActionHarness entry={marketplaceListings.skill[2]!} />
-      </QueryClientProvider>
-    );
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    await waitFor(() => expect(mocks.updateSkill).toHaveBeenCalledWith({ name: "qa-bootstrap" }));
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("qa-bootstrap updated to v2.2.0");
-  });
-
-  it("Should update extensions by installed identity through PUT semantics", async () => {
+    setup([verified]);
     const user = userEvent.setup();
-    const verifiedUpdate: MarketplaceListing = {
-      ...marketplaceListings.extension[0]!,
-      installed: true,
-      installed_name: "manifest-otel-bridge",
-      installed_version: "0.5.0",
-      name: "OpenTelemetry Bridge",
-      update_available: true,
-    };
-    const { rerender } = setup(verifiedUpdate);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-
-    await waitFor(() =>
-      expect(mocks.updateExtension).toHaveBeenCalledWith({
-        body: { allow_unverified: false, version: "0.6.0" },
-        name: "manifest-otel-bridge",
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    const secret = await screen.findByLabelText("API key");
+    expect(secret).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Region")).toHaveValue("eu");
+    expect(screen.getByRole("switch", { name: "Enabled" })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    fireEvent.change(secret, { target: { value: "a".repeat(8193) } });
+    expect(await screen.findByText("Too long (max 8 KB)")).toBeVisible();
+    expect(secret).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    fireEvent.change(secret, { target: { value: "literal-secret" } });
+    await user.click(secret);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "curated",
+        expected_digest: verified.digest_sha256,
+        inputs: {
+          token: { value: "literal-secret" },
+          region: { value: "eu" },
+          enabled: { value: false },
+        },
       })
     );
-    expect(mocks.installExtension).not.toHaveBeenCalled();
-
-    const unverifiedUpdate: MarketplaceListing = {
-      ...marketplaceListings.extension[1]!,
-      installed: true,
-      installed_name: "manifest-slack-notify",
-      installed_version: "1.0.0",
-      name: "Slack Notifications",
-      update_available: true,
+    expect(io.preview).toHaveBeenCalledOnce();
+    expect(io.error).not.toHaveBeenCalled();
+  });
+  it("Should allow every optional field to remain empty [UT-039]", async () => {
+    io.preview.mockResolvedValueOnce({
+      name: "kit",
+      inputs: [
+        {
+          id: "token",
+          prompt: "Optional API key",
+          type: "secret",
+          required: false,
+          binding: { type: "env", name: "TOKEN" },
+        },
+        {
+          id: "enabled",
+          prompt: "Enabled",
+          type: "boolean",
+          required: false,
+          binding: { type: "env", name: "ENABLED" },
+        },
+      ],
+      declared_profiles: [],
+      placements: [],
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByRole("button", { name: "Install" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    expect(io.install.mock.calls[0]![0]).not.toHaveProperty("inputs");
+  });
+  it("Should open the shared input step after an update and preserve values on failure [UT-039]", async () => {
+    const definition = {
+      id: "region",
+      prompt: "Region",
+      type: "identifier",
+      required: true,
+      binding: { type: "url_query", name: "region" },
     };
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ActionHarness entry={unverifiedUpdate} />
-      </QueryClientProvider>
+    io.update
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: [definition],
+        })
+      )
+      .mockRejectedValueOnce(new Error("publication failed"))
+      .mockResolvedValue(undefined);
+    setup([{ ...verified, installed: true, installed_name: "kit", update_available: true }]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    const field = await screen.findByLabelText("Region");
+    expect(screen.getByRole("button", { name: "Update" })).toBeDisabled();
+    await user.type(field, "eu");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(io.error).toHaveBeenCalledWith("publication failed"));
+    expect(screen.getByLabelText("Region")).toHaveValue("eu");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(io.update).toHaveBeenCalledTimes(3));
+    expect(io.update).toHaveBeenLastCalledWith("kit", {
+      profile: "default",
+      scope: "global",
+      allow_unverified: false,
+      version: verified.version,
+      inputs: { region: { value: "eu" } },
+    });
+    expect(io.preview).not.toHaveBeenCalled();
+  });
+  it("Should show configuration readiness from the installed extension", () => {
+    const item = installed(verified);
+    item.extension = { ...item.extension, missing_inputs: ["token"] };
+    setup([], item);
+    expect(screen.getByText("Needs configuration")).toBeVisible();
+    expect(screen.getByRole("switch")).toBeInTheDocument();
+  });
+
+  it("Should block forbidden acquisitions before preview or consent", async () => {
+    setup([blocked, { ...verified, entry_id: "disabled", installable: false }]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(screen.getByRole("button", { name: "Run 1" }));
+    expect(io.preview).not.toHaveBeenCalled();
+    expect(io.install).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
+  });
+  // Invariant: reviewed destination and secret draft cannot cross a workspace/profile switch.
+  // Invariant: the displayed destination and confirmed request follow the same captured scope/profile.
+  // Owner: acquisition controller; canonical suite here, real scope stores and mocked HTTP I/O.
+  it("Should bind acquisition to its destination and discard inputs after a profile switch", async () => {
+    const workspaceId = workspaceFixtures[0]!.id;
+    setActiveWorkspaceId(workspaceId);
+    const lens = { scope: "workspace" as const, workspaceId };
+    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    io.preview.mockResolvedValue({
+      name: "scoped-kit",
+      declared_profiles: [],
+      placements: [],
+      inputs: [
+        {
+          id: "token",
+          prompt: "Access token",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+      ],
+    });
+    setup([verified]);
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(
+        `${workspaceId}:marketing`
+      )
     );
-    await user.click(screen.getByRole("button", { name: "Run action" }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
+      "Current workspace · marketing"
+    );
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: "workspace",
+        workspace_id: workspaceId,
+        profile: "marketing",
+      })
+    );
+    await user.type(screen.getByLabelText("Access token"), "discard-this-draft");
+    act(() => setProfileView(lens, { kind: "profile", profile: "consulting" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("heading", { name: "Install scoped-kit" });
+    expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
+      "Current workspace · consulting"
+    );
+    expect(screen.getByLabelText("Access token")).toHaveValue("");
+    await user.type(screen.getByLabelText("Access token"), "current-draft");
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.install).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: "workspace",
+          workspace_id: workspaceId,
+          profile: "consulting",
+          inputs: { token: { value: "current-draft" } },
+        })
+      )
+    );
+  });
+
+  it("Should discard a late preview after switching workspaces", async () => {
+    const first = workspaceFixtures[0]!.id;
+    const second = workspaceFixtures[1]!.id;
+    setActiveWorkspaceId(first);
+    const result = { name: "late-kit", inputs: [], declared_profiles: [], placements: [] };
+    let resolvePreview!: (value: typeof result) => void;
+    io.preview.mockReturnValueOnce(
+      new Promise<typeof result>(resolve => {
+        resolvePreview = resolve;
+      })
+    );
+    setup([verified]);
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(first)
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await waitFor(() => expect(io.preview).toHaveBeenCalledOnce());
+    act(() => setActiveWorkspaceId(second));
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Destination" })).toHaveTextContent(second)
+    );
+    await act(async () => {
+      resolvePreview(result);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await screen.findByRole("dialog");
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspace_id: second, scope: "workspace" })
+    );
+  });
+
+  // Invariant: install success reports authorization still required by the returned server status.
+  // Owner: Marketplace action notifications; canonical suite: marketplace-action-controller.
+  it("Should explain required authorization after a successful install [US-003.AC-4]", async () => {
+    io.install.mockResolvedValueOnce({
+      extension: {
+        ...extensionFixtures[0]!,
+        mcp_servers: [
+          {
+            name: "api",
+            owner: "extension:otel-bridge",
+            transport: "http",
+            launch: "https://example.com",
+            status: "needs_authorization",
+          },
+        ],
+      },
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.success).toHaveBeenCalledWith(
+        "otel-bridge installed",
+        expect.objectContaining({
+          description: "Needs authorization before it can run",
+        })
+      )
+    );
+  });
+
+  it("Should pin preview and confirmed install to the listed digest and show the installed destination", async () => {
+    io.preview.mockResolvedValueOnce({
+      inputs: [],
+      declared_profiles: [{ create: true, credentials: [], name: "observability" }],
+      name: "otel-bridge",
+      network_requirement_digest: "sha256:network",
+      placements: [],
+    });
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByRole("heading", { name: "Install otel-bridge" })).toBeVisible();
+    expect(screen.getByText("Creates profile observability")).toBeVisible();
+    const request = {
+      profile: "default",
+      scope: "global",
+      allow_unverified: false,
+      expected_digest: verified.digest_sha256,
+      ref: verified.install_slug,
+      source: "curated",
+      version: verified.version,
+    };
+    expect(io.preview).toHaveBeenCalledWith(request);
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.install).toHaveBeenCalledWith({
+        ...request,
+        confirm_network_digest: "sha256:network",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "Flash 0" })).toHaveTextContent("flashing")
+    );
+    const toast = io.success.mock.calls.find(call => call[0] === "otel-bridge installed");
+    expect(toast).toBeDefined();
+    toast![1].action.onClick();
+    expect(io.navigate).toHaveBeenCalledWith({ search: {}, to: "/marketplace/installed" });
+    await user.click(screen.getByRole("button", { name: "End flash 0" }));
+    expect(screen.getByRole("status", { name: "Flash 0" })).toHaveTextContent("idle");
+  });
+  it("Should refetch a changed acquisition and require confirmation of its new digest [UT-038]", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const digest = "e".repeat(64);
+    const current = {
+      ...detail,
+      entry: { ...detail.entry, digest_sha256: digest, version: "2.0.0" },
+    };
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", ({ params, request }) => {
+        reads++;
+        expect(params.entryId).toBe(verified.entry_id);
+        expect(new URL(request.url).searchParams.get("source")).toBe(verified.source);
+        return HttpResponse.json(current);
+      })
+    );
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("The acquired package changed", 409, "extension_source_changed")
+    );
+    setup([verified]);
+    clients
+      .at(-1)!
+      .setQueryData(
+        marketplaceCatalogEntryOptions({ entryId: verified.entry_id, source: verified.source })
+          .queryKey,
+        detail
+      );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.preview).toHaveBeenCalledTimes(2));
+    expect(reads).toBe(1);
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest, version: "2.0.0" })
+    );
+    expect(io.error).toHaveBeenCalledWith("The acquired package changed", {
+      description: "extension_source_changed",
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Install" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(io.install).toHaveBeenCalledTimes(2));
+    expect(io.install).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest, version: "2.0.0" })
+    );
+  });
+
+  it("Should refresh a stale listing rejected during preview before any install", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const digest = "e".repeat(64);
+    let reads = 0;
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () => {
+        reads++;
+        return HttpResponse.json({ ...detail, entry: { ...detail.entry, digest_sha256: digest } });
+      })
+    );
+    io.preview.mockRejectedValueOnce(
+      new ExtensionsApiError("The listing changed", 409, "daemon", {
+        code: "extension_source_changed",
+      })
+    );
+    setup([verified]);
+    await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByRole("button", { name: "Install" })).toBeVisible();
+    expect(reads).toBe(1);
+    expect(io.preview).toHaveBeenCalledTimes(2);
+    expect(io.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expected_digest: digest })
+    );
+    expect(io.install).not.toHaveBeenCalled();
+    expect(io.error).toHaveBeenCalledWith("The listing changed", {
+      description: "extension_source_changed",
+    });
+  });
+
+  it.each(["blocked", "another origin"])(
+    "Should refuse a refreshed acquisition that is %s",
+    async reason => {
+      const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+      const entry =
+        reason === "blocked"
+          ? { ...detail.entry, installable: false, install_blocker: "Publisher blocked by policy" }
+          : { ...detail.entry, source_ref: "https://example.com/replaced-catalog" };
+      server.use(
+        http.get("*/api/marketplace/entries/:entryId", () =>
+          HttpResponse.json({ ...detail, entry })
+        )
+      );
+      io.install.mockRejectedValueOnce(
+        new MarketplaceApiError("Changed", 409, "extension_source_changed")
+      );
+      setup([verified]);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Run 0" }));
+      await user.click(await screen.findByRole("button", { name: "Install" }));
+      await waitFor(() =>
+        expect(io.error).toHaveBeenLastCalledWith(
+          reason === "blocked"
+            ? "Publisher blocked by policy"
+            : "The catalog entry now belongs to another origin. Review it before installing."
+        )
+      );
+      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+      expect(io.install).toHaveBeenCalledTimes(1);
+      expect(io.preview).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("Should reject duplicate preview and confirmation presses before a render [UT-038]", async () => {
+    let finish!: (value: unknown) => void;
+    io.install.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    setup([verified]);
+    const start = screen.getByRole("button", { name: "Run 0" });
+    act(() => {
+      start.click();
+      start.click();
+    });
+    const confirm = await screen.findByRole("button", { name: "Install" });
+    expect(io.preview).toHaveBeenCalledTimes(1);
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    await waitFor(() => expect(io.install).toHaveBeenCalledTimes(1));
+    await act(async () => finish({ extension: extensionFixtures[0] }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument()
+    );
+    expect(io.success).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should close a failed network confirmation attempt and retain its error code [UT-038]", async () => {
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("The source is unreachable", 503, "source_unreachable")
+    );
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(io.error).toHaveBeenCalledWith("The source is unreachable", {
+        description: "source_unreachable",
+      })
+    );
+    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Pending 0" })).toHaveTextContent("idle");
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should require new trust consent when a refreshed acquisition becomes unverified", async () => {
+    const detail = marketplaceCatalogDetailFixture(verified.entry_id)!;
+    const entry = { ...detail.entry, digest_sha256: "e".repeat(64), trust: unverified.trust };
+    server.use(
+      http.get("*/api/marketplace/entries/:entryId", () => HttpResponse.json({ ...detail, entry }))
+    );
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("Changed", 409, "extension_source_changed")
+    );
+    setup([verified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
+    expect(io.install).toHaveBeenCalledTimes(1);
+    expect(io.preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should require unverified consent and preserve a failed preview for retry", async () => {
+    setup([unverified]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
+    expect(io.preview).not.toHaveBeenCalled();
+    io.preview.mockRejectedValueOnce(new Error("policy changed"));
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("policy changed");
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
     expect(
-      await screen.findByRole("heading", { name: "Update Slack Notifications?" })
+      await screen.findByRole("heading", {
+        name: `Install ${unverified.install_slug!.split("/").pop()}`,
+      })
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Update anyway" }));
-
+    await user.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() =>
-      expect(mocks.updateExtension).toHaveBeenLastCalledWith({
-        body: { allow_unverified: true, version: "1.1.4" },
-        name: "manifest-slack-notify",
+      expect(io.install).toHaveBeenCalledWith({
+        profile: "default",
+        scope: "global",
+        allow_unverified: true,
+        expected_digest: unverified.digest_sha256,
+        ref: unverified.install_slug,
+        source: "curated",
+        version: unverified.version,
       })
     );
-    expect(mocks.installExtension).not.toHaveBeenCalled();
   });
+  it.each([undefined, "ws_selected"])(
+    "Should update the resolved installation scope %s from a workspace view",
+    async workspaceId => {
+      setActiveWorkspaceId(workspaceFixtures[0]!.id);
+      const entry = {
+        ...verified,
+        installed: true,
+        installed_name: "local-kit",
+        update_available: true,
+      };
+      const item = installed(entry);
+      item.extension = { ...item.extension, workspace_id: workspaceId, profile: "marketing" };
+      const scope = { profileName: "marketing", workspaceId: workspaceId ?? null };
+      setup([entry], item, scope);
+      server.use(
+        http.get("*/api/extensions", ({ request }) => {
+          const url = new URL(request.url);
+          return HttpResponse.json({
+            extensions:
+              url.searchParams.get("profile") === "marketing" &&
+              url.searchParams.get("workspace") === (workspaceId ?? null)
+                ? [item.extension]
+                : [],
+          });
+        })
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
+      await waitFor(() =>
+        expect(io.update).toHaveBeenCalledWith("local-kit", {
+          profile: "marketing",
+          scope: workspaceId ? "workspace" : "global",
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          allow_unverified: false,
+          version: entry.version,
+        })
+      );
+    }
+  );
 
-  it("Should resume a refused quick update with the exact network digest", async () => {
+  it("Should update the installed name and gate an unverified update before granting consent", async () => {
+    setup([
+      { ...verified, installed: true, installed_name: "manifest-otel", update_available: true },
+      { ...unverified, installed: true, installed_name: "manifest-slack", update_available: true },
+    ]);
     const user = userEvent.setup();
-    const digest = "sha256:quick-update";
-    mocks.updateExtension.mockRejectedValueOnce(
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await waitFor(() =>
+      expect(io.update).toHaveBeenCalledWith("manifest-otel", {
+        profile: "default",
+        scope: "global",
+        allow_unverified: false,
+        version: verified.version,
+      })
+    );
+    await user.click(screen.getByRole("button", { name: "Run 1" }));
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
+    expect(io.update).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Update anyway" }));
+    await waitFor(() =>
+      expect(io.update).toHaveBeenLastCalledWith("manifest-slack", {
+        profile: "default",
+        scope: "global",
+        allow_unverified: true,
+        version: unverified.version,
+      })
+    );
+    expect(io.install).not.toHaveBeenCalled();
+  });
+  it("Should resume a refused update with the exact network digest", async () => {
+    io.update.mockRejectedValueOnce(
       new ExtensionsApiError("network confirmation required", 409, "daemon", {
         code: "extension_network_confirmation_required",
-        currentDigest: digest,
+        currentDigest: "sha256:quick-update",
       })
     );
-    const entry: MarketplaceListing = {
-      ...marketplaceListings.extension[0]!,
-      installed: true,
-      installed_name: "manifest-otel-bridge",
-      name: "OpenTelemetry Bridge",
-      update_available: true,
-    };
-    setup(entry);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
-    expect(mocks.updateExtension).toHaveBeenCalledWith({
-      body: { allow_unverified: false, version: "0.6.0" },
-      name: "manifest-otel-bridge",
-    });
-
+    setup([
+      { ...verified, installed: true, installed_name: "manifest-otel", update_available: true },
+    ]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeVisible();
     await user.click(screen.getByTestId("extension-network-confirm-accept"));
     await waitFor(() =>
-      expect(mocks.updateExtension).toHaveBeenLastCalledWith({
-        body: {
-          allow_unverified: false,
-          confirm_network_digest: digest,
-          version: "0.6.0",
-        },
-        name: "manifest-otel-bridge",
+      expect(io.update).toHaveBeenLastCalledWith("manifest-otel", {
+        profile: "default",
+        scope: "global",
+        allow_unverified: false,
+        version: verified.version,
+        confirm_network_digest: "sha256:quick-update",
       })
     );
     await waitFor(() =>
       expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
     );
   });
-
-  it("Should toggle an installed card without a network-confirmation detour", async () => {
-    const user = userEvent.setup();
-    const item: MarketplaceInstalledItem = {
-      entry: {
-        ...marketplaceListings.extension[0]!,
-        installed: true,
-        installed_name: "dep-kit-ops",
-        name: "Dependency Kit Ops",
-        update_available: false,
-      },
-      extensionEnabled: false,
-    };
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <InstalledExtensionResultsHarness item={item} />
-      </QueryClientProvider>
-    );
-
-    await user.click(screen.getByRole("switch", { name: "Enable Dependency Kit Ops" }));
-    await waitFor(() =>
-      expect(mocks.toggleExtension).toHaveBeenCalledWith({ enabled: true, name: "dep-kit-ops" })
-    );
-    expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
-  });
-
-  it("Should surface acquisition failures and always release pending state", async () => {
-    const user = userEvent.setup();
-    mocks.installSkill.mockRejectedValue(new Error("registry unavailable"));
-    setup(marketplaceListings.skill[1]!);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith("registry unavailable"));
-    expect(screen.getByRole("status", { name: "Pending entry" })).toHaveTextContent("idle");
-  });
-
-  it("Should enforce blocked, verified, and warning-confirm extension decisions", async () => {
-    const user = userEvent.setup();
-    const { rerender } = setup(marketplaceListings.extension[2]!);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(mocks.installExtension).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
-
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ActionHarness entry={marketplaceListings.extension[0]!} />
-      </QueryClientProvider>
-    );
-    mocks.previewExtensionInstall.mockResolvedValueOnce({
-      declared_profiles: [{ create: true, credentials: [], name: "observability" }],
-      name: "otel-bridge",
-      network_requirement_digest: "sha256:otel-network",
-      placements: [],
-    });
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(await screen.findByRole("heading", { name: "Install otel-bridge" })).toBeVisible();
-    expect(screen.getByText("Creates profile observability")).toBeVisible();
-    expect(mocks.installExtension).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Install" }));
-    await waitFor(() =>
-      expect(mocks.installExtension).toHaveBeenCalledWith({
+  it.each(["default", "captured"])(
+    "Should keep pending actions and toggle on the installed profile %s",
+    async profile => {
+      let finish!: () => void;
+      io.update.mockReturnValueOnce(
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+      );
+      const item = installed(verified);
+      item.extension = { ...item.extension, profile };
+      setup([], item);
+      const user = userEvent.setup();
+      const update = screen.getByRole("button", { name: `Update ${verified.name}` });
+      const toggle = screen.getByRole("switch", { name: `Enable ${verified.name}` });
+      await user.click(update);
+      await waitFor(() => expect(update).toBeDisabled());
+      expect(toggle).toHaveAttribute("aria-disabled", "true");
+      await user.click(toggle);
+      expect(io.toggle).not.toHaveBeenCalled();
+      await user.click(update);
+      expect(io.update).toHaveBeenCalledTimes(1);
+      expect(io.update).toHaveBeenCalledWith("local-kit", {
+        profile,
+        scope: "global",
         allow_unverified: false,
-        confirm_network_digest: "sha256:otel-network",
-        ref: "compozy/otel-bridge",
-        source: "curated",
-        version: "0.6.0",
+        version: verified.version,
+      });
+      await act(async () => finish());
+      await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled", "true"));
+      await user.click(toggle);
+      await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("local-kit", profile, true));
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
+    }
+  );
+  it("Should require fresh consent for an unverified installed-row update", async () => {
+    const item = installed(unverified);
+    item.extension = { ...extensionFixtures[1]!, name: "local-kit", marketplace: unverified };
+    setup([], item);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Update ${unverified.name}` }));
+    expect(io.update).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "Update local-kit?" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Update anyway" }));
+    await waitFor(() =>
+      expect(io.update).toHaveBeenCalledWith("local-kit", {
+        profile: "default",
+        scope: "global",
+        allow_unverified: true,
+        version: unverified.version,
       })
     );
-    const verifiedToast = mocks.toastSuccess.mock.calls.find(
-      call => call[0] === "otel-bridge installed"
-    );
-    verifiedToast?.[1].action.onClick();
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      search: {},
-      to: "/marketplace/extensions",
-    });
-
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ActionHarness entry={marketplaceListings.extension[1]!} />
-      </QueryClientProvider>
-    );
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
-    mocks.previewExtensionInstall.mockRejectedValueOnce(new Error("policy changed"));
-    await user.click(screen.getByTestId("extension-trust-confirm"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("policy changed");
-
-    await user.click(screen.getByTestId("extension-trust-confirm"));
     await waitFor(() =>
       expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument()
     );
-    expect(await screen.findByRole("heading", { name: "Install slack-notify" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Install" }));
-    expect(mocks.installExtension).toHaveBeenLastCalledWith({
-      allow_unverified: true,
-      ref: "community/slack-notify",
-      source: "curated",
-      version: "1.1.4",
-    });
-    const warningToast = mocks.toastSuccess.mock.calls.find(
-      call => call[0] === "slack-notify installed"
-    );
-    warningToast?.[1].action.onClick();
-    expect(mocks.navigate).toHaveBeenLastCalledWith({
-      search: {},
-      to: "/marketplace/extensions",
-    });
   });
 
-  // IT-015 / US-016.EC-3: a portable package is synthesized into resources only and requests no host
-  // permissions, so its consent gate shows the daemon's warnings and never a permission grant list.
-  it("Should install a curated portable entry through consent without listing permission grants", async () => {
+  it("Should release pending state after acquisition failure", async () => {
+    io.preview.mockRejectedValueOnce(new Error("registry unavailable"));
+    setup([verified]);
     const user = userEvent.setup();
-    const portable = marketplaceListings.extension.find(entry => entry.format === "agent-plugin")!;
-    setup(portable);
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-
-    const dialog = await screen.findByTestId("extension-trust-dialog");
-    expect(dialog).toHaveTextContent("Unsigned package");
-    expect(dialog).not.toHaveTextContent(/permission/i);
-    expect(dialog).not.toHaveTextContent(/grant/i);
-    expect(mocks.installExtension).not.toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("extension-trust-confirm"));
-    const installSlug = portable.install_slug;
-    if (!installSlug) {
-      throw new Error("portable marketplace fixture must provide install_slug");
-    }
-    expect(
-      await screen.findByRole("heading", {
-        name: `Install ${installSlug.split("/").pop()}`,
-      })
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await waitFor(() => expect(io.error).toHaveBeenCalledWith("registry unavailable"));
+    expect(screen.getByRole("status", { name: "Pending 0" })).toHaveTextContent("idle");
+  });
+  it("Should isolate pending actions with the same entry id in different origins", async () => {
+    let first!: (value: unknown) => void;
+    let second!: (value: unknown) => void;
+    io.preview
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          first = resolve;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          second = resolve;
+        })
+      );
+    setup([verified, { ...verified, source: "team", source_ref: "git:team" }]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Run 0" }));
+    expect(screen.getByRole("status", { name: "Pending 0" })).toHaveTextContent("pending");
+    expect(screen.getByRole("status", { name: "Pending 1" })).toHaveTextContent("idle");
+    await user.click(screen.getByRole("button", { name: "Run 1" }));
+    const preview = { name: "kit", inputs: [], declared_profiles: [], placements: [] };
+    await act(async () => first(preview));
     await waitFor(() =>
-      expect(mocks.installExtension).toHaveBeenLastCalledWith({
+      expect(screen.getByRole("status", { name: "Pending 0", hidden: true })).toHaveTextContent(
+        "idle"
+      )
+    );
+    expect(screen.getByRole("status", { name: "Pending 1", hidden: true })).toHaveTextContent(
+      "pending"
+    );
+    await act(async () => second(preview));
+  });
+  it.each(["curated", "marketplace"] as const)(
+    "Should retain portable-package consent and the approved acquisition for %s",
+    async source => {
+      const fixture = marketplaceCatalogFixture.items.find(
+        entry => entry.format === "agent-plugin"
+      )!;
+      const portable =
+        source === "curated"
+          ? fixture
+          : {
+              ...fixture,
+              source: "team",
+              source_ref: "github:team/plugins",
+              install_slug: `team/${fixture.entry_id}`,
+            };
+      setup([portable]);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Run 0" }));
+      const dialog = await screen.findByTestId("extension-trust-dialog");
+      expect(dialog).toHaveTextContent("Unsigned package");
+      expect(dialog).not.toHaveTextContent(/permission|grant/i);
+      expect(io.install).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId("extension-trust-confirm"));
+      await screen.findByRole("heading", {
+        name: `Install ${portable.install_slug!.split("/").pop()}`,
+      });
+      await user.click(screen.getByRole("button", { name: "Install" }));
+      await waitFor(() =>
+        expect(io.install).toHaveBeenCalledWith({
+          profile: "default",
+          scope: "global",
+          allow_unverified: true,
+          expected_digest: portable.digest_sha256,
+          ref: portable.install_slug,
+          source,
+          version: portable.version,
+        })
+      );
+    }
+  );
+});
+
+// Invariant: input/network recovery retries the same scoped update without losing prior fields or consent.
+// Owner: Marketplace update controller; canonical suite: marketplace-action-controller.test.tsx.
+describe("Marketplace update recovery", () => {
+  const definitions = [
+    {
+      id: "region",
+      prompt: "Region",
+      type: "identifier",
+      required: true,
+      binding: { type: "url_query", name: "region" },
+    },
+  ];
+  it("Should preserve scope and prior inputs across network and input confirmation", async () => {
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Confirm network", 409, "daemon", {
+          code: "extension_network_confirmation_required",
+          currentDigest: "a".repeat(64),
+        })
+      )
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: definitions,
+        })
+      )
+      .mockResolvedValue(undefined);
+    const notify = vi.fn();
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, notify));
+    const request = {
+      name: "kit",
+      body: {
+        scope: "workspace" as const,
+        workspace_id: "ws-one",
+        profile: "growth",
         allow_unverified: true,
-        ref: installSlug,
-        source: "curated",
-        version: portable.version,
-      })
-    );
-  });
-
-  it("Should track overlapping entries by full kind and entry identity", async () => {
-    const user = userEvent.setup();
-    let resolveSkill: ((value: unknown) => void) | undefined;
-    let resolveExtension: ((value: unknown) => void) | undefined;
-    mocks.installSkill.mockReturnValueOnce(
-      new Promise(resolve => {
-        resolveSkill = resolve;
-      })
-    );
-    mocks.installExtension.mockReturnValueOnce(
-      new Promise(resolve => {
-        resolveExtension = resolve;
-      })
-    );
-    const skill = { ...marketplaceListings.skill[1]!, entry_id: "shared-entry" };
-    const extension = { ...marketplaceListings.extension[0]!, entry_id: "shared-entry" };
-    const client = new QueryClient({
-      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={client}>
-        <ConcurrentActionHarness first={skill} second={extension} />
-      </QueryClientProvider>
-    );
-    const firstPending = screen.getByRole("status", { name: "First pending" });
-    const secondPending = screen.getByRole("status", { name: "Second pending" });
-
-    await user.click(screen.getByRole("button", { name: "Run first" }));
-    await user.click(screen.getByRole("button", { name: "Run second" }));
-    expect(await screen.findByRole("button", { name: "Install" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Install" }));
-    await waitFor(() => expect(firstPending).toHaveTextContent("pending"));
-    expect(secondPending).toHaveTextContent("pending");
-
+        inputs: { token: { vault_ref: "vault:extensions/kit/TOKEN" } },
+      },
+    };
     await act(async () => {
-      resolveSkill?.({
-        skill: {
-          hash: "sha256:skill",
-          name: "installed-skill",
-          path: "/skills/installed-skill",
-          registry: "compozy",
-          slug: "compozy/installed-skill",
-          status: "installed",
-          version: "1.0.0",
-        },
-      });
+      await result.current.runUpdate("Kit", request, action => action());
     });
-    await waitFor(() => expect(firstPending).toHaveTextContent("idle"));
-    expect(secondPending).toHaveTextContent("pending");
-
+    expect(result.current.recovery?.kind).toBe("network");
     await act(async () => {
-      resolveExtension?.({
-        extension: {
-          daemon_running: false,
-          enabled: true,
-          name: "installed-extension",
-          source: "marketplace",
-          state: "installed",
-          type: "native",
-          version: "1.0.0",
-        },
-      });
+      result.current.confirm();
     });
-    await waitFor(() => expect(secondPending).toHaveTextContent("idle"));
+    expect(result.current.recovery?.kind).toBe("inputs");
+    act(() => result.current.confirm({}));
+    expect(mutate).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      result.current.confirm({ region: "eu" });
+      result.current.confirm({ region: "eu" });
+    });
+    expect(mutate).toHaveBeenCalledTimes(3);
+    expect(mutate).toHaveBeenLastCalledWith({
+      ...request,
+      body: {
+        ...request.body,
+        confirm_network_digest: "a".repeat(64),
+        inputs: { ...request.body.inputs, region: { value: "eu" } },
+      },
+    });
+    expect(result.current.recovery).toBeNull();
+    expect(notify).toHaveBeenCalledOnce();
   });
-
-  it("Should render acquisition dialogs from canonical details for the active workspace", async () => {
-    const user = userEvent.setup();
-    const { client } = setup(marketplaceListings.mcp[0]!);
-    const fetchDetail = vi.spyOn(client, "fetchQuery");
-    fetchDetail.mockImplementationOnce(async options => {
-      const detail = marketplaceDetails["mcp:github"]!;
-      client.setQueryData(options.queryKey, detail);
-      return detail;
+  it("Should preserve entered inputs when another required field appears", async () => {
+    const missing = (id: string) =>
+      new MarketplaceApiError("Configure", 422, "extension_inputs_required", false, {
+        requiredInputs: [id],
+        inputDefinitions: [{ ...definitions[0]!, id }],
+      });
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(missing("region"))
+      .mockRejectedValueOnce(missing("project"))
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, vi.fn()));
+    await act(async () => {
+      await result.current.runUpdate("Kit", { name: "kit", body: {} }, action => action());
     });
-
-    await user.click(screen.getByRole("button", { name: "Run action" }));
-    expect(await screen.findByTestId("mcp-install-dialog")).toBeInTheDocument();
-    expect(fetchDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: expect.arrayContaining(["mcp", "github", "ws-a"]) })
-    );
-
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByTestId("mcp-install-dialog")).not.toBeInTheDocument());
+    await act(async () => {
+      result.current.confirm({ region: "eu" });
+    });
+    await act(async () => {
+      result.current.confirm({ project: "app" });
+    });
+    expect(mutate).toHaveBeenLastCalledWith({
+      name: "kit",
+      body: { inputs: { region: { value: "eu" }, project: { value: "app" } } },
+    });
+  });
+  it("Should keep a refused update editable and prevent dismissal while submitting", async () => {
+    let rejectUpdate!: (error: Error) => void;
+    const mutate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ExtensionsApiError("Configure", 422, "daemon", {
+          code: "extension_inputs_required",
+          requiredInputs: ["region"],
+          inputDefinitions: definitions,
+        })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject;
+          })
+      );
+    const { result } = renderHook(() => useMarketplaceUpdateRecovery(mutate, vi.fn()));
+    await act(async () => {
+      await result.current.runUpdate("Kit", { name: "kit", body: {} }, action => action());
+    });
+    act(() => {
+      result.current.confirm({ region: "eu" });
+      result.current.dismiss();
+    });
+    expect(result.current.pending).toBe(true);
+    expect(result.current.recovery?.kind).toBe("inputs");
+    await act(async () => {
+      rejectUpdate(new Error("publication failed"));
+    });
+    expect(result.current.pending).toBe(false);
+    expect(result.current.recovery?.kind).toBe("inputs");
+    act(() => result.current.dismiss());
+    expect(result.current.recovery).toBeNull();
   });
 });

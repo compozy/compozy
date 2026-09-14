@@ -12,6 +12,8 @@ import type {
   SettingsHookPutFilter,
   SettingsHookRequest,
   SettingsMCPServerCollection,
+  SettingsMCPServerDetail,
+  SettingsMCPServerGetFilter,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerPutFilter,
@@ -37,6 +39,7 @@ function normalizeMCPMutationFilter(
   return {
     ...normalizeSettingsLayerFilter(filter),
     target: filter.target,
+    owner: filter.owner?.trim() || undefined,
   };
 }
 
@@ -238,6 +241,27 @@ export async function deleteSettingsHook(
   return requireResponseData(data, response, `Failed to delete hook "${name}"`);
 }
 
+export async function getSettingsMCPServer(
+  name: string,
+  filter: SettingsMCPServerGetFilter = {},
+  signal?: AbortSignal
+): Promise<SettingsMCPServerDetail> {
+  const { data, error, response } = await apiClient.GET("/api/settings/mcp-servers/{name}", {
+    params: {
+      path: { name },
+      query: { ...normalizeSettingsLayerFilter(filter), owner: filter.owner?.trim() || undefined },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to get MCP server "${name}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to get MCP server "${name}"`);
+}
+
 export async function listSettingsMCPServers(
   filter: SettingsMCPServerListFilter = {},
   signal?: AbortSignal
@@ -269,7 +293,9 @@ export async function putSettingsMCPServer(
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage(`Failed to save MCP server "${name}"`, response, error),
-      response.status
+      response.status,
+      undefined,
+      error?.code
     );
   }
   return requireResponseData(data, response, `Failed to save MCP server "${name}"`);

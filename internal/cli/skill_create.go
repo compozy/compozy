@@ -9,8 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/fileutil"
+
 	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 )
 
 func createWorkspaceSkill(
@@ -28,7 +29,7 @@ func createWorkspaceSkill(
 	if rootInfo.Mode()&fs.ModeSymlink != 0 {
 		return "", "", fmt.Errorf("cli: skills directory %q must not be a symlink", skillsRoot)
 	}
-	if _, err := skillmarketplace.PathInsideRoot(skillsRoot, skillsRoot); err != nil {
+	if _, err := fileutil.ResolvePathWithinRoot(skillsRoot, skillsRoot); err != nil {
 		return "", "", fmt.Errorf("cli: validate skills directory %q: %w", skillsRoot, err)
 	}
 
@@ -49,7 +50,7 @@ func createWorkspaceSkill(
 	}()
 
 	skillDir = filepath.Join(groupDir, skillName)
-	if _, err := skillmarketplace.PathInsideRoot(skillsRoot, skillDir); err != nil {
+	if _, err := fileutil.ResolvePathWithinRoot(skillsRoot, skillDir); err != nil {
 		return "", "", fmt.Errorf("cli: validate skill directory %q: %w", skillDir, err)
 	}
 	if _, err := os.Lstat(skillDir); err == nil {
@@ -69,7 +70,7 @@ func createWorkspaceSkill(
 	if _, err := skills.ParseSkillFile(stagingFile); err != nil {
 		return "", "", fmt.Errorf("cli: validate generated skill %q: %w", stagingFile, err)
 	}
-	if _, err := skillmarketplace.PathInsideRoot(skillsRoot, skillDir); err != nil {
+	if _, err := fileutil.ResolvePathWithinRoot(skillsRoot, skillDir); err != nil {
 		return "", "", fmt.Errorf("cli: validate skill directory %q before commit: %w", skillDir, err)
 	}
 	if err := os.Chmod(stagingDir, 0o755); err != nil {
@@ -115,7 +116,7 @@ func createSkillGroupDirectories(skillsRoot string, group string) (groupDir stri
 		case !info.IsDir():
 			return "", created, fmt.Errorf("cli: skill group path %q is not a directory", next)
 		}
-		if _, err := skillmarketplace.PathInsideRoot(skillsRoot, next); err != nil {
+		if _, err := fileutil.ResolvePathWithinRoot(skillsRoot, next); err != nil {
 			return "", created, fmt.Errorf("cli: validate skill group directory %q: %w", next, err)
 		}
 		current = next

@@ -4,17 +4,20 @@ area: ET
 title: Resolve marketplace detail by stable entry identity
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `compozy marketplace info <kind> <entry_id>` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
-entry_points: compozy marketplace info <kind> <entry_id> -o json; GET /api/marketplace/:kind/:entry_id over HTTP and UDS
+expected: `compozy marketplace info <entry_id> [--source <name>]` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
+entry_points: compozy marketplace info <entry_id> [--source <name>] -o json; GET /api/marketplace/entries/{entry_id} over HTTP and UDS
 qa_status: pass
 bug_ids: BUG-20260729-marketplace-json-parity
 fix_status: fixed
 retest_status: pass
 fix_commits: 351f3535
-evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/cli-info-context7.json
+last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-008
 ---
+
+QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
+
 
 Planning note: installed-name collision disambiguation remains pending; no bug fix is associated with this scenario.
 

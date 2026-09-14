@@ -1,104 +1,59 @@
-# J-marketplace-acquisition: Discover and acquire marketplace capabilities
+# J-marketplace-acquisition: Acquire an extension from the catalog
 
-The program's money journey (PRD G4 "under-a-minute scene"): an agent needs a capability mid-session; the operator detours to Marketplace, finds it, judges it, acquires it born-valid, and returns to work. The PRD success-metric anchor rides this journey: **time-to-acquire per kind — from opening Marketplace to installed — must be under 60 seconds, captured per kind in the run report**.
+Current Marketplace hard-cut journey. Final execution and visual evidence belong to task_10; historical run reports remain unchanged.
 
 ```mermaid
 flowchart TD
-  A[Entry: Marketplace sidebar item mid-session] --> B[Default Skills kind: Installed scope]
-  A2[Entry: deep link /marketplace/$kind/$entryId] --> D
-  A3[Entry: docs guide compozy.com/docs/marketplace/] --> B
-  B --> B2[Choose Marketplace; URL records tab=market]
-  B2 --> C[RouteNav selects one kind and preserves Marketplace scope]
-  C -->|the active source fails| C2[The kind owns a recoverable error state]
-  C2 --> C
-  B2 --> D[Inspect stable entry detail by entry_id]
-  C --> D
-  D --> E{Entry kind}
-  E -->|Skill| F[One-click Install or Update]
-  F --> F2[True end skill: card flips installed; Manage opens /marketplace/skills; timer < 60s]
-  E -->|Extension| G0{Catalog format marker}
-  G0 -->|native or absent| G[Daemon trust decision]
-  G0 -->|agent-plugin| G5[Neutral Agent Plugin badge on card and detail; marker remains display-only]
-  G5 --> G
-  G -->|curated| G1[Install; digest verified before extraction]
-  G -->|policy blocked| G2[Focusable-but-unavailable action explains block, links Settings › Extensions]
-  G -->|allowed unverified| G3[Warning-confirm gate, explicit consent]
-  G1 --> G4[True end extension: installed with runtime-detected format and truthful provenance; Manage opens /marketplace/extensions; timer < 60s]
-  G3 --> G4
-  G2 -.->|operator is not the policy owner| X2[Abandon: nothing written; policy change is J-extension-policy-admin]
-  E -->|MCP| I[Guided install: entry-locked template, required values typed or Vault-referenced]
-  E -->|retired Bundle kind or route| X3[Reject cleanly; Extension is the only kit unit]
-  I -->|missing required value / bad ref| I2[Validation blocks; nothing written]
-  I2 --> I
-  I --> I3[Structurally born-valid server written; daemon next_step announced]
-  I3 -->|next_step authorize| I4[Handoff to J-mcp-authorize-repair]
-  I3 --> I5[True end MCP: server on /marketplace/mcps with truthful readiness state, never false-ready; timer < 60s]
-  B -.->|close tab mid-browse| X1[Abandon: no write; return later resumes at same stable entry]
-  I -.->|close guided dialog before submit| X4[Abandon: no write occurred; reopen same entry detail and continue]
-  F2 --> Z[Side effect check: fresh marketplace read and management surface agree on installed state, version, provenance]
-  G4 --> Z
-  I5 --> Z
+  A[Open Marketplace Browse] --> B[Browse or search source sections]
+  B --> C[Inspect an exact entry and its trust, contents, inputs and digest]
+  B --> S[Add marketplace: preview ref, then register]
+  S -->|valid| B
+  S -->|invalid or retained name| E[Actionable error; no registration]
+  C --> D[Confirm destination, required inputs and unverified acquisition]
+  D -->|approved digest still matches| F[Installed extension with truthful origin and runtime state]
+  D -->|digest changed or name conflict| E
+  F --> G[Fresh Installed view and Settings agree]
+  G --> H[Disable or remove source; extension remains manageable]
+  H --> Z[Return to session with acquired capability intact]
+  C -.->|close preview| X[No installation; reopen exact entry later]
 ```
 
 ```yaml
 journey:
   id: J-marketplace-acquisition
-  name: Discover and acquire marketplace capabilities
-  value_statement: "I can evaluate and acquire a capability of any kind from one truthful marketplace in under a minute, without losing control of scope, secrets, or trust policy."
-  personas: [Bruno, Ada]
+  name: Acquire an extension from the catalog
+  value_statement: "Acquire and manage one extension with an explicit origin and truthful installed state."
+  personas: [Bruno, Marina]
   entry_points:
     - url: /marketplace
-      origin: in-app-nav
-    - url: /marketplace/$kind/$entryId
-      origin: direct
-    - url: compozy.com/docs/marketplace/
-      origin: external-share
-    - url: compozy marketplace search --kind extension and GET /api/extensions/marketplace (HTTP + UDS)
-      origin: direct
-    - url: curated extension catalog feed
       origin: direct
   actions:
     - step: 1
-      verb: Detour mid-session to Marketplace, select a kind, and browse or search its active scope
-      expected_observable: The index enters Skills in Installed scope; choosing Marketplace writes `tab=market`, and kind/detail/back navigation preserves that explicit scope without stale chrome
+      verb: "Open Browse or a stable entry detail"
+      expected_observable: "The complete catalog groups enabled sources and preserves source counts, stale state and identity."
     - step: 2
-      verb: Inspect one entry by its stable feed identity
-      expected_observable: Kind-specific metadata, installed state, update state, format badge, and trust evidence match daemon output; catalog format is display-only and installed runtime detection wins when metadata is absent or stale
+      verb: "Preview and add a fixture marketplace"
+      expected_observable: "Preview writes no registration; Add creates a custom section with diagnostics and an experimental label."
     - step: 3
-      verb: Acquire per kind — skill one-click, extension trust-gated, MCP guided install
-      expected_observable: Required values are validated up front, secrets are write-only, and policy blocks explain themselves; wall-clock from step 1 to acquired is under 60 seconds per kind
+      verb: "Inspect and install an entry"
+      expected_observable: "Required inputs, trust and the displayed digest gate acquisition; errors leave no partial installed state."
     - step: 4
-      verb: Follow Manage after acquisition
-      expected_observable: The matching Marketplace kind opens in Installed scope with `tab` omitted
-    - step: 5
-      verb: Re-read the marketplace after acquiring
-      expected_observable: Cards, detail, and management surfaces agree on installed state and next action; update badges render only from real comparisons
+      verb: "Manage the result and its source"
+      expected_observable: "Installed remains usable after source disable/removal; re-add of the same origin rejoins; another origin cannot reuse its retained name."
   goal:
-    observable: Each of the three kinds acquired born-valid in under 60 seconds, with discovery and installed state in agreement
-    side_effects: [capability-installed, scoped-config-written, canonical-vault-refs-created]
-  true_end_state: A fresh marketplace read and the destination management surface report the same installed capability, scope, runtime-detected format, provenance, diagnostics, and update state without exposing secret values; per-kind acquisition timings are captured as evidence
+    observable: "Fresh reads confirm the installed extension, origin, destination, declared resources and truthful readiness. Record elapsed acquisition time against the under-60-second target."
+    side_effects: [source-registration, extension-installed, scoped-input-bindings]
+  true_end_state: "Fresh reads confirm the installed extension, origin, destination, declared resources and truthful readiness. Record elapsed acquisition time against the under-60-second target."
   exit:
-    natural: Back to the interrupted session, capability available
+    natural: Return to the interrupted session
   abandonment:
-    - at_step: 1
-      how: Close the tab mid-browse
-      resume: No write occurred; the same stable entry detail deep-links back
-    - at_step: 3
-      how: Close the guided install or preview dialog before submitting
-      resume: No write occurred; reopen the same entry detail and continue
-    - at_step: 3
-      how: Trust policy blocks acquisition
-      resume: Policy changes happen in J-extension-policy-admin
     - at_step: 2
-      how: A stale link requests the retired Bundle kind
-      resume: No state is written; the current navigation offers Extension, Skill, and MCP only
-  crosses: [web, marketplace-api, curated-feeds, vault, settings, skills, extensions, mcp, docs]
+      how: Close source preview before Add
+      resume: No registration; preview the ref again
+    - at_step: 3
+      how: Cancel install confirmation
+      resume: No installed instance; reopen the exact source entry
+  crosses: [web, marketplace-api, plugin-sources, vault, settings, extensions, mcp, docs]
 ```
 
-## Coverage notes (Task 10 planning)
-
-- Taxonomy sweep: journeys (per-kind happy paths above), functional (validation, entry-id identity, RouteNav, and round-trips — scenario rows), experiential (keyboard operability with open `BUG-20260714-keyboard-focus-invisible`; curated-showcase copy must not imply exhaustiveness), edge/error/empty (per-kind failure, all-zero search, abandonments above), cross-cutting (mobile kind pages and redirect-to-sibling breadcrumb continuity; regression canary is CH-033 on J-22).
-- MCP acquisition ends at the structurally-valid server + truthful readiness handoff; authorization is J-mcp-authorize-repair.
-- Agent-plane equivalents of every step are J-agent-marketplace-parity.
-- Agent Plugins entries reuse the Extension branch. Their badge is neutral metadata; acquired bytes
-  remain authoritative for format, diagnostics, trust, and lifecycle state.
+Coverage: happy path, exact identity and parity, degraded/off/empty sources, validation and digest races, cancellation, destination isolation, keyboard access and narrow windows. Human visual coverage uses Bruno/Marina; Ada owns deterministic structured output. Retired per-kind acquisition is outside the current contract.

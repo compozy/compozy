@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/version"
@@ -2085,3 +2087,535 @@ const validManifestJSON = `{
     "mode": "enabled"
   }
 }`
+
+// Invariant: packaged inputs retain typed defaults and bind only to compatible declared servers.
+// Owner: extension manifest decoder and validator. Canonical suite: manifest_test.go.
+func TestManifestPackagedInputs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject invalid scope and authentication policy", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name   string
+			server MCPServerConfig
+		}{
+			{"unknown scope", MCPServerConfig{DefaultScope: "session"}},
+			{"unknown method", MCPServerConfig{Transport: "http", Auth: &MCPServerAuthConfig{Method: "token"}}},
+			{"OAuth on stdio", MCPServerConfig{Transport: "stdio", Auth: &MCPServerAuthConfig{Method: "oauth"}}},
+			{
+				"none with OAuth fields",
+				MCPServerConfig{
+					Transport: "http",
+					Auth:      &MCPServerAuthConfig{Method: "none", IssuerURL: "https://issuer.example"},
+				},
+			},
+			{
+				"insecure issuer",
+				MCPServerConfig{
+					Transport: "http",
+					Auth: &MCPServerAuthConfig{
+						Method:       "oauth",
+						Registration: "dynamic",
+						IssuerURL:    "http://issuer.example",
+					},
+				},
+			},
+			{
+				"dynamic client id",
+				MCPServerConfig{
+					Transport: "http",
+					Auth:      &MCPServerAuthConfig{Method: "oauth", Registration: "dynamic", ClientID: "client"},
+				},
+			},
+			{
+				"duplicate scopes",
+				MCPServerConfig{
+					Transport: "http",
+					Auth: &MCPServerAuthConfig{
+						Method:       "oauth",
+						Registration: "dynamic",
+						Scopes:       []string{"read", "read"},
+					},
+				},
+			},
+		}
+		for _, test := range cases {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				err := validateManifestMCPPolicies(map[string]MCPServerConfig{"example": test.server})
+				if err == nil {
+					t.Fatal("invalid policy accepted")
+				}
+				var validationErr *ManifestValidationError
+				if !errors.As(err, &validationErr) ||
+					!strings.HasPrefix(validationErr.Field, "resources.mcp_servers.example.") {
+					t.Fatalf("diagnostic = %v", err)
+				}
+			})
+		}
+	})
+
+	fixtures := []struct{ name, toml string }{
+		{"context7", `name = "context7"
+version = "3.2.3"
+description = "Fetch current, version-specific library documentation and code examples."
+min_compozy_version = "0.5.0"
+
+# Asked at install. A secret goes to the vault under the bound env name; other
+# values are stored with the installed extension and reloaded on restart.
+[[inputs]]
+id = "context7_api_key"
+prompt = "Context7 API key (optional)"
+type = "secret"            # secret | string | identifier | boolean
+required = false
+binding = { type = "env", name = "CONTEXT7_API_KEY" }
+
+[resources.mcp_servers.context7]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@upstash/context7-mcp@3.2.3"]
+# env / secret_env keep their map shape: ENV_NAME = "<binding name>". For an
+# input-backed variable the binding name is the input id.
+secret_env = { CONTEXT7_API_KEY = "context7_api_key" }
+default_scope = "global"
+`},
+		{"linear", `name = "linear"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+[[inputs]]
+id = "workspace_id"
+prompt = "Workspace id"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "workspace" }
+
+[resources.mcp_servers.linear]
+transport = "http"
+url = "https://mcp.linear.app/mcp?workspace="
+default_scope = "global"
+
+[resources.mcp_servers.linear.auth]
+method = "oauth"
+registration = "dynamic"
+issuer_url = "https://mcp.linear.app"
+scopes = ["read", "write"]
+`},
+	}
+	for _, fixture := range fixtures {
+		t.Run("Should load and round-trip frozen "+fixture.name+" inputs [UT-020]", func(t *testing.T) {
+			t.Parallel()
+			manifest, err := loadManifestTOMLContent("extension.toml", []byte(fixture.toml))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(manifest.Inputs) != 1 {
+				t.Fatalf("inputs = %#v", manifest.Inputs)
+			}
+			server := manifest.Resources.MCPServers[fixture.name]
+			if server.DefaultScope != "global" {
+				t.Fatalf("scope = %q", server.DefaultScope)
+			}
+			if fixture.name == "context7" && server.SecretEnv["CONTEXT7_API_KEY"] != "context7_api_key" {
+				t.Fatalf("secret_env = %#v", server.SecretEnv)
+			}
+			if fixture.name == "linear" &&
+				(server.Auth == nil || server.Auth.Method != "oauth" || server.Auth.Registration != "dynamic" || server.Auth.IssuerURL != "https://mcp.linear.app" || !reflect.DeepEqual(server.Auth.Scopes, []string{"read", "write"})) {
+				t.Fatalf("auth = %#v", server.Auth)
+			}
+			encoded, err := encodeManifestTOML(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := loadManifestTOMLContent("extension.toml", encoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(decoded.Inputs, manifest.Inputs) ||
+				!reflect.DeepEqual(decoded.Resources.MCPServers, manifest.Resources.MCPServers) {
+				t.Fatalf("round trip changed inputs or servers: %s", encoded)
+			}
+		})
+	}
+	t.Run("Should retain native boolean defaults and derive only required env names", func(t *testing.T) {
+		t.Parallel()
+		raw := `name = "example"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+requires_env = ["DEBUG"]
+[[inputs]]
+id = "debug"
+prompt = "Enable debugging"
+type = "boolean"
+required = true
+default = false
+binding = {type = "env", name = "DEBUG"}
+[resources.mcp_servers.example]
+command = "example"
+env = { DEBUG = "debug" }
+`
+		manifest, err := loadManifestTOMLContent("extension.toml", []byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(manifest.Inputs[0].Default) != "false" ||
+			!reflect.DeepEqual(manifest.RequiresEnv, []string{"DEBUG"}) {
+			t.Fatalf("manifest = %#v", manifest)
+		}
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := loadManifestTOMLContent("extension.toml", encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.Inputs, manifest.Inputs) {
+			t.Fatalf("defaults changed: %s", encoded)
+		}
+		cloned := cloneManifest(manifest)
+		cloned.Inputs[0].Default[0] = 't'
+		if string(manifest.Inputs[0].Default) != "false" {
+			t.Fatal("clone shares default storage")
+		}
+	})
+	t.Run("Should reject explicit null defaults in JSON", func(t *testing.T) {
+		t.Parallel()
+		_, err := loadManifestJSONContent(
+			"extension.json",
+			[]byte(
+				`{"name":"example","version":"1.0.0","min_compozy_version":"0.5.0","inputs":[{"id":"debug","prompt":"Debug","type":"boolean","binding":{"type":"env","name":"DEBUG"},"default":null}],"resources":{"mcp_servers":{"example":{"command":"example","env":{"DEBUG":"debug"}}}}}`,
+			),
+		)
+		if err == nil || !strings.Contains(err.Error(), "default must be a boolean") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+	tests := []struct {
+		name      string
+		mutate    func(*Manifest)
+		grammarOK bool
+		want      string
+	}{
+		{"duplicate ids", func(m *Manifest) {
+			other := m.Inputs[0]
+			other.Binding.Name = "SECOND"
+			m.Inputs = append(m.Inputs, other)
+		}, false, "inputs[1].id"},
+		{
+			"duplicate bindings",
+			func(m *Manifest) { other := m.Inputs[0]; other.ID = "second"; m.Inputs = append(m.Inputs, other) },
+			false,
+			"inputs[1].binding",
+		},
+		{
+			"secret URL",
+			func(m *Manifest) { m.Inputs[0].Type = "secret"; m.Inputs[0].Binding.Type = "url_query" },
+			false,
+			"inputs[0].binding",
+		},
+		{
+			"secret default",
+			func(m *Manifest) { m.Inputs[0].Type = "secret"; m.Inputs[0].Default = json.RawMessage(`"secret"`) },
+			false,
+			"inputs[0].default",
+		},
+		{"unbound input", func(m *Manifest) { m.Resources.MCPServers = nil }, true, "inputs[0].binding"},
+		{"query on stdio", func(m *Manifest) {
+			m.Inputs[0].Binding = marketplace.InputBinding{Type: "url_query", Name: "workspace"}
+			m.Resources.MCPServers["example"] = MCPServerConfig{
+				Command: "example",
+				URL:     "https://example.com?workspace=",
+			}
+		}, true, "inputs[0].binding"},
+		{"wrong input id", func(m *Manifest) {
+			m.Resources.MCPServers["example"] = MCPServerConfig{
+				Command: "example",
+				Env:     map[string]string{"REGION": "another"},
+			}
+		}, true, "inputs[0].binding"},
+		{"secret in plain env", func(m *Manifest) { m.Inputs[0].Type = "secret" }, true, "inputs[0].binding"},
+	}
+	for _, test := range tests {
+		t.Run("Should reject "+test.name+" with a positioned diagnostic [UT-022]", func(t *testing.T) {
+			t.Parallel()
+			manifest := &Manifest{
+				Inputs: []ManifestInput{
+					{
+						ID:      "region",
+						Prompt:  "Region",
+						Type:    "string",
+						Binding: marketplace.InputBinding{Type: "env", Name: "REGION"},
+					},
+				},
+				Resources: ResourcesConfig{
+					MCPServers: map[string]MCPServerConfig{
+						"example": {Command: "example", Env: map[string]string{"REGION": "region"}},
+					},
+				},
+			}
+			test.mutate(manifest)
+			grammarErr := marketplace.ValidateInputGrammar(manifest.Inputs)
+			if (grammarErr == nil) != test.grammarOK {
+				t.Fatalf("grammar error = %v, valid = %v", grammarErr, test.grammarOK)
+			}
+			err := ValidateManifestInputs(manifest)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("manifest error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+// Invariant: packaged servers preserve approved launch/auth/input definitions and match their current feed.
+// Owner: curated package manifests. Canonical suite: manifest_test.go.
+func TestManifestCuratedMCPPackages(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve all seventeen approved server definitions [UT-007]", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile(filepath.Join("testdata", "mcp_to_extension", "approved.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var approved struct {
+			Entries []struct {
+				ID     string          `json:"entry_id"`
+				Inputs []ManifestInput `json:"inputs"`
+				Server MCPServerConfig `json:"server"`
+			} `json:"entries"`
+		}
+		if err := json.Unmarshal(data, &approved); err != nil {
+			t.Fatal(err)
+		}
+		if len(approved.Entries) != 17 {
+			t.Fatalf("approved server count = %d, want 17", len(approved.Entries))
+		}
+		feed, err := os.ReadFile(filepath.Join("..", "..", "catalog", "v3", "extensions.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := marketplace.DecodeDocument(feed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range approved.Entries {
+			manifest, err := LoadManifest(filepath.Join("..", "..", "catalog", "packages", entry.ID))
+			if err != nil {
+				t.Fatalf("%s: %v", entry.ID, err)
+			}
+			if len(manifest.Resources.MCPServers) != 1 ||
+				!reflect.DeepEqual(manifest.Resources.MCPServers[entry.ID], entry.Server) {
+				t.Fatalf("%s server = %#v, want %#v", entry.ID, manifest.Resources.MCPServers, entry.Server)
+			}
+			if !reflect.DeepEqual(manifest.Inputs, entry.Inputs) {
+				t.Fatalf("%s inputs = %#v, want %#v", entry.ID, manifest.Inputs, entry.Inputs)
+			}
+			index := slices.IndexFunc(
+				document.Entries,
+				func(item marketplace.Entry) bool { return item.EntryID == entry.ID },
+			)
+			if index < 0 {
+				t.Fatalf("%s missing from current feed", entry.ID)
+			}
+			current := document.Entries[index]
+			var payload struct {
+				Inputs []ManifestInput `json:"inputs"`
+			}
+			if err := json.Unmarshal(current.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if current.Version != manifest.Version || !reflect.DeepEqual(payload.Inputs, entry.Inputs) {
+				t.Fatalf("%s feed version/inputs differ from its approved package", entry.ID)
+			}
+		}
+	})
+}
+
+// Invariant: typed readiness uses active instance values and reports missing env names separately from URL input IDs.
+// Owner: extension manifest readiness. Canonical suite: manifest_test.go.
+func TestManifestInputReadiness(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		input         ManifestInput
+		record        *InputValueRecord
+		env           string
+		missingInputs []string
+		missingEnv    []string
+	}{
+		{
+			name: "accept a stored URL identifier without process env",
+			input: ManifestInput{
+				ID:       "workspace_id",
+				Type:     "identifier",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+			},
+			record: &InputValueRecord{Type: "identifier", Value: json.RawMessage(`"team"`), Active: true},
+		},
+		{
+			name: "ignore process env for a missing URL identifier",
+			input: ManifestInput{
+				ID:       "workspace_id",
+				Type:     "identifier",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+			},
+			env:           "team",
+			missingInputs: []string{"workspace_id"},
+		},
+		{
+			name: "ignore an inactive URL row",
+			input: ManifestInput{
+				ID:       "workspace_id",
+				Type:     "identifier",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+			},
+			record:        &InputValueRecord{Type: "identifier", Value: json.RawMessage(`"team"`)},
+			missingInputs: []string{"workspace_id"},
+		},
+		{
+			name: "accept a false boolean default",
+			input: ManifestInput{
+				ID:       "read_only",
+				Type:     "boolean",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "url_query", Name: "read_only"},
+				Default:  json.RawMessage(`false`),
+			},
+		},
+		{
+			name: "accept an active secret reference",
+			input: ManifestInput{
+				ID:       "token",
+				Type:     "secret",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+			},
+			record: &InputValueRecord{
+				Type:      "secret",
+				SecretRef: "vault:extensions/global/example/env/TOKEN",
+				Active:    true,
+			},
+		},
+		{
+			name: "accept process env for a required secret",
+			input: ManifestInput{
+				ID:       "token",
+				Type:     "secret",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+			},
+			env: "private-value",
+		},
+		{
+			name: "report the env name for a missing secret",
+			input: ManifestInput{
+				ID:       "token",
+				Type:     "secret",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+			},
+			missingEnv: []string{"TOKEN"},
+		},
+		{
+			name: "ignore an inactive secret reference",
+			input: ManifestInput{
+				ID:       "token",
+				Type:     "secret",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+			},
+			record:     &InputValueRecord{Type: "secret", SecretRef: "vault:extensions/global/example/env/TOKEN"},
+			missingEnv: []string{"TOKEN"},
+		},
+		{
+			name: "accept an active non-secret env row",
+			input: ManifestInput{
+				ID:       "mode",
+				Type:     "string",
+				Required: true,
+				Binding:  marketplace.InputBinding{Type: "env", Name: "MODE"},
+			},
+			record: &InputValueRecord{Type: "string", Value: json.RawMessage(`"readonly"`), Active: true},
+		},
+	}
+	for _, tc := range cases {
+		t.Run("Should "+tc.name+" [UT-071]", func(t *testing.T) {
+			t.Parallel()
+			manifest := &Manifest{Inputs: []ManifestInput{tc.input}}
+			manifest.RequiresEnv = manifestRequiredEnv(nil, manifest.Inputs)
+			state := InputState{Values: map[string]InputValueRecord{}}
+			if tc.record != nil {
+				state.Values[tc.input.ID] = *tc.record
+			}
+			ready := InputReadiness(manifest, state, func(string) string { return tc.env })
+			if !slices.Equal(ready.MissingInputs, tc.missingInputs) || !slices.Equal(ready.MissingEnv, tc.missingEnv) {
+				t.Fatalf("readiness = %#v, want inputs %v env %v", ready, tc.missingInputs, tc.missingEnv)
+			}
+			if tc.input.Binding.Type == "url_query" && len(manifest.RequiresEnv) != 0 {
+				t.Fatal("URL inputs leaked into requires_env")
+			}
+		})
+	}
+}
+
+func TestClientPluginManifestPackages(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		skills, servers int
+	}{
+		{"open-design", 0, 1}, {"loop-engineering", 7, 0},
+	} {
+		t.Run("Should load the authored "+tc.name+" resources without changing files", func(t *testing.T) {
+			t.Parallel()
+			root := filepath.Join("testdata", "client-plugins", tc.name)
+			before, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manifest, err := LoadManifestWithAgentPluginDataDir(root, filepath.Join(t.TempDir(), "data"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if manifest.Layout != "claude-plugin" || manifest.Name != tc.name ||
+				len(manifest.Resources.Skills) != tc.skills ||
+				len(manifest.Resources.MCPServers) != tc.servers {
+				t.Fatalf("unexpected client projection: %#v, diagnostics=%#v", manifest, manifest.IngestDiagnostics)
+			}
+			if tc.servers == 1 && manifest.Resources.MCPServers["open-design"].Command != "od" {
+				t.Fatalf("MCP command = %#v", manifest.Resources.MCPServers)
+			}
+			after, err := ComputeDirectoryChecksum(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before != after {
+				t.Fatal("loading changed package bytes")
+			}
+			metadata, err := resolveManifestPath(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filepath.Clean(PackageRootFromManifest(metadata)) != filepath.Clean(root) {
+				t.Fatalf("package root = %q", PackageRootFromManifest(metadata))
+			}
+			loaded, err := loadManifestAtPath(metadata)
+			if err != nil || loaded.Layout != manifest.Layout {
+				t.Fatalf("reload located manifest = %#v, %v", loaded, err)
+			}
+		})
+	}
+	t.Run("Should retain the actual path in unsupported client schema errors", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		file := filepath.Join(root, ".codex-plugin", "plugin.json")
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, file, `{"name":"future","$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json"}`)
+		_, err := LoadManifest(root)
+		if !errors.Is(err, agentplugin.ErrSchemaUnsupported) || !strings.Contains(err.Error(), file) {
+			t.Fatalf("schema error = %v", err)
+		}
+	})
+}

@@ -536,11 +536,43 @@ type ExtensionEnvBinding struct {
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 	SecretRef     string `json:"secret_ref"`
+	InputID       string `json:"input_id"`
+	Active        int64  `json:"active"`
 	McpServer     string `json:"mcp_server"`
 	HeaderName    string `json:"header_name"`
 	Kind          string `json:"kind"`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`
+}
+
+type ExtensionInput struct {
+	Extension   string `json:"extension"`
+	Profile     string `json:"profile"`
+	WorkspaceID string `json:"workspace_id"`
+	InputID     string `json:"input_id"`
+	Type        string `json:"type"`
+	ValueJson   string `json:"value_json"`
+	Active      int64  `json:"active"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+type ExtensionInstallation struct {
+	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CreatedAt     string `json:"created_at"`
+}
+
+type ExtensionMcpOverride struct {
+	Extension   string `json:"extension"`
+	Profile     string `json:"profile"`
+	WorkspaceID string `json:"workspace_id"`
+	Server      string `json:"server"`
+	RuntimeName string `json:"runtime_name"`
+	EnvJson     string `json:"env_json"`
+	HeadersJson string `json:"headers_json"`
+	Url         string `json:"url"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type ExtensionProfileEnablement struct {
@@ -1096,33 +1128,58 @@ type LoopUiAnnotation struct {
 	Y           float64 `json:"y"`
 }
 
+type MarketplaceCatalogConfig struct {
+	ID         int64  `json:"id"`
+	Generation int64  `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
 type MarketplaceCatalogEntry struct {
-	Kind         string         `json:"kind"`
-	EntryID      string         `json:"entry_id"`
-	Name         string         `json:"name"`
-	Description  string         `json:"description"`
-	Version      string         `json:"version"`
-	PublishedAt  sql.NullString `json:"published_at"`
-	UpdatedAt    sql.NullString `json:"updated_at"`
-	DigestSha256 sql.NullString `json:"digest_sha256"`
-	Tier         sql.NullString `json:"tier"`
-	InstallSlug  sql.NullString `json:"install_slug"`
-	PayloadJson  string         `json:"payload_json"`
-	FetchedAt    string         `json:"fetched_at"`
+	Source         string         `json:"source"`
+	EntryID        string         `json:"entry_id"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description"`
+	Version        string         `json:"version"`
+	PublishedAt    sql.NullString `json:"published_at"`
+	UpdatedAt      sql.NullString `json:"updated_at"`
+	DigestSha256   sql.NullString `json:"digest_sha256"`
+	Tier           sql.NullString `json:"tier"`
+	InstallSlug    sql.NullString `json:"install_slug"`
+	PayloadJson    string         `json:"payload_json"`
+	FetchedAt      string         `json:"fetched_at"`
+	Layout         string         `json:"layout"`
+	Icon           string         `json:"icon"`
+	Installable    int64          `json:"installable"`
+	InstallBlocker string         `json:"install_blocker"`
+	ResolvedRef    string         `json:"resolved_ref"`
 }
 
 type MarketplaceCatalogState struct {
-	Kind            string         `json:"kind"`
+	Source          string         `json:"source"`
+	SourceRef       string         `json:"source_ref"`
+	ConfigRevision  string         `json:"config_revision"`
+	DocumentDigest  string         `json:"document_digest"`
+	DiagnosticsJson string         `json:"diagnostics_json"`
 	ManifestVersion int64          `json:"manifest_version"`
 	GeneratedAt     sql.NullString `json:"generated_at"`
 	FetchedAt       string         `json:"fetched_at"`
 	Stale           int64          `json:"stale"`
 	LastError       string         `json:"last_error"`
+	KindOfSource    string         `json:"kind_of_source"`
+	Enabled         int64          `json:"enabled"`
+	Plugins         int64          `json:"plugins"`
+	Installable     int64          `json:"installable"`
+	ErrorClass      string         `json:"error_class"`
+	DocumentPath    string         `json:"document_path"`
+	Owner           string         `json:"owner"`
+	Revision        string         `json:"revision"`
+	Generation      int64          `json:"generation"`
 }
 
 type McpAuthToken struct {
 	Scope                 string         `json:"scope"`
 	WorkspaceID           string         `json:"workspace_id"`
+	Owner                 string         `json:"owner"`
 	ServerName            string         `json:"server_name"`
 	DefinitionFingerprint string         `json:"definition_fingerprint"`
 	Issuer                string         `json:"issuer"`
@@ -1139,6 +1196,7 @@ type McpAuthToken struct {
 type McpOauthRegistration struct {
 	Scope                      string         `json:"scope"`
 	WorkspaceID                string         `json:"workspace_id"`
+	Owner                      string         `json:"owner"`
 	ServerName                 string         `json:"server_name"`
 	DefinitionFingerprint      string         `json:"definition_fingerprint"`
 	ResourceUrl                string         `json:"resource_url"`

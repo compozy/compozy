@@ -1,16 +1,17 @@
+import { useNavigate } from "@tanstack/react-router";
+
 import { useDesktop } from "../../hooks/use-desktop";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { MarketplaceDetailLocation } from "./marketplace-detail-location";
 import { validateMarketplaceDetailSearch } from "./marketplace-detail-search";
 import {
-  isMarketplaceKind,
-  isMarketplaceRouteKind,
-  marketplaceApiKindFor,
-  MarketplaceKindPage,
-  validateMarketplaceKindSearch,
+  MarketplaceDetailNotFound,
+  MarketplaceInstalledPage,
+  MarketplacePage,
+  validateMarketplaceSearch,
 } from "@/systems/marketplace";
 
-const DEFAULT_MARKETPLACE_ROUTE = { pathname: "/marketplace/skills", search: {} } as const;
+const DEFAULT_MARKETPLACE_ROUTE = { pathname: "/marketplace", search: {} } as const;
 
 function decodePathSegment(value: string): string {
   try {
@@ -20,29 +21,50 @@ function decodePathSegment(value: string): string {
   }
 }
 
-/** Marketplace app controller driven exclusively by the logical window's WM location. */
+/**
+ * Marketplace app controller driven exclusively by the logical window's WM location:
+ * `/marketplace` (Browse) · `/marketplace/installed` · `/marketplace/$entryId` (detail).
+ */
 export function MarketplaceWindow({ windowId }: { windowId: string }) {
+  const navigate = useNavigate();
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_MARKETPLACE_ROUTE);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const segments = location.pathname.split("/").filter(Boolean);
+  const [, second] = segments;
 
-  if (isMarketplaceKind(segments[1]) && segments[2]) {
+  if (segments[0] !== "marketplace" || segments.length > 2) {
+    return (
+      <MarketplaceDetailNotFound
+        onBack={() =>
+          void navigate({ to: "/marketplace", search: validateMarketplaceSearch(location.search) })
+        }
+      />
+    );
+  }
+
+  if (second === "installed") {
+    return (
+      <MarketplaceInstalledPage
+        liveDataEnabled={liveDataEnabled}
+        search={validateMarketplaceSearch(location.search)}
+      />
+    );
+  }
+
+  if (second) {
     return (
       <MarketplaceDetailLocation
-        entryId={decodePathSegment(segments[2])}
-        kind={segments[1]}
+        entryId={decodePathSegment(second)}
         liveDataEnabled={liveDataEnabled}
         search={validateMarketplaceDetailSearch(location.search)}
       />
     );
   }
 
-  const routeKind = isMarketplaceRouteKind(segments[1]) ? segments[1] : "skills";
   return (
-    <MarketplaceKindPage
-      kind={marketplaceApiKindFor(routeKind)}
+    <MarketplacePage
       liveDataEnabled={liveDataEnabled}
-      search={validateMarketplaceKindSearch(location.search)}
+      search={validateMarketplaceSearch(location.search)}
     />
   );
 }

@@ -1,9 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,24 +14,60 @@ import (
 
 func TestMarketplaceCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose experimental help and fail refresh only when every source failed", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{{"marketplace", "sources", "--help"}, {"marketplace", "sources", "add", "--help"}} {
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...)
+			if err != nil || !strings.Contains(stdout, "Stability: experimental") {
+				t.Fatalf("source help = %q, %v", stdout, err)
+			}
+		}
+		for _, success := range []bool{false, true} {
+			rows := []contract.MarketplaceRefreshSourcePayload{{Source: "team", Outcome: "failed"}}
+			if success {
+				rows = append(
+					rows,
+					contract.MarketplaceRefreshSourcePayload{Source: "compozy-catalog", Outcome: "succeeded"},
+				)
+			}
+			deps := newWorkspaceTestDeps(
+				t,
+				&stubClient{refreshMarketplaceFn: func(context.Context) (MarketplaceRefreshRecord, error) {
+					return MarketplaceRefreshRecord{Sources: rows}, nil
+				}},
+			)
+			stdout, _, err := executeRootCommand(t, deps, "marketplace", "refresh", "-o", "json")
+			if (err == nil) != success {
+				t.Fatalf("refresh success=%v: %v", success, err)
+			}
+			var response contract.MarketplaceRefreshResponse
+			if decodeErr := json.Unmarshal(
+				[]byte(stdout),
+				&response,
+			); decodeErr != nil ||
+				len(response.Sources) != len(rows) {
+				t.Fatalf("refresh lost outcomes: %s, %v", stdout, decodeErr)
+			}
+		}
+	})
 
-	t.Run("Should render grouped search as the shared JSON contract", func(t *testing.T) {
+	t.Run("Should render catalog search as the shared JSON contract", func(t *testing.T) {
 		t.Parallel()
 
-		want := MarketplaceSearchRecord{Kinds: []contract.MarketplaceKindResult{{
-			Kind: "skill",
+		want := MarketplaceListRecord{Total: 1, Revision: "revision-a",
 			Items: []contract.MarketplaceListingPayload{{
-				Kind: "skill", EntryID: "skill-entry", Name: "Review", Version: "1.2.0",
+				EntryID: "skill-entry", Name: "Review", Version: "1.2.0",
 				Installed: true, Source: "curated",
 			}},
-		}}}
+		}
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			searchMarketplaceFn: func(
 				_ context.Context,
 				query string,
 				limit int,
+				_ string,
 				scope MarketplaceReadScope,
-			) (MarketplaceSearchRecord, error) {
+			) (MarketplaceListRecord, error) {
 				if query != "review" {
 					t.Fatalf("query = %q, want review", query)
 				}
@@ -69,7 +106,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		if _, found := fields["resolution_source"]; found {
 			t.Fatalf("marketplace search JSON contains resolution_source, want shared daemon payload: %s", stdout)
 		}
-		var got MarketplaceSearchRecord
+		var got MarketplaceListRecord
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("json.Unmarshal(marketplace search) error = %v", err)
 		}
@@ -86,13 +123,14 @@ func TestMarketplaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				_ int,
+				_ string,
 				scope MarketplaceReadScope,
-			) (MarketplaceSearchRecord, error) {
+			) (MarketplaceListRecord, error) {
 				if scope.Scope != contract.SettingsLayeredScopeProfile || scope.Profile != "marketing" ||
 					scope.WorkspaceID != "" {
 					t.Fatalf("profile marketplace scope = %#v", scope)
 				}
-				return MarketplaceSearchRecord{}, nil
+				return MarketplaceListRecord{}, nil
 			}}),
 			profileClientStub: &profileClientStub{profiles: []contract.Profile{
 				{Name: "default", State: "active"},
@@ -116,10 +154,11 @@ func TestMarketplaceCommands(t *testing.T) {
 			context.Context,
 			string,
 			int,
+			string,
 			MarketplaceReadScope,
-		) (MarketplaceSearchRecord, error) {
+		) (MarketplaceListRecord, error) {
 			called = true
-			return MarketplaceSearchRecord{}, nil
+			return MarketplaceListRecord{}, nil
 		}})
 		_, _, err := executeRootCommand(t, deps, "marketplace", "search", "--limit", "0")
 		if err == nil || !strings.Contains(err.Error(), "marketplace limit must be positive") {
@@ -130,55 +169,22 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject cursor without kind before workspace resolution", func(t *testing.T) {
+	t.Run("Should render a catalog page without changing the daemon payload", func(t *testing.T) {
 		t.Parallel()
 
-		workspaceLookups := 0
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
-				workspaceLookups++
-				return WorkspaceDetailRecord{}, errors.New("workspace lookup should not run")
-			},
-		})
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"marketplace",
-			"search",
-			"--scope",
-			"workspace",
-			"--cursor",
-			"page-two",
-		)
-		if err == nil || err.Error() != "cli: --cursor requires --kind" {
-			t.Fatalf("marketplace cursor error = %v, want --cursor argument validation", err)
-		}
-		if workspaceLookups != 0 {
-			t.Fatalf("workspace lookups = %d, want 0 before cursor validation", workspaceLookups)
-		}
-	})
-
-	t.Run("Should render one kind without changing the daemon payload", func(t *testing.T) {
-		t.Parallel()
-
-		want := MarketplaceKindRecord{
-			Kind: "extension",
+		want := MarketplaceListRecord{
 			Items: []MarketplaceListingRecord{{
-				Kind: "extension", EntryID: "extension-entry", Name: "Bridge", Source: "curated",
+				EntryID: "extension-entry", Name: "Bridge", Source: "curated",
 			}},
 		}
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			browseMarketplaceFn: func(
+			searchMarketplaceFn: func(
 				_ context.Context,
-				kind string,
 				query string,
 				limit int,
 				cursor string,
 				scope MarketplaceReadScope,
-			) (MarketplaceKindRecord, error) {
-				if kind != "extension" {
-					t.Fatalf("kind = %q, want extension", kind)
-				}
+			) (MarketplaceListRecord, error) {
 				if query != "" {
 					t.Fatalf("query = %q, want empty", query)
 				}
@@ -196,12 +202,12 @@ func TestMarketplaceCommands(t *testing.T) {
 		})
 
 		stdout, _, err := executeRootCommand(
-			t, deps, "marketplace", "search", "--kind", "extension", "--cursor", "page-two", "-o", "json",
+			t, deps, "marketplace", "search", "--cursor", "page-two", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("marketplace kind search command error = %v", err)
 		}
-		var got MarketplaceKindRecord
+		var got MarketplaceListRecord
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("json.Unmarshal(marketplace kind search) error = %v", err)
 		}
@@ -210,25 +216,24 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve one-kind continuation metadata in every non-JSON format", func(t *testing.T) {
+	t.Run("Should preserve catalog continuation metadata in every non-JSON format", func(t *testing.T) {
 		t.Parallel()
 
 		total := 7
-		response := MarketplaceKindRecord{
-			Kind: "skill", Total: &total, NextCursor: "skill-page-two", Stale: true,
+		response := MarketplaceListRecord{
+			Total: total, NextCursor: "skill-page-two", Stale: true,
 			ErrorClass: "network", Error: "serving cached catalog",
 			Items: []MarketplaceListingRecord{{
-				Kind: "skill", EntryID: "skill-entry", Name: "Reviewer", Source: "clawhub",
+				EntryID: "skill-entry", Name: "Reviewer", Source: "clawhub",
 			}},
 		}
-		deps := newWorkspaceTestDeps(t, &stubClient{browseMarketplaceFn: func(
+		deps := newWorkspaceTestDeps(t, &stubClient{searchMarketplaceFn: func(
 			context.Context,
-			string,
 			string,
 			int,
 			string,
 			MarketplaceReadScope,
-		) (MarketplaceKindRecord, error) {
+		) (MarketplaceListRecord, error) {
 			return response, nil
 		}})
 
@@ -237,7 +242,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				t.Parallel()
 
 				stdout, _, err := executeRootCommand(
-					t, deps, "marketplace", "search", "--kind", "skill", "-o", format,
+					t, deps, "marketplace", "search", "-o", format,
 				)
 				if err != nil {
 					t.Fatalf("marketplace kind search -o %s error = %v", format, err)
@@ -253,12 +258,12 @@ func TestMarketplaceCommands(t *testing.T) {
 					if len(lines) != 2 {
 						t.Fatalf("marketplace JSONL lines = %d, want item plus page; output=%q", len(lines), stdout)
 					}
-					var page marketplaceKindPageRecord
+					var page marketplaceCatalogPageRecord
 					if err := json.Unmarshal([]byte(lines[1]), &page); err != nil {
 						t.Fatalf("json.Unmarshal(marketplace page) error = %v", err)
 					}
 					if page.Type != listPageRecordType || page.NextCursor != response.NextCursor ||
-						page.Total == nil || *page.Total != total {
+						page.Total != total {
 						t.Fatalf("marketplace JSONL page = %#v, want continuation metadata", page)
 					}
 				}
@@ -266,24 +271,21 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve detail by kind and stable entry id", func(t *testing.T) {
+	t.Run("Should resolve detail by source and stable entry id", func(t *testing.T) {
 		t.Parallel()
 
 		want := MarketplaceEntryRecord{Entry: MarketplaceListingRecord{
-			Kind: "mcp", EntryID: "github-mcp", Name: "GitHub", Source: "curated",
+			EntryID: "github-mcp", Name: "GitHub", Source: "curated",
 		}}
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			marketplaceInfoFn: func(
 				_ context.Context,
-				kind string,
 				entryID string,
+				source string,
 				installedName string,
 				scope MarketplaceReadScope,
 			) (MarketplaceEntryRecord, error) {
-				if kind != "mcp" {
-					t.Fatalf("kind = %q, want mcp", kind)
-				}
-				if entryID != "github-mcp" {
+				if entryID != "github-mcp" || source != "compozy-catalog" {
 					t.Fatalf("entryID = %q, want github-mcp", entryID)
 				}
 				if installedName != "custom-github" {
@@ -301,8 +303,9 @@ func TestMarketplaceCommands(t *testing.T) {
 			deps,
 			"marketplace",
 			"info",
-			"mcp",
 			"github-mcp",
+			"--source",
+			"compozy-catalog",
 			"--installed-name",
 			"custom-github",
 			"--scope",
@@ -331,23 +334,20 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refresh the selected feed-backed kind", func(t *testing.T) {
+	t.Run("Should refresh the catalog", func(t *testing.T) {
 		t.Parallel()
 
-		want := MarketplaceRefreshRecord{Kinds: []contract.MarketplaceRefreshKindPayload{{
-			Kind: "skill", Outcome: "updated", EntryCount: 3,
+		want := MarketplaceRefreshRecord{Sources: []contract.MarketplaceRefreshSourcePayload{{
+			Source: "compozy-catalog", Outcome: "updated", EntryCount: 3,
 		}}}
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			refreshMarketplaceFn: func(_ context.Context, kind string) (MarketplaceRefreshRecord, error) {
-				if kind != "skill" {
-					t.Fatalf("kind = %q, want skill", kind)
-				}
+			refreshMarketplaceFn: func(_ context.Context) (MarketplaceRefreshRecord, error) {
 				return want, nil
 			},
 		})
 
 		stdout, _, err := executeRootCommand(
-			t, deps, "marketplace", "refresh", "--kind", "skill", "-o", "json",
+			t, deps, "marketplace", "refresh", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("marketplace refresh command error = %v", err)
@@ -373,7 +373,7 @@ func TestMarketplaceCommands(t *testing.T) {
 			{
 				name: "Should reject a workspace ID for user scope",
 				args: []string{
-					"marketplace", "info", "mcp", "github-mcp", "--scope", "user", "--workspace", "ws-alpha",
+					"marketplace", "info", "github-mcp", "--scope", "user", "--workspace", "ws-alpha",
 				},
 				wantErr: "--workspace requires --scope workspace",
 			},
@@ -406,13 +406,14 @@ func TestMarketplaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				_ int,
+				_ string,
 				scope MarketplaceReadScope,
-			) (MarketplaceSearchRecord, error) {
+			) (MarketplaceListRecord, error) {
 				if scope.Scope != contract.SettingsLayeredScopeWorkspace ||
 					scope.WorkspaceID != "ws-project" {
 					t.Fatalf("marketplace scope = %#v, want workspace ws-project", scope)
 				}
-				return MarketplaceSearchRecord{}, nil
+				return MarketplaceListRecord{}, nil
 			},
 		})
 		deps.getwd = func() (string, error) { return "/workspace/project/nested", nil }
@@ -431,25 +432,91 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a continuation cursor without one marketplace kind", func(t *testing.T) {
-		t.Parallel()
+	for _, args := range [][]string{
+		{"marketplace", "search", "--kind", "extension"},
+		{"marketplace", "refresh", "--kind", "extension"},
+		{"marketplace", "info", "extension", "review"},
+	} {
+		t.Run("Should reject retired "+strings.Join(args, " ")+" before client access", func(t *testing.T) {
+			t.Parallel()
+			deps := commandDeps{newClient: func(ClientTarget) (DaemonClient, error) {
+				t.Fatal("retired command opened a client")
+				return nil, nil
+			}}
+			_, _, err := executeRootCommand(t, deps, args...)
+			want := "unknown flag"
+			if args[1] == "info" {
+				want = "accepts 1 arg(s)"
+			}
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("retired command error = %v, want %q", err, want)
+			}
+		})
+	}
+}
 
-		called := false
-		deps := newWorkspaceTestDeps(t, &stubClient{searchMarketplaceFn: func(
-			context.Context,
-			string,
-			int,
-			MarketplaceReadScope,
-		) (MarketplaceSearchRecord, error) {
-			called = true
-			return MarketplaceSearchRecord{}, nil
-		}})
-		_, _, err := executeRootCommand(t, deps, "marketplace", "search", "--cursor", "page-two")
-		if err == nil || !strings.Contains(err.Error(), "--cursor requires --kind") {
-			t.Fatalf("marketplace search --cursor error = %v, want kind validation", err)
-		}
-		if called {
-			t.Fatal("marketplace transport called after local cursor validation failure")
-		}
-	})
+// Invariant: source failures retain actionable wire fields and invalid input exits 2.
+// Owner: CLI API decoding and error output; canonical Marketplace suite.
+func TestMarketplaceSourceErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		status   int
+		body     string
+		wantExit int
+	}{
+		{"Should render a suggested name", http.StatusConflict, `{"error":"Name exists","code":"marketplace_source_exists","suggested_name":"team-2"}`, 2},
+		{"Should render retained instances", http.StatusConflict, `{"error":"Name retained","code":"marketplace_source_name_retained","retained_by":["tool"]}`, 2},
+		{"Should render checked document paths", http.StatusUnprocessableEntity, `{"error":"Not a marketplace","code":"marketplace_not_a_marketplace","checked":["marketplace.json",".claude-plugin/marketplace.json"]}`, 2},
+		{"Should reject an invalid source name", http.StatusUnprocessableEntity, `{"error":"Invalid name","code":"marketplace_source_name_invalid"}`, 2},
+		{"Should preserve unavailable source errors", http.StatusServiceUnavailable, `{"error":"Source unreachable","code":"source_unreachable"}`, 69},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			matched, err := parseMarketplaceSourceAPIError(tc.status, http.StatusText(tc.status), []byte(tc.body))
+			if !matched || err == nil {
+				t.Fatal("source error not recognized")
+			}
+			for _, format := range []string{"json", "jsonl"} {
+				var output bytes.Buffer
+				if code := writeExecutionError(
+					&output,
+					[]string{"marketplace", "sources", "add", "fixture", "-o", format},
+					err,
+				); code != tc.wantExit {
+					t.Fatalf("exit = %d, output = %s", code, &output)
+				}
+				var got, want contract.MarketplaceSourceErrorPayload
+				if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("error metadata lost: %+v", got)
+				}
+			}
+		})
+	}
+}
+
+// Invariant: config source addressing preserves the full registered name, including dots.
+// Owner: CLI config path decoder; canonical Marketplace CLI suite.
+func TestMarketplaceSourceConfigPath(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"team", "team.plugins"} {
+		t.Run("Should preserve "+name, func(t *testing.T) {
+			t.Parallel()
+			path, kind, redacted, err := configMutationPath("marketplace.plugin_sources." + name + ".enabled")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(path, []string{"marketplace", "plugin_sources", name, "enabled"}) ||
+				kind != configSetBool ||
+				redacted {
+				t.Fatalf("source config path = %#v, %v, %v", path, kind, redacted)
+			}
+		})
+	}
 }

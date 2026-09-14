@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -624,6 +627,7 @@ func newExtensionSecretsTestService(
 		Now:       func() time.Time { return time.Date(2026, 8, 2, 12, 30, 0, 0, time.UTC) },
 	},
 		withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
+		withDaemonExtensionInputs(db.ExtensionInputs),
 	).(*daemonExtensionService)
 	if !ok {
 		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
@@ -746,4 +750,606 @@ func (f *extensionSecretVaultFake) resolveCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.resolveCalls
+}
+
+// Invariant: public extension status reflects exact persisted inputs and never exposes their values or secret refs.
+// Owner: daemon status projection. Canonical suite: extension secret status tests.
+func TestExtensionTypedInputStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report durable URL readiness and inactive secrets safely [UT-071]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		secretVault := newExtensionSecretVaultFake()
+		service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+		service.getenv = func(string) string { return "" }
+		ext := &extensionpkg.Extension{
+			Info: extensionpkg.ExtensionInfo{Name: "kit", Version: "1.0.0"},
+			Manifest: &extensionpkg.Manifest{Name: "kit", Version: "1.0.0", Inputs: []extensionpkg.ManifestInput{
+				{
+					ID:       "workspace",
+					Prompt:   "Workspace",
+					Type:     "identifier",
+					Required: true,
+					Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+				},
+				{
+					ID:       "token",
+					Prompt:   "Token",
+					Type:     "secret",
+					Required: true,
+					Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+				},
+			}},
+		}
+		row := extensioninput.Record{
+			Type:      "identifier",
+			Value:     json.RawMessage(`"private-team"`),
+			Active:    true,
+			UpdatedAt: service.now(),
+		}
+		instance := extensioninput.Instance{Extension: "kit", ProfileID: store.DefaultProfileID}
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "workspace", After: &row}},
+		); err != nil {
+			t.Fatal(err)
+		}
+		ref := vault.ExtensionProfileSecretRef("kit", instance.ProfileID, "", "TOKEN")
+		if _, err := secretVault.PutSecret(
+			ctx,
+			ref,
+			extensionpkg.ExtensionEnvBindingKind,
+			"private-token",
+		); err != nil {
+			t.Fatal(err)
+		}
+		binding := extensionpkg.EnvBinding{
+			ExtensionName: "kit",
+			ProfileID:     instance.ProfileID,
+			EnvName:       "TOKEN",
+			InputID:       "token",
+			SecretRef:     ref,
+			Kind:          extensionpkg.ExtensionEnvBindingKind,
+		}
+		if err := bindings.PutEnvBinding(ctx, binding); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := service.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.MissingInputs) != 0 || len(payload.MissingEnv) != 0 || len(payload.Inputs) != 2 {
+			t.Fatalf("ready payload = %#v", payload)
+		}
+		for _, input := range payload.Inputs {
+			if !input.Set || !input.Active {
+				t.Fatalf("configured input = %#v", input)
+			}
+		}
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{"private-team", "private-token", ref} {
+			if bytes.Contains(encoded, []byte(forbidden)) {
+				t.Fatal("status leaked an input value or reference")
+			}
+		}
+		binding.Inactive = true
+		if err := bindings.PutEnvBinding(ctx, binding); err != nil {
+			t.Fatal(err)
+		}
+		inactive := row
+		inactive.Active = false
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "workspace", Before: &row, After: &inactive}},
+		); err != nil {
+			t.Fatal(err)
+		}
+		payload, err = service.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(payload.MissingInputs, []string{"workspace"}) ||
+			!slices.Equal(payload.MissingEnv, []string{"TOKEN"}) {
+			t.Fatalf("inactive readiness = %#v", payload)
+		}
+		for _, input := range payload.Inputs {
+			if input.Active {
+				t.Fatalf("inactive input = %#v", input)
+			}
+		}
+		retained, err := bindings.ListEnvBindings(ctx, "kit", instance.ProfileID, "")
+		if err != nil || len(retained) != 1 || retained[0].SecretRef != ref || !retained[0].Inactive {
+			t.Fatalf("inactive binding was lost: %#v error %v", retained, err)
+		}
+		binding.Inactive = false
+		if err := bindings.PutEnvBinding(ctx, binding); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "workspace", Before: &inactive, After: &row}},
+		); err != nil {
+			t.Fatal(err)
+		}
+		payload, err = service.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
+		if err != nil || len(payload.MissingInputs) != 0 || len(payload.MissingEnv) != 0 {
+			t.Fatalf("reactivated readiness = %#v error %v", payload, err)
+		}
+	})
+}
+
+// Invariant: input preparation is mutation-free; failed lifecycle completion restores every before-image;
+// dropped inputs remain stored and can be reactivated. Owner: daemon input transaction coordinator.
+// Canonical suite: extension secret mutation tests.
+func TestExtensionInputBinder(t *testing.T) {
+	t.Parallel()
+	// Invariant: changing an input's env binding preserves its value across reload and rollback.
+	// Owner: daemon input persistence; canonical suite: TestExtensionInputBinder.
+	t.Run("Should retain a secret when its input binding changes [UT-058]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		service, bindings := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+		service.getenv = func(string) string { return "" }
+		binder := extensionInputBinder{service: service}
+		key := extensionpkg.GlobalInstanceKey("kit")
+		profile := extensionDefaultProfileLens()
+		instance := extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID}
+		manifest := extensionInputBinderManifest()
+		if err := service.lifecycle.withInstance(ctx, key, func() error {
+			initial, err := binder.Prepare(ctx, key, profile, manifest, map[string]extensioninput.Value{
+				"workspace": {Value: json.RawMessage(`"original-team"`)},
+				"token":     {Value: json.RawMessage(`"original-secret"`)},
+			})
+			if err != nil {
+				return err
+			}
+			if _, err := binder.Commit(ctx, initial); err != nil {
+				return err
+			}
+			before, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+			if err != nil {
+				return err
+			}
+			manifest.Inputs[1].Binding.Name = "NEW_TOKEN"
+			server := manifest.Resources.MCPServers["server"]
+			server.SecretEnv = map[string]string{"NEW_TOKEN": "token"}
+			manifest.Resources.MCPServers["server"] = server
+			update, err := binder.Prepare(ctx, key, profile, manifest, nil)
+			if err != nil {
+				return err
+			}
+			if _, err := binder.Commit(ctx, update); err != nil {
+				return err
+			}
+			reloaded, err := service.inputReader().load(ctx, instance, manifest)
+			if err != nil {
+				return err
+			}
+			if readiness := extensionpkg.InputReadiness(
+				manifest,
+				reloaded,
+				service.getenv,
+			); len(
+				readiness.MissingEnv,
+			) != 0 {
+				t.Fatalf("renamed secret input is unavailable after reload: %#v", readiness)
+			}
+			resources, err := extensionpkg.ResolveManifestMCPServerResources(
+				t.TempDir(),
+				manifest,
+				reloaded,
+				service.getenv,
+			)
+			if err != nil {
+				return err
+			}
+			for _, resource := range resources {
+				if resource.Name == "server" {
+					value, err := service.secretVault.ResolveRef(ctx, resource.SecretEnv["NEW_TOKEN"])
+					if err != nil || value != "original-secret" {
+						t.Fatal("renamed input lost its secret")
+					}
+					if _, exists := resource.SecretEnv["TOKEN"]; exists {
+						t.Fatal("retired env binding is still published")
+					}
+				}
+			}
+			if err := binder.Rollback(ctx, update); err != nil {
+				return err
+			}
+			after, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+			if err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("binding rollback = %#v, want %#v", after, before)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run(
+		"Should restore values and secrets after commit and retain dropped inputs [UT-056 UT-058]",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			secretVault := newExtensionSecretVaultFake()
+			service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+			service.getenv = func(string) string { return "" }
+			binder := extensionInputBinder{service: service}
+			key := extensionpkg.GlobalInstanceKey("kit")
+			profile := extensionDefaultProfileLens()
+			instance := extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID}
+			manifest := extensionInputBinderManifest()
+			err := service.lifecycle.withInstance(ctx, key, func() error {
+				plan, err := binder.Prepare(ctx, key, profile, manifest, map[string]extensioninput.Value{
+					"workspace": {Value: json.RawMessage(`"original-team"`)},
+					"token":     {Value: json.RawMessage(`"original-secret"`)},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := service.inputs.List(ctx, instance)
+				if err != nil || len(rows) != 0 {
+					t.Fatalf("Prepare mutated rows: %v %v", rows, err)
+				}
+				bound, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+				if err != nil || len(bound) != 0 {
+					t.Fatalf("Prepare mutated bindings: %v %v", bound, err)
+				}
+				ref := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "TOKEN")
+				if metadata, err := secretVault.GetMetadata(ctx, ref); err == nil && metadata.Present {
+					t.Fatal("Prepare wrote secret material")
+				}
+				if _, err := binder.Commit(ctx, plan); err != nil {
+					t.Fatal(err)
+				}
+				original, err := service.inputs.List(ctx, instance)
+				if err != nil {
+					t.Fatal(err)
+				}
+				updateManifest := extensionInputBinderManifest()
+				updateManifest.Inputs = append(updateManifest.Inputs, extensionpkg.ManifestInput{
+					ID:      "optional",
+					Prompt:  "Optional",
+					Type:    "string",
+					Binding: marketplace.InputBinding{Type: "url_query", Name: "extra"},
+				})
+				remote := updateManifest.Resources.MCPServers["remote"]
+				remote.URL += "&extra="
+				updateManifest.Resources.MCPServers["remote"] = remote
+				update, err := binder.Prepare(ctx, key, profile, updateManifest, map[string]extensioninput.Value{
+					"workspace": {Value: json.RawMessage(`"updated-team"`)},
+					"token":     {Value: json.RawMessage(`"updated-secret"`)},
+					"optional":  {Value: json.RawMessage(`"new-value"`)},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := binder.Commit(ctx, update); err != nil {
+					t.Fatal(err)
+				}
+				if value, err := secretVault.ResolveRef(ctx, ref); err != nil || value != "updated-secret" {
+					t.Fatal("Commit did not update secret")
+				}
+				if err := binder.Rollback(ctx, update); err != nil {
+					t.Fatal(err)
+				}
+				restored, err := service.inputs.List(ctx, instance)
+				if err != nil || !reflect.DeepEqual(restored, original) {
+					t.Fatalf("rollback changed rows: %#v want %#v error %v", restored, original, err)
+				}
+				if value, err := secretVault.ResolveRef(ctx, ref); err != nil || value != "original-secret" {
+					t.Fatal("Rollback did not restore secret")
+				}
+				dropped, err := binder.Prepare(ctx, key, profile, &extensionpkg.Manifest{Name: "kit"}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := binder.Commit(ctx, dropped); err != nil {
+					t.Fatal(err)
+				}
+				retained, err := service.inputs.List(ctx, instance)
+				if err != nil || retained["workspace"].Active ||
+					string(retained["workspace"].Value) != `"original-team"` {
+					t.Fatalf("dropped value was lost: %#v error %v", retained, err)
+				}
+				bound, err = bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+				if err != nil || len(bound) != 1 || !bound[0].Inactive {
+					t.Fatalf("dropped binding = %#v error %v", bound, err)
+				}
+				reintroduced, err := binder.Prepare(ctx, key, profile, manifest, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				state, err := binder.Commit(ctx, reintroduced)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ready := extensionpkg.InputReadiness(manifest, state, service.getenv)
+				if len(ready.MissingEnv) != 0 || len(ready.MissingInputs) != 0 {
+					t.Fatalf("reactivated readiness = %#v", ready)
+				}
+				if err := binder.Rollback(ctx, reintroduced); err != nil {
+					t.Fatal(err)
+				}
+				retained, err = service.inputs.List(ctx, instance)
+				if err != nil || retained["workspace"].Active {
+					t.Fatalf("reactivation rollback = %#v error %v", retained, err)
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+	)
+	t.Run(
+		"Should reject unknown IDs invalid types oversized values and foreign vault refs without writes",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			service, bindings := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+			binder := extensionInputBinder{service: service}
+			ref := "vault:mcp/user/another-server/token"
+			cases := []map[string]extensioninput.Value{
+				{"unknown": {Value: json.RawMessage(`"private-value"`)}},
+				{"workspace": {Value: json.RawMessage(`false`)}},
+				{"token": {Value: json.RawMessage(`"` + strings.Repeat("x", 8193) + `"`)}},
+				{"token": {VaultRef: &ref}},
+				{"token": {Value: json.RawMessage(`"private-value"`), VaultRef: &ref}},
+			}
+			for _, values := range cases {
+				_, err := binder.Prepare(
+					ctx,
+					extensionpkg.GlobalInstanceKey("kit"),
+					extensionDefaultProfileLens(),
+					extensionInputBinderManifest(),
+					values,
+				)
+				if !errors.Is(err, extensionpkg.ErrExtensionInputInvalid) {
+					t.Fatalf("Prepare invalid input error = %v", err)
+				}
+				if strings.Contains(err.Error(), "private-value") || strings.Contains(err.Error(), ref) {
+					t.Fatal("input error leaked a value or ref")
+				}
+			}
+			rows, err := service.inputs.List(
+				ctx,
+				extensioninput.Instance{Extension: "kit", ProfileID: store.DefaultProfileID},
+			)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("invalid preparation wrote rows: %v %v", rows, err)
+			}
+			bound, err := bindings.ListEnvBindings(ctx, "kit", store.DefaultProfileID, "")
+			if err != nil || len(bound) != 0 {
+				t.Fatalf("invalid preparation wrote bindings: %v %v", bound, err)
+			}
+		},
+	)
+	// Invariant: the binder accepts an 8192-byte string and identifies the field at 8193 bytes.
+	// Owner: daemon input validation; canonical suite: TestExtensionInputBinder.
+	t.Run("Should enforce the exact string byte boundary [UT-005]", func(t *testing.T) {
+		t.Parallel()
+		for _, size := range []int{8192, 8193} {
+			service, _ := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+			manifest := extensionInputBinderManifest()
+			manifest.Inputs[0].Type = "string"
+			value, err := json.Marshal(strings.Repeat("x", size))
+			if err != nil {
+				t.Fatal(err)
+			}
+			binder := extensionInputBinder{service: service}
+			_, err = binder.Prepare(t.Context(), extensionpkg.GlobalInstanceKey("kit"),
+				extensionDefaultProfileLens(), manifest, map[string]extensioninput.Value{
+					"workspace": {Value: value}, "token": {Value: json.RawMessage(`"secret"`)},
+				})
+			if size == 8192 {
+				if err != nil {
+					t.Fatalf("8192-byte input refused: %v", err)
+				}
+			} else if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); !ok || invalid.InputID != "workspace" {
+				t.Fatalf("8193-byte error = %v", err)
+			}
+		}
+	})
+}
+
+func extensionInputBinderManifest() *extensionpkg.Manifest {
+	return &extensionpkg.Manifest{Name: "kit", Inputs: []extensionpkg.ManifestInput{
+		{
+			ID:       "workspace",
+			Prompt:   "Workspace",
+			Type:     "identifier",
+			Required: true,
+			Binding:  marketplace.InputBinding{Type: "url_query", Name: "ws"},
+		},
+		{
+			ID:       "token",
+			Prompt:   "Token",
+			Type:     "secret",
+			Required: true,
+			Binding:  marketplace.InputBinding{Type: "env", Name: "TOKEN"},
+		},
+	}, Resources: extensionpkg.ResourcesConfig{MCPServers: map[string]extensionpkg.MCPServerConfig{
+		"server": {Command: "server", SecretEnv: map[string]string{"TOKEN": "token"}},
+		"remote": {Transport: "http", URL: "https://example.com/mcp?ws="},
+	}}}
+}
+
+// Invariant: vault_ref aliases existing authorized material, and a row-store failure rolls secret writes back.
+// Owner: daemon input commit coordination. Canonical suite: extension secret mutation tests.
+func TestExtensionInputBinderVaultReferencesAndFailure(t *testing.T) {
+	t.Parallel()
+	// Invariant: input references stay within the exact extension instance.
+	// Owner: daemon input binder validation; canonical suite: extension_secrets_test.go.
+	t.Run("Should reject manual MCP references across every workspace-profile namespace", func(t *testing.T) {
+		t.Parallel()
+		profile := extensionpkg.ProfileLens{ID: "profile-marketing", Name: "marketing"}
+		plan := &extensionInputPlan{
+			key:      extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "workspace-a"},
+			instance: extensioninput.Instance{ProfileID: profile.ID},
+		}
+		for _, tc := range []struct {
+			scope, scopeID string
+			allowed        bool
+		}{
+			{vault.MCPWorkspaceProfileScope, "workspace-a@pf:marketing", false},
+			{vault.MCPWorkspaceProfileScope, "workspace-a@pf:engineering", false},
+			{vault.MCPWorkspaceProfileScope, "workspace-b@pf:marketing", false},
+			{vault.MCPWorkspaceScope, "workspace-a", false},
+		} {
+			prefix, err := vault.MCPSecretOwnerPrefix(
+				vault.MCPSecretTarget{Scope: tc.scope, WorkspaceID: tc.scopeID, ServerName: "server"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = validateExtensionInputSecretRef(plan, prefix+"TOKEN")
+			if (err == nil) != tc.allowed {
+				t.Fatalf("scope %s cell %s allowed=%t: %v", tc.scope, tc.scopeID, tc.allowed, err)
+			}
+		}
+	})
+	for _, kind := range []string{"owned extension", "owned MCP", "shared MCP"} {
+		t.Run("Should validate a "+kind+" input reference without changing existing material", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			secretVault := newExtensionSecretVaultFake()
+			service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+			profile := extensionDefaultProfileLens()
+			key := extensionpkg.GlobalInstanceKey("kit")
+			ref := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "IMPORTED")
+			switch kind {
+			case "owned MCP":
+				ref = "vault:mcp/user/server/TOKEN"
+			case "shared MCP":
+				ref = "vault:mcp/shared/automation/TOKEN"
+			}
+			if _, err := secretVault.PutSecret(ctx, ref, "original-kind", "existing-material"); err != nil {
+				t.Fatal(err)
+			}
+			binder := extensionInputBinder{service: service}
+			err := service.lifecycle.withInstance(ctx, key, func() error {
+				plan, err := binder.Prepare(
+					ctx,
+					key,
+					profile,
+					extensionInputBinderManifest(),
+					map[string]extensioninput.Value{
+						"workspace": {Value: json.RawMessage(`"team"`)}, "token": {VaultRef: &ref},
+					},
+				)
+				if kind != "owned extension" {
+					if err == nil {
+						t.Fatal("manual MCP reference was accepted as an extension input")
+					}
+					bound, readErr := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+					if readErr != nil || len(bound) != 0 {
+						t.Fatalf("rejected input changed bindings: %#v %v", bound, readErr)
+					}
+					if value, readErr := secretVault.ResolveRef(
+						ctx,
+						ref,
+					); readErr != nil ||
+						value != "existing-material" {
+						t.Fatal("rejected input changed manual secret")
+					}
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				if _, err := binder.Commit(ctx, plan); err != nil {
+					return err
+				}
+				bound, err := bindings.ListEnvBindings(ctx, key.Name, profile.ID, "")
+				if err != nil || len(bound) != 1 || bound[0].SecretRef != ref {
+					t.Fatalf("vault ref was copied or lost: %#v %v", bound, err)
+				}
+				if metadata, err := secretVault.GetMetadata(ctx, ref); err != nil || metadata.Kind != "original-kind" {
+					t.Fatal("existing secret metadata was changed")
+				}
+				ownedRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "TOKEN")
+				if metadata, err := secretVault.GetMetadata(ctx, ownedRef); err == nil && metadata.Present {
+					t.Fatal("vault_ref created a copied secret")
+				}
+				if err := binder.Rollback(ctx, plan); err != nil {
+					return err
+				}
+				if value, err := secretVault.ResolveRef(ctx, ref); err != nil || value != "existing-material" {
+					t.Fatal("rollback removed borrowed secret material")
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	t.Run("Should restore secret mutations when the non-secret transaction fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		secretVault := newExtensionSecretVaultFake()
+		service, _ := newExtensionSecretsTestService(t, nil, secretVault)
+		binder := extensionInputBinder{service: service}
+		key, profile := extensionpkg.GlobalInstanceKey("kit"), extensionDefaultProfileLens()
+		err := service.lifecycle.withInstance(ctx, key, func() error {
+			manifest := extensionInputBinderManifest()
+			initial, err := binder.Prepare(ctx, key, profile, manifest, map[string]extensioninput.Value{
+				"workspace": {
+					Value: json.RawMessage(`"original"`),
+				},
+				"token": {Value: json.RawMessage(`"original-secret"`)},
+			})
+			if err != nil {
+				return err
+			}
+			if _, err := binder.Commit(ctx, initial); err != nil {
+				return err
+			}
+			update, err := binder.Prepare(ctx, key, profile, manifest, map[string]extensioninput.Value{
+				"workspace": {
+					Value: json.RawMessage(`"updated"`),
+				},
+				"token": {Value: json.RawMessage(`"updated-secret"`)},
+			})
+			if err != nil {
+				return err
+			}
+			injected := errors.New("injected input transaction failure")
+			service.inputs = extensionInputApplyFailure{Store: service.inputs, err: injected}
+			if _, err := binder.Commit(ctx, update); !errors.Is(err, injected) {
+				t.Fatalf("Commit error = %v", err)
+			}
+			ref := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "TOKEN")
+			if value, err := secretVault.ResolveRef(ctx, ref); err != nil || value != "original-secret" {
+				t.Fatal("failed input transaction left the new secret behind")
+			}
+			rows, err := service.inputs.List(ctx, extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID})
+			if err != nil || string(rows["workspace"].Value) != `"original"` {
+				t.Fatalf("failed transaction changed values: %#v %v", rows, err)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+type extensionInputApplyFailure struct {
+	extensioninput.Store
+	err error
+}
+
+func (s extensionInputApplyFailure) Apply(context.Context, extensioninput.Instance, []extensioninput.Mutation) error {
+	return s.err
 }

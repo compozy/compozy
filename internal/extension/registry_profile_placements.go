@@ -47,15 +47,15 @@ func (r *Registry) PlacementsForProfile(
 			placements = append(placements, ref)
 		}
 	}
-	for _, info := range installed {
+	for infoIndex := range installed {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		manifest, err := loadManifestAtPath(info.ManifestPath)
+		manifest, err := loadManifestAtPath(installed[infoIndex].ManifestPath)
 		if err != nil {
-			return nil, fmt.Errorf("extension: load placements for %q: %w", info.Name, err)
+			return nil, fmt.Errorf("extension: load placements for %q: %w", installed[infoIndex].Name, err)
 		}
-		appendManifest(info.Name, manifest)
+		appendManifest(installed[infoIndex].Name, manifest)
 	}
 	for _, link := range devLinks {
 		if err := ctx.Err(); err != nil {

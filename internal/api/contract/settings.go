@@ -53,6 +53,7 @@ const (
 	SettingsSectionShell           SettingsSectionName = "shell"
 	SettingsSectionObservability   SettingsSectionName = "observability"
 	SettingsSectionHooksExtensions SettingsSectionName = "hooks-extensions"
+	SettingsSectionMarketplace     SettingsSectionName = "marketplace"
 )
 
 type SettingsCollectionName string
@@ -80,6 +81,7 @@ const (
 	SettingsApplyTargetShell           SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionShell)
 	SettingsApplyTargetObservability   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionObservability)
 	SettingsApplyTargetHooksExtensions SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionHooksExtensions)
+	SettingsApplyTargetMarketplace     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMarketplace)
 	SettingsApplyTargetProviders       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionProviders)
 	SettingsApplyTargetMCPServers      SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionMCPServers)
 	SettingsApplyTargetSandboxes       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionSandboxes)
@@ -154,6 +156,7 @@ const (
 type SettingsSourceKind string
 
 const (
+	SettingsSourceExtension                  SettingsSourceKind = "extension"
 	SettingsSourceBuiltinProvider            SettingsSourceKind = "builtin-provider"
 	SettingsSourceGlobalConfig               SettingsSourceKind = "global-config"
 	SettingsSourceProfileConfig              SettingsSourceKind = "profile-config"

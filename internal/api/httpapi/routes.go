@@ -245,12 +245,8 @@ func registerSchedulerRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
-	privileged := handlers.privilegedMutationGuard()
 	skillsGroup := api.Group("/skills")
 	skillsGroup.GET("", handlers.ListSkills)
-	skillsGroup.POST("/marketplace/install", privileged, handlers.InstallSkillMarketplace)
-	skillsGroup.POST("/marketplace/update", privileged, handlers.UpdateSkillMarketplace)
-	skillsGroup.DELETE("/marketplace/:name", privileged, handlers.RemoveSkillMarketplace)
 	skillsGroup.GET("/:name", handlers.GetSkill)
 	skillsGroup.GET("/:name/content", handlers.GetSkillContent)
 	skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)
@@ -262,10 +258,14 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace := api.Group("/marketplace")
-	marketplace.GET("/search", handlers.SearchMarketplace)
-	marketplace.GET("/:kind", handlers.BrowseMarketplaceKind)
-	marketplace.GET("/:kind/:entry_id", handlers.GetMarketplaceEntry)
+	marketplace.GET("", handlers.ListMarketplace)
+	marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 	marketplace.POST("/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceCatalog)
+	marketplace.GET("/sources", handlers.ListMarketplaceSources)
+	marketplace.POST("/sources", handlers.privilegedMutationGuard(), handlers.AddMarketplaceSource)
+	marketplace.PATCH("/sources/:name", handlers.privilegedMutationGuard(), handlers.UpdateMarketplaceSource)
+	marketplace.DELETE("/sources/:name", handlers.privilegedMutationGuard(), handlers.RemoveMarketplaceSource)
+	marketplace.POST("/sources/:name/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceSource)
 }
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
@@ -416,6 +416,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	observability.GET("/log-tail", privileged, handlers.StreamSettingsObservabilityLogTail)
 
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
+	settings.GET("/marketplace", handlers.GetSettingsMarketplace)
+	settings.PATCH("/marketplace", privileged, handlers.UpdateSettingsMarketplace)
 	settings.PATCH("/hooks-extensions", privileged, handlers.UpdateSettingsHooksExtensions)
 
 	settings.GET("/providers", handlers.ListSettingsProviders)
@@ -424,7 +426,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
-	settings.POST("/mcp-servers/install", privileged, handlers.InstallSettingsMCPServer)
+	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
 	settings.POST("/mcp-servers/:name/auth/begin", privileged, handlers.BeginSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/exchange", privileged, handlers.ExchangeSettingsMCPAuth)

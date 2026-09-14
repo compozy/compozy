@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -81,12 +82,13 @@ func installPreparedExtension(
 }
 
 func localExtensionRecord(
-	info extensionpkg.ExtensionInfo,
+	ctx context.Context,
+	info *extensionpkg.ExtensionInfo,
 	now func() time.Time,
 	getenv func(string) string,
-) ExtensionRecord {
+) (ExtensionRecord, error) {
 	ext := &extensionpkg.Extension{
-		Info: info,
+		Info: *info,
 		Status: extensionpkg.ExtensionStatus{
 			Name:    info.Name,
 			Version: info.Version,
@@ -99,5 +101,11 @@ func localExtensionRecord(
 		ext.Status.MissingEnv = manifest.MissingEnv(getenv)
 		ext.Status.MissingEnvChecked = len(manifest.RequiresEnv) > 0
 	}
-	return extensionpkg.DescribeExtension(ext, false, now())
+	payload := extensionpkg.DescribeExtension(ext, false, now())
+	contents, err := extensionpkg.InspectPackageContents(ctx, ext, payload.Profile)
+	if err != nil {
+		return ExtensionRecord{}, err
+	}
+	payload.Contents = contents
+	return payload, nil
 }

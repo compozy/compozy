@@ -15,7 +15,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -1142,7 +1141,7 @@ func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(nil)),
 	)
 
 	session := createSession(t, h)

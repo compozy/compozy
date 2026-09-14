@@ -54,72 +54,70 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
-	Logger                     *slog.Logger
-	Registry                   func() toolspkg.Registry
-	CmdPalette                 func() cmdpalette.Registry
-	ToolArtifacts              toolspkg.ToolArtifactStore
-	Config                     compozyconfig.Config
-	Skills                     daemonNativeSkillsRegistry
-	SkillExposures             store.SkillExposureRepository
-	SkillExposureEvents        store.EventSummaryStore
-	Sessions                   core.SessionManager
-	Profiles                   nativeProfileReader
-	ProfileManager             *profilepkg.Manager
-	SessionAttachments         attachmentspkg.Store
-	Workspaces                 core.WorkspaceService
-	Worktrees                  core.WorktreeService
-	WorkspaceResolver          workspacepkg.RuntimeResolver
-	ModelCatalog               core.ModelCatalogService
-	MarketplaceCatalog         core.MarketplaceCatalogService
-	MarketplaceSkills          core.SkillMarketplaceService
-	MarketplaceInstalledSkills core.InstalledSkillMarketplaceService
-	Settings                   func() core.SettingsService
-	Network                    core.NetworkService
-	NetworkStore               core.NetworkStore
-	NetworkUsage               store.NetworkUsageStore
-	Tasks                      taskpkg.Manager
-	TaskClaimHandoff           taskClaimHandoffCoordinator
-	MemoryStore                *memorypkg.Store
-	MemoryToolWrites           memoryToolWriteRecorder
-	DreamTrigger               core.DreamTrigger
-	Roles                      core.RolesStatusProvider
-	MemoryExtractor            core.MemoryExtractorService
-	MemoryProviders            core.MemoryProviderService
-	MemorySessionLedger        core.MemorySessionLedgerService
-	Bridges                    core.BridgeService
-	Gateway                    func() core.GatewayService
-	GatewayPermissionMode      func(context.Context, string) (string, error)
-	HomePaths                  compozyconfig.HomePaths
-	Observer                   core.Observer
-	HookBindings               hookBindingPublisher
-	AgentCatalog               core.AgentCatalog
-	Vault                      core.VaultService
-	AgentResolver              sessionpkg.AgentResolver
-	HeartbeatStatus            core.HeartbeatStatusService
-	HeartbeatWake              core.HeartbeatWakeService
-	SessionHealth              core.SessionHealthReader
-	WakeEvents                 core.HeartbeatWakeEventReader
-	Automation                 core.AutomationManager
-	AutomationRuntime          func() core.AutomationManager
-	ExtensionRegistry          *extensionpkg.Registry
-	Extensions                 func() core.ExtensionService
-	ExtensionRuntime           func() extensionRuntime
-	ExtensionConfig            compozyconfig.ExtensionsConfig
-	ExtensionSources           extensionMarketplaceSourceLoader
-	ExtensionEvents            extensionLifecycleEventWriter
-	ExtensionSecrets           extensionPublishSecretResolver
-	AgentSkills                agentSkillPublisher
-	AgentSkillsRuntime         func() agentSkillPublisher
-	ToolMCP                    toolMCPPublisher
-	MCPAuth                    func() toolspkg.MCPAuthStatusProvider
-	ApprovalGrants             toolspkg.ApprovalGrantStore
-	Clarify                    func() toolspkg.ClarifyBroker
-	LoopResources              loopResourcePublisher
-	Loops                      func() core.LoopService
-	Resources                  core.ResourceService
-	WindowManagers             windowManagerProvider
-	Terminals                  func() terminalpkg.Manager
-	TerminalExecApprover       terminalExecApprover
+	Logger                *slog.Logger
+	Registry              func() toolspkg.Registry
+	CmdPalette            func() cmdpalette.Registry
+	ToolArtifacts         toolspkg.ToolArtifactStore
+	Config                compozyconfig.Config
+	Skills                daemonNativeSkillsRegistry
+	SkillExposures        store.SkillExposureRepository
+	SkillExposureEvents   store.EventSummaryStore
+	Sessions              core.SessionManager
+	Profiles              nativeProfileReader
+	ProfileManager        *profilepkg.Manager
+	SessionAttachments    attachmentspkg.Store
+	Workspaces            core.WorkspaceService
+	Worktrees             core.WorktreeService
+	WorkspaceResolver     workspacepkg.RuntimeResolver
+	ModelCatalog          core.ModelCatalogService
+	MarketplaceCatalog    core.MarketplaceCatalogService
+	Settings              func() core.SettingsService
+	Network               core.NetworkService
+	NetworkStore          core.NetworkStore
+	NetworkUsage          store.NetworkUsageStore
+	Tasks                 taskpkg.Manager
+	TaskClaimHandoff      taskClaimHandoffCoordinator
+	MemoryStore           *memorypkg.Store
+	MemoryToolWrites      memoryToolWriteRecorder
+	DreamTrigger          core.DreamTrigger
+	Roles                 core.RolesStatusProvider
+	MemoryExtractor       core.MemoryExtractorService
+	MemoryProviders       core.MemoryProviderService
+	MemorySessionLedger   core.MemorySessionLedgerService
+	Bridges               core.BridgeService
+	Gateway               func() core.GatewayService
+	GatewayPermissionMode func(context.Context, string) (string, error)
+	HomePaths             compozyconfig.HomePaths
+	Observer              core.Observer
+	HookBindings          hookBindingPublisher
+	AgentCatalog          core.AgentCatalog
+	Vault                 core.VaultService
+	AgentResolver         sessionpkg.AgentResolver
+	HeartbeatStatus       core.HeartbeatStatusService
+	HeartbeatWake         core.HeartbeatWakeService
+	SessionHealth         core.SessionHealthReader
+	WakeEvents            core.HeartbeatWakeEventReader
+	Automation            core.AutomationManager
+	AutomationRuntime     func() core.AutomationManager
+	ExtensionRegistry     *extensionpkg.Registry
+	Extensions            func() core.ExtensionService
+	ExtensionRuntime      func() extensionRuntime
+	ExtensionConfig       compozyconfig.ExtensionsConfig
+	ExtensionSources      extensionMarketplaceSourceLoader
+	ExtensionEvents       extensionLifecycleEventWriter
+	ExtensionSecrets      extensionPublishSecretResolver
+	AgentSkills           agentSkillPublisher
+	AgentSkillsRuntime    func() agentSkillPublisher
+	ToolMCP               toolMCPPublisher
+	MCPAuth               func() toolspkg.MCPAuthStatusProvider
+	ApprovalGrants        toolspkg.ApprovalGrantStore
+	Clarify               func() toolspkg.ClarifyBroker
+	LoopResources         loopResourcePublisher
+	Loops                 func() core.LoopService
+	Resources             core.ResourceService
+	WindowManagers        windowManagerProvider
+	Terminals             func() terminalpkg.Manager
+	TerminalExecApprover  terminalExecApprover
 }
 
 func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {

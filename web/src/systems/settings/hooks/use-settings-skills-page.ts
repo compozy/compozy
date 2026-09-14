@@ -33,17 +33,9 @@ function sameDisabled(a: string[] | undefined, b: string[] | undefined): boolean
 function samePolicy(a: SkillsConfig, b: SkillsConfig): boolean {
   if (a.enabled !== b.enabled) return false;
   if (a.poll_interval !== b.poll_interval) return false;
-  if (a.marketplace.registry !== b.marketplace.registry) return false;
-  if ((a.marketplace.base_url ?? "") !== (b.marketplace.base_url ?? "")) return false;
-  if (
-    JSON.stringify(a.allowed_marketplace_hooks ?? []) !==
-    JSON.stringify(b.allowed_marketplace_hooks ?? [])
-  ) {
-    return false;
-  }
   return (
-    JSON.stringify(a.allowed_marketplace_mcp ?? []) ===
-    JSON.stringify(b.allowed_marketplace_mcp ?? [])
+    JSON.stringify(a.allowed_marketplace_hooks ?? []) ===
+    JSON.stringify(b.allowed_marketplace_hooks ?? [])
   );
 }
 

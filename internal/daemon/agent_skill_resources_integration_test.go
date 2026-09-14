@@ -114,6 +114,42 @@ Use the global agents convention.
 `)
 			}
 		}
+		marketplaceDir := filepath.Join(homePaths.SkillsDir, "retired-marketplace")
+		writeAgentSkillIntegrationFile(t, filepath.Join(marketplaceDir, "SKILL.md"), `---
+name: retired-marketplace
+description: Installed marketplace skill
+---
+
+Keep this installed skill body.
+`)
+		writeAgentSkillIntegrationFile(t, filepath.Join(marketplaceDir, compozyconfig.MCPJSONName), `{
+  "mcpServers": {"retired-marketplace-mcp": {"command": "retired-command"}}
+}`)
+		marketplaceHash, err := skillspkg.ComputeDirectoryHash(marketplaceDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provenance := skillspkg.Provenance{
+			Hash: marketplaceHash, Registry: "clawhub", Slug: "@author/retired-marketplace",
+			Version: "1.0.0", InstalledAt: time.Date(2026, 5, 18, 0, 0, 0, 0, time.UTC),
+		}
+		if err := skillspkg.WriteSidecar(marketplaceDir, provenance); err != nil {
+			t.Fatal(err)
+		}
+		for _, seed := range []struct {
+			name  string
+			actor resources.MutationActor
+		}{
+			{name: "retired-marketplace-mcp", actor: agentSkillSyncActor()},
+			{name: "manual-mcp", actor: toolMCPSyncActor()},
+		} {
+			if _, err := mcpStore.Put(t.Context(), seed.actor, resources.Draft[compozyconfig.MCPServer]{
+				ID: seed.name, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: compozyconfig.MCPServer{Name: seed.name, Command: "preserved-command"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
 		workspaceRoot := agentSkillIntegrationWorkspace(t)
 		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 		workspace := workspacepkg.Workspace{
@@ -224,7 +260,7 @@ Use the global agents convention.
 		if err != nil {
 			t.Fatalf("skillStore.List() error = %v", err)
 		}
-		if got, want := len(skills), 4; got != want {
+		if got, want := len(skills), 5; got != want {
 			t.Fatalf("len(skillStore.List()) = %d, want %d (%#v)", got, want, skills)
 		}
 		servers, err := mcpStore.List(
@@ -329,6 +365,26 @@ Use the global agents convention.
 		projectedSkills, err := rebuiltSkillRegistry.ForWorkspace(testutil.Context(t), &resolved)
 		if err != nil {
 			t.Fatalf("rebuiltSkillRegistry.ForWorkspace() error = %v", err)
+		}
+		marketplaceSkill := findIntegrationSkill(projectedSkills, "retired-marketplace")
+		if marketplaceSkill == nil || marketplaceSkill.Source != skillspkg.SourceMarketplace ||
+			marketplaceSkill.Provenance == nil || *marketplaceSkill.Provenance != provenance {
+			t.Fatalf("installed marketplace skill provenance = %#v", marketplaceSkill)
+		}
+		body, err := rebuiltSkillRegistry.LoadContent(t.Context(), marketplaceSkill)
+		if err != nil || !strings.Contains(body, "Keep this installed skill body.") {
+			t.Fatalf("marketplace skill body = %q, %v", body, err)
+		}
+		if mcpCatalogHas(rebuiltMCPCatalog, "retired-marketplace-mcp") ||
+			!mcpCatalogHas(rebuiltMCPCatalog, "manual-mcp") {
+			t.Fatalf(
+				"rebuilt MCP catalog = %#v, want retired MCP absent and manual MCP preserved",
+				rebuiltMCPCatalog.Snapshot(),
+			)
+		}
+		after, err := skillspkg.ReadSidecar(marketplaceDir)
+		if err != nil || after == nil || *after != provenance {
+			t.Fatalf("persisted provenance = %#v, %v", after, err)
 		}
 		review := findIntegrationSkill(projectedSkills, "workspace-review")
 		if review == nil {
@@ -472,6 +528,7 @@ Use the global agents convention.
 				func() extensionRuntime { return manager },
 				nil,
 				defaultToolMCPProfileCatalog{},
+				extensionInputReader{},
 			),
 		)
 		if err := agentSkillSyncer.Sync(ctx); err != nil {

@@ -4,11 +4,6 @@ import type {
   ProvenancePayload,
   SkillActionResponse,
   SkillContentResponse,
-  SkillMarketplaceInstallPayload,
-  SkillMarketplaceInstallRequest,
-  SkillMarketplaceRemovePayload,
-  SkillMarketplaceUpdatePayload,
-  SkillMarketplaceUpdateRequest,
   SkillPayload,
   SkillResponse,
   SkillsResponse,
@@ -49,43 +44,5 @@ describe("skill contract types", () => {
     expectTypeOf<SkillResponse>().toMatchTypeOf<{ skill: SkillPayload }>();
     expectTypeOf<SkillContentResponse>().toMatchTypeOf<{ content: string }>();
     expectTypeOf<SkillActionResponse>().toEqualTypeOf<{ ok: boolean }>();
-  });
-
-  it("keeps marketplace payloads aligned with the generated OpenAPI contract", () => {
-    expectTypeOf<SkillMarketplaceInstallPayload>().toMatchTypeOf<{
-      name: string;
-      slug: string;
-      status: string;
-      hash: string;
-      path: string;
-      registry: string;
-      cleanup_diagnostics?: { operation: string }[];
-    }>();
-
-    expectTypeOf<SkillMarketplaceUpdatePayload>().toMatchTypeOf<{
-      name: string;
-      slug: string;
-      status: string;
-      path: string;
-      cleanup_diagnostics?: { operation: string }[];
-    }>();
-
-    expectTypeOf<SkillMarketplaceRemovePayload>().toMatchTypeOf<{
-      name: string;
-      slug: string;
-      status: string;
-      path: string;
-    }>();
-
-    expectTypeOf<SkillMarketplaceInstallRequest>().toMatchTypeOf<{
-      slug: string;
-      version?: string;
-    }>();
-
-    expectTypeOf<SkillMarketplaceUpdateRequest>().toMatchTypeOf<{
-      name?: string;
-      all?: boolean;
-      check_only?: boolean;
-    }>();
   });
 });

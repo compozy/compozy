@@ -19,7 +19,11 @@ import {
   settingsHooksExtensionsSectionFixture,
   mcpAuthBeginFixture,
   mcpAuthStatusAuthenticatedFixture,
+  mcpExtensionServerFixtures,
+  mcpManagementServerFixtures,
+  settingsMCPServerFixtures,
   settingsMCPServersCollectionFixture,
+  settingsMarketplaceSectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
   settingsNotificationPresetCollectionFixture,
@@ -90,12 +94,17 @@ function applyRecordsForUrl(request: Request) {
 
 function mcpAuthTarget(request: Request, serverName: string) {
   const url = new URL(request.url);
-  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "user";
+  const requestedScope = url.searchParams.get("scope");
+  const scope =
+    requestedScope === "workspace" || requestedScope === "profile" ? requestedScope : "user";
   const workspaceId = url.searchParams.get("workspace_id")?.trim();
+  const profile = url.searchParams.get("profile")?.trim();
   return {
     server_name: serverName,
+    owner: url.searchParams.get("owner")?.trim() || "manual",
     scope,
-    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+    ...(scope !== "user" && workspaceId ? { workspace_id: workspaceId } : {}),
+    ...(scope === "profile" && profile ? { profile } : {}),
   };
 }
 
@@ -209,6 +218,13 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
+  ),
+
+  compozyApiMock.get("/api/settings/marketplace", () =>
+    HttpResponse.json(settingsMarketplaceSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/marketplace", () =>
+    HttpResponse.json(mutationResult("marketplace"))
   ),
 
   compozyApiMock.get("/api/settings/attention", () =>
@@ -422,6 +438,24 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json(settingsMCPServersCollectionFixture);
+  }),
+  // Public management resolves a logical name and explicit owner; omitted owner is manual.
+  compozyApiMock.get("/api/settings/mcp-servers/{name}", ({ request, params }) => {
+    const url = new URL(request.url);
+    const name = String(params.name);
+    const owner = url.searchParams.get("owner")?.trim();
+    const known = [
+      ...mcpExtensionServerFixtures,
+      ...settingsMCPServerFixtures,
+      ...mcpManagementServerFixtures,
+    ];
+    const server = known.find(
+      entry => entry.name === name && (entry.owner ?? "manual") === (owner || "manual")
+    );
+    if (!server) {
+      return HttpResponse.json({ error: `MCP server ${name} not found` }, { status: 404 });
+    }
+    return HttpResponse.json({ server });
   }),
   compozyApiMock.put("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))

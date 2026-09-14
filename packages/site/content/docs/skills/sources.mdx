@@ -402,8 +402,8 @@ See [Skills your provider already reads](/docs/skills#skills-your-provider-alrea
 
 ## What this does not do
 
-- No downloading during discovery. Source configuration reads local folders; remote installation
-  belongs to the [Marketplace](/docs/skills/marketplace).
+- No downloading during discovery. Source configuration reads local folders; new packaged resources
+  are acquired through [extension installation](/docs/extensions/install).
 - No syncing. There is no background copy between folders in either direction.
 - No copies during exposure. Expose writes a link; if the filesystem cannot create one, the operation fails
   with `expose_link_unsupported` rather than duplicating content.

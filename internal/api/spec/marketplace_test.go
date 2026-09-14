@@ -9,6 +9,39 @@ import (
 
 func TestMarketplaceOperations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish experimental source operations with complete diagnostic arrays", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, request := range []struct{ path, method string }{
+			{"/api/marketplace/sources", "GET"}, {"/api/marketplace/sources", "POST"},
+			{"/api/marketplace/sources/{name}", "PATCH"}, {"/api/marketplace/sources/{name}", "DELETE"},
+			{"/api/marketplace/sources/{name}/refresh", "POST"},
+		} {
+			operation := operationFor(t, doc, request.path, request.method)
+			if operation.Extensions["x-stability"] != "experimental" {
+				t.Fatalf("missing stability on %s %s", request.method, request.path)
+			}
+		}
+		schema := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/sources", "GET"), 200)
+		assertRequired(t, schema, "sources")
+		source := schema.Properties["sources"].Value.Items.Value
+		assertRequired(
+			t,
+			source,
+			"name",
+			"kind",
+			"source",
+			"enabled",
+			"state",
+			"plugins",
+			"installable",
+			"stability",
+			"diagnostics",
+		)
+	})
 
 	operations := make(map[string]OperationSpec)
 	for _, operation := range Operations() {
@@ -19,10 +52,9 @@ func TestMarketplaceOperations(t *testing.T) {
 		t.Parallel()
 
 		expected := map[string]string{
-			"GET /api/marketplace/search":            "searchMarketplace",
-			"GET /api/marketplace/{kind}":            "browseMarketplaceKind",
-			"GET /api/marketplace/{kind}/{entry_id}": "getMarketplaceEntry",
-			"POST /api/marketplace/refresh":          "refreshMarketplaceCatalog",
+			"GET /api/marketplace":                    "listMarketplace",
+			"GET /api/marketplace/entries/{entry_id}": "getMarketplaceCatalogEntry",
+			"POST /api/marketplace/refresh":           "refreshMarketplaceCatalog",
 		}
 		for key, operationID := range expected {
 			operation, ok := operations[key]
@@ -48,6 +80,9 @@ func TestMarketplaceOperations(t *testing.T) {
 		t.Parallel()
 
 		for _, key := range []string{
+			"GET /api/marketplace/search",
+			"GET /api/marketplace/{kind}",
+			"GET /api/marketplace/{kind}/{entry_id}",
 			"GET /api/skills/marketplace/search",
 			"GET /api/skills/marketplace/info",
 			"GET /api/extensions/marketplace",
@@ -67,25 +102,17 @@ func TestMarketplaceOperations(t *testing.T) {
 			t.Fatalf("Document() error = %v", err)
 		}
 
-		search := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/search", "GET"), 200)
-		searchKinds := propertySchema(t, search, "kinds")
-		if searchKinds.Items == nil || searchKinds.Items.Value == nil {
-			t.Fatal("search kinds items schema = nil")
-		}
-		assertRequired(t, searchKinds.Items.Value, "kind", "stale", "items")
-		assertNotRequired(t, searchKinds.Items.Value, "total", "next_cursor", "error_class", "error")
-
-		browse := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/{kind}", "GET"), 200)
-		assertRequired(t, browse, "kind", "stale", "items")
-		assertNotRequired(t, browse, "total", "next_cursor", "error_class", "error")
+		browse := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace", "GET"), 200)
+		assertRequired(t, browse, "total", "revision", "sources", "stale", "items")
+		assertNotRequired(t, browse, "next_cursor", "error_class", "error")
 
 		refresh := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/refresh", "POST"), 200)
-		refreshKinds := propertySchema(t, refresh, "kinds")
-		if refreshKinds.Items == nil || refreshKinds.Items.Value == nil {
-			t.Fatal("refresh kinds items schema = nil")
+		refreshSources := propertySchema(t, refresh, "sources")
+		if refreshSources.Items == nil || refreshSources.Items.Value == nil {
+			t.Fatal("refresh sources items schema = nil")
 		}
-		assertRequired(t, refreshKinds.Items.Value, "kind", "outcome", "entry_count", "stale")
-		assertNotRequired(t, refreshKinds.Items.Value, "error_class")
+		assertRequired(t, refreshSources.Items.Value, "source", "outcome", "entry_count", "stale")
+		assertNotRequired(t, refreshSources.Items.Value, "error_class")
 	})
 
 	t.Run("Should own marketplace parameters and response statuses", func(t *testing.T) {
@@ -109,28 +136,12 @@ func TestMarketplaceOperations(t *testing.T) {
 			parameters []parameterExpectation
 			statuses   []int
 		}{
+
 			{
-				name:   "Should describe marketplace search",
-				path:   "/api/marketplace/search",
+				name:   "Should describe marketplace catalog browse",
+				path:   "/api/marketplace",
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
-					{name: "q", in: openapi3.ParameterInQuery},
-					{name: "limit", in: openapi3.ParameterInQuery},
-					{name: "scope", in: openapi3.ParameterInQuery, enum: []string{"global", "profile", "workspace"}},
-					{name: "profile", in: openapi3.ParameterInQuery},
-					{name: "workspace_id", in: openapi3.ParameterInQuery},
-				},
-				statuses: []int{200, 400, 500, 503},
-			},
-			{
-				name:   "Should describe marketplace kind browse",
-				path:   "/api/marketplace/{kind}",
-				method: httpMethodGet,
-				parameters: []parameterExpectation{
-					{
-						name: "kind", in: openapi3.ParameterInPath, required: true,
-						enum: []string{"mcp", "extension", "skill"},
-					},
 					{name: "q", in: openapi3.ParameterInQuery},
 					{name: "limit", in: openapi3.ParameterInQuery},
 					{name: "cursor", in: openapi3.ParameterInQuery},
@@ -138,32 +149,26 @@ func TestMarketplaceOperations(t *testing.T) {
 					{name: "profile", in: openapi3.ParameterInQuery},
 					{name: "workspace_id", in: openapi3.ParameterInQuery},
 				},
-				statuses: []int{200, 400, 404, 500, 503},
+				statuses: []int{200, 400, 409, 500, 503},
 			},
 			{
 				name:   "Should describe marketplace entry detail",
-				path:   "/api/marketplace/{kind}/{entry_id}",
+				path:   "/api/marketplace/entries/{entry_id}",
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
-					{
-						name: "kind", in: openapi3.ParameterInPath, required: true,
-						enum: []string{"mcp", "extension", "skill"},
-					},
 					{name: "entry_id", in: openapi3.ParameterInPath, required: true},
+					{name: "source", in: openapi3.ParameterInQuery},
 					{name: "installed_name", in: openapi3.ParameterInQuery},
 					{name: "scope", in: openapi3.ParameterInQuery, enum: []string{"global", "profile", "workspace"}},
 					{name: "profile", in: openapi3.ParameterInQuery},
 					{name: "workspace_id", in: openapi3.ParameterInQuery},
 				},
-				statuses: []int{200, 400, 404, 500, 503},
+				statuses: []int{200, 400, 404, 409, 500, 503},
 			},
 			{
-				name:   "Should describe marketplace refresh",
-				path:   "/api/marketplace/refresh",
-				method: httpMethodPost,
-				parameters: []parameterExpectation{
-					{name: "kind", in: openapi3.ParameterInQuery, enum: []string{"mcp", "extension", "skill"}},
-				},
+				name:     "Should describe marketplace refresh",
+				path:     "/api/marketplace/refresh",
+				method:   httpMethodPost,
 				statuses: []int{200, 400, 403, 500, 503},
 			},
 		}

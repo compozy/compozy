@@ -135,6 +135,10 @@ type SettingsProviderResponse struct {
 	Provider SettingsProviderItemPayload `json:"provider"`
 }
 
+type SettingsMCPServerResponse struct {
+	Server SettingsMCPServerItemPayload `json:"server"`
+}
+
 type SettingsMCPServersResponse struct {
 	SettingsLayeredCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`

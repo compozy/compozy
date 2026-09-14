@@ -1,7 +1,9 @@
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const adapterMocks = vi.hoisted(() => ({
   getSettingsAttention: vi.fn(),
+  getSettingsMCPServer: vi.fn(),
   getSettingsPersona: vi.fn(),
   listSettingsHooks: vi.fn(),
 }));
@@ -9,6 +11,7 @@ const adapterMocks = vi.hoisted(() => ({
 vi.mock("../../adapters/settings-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/settings-api")>()),
   getSettingsAttention: adapterMocks.getSettingsAttention,
+  getSettingsMCPServer: adapterMocks.getSettingsMCPServer,
   getSettingsPersona: adapterMocks.getSettingsPersona,
   listSettingsHooks: adapterMocks.listSettingsHooks,
 }));
@@ -22,12 +25,14 @@ import {
   settingsGeneralOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
+  settingsMCPServerDetailOptions,
   settingsProviderDetailOptions,
   settingsPersonaOptions,
   settingsProvidersListOptions,
   settingsRestartStatusOptions,
   settingsUpdateOptions,
 } from "../query-options";
+import { settingsKeys } from "../query-keys";
 import { SettingsApiError } from "../../adapters/settings-api";
 
 beforeEach(() => {
@@ -224,5 +229,47 @@ describe("settings update options", () => {
     expect(refetchInterval({ state: { data: { operation: {} } } })).toBe(
       SETTINGS_QUERY_INTERVALS.updateOperationPollInterval
     );
+  });
+});
+
+// Invariant: MCP detail data cannot be reused across owner, profile, workspace, or logical-name identities.
+// Owner: Settings query cache. Canonical suite: query-options.test.ts.
+describe("MCP definition detail cache", () => {
+  it("Should keep each selected definition separate and invalidate all definitions after mutation", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    adapterMocks.getSettingsMCPServer.mockImplementation(async (name, filter) => ({
+      server: { name, ...filter },
+    }));
+    const options = [
+      settingsMCPServerDetailOptions("shared", { scope: "user", owner: "manual" }),
+      settingsMCPServerDetailOptions("shared", { scope: "user", owner: "extension:kit" }),
+      settingsMCPServerDetailOptions("shared", {
+        scope: "profile",
+        profile: "work",
+        owner: "extension:kit",
+      }),
+      settingsMCPServerDetailOptions("shared", {
+        scope: "profile",
+        profile: "work",
+        workspace_id: "ws-a",
+        owner: "extension:kit",
+      }),
+      settingsMCPServerDetailOptions("second", { scope: "user", owner: "extension:kit" }),
+    ];
+    for (const option of options) await client.fetchQuery(option);
+    expect(adapterMocks.getSettingsMCPServer).toHaveBeenCalledTimes(options.length);
+    expect(client.getQueryData(options[0]!.queryKey)?.server.owner).toBe("manual");
+    expect(client.getQueryData(options[1]!.queryKey)?.server.owner).toBe("extension:kit");
+    expect(client.getQueryData(options[2]!.queryKey)?.server.profile).toBe("work");
+    expect(client.getQueryData(options[3]!.queryKey)?.server.workspace_id).toBe("ws-a");
+    expect(client.getQueryData(options[4]!.queryKey)?.server.name).toBe("second");
+    await client.invalidateQueries({ queryKey: settingsKeys.mcpRoot() });
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .every(query => query.state.isInvalidated)
+    ).toBe(true);
+    client.clear();
   });
 });

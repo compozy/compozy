@@ -95,6 +95,7 @@ func (e *CallExecutor) authStatus(
 	}
 	if !server.Auth.Enabled() {
 		return redactedAuthStatus(mcpauth.Status{
+			Owner:       resolved.Target.Owner,
 			ServerName:  server.Name,
 			Scope:       resolved.Target.Scope,
 			WorkspaceID: resolved.Target.WorkspaceID,
@@ -134,6 +135,7 @@ func (e *CallExecutor) refreshAuth(
 	status, err := e.auth.Refresh(ctx, cfg)
 	if err != nil {
 		redacted := redactedAuthStatus(mcpauth.Status{
+			Owner:        cfg.Target.Owner,
 			ServerName:   cfg.Target.ServerName,
 			Scope:        cfg.Target.Scope,
 			WorkspaceID:  cfg.Target.WorkspaceID,
@@ -190,6 +192,7 @@ func redactedAuthStatus(status mcpauth.Status) toolspkg.MCPAuthStatus {
 		expiresAt = &cloned
 	}
 	return toolspkg.MCPAuthStatus{
+		Owner: status.Owner, Scope: string(status.Scope), WorkspaceID: status.WorkspaceID,
 		ServerName:   strings.TrimSpace(status.ServerName),
 		Status:       strings.TrimSpace(string(status.Status)),
 		AuthType:     strings.TrimSpace(status.AuthType),

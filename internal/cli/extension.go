@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
@@ -131,6 +132,8 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
+	var scope, workspaceRef string
+	var inputs extensionInputFlags
 	var version string
 	var asset string
 	var allowUnverified bool
@@ -146,12 +149,29 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for index := range plan.Attempts {
-				plan.Attempts[index].ConfirmNetworkDigest = strings.TrimSpace(confirmNetworkDigest)
-			}
-			preview, err := previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
+			selected, err := resolveExtensionCLIScope(cmd, deps, scope, workspaceRef)
 			if err != nil {
 				return err
+			}
+			for index := range plan.Attempts {
+				plan.Attempts[index].Scope = selected.scope
+				plan.Attempts[index].WorkspaceID = selected.workspaceID
+				plan.Attempts[index].Profile = selected.profile
+				plan.Attempts[index].ConfirmNetworkDigest = strings.TrimSpace(confirmNetworkDigest)
+			}
+			plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
+			if err != nil {
+				return err
+			}
+			plan, preview, err := prepareExtensionCLIInputs(cmd.Context(), deps, plan, inputs)
+			if err != nil {
+				return err
+			}
+			if preview == nil || plan.Attempts[0].Source == contract.InstallExtensionSourceLocalPath {
+				preview, err = previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
+				if err != nil {
+					return err
+				}
 			}
 			if err := writeExtensionInstallPreview(cmd, preview); err != nil {
 				return err
@@ -167,6 +187,9 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, extensionInstallSuccessBundle(&item, report))
 		},
 	}
+	inputs.register(cmd)
+	cmd.Flags().StringVar(&scope, "scope", "", "Install globally or in one workspace: global, workspace")
+	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(
@@ -222,6 +245,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
+	var scope, workspaceRef string
 	var updateAll bool
 	var checkOnly bool
 	var version string
@@ -248,11 +272,16 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			selected, err := resolveExtensionCLIScope(cmd, deps, scope, workspaceRef)
+			if err != nil {
+				return err
+			}
 			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified && !checkOnly, yes); err != nil {
 				return err
 			}
 			items, err := updateMarketplaceExtensions(cmd.Context(), deps, extensionUpdateOptions{
 				Names: args, All: updateAll, CheckOnly: checkOnly, Version: version,
+				Scope: selected.scope, WorkspaceID: selected.workspaceID, Profile: selected.profile,
 				AllowUnverified: allowUnverified, ConfirmNetworkDigest: confirmNetworkDigest,
 			})
 			if err != nil {
@@ -276,7 +305,9 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension")
+	cmd.Flags().StringVar(&scope, "scope", "", "Select installed extensions: global, workspace")
+	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension in the selected scope")
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
 	cmd.Flags().StringVar(&version, versionKey, "", "Update to a specific registry version")
 	cmd.Flags().BoolVar(

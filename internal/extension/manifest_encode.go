@@ -53,6 +53,13 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		document["profiles"] = manifest.Profiles
 	}
 
+	if len(manifest.Inputs) > 0 {
+		inputs, err := manifestInputsTOML(manifest.Inputs)
+		if err != nil {
+			return nil, err
+		}
+		document["inputs"] = inputs
+	}
 	resources, err := resourcesTOMLTable(manifest.Resources)
 	if err != nil {
 		return nil, err
@@ -72,6 +79,9 @@ func subprocessTOMLTable(process SubprocessConfig) map[string]any {
 
 func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 	table := make(map[string]any)
+	if len(resources.MCPServers) > 0 {
+		table["mcp_servers"] = resources.MCPServers
+	}
 	putNonEmptyResourcePaths(table, manifestSkillsKey, resources.Skills)
 	putNonEmptyResourcePaths(table, manifestLoopsKey, resources.Loops)
 	putNonEmptyResourcePaths(table, manifestAgentsKey, resources.Agents)

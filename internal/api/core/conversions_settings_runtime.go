@@ -224,12 +224,7 @@ func settingsSkillsConfigPayload(value compozyconfig.SkillsConfig) contract.Sett
 		CustomSources:           append([]string{}, value.CustomSources...),
 		DisabledSkills:          cloneStrings(value.DisabledSkills),
 		PollInterval:            value.PollInterval.String(),
-		AllowedMarketplaceMCP:   cloneStrings(value.AllowedMarketplaceMCP),
 		AllowedMarketplaceHooks: cloneStrings(value.AllowedMarketplaceHooks),
-		Marketplace: contract.SettingsMarketplacePayload{
-			Registry: strings.TrimSpace(value.Marketplace.Registry),
-			BaseURL:  strings.TrimSpace(value.Marketplace.BaseURL),
-		},
 	}
 }
 

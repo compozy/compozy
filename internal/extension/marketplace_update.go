@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -22,26 +22,33 @@ func UpdateMarketplaceManaged(
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) ([]MarketplaceUpdateResult, error) {
-	targets, err := selectMarketplaceExtensionsForUpdate(registry, req.Names, req.All)
+	targets, err := SelectMarketplaceUpdateTargets(registry, req.Names, req.All)
 	if err != nil {
 		return nil, err
 	}
 
 	items := make([]MarketplaceUpdateResult, 0, len(targets))
-	for _, info := range targets {
-		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, info, req, reload)
+	var causes []error
+	var firstFailedName string
+	for infoIndex := range targets {
+		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, &targets[infoIndex], req, reload)
 		if err != nil {
-			item = failedMarketplaceUpdateResult(info, item, err)
-			items = append(items, item)
-			return items, newMarketplaceUpdateBatchError(info.Name, items, err)
+			item = failedMarketplaceUpdateResult(&targets[infoIndex], item, err)
+			if len(causes) == 0 {
+				firstFailedName = targets[infoIndex].Name
+			}
+			causes = append(causes, err)
 		}
 		items = append(items, item)
+	}
+	if len(causes) > 0 {
+		return items, newMarketplaceUpdateBatchError(firstFailedName, items, errors.Join(causes...))
 	}
 	return items, nil
 }
 
 func failedMarketplaceUpdateResult(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	item MarketplaceUpdateResult,
 	cause error,
 ) MarketplaceUpdateResult {
@@ -62,7 +69,7 @@ func failedMarketplaceUpdateResult(
 	}
 	if strings.TrimSpace(item.Path) == "" {
 		if manifestPath := strings.TrimSpace(info.ManifestPath); manifestPath != "" {
-			item.Path = filepath.Dir(manifestPath)
+			item.Path = PackageRootFromManifest(manifestPath)
 		}
 	}
 	item.Status = MarketplaceUpdateStatusFailed
@@ -94,7 +101,7 @@ func updateMarketplaceExtension(
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) (_ MarketplaceUpdateResult, err error) {
@@ -172,7 +179,7 @@ func resolveMarketplaceUpdateTrust(
 	return resolver(ctx, slug, version)
 }
 
-func marketplaceUpdateMetadata(info ExtensionInfo) (string, string, error) {
+func marketplaceUpdateMetadata(info *ExtensionInfo) (string, string, error) {
 	slug := dereferenceOptionalString(info.RegistrySlug)
 	if slug == "" {
 		return "", "", fmt.Errorf("extension: extension %q is missing registry slug metadata", info.Name)
@@ -185,7 +192,7 @@ func marketplaceUpdateMetadata(info ExtensionInfo) (string, string, error) {
 }
 
 func newMarketplaceUpdateResult(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	slug string,
 	registryName string,
 	currentVersion string,
@@ -206,102 +213,35 @@ func applyMarketplaceExtensionUpdate(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
-	downloader registrypkg.Downloader,
-	info ExtensionInfo,
-	latestVersion string,
-	registryName string,
-	allowUnverified bool,
-	installedBy string,
-	trust *MarketplaceTrustEvidence,
-	observeDigestVerification MarketplaceDigestVerificationObserver,
-	preflightCandidate MarketplaceUpdatePreflight,
-	commitCandidate MarketplaceUpdateCommit,
+	info *ExtensionInfo,
+	req MarketplaceUpdateRequest,
+	resolution marketplaceUpdateResolution,
 	reload MutationReload,
-	cleanup marketplaceUpdateCleanup,
 ) (out marketplaceUpdateApplyResult, err error) {
-	slug := dereferenceOptionalString(info.RegistrySlug)
 	installDir, err := InstalledExtensionDir(info)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
+	cleanup := marketplaceUpdateCleanupForRequest(req)
 	defer finalizeMarketplaceUpdateStagingCleanup(&out, &err, cleanup, info.Name, stagingDir)
-
-	result, err := installMarketplaceUpdateArchive(
-		ctx,
-		downloader,
-		slug,
-		latestVersion,
-		stagingDir,
-		trust,
-		observeDigestVerification,
-	)
+	result, err := installMarketplaceUpdateArchive(ctx, resolution, stagingDir, req.ObserveDigestVerification)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-
 	manifest, err := loadMarketplaceUpdatedExtensionManifest(result.InstallPath, info.Name)
 	if err != nil {
 		return marketplaceUpdateApplyResult{}, err
 	}
-	if preflightCandidate != nil {
-		if err := preflightCandidate(info, manifest); err != nil {
-			return marketplaceUpdateApplyResult{}, err
-		}
-	}
-	change, err := stageExtensionDirReplacement(result.InstallPath, installDir)
-	if err != nil {
-		return marketplaceUpdateApplyResult{}, err
-	}
-	remoteVersion, err := commitMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
-		registry:        registry,
-		info:            info,
-		installDir:      installDir,
-		result:          result,
-		manifest:        manifest,
-		change:          change,
-		slug:            slug,
-		registryName:    registryName,
-		latestVersion:   latestVersion,
-		allowUnverified: allowUnverified,
-		installedBy:     installedBy,
-		trust:           trust,
-		commitCandidate: commitCandidate,
-		reload:          reload,
-	})
-	if err != nil {
-		return marketplaceUpdateApplyResult{}, err
-	}
-	out = committedMarketplaceUpdateResult(cleanup, info.Name, remoteVersion, change)
-	return out, nil
-}
-
-func reloadMarketplaceExtensionUpdate(
-	ctx context.Context,
-	reload MutationReload,
-	registry LifecycleRegistry,
-	info ExtensionInfo,
-	installDir string,
-	change *stagedExtensionDirChange,
-) error {
-	if reload == nil {
-		return nil
-	}
-	if err := reload(ctx); err != nil {
-		restoreErr := restoreUpdatedExtensionRecord(registry, info, installDir, change)
-		if restoreErr == nil {
-			restoreErr = reload(ctx)
-		}
-		return errors.Join(
-			fmt.Errorf("extension: reload after update %q: %w", info.Name, err),
-			restoreErr,
-		)
-	}
-	return nil
+	return applyMarketplaceUpdateCandidate(ctx, &marketplaceUpdateCommitInput{
+		registry: registry, info: *info, installDir: installDir, result: result, manifest: manifest,
+		slug: resolution.slug, registryName: resolution.registryName, latestVersion: resolution.latestVersion,
+		provenance:      marketplaceUpdateProvenance(info, result, manifest, req, resolution),
+		commitCandidate: req.CommitCandidate, rollbackCandidate: req.RollbackCandidate, reload: reload,
+	}, req.PreflightCandidate, cleanup)
 }
 
 func installMarketplaceExtensionUpdateRecord(
@@ -327,67 +267,72 @@ func installMarketplaceExtensionUpdateRecord(
 
 func installMarketplaceUpdateArchive(
 	ctx context.Context,
-	downloader registrypkg.Downloader,
-	slug string,
-	latestVersion string,
+	resolution marketplaceUpdateResolution,
 	stagingDir string,
-	trust *MarketplaceTrustEvidence,
 	observeDigestVerification MarketplaceDigestVerificationObserver,
 ) (*registrypkg.InstallResult, error) {
-	version := strings.TrimSpace(latestVersion)
-	expectedDigest := ""
-	if trust != nil {
-		version = strings.TrimSpace(trust.Version)
-		expectedDigest = strings.TrimSpace(trust.ArchiveDigestSHA256)
-	}
-	result, err := registrypkg.NewInstaller(downloader).Install(ctx, slug, registrypkg.DownloadOpts{
-		Version:        version,
-		ExpectedSHA256: expectedDigest,
-	}, stagingDir)
+	result, err := registrypkg.NewInstaller(resolution.downloader).
+		Install(ctx, resolution.slug, registrypkg.DownloadOpts{
+			Version: strings.TrimSpace(resolution.latestVersion), ExpectedSHA256: resolution.expectedDigest,
+		}, stagingDir)
 	if err != nil {
-		err = mapMarketplaceRegistryError(slug, wrapCuratedDigestMismatch(err, trust))
+		err = wrapCuratedDigestMismatch(err, resolution.trust)
 	}
 	if observeDigestVerification != nil {
-		observeDigestVerification(trust, err)
+		observeDigestVerification(resolution.trust, err)
 	}
 	return result, err
 }
 
 func marketplaceUpdateProvenance(
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	result *registrypkg.InstallResult,
 	manifest *Manifest,
-	registryName string,
-	allowUnverified bool,
-	installedBy string,
-	trust *MarketplaceTrustEvidence,
+	req MarketplaceUpdateRequest,
+	resolution marketplaceUpdateResolution,
 ) ExtensionProvenance {
+	trust := resolution.trust
 	provenance := info.Provenance
-	provenance.Slug = dereferenceOptionalString(info.RegistrySlug)
-	provenance.InstalledFrom = ExtensionInstalledFromMarketplace
+	provenance.Slug = resolution.slug
 	provenance.ChecksumSHA256 = result.Checksum
 	provenance.Permissions = extensionPermissions(manifest)
-	provenance.InstalledBy = firstNonEmpty(installedBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
+	provenance.InstalledBy = firstNonEmpty(req.InstalledBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
 	if trust != nil {
 		registryTier := normalizedMarketplaceRegistryTier(trust.RegistryTier)
 		provenance.CatalogEntryID = strings.TrimSpace(trust.CatalogEntryID)
+		provenance.SourceName = marketplacepkg.CompozyCatalogSource
+		provenance.SourceRef = marketplacepkg.CompozyCatalogRef
+		provenance.EntryID = strings.TrimSpace(trust.CatalogEntryID)
 		provenance.SourceURL = firstNonEmpty(curatedMarketplaceSourceURL(trust), provenance.SourceURL)
 		provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 		provenance.DigestMatched = result.DigestMatched
 		provenance.ChecksumVerified = true
 		provenance.RegistryTier = registryTier
-		provenance.AllowUnverified = registryTier == ExtensionRegistryTierUnverified && allowUnverified
+		provenance.AllowUnverified = registryTier == ExtensionRegistryTierUnverified && req.AllowUnverified
 		provenance.Warnings = marketplaceTrustWarnings(trust)
 		return provenance
 	}
 	provenance.CatalogEntryID = ""
+	provenance.SourceName = ""
+	provenance.SourceRef = ""
+	provenance.EntryID = ""
+	provenance.ResolvedRef = ""
+	provenance.Layout = manifest.Layout
+	if plugin := resolution.plugin; plugin != nil {
+		provenance.SourceName = plugin.SourceName
+		provenance.SourceRef = plugin.Record.SourceRef
+		provenance.EntryID = plugin.Record.EntryID
+		provenance.ResolvedRef = plugin.Record.ResolvedRef
+		provenance.Layout = plugin.Record.Layout
+		provenance.SourceURL = plugin.Record.SourceRef
+	}
 	provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
 	provenance.DigestMatched = result.DigestMatched
 	provenance.ChecksumVerified = false
 	provenance.RegistryTier = ExtensionRegistryTierUnverified
-	provenance.AllowUnverified = allowUnverified
+	provenance.AllowUnverified = req.AllowUnverified
 	provenance.Warnings = []diagnosticcontract.DiagnosticItem{
-		extensionChecksumUnverifiedDiagnostic(provenance.Slug, registryName, allowUnverified),
+		extensionChecksumUnverifiedDiagnostic(provenance.Slug, resolution.registryName, req.AllowUnverified),
 	}
 	return provenance
 }
@@ -407,7 +352,8 @@ func loadMarketplaceUpdatedExtensionManifest(installPath string, installedName s
 	return manifest, nil
 }
 
-func selectMarketplaceExtensionsForUpdate(
+// SelectMarketplaceUpdateTargets resolves the complete managed update selection before acquisition.
+func SelectMarketplaceUpdateTargets(
 	registry LifecycleRegistry,
 	names []string,
 	updateAll bool,
@@ -421,31 +367,40 @@ func selectMarketplaceExtensionsForUpdate(
 			return nil, err
 		}
 		items := make([]ExtensionInfo, 0, len(infos))
-		for _, info := range infos {
-			if marketplaceExtensionInstalled(info) {
-				items = append(items, info)
+		for infoIndex := range infos {
+			if marketplaceExtensionInstalled(&infos[infoIndex]) {
+				items = append(items, infos[infoIndex])
 			}
 		}
 		return items, nil
 	}
 
-	name := ""
-	if len(names) > 0 {
-		name = strings.TrimSpace(names[0])
-	}
-	if name == "" {
+	if len(names) == 0 {
 		return nil, errors.New("extension: extension name is required unless all is set")
 	}
-	info, err := registry.Get(name)
-	if err != nil {
-		return nil, err
+	items := make([]ExtensionInfo, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, errors.New("extension: extension name must not be blank")
+		}
+		if _, found := seen[name]; found {
+			continue
+		}
+		info, err := registry.Get(name)
+		if err != nil {
+			return nil, err
+		}
+		if !marketplaceExtensionInstalled(info) {
+			return nil, fmt.Errorf("extension: extension %q is not a marketplace-installed extension", info.Name)
+		}
+		seen[name] = struct{}{}
+		items = append(items, *info)
 	}
-	if !marketplaceExtensionInstalled(*info) {
-		return nil, fmt.Errorf("extension: extension %q is not a marketplace-installed extension", info.Name)
-	}
-	return []ExtensionInfo{*info}, nil
+	return items, nil
 }
 
-func marketplaceExtensionInstalled(info ExtensionInfo) bool {
+func marketplaceExtensionInstalled(info *ExtensionInfo) bool {
 	return info.Source == SourceMarketplace && dereferenceOptionalString(info.RegistrySlug) != ""
 }

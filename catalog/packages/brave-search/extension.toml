@@ -1,0 +1,18 @@
+name = "brave-search"
+version = "2.1.0"
+description = "Search the web through Brave's official MCP server."
+min_compozy_version = "0.5.0"
+
+[[inputs]]
+id = "brave_api_key"
+prompt = "Brave Search API key"
+type = "secret"
+required = true
+binding = { type = "env", name = "BRAVE_API_KEY" }
+
+[resources.mcp_servers.brave-search]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@brave/brave-search-mcp-server@2.1.0"]
+secret_env = { BRAVE_API_KEY = "brave_api_key" }
+default_scope = "workspace"

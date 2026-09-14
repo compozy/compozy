@@ -3,6 +3,7 @@
 ## Contents
 
 - Extension kits
+- Packaged inputs and server auth
 - Built-in open design
 - Portable Agent Plugins
 - Install trust
@@ -17,13 +18,58 @@
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Inventory currently accepts only the extension name, so these surfaces report the unscoped instance projection; profile-specific enablement and placement are exposed by the profile detail and enablement surfaces. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
 
 If a candidate extension changes its normalized Network Live requirement, install or update returns `extension_network_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
+
+## Packaged Inputs And Server Auth
+
+Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,
+`type = string|identifier|boolean|secret`, `required`, and `binding = {type, name}`.
+An `env` binding must match a server's `env` or `secret_env` key; the map value is the input id.
+A `url_query` binding must match a parameter declared in a remote server URL. Secrets require
+`secret_env`, cannot bind URLs, and cannot have defaults. Boolean defaults are booleans; other
+non-secret defaults are strings. Values are NUL-free and at most 8 KiB; identifier values use
+URL-safe unreserved characters.
+
+`[resources.mcp_servers.<name>.auth]` accepts `method = "oauth"`,
+`registration = "dynamic"`, optional `issuer_url`, and scopes. The issuer must be advertised by
+the protected resource. `default_scope` supplies the installation default and never expands an
+existing installation. Validate the package with `compozy extension validate <directory>`.
+
+`compozy-catalog publish` derives version, inputs, archive and digest from the package. It emits
+v3 extensions and presets only; change `catalog/sources.json` or the package, not generated feed JSON.
+The site reads the same v3 catalog. Root feeds and v2 fallback are removed.
+
+Install selectors are `scope = global|workspace`, `workspace_id` (registered ID), and `profile`
+(name) in HTTP/UDS/native requests. CLI equivalents are `--scope`, `--workspace <name|path|id>`,
+and `--profile`; the explicit flag wins over `COMPOZY_PROFILE`. An operator omitting the profile
+keeps all-profile installation. Agents remain bound to their trusted workspace/profile.
+With neither scope nor workspace selected, operators use the manifest servers' common default
+(`global` when undeclared); mixed defaults require an explicit scope. A workspace default requires
+trusted workspace context or an explicit workspace selector. Inputs and vault bindings use that exact cell. A `vault_ref` input must already belong to the same
+extension/profile/workspace under `vault:extensions/`; manual MCP references are not imported.
+
+Install typed values with `compozy extension install compozy/supabase --input project_ref=my-project`.
+Use `--input-file` for structured value/vault_ref envelopes; existing scoped extension-secret refs
+stay in that instance. The CLI derives types from the manifest. Required-field failures include
+`inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
+and retry the same scoped request. Inputs remain isolated by profile: an unconfigured profile
+publishes no packaged MCPs and does not block installation or restart in a configured profile.
+`extension_input_invalid` names the invalid input_id, and
+`extension_source_changed` requires reviewing the current artifact before retrying.
+
+Update requests accept the same scope/workspace/profile selectors. CLI `extension update` uses
+`--scope`, `--workspace`, and `--profile` (or `COMPOZY_PROFILE`); `--all` filters to that selected
+installation scope/profile. HTTP/UDS and `compozy__extensions_update` also accept typed `inputs`
+for one named extension. Updates retain every attachment and its creation time; package bytes are
+shared, while supplied inputs and rollback before-images address only the selected cell. A workspace
+caller cannot mutate an inherited global attachment as though it belonged to the workspace.
+Direct GitHub updates retain their acquisition origin and do not depend on the curated catalog.
 
 ## Built-in Open Design
 
@@ -56,7 +102,11 @@ check. Source attribution and licenses ship with the extension; the selected con
 CompozyOS detects a package layout after source acquisition; there is no format flag. A root
 `extension.toml` or `extension.json` selects `compozy`. Root `plugin.json` alone selects
 `agent-plugin` and accepts Agent Plugins schema `1.0.0`. When both exist, the native manifest wins
-and install records the unused portable manifest as a note. Client-specific layouts are rejected.
+and install records the unused portable manifest as a note. Without a root manifest, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, then
+`.cursor-plugin/plugin.json` are tried in that order. Their client grammar adapter loads skills
+from `skills/` and declared paths, and MCP servers from a contained `mcpServers` JSON file or
+inline map. Authored commands/agents/hooks emit `client_component_ignored` and are not loaded.
+Package bytes are unchanged; provenance records the selected layout. Layout grants no trust.
 
 Portable ingestion synthesizes a resource-only extension from immediate child skills and `mcp.json`
 servers. `stdio` and `streamable-http` map into extension MCP resources; invalid components and `sse`
@@ -71,7 +121,7 @@ provider launch; direct Agent Plugins support inside OpenClaw is a separate path
 Recorded ingestion skips use `extension_agent_plugin_component_skipped`. Runtime availability uses
 live codes such as `extension_mcp_server_unhealthy`; reads sort ingest diagnostics before live ones so
 package validity is never confused with server health. Fatal detection codes are
-`extension_agent_plugin_client_layout`, `extension_agent_plugin_schema_unsupported`,
+`extension_agent_plugin_schema_unsupported`,
 `extension_agent_plugin_not_manifest`, and `extension_agent_plugin_manifest_invalid`.
 
 `compozy extension validate <path> -o json` takes the portable branch without installing or executing
@@ -85,7 +135,7 @@ warning; if quarantine also fails, removal fails and the instance remains instal
 
 ## Install Trust
 
-Install takes one closed source union — `curated`, `github`, `git`, or `local_path` — plus a required
+Install takes one closed source union — `curated`, `marketplace`, `github`, `git`, or `local_path` — plus a required
 `ref` and optional `version`, `asset`, and `allow_unverified`. `compozy extension install <source>`
 owns the shorthand: a filesystem path (`./`, `../`, or absolute) becomes `local_path`,
 `github:owner/repo[@ref]` and `git:<url>[@ref]` become their named sources, and a bare
@@ -98,13 +148,23 @@ Git 2.37 or newer so the daemon can pin validated DNS answers; missing Git repor
 Curated refs resolve through the daemon-owned catalog: the runtime downloads the feed-owned artifact
 when the entry carries one, verifies the catalog-pinned SHA-256 before extraction, then persists
 separate catalog entry, archive digest, and extracted-tree checksum provenance. Official and community
-catalog tiers install with no consent. Every other install — curated `unverified` tier, `github`,
+catalog tiers install with no consent. Every other install — curated `unverified` tier, `marketplace`, `github`,
 `git`, `local_path` — needs live policy `extensions.trust.allow_unverified` (default `true`) plus the
 request-level `--allow-unverified`, which is the whole consent. Policy off returns
 `extension_unverified_policy_blocked` with evidence path `/settings/extensions`; policy on without
 consent returns `extension_checksum_unverified`. Both are `422`. Human output prompts on
 `--allow-unverified` unless `--yes`; structured output requires `--yes`. The deleted key is
 `extensions.marketplace.allow_unverified`, and `compozy config set` names its replacement.
+
+Registered plugin sources use `POST /api/extensions` with `source: marketplace`, the listed
+`install_slug` as `ref`, and the listed `digest_sha256` as `expected_digest`. Preview and install
+retain that same pin. Plugins remain unverified regardless of layout or cache integrity. A cached
+package installs without contacting its source; missing/corrupt bytes are acquired again only if the
+live package has the same digest. `extension_source_changed` (409) requires a new listing and approval;
+`source_unreachable` (503) means the cache is unavailable and the source could not supply the package.
+Updates resolve `(source_ref, entry_id)` from installed provenance, so source renames keep identity.
+Changed bytes count as an update even when the declared version stays the same. Publication and
+rollback use the existing extension lifecycle; shared credentials and other attachments stay intact.
 
 A curated digest mismatch is `extension_archive_digest_mismatch`, terminal for that catalog version
 and with no unverified bypass. A GitHub release may carry an `<asset>.sha256` sidecar; when one
@@ -138,6 +198,18 @@ Extension removal follows the same commit boundary. After the registry, managed 
 runtime reload confirm removal, backup cleanup failure leaves `status` as `removed` and reports
 `extension_remove_cleanup_failed` with the residual path. Treat that path as cleanup debt; do not
 restore or operate the removed extension from it.
+
+Published reinstall uses the existing update transaction and selected attachment. Repeating the same
+acquisition and inputs preserves package and input/secret before-images without a runtime reload.
+A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
+display names do not participate in identity. Only an operator may associate an unclassified managed
+installation with a catalog entry. Publication failure restores the old package and selected input cell.
+
+For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
+selects the source index and pins the listed digest before preview and installation. Existing curated
+acquisition refs keep priority if the same spelling collides; `marketplace:team/tool` explicitly selects
+the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
+as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.
 
 ## Authoring And Dev Loop
 

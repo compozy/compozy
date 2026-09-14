@@ -30,8 +30,6 @@ const (
 	// marketplaceSchemeHTTP is the accepted plaintext marketplace URL scheme.
 	marketplaceSchemeHTTP = "http"
 	urlSchemeHTTPS        = "https"
-	// skillsMarketplaceRegistryClawhub is the currently supported skills marketplace registry.
-	skillsMarketplaceRegistryClawhub = "clawhub"
 )
 
 const defaultMemoryWorkspaceTOMLPath = "<workspace>/" + DirName + "/workspace.toml"

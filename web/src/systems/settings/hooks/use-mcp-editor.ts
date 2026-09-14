@@ -1,0 +1,210 @@
+import { useQuery } from "@tanstack/react-query";
+import { useSelector, useStore } from "@xstate/store-react";
+
+import { mcpEditorLogic, type MCPEditorState } from "../stores/mcp-editor-store";
+import { deriveMCPManagementFilter } from "../lib/mcp-management-target";
+import {
+  emptyDraft,
+  toDraft,
+  toRequest,
+  validateDraft,
+  type MCPDraft,
+} from "../lib/mcp-editor-model";
+import { SettingsApiError } from "../adapters/settings-api";
+import { usePutSettingsMCPServer } from "./use-settings-mutations";
+import type { MCPServerEditorProps } from "../components/mcp-server-editor";
+import type {
+  SettingsMCPServerEntry,
+  SettingsLayeredScope,
+  SettingsMCPServerTarget,
+} from "../types";
+import { vaultSecretsListOptions } from "@/systems/vault";
+
+interface UseMCPEditorOptions {
+  enabled: boolean;
+  scope: SettingsLayeredScope;
+  servers: readonly SettingsMCPServerEntry[];
+  workspaceId?: string | null;
+  profileName?: string | null;
+}
+
+function errorMessage(error: unknown): string | null {
+  if (error instanceof SettingsApiError) return error.message;
+  return error instanceof Error ? error.message : null;
+}
+
+function resolveMCPEditorWriteFilter(
+  scope: SettingsLayeredScope,
+  target: SettingsMCPServerTarget,
+  workspaceId?: string | null,
+  profileName?: string | null
+) {
+  if (scope === "user") return { scope, target };
+  if (scope === "workspace") {
+    return workspaceId ? { scope, target, workspace_id: workspaceId } : null;
+  }
+  return profileName
+    ? { profile: profileName, scope, target, workspace_id: workspaceId ?? undefined }
+    : null;
+}
+
+function useMCPEditor({
+  enabled,
+  scope: createScope,
+  servers,
+  workspaceId,
+  profileName,
+}: UseMCPEditorOptions) {
+  const putMutation = usePutSettingsMCPServer();
+  const resetPutMutation = putMutation.reset;
+  const editorLogic = useStore(mcpEditorLogic);
+  const editorFlow = useSelector(editorLogic, snapshot => snapshot.context);
+  const editor = editorFlow.editor;
+
+  const editorOpen = enabled && editor.mode !== "closed";
+  const vaultQuery = useQuery({
+    ...vaultSecretsListOptions({ namespace: "mcp" }),
+    enabled: editorOpen,
+  });
+
+  const openCreate = () => {
+    if (!enabled || !resolveMCPEditorWriteFilter(createScope, "auto", workspaceId, profileName))
+      return;
+    resetPutMutation();
+    editorLogic.trigger.editorOpened({
+      editor: {
+        draft: emptyDraft("stdio"),
+        mode: "create",
+        scope: createScope,
+        target: "auto",
+        workspaceId: workspaceId ?? undefined,
+        profileName: profileName ?? undefined,
+      },
+    });
+  };
+
+  const openEdit = (entry: SettingsMCPServerEntry) => {
+    if (!enabled) return;
+    const management = deriveMCPManagementFilter(entry);
+    if (!management?.target) return;
+    resetPutMutation();
+    editorLogic.trigger.editorOpened({
+      editor: {
+        draft: toDraft(entry),
+        entry,
+        mode: "edit",
+        scope: management.scope,
+        target: management.target,
+        workspaceId: management.scope === "user" ? undefined : management.workspace_id,
+        profileName: management.scope === "profile" ? management.profile : undefined,
+      },
+    });
+  };
+
+  const closeEditor = () => {
+    if (editorFlow.pendingSaveAttempt !== null) return;
+    editorLogic.trigger.editorDismissed();
+    resetPutMutation();
+  };
+
+  const updateDraft = (updater: (draft: MCPDraft) => MCPDraft) => {
+    if (editor.mode !== "closed") {
+      editorLogic.trigger.draftChanged({ draft: updater(editor.draft) });
+    }
+  };
+
+  const setEditorTarget = (target: SettingsMCPServerTarget) => {
+    editorLogic.trigger.targetChanged({ target });
+  };
+
+  const { errors, isValid } = mcpEditorValidation(editor, servers);
+
+  const saveEditor = () => {
+    if (editor.mode === "closed" || !isValid) return;
+    const filter = resolveMCPEditorWriteFilter(
+      editor.scope,
+      editor.target,
+      editor.workspaceId,
+      editor.profileName
+    );
+    if (!filter) return;
+    const name = editor.draft.name.trim();
+    const body = toRequest(editor.draft);
+    editorLogic.trigger.saveRequested({
+      name,
+      execute: () =>
+        putMutation.mutateAsync({
+          body,
+          filter,
+          name,
+        }),
+    });
+  };
+
+  const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
+  const vaultInventory = vaultQuery.isLoading
+    ? ({ status: "loading" } as const)
+    : vaultQuery.error
+      ? ({
+          status: "error",
+          message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
+          retry: () => void vaultQuery.refetch(),
+        } as const)
+      : ({ status: "ready", refs: vaultRefs } as const);
+
+  const editorProps: MCPServerEditorProps | null =
+    editor.mode === "closed"
+      ? null
+      : {
+          availableTargets:
+            editor.mode === "edit" ? [editor.target] : ["auto", "config", "sidecar"],
+          draft: editor.draft,
+          entry: editor.mode === "edit" ? editor.entry : null,
+          errors,
+          isSaving: editorFlow.pendingSaveAttempt !== null,
+          isValid,
+          mode: editor.mode,
+          onChange: updateDraft,
+          onClose: closeEditor,
+          onSave: saveEditor,
+          onTargetChange: setEditorTarget,
+          open: true,
+          saveError: errorMessage(putMutation.error),
+          scope: editor.scope,
+          target: editor.target,
+          vaultInventory,
+          warnings: putMutation.data?.warnings,
+        };
+
+  return { editorProps, openCreate, openEdit };
+}
+
+export { useMCPEditor };
+export type { UseMCPEditorOptions };
+
+function mcpEditorValidation(editor: MCPEditorState, servers: readonly SettingsMCPServerEntry[]) {
+  const validation = editor.mode === "closed" ? null : validateDraft(editor.draft);
+  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
+  const nameConflict =
+    editor.mode === "create" &&
+    editorName.length > 0 &&
+    servers.some(server => {
+      const management = deriveMCPManagementFilter(server);
+      if (!management) return false;
+      return (
+        management.scope === editor.scope &&
+        !management.owner?.startsWith("extension:") &&
+        (management.scope === "user" || management.workspace_id === editor.workspaceId) &&
+        (management.scope !== "profile" || management.profile === editor.profileName) &&
+        server.name.toLowerCase() === editorName.toLowerCase()
+      );
+    });
+  const errors =
+    validation === null
+      ? {}
+      : nameConflict
+        ? { ...validation.errors, name: `An MCP server named "${editorName}" already exists.` }
+        : validation.errors;
+  const isValid = validation !== null && validation.valid && !nameConflict;
+  return { errors, isValid };
+}

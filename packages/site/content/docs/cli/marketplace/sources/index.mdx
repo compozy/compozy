@@ -1,0 +1,48 @@
+---
+title: "compozy marketplace sources"
+description: "Manage plugin marketplace sources"
+---
+
+## compozy marketplace sources
+
+Manage plugin marketplace sources
+
+### Synopsis
+
+Manage global plugin marketplace sources.
+
+Stability: experimental through v0.6.0.
+
+### Options
+
+```
+  -h, --help   help for sources
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                      | Description                                                   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| [compozy marketplace sources add](/docs/cli/marketplace/sources/add)         | Add a GitHub repository, HTTPS git source, or absolute folder |
+| [compozy marketplace sources list](/docs/cli/marketplace/sources/list)       | List configured sources and diagnostics                       |
+| [compozy marketplace sources refresh](/docs/cli/marketplace/sources/refresh) | Refresh one configured source                                 |
+| [compozy marketplace sources remove](/docs/cli/marketplace/sources/remove)   | Remove a custom source and keep installed extensions          |

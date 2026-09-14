@@ -147,13 +147,31 @@ Predicate coverage follows its library owner; the transcript-grammar scenario re
 
 ## Marketplace catalog — one kind, plugin marketplaces as sources
 
-Owning spec: `.compozy/tasks/marketplace-catalog/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001/005/007/008 record the SD-013 ladder outcomes; peer review rounds 1 and 2 incorporated 2026-09-10). Implementation slices link here and update only affected entries.
+PR636 CI repair: inventory OpenAPI now declares the existing HTTP/UDS workspace/profile selectors; generated clients, Web request/cache/hook ownership, CLI/site guidance and the official skill agree. Workspace-installed kit resources and skipped diagnostics remain visible instead of suppressing the section. Extension detail reads consume resource-qualified observed MCP health and passive auth state; real Settings probes publish observations without making extension reads launch processes. Dev candidates retain local-path provenance; published workspace installations read package network consent, while dev overlays retain their own consent. No migration, config, hook, extension SDK or credential-format change is introduced. Existing runtime/native/E2E and inventory/cache suites own verification; the current head still requires final gate and CI.
 
-- **Native tools:** `compozy__marketplace_search` keeps its ID; its `kind` argument keeps working one release (`mcp` = extensions that provide servers, `skill` = the fenced skills listing; descriptor deprecation, removal v0.6.0) and the response gains `revision`/`stale`/`installable`/`trust.decision`. `compozy__extensions_install` accepts `source: marketplace`, `inputs`, and `expected_digest` (the approved acquisition). New read-only `compozy__marketplace_sources` (experimental one release). `compozy__extensions_*` and `compozy__mcp_status|mcp_auth_status` gain the optional `owner` argument. `compozy__skill_list|view|search` unchanged. Tool catalog and digests regenerate.
-- **Extensibility and hooks:** extension manifest gains `[[inputs]]` (shared grammar with the feed) and `resources.mcp_servers.<name>.auth`; `env`/`secret_env` keep their map shape (binding name = input id). Agent Plugins loader locates `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/` manifests and decodes client grammars through adapters (skills + `mcpServers`; commands/agents/hooks reported as ignored); `layout`, `source_name`, `source_ref`, `entry_id`, `resolved_ref` recorded in provenance. Extension-provided MCP servers carry `owner = extension:<name>` through publication, status, auth tokens and OAuth registrations, a disjoint vault namespace (`vault:mcp/ext/<name>/…`), and overrides (`extension_mcp_overrides`, which also persists the once-allocated runtime name); manual servers keep `owner = manual` and their vault refs; settings/auth routes resolve owner-less names by runtime name; additive `mcp_server_name_taken` validation. Input readiness is typed over stored input state (`missing_inputs`); dropped inputs stay inactive, never deleted. Hooks, bridge SDKs, MCP sidecars, capability registry unchanged. Config: new `[[marketplace.plugin_sources]]` (name · source · enabled) with preset overlay from `v3/marketplaces.json`; `skills.marketplace.registry`, `skills.marketplace.base_url`, `skills.allowed_marketplace_mcp` consumed-and-warned one release by the fenced skills marketplace path, removed v0.6.0. Feeds: new `v3/extensions.json` + `v3/marketplaces.json` (`manifest_version: 3`, `icon`, `inputs`); the root family (`extensions.json` v2, `mcp.json`, `skills.json`) stays published from the same generator until v0.6.0 for released daemons; upgraded daemons read `v3/` and fall back to the root with a warning.
-- **Workspace data isolation:** catalog projection is global (per daemon home), keyed `(source, entry_id)` with per-source generation, plus a global content-addressed package cache under the daemon home (capped, swept at refresh commit); installed state is joined per request by acquisition origin (`source_ref`, `entry_id`) from the profile/workspace-scoped extension inventory; provenance origin is backfilled only where catalog evidence exists; input values (`extension_inputs`) and server overrides are scoped to the extension instance's profile/workspace; extension-provided MCP servers keep the extension instance's scope and their own owner-qualified auth tokens; nothing crosses workspaces. Migration `00109` re-keys the projection, drops rows for the retired kinds (derived cache; sign-off in ADR-001; release-note migration block), backfills provenance origin (catalog-evidenced rows only) and `owner = manual` on tokens and OAuth registrations, and creates the two new tables.
-- **Official CompozyOS skill:** `skills/compozy/references/tools-and-skills.md` §Marketplace Discovery (no kinds, `marketplace sources` experimental, install with `--input`, retained verbs still working with warnings until v0.6.0, `extension_source_changed`/`extension_name_conflict`/`marketplace_cursor_stale`) and `references/extensions.md` (inputs block, client layouts, marketplace sources, owner-qualified servers).
-- **Web/Docs:** `web/src/systems/marketplace/**` (one page, Installed page, entry card/logo/trail, add menu, marketplace dialog, brand registry, cursor restart), `web/src/systems/settings` (Marketplace page with the experimental label; Skills "Marketplace URL" row deleted), routes `/marketplace`, `/marketplace/installed`, `/marketplace/$entryId` with one-release redirects from kind paths. `packages/site`: `lib/marketplace-catalog.ts` validates `v3/` and the retained root family (build breaks otherwise); docs `marketplace/`, `extensions/install.mdx`, `cli/marketplace`, `api/marketplace.mdx`, `configuration/config-toml.mdx` rewritten with both shapes during the window; `skills/marketplace.mdx` marked retired (deleted v0.6.0). Verification owners: `_tests.md` (UT/IT/E2E), `eng-ui-screenshot` bundle for the OD boards, QA scenarios `ET-web-marketplace-*`, `ET-api-mcp-catalog-install`, `ET-cli-marketplace-search`, `ET-site-marketplace-catalog` reset to `untested`; charter `CH-marketplace-installed-default` retired.
+Final review refresh correction: the canonical HTTP/UDS/CLI/native catalog envelope gains optional `refreshing`, owned by the daemon flight lifecycle and independent of stale/error aggregation. Generated OpenAPI/Web types and API docs co-ship; Web follows pending work across mixed healthy/failed sources. No config, hooks, SDK extension contract, stored state, scope or secret changes. The existing service HTTP/SQLite integration and Web query suites own completion/backoff checks.
+
+Task03 input recovery: the validated candidate manifest supplies `input_definitions` with missing IDs in `extension_inputs_required`. HTTP/UDS and native tools share acquisition error mapping; native partial updates retain `operation_error` with completed results. Generated OpenAPI/Web types, Web error adapters and the install guide co-ship. Clients retry the same scoped update; no second preview, source reconstruction, compatibility decoder, config change or persistence migration. Only absent declarations are exposed, never stored values or secret refs. Final input-dialog journeys remain with tasks09/10.
+
+
+Owning spec: `.compozy/tasks/marketplace-catalog/_spec.md`; Pedro's explicit 2026-09-12 Marketplace-only hard-cut authorization is recorded in ADR-005/007. This amendment supersedes the previous one-release translations, dual feeds and v0.6.0 removal plan. It is an approved implementation contract, not a claim that branch cleanup is finished. `hardcut-removal-plan.md` records observed code and owning tasks.
+
+- **Preserved boundary:** existing extension packages, IDs, versions, artifact bytes/digests, manifests, supported acquisition/update refs, lifecycle APIs, installed records, enablement, provenance and credentials. Manual MCP definitions/auth and installed local/ClawHub-origin skills continue loading. Pedro explicitly authorized disabling MCP declarations embedded in installed ClawHub/SourceMarketplace skills on 2026-09-13; their files and provenance remain. Final extension removal retains baseline instance-binding/exclusive-secret cleanup with shared/manual protection and rollback. User-state migrations remain lossless; only derived old-kind projection rows have ADR-001 deletion approval.
+- **Native/CLI/API:** one Marketplace catalog/source contract. Remove old kind/grouped-search/MCP-install/remote-skills acquisition routes on HTTP and UDS, old CLI flags/arity/verbs and native kind arguments. Regenerate schemas/digests/OpenAPI/help. Preserve current extension and manual Settings operations; no translation or success stub. Installed-skill tools stay local.
+- **Extensibility/config:** keep real input validation/readiness/rollback, manifest auth, digest consent, owner-qualified tokens/DCR/vault, scope isolation and plugin grammar adapters. Remove requested install runtime_name, manual-MCP-vault import and owner-less extension management aliases added for the old installer. Automatic sticky runtime names and internal runtime lookup remain. Remove obsolete Marketplace config consumers; the config owner archives removed values once without changing unrelated settings. No compat package or shim telemetry.
+- **Feeds/Web/Docs:** only v3/extensions.json and v3/marketplaces.json; no root v2 publication, semantic adapter or reader fallback. Preserve existing extension distribution. Remove Web kind redirects/tab adapter; Browse/Installed/detail remain. Site uses one schema and current docs; release notes list removed Marketplace surfaces. Official skill updates follow the same contract. Historical design boards/review reports do not override the amended spec.
+- **Workspace/data:** retain source/ref-qualified joins, scoped installation/input/override ownership, migration integrity, manual-owner backfill and isolation across profiles/workspaces. These are new-product safety requirements, not dispensable compatibility debt.
+- **Evidence/delivery:** current UI checkpoint 220a59082 includes complete snapshot reads, cancellation-before-invalidation, consent, batch pending exclusion and truthful errors; its redirect contract is now superseded. Tasks01/02/05 own hard-cut removal; task05 no longer depends on task04 old-installer parity. Tasks09/10 own final QA/visual/state-preservation walks; make/heavy gates and review remain final-only under session instructions. No task is completed by this documentation amendment.
+
+Task05 core hard-cut checkpoint (2026-09-13): HTTP/UDS registrations and core grouped/kind handlers, remote skill services/packages, generic MCP/skill detail DTOs and slug/name fallback joins are removed. Canonical extension joins use source/ref identity; exact installed detail uses installed_name only. Refresh has no kind selector and returns sources[]; CLI, Web, OpenAPI and generated site API co-ship. The daemon registers only the extension feed. Existing lifecycle suites now exercise extensions, and real local v3 feed/package HTTP/UDS/CLI parity passes. Config archival and remaining domain Kind/Store/decoder removal are still task05 work; task02 owns publisher/site-guide cleanup. Final QA remains09/10.
+
+Task05 decoder checkpoint (2026-09-13): runtime decoding and projection now accept only the extension v3 schema. Retired MCP/skill launch parsers are deleted; the shared input grammar remains. File and HTTP source roots both address v3/extensions.json, with no root fallback; catalog validation also requires v3/marketplaces.json. Existing extension entries/package bytes are untouched. Focused source and real HTTP/SQLite failure-preservation suites pass. Remaining Kind service/store signatures are the next task05 cut. The copied testdata/v2decoder still has a production publisher import and remains a mandatory task02 deletion with its v2 publication paths, not a supported runtime decoder.
+
+Round-3 incorporation: task01 → task05 → task02 → task03 → task04 is now explicit. Task05 owns all retired Kind/source/DTO/CLI/tool paths, including hand-written --runtime-name/schema strings and public core/daemon owner-less diagnostics; preserve discovered-resource execution. Task02 owns v3 publisher/site/fixtures after that cleanup. The actual schema is 00110 projection/provenance/inputs/overrides (task01), 00111 secret-binding identity/active state (task03), 00112 owner keys and 00113 installation attachments (task04). IT-016 owns the complete v109 upgrade; IT-021 owns attachment update/detach/rollback. Typed input/MCP persistence boundaries and digest-pinned pre-install inspection are retained with explicit owners. Canonical listing slugs are derived while existing feed acquisition refs and installed update provenance stay intact. Baseline CLI bare-ref selection is preserved; only its branch-added duplicate preflight loop is consolidated. Stored retired Marketplace locations keep their layout and render normal not-found with Back, without a redirect/hydration alias.
+
+Task05 first implementation slice: install/preview reject the removed runtime_name field, CLI and native schemas no longer advertise it, and automatic allocation/rollback remains. Inputs reject manual MCP vault imports without altering stored credentials. Settings GET/auth and diagnostic lookup require an extension owner; manual defaults and discovered ResourceID execution remain. Focused HTTP/UDS Settings, CLI, daemon, secret isolation and real SQLite publication evidence is in marketplace-catalog/memory/task_05.md. Remaining Kind/source/config/acquisition removals are pending; final QA remains09/10.
+
+Concrete documentation owners: task05 rewrites RELEASE_NOTES.md's pending translation/runtime-name promises and skills/compozy/references/tools-and-skills.md; task02 rewrites catalog/README.md and removes packages/site/content/docs/skills/marketplace.mdx. These are pending implementation co-ship targets, not claims that those runtime surfaces have already been removed. The incorporation record names all thirteen findings and the corrected baseline attribution for B-035.
 
 PR #624 review follow-up: Marketplace mutation settlement cancels in-flight reads before canonical invalidation, so an initial search started before installation cannot suppress the authoritative installed-state reread. Server filters, workspace query keys, pagination envelopes and installed counts retain their owners. No native tool, CLI/HTTP/UDS schema, hook, extension, configuration or persisted-data change is needed; the official skill and site install instructions remain valid. ET-009 and the existing Marketplace acquisition E2E own this Web cache behavior. Evidence is recorded in `docs/qa/reports/2026-09-10-qa-execution-unblock/pr-review-resolution.md`.
 
@@ -412,4 +430,365 @@ No additional public, config, persistence, or Web contracts change.
   cases. Canonical PTY, session input/recording, and real HTTP/WebSocket integration suites own
   regression evidence; changes do not affect Unicode counting or shell environment setup.
 
+Task05 MCP installer removal: deleted mcp install and POST /api/settings/mcp-servers/install across transports, Settings, contracts and generated consumers. Current extension acquisition and manual MCP Settings/auth remain; the real manual-secret/executor integration passes. Official skill and MCP/vault docs are current, and retired MCP install QA scenarios link final replacement walks. Evidence and remaining removals are in marketplace-catalog/memory/task_05.md.
+
+Task05 remote skill acquisition boundary removal: deleted CLI search/install/update/remove and HTTP/UDS lifecycle routes, DTOs and Web adapters/hooks/mocks. Local skill loading, provenance, creation/exposure and session attachment containment remain; filesystem containment moved to fileutil with its existing security cases. Generated contracts/CLI/site API and official skill co-ship. ET-web-marketplace-skill-install is retired. The old Kind remote-discovery service/packages and config migration remain pending in task05; final walks stay09/10. Focused evidence: marketplace-catalog/memory/task_05.md.
+
+Task05 canonical discovery consumers: native marketplace_search and CLI search now read the one-catalog API; native kind and CLI --kind/two-argument info fail validation. Canonical browse/detail reject obsolete kind queries. Native boot no longer creates a remote skill-acquisition service. CLI pagination/scope/source fields, generated help, native descriptors, official skill and the CLI QA scenario co-ship. Old kind/grouped routes, refresh response and domain/config removal remain task05; evidence is in marketplace-catalog/memory/task_05.md.
+
+Task06 client plugin loading: existing extension CLI/HTTP/UDS and native install surfaces now accept Claude/Codex/Cursor manifest directories through grammar adapters. Package bytes, trust gates, extension identity, manual MCPs and scoped credential ownership are preserved. Unsupported client commands/agents/hooks emit client_component_ignored; none become executable hooks. Nested manifest paths retain the package root for resource delivery, updates and removal. Provenance and the shared ExtensionPayload expose the detected layout; OpenAPI/TS consumers are regenerated. Official skill and extension docs describe the accepted grammar. No config or database shape changes. ET-agent-plugin-marketplace-install is untested for the new behavior; task10 owns the remaining live/visual walks. Focused archive/SQLite/HTTP lifecycle evidence is recorded in marketplace-catalog/memory/task_06.md.
+
+Task05 documentation closeout: the configuration reference now removes active registry/base_url examples and root-feed fallback promises. Marketplace CLI examples use the canonical one-argument info and no kind flag. The migration guide and release notes list removed CLI/API/native acquisition inputs and preserved extension, manual MCP and installed-skill state. Retired QA rows stay skipped with replacement journeys linked; current namespace/search rows remain untested for final09/10. At this checkpoint, the installed-skill MCP authorization field remained active pending the task05 consent decision. The later Task05 embedded MCP retirement entry supersedes this status: the field is retired and archived, and embedded Marketplace-skill MCPs stay disabled. Task02 still owns v3 publisher/site conversion and the obsolete standalone skill-store guide.
+
+Task02 publisher cut: compozy-catalog publish emits only v3 extension/preset feeds and verified package artifacts; the production v2 semantic adapter and copied decoder are deleted. Validation reads only v3 and always compares feed inputs with the packaged manifest. Existing extension entry metadata and artifact bytes are preserved by the canonical publisher suite. The 17 package definitions now compare launch/auth/input/default-scope behavior with an immutable pre-feature fixture, independent of root MCP feeds. No daemon config, native tool, credential, workspace or installed-state shape changes in this slice. Site kind consumers/root assets and the remaining task02 docs/schema obligations are still pending; existing final09/10 QA ownership remains.
+
+Task02 site data and docs cut: the public catalog reads the single v3 extension/preset schema, uses direct /marketplace/<entry_id> routes, and removes Kind unions, root feed imports/outputs and the old standalone skill acquisition guide. Search and sitemap use current entry identities. Installed skill provenance stays documented in the local skills guide; its MCP consent allowlist was unchanged at this checkpoint pending the task05 decision. The later Task05 embedded MCP retirement entry supersedes that status; the hook allowlist remains active. Existing extension install refs/artifacts, bundled resources and bridge setup remain preserved. Official extension authoring guidance already covers inputs/auth/default scope. No additional native tool, workspace, credential or database change in this slice. Site UI integration and its focused checks are in progress; ET-site-marketplace-catalog and MS-marketplace-catalog-live-config retain final09/10 live QA ownership.
+
+Task03 input ownership naming: requires_env bindings and optional expected_digest remain current supported extension behavior. Reader/helper comments now name those mechanisms directly rather than marking them legacy. No public DTO, config, persistence, runtime behavior or QA contract changes in this editorial/refactor slice; focused binder, lifecycle, readiness and SQLite input suites pass. Public scoped-install propagation remains pending in task03/04.
+
+Task03 managed acquisition scope: MarketplaceInstallRequest carries the existing InstallationScope into registry persistence. Actual archive/SQLite install/update cases prove exact attachment retention (including created_at) and package/row cleanup for a nonexistent profile. Empty scope retains existing global/all-profiles installation. No public DTO/native tool, config, credential, generated client or Web change yet; daemon request/binder/status propagation remains pending. This reuses migration00113 attachment authority and creates no new storage shape.
+
+Task03 public install scope: CLI install/preview, HTTP/UDS InstallExtensionRequest and the native
+extensions_install schema now forward scope/workspace_id/profile to the existing attachment,
+input binder and status owners. Explicit CLI profile overrides COMPOZY_PROFILE; omitted operator
+profile preserves all-profile attachment, while agents stay in their trusted workspace/profile.
+Input schemas and docs accept only owned vault:extensions references, removing the retired manual
+MCP import promise. OpenAPI, Web DTOs, native catalog, CLI help and official skill co-ship. No
+config, hook, SDK extension protocol or database shape changes. ET-extension-published-source-installs
+is untested for final09/10. Manifest default_scope selection, scoped updates, workspace runtime and
+UI remain task03/04 work; this slice proves explicit install selectors, not those remaining outcomes.
+
+Task03 manifest defaults: explicit selectors and trusted agent scope retain priority. Operator installs
+without selectors use the manifest servers' common default_scope; mixed defaults and missing workspace
+context fail before managed writes. The staged installer accepts the final scope at Commit, avoiding
+reacquisition or mutable setters. Local packages use the same resolver; updates retain attachments.
+Owning daemon/archive/SQLite tests include default workspace, explicit override, mixed defaults and
+failure cleanup. Generated scope descriptions and the existing final09/10 QA inventory co-ship.
+
+Task03 scoped updates: shared HTTP/UDS DTOs, native extensions_update, CLI update and Web mutation
+data carry scope/workspace/profile. The binder prepares/commits/rolls back the selected cell; package
+and workspace locks remain held through publication/rollback. Existing attachments and other cells
+are preserved; package bytes remain shared. Batch selection filters to installed scope/profile, and
+named batches now process every distinct name. Cross-workspace agents cannot mutate global/inherited
+attachments. No database, config, hooks or extension SDK shape change. Owning generated contracts,
+CLI help, official skill and final09/10 QA scenario co-ship. The obsolete --runtime-name and marketplace
+--kind examples are removed from the install guide. UI recovery and same-origin reinstall remain open.
+
+
+Task03 runtime input publication: each profile loads its own durable input cell. Unconfigured
+profile projections omit packaged MCP servers without aborting publication for configured profiles.
+No input inheritance, credential copying, public DTO, hook, config, database or extension SDK change.
+Real daemon CLI installation, HTTP/UDS readiness/settings and restart coverage lives in the existing
+extension distribution integration suite. Web readiness keeps the current missing_inputs contract;
+install guidance and ET-agent-plugin-marketplace-install cover isolation and restart for final task10.
+
+Task03 update origin and rollback: removed the opportunistic curated trust lookup for direct
+registry updates and stopped overwriting their recorded installation origin. HTTP/UDS, CLI and
+native update use the shared lifecycle; no DTO, config, hook, extension SDK or database shape change.
+Real daemon integration covers retained typed values, inactive/reactivated inputs and publication
+failure compensation; the owning vault integration covers second-write install cleanup. The
+IT020 storage-failure expectation uses the existing `500` contract, with `422` reserved for input
+validation. Site/official skill and ET-extension-published-source-installs carry the final task10
+walk. Workspace attachment publication remains task04; this evidence uses the global/default cell.
+
+Task04 explicit workspace-profile startup: the manager now preserves both attachment selectors
+when starting an installed profile runtime, using the existing startup/rollback and stop owners.
+Real SQLite/subprocess tests cover boot, tool/log access, restart, archived-profile suppression,
+and exclusion from global/foreign-workspace reads. No native-tool/HTTP/UDS DTO, hook or config
+shape changed. The existing install guide describes the corrected scope behavior; official skill
+selectors remain accurate. ET-extension-published-source-installs assigns the daemon walk to
+final tasks09/10. All-profile workspace startup and package-wide MCP allocation rollback remain
+task04 work; this focused fix does not claim those paths or final Web/QA delivery.
+
+Task04 all-profile workspace runtime: scopedExtensions now owns published workspace and profile
+instances while devExtensions retains development-overlay identity. Boot uses active attachments
+and defers to persisted overlays; unlink restores published workspace instances through the same
+startup owner. Restoration does not start processes while the manager is stopping. Profile grant
+metadata is resolved using the actual instance ceiling instead of copying the base runtime's
+broader grant. Existing SQLite/subprocess and development lifecycle suites cover startup, restart,
+scope exclusion, default overlay restoration and shutdown interaction. Public DTOs, native tools,
+hooks, configuration and stored data shapes are unchanged. Install docs and the final09/10 scenario
+are updated; named-profile overlay transition concurrency and package-wide MCP rollback remain
+task04 integration work before backend/data handoff or final delivery.
+
+Task04 named-profile overlay transitions now retire affected workspace/profile processes within
+the existing startup transaction. Activation failure restores their previous definitions;
+unlink restoration failure reinstates the development link, base runtime and profile runtimes.
+Workspace coordination serializes profile startup/invalidation with the transition. Supervisors
+remain bound to their original runtime object, even if a replacement reuses a numeric generation.
+Real SQLite/subprocess tests cover both transitions and injected source-activation failures;
+existing concurrency, startup rollback, shutdown and generation-fencing suites remain the owners.
+Install docs and the final09/10 scenario reflect the behavior. No new public DTO, native tool,
+hook/config key, migration or compatibility path. Package-wide MCP allocation rollback is still
+task04 work; these runtime results do not claim final UI, QA or CI delivery.
+
+Task04 package allocation compensation: updates, batches and published reinstalls hold exclusive
+package access across workspace operations. Instance-only operations retain workspace isolation.
+Update rollback removes only newly created allocations for that package across every workspace
+and profile after package/input restoration succeeds; existing allocations/overrides and other
+packages survive. Install/dev snapshots remain workspace-scoped. This reuses the repository's
+weighted semaphore pattern and adds no public surface, migration, hook, config or compatibility
+adapter. HTTP/UDS/CLI/native updates share this lifecycle; official skill selectors stay accurate.
+The install guide and ET-extension-published-source-installs describe final task10 acceptance.
+Focused race evidence lives in marketplace-catalog/memory/task_04.md; full IT016/021 and UI remain open.
+
+Task04 complete migration fixture now starts at v109 with3 extension/17 MCP/1 skill catalog
+rows and installed package files, enablement, scoped env/header bindings, token/DCR rows and
+vault bytes. The normal stream applies00110–00114; repeated opens preserve exact installed
+state and authority. A subsequent HTTP refresh from a custom base path loads20 checked-in v3
+entries without classifying unrelated installations. Existing owner/attachment suites retain
+their detailed validation and cleanup invariants; the combined fixture reuses credential seeding.
+The IT016 generation reference is corrected from1 to0, matching fresh source initialization,
+existing store tests and immutable00110; generation fencing is unchanged. No SQL history,
+public interface, hook, config, native tool, extension SDK or UI behavior changed in this slice.
+Final task10 still owns the live upgrade/operator journey; focused receipts are in task04 memory.
+
+Task04 public MCP addressing now rejects allocated runtime-name aliases even with an explicit
+extension owner, at both Settings/auth resolution and native diagnostic lookup. Logical manifest
+name plus owner/scope remains the public identity; internal discovered-resource execution is
+unchanged. No DTO, generator, database, config or hook change. Existing Web queries already pass
+published.name and explicit owner. Install docs, official tools-and-skills reference and final10
+scenario co-ship. This removes a remaining alias prohibited by ADR008; full IT021 remains pending.
+
+Task04 OAuth refresh now reuses the exact target's persisted client registration after validating
+its definition, resource, issuer, scopes, auth method and secret expiry. The previous refresh path
+required a login callback and could register another client; the executor lacked that callback,
+so expired extension tools disappeared from discovery. Removed the unused internal redirect option.
+No public route/DTO, config key, hook, SDK or database shape changed. HTTP/UDS Settings and discovered
+tool execution share the existing owner and scope boundaries. The official skill and install guide
+describe refresh without another login; final10 owns the corresponding UI journey. Focused real
+daemon/SQLite/encrypted-vault evidence covers manual plus extension registration, exchange, refresh
+and logout; full IT021 override/update/detach acceptance and task04 UI remain open.
+
+Task04 GET detail follow-up removes the remaining explicit-owner runtime alias in
+`internal/api/core/settings_mcp_collection.go`; the existing HTTP/UDS handler suite retains local,
+inherited and sibling-scope checks using logical names. Real daemon IT021 now also verifies
+override storage without package writes, owner-less manual edits, manual runtime-name refusal,
+override/name preservation through package update, a second same-name extension, and sticky names
+after manual removal. No wire/schema/config change; prior documentation already states this
+contract. Scoped attachment update/restart/detach acceptance remains open.
+
+Task04 published attachment lifecycle now adds a missing scope on same-origin reinstall without
+rewriting unchanged package files. Scoped removal detaches only its selected installation; final
+removal uses managed package retirement. Published and development workspace resource snapshots
+share the existing runtime projection, so published workspace MCPs receive their own inputs and
+allocations. Package locking covers selection, mutations and compensation. Allocation retirement
+and the established removal event payload commit together; a failed event restores attachments,
+enablement, inputs and allocations. Existing native/HTTP/UDS surfaces use this lifecycle; no new
+DTO, route, config, hook, SDK or database shape. Other installations, manual credentials and dev
+unlink remain protected. Install docs and the official tools-and-skills reference co-ship; final
+QA09/10 owns the installed-management UI walk. Task04 UI implementation remains pending.
+
+Task04 frontend data now exposes a Settings MCP controller and reusable manual/extension editors.
+Manual definitions retain existing Settings serialization; extension writes contain only explicit
+env/headers/url overrides. Selection keys include owner and exact scope. Authorization polls its
+captured definition independently of page selection. Existing adapters and Query invalidation own
+HTTP/UDS mutation envelopes; no new backend, wire, config, hook, schema or SDK changes. The Settings
+route and Marketplace/Settings presentation remain the next UI slice; final09/10 owns visual QA.
+Canonical editor-model, mutation, authorization and Marketplace-hook suites verify these boundaries.
+
+Task04 presentation integrates Server details and Installed authorization with the prepared exact-owner
+controllers, restores /settings/mcp and Settings window navigation, and limits extension edits to
+overrides. Manual definitions keep their separate editor/removal path. Shared StatusDot gains its
+existing semantic success tone for truthful runtime status. No additional native, HTTP/UDS, config,
+hook, workspace storage or SDK contract changes. The install guide explains these entry points;
+J-mcp-authorize-repair and ET-web-marketplace-mcp-authorize-installed now target the current routes
+and remain untested for final09/10. UI integration and focused checks are still in progress.
+
+Task07 package-cache foundation adds verified content-addressed files under a configured cache root.
+Put stages and syncs approved bytes before publication, Open re-verifies the held file, and Sweep
+preserves supplied projection/installation pins while evicting older unreferenced blobs. Existing
+fileutil owns no-follow and bound publication/removal. Real-file race tests cover interruption,
+corruption repair, cancellation, capacity, pins, symlink refusal and readers surviving eviction.
+This is an internal foundation: source fetching/projection/install composition is still pending,
+so there is no new callable CLI/HTTP/UDS/native surface, config, hook, SDK, Web or installed-state
+change yet. Task07's existing audit will expand when those consumers are wired.
+
+### Task07 source document reader foundation
+
+The plugin-source owner now normalizes acquisition refs, decodes bounded marketplace documents with
+per-plugin diagnostics, and reads root or `.claude-plugin/marketplace.json` through held directory
+handles without following symlinks. Existing registry installers and extension behavior are unchanged.
+The public-source/config/daemon composition remains assigned to task07/08; no new routes or native
+tools are exposed by this checkpoint. Canonical coverage: pluginsource reader_test.go (origin identity,
+metadata/source decoding, local document selection, size/cancellation and confinement).
+
+### Task07 GitHub acquisition foundation
+
+Plugin marketplace documents resolve to an exact GitHub commit and are fetched through the existing
+registry client without ambient token/cookie use, within one 10-second deadline and existing bounded
+retries. New repository read/archive methods retain the existing network and response ownership rules.
+The shared archive finalizer also removes its spool when response cleanup fails. Public routes, config
+composition, install/cache consumers and final QA remain owned by task07/08/09/10. Owning validation is
+the registry/github and pluginsource race suites; this is not a final gate/QA delivery claim.
+
+### Task07 owned Git checkout acquisition
+
+The registry Git client now offers an owned checkout with verified commit identity and reuses its clone
+acquisition for existing archive downloads. Failed acquisition releases the complete temporary tree;
+archive callers still receive the same gzip format. New source composition will use the checkout parent
+under the marketplace home. Focused registry/gitsrc race tests, lint and Windows compilation pass;
+live Git source acquisition and public source integration remain pending in task07/final QA.
+
+### Task07 canonical package tar
+
+Raw package tar and existing gzip archives now share the fileutil serializer. All raw tar limit consumers
+use the renamed internal errors directly. The serializer refuses a file replaced by a symlink before
+reading, preventing external bytes from entering a marketplace package. Existing gzip bytes, limits
+and cancellation remain covered by the same suite; no extension package/state migration is introduced.
+Scoped race checks pass. Final gate still owns baseline formatting/coverage gaps and integrated QA.
+
+### Task07 raw package installation boundary
+
+Explicit application/x-tar downloads now pass through the same registry digest, extraction safety,
+manifest/content validation and publication pipeline as gzip downloads. Canonical raw package bytes
+are verified before extraction and retained as the archive digest in the result. Existing gzip behavior
+is covered by unchanged suites. Public Marketplace install/source composition is still pending task07/08.
+
+### Task07 checkout-to-cache capture
+
+CapturePackage now creates the canonical digest-addressed package from a confined checkout path,
+excludes Git metadata and publishes through the verified cache before releasing source bytes. The
+acquisition suite proves cache reuse after checkout deletion and refuses traversal/symlink/over-budget
+inputs. The source resolver, projection and install-lifecycle consumers remain pending task07.
+
+### Task07 pinned GitHub repository snapshots
+
+The existing registry extractor is now available to source acquisition without requiring an extension
+manifest at the root of an entire marketplace repository. GitHubSource acquires one exact revision,
+verifies its marketplace document matches the fetched document and exposes an owned snapshot for
+relative package capture. Failure and Close remove the snapshot and download spool. Extraction safety
+remains owned by registry; no second extractor or internal compatibility alias was introduced.
+
+### Task07 Git and folder source snapshots
+
+Git and folder sources now implement document acquisition and snapshot ownership alongside GitHub.
+Git snapshots require a full resolved commit and use the existing isolated Git client; a focused test
+executes real local Git operations with only the remote transport replaced by a fixture. Folder Close
+preserves operator files and rejects document changes before package capture. Source/config aggregation
+and lifecycle consumers remain pending; final live QA and delivery gates are not claimed.
+
+Task05 embedded MCP retirement (2026-09-13): retired skills.allowed_marketplace_mcp from config/Settings/HTTP/UDS/CLI/Web and archived its values atomically through the existing config owner. SourceMarketplace skill MCP declarations are disabled; local skills, content/provenance, manual MCPs/credentials, extension execution and hook policy retain their owners. Wire artifacts, official skill, config guides, migration/release notes and ET013 co-ship. Real-file registry integration, config archival/reload, HTTP/UDS rejection, CLI validation and focused Web tests pass; memory/task_05.md owns exact receipts. Prior pending-consent statements are superseded. Final user journeys remain09/10.
+
+Task07 source runtime composition: the daemon composes configured plugin readers, the existing manifest inspector, the package resolver and a home-owned cache. Feed refresh flights read v3 presets with bounded HTTP/file acquisition; operator enablement follows normalized origin, and an atomic derived preset cache restores registrations offline. Full refresh includes newly discovered enabled presets. Hot configuration retains the existing source generation fences and cancellation owner. Public wire contracts are unchanged in this checkpoint; plugin install routing, cache sweep/availability and source-management surfaces remain task07/08. The configuration guide documents this discovery behavior; final QA remains09/10.
+
+### Marketplace plugin acquisition continuation (task07)
+
+`POST /api/extensions` and install preview accept `source: marketplace` with the listed digest;
+HTTP/UDS and native extensions_install use the same daemon/lifecycle owner. Update resolves persisted
+origin and keeps publication, input, attachment, credential, and rollback behavior. Missing cache plus
+unreachable source returns503 source_unreachable. Web action data selects the source union from origin;
+OpenAPI, TS, native catalog, site sources docs and official extension skill co-ship. CLI source-index
+selection and source-management UI remain task08-owned. No hook or manual MCP policy changes.
+QA: ET-agent-plugin-marketplace-install and CH-agent-plugin-marketplace remain pending task10 live walk.
+
+Task07 cache completion: service-owned refresh flights and daemon plugin install/preview/update/inspection
+hold packages through publication. Sweep reads current projection and installed-provenance pins after
+those holds release, retains every pin and reports capacity pressure. Browse/detail expose local blob
+availability; blocked detail retains projected contents without reacquiring. No public DTO, schema or
+manual-state change. Refresh, eviction, budget and acquisition mismatch logs use existing structured
+logging, separate from canonical notifier events. Task10 owns the remaining live/visual QA.
+
+
+Marketplace task08 sources: experimental HTTP/UDS source list/add/preview/toggle/remove/refresh,
+CLI sources commands and aggregate failure semantics, read-only compozy__marketplace_sources.
+Runtime owns global comment-preserving config edits, source-name retention, loader preview and
+refresh diagnostics. Native tools and Web share source payload conversion; generated OpenAPI/TS
+and tool catalog co-ship. Web adapters/query envelopes preserve global order and detailed errors.
+Existing extension acquisition refs keep priority; explicit marketplace: CLI refs select plugins.
+No hook/bridge SDK change; manual MCPs, installed skills, extension lifecycle/credentials/rollback
+remain protected. Source UI and final QA scenarios are task08/task10; API docs use the existing
+OpenAPI-generated marketplace page rather than introducing a duplicate hand-maintained API reference.
+
+Task08 catalog Settings co-ships GET/PATCH /api/settings/marketplace, global catalog URL/TTL/timeout
+editing through the existing Settings apply owner, and generated lifecycle metadata for live source
+changes. CLI config set marketplace.plugin_sources.<name>.enabled uses the source mutation owner.
+Source API errors retain suggested_name/retained_by/checked in CLI structured output; invalid source
+input exits 2. Catalog section view data preserves authoritative source order/counts independently
+of query matches. QA acquisition/parity journeys and source scenarios now follow the hard cut;
+existing extension instance removal keeps baseline exclusive-secret cleanup and shared-state safety.
+
+Marketplace final-review continuation: optional ExtensionPayload description and installation_profile
+co-ship through the existing OpenAPI/TypeScript/SDK generator. Description comes from the manifest;
+installation_profile identifies a persisted attachment, separately from the viewing profile. No SQLite
+shape changes. Missing optional attachment metadata does not invalidate a runtime snapshot; genuine
+read failures still propagate. Native install/update use the existing workspace selector and accept
+the approved Marketplace source, mapping to HTTP/UDS workspace_id through the common authorization
+boundary. Installed detail links preserve the captured profile/workspace; global and workspace axes
+remain independent. Web, installed docs and the owning QA scenario include authorization feedback,
+partial batch completion, local descriptions and scope. Existing extension lifecycle, manual MCPs,
+installed skill provenance, hooks and credential ownership remain under their original owners.
+
 Session-context implementation closure (2026-09-12): the turn query hook shares `use-session-context.ts`; confirmed receipt data uses AgentEvent's existing optional payload with isolated clones, preserving the public `delivery` JSON field. Lazy CreateAccepted retains startup ownership. All selected scenario verdicts pass after runtime and opaque-ID repairs; the feature QA report is `docs/qa/reports/2026-09-12-session-context.md`. Cache migration 00110 and owning generated contracts co-ship. Native tool IDs, hook contracts and workspace isolation remain as audited above.
+
+Marketplace integration with main64b36b4cf: main's cache-token migration00110 is retained byte-for-byte. The unpublished Marketplace SQL payloads move unchanged from110–117 to111–118; projection/input/auth/attachment/discriminator ownership does not change. Prior receipts retain their historical numbering. Canonical v109 upgrade and main token-cache preservation tests both run against the combined stream; the generator owns the combined Atlas checksum and SQLC/OpenAPI outputs. No runtime fallback, data reset or edited migration from main is introduced.
+
+Marketplace final repair addendum: installed-name detail uses optional exact-origin catalog enrichment for current trust/installability/update metadata while preserving installed contents and offline access. MCP override commit/rollback invalidates volatile observed readiness. Shared HTTP/UDS handlers and Settings publication own these behaviors; no new config, migration, native tool ID, or credential-retention rule is introduced. QA owners are passive update discovery and the existing real MCP publisher integration.
+
+Catalog curation follow-up: the maintainer retired Repository Orientation from the official feed.
+The canonical sources and generated v3 feed now contain19entries. Web, site, CLI, HTTP/UDS and
+native Marketplace discovery consume that feed; their contracts, config, hooks, official skill and
+workspace state are unchanged. Previously published package bytes and installed copies are retained.
+The existing publisher/runtime-source suite verifies absence and preservation of the remaining entries.
+
+Marketplace PR636 single-review remediation: the existing source synchronizer now applies the
+retired Marketplace skill-MCP rule during dynamic resource publication and aborts boot on failed
+reconciliation. Installed skill bytes/provenance, local declarations, manual MCPs and extension
+resources remain protected. Auth config validates client-secret ownership before resolution;
+manual user references from released config retain access to their own persisted keys, while
+shared and environment references remain explicit. Profile lifecycle enumerates manual and
+extension-owned profile/workspace-profile secret prefixes, re-encrypts renamed ciphertext with
+its new identity in the existing transaction, and includes those credentials in deletion previews.
+No public CLI/HTTP/UDS/native IDs or database shape changes accompany these corrections. Web
+Settings and profile lifecycle actions consume the same runtime boundaries; official skill commands
+remain current. Plugin inspection/classification/loading share one securely read manifest and
+resolve package data paths before loading components. Owning runtime, Vault/SQLite lifecycle and
+manifest suites supply focused evidence; affected scenario additions require final live re-walks
+and heavy gates remain assigned to current-head GitHub CI.
+
+Marketplace source mutations now serialize canonical overlay writes and restore rejected changes,
+including original comments or prior file absence. Catalog source membership and its in-memory
+publication commit under the same lifecycle lock. Failed add/disable/remove operations retain the
+prior catalog snapshot; external overlay replacements are preserved with an explicit retry error.
+Workspace extension hooks now use the effective profile/workspace projection. Persisted hook
+bindings retain profile identity and workspace shadowing, including development packages without
+hooks; reconstructed dispatch preserves these boundaries. Inventory hook IDs include the same
+profile/workspace identity as published bindings. Existing CLI/HTTP/UDS/native operations and Web
+controls consume these fixes; no new public route, config key or SQLite schema change is needed.
+Focused real SQLite/reconciliation/subprocess suites passed. The existing source-management and
+plugin-development QA scenarios include the affected public re-walks; current-head CI remains pending.
+
+Marketplace review CI follow-up: acquisition and loading now share Agent Plugins unsupported-schema
+error identity, preserving the existing HTTP/UDS 422 diagnostic and retained installed package on
+rejection. Hook projection scope is cloned as one optional placement value; JSON/YAML keep the
+top-level profile_id contract and the daemon codec retains private workspace shadowing. Owning
+normalization, serialization, real SQLite publication and archive lifecycle suites verify these
+boundaries. Empty optional Marketplace fixture fields follow the generated wire contract. Windows
+config privacy is verified by the ACL suite; Unix alone asserts POSIX permission bits. No additional
+public surface, config key, credential rule, migration, official skill or Web/docs contract changes.
+
+PR636 public development re-walk follow-up: CLI dev/reload/watch now prepares supported Agent Plugins
+source generations before calling the existing shared HTTP/UDS development handlers. The daemon
+uses the same secure manifest selector for standard, Claude, Codex and Cursor layouts, retaining
+authored identity and workspace containment. Native build behavior, tool IDs, DTOs, config,
+credentials and storage shapes stay unchanged. Official skill commands remain valid without edits;
+the site documents portable development preparation. The owning real SQLite lifecycle suite now
+covers all four layouts through preparation and activation, including last-good reload behavior.
+
+PR636 profile credential public re-walk follow-up: profile rename now updates exact owned Vault
+references inside personal-profile config.toml and mcp.json files through the existing recoverable
+folder finalizer. Preview counts include those configured occurrences; parser ranges preserve
+comments, formatting, JSON keys, shared refs and other owners. Selected repository-folder renames
+apply the same ref rewrite and report any remaining file repair in their existing per-folder result.
+No credential value enters the journal, no schema/DTO/tool/config key changes, and Web/CLI/UDS keep
+the shared profile lifecycle owner. Site profile lifecycle documentation owns the operator explanation;
+official skill commands remain valid. Real lifecycle coverage loads both moved config formats,
+resolves the resulting secret through Vault and repeats finalization without changing bytes.
+
+PR636 Settings credential-replacement follow-up: reject foreign or daemon-managed OAuth client-secret
+refs before definition commit and exclusive-secret cleanup. Reuse the existing Vault target policy;
+HTTP/UDS/CLI now receive the existing validation error for the invalid mutation. Own/shared/env and
+released user refs retain their established rules. No config/schema/DTO/tool IDs change. The canonical
+Settings secret-write suite and public MCP authorization scenario own preservation evidence.
+
+MCP repair follow-up: Settings determines pre-mutation existence from owner-qualified definitions without requiring successful auth/runtime probes. CLI/HTTP/UDS configuration application retains its existing validation, ownership and lifecycle contracts. Web can repair an invalid configured credential through the same Settings PUT; no schema, native tool ID, hook, official skill or workspace isolation change. The existing config-apply suite owns repair/addition classification and persisted definition evidence.

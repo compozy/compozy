@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -20,6 +23,13 @@ type extensionErrorKind uint8
 
 const (
 	extensionErrorUnknown extensionErrorKind = iota
+	extensionErrorMCPNameTaken
+	extensionErrorSourceChanged
+	extensionErrorSourceUnreachable
+	extensionErrorMarketplaceSourceNotFound
+	extensionErrorNameConflict
+	extensionErrorInputsRequired
+	extensionErrorInputInvalid
 	extensionErrorNotFound
 	extensionErrorConflict
 	extensionErrorUnprocessable
@@ -31,7 +41,6 @@ const (
 	extensionErrorEnvBindingUndeclared
 	extensionErrorEnvBindingDangling
 	extensionErrorEnvBindingInvalid
-	extensionErrorAgentPluginClientLayout
 	extensionErrorAgentPluginNotManifest
 	extensionErrorAgentPluginSchemaUnsupported
 	extensionErrorAgentPluginManifestInvalid
@@ -43,12 +52,15 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusOK
 	}
 	switch classifyExtensionError(err) {
-	case extensionErrorNotFound:
+	case extensionErrorNotFound, extensionErrorMarketplaceSourceNotFound:
 		return http.StatusNotFound
-	case extensionErrorConflict, extensionErrorNetworkConfirmationRequired, extensionErrorAgentConflict:
+	case extensionErrorConflict,
+		extensionErrorNetworkConfirmationRequired,
+		extensionErrorAgentConflict,
+		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
-	case extensionErrorUnprocessable,
-		extensionErrorAgentPluginClientLayout,
+	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
+		extensionErrorInputsRequired, extensionErrorInputInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
 		extensionErrorAgentPluginManifestInvalid:
@@ -58,7 +70,7 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusBadRequest
 	case extensionErrorForbidden:
 		return http.StatusForbidden
-	case extensionErrorUnavailable:
+	case extensionErrorUnavailable, extensionErrorSourceUnreachable:
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
@@ -66,12 +78,13 @@ func ExtensionStatusCode(err error) int {
 }
 
 func classifyExtensionError(err error) extensionErrorKind {
+	if kind := classifyExtensionAcquisitionError(err); kind != extensionErrorUnknown {
+		return kind
+	}
 	switch {
-	case errors.Is(err, extensionpkg.ErrAgentPluginClientLayout):
-		return extensionErrorAgentPluginClientLayout
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
 		return extensionErrorAgentPluginNotManifest
-	case errors.Is(err, extensionpkg.ErrAgentPluginSchemaUnsupported):
+	case errors.Is(err, agentplugin.ErrSchemaUnsupported):
 		return extensionErrorAgentPluginSchemaUnsupported
 	case errors.Is(err, extensionpkg.ErrAgentPluginManifestInvalid):
 		return extensionErrorAgentPluginManifestInvalid
@@ -96,7 +109,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified),
 		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
 		return extensionErrorUnprocessable
-	case errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
+	case errors.Is(err, marketplacepkg.ErrInstallSlugInvalid),
+		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
 		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch),
 		errors.Is(err, extensionpkg.ErrManifestInvalid),
 		errors.Is(err, extensionpkg.ErrManifestIncompatible),
@@ -114,6 +128,27 @@ func classifyExtensionError(err error) extensionErrorKind {
 		errors.Is(err, registrygit.ErrGitUnavailable),
 		errors.Is(err, registrygit.ErrGitVersionUnsupported):
 		return extensionErrorUnavailable
+	default:
+		return extensionErrorUnknown
+	}
+}
+
+func classifyExtensionAcquisitionError(err error) extensionErrorKind {
+	switch {
+	case errors.Is(err, marketplacepkg.ErrSourceNotFound):
+		return extensionErrorMarketplaceSourceNotFound
+	case errors.Is(err, pluginsource.ErrSourceUnreachable):
+		return extensionErrorSourceUnreachable
+	case errors.Is(err, extensionmcp.ErrNameTaken):
+		return extensionErrorMCPNameTaken
+	case errors.Is(err, extensionpkg.ErrExtensionNameConflict):
+		return extensionErrorNameConflict
+	case errors.Is(err, extensionpkg.ErrExtensionSourceChanged):
+		return extensionErrorSourceChanged
+	case errors.Is(err, extensionpkg.ErrExtensionInputsRequired):
+		return extensionErrorInputsRequired
+	case errors.Is(err, extensionpkg.ErrExtensionInputInvalid):
+		return extensionErrorInputInvalid
 	default:
 		return extensionErrorUnknown
 	}

@@ -10,94 +10,22 @@ import {
   appRouteParameters,
 } from "@/storybook/route-story-meta";
 import { devExtensionFixture } from "@/systems/extensions/mocks";
-import { marketplaceDetails } from "@/systems/marketplace/mocks";
-import { mcpManagementCollectionFixture } from "@/systems/settings/mocks";
-import { skillFixtures } from "@/systems/skill/mocks";
+import { marketplaceCatalogDetailFixture } from "@/systems/marketplace/mocks";
 
 import {
   kitDetailHandlers,
   kitExtensionFixture,
   kitInventoryItems,
 } from "./marketplace-detail-story-fixtures";
+import {
+  installedExtension,
+  installedListing,
+  marketplaceStoryHandlers,
+  storyCatalog,
+  storyGithubServer,
+} from "./marketplace-story-data";
 
-const gitFlowSkill = {
-  ...skillFixtures[0]!,
-  name: "git-flow",
-  dir: "/opt/compozy/skills/git-flow",
-  version: "1.4.2",
-  metadata: {
-    ...skillFixtures[0]!.metadata,
-    capabilities: ["git.inspect", "git.review", "tests.verify"],
-    recent_calls: [
-      {
-        label: "Review pull request",
-        status: "success",
-        timestamp: "2026-07-18T12:00:00Z",
-      },
-      { label: "Inspect release branch", status: "pending" },
-    ],
-  },
-};
-
-const inactiveGitFlowSkill = {
-  ...gitFlowSkill,
-  activation: {
-    active: false,
-    reasons: [
-      {
-        gate: "requires_tools",
-        code: "missing_tool" as const,
-        missing: ["compozy__browser_screenshot"],
-        message: "gate requires_tools unmet: compozy__browser_screenshot",
-      },
-    ],
-  },
-};
-
-const gitFlowShadows = {
-  name: "git-flow",
-  winner: {
-    detected_at: "2026-04-17T16:41:00Z",
-    path: "/opt/compozy/skills/git-flow/SKILL.md",
-    resolved_to_winner: true,
-    tier: "workspace",
-  },
-  shadows: [
-    {
-      detected_at: "2026-04-17T16:41:00Z",
-      path: "/opt/compozy/skills/git-flow/SKILL.md",
-      resolved_to_winner: true,
-      tier: "workspace",
-    },
-    {
-      detected_at: "2026-04-17T16:42:00Z",
-      path: "/opt/compozy/marketplace/git-flow/SKILL.md",
-      resolved_to_winner: false,
-      tier: "marketplace",
-    },
-  ],
-};
-
-function detailSkillHandlers(disableFailure = false, skill = gitFlowSkill) {
-  return storybookMswParameters({
-    marketplace: [
-      compozyApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill })),
-      compozyApiMock.get("/api/skills/{name}/content", () =>
-        HttpResponse.json({
-          content:
-            "# Git Flow\n\nBranch, review, and land changes using the repository's own checks as the gate.\n",
-        })
-      ),
-      compozyApiMock.get("/api/skills/{name}/shadows", () => HttpResponse.json(gitFlowShadows)),
-      compozyApiMock.post("/api/skills/{name}/enable", () => HttpResponse.json({ ok: true })),
-      compozyApiMock.post("/api/skills/{name}/disable", () =>
-        disableFailure
-          ? HttpResponse.json({ error: "Skill policy rejected the update" }, { status: 409 })
-          : HttpResponse.json({ ok: true })
-      ),
-    ],
-  });
-}
+const slackNotifyDetail = marketplaceCatalogDetailFixture("slack-notify")!;
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/marketplace/routes/MarketplaceDetail",
@@ -107,7 +35,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Marketplace entry detail per kind: the kind-specific story fills the body and the rail holds short collapsible property cards.",
+          "Marketplace entry detail: the lede carries the entry logo, the extension body fills the page, and the rail holds short collapsible property cards.",
       },
     },
   },
@@ -116,24 +44,15 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Browse mode: readme as the hero, Install as the one head action, property cards in the rail. */
-export const DetailSkillBrowse: Story = {
+/** Browse mode: provenance leads the body, Install is the one head action, cards in the rail. */
+export const DetailExtensionBrowse: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skill/git-flow"),
+    ...appRouteParameters("/marketplace/slack-notify?source=compozy-catalog"),
     ...storybookMswParameters({
       marketplace: [
-        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
-          HttpResponse.json({
-            ...marketplaceDetails["skill:git-flow"],
-            entry: {
-              ...marketplaceDetails["skill:git-flow"]!.entry,
-              installed: false,
-              installed_name: undefined,
-              installed_version: undefined,
-              manage_path: undefined,
-            },
-          })
+        compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
+          HttpResponse.json(slackNotifyDetail)
         ),
       ],
     }),
@@ -141,54 +60,75 @@ export const DetailSkillBrowse: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-export const DetailSkillInstalled: Story = {
+/** An MCP-backed entry, not installed: the Server card summarises the manifest, no status or actions. */
+export const DetailExtensionServerBrowse: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skill/git-flow"),
-    ...detailSkillHandlers(),
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog"),
+    ...marketplaceStoryHandlers({
+      catalog: [storyCatalog.github],
+      details: {
+        github: {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [storyGithubServer()],
+        },
+      },
+      extensions: [],
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Enabled skill withheld from agent prompts because a required tool is unavailable. */
-export const DetailSkillInactive: Story = {
+/**
+ * Installed beside a manual `github`: the Server card reads Needs authorization, shows the
+ * allocated runtime name `github.github`, and offers Authorize and Edit configuration on the
+ * extension's own definition (owner `extension:github`).
+ */
+export const DetailExtensionServerInstalled: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/skill/git-flow"),
-    ...detailSkillHandlers(false, inactiveGitFlowSkill),
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog&installed_name=github"),
+    ...marketplaceStoryHandlers({
+      catalog: [installedListing(storyCatalog.github)],
+      details: {
+        github: {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        },
+      },
+      extensions: [
+        installedExtension(installedListing(storyCatalog.github), {
+          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+          mcp_servers: [
+            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
+          ],
+        }),
+      ],
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/** A rejected enablement mutation remains visible beside the owning switch. */
-export const DetailSkillToggleError: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/marketplace/skill/git-flow"),
-    ...detailSkillHandlers(true),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("skill-enabled-switch"));
-    await expect(canvas.findByTestId("marketplace-skill-toggle-error")).resolves.toHaveTextContent(
-      "Skill policy rejected the update"
-    );
+    await canvas.findByTestId("marketplace-extension-server-runtime-name-github");
+    await canvas.findByTestId("marketplace-extension-server-authorize-github");
   },
 };
 
 export const DetailExtensionInstalled: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/slack-notify"),
+    ...appRouteParameters(
+      "/marketplace/slack-notify?source=compozy-catalog&installed_name=slack-notify"
+    ),
     ...storybookMswParameters({
       marketplace: [
-        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
           HttpResponse.json({
-            ...marketplaceDetails["extension:slack-notify"],
+            ...slackNotifyDetail,
             entry: {
-              ...marketplaceDetails["extension:slack-notify"]!.entry,
+              ...slackNotifyDetail.entry,
               installed: true,
               installed_name: "slack-notify",
               installed_version: "1.1.4",
@@ -205,20 +145,23 @@ export const DetailExtensionInstalled: Story = {
 export const DetailExtensionDevOverlay: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/ops-dev-extension"),
+    ...appRouteParameters("/marketplace/ops-dev-extension?installed_name=ops-dev-extension"),
     ...storybookMswParameters({
       marketplace: [
-        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
           HttpResponse.json({
             entry: {
               description: "Workspace dev build linked from a local generation.",
+              digest_sha256: "a".repeat(64),
               entry_id: "ops-dev-extension",
+              install_slug: "",
+              installable: true,
               installed: true,
               installed_name: "ops-dev-extension",
               installed_version: "0.2.0-dev",
-              kind: "extension",
               name: "ops-dev-extension",
-              source: "dev",
+              source: "compozy-catalog",
+              source_ref: "catalog:compozy",
               update_available: false,
             },
           })
@@ -249,7 +192,7 @@ export const DetailExtensionDevOverlay: Story = {
 export const DetailExtensionKitInventory: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...kitDetailHandlers(),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -259,7 +202,7 @@ export const DetailExtensionKitInventory: Story = {
 export const DetailExtensionProfilesPlacement: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...kitDetailHandlers(),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -276,7 +219,7 @@ export const DetailExtensionProfilesPlacement: Story = {
 export const DetailExtensionProfileNeedsSetup: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...kitDetailHandlers(),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -291,7 +234,7 @@ export const DetailExtensionProfileNeedsSetup: Story = {
 export const DetailExtensionDormantPlacement: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...kitDetailHandlers(),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -306,20 +249,24 @@ export const DetailExtensionDormantPlacement: Story = {
 export const DetailExtensionEnabledUpdate: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...storybookMswParameters({
       marketplace: [
-        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
           HttpResponse.json({
             entry: {
               description: "Dependency review agents, a weekly sweep, and a review board layout.",
+              digest_sha256: "a".repeat(64),
               entry_id: "dep-kit-ops",
+              install_slug: "compozy/dep-kit-ops",
+              installable: true,
               installed: true,
               installed_name: "dep-kit-ops",
               installed_version: "1.0.0",
-              kind: "extension",
+              manage_path: "/marketplace/installed",
               name: "dep-kit-ops",
-              source: "registry",
+              source: "compozy-catalog",
+              source_ref: "catalog:compozy",
               update_available: true,
               version: "1.1.0",
             },
@@ -358,7 +305,7 @@ export const DetailExtensionEnabledUpdate: Story = {
 export const DetailExtensionNetworkConfirm: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
     ...kitDetailHandlers(true),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -372,30 +319,4 @@ export const DetailExtensionNetworkConfirm: Story = {
       dialog.findByTestId("extension-network-confirm-digest")
     ).resolves.toHaveTextContent("sha256:6f1c0a94d3b27e58");
   },
-};
-
-export const DetailMcpInstalled: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/marketplace/mcp/linear"),
-    ...storybookMswParameters({
-      marketplace: [
-        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
-          HttpResponse.json({
-            ...marketplaceDetails["mcp:linear"],
-            entry: {
-              ...marketplaceDetails["mcp:linear"]!.entry,
-              installed: true,
-              installed_name: "linear",
-              installed_version: "1.0.0",
-            },
-          })
-        ),
-        compozyApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json(mcpManagementCollectionFixture)
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
 };

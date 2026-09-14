@@ -1,8 +1,4 @@
-import type {
-  MarketplaceEntryOptions,
-  MarketplaceKindOptions,
-  MarketplaceSearchOptions,
-} from "../types";
+import type { MarketplaceCatalogOptions, MarketplaceCatalogEntryOptions } from "../types";
 
 function normalizeText(value?: string | null): string | null {
   const normalized = value?.trim();
@@ -20,30 +16,26 @@ function scopeIdentity(
 
 export const marketplaceKeys = {
   all: ["marketplace"] as const,
-  search: (options: MarketplaceSearchOptions = {}) =>
+  sources: () => [...marketplaceKeys.all, "sources"] as const,
+  sourcePreview: (ref: string, name?: string) =>
+    [...marketplaceKeys.all, "source-preview", ref.trim(), name?.trim() ?? ""] as const,
+  catalog: (options: MarketplaceCatalogOptions = {}) =>
     [
       ...marketplaceKeys.all,
-      "search",
+      "catalog",
       ...scopeIdentity(options.workspaceId),
+      normalizeText(options.profileName) ?? "default",
       normalizeText(options.q),
-      options.limit ?? null,
+      options.limit ?? 100,
     ] as const,
-  kind: (options: MarketplaceKindOptions) =>
+  catalogEntry: (options: MarketplaceCatalogEntryOptions) =>
     [
       ...marketplaceKeys.all,
-      "kind",
-      options.kind,
-      ...scopeIdentity(options.workspaceId),
-      normalizeText(options.q),
-      options.limit ?? null,
-    ] as const,
-  detail: (options: MarketplaceEntryOptions) =>
-    [
-      ...marketplaceKeys.all,
-      "detail",
-      options.kind,
+      "catalog-entry",
+      normalizeText(options.source),
       normalizeText(options.entryId),
       normalizeText(options.installedName),
       ...scopeIdentity(options.workspaceId),
+      normalizeText(options.profileName) ?? "default",
     ] as const,
 };

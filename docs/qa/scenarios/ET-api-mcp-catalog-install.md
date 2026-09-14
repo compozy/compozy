@@ -9,12 +9,15 @@ entry_points: POST /api/settings/mcp-servers/install over HTTP; POST /api/settin
 qa_status: skipped
 bug_ids: BUG-20260715-mcp-install-null-values
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/023-mcp-catalog-install;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-api-marketplace-namespace; ET-cli-mcp-install; MS-029
 ---
+
+Retired by marketplace-catalog task05. The catalog MCP installer and its CLI/API entry points are removed. Marketplace acquisition now uses extension packages; manual MCP settings and credentials remain supported. Current coverage belongs to ET-web-marketplace-installed-management, ET-web-mcp-authorize-manual and ET-api-marketplace-namespace. Final tasks09/10 verify the replacement journeys and removed-route rejection. Historical evidence below does not verify the new contract.
+
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no HTTP/UDS install parity observation was retained.
 

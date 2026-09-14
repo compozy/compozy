@@ -1,0 +1,13 @@
+name = "sentry"
+version = "1.0.0"
+description = "Investigate Sentry issues, events, projects, and releases through its hosted MCP server."
+min_compozy_version = "0.5.0"
+
+[resources.mcp_servers.sentry]
+transport = "http"
+url = "https://mcp.sentry.dev/mcp"
+default_scope = "workspace"
+
+[resources.mcp_servers.sentry.auth]
+method = "oauth"
+registration = "dynamic"

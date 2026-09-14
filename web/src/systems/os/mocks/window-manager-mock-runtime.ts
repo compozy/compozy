@@ -139,6 +139,10 @@ export class StorybookWindowManagerMockRuntime {
     return structuredClone(this.mutableSnapshot(workspaceId));
   }
 
+  client(workspaceId: string, clientId: string): WindowManagerClient | null {
+    return structuredClone(this.clients.get(workspaceId)?.get(clientId) ?? null);
+  }
+
   register(workspaceId: string, clientId: string): WindowManagerClient {
     const snapshot = this.mutableSnapshot(workspaceId);
     const client = this.clientForSnapshot(clientId, workspaceId, snapshot);

@@ -15,6 +15,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/gin-gonic/gin"
 )
 
@@ -55,8 +56,16 @@ func parseSettingsCollectionRequest(
 	if err != nil {
 		return settingspkg.CollectionRequest{}, err
 	}
+	owner := ""
+	if collection == settingspkg.CollectionMCPServers {
+		owner = strings.TrimSpace(c.Query("owner"))
+		if err := vault.ValidateMCPOwner(owner); err != nil {
+			return settingspkg.CollectionRequest{}, NewSettingsValidationError(err)
+		}
+	}
 	return settingspkg.CollectionRequest{
 		Collection:  collection,
+		Owner:       owner,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 		ProfileName: profileName,

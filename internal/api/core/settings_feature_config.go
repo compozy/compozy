@@ -35,12 +35,7 @@ func skillsConfigFromPayload(payload contract.SettingsSkillsConfigPayload) (comp
 		CustomSources:           cloneStrings(payload.CustomSources),
 		DisabledSkills:          cloneStrings(payload.DisabledSkills),
 		PollInterval:            pollInterval,
-		AllowedMarketplaceMCP:   cloneStrings(payload.AllowedMarketplaceMCP),
 		AllowedMarketplaceHooks: cloneStrings(payload.AllowedMarketplaceHooks),
-		Marketplace: compozyconfig.MarketplaceConfig{
-			Registry: strings.TrimSpace(payload.Marketplace.Registry),
-			BaseURL:  strings.TrimSpace(payload.Marketplace.BaseURL),
-		},
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.SkillsConfig{}, NewSettingsValidationError(err)

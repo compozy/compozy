@@ -2179,3 +2179,164 @@ func tomlStringArray(values []string) string {
 	}
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
+
+// Invariant: one package can have isolated durable attachments without widening a scoped install or losing rollback state.
+// Owner: extension registry. Canonical suite: registry_test.go.
+func TestRegistryInstallationScopes(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve exact workspace and profile attachments before inherited scopes", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		for _, id := range []string{"ws-a", "ws-b"} {
+			if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+   (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, id, "/"+id, id,
+				store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		dir, manifest, checksum := createRegistryTestExtension(t, "attached", registryManifestOptions{})
+		globalProfile := InstallationScope{ProfileID: profileID}
+		workspaceProfile := InstallationScope{ProfileID: profileID, WorkspaceID: "ws-a"}
+		workspaceAll := InstallationScope{WorkspaceID: "ws-a"}
+		if err := env.registry.Install(manifest, dir, checksum, WithInstallScope(globalProfile)); err != nil {
+			t.Fatal(err)
+		}
+		initial, err := env.registry.Installations(t.Context(), manifest.Name)
+		if err != nil || len(initial) != 1 || initial[0].Scope != globalProfile {
+			t.Fatalf("initial installations = %#v, %v", initial, err)
+		}
+		for _, scope := range []InstallationScope{workspaceAll, workspaceProfile} {
+			if err := env.registry.AttachInstallation(t.Context(), manifest.Name, scope); err != nil {
+				t.Fatal(err)
+			}
+		}
+		before, err := env.registry.Installations(t.Context(), manifest.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.registry.now = func() time.Time { return env.installedAt.Add(time.Hour) }
+		if err := env.registry.AttachInstallation(t.Context(), manifest.Name, workspaceProfile); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.registry.Install(manifest, dir, checksum, WithInstallReplaceExisting()); err != nil {
+			t.Fatal(err)
+		}
+		after, err := env.registry.Installations(t.Context(), manifest.Name)
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatalf("retry/update installations = %#v, want %#v, err=%v", after, before, err)
+		}
+		for _, tc := range []struct {
+			read, want InstallationScope
+			missing    bool
+		}{
+			{read: workspaceProfile, want: workspaceProfile},
+			{read: InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-a"}, want: workspaceAll},
+			{read: InstallationScope{ProfileID: profileID, WorkspaceID: "ws-b"}, want: globalProfile},
+			{read: InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-b"}, missing: true},
+			{read: InstallationScope{ProfileID: store.DefaultProfileID}, missing: true},
+		} {
+			resolved, err := env.registry.ResolveInstallation(t.Context(), manifest.Name, tc.read)
+			if tc.missing {
+				if !errors.Is(err, ErrExtensionNotFound) {
+					t.Fatalf("foreign scope %#v: %v", tc.read, err)
+				}
+			} else if err != nil || resolved.Scope != tc.want {
+				t.Fatalf("resolve %#v = %#v, %v; want %#v", tc.read, resolved, err, tc.want)
+			}
+		}
+		snapshot, err := env.registry.SnapshotRemovalState(t.Context(), manifest.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := env.registry.Uninstall(manifest.Name); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.registry.RestoreRemovalState(t.Context(), manifest.Name, snapshot); err != nil {
+			t.Fatal(err)
+		}
+		restored, err := env.registry.Installations(t.Context(), manifest.Name)
+		if err != nil || !reflect.DeepEqual(before, restored) {
+			t.Fatalf("restored = %#v, want %#v, err=%v", restored, before, err)
+		}
+		if err := env.registry.DetachInstallation(t.Context(), manifest.Name, workspaceProfile); err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := env.registry.ResolveInstallation(t.Context(), manifest.Name, workspaceProfile)
+		if err != nil || resolved.Scope != workspaceAll {
+			t.Fatalf("after exact detach = %#v, %v", resolved, err)
+		}
+		if _, err := env.registry.Get(manifest.Name); err != nil {
+			t.Fatalf("detach removed package: %v", err)
+		}
+	})
+	t.Run("Should not restore an attachment after its profile or workspace was deleted", func(t *testing.T) {
+		t.Parallel()
+		for _, removed := range []string{"profile", "workspace"} {
+			env := newRegistryTestEnv(t)
+			profileID := insertActiveRegistryProfile(t, env, "marketing")
+			if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+    (id, root_dir, name, created_at, updated_at) VALUES ('ws-owned', '/owned', 'owned', ?, ?)`,
+				store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
+				t.Fatal(err)
+			}
+			dir, manifest, checksum := createRegistryTestExtension(t, "owned", registryManifestOptions{})
+			scope := InstallationScope{ProfileID: profileID, WorkspaceID: "ws-owned"}
+			if err := env.registry.Install(manifest, dir, checksum, WithInstallScope(scope)); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := env.registry.SnapshotRemovalState(t.Context(), manifest.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if removed == "profile" {
+				if _, err := env.db.ExecContext(
+					t.Context(),
+					`DELETE FROM profiles WHERE id = ?`,
+					profileID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := env.db.ExecContext(t.Context(), `DELETE FROM workspaces WHERE id = 'ws-owned'`); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := env.registry.Installations(t.Context(), manifest.Name)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("deleted %s retained attachment: %#v, %v", removed, rows, err)
+			}
+			if err := env.registry.Uninstall(manifest.Name); err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.Install(manifest, dir, checksum); err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.RestoreRemovalState(t.Context(), manifest.Name, snapshot); err != nil {
+				t.Fatal(err)
+			}
+			restored, err := env.registry.Installations(t.Context(), manifest.Name)
+			if err != nil || len(restored) != 0 {
+				t.Fatalf("compensation widened deleted %s scope: %#v, %v", removed, restored, err)
+			}
+		}
+	})
+	t.Run("Should roll back the package insert when an attachment owner is missing", func(t *testing.T) {
+		t.Parallel()
+		for _, scope := range []InstallationScope{{ProfileID: "missing"}, {WorkspaceID: "missing"}} {
+			env := newRegistryTestEnv(t)
+			dir, manifest, checksum := createRegistryTestExtension(t, "refused", registryManifestOptions{})
+			if err := env.registry.Install(manifest, dir, checksum, WithInstallScope(scope)); err == nil {
+				t.Fatal("accepted missing attachment owner")
+			}
+			if _, err := env.registry.Get(manifest.Name); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("partial package persisted: %v", err)
+			}
+			rows, err := env.registry.Installations(t.Context(), manifest.Name)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("partial attachments = %#v, %v", rows, err)
+			}
+		}
+	})
+}

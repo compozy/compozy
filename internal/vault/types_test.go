@@ -126,20 +126,63 @@ func TestValidateNonSecretEnvMapRejectsPrivateKeyNames(t *testing.T) {
 
 func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should isolate extension-owned refs and deny cross-owner access including OAuth subtrees",
+		func(t *testing.T) {
+			t.Parallel()
+			manual := MCPSecretTarget{Scope: MCPUserScope, ServerName: "github"}
+			extension := manual
+			extension.Owner = "extension:github"
+			manualPrefix, err := MCPSecretOwnerPrefix(manual)
+			if err != nil {
+				t.Fatal(err)
+			}
+			extensionPrefix, err := MCPSecretOwnerPrefix(extension)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if manualPrefix != "vault:mcp/user/github/" || extensionPrefix != "vault:mcp/ext/github/user/github/" {
+				t.Fatalf("unexpected manual or extension namespace: %q, %q", manualPrefix, extensionPrefix)
+			}
+			for _, ref := range []string{manualPrefix + "TOKEN", extensionPrefix + "oauth/access-token"} {
+				if err := ValidateMCPSecretRefAccess(ref, extension); err == nil {
+					t.Fatalf("extension target accepted foreign or managed ref %q", ref)
+				}
+			}
+			if err := ValidateMCPSecretRefAccess(extensionPrefix+"TOKEN", manual); err == nil {
+				t.Fatal("manual target accepted an extension secret")
+			}
+			for _, ref := range []string{extensionPrefix + "TOKEN", MCPSharedRefPrefix + "TOKEN"} {
+				if err := ValidateMCPSecretRefAccess(ref, extension); err != nil {
+					t.Fatal(err)
+				}
+			}
+			refs, err := MCPDCRSecretRefsForTarget(extension)
+			if err != nil || refs.ClientSecretRef != extensionPrefix+"oauth/dcr-client-secret" {
+				t.Fatalf("DCR secret refs lost their extension owner: %v", err)
+			}
+		},
+	)
 
 	t.Run("Should keep user profile and workspace MCP secret prefixes collision-safe", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceID := "workspace/alpha"
-		userPrefix, err := MCPSecretOwnerPrefix(MCPUserScope, "", "linear")
+		userPrefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPUserScope, WorkspaceID: "", ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(user) error = %v", err)
 		}
-		profilePrefix, err := MCPSecretOwnerPrefix(MCPProfileScope, "marketing", "linear")
+		profilePrefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPProfileScope, WorkspaceID: "marketing", ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(profile) error = %v", err)
 		}
-		workspacePrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, workspaceID, "linear")
+		workspacePrefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: workspaceID, ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(workspace) error = %v", err)
 		}
@@ -157,7 +200,9 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if got, want := profilePrefix, "vault:mcp/profile/marketing/linear/"; got != want {
 			t.Fatalf("profile prefix = %q, want %q", got, want)
 		}
-		userDCRRefs, err := MCPDCRSecretRefsForTarget(MCPUserScope, "", "linear")
+		userDCRRefs, err := MCPDCRSecretRefsForTarget(
+			MCPSecretTarget{Scope: MCPUserScope, WorkspaceID: "", ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPDCRSecretRefsForTarget(user) error = %v", err)
 		}
@@ -181,9 +226,14 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if reservedSegment == segment {
 			t.Fatalf("encoded workspace ID collided with reserved literal: %q", segment)
 		}
-		if _, err := MCPSecretOwnerPrefix("global", "", "linear"); err == nil {
+		if _, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: "global", WorkspaceID: "", ServerName: "linear"},
+		); err == nil {
 			t.Fatal("MCPSecretOwnerPrefix(global) error = nil, want obsolete scope rejection")
-		} else if !strings.Contains(err.Error(), "unsupported MCP secret scope") {
+		} else if !strings.Contains(
+			err.Error(),
+			"unsupported MCP secret scope",
+		) {
 			t.Fatalf("MCPSecretOwnerPrefix(global) error = %v, want unsupported scope diagnostic", err)
 		}
 	})
@@ -200,7 +250,9 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if segment != wantSegment {
 			t.Fatalf("MCPServerSegment() = %q, want %q", segment, wantSegment)
 		}
-		prefix, err := MCPSecretOwnerPrefix(MCPUserScope, "", serverName)
+		prefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPUserScope, WorkspaceID: "", ServerName: serverName},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix() error = %v", err)
 		}
@@ -224,35 +276,33 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 		t.Parallel()
 
 		workspaceA := "workspace-a"
-		workspaceBPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, "workspace-b", "linear")
+		workspaceBPrefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: "workspace-b", ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
 		}
-		workspaceAPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, workspaceA, "linear")
+		workspaceAPrefix, err := MCPSecretOwnerPrefix(
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: workspaceA, ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(workspace-a) error = %v", err)
 		}
 		if err := ValidateMCPSecretRefAccess(
 			workspaceAPrefix+"env/TOKEN",
-			MCPWorkspaceScope,
-			workspaceA,
-			"linear",
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: workspaceA, ServerName: "linear"},
 		); err != nil {
 			t.Fatalf("ValidateMCPSecretRefAccess(owned) error = %v", err)
 		}
 		if err := ValidateMCPSecretRefAccess(
 			MCPSharedRefPrefix+"linear-token",
-			MCPWorkspaceScope,
-			workspaceA,
-			"linear",
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: workspaceA, ServerName: "linear"},
 		); err != nil {
 			t.Fatalf("ValidateMCPSecretRefAccess(shared) error = %v", err)
 		}
 		if err := ValidateMCPSecretRefAccess(
 			workspaceBPrefix+"env/TOKEN",
-			MCPWorkspaceScope,
-			workspaceA,
-			"linear",
+			MCPSecretTarget{Scope: MCPWorkspaceScope, WorkspaceID: workspaceA, ServerName: "linear"},
 		); err == nil {
 			t.Fatal("ValidateMCPSecretRefAccess(other workspace) error = nil, want owner rejection")
 		}
@@ -261,7 +311,9 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 	t.Run("Should reject caller refs in the daemon-managed OAuth subtree", func(t *testing.T) {
 		t.Parallel()
 
-		refs, err := MCPDCRSecretRefsForTarget(MCPUserScope, "", "linear")
+		refs, err := MCPDCRSecretRefsForTarget(
+			MCPSecretTarget{Scope: MCPUserScope, WorkspaceID: "", ServerName: "linear"},
+		)
 		if err != nil {
 			t.Fatalf("MCPDCRSecretRefsForTarget() error = %v", err)
 		}
@@ -270,7 +322,10 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 			refs.RegistrationAccessTokenRef,
 			strings.Replace(refs.ClientSecretRef, "/oauth/", "/OAuth/", 1),
 		} {
-			err := ValidateMCPSecretRefAccess(ref, MCPUserScope, "", "linear")
+			err := ValidateMCPSecretRefAccess(
+				ref,
+				MCPSecretTarget{Scope: MCPUserScope, WorkspaceID: "", ServerName: "linear"},
+			)
 			if err == nil || !strings.Contains(err.Error(), "daemon-managed OAuth subtree") {
 				t.Fatalf("ValidateMCPSecretRefAccess(%q) error = %v, want OAuth subtree rejection", ref, err)
 			}

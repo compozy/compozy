@@ -26,17 +26,16 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
-	store              TokenStore
-	registrations      RegistrationStore
-	client             *http.Client
-	secureClient       *securehttp.Client
-	catalogClient      *securehttp.Client
-	random             io.Reader
-	now                func() time.Time
-	generation         *MutationGeneration
-	secretResolver     SecretRefResolver
-	clientMetadataURL  string
-	defaultRedirectURL string
+	store             TokenStore
+	registrations     RegistrationStore
+	client            *http.Client
+	secureClient      *securehttp.Client
+	catalogClient     *securehttp.Client
+	random            io.Reader
+	now               func() time.Time
+	generation        *MutationGeneration
+	secretResolver    SecretRefResolver
+	clientMetadataURL string
 }
 
 // NewService constructs an MCP auth service.
@@ -405,6 +404,7 @@ func statusFromTokenWithDiagnostic(
 ) Status {
 	cfg.Target = cfg.Target.Normalize()
 	status := Status{
+		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,

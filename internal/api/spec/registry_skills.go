@@ -5,9 +5,6 @@ import "github.com/compozy/compozy/internal/api/contract"
 func registrySkillOperations() []OperationSpec {
 	return []OperationSpec{
 		listSkillsOperationSpec(),
-		installSkillMarketplaceOperationSpec(),
-		updateSkillMarketplaceOperationSpec(),
-		removeSkillMarketplaceOperationSpec(),
 		getSkillOperationSpec(),
 		getSkillContentOperationSpec(),
 		getSkillShadowsOperationSpec(),
@@ -77,64 +74,6 @@ func listSkillsOperationSpec() OperationSpec {
 			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Skill scope not found", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func installSkillMarketplaceOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/skills/marketplace/install",
-		OperationID: "installSkillMarketplace",
-		Summary:     "Install one remote marketplace skill",
-		Tags:        []string{specSkillsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.SkillMarketplaceInstallRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SkillMarketplaceInstallResponse{}},
-			{Status: 400, Description: "Invalid marketplace install request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Marketplace skill not found", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specSkillMarketplaceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func updateSkillMarketplaceOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/skills/marketplace/update",
-		OperationID: "updateSkillMarketplace",
-		Summary:     "Check or apply updates for marketplace skills",
-		Tags:        []string{specSkillsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.SkillMarketplaceUpdateRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SkillMarketplaceUpdateResponse{}},
-			{Status: 400, Description: "Invalid marketplace update request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Installed marketplace skill not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Installed skill is not marketplace-managed", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specSkillMarketplaceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func removeSkillMarketplaceOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodDelete,
-		Path:        "/api/skills/marketplace/{name}",
-		OperationID: "removeSkillMarketplace",
-		Summary:     "Remove one installed marketplace skill",
-		Tags:        []string{specSkillsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Installed skill name"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SkillMarketplaceRemoveResponse{}},
-			{Status: 400, Description: "Invalid marketplace removal request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Installed marketplace skill not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Installed skill is not marketplace-managed", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

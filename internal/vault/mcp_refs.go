@@ -17,6 +17,8 @@ const (
 	MCPProfileScope = "profile"
 	// MCPWorkspaceScope identifies workspace-owned MCP credentials.
 	MCPWorkspaceScope = "workspace"
+	// MCPWorkspaceProfileScope identifies a workspace and profile credential cell.
+	MCPWorkspaceProfileScope = "workspace_profile"
 	// MCPSharedRefPrefix identifies MCP secrets explicitly shared across owners.
 	MCPSharedRefPrefix = "vault:mcp/shared/"
 
@@ -25,17 +27,17 @@ const (
 )
 
 // ValidateMCPSecretRefAccess permits only the target server's owned refs or the explicit shared namespace.
-func ValidateMCPSecretRefAccess(ref string, scope string, workspaceID string, serverName string) error {
+func ValidateMCPSecretRefAccess(ref string, target MCPSecretTarget) error {
 	normalized := NormalizeRef(ref)
 	if err := ValidateSecretRefNamespace(normalized, "mcp"); err != nil {
 		return err
 	}
-	if strings.HasPrefix(normalized, MCPSharedRefPrefix) {
-		return nil
-	}
-	ownerPrefix, err := MCPSecretOwnerPrefix(scope, workspaceID, serverName)
+	ownerPrefix, err := MCPSecretOwnerPrefix(target)
 	if err != nil {
 		return err
+	}
+	if strings.HasPrefix(normalized, MCPSharedRefPrefix) {
+		return nil
 	}
 	if !strings.HasPrefix(normalized, ownerPrefix) {
 		return errors.New("vault: MCP secret ref must belong to the target server or the shared namespace")
@@ -48,6 +50,38 @@ func ValidateMCPSecretRefAccess(ref string, scope string, workspaceID string, se
 	return nil
 }
 
+// NormalizeMCPClientSecretRef enforces configured client-secret ownership before resolution.
+func NormalizeMCPClientSecretRef(ref string, target MCPSecretTarget) (string, error) {
+	ref = NormalizeRef(ref)
+	if err := ValidateRefNamespace(ref, "mcp"); err != nil {
+		return "", err
+	}
+	prefix, err := MCPSecretOwnerPrefix(target)
+	if err != nil {
+		return "", err
+	}
+	if IsEnvRef(ref) || ref == prefix+"oauth/client-secret" {
+		return ref, nil
+	}
+	if NormalizeMCPOwner(target.Owner) == MCPManualOwner && strings.TrimSpace(target.Scope) == MCPUserScope {
+		segment, err := MCPServerSegment(target.ServerName)
+		if err != nil {
+			return "", err
+		}
+		// Released global refs address rows migrated to user scope; unscoped client secrets retain their original key.
+		if ref == "vault:mcp/global/"+segment+"/oauth/client-secret" {
+			return prefix + "oauth/client-secret", nil
+		}
+		if ref == "vault:mcp/"+segment+"/oauth/client-secret" {
+			return ref, nil
+		}
+	}
+	if err := ValidateMCPSecretRefAccess(ref, target); err != nil {
+		return "", err
+	}
+	return ref, nil
+}
+
 // MCPDCRSecretRefs identifies the Vault locations for one MCP OAuth client registration.
 type MCPDCRSecretRefs struct {
 	ClientSecretRef            string
@@ -55,8 +89,8 @@ type MCPDCRSecretRefs struct {
 }
 
 // MCPDCRSecretRefsForTarget returns the canonical Vault refs for one MCP OAuth registration.
-func MCPDCRSecretRefsForTarget(scope string, workspaceID string, serverName string) (MCPDCRSecretRefs, error) {
-	prefix, err := MCPSecretOwnerPrefix(scope, workspaceID, serverName)
+func MCPDCRSecretRefsForTarget(target MCPSecretTarget) (MCPDCRSecretRefs, error) {
+	prefix, err := MCPSecretOwnerPrefix(target)
 	if err != nil {
 		return MCPDCRSecretRefs{}, err
 	}
@@ -68,35 +102,48 @@ func MCPDCRSecretRefsForTarget(scope string, workspaceID string, serverName stri
 
 // MCPSecretOwnerPrefix returns the canonical scope-qualified Vault prefix for
 // one MCP server. The returned value always ends with a slash.
-func MCPSecretOwnerPrefix(scope string, workspaceID string, serverName string) (string, error) {
-	serverSegment, err := MCPServerSegment(serverName)
+func MCPSecretOwnerPrefix(target MCPSecretTarget) (string, error) {
+	if err := ValidateMCPOwner(target.Owner); err != nil {
+		return "", err
+	}
+	serverSegment, err := MCPServerSegment(target.ServerName)
 	if err != nil {
 		return "", err
 	}
 
 	var owner string
-	switch strings.TrimSpace(scope) {
+	switch strings.TrimSpace(target.Scope) {
 	case MCPUserScope:
-		if strings.TrimSpace(workspaceID) != "" {
+		if strings.TrimSpace(target.WorkspaceID) != "" {
 			return "", errors.New("vault: user MCP secret owner cannot include workspace_id")
 		}
 		owner = "user/" + serverSegment
 	case MCPProfileScope:
-		segment, err := MCPOwnerSegment(workspaceID)
+		segment, err := MCPOwnerSegment(target.WorkspaceID)
 		if err != nil {
 			return "", fmt.Errorf("vault: profile name is required for profile MCP secrets: %w", err)
 		}
 		owner = "profile/" + segment + "/" + serverSegment
 	case MCPWorkspaceScope:
-		segment, err := MCPOwnerSegment(workspaceID)
+		segment, err := MCPOwnerSegment(target.WorkspaceID)
 		if err != nil {
 			return "", err
 		}
 		owner = "ws/" + segment + "/" + serverSegment
+	case MCPWorkspaceProfileScope:
+		segment, err := MCPOwnerSegment(target.WorkspaceID)
+		if err != nil {
+			return "", err
+		}
+		owner = "ws-profile/" + segment + "/" + serverSegment
 	default:
-		return "", fmt.Errorf("vault: unsupported MCP secret scope %q", strings.TrimSpace(scope))
+		return "", fmt.Errorf("vault: unsupported MCP secret scope %q", strings.TrimSpace(target.Scope))
 	}
 
+	ownerName := NormalizeMCPOwner(target.Owner)
+	if ownerName != MCPManualOwner {
+		owner = "ext/" + collisionSafeVaultSegment(strings.TrimPrefix(ownerName, "extension:")) + "/" + owner
+	}
 	ref := "vault:mcp/" + owner + "/"
 	if err := ValidateSecretRef(ref + "value"); err != nil {
 		return "", fmt.Errorf("vault: build MCP secret owner prefix: %w", err)

@@ -2,27 +2,278 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/extensionmcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: server payloads use the exact published owner/scope, observed readiness without probing, and retained names while disabled.
+	// Owner: daemon extension inventory/status projection; canonical suite: TestExtensionInventoryAndEnablePreview.
+	t.Run("Should project owned published server readiness and preserve disabled allocations", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
+		ext := inventoryTestExtension(true)
+		ext.Manifest.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{
+			"remote": {Transport: "http", URL: "https://declared.example.com/private?token=secret"},
+		}
+		var requests atomic.Int64
+		server := httptest.NewServer(
+			mcp.NewStreamableHTTPHandler(
+				func(*http.Request) *mcp.Server { requests.Add(1); return newSettingsMCPTestServer() },
+				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+			),
+		)
+		t.Cleanup(server.Close)
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		published := compozyconfig.MCPServer{
+			Name:        "remote",
+			Owner:       "extension:kit",
+			RuntimeName: "kit.remote",
+			Transport:   compozyconfig.MCPServerTransportHTTP,
+			URL:         server.URL,
+		}
+		owned := resources.Record[compozyconfig.MCPServer]{
+			ID:    "owned",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Owner: *extensionOwner("kit"),
+			Spec:  published,
+		}
+		manual := owned
+		manual.ID, manual.Owner, manual.Spec.RuntimeName = "manual", resources.ResourceOwner{}, "manual.remote"
+		foreign := owned
+		foreign.ID, foreign.Scope, foreign.Spec.RuntimeName = "foreign", resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   "other-workspace",
+		}, "foreign.remote"
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{manual, foreign, owned})
+		if _, err := db.ExtensionMCP.Reserve(
+			ctx,
+			extensionmcp.Target{Extension: "kit", ProfileID: store.DefaultProfileID, ServerName: "remote"},
+			"kit.remote",
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+		ext.Info.Checksum = "generation-a"
+		runtime := &inventoryExtensionRuntime{ext: ext}
+		state := &bootState{
+			mcpServerCatalog: catalog, extensions: runtime,
+			mcpRuntimeHealth: mcppkg.NewRuntimeHealthRegistry(),
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: extensionpkg.NewRegistry(db.DB()), Runtime: runtime, HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now},
+			withDaemonExtensionMCPAllocations(db.ExtensionMCP),
+			withDaemonExtensionMCPDetails(&extensionMCPDetails{state: state, auth: &settingsRuntimeSurface{}}),
+		).(*daemonExtensionService)
+		before, err := service.Status(ctx, "kit")
+		if err != nil || len(before.MCPServers) != 1 || before.MCPServers[0].Status != "stopped" ||
+			requests.Load() != 0 {
+			t.Fatalf("status launched an unobserved MCP: %#v, %v, requests=%d", before.MCPServers, err, requests.Load())
+		}
+		executor, err := mcppkg.NewMCPCallExecutor(
+			newDaemonMCPServerResolver(state), mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := executor.ListTools(ctx, toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "kit.remote",
+			RawServerName: "kit.remote",
+			RawToolName:   "*",
+			ResourceID:    "owned",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		observedRequests := requests.Load()
+		if observedRequests == 0 {
+			t.Fatal("explicit discovery did not reach the MCP server")
+		}
+		payload, err := service.Status(ctx, "kit")
+		if err != nil || len(payload.MCPServers) != 1 {
+			t.Fatalf("server payload: %#v %v", payload, err)
+		}
+		item := payload.MCPServers[0]
+		if requests.Load() != observedRequests || item.Status != "running" || item.RuntimeName != "kit.remote" ||
+			item.Owner != "extension:kit" ||
+			item.Launch != server.URL ||
+			item.Profile != "default" {
+			t.Fatalf("wrong published identity or status: %#v", item)
+		}
+		state.mcpRuntimeHealth.EvictInstance("kit", "")
+		foreignKey := extensionMCPHealthKey(ctx, state, owned)
+		foreignKey.ResourceID = "foreign"
+		state.mcpRuntimeHealth.RecordSuccess(state.mcpRuntimeHealth.Begin(foreignKey))
+		unobserved, err := service.Status(ctx, "kit")
+		if err != nil || len(unobserved.MCPServers) != 1 || unobserved.MCPServers[0].Status != "stopped" ||
+			requests.Load() != observedRequests {
+			t.Fatalf("status reused another resource or probed: %#v, %v", unobserved.MCPServers, err)
+		}
+		owned.Spec.Auth = compozyconfig.MCPAuthConfig{
+			Registration: compozyconfig.MCPAuthRegistrationAuto,
+			IssuerURL:    "https://issuer.example.com",
+			Scopes:       []string{"read"},
+		}
+		catalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{manual, foreign, owned})
+		payload, err = service.Status(ctx, "kit")
+		if err != nil || len(payload.MCPServers) != 1 {
+			t.Fatalf("auth payload: %#v %v", payload, err)
+		}
+		item = payload.MCPServers[0]
+		if item.Status != "needs_authorization" || item.Auth == nil || item.Auth.Method != "oauth" ||
+			item.Auth.Registration != "dynamic" {
+			t.Fatalf("auth state not projected: %#v", item)
+		}
+		ext.Info.Enabled = false
+		catalog.Replace(3, nil)
+		payload, err = service.Status(ctx, "kit")
+		if err != nil || len(payload.MCPServers) != 1 || payload.MCPServers[0].Status != "disabled" ||
+			payload.MCPServers[0].RuntimeName != "kit.remote" {
+			t.Fatalf("disabled allocation was lost: %#v %v", payload.MCPServers, err)
+		}
+	})
+
+	// Invariant: missing inputs preserve inspectability and block activation before registry mutation.
+	// Owner: daemon inventory and enable boundary; this is the canonical inventory/preview suite.
+	t.Run("Should inspect unconfigured servers and enable only after required inputs are stored", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, false)
+		ext := inventoryTestExtension(false)
+		ext.Manifest.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{
+			"remote": {Transport: "http", URL: "https://example.com/mcp?workspace="},
+		}
+		ext.Manifest.Inputs = []extensionpkg.ManifestInput{{
+			ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
+		}}
+		ext.Manifest.Inputs[0].Binding.Type = "url_query"
+		ext.Manifest.Inputs[0].Binding.Name = "workspace"
+		runtime := &inventoryExtensionRuntime{ext: ext}
+		registry := extensionpkg.NewRegistry(db.DB())
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Runtime: runtime, HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now,
+			Getenv: func(string) string { return "" },
+		}, withDaemonExtensionInputs(db.ExtensionInputs),
+			withDaemonExtensionAutomation(inventoryAutomationPreviewer{}),
+			withDaemonExtensionResources(nil, resources.MutationActor{}, inventoryTestResourceCodecs(t)),
+		).(*daemonExtensionService)
+		inventory, err := service.Inventory(ctx, "kit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, item := range inventory.Items {
+			if item.Kind == compozyconfig.MCPServerResourceKind && item.Name == "remote" {
+				found = true
+				if item.Live {
+					t.Fatal("unconfigured disabled server must not be live")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("unconfigured server disappeared from inventory")
+		}
+		preview, err := service.Preview(ctx, "kit")
+		if err != nil || !slices.Equal(preview.MissingInputs, []string{"workspace"}) {
+			t.Fatalf("preview missing inputs = %v, error = %v", preview.MissingInputs, err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "input readiness")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Enable(
+			ctx,
+			"kit",
+			contract.EnableExtensionRequest{},
+			actor,
+		); !errors.Is(
+			err,
+			extensionpkg.ErrExtensionInputsRequired,
+		) {
+			t.Fatalf("unconfigured enable error = %v", err)
+		}
+		info, err := registry.Get("kit")
+		if err != nil || info.Enabled {
+			t.Fatalf("required-input gate changed enabled state: %v", err)
+		}
+		if err := db.ExtensionInputs.Apply(ctx, extensioninput.Instance{
+			Extension: "kit", ProfileID: store.DefaultProfileID,
+		}, []extensioninput.Mutation{{InputID: "workspace", After: &extensioninput.Record{
+			Type: "identifier", Value: json.RawMessage(`"configured"`), Active: true, UpdatedAt: time.Now().UTC(),
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Enable(ctx, "kit", contract.EnableExtensionRequest{}, actor); err != nil {
+			t.Fatal(err)
+		}
+		info, err = registry.Get("kit")
+		if err != nil || !info.Enabled {
+			t.Fatalf("configured extension was not enabled: %v", err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(testHomePaths(t)), profilepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		marketing, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		service.profiles = profiles
+		if _, err := service.SetEnablement(ctx, "kit", contract.SetExtensionEnablementRequest{
+			Profile: "marketing", Enabled: false,
+		}, actor); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.SetEnablement(ctx, "kit", contract.SetExtensionEnablementRequest{
+			Profile: "marketing", Enabled: true,
+		}, actor); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+			t.Fatalf("another profile's values satisfied the enablement gate: %v", err)
+		}
+		if enabled, err := registry.IsEnabledForProfile("kit", marketing.ID); err != nil || enabled {
+			t.Fatalf("unconfigured profile changed enabled state: %v", err)
+		}
+		if err := db.ExtensionInputs.Apply(ctx, extensioninput.Instance{
+			Extension: "kit", ProfileID: marketing.ID,
+		}, []extensioninput.Mutation{{InputID: "workspace", After: &extensioninput.Record{
+			Type: "identifier", Value: json.RawMessage(`"marketing"`), Active: true, UpdatedAt: time.Now().UTC(),
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if result, err := service.SetEnablement(ctx, "kit", contract.SetExtensionEnablementRequest{
+			Profile: "marketing", Enabled: true,
+		}, actor); err != nil || !result.Enabled {
+			t.Fatalf("configured profile was not enabled: %v", err)
+		}
+	})
 
 	t.Run("Should project live MCP health on status and inventory and clear after recovery", func(t *testing.T) {
 		t.Parallel()
@@ -141,7 +392,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 
 		ext := inventoryTestExtension(true)
 		codecs := inventoryTestResourceCodecs(t)
-		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil)
+		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil, extensionpkg.InputState{})
 		if err != nil {
 			t.Fatalf("projectExtensionKitItems() error = %v", err)
 		}
@@ -407,7 +658,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 				Windows: map[windowmanager.WindowID]windowmanager.Window{},
 			},
 		}}
-		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil)
+		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil, extensionpkg.InputState{})
 		if err != nil {
 			t.Fatalf("projectExtensionKitItems() error = %v", err)
 		}
@@ -507,7 +758,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
 		ext := inventoryTestExtension(true)
 		codecs := inventoryTestResourceCodecs(t)
-		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil)
+		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil, extensionpkg.InputState{})
 		if err != nil {
 			t.Fatalf("projectExtensionKitItems() error = %v", err)
 		}

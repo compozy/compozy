@@ -341,3 +341,49 @@ Do not ignore the entire `.compozy/` directory when the repository commits `.com
 definitions, skills, agents, or workspace configuration. After backup and manual translation, run a
 dry delivery plan first, inspect the reported input origins/runtime provenance, then start the real
 run and follow the final-line `/loop-runs/<id>` URL.
+
+## Authoring portable Agent Plugins
+
+For new cross-client packages, keep the standard Agent Plugins `1.0.0` layout:
+a root `plugin.json` with its canonical `$schema`, `skills/` and optional `mcp.json`.
+CompozyOS also loads client manifests under `.claude-plugin/`, `.codex-plugin/` and
+`.cursor-plugin/` through adapters. Existing client packages do not need to be rewritten
+for installation; only supported skills and MCP declarations are loaded, and unsupported
+commands, agents and hooks are reported as `client_component_ignored`.
+See [Agent Plugins interoperability](https://compozy.com/docs/extensions/agent-plugins).
+
+<a id="marketplace-acquisition-hard-cut"></a>
+
+## Marketplace acquisition hard cut
+
+MCP servers embedded in previously installed ClawHub/Marketplace skills are disabled. Their skill
+files and provenance remain readable; manual MCPs and extension-provided MCPs are unaffected.
+`skills.allowed_marketplace_mcp` is retired and archived as inactive comments on config load;
+remove it from scripts that write config or Settings payloads. The archive does not grant runtime access.
+
+Marketplace discovery now uses `compozy marketplace search [query]`,
+`compozy marketplace info <entry_id>` and `compozy marketplace refresh`.
+Remove `--kind` and the kind argument previously passed to `info`. HTTP and UDS clients
+use `GET /api/marketplace`, `GET /api/marketplace/entries/{entry_id}` and
+`POST /api/marketplace/refresh`; old kind and grouped-search routes are removed.
+Native `compozy__marketplace_search` no longer accepts `kind`.
+
+Install packaged resources through the existing extension install surfaces. The old
+`compozy mcp install`, remote `compozy skill search|install|update|remove` commands and
+`POST /api/settings/mcp-servers/install` are removed. Existing extension packages,
+identities, acquisition references, credentials and management remain supported.
+Installed skill files and provenance remain readable through local skill commands;
+manual MCP configuration and authorization remain supported.
+
+Remove active `skills.marketplace.registry` and `skills.marketplace.base_url` settings
+from configuration templates. Existing files are migrated once by archiving those values
+as inactive comments in the same atomic config write; unrelated settings are preserved.
+The active runtime and `config set` no longer consume these acquisition settings.
+Catalog mirrors must serve `v3/extensions.json` and `v3/marketplaces.json`; missing v3
+reports a source failure rather than reading a root feed.
+
+Extension installation no longer accepts `runtime_name` or `--runtime-name`.
+Runtime names are allocated automatically. Extension inputs use their own credential
+namespace; manual MCP Vault references cannot be imported into extension inputs.
+See the Unreleased migration block in [release notes](https://github.com/compozy/compozy/blob/main/RELEASE_NOTES.md) for the
+append-only database upgrades and preserved state.

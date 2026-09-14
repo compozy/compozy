@@ -27,14 +27,3 @@ export interface SkillExposeTarget {
   /** The folder convention this target writes into, e.g. `.agents`. */
   hint: string | null;
 }
-
-export type SkillMarketplaceInstallResponse = OperationResponse<"installSkillMarketplace", 200>;
-export type SkillMarketplaceInstallPayload = SkillMarketplaceInstallResponse["skill"];
-export type SkillMarketplaceInstallRequest = OperationRequestBody<"installSkillMarketplace">;
-
-export type SkillMarketplaceUpdateResponse = OperationResponse<"updateSkillMarketplace", 200>;
-export type SkillMarketplaceUpdatePayload = SkillMarketplaceUpdateResponse["skills"][number];
-export type SkillMarketplaceUpdateRequest = OperationRequestBody<"updateSkillMarketplace">;
-
-export type SkillMarketplaceRemoveResponse = OperationResponse<"removeSkillMarketplace", 200>;
-export type SkillMarketplaceRemovePayload = SkillMarketplaceRemoveResponse["skill"];

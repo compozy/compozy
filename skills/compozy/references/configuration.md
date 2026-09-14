@@ -112,12 +112,12 @@ its profile stores only connection metadata.
 
 ## Marketplace Catalog
 
-`[marketplace.catalog]` controls CompozyOS's curated MCP server, extension, and skill feed projection.
+`[marketplace.catalog]` controls CompozyOS's curated extension catalog.
 `base_url` defaults to the public `compozy/compozy` catalog on `main`, `ttl` defaults to `1h`, and
 `timeout` defaults to `10s`; all three paths apply live to the next fetch. Use the structured config
-surfaces plus `compozy config reload -o json` and apply history to change or verify them. These keys do
-not replace the independent `skills.marketplace.*` feed settings or the `extensions.trust.*` and
-`extensions.sources.*` distribution settings. `extensions.trust.allow_unverified` applies live; every
+surfaces plus `compozy config reload -o json` and apply history to change or verify them. The `extensions.trust.*` and `extensions.sources.*` distribution settings remain independent.
+Retired `skills.marketplace.registry` and `.base_url` values are archived as inactive comments in
+the same config file on load; new writes are rejected. `extensions.trust.allow_unverified` applies live; every
 other `extensions.*` path is restart-required.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.

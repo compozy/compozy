@@ -1,18 +1,16 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -28,12 +26,6 @@ var (
 	ErrMarketplaceUnavailable = errors.New("marketplace: service unavailable")
 )
 
-var marketplaceKindOrder = []contract.MarketplaceKind{
-	contract.MarketplaceKindMCP,
-	contract.MarketplaceKindExtension,
-	contract.MarketplaceKindSkill,
-}
-
 type marketplaceReadScope struct {
 	scope       settingspkg.ScopeKind
 	workspaceID string
@@ -41,250 +33,29 @@ type marketplaceReadScope struct {
 	actor       *taskpkg.ActorContext
 }
 
-// MarketplaceSearchRequest captures transport-independent marketplace discovery filters.
-type MarketplaceSearchRequest struct {
-	Query       string
-	Limit       int
-	Scope       string
-	WorkspaceID string
-	ProfileName string
-	Actor       *taskpkg.ActorContext
-}
-
-// MarketplaceKindRequest captures transport-independent single-kind discovery filters.
-type MarketplaceKindRequest struct {
-	Kind        string
-	Query       string
-	Cursor      string
-	Limit       int
-	Scope       string
-	WorkspaceID string
-	ProfileName string
-	Actor       *taskpkg.ActorContext
-}
-
-// MarketplaceEntryRequest captures transport-independent marketplace detail identity and scope.
-type MarketplaceEntryRequest struct {
-	Kind          string
-	EntryID       string
-	InstalledName string
-	Scope         string
-	WorkspaceID   string
-	ProfileName   string
-	Actor         *taskpkg.ActorContext
-}
-
-// SearchMarketplace returns fixed-order grouped marketplace discovery results.
-func (h *BaseHandlers) SearchMarketplace(c *gin.Context) {
-	limit, err := marketplaceLimit(c.Query("limit"))
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return
-	}
-	actor, ok := h.marketplaceReadActorContext(c, "search")
-	if !ok {
-		return
-	}
-	response, err := h.MarketplaceSearch(c.Request.Context(), MarketplaceSearchRequest{
-		Query:       c.Query("q"),
-		Limit:       limit,
-		Scope:       c.Query("scope"),
-		WorkspaceID: c.Query("workspace_id"),
-		ProfileName: c.Query("profile"),
-		Actor:       actor,
-	})
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// MarketplaceSearch resolves grouped discovery for HTTP, UDS, CLI, and native-tool adapters.
-func (h *BaseHandlers) MarketplaceSearch(
-	ctx context.Context,
-	request MarketplaceSearchRequest,
-) (contract.MarketplaceSearchResponse, error) {
-	limit, err := marketplaceLimitValue(request.Limit)
-	if err != nil {
-		return contract.MarketplaceSearchResponse{}, err
-	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
-	if err != nil {
-		return contract.MarketplaceSearchResponse{}, err
-	}
-	scope.actor = request.Actor
-	query := strings.TrimSpace(request.Query)
-	results := make([]contract.MarketplaceKindResult, 0, len(marketplaceKindOrder))
-	unavailableKinds := 0
-	for _, kind := range marketplaceKindOrder {
-		page, kindErr := h.marketplaceKindResult(ctx, kind, query, 0, limit, scope)
-		result := page.result
-		if kindErr != nil {
-			if errors.Is(kindErr, ErrMarketplaceUnavailable) {
-				unavailableKinds++
-			}
-			errorMessage := kindErr.Error()
-			if h != nil && h.MaskInternalErrors {
-				errorMessage = http.StatusText(http.StatusInternalServerError)
-			}
-			result = contract.MarketplaceKindResult{
-				Kind: kind, Error: errorMessage, Items: []contract.MarketplaceListingPayload{},
-			}
-		}
-		results = append(results, result)
-	}
-	if unavailableKinds == len(marketplaceKindOrder) {
-		return contract.MarketplaceSearchResponse{}, errors.Join(
-			ErrMarketplaceUnavailable, errors.New("marketplace discovery dependencies are not configured"),
-		)
-	}
-	return contract.MarketplaceSearchResponse{Query: query, Kinds: results}, nil
-}
-
-// BrowseMarketplaceKind returns one marketplace kind or a deterministic error.
-func (h *BaseHandlers) BrowseMarketplaceKind(c *gin.Context) {
-	limit, err := marketplaceLimit(c.Query("limit"))
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return
-	}
-	actor, ok := h.marketplaceReadActorContext(c, "browse")
-	if !ok {
-		return
-	}
-	response, err := h.MarketplaceKind(c.Request.Context(), MarketplaceKindRequest{
-		Kind:        c.Param("kind"),
-		Query:       c.Query("q"),
-		Cursor:      c.Query("cursor"),
-		Limit:       limit,
-		Scope:       c.Query("scope"),
-		WorkspaceID: c.Query("workspace_id"),
-		ProfileName: c.Query("profile"),
-		Actor:       actor,
-	})
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// MarketplaceKind resolves one discovery kind through the shared core seam.
-func (h *BaseHandlers) MarketplaceKind(
-	ctx context.Context,
-	request MarketplaceKindRequest,
-) (contract.MarketplaceKindResponse, error) {
-	kind, err := parseMarketplaceKind(request.Kind)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	limit, err := marketplaceLimitValue(request.Limit)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	scope.actor = request.Actor
-	query := strings.TrimSpace(request.Query)
-	offset, cursorFence, err := marketplaceCursorOffset(request.Cursor, string(kind), query, scope)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	page, err := h.marketplaceKindResult(ctx, kind, query, offset, limit, scope)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	if err := validateMarketplaceCursorFence(cursorFence, page.currentFence); err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	page.result.NextCursor, err = marketplaceNextCursor(
-		string(kind),
-		query,
-		scope,
-		page.nextFence,
-		page.nextOffset,
-		page.hasMore,
-	)
-	if err != nil {
-		return contract.MarketplaceKindResponse{}, err
-	}
-	return contract.MarketplaceKindResponse(page.result), nil
-}
-
-// GetMarketplaceEntry returns one exact marketplace detail by stable entry_id.
-func (h *BaseHandlers) GetMarketplaceEntry(c *gin.Context) {
-	actor, ok := h.marketplaceReadActorContext(c, "entry")
-	if !ok {
-		return
-	}
-	response, err := h.MarketplaceEntry(c.Request.Context(), MarketplaceEntryRequest{
-		Kind:          c.Param("kind"),
-		EntryID:       c.Param("entry_id"),
-		InstalledName: c.Query("installed_name"),
-		Scope:         c.Query("scope"),
-		WorkspaceID:   c.Query("workspace_id"),
-		ProfileName:   c.Query("profile"),
-		Actor:         actor,
-	})
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// MarketplaceEntry resolves one exact marketplace entry through the shared core seam.
-func (h *BaseHandlers) MarketplaceEntry(
-	ctx context.Context,
-	request MarketplaceEntryRequest,
-) (contract.MarketplaceEntryResponse, error) {
-	kind, err := parseMarketplaceKind(request.Kind)
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	entryID := strings.TrimSpace(request.EntryID)
-	if entryID == "" {
-		return contract.MarketplaceEntryResponse{}, marketplaceValidationf("entry_id is required")
-	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
-	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
-	}
-	scope.actor = request.Actor
-	return h.marketplaceEntry(ctx, kind, entryID, strings.TrimSpace(request.InstalledName), scope)
-}
-
-// RefreshMarketplaceCatalog refreshes all or one feed-backed marketplace kind.
+// RefreshMarketplaceCatalog refreshes the extension catalog.
 func (h *BaseHandlers) RefreshMarketplaceCatalog(c *gin.Context) {
+	if c.Request.URL.Query().Has("kind") {
+		h.respondMarketplaceError(c, marketplaceValidationf("kind is not supported by the Marketplace catalog"))
+		return
+	}
 	if h == nil || h.MarketplaceCatalog == nil {
 		h.respondMarketplaceError(c, errors.Join(ErrMarketplaceUnavailable, errors.New("catalog is not configured")))
 		return
 	}
-	var kinds []marketplacepkg.Kind
-	if rawKind := strings.TrimSpace(c.Query("kind")); rawKind != "" {
-		kind, err := parseRefreshMarketplaceKind(rawKind)
-		if err != nil {
-			h.respondMarketplaceError(c, err)
-			return
-		}
-		kinds = []marketplacepkg.Kind{kind}
-	}
-	report, refreshErr := h.MarketplaceCatalog.Refresh(c.Request.Context(), kinds...)
+	report, refreshErr := h.MarketplaceCatalog.Refresh(c.Request.Context())
 	if refreshErr != nil && len(report.Outcomes) == 0 {
 		h.respondMarketplaceError(c, refreshErr)
 		return
 	}
-	items := make([]contract.MarketplaceRefreshKindPayload, 0, len(report.Outcomes))
+	items := make([]contract.MarketplaceRefreshSourcePayload, 0, len(report.Outcomes))
 	for _, outcome := range report.Outcomes {
-		items = append(items, contract.MarketplaceRefreshKindPayload{
-			Kind: string(outcome.Kind), Outcome: outcome.Outcome, EntryCount: outcome.EntryCount,
+		items = append(items, contract.MarketplaceRefreshSourcePayload{
+			Source: outcome.Source, Outcome: outcome.Outcome, EntryCount: outcome.EntryCount,
 			Stale: outcome.Stale, ErrorClass: outcome.ErrorClass,
 		})
 	}
-	c.JSON(http.StatusOK, contract.MarketplaceRefreshResponse{Kinds: items})
+	c.JSON(http.StatusOK, contract.MarketplaceRefreshResponse{Sources: items})
 }
 
 func marketplaceLimit(raw string) (int, error) {
@@ -309,86 +80,8 @@ func marketplaceLimitValue(limit int) (int, error) {
 	return limit, nil
 }
 
-func parseMarketplaceReadScope(
-	rawScope string,
-	rawWorkspaceID string,
-	rawProfileName string,
-) (marketplaceReadScope, error) {
-	scope := strings.ToLower(strings.TrimSpace(rawScope))
-	workspaceID := strings.TrimSpace(rawWorkspaceID)
-	profileName := strings.TrimSpace(rawProfileName)
-	if scope == "" {
-		scope = contract.MarketplaceScopeGlobal
-	}
-	switch scope {
-	case contract.MarketplaceScopeGlobal:
-		if workspaceID != "" || profileName != "" {
-			return marketplaceReadScope{}, marketplaceValidationf(
-				"global scope must not include workspace_id or profile",
-			)
-		}
-		return marketplaceReadScope{scope: settingspkg.ScopeUser}, nil
-	case contract.MarketplaceScopeProfile:
-		if workspaceID != "" {
-			return marketplaceReadScope{}, marketplaceValidationf("profile scope must not include workspace_id")
-		}
-		if profileName == "" || profileName == profileDefaultName {
-			return marketplaceReadScope{}, marketplaceValidationf(
-				"profile scope requires a non-default profile",
-			)
-		}
-		return marketplaceReadScope{scope: settingspkg.ScopeProfile, profileName: profileName}, nil
-	case contract.MarketplaceScopeWorkspace:
-		if workspaceID == "" {
-			return marketplaceReadScope{}, marketplaceValidationf("workspace scope requires workspace_id")
-		}
-		if profileName != "" {
-			return marketplaceReadScope{}, marketplaceValidationf("workspace scope must not include profile")
-		}
-		return marketplaceReadScope{scope: settingspkg.ScopeWorkspace, workspaceID: workspaceID}, nil
-	default:
-		return marketplaceReadScope{}, marketplaceValidationf("unsupported scope %q", scope)
-	}
-}
-
-func parseMarketplaceKind(raw string) (contract.MarketplaceKind, error) {
-	kind := contract.MarketplaceKind(strings.ToLower(strings.TrimSpace(raw)))
-	if slices.Contains(marketplaceKindOrder, kind) {
-		return kind, nil
-	}
-	return "", errors.Join(ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind))
-}
-
-func parseRefreshMarketplaceKind(raw string) (marketplacepkg.Kind, error) {
-	switch contract.MarketplaceKind(strings.ToLower(strings.TrimSpace(raw))) {
-	case contract.MarketplaceKindMCP:
-		return marketplacepkg.KindMCP, nil
-	case contract.MarketplaceKindExtension:
-		return marketplacepkg.KindExtension, nil
-	case contract.MarketplaceKindSkill:
-		return marketplacepkg.KindSkill, nil
-	default:
-		return "", marketplaceValidationf("unsupported refresh kind %q", strings.TrimSpace(raw))
-	}
-}
-
 func marketplaceValidationf(format string, args ...any) error {
 	return errors.Join(ErrMarketplaceValidation, fmt.Errorf(format, args...))
-}
-
-func normalizeSkillMarketplaceError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, skillmarketplace.ErrValidation):
-		return errors.Join(ErrMarketplaceValidation, err)
-	case errors.Is(err, skillmarketplace.ErrNotFound):
-		return errors.Join(ErrMarketplaceNotFound, err)
-	case errors.Is(err, skillmarketplace.ErrUnavailable), errors.Is(err, skillmarketplace.ErrNotConfigured):
-		return errors.Join(ErrMarketplaceUnavailable, err)
-	default:
-		return err
-	}
 }
 
 func normalizeCuratedMarketplaceError(err error) error {
@@ -399,6 +92,21 @@ func normalizeCuratedMarketplaceError(err error) error {
 }
 
 func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {
+	if errors.Is(err, extensionpkg.ErrExtensionSourceChanged) {
+		h.respondExtensionError(c, http.StatusConflict, err)
+		return
+	}
+	if errors.Is(err, ErrMarketplaceCursorStale) {
+		c.JSON(
+			http.StatusConflict,
+			contract.MarketplaceCursorStalePayload{
+				Error:   "Catalog changed; restart from the first page",
+				Code:    "marketplace_cursor_stale",
+				Restart: true,
+			},
+		)
+		return
+	}
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, ErrMarketplaceValidation):

@@ -6,9 +6,11 @@ import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { windowManagerStoryDesktopId, windowManagerStoryWindowId } from "../fixtures";
-import { handlers, resetWindowManagerMockState } from "../handlers";
+import { handlers, resetWindowManagerMockState, windowManagerStreamHandler } from "../handlers";
+import { parseWindowManagerStreamFrame } from "../../lib/window-manager-stream-schema";
+import { parseWindowManagerRegisteredClientView } from "../../lib/window-manager-schemas";
 
-const server = setupServer(...handlers);
+const server = setupServer(windowManagerStreamHandler, ...handlers);
 const API = "http://localhost/api/workspaces/workspace-custom/window-manager";
 
 beforeAll(() => {
@@ -57,6 +59,55 @@ async function command(body: object): Promise<Response> {
 }
 
 describe("OS window-manager MSW handlers", () => {
+  it("Should stream the registered workspace snapshot and reject unknown clients", async () => {
+    resetWindowManagerMockState("/marketplace");
+    const registration = await register("client:stream");
+    expect(parseWindowManagerRegisteredClientView(await registration.json())).toMatchObject({
+      clientId: "client:stream",
+      workspaceId: "workspace-custom",
+      attachmentToken: expect.any(String),
+    });
+    for (const clientId of ["client:stream", "client:missing"]) {
+      const socket = new WebSocket(`${API.replace("http:", "ws:")}/stream?client_id=${clientId}`);
+      try {
+        const frame = await new Promise<ReturnType<typeof parseWindowManagerStreamFrame>>(
+          (resolve, reject) => {
+            socket.onmessage = event => {
+              try {
+                resolve(parseWindowManagerStreamFrame(JSON.parse(String(event.data))));
+              } catch (error) {
+                reject(error);
+              }
+            };
+            socket.onerror = () => reject(new Error("Window-manager stream failed"));
+            socket.onclose = () =>
+              reject(new Error(`Window-manager stream closed before a frame for ${clientId}`));
+          }
+        );
+        if (clientId === "client:missing") {
+          expect(frame).toMatchObject({
+            type: "error",
+            error: { code: "window_manager_client_not_found" },
+          });
+        } else {
+          expect(frame).toMatchObject({
+            type: "snapshot",
+            workspaceId: "workspace-custom",
+            client: { clientId },
+            snapshot: {
+              workspaceId: "workspace-custom",
+              windows: {
+                "w-story-marketplace": { route: { pathname: "/marketplace" } },
+              },
+            },
+          });
+        }
+      } finally {
+        socket.close();
+      }
+    }
+  });
+
   it("Should keep an app-route snapshot consistent across window-manager operations", async () => {
     resetWindowManagerMockState("/tasks?view=cards");
 

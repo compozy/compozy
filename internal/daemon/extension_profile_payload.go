@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -100,4 +101,27 @@ func extensionCredentialRequirements(
 
 func extensionPlacementKey(placement extensionpkg.ManifestPlacement) string {
 	return placement.Kind + "\x00" + placement.Resource + "\x00" + placement.Profile
+}
+
+// Installation ownership is separate from the profile used to inspect shared package state.
+func (s *daemonExtensionService) populateExtensionInstallationProfile(
+	ctx context.Context, payload *contract.ExtensionPayload, profileID string,
+) error {
+	if s.registry == nil || payload.Dev {
+		return nil
+	}
+	installation, err := s.registry.ResolveInstallation(ctx, payload.Name, extensionpkg.InstallationScope{
+		ProfileID: profileID, WorkspaceID: payload.WorkspaceID,
+	})
+	// Runtime snapshots can outlive their attachment; optional metadata must not invalidate them.
+	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if installation.Scope.ProfileID != "" {
+		payload.InstallationProfile = payload.Profile
+	}
+	return nil
 }

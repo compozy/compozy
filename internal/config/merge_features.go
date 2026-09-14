@@ -25,13 +25,9 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	if o.PollInterval != nil {
 		dst.PollInterval = *o.PollInterval
 	}
-	if o.AllowedMarketplaceMCP != nil {
-		dst.AllowedMarketplaceMCP = append([]string(nil), (*o.AllowedMarketplaceMCP)...)
-	}
 	if o.AllowedMarketplaceHooks != nil {
 		dst.AllowedMarketplaceHooks = append([]string(nil), (*o.AllowedMarketplaceHooks)...)
 	}
-	o.Marketplace.Apply(&dst.Marketplace)
 }
 
 func (o extensionsOverlay) Apply(dst *ExtensionsConfig) {
@@ -86,15 +82,6 @@ func (o schedulerOverlay) Apply(dst *SchedulerConfig) {
 	}
 	if o.MinQueuedAge != nil {
 		dst.MinQueuedAge = *o.MinQueuedAge
-	}
-}
-
-func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {
-	if o.Registry != nil {
-		dst.Registry = *o.Registry
-	}
-	if o.BaseURL != nil {
-		dst.BaseURL = *o.BaseURL
 	}
 }
 

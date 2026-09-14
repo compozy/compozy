@@ -28,7 +28,7 @@ var toolResultDisplayJSONFields = []string{
 	"body",
 	agentCommandKey,
 	"content",
-	"description",
+	cliDescriptionKey,
 	"detail",
 	automationErrorKey,
 	clientMessageKey,

@@ -84,47 +84,81 @@ scalar field. The daemon selects and redacts the preview. See [Tool progress in
 bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
 contract.
 
+MCP declarations embedded in installed Marketplace/ClawHub skills are disabled. Do not write the
+retired `skills.allowed_marketplace_mcp` key. Installed skill content/provenance and manual or
+extension-provided MCP servers retain their existing behavior.
+
 ## Marketplace Discovery
 
-Use `compozy__marketplace_search` for read-only MCP, extension, and skill discovery. Results carry
-stable `entry_id` values and scoped installed state. CLI fallback:
-`compozy marketplace search [query] [--kind mcp|extension|skill] [--scope user|profile|workspace]
-[--workspace <id>] [--profile <name>] [--cursor <opaque>] -o json`. Continuation requires one kind
-and unchanged query, scope, profile, and workspace. Curated cursors fence the source; remote-skill cursors validate the prior
-page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
-adds a Page block; JSONL adds a `type: "page"` record after items.
+Source management is experimental: `compozy marketplace sources list|add|remove|refresh -o json`,
+`GET/POST /api/marketplace/sources`, `PATCH/DELETE /api/marketplace/sources/{name}`, and
+`POST /api/marketplace/sources/{name}/refresh` share the
+same daemon-owned global configuration. Add accepts `{ref, name?}`; `?dry_run=true` inspects without
+registering. PATCH takes `{enabled: boolean}`. Presets may be disabled but not removed; the CompozyOS
+feed stays enabled. The read-only `compozy__marketplace_sources` tool takes `{}` and returns the
+source list with state, counts, `stability: experimental`, and a `diagnostics` array.
 
-Exact detail is `compozy marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
-applies to MCPs, extensions, and skills. User is default; profile uses the active profile and workspace
-requires an ID.
-Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`.
-Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
-Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
-feed-owned and `manage_path` is an opaque presentation path to follow, not reconstruct.
+On `marketplace_source_exists`, use `suggested_name`; on `marketplace_source_name_retained`, inspect
+`retained_by` and choose another name or re-add the original ref. Reserved names cannot be reused.
+`marketplace_not_a_marketplace` includes `checked` paths. Sources above 2 MiB return
+`marketplace_document_too_large`; an unknown source returns `marketplace_source_not_found`.
+Disabling/removing a source never removes its installed extensions. A failed refresh returns the
+source's degraded state. CLI aggregate refresh fails only when all attempted sources fail.
 
-Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
-`allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
-Curated extension detail also carries an absolute HTTPS `artifact_url` and its `digest_sha256`; the
-daemon installs that exact feed-owned archive instead of guessing among GitHub release assets.
-`github`, `git`, and `local_path` installs bypass this feed and carry their own install-time consent
-gate, not a marketplace row.
+Marketplace in the app is one extension catalog at `/marketplace`; its installed shelf opens
+`/marketplace/installed`. Extension contents describe the included MCP servers, skills, tools, and
+other resources. Do not reconstruct kind-specific app paths.
 
-Install MCP catalog entries with
-`compozy mcp install <entry> --scope user|profile|workspace [--workspace <id>] -o json` or
-`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. Catalog inputs are
-typed and entry-owned. Use `--set id=value` for a non-secret value, `--secret id` for a secret
-entered through stdin or a hidden prompt, or `--vault-ref id=vault:mcp/...` to bind a present ref.
-The catalog does not accept arbitrary environment variables, command overrides, headers, or OAuth
-client-secret flags.
+For structured catalog discovery, use `GET /api/marketplace` over HTTP or UDS. Read `items`, `total`,
+`sources`, `revision`, `stale`, and optional `next_cursor`. Continue with the same query, profile, and
+workspace. On `marketplace_cursor_stale` with `restart: true`, discard prior pages and restart.
+Failed refreshes preserve cached entries; read source diagnostics before interpreting an empty list.
+HTTP(S) and file catalog roots both use `v3/extensions.json` and `v3/marketplaces.json`.
+Missing v3 is a source failure; there is no root-feed or v2 fallback.
 
-Reads expose configured field names/OAuth-secret presence, never refs. JSON returns provenance,
-full config `apply` truth, and `next_step=authorize` only for OAuth. Failed apply means desired config
-needs its returned repair action, not that runtime is active. HTTP/UDS requires `values` (`null` when
-input-free). `mcp_install_event_persist_failed` warns that install committed but its Marketplace
-event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
-partial secret/definition restoration retains the commit and returns a residual-state warning.
+Inspect `GET /api/marketplace/entries/{entry_id}?source=<source>` and optionally
+`installed_name=<local-name>`. Identity is `(source_ref, entry_id)`, never the display name.
+Use the returned `install_slug` with `compozy extension install`; use the installed extension's
+local name for management, and follow `manage_path` rather than inventing a URL. The complete
+installed inventory comes from `GET /api/extensions`, independent of catalog pagination.
+`POST /api/extensions/update` with `{"all":true}` returns per-extension outcomes: a failed item does
+not undo earlier successful updates. Inspect every status, even on HTTP 200.
 
-When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
+Installing the same extension source in another workspace adds a scoped installation. Package
+updates preserve existing installations, their inputs and profile enablement. Remove using the
+selected workspace: `DELETE /api/extensions/{name}?workspace=<id>` detaches that installation and
+keeps other installations; only the last removal retires the package. An active development link
+in that workspace follows the development unlink lifecycle.
+
+Native `compozy__marketplace_search` reads the canonical catalog with `query`, `limit`, and
+`cursor`; obsolete `kind` input fails validation. CLI discovery uses `compozy marketplace search
+[query] [--cursor <opaque>] -o json`, `compozy marketplace info <entry_id> [--source <name>]`,
+and `compozy marketplace refresh`. Use the returned revision and continuation cursor when paging.
+Installed-skill metadata stays local through `compozy skill info <name>`.
+
+Entries carry the daemon's pre-install `trust` report. Read `decision`, `registry_tier`,
+`allow_unverified`, and `warnings`; `checksum_verified` remains false until download verification.
+Curated detail carries an HTTPS `artifact_url` and `digest_sha256`. The daemon installs that exact
+archive and rejects digest mismatches regardless of unverified-install consent. GitHub, Git, and
+local-folder installs have their own policy and consent gate.
+
+Marketplace installs extension packages through the extension install API/CLI. Inspect the
+entry's digest-pinned manifest inputs before installing. Secret input refs must belong to the
+same extension instance; manual MCP credentials are not imported into extension inputs.
+On `extension_inputs_required`, collect the missing fields described by `input_definitions`
+and retry the same scoped operation with typed inputs. Definitions come from the validated
+candidate and contain no stored values or secret refs. A native batch failure keeps this
+metadata in `operation_error` alongside completed updates; retry the failed target only.
+
+Manual MCP definitions remain managed through `GET /api/settings/mcp-servers` and
+`PUT /api/settings/mcp-servers/{name}` with their exact scope. Existing MCP sidecars and credentials
+remain in place. For extension-owned server reads, auth or override changes, pass
+`owner=extension:<installed-name>` (CLI `--owner`) plus the logical manifest server name. Allocated
+runtime names are not aliases for management, authorization or diagnostic calls. Omitting owner
+addresses a manual definition.
+Reads expose configured names and secret presence, never secret values or refs.
+
+For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
 HTTP bind. Use `--scope user` for the user layer, `--scope profile --profile <name>` for a personal
 profile layer, `--scope workspace --workspace <id>` for a workspace layer, and combine
@@ -132,15 +166,19 @@ profile layer, `--scope workspace --workspace <id>` for a workspace layer, and c
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
-Catalog remote OAuth entries declare `method: oauth` and `registration: auto`. The daemon resolves
+For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
-Registration fallback attempt. Treat validation failure as a feed-authoring error; the last valid
-stale projection remains authoritative.
+Registration fallback attempt.
 
 Authorization is bound to the exact scoped server definition. Replacing or deleting that definition
 invalidates pending completion, and a stored token is never sent when the transport, remote URL, or
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
+
+Tool discovery and execution renew expired OAuth tokens using that target's persisted client
+registration. Refresh does not require another login callback or register a replacement client.
+If the registration no longer matches or its client secret has expired, authorize that target again.
+Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
 
 HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the
 target's redacted auth state and does not start a runtime probe. `/auth/begin`, `/auth/exchange`, and
@@ -158,11 +196,10 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 `secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
-`compozy skill search` and `compozy skill info <entry_id>` read the same skill discovery namespace.
 Extension source search is separate: `compozy extension search <query> [--sources curated,github]
 [--limit N] [--cursor <opaque>]` and native `compozy__extensions_search` page
 `GET /api/extensions/search`, tagging rows with `source`, `tier`, `integrity`, and `digest_matched`
-and naming any failed or slow source in `sources_degraded`. Use `compozy skill inspect
+and naming any failed or slow source in `sources_degraded`. Use `compozy skill info
 <installed-name>` for effective installed metadata and resources, and do not call the deleted skill-
 or extension-specific browse endpoints.
 

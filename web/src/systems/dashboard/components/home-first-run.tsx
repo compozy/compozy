@@ -41,7 +41,7 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           </Button>
           <Button
             nativeButton={false}
-            render={<Link to="/marketplace/skills" />}
+            render={<Link to="/marketplace" />}
             size="sm"
             variant="ghost"
             data-testid="home-first-run-marketplace"

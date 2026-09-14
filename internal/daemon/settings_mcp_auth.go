@@ -24,7 +24,6 @@ func newSettingsMCPAuthManagerWithConfig(
 	}
 	serviceOptions := []mcpauth.ServiceOption{
 		mcpauth.WithClientMetadataURL(oauthConfig.ClientMetadataURL),
-		mcpauth.WithDefaultRedirectURL(oauthConfig.RedirectURI),
 		mcpauth.WithRegistrationStore(registrations),
 		mcpauth.WithSecretRefResolver(secretResolver),
 		mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
@@ -181,6 +180,7 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 
 func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 	return mcpauth.Status{
+		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,

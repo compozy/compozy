@@ -16,12 +16,16 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 	req contract.InstallExtensionRequest,
 	installedBy string,
 ) (extensionpkg.MarketplaceInstallRequest, error) {
+	if err := extensionpkg.ValidateExpectedDigest(req.ExpectedDigest); err != nil {
+		return extensionpkg.MarketplaceInstallRequest{}, err
+	}
 	ref, embeddedVersion := splitExtensionDistributionRef(req.Ref)
 	version := strings.TrimSpace(req.Version)
 	if version == "" {
 		version = embeddedVersion
 	}
 	var trust *extensionpkg.MarketplaceTrustEvidence
+	var plugin *extensionpkg.MarketplacePluginAcquisition
 	var err error
 	if req.Source == contract.InstallExtensionSourceCurated {
 		trust, err = s.resolveMarketplaceExtensionTrust(ctx, ref, version)
@@ -31,6 +35,33 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 		if trust == nil {
 			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrEntryNotFound
 		}
+		if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, trust.ArchiveDigestSHA256); err != nil {
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+	}
+	if req.Source == contract.InstallExtensionSourceMarketplace {
+		name, entryID, ok := strings.Cut(ref, "/")
+		if !ok {
+			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrInstallSlugInvalid
+		}
+		ref = strings.ToLower(name) + "/" + entryID
+		plugin, err = s.resolveMarketplacePlugin(ctx, ref)
+		if err != nil {
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+		if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, plugin.Record.DigestSHA256); err != nil {
+			logMarketplaceAcquisitionMismatch(
+				ctx,
+				s.logger,
+				plugin.Record,
+				req.ExpectedDigest,
+				plugin.Record.DigestSHA256,
+			)
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+		if version != "" && version != plugin.Record.Version {
+			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrEntryNotFound
+		}
 	}
 	sourceFilter := string(req.Source)
 	if req.Source == contract.InstallExtensionSourceCurated {
@@ -38,6 +69,7 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 	}
 	cfg := s.marketplaceConfig()
 	return extensionpkg.MarketplaceInstallRequest{
+		ExpectedDigest:         req.ExpectedDigest,
 		Slug:                   ref,
 		SourceFilter:           sourceFilter,
 		Version:                version,
@@ -46,6 +78,7 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 		AllowUnverified:        req.AllowUnverified,
 		InstalledBy:            installedBy,
 		Trust:                  trust,
+		Plugin:                 plugin,
 	}, nil
 }
 
@@ -83,17 +116,14 @@ func (s *daemonExtensionService) resolveMarketplaceExtensionTrust(
 		return nil, nil
 	}
 	entry, err := s.marketplaceCatalog.ResolveExtensionInstall(ctx, installSlug, version)
-	if resolutionErr, ok := errors.AsType[*marketplacepkg.ExtensionInstallResolutionError](err); ok &&
-		resolutionErr.RefreshErr != nil {
-		return nil, fmt.Errorf("daemon: resolve curated extension install: %w", err)
-	}
+
 	if errors.Is(err, marketplacepkg.ErrEntryNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve curated extension install: %w", err)
 	}
-	if entry == nil || entry.Kind != marketplacepkg.KindExtension {
+	if entry == nil {
 		return nil, errors.New("daemon: curated extension install resolved an invalid catalog entry")
 	}
 	if strings.TrimSpace(entry.InstallSlug) != strings.TrimSpace(installSlug) {
@@ -102,6 +132,9 @@ func (s *daemonExtensionService) resolveMarketplaceExtensionTrust(
 	details, err := marketplacepkg.ProjectEntry(*entry)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: project curated extension install: %w", err)
+	}
+	if details.SourceRef != marketplacepkg.CompozyCatalogRef {
+		return nil, marketplacepkg.ErrEntryNotFound
 	}
 	if details.Extension == nil {
 		return nil, errors.New("daemon: curated extension install is missing acquisition metadata")
@@ -120,4 +153,67 @@ func (s *daemonExtensionService) marketplaceTrustResolver() extensionpkg.Marketp
 	return func(ctx context.Context, installSlug string, version string) (*extensionpkg.MarketplaceTrustEvidence, error) {
 		return s.resolveMarketplaceExtensionTrust(ctx, installSlug, version)
 	}
+}
+
+func (s *daemonExtensionService) resolveMarketplacePlugin(
+	ctx context.Context, slug string,
+) (*extensionpkg.MarketplacePluginAcquisition, error) {
+	if s == nil || s.marketplaceCatalog == nil {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	sources, err := s.marketplaceCatalog.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := marketplacepkg.ParseInstallSlug(slug, sources); err != nil {
+		return nil, err
+	}
+	sourceName, entryID, _ := strings.Cut(slug, "/")
+	entry, err := s.marketplaceCatalog.Detail(ctx, sourceName, entryID)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	return s.marketplacePluginFromEntry(*entry)
+}
+
+func (s *daemonExtensionService) resolveMarketplacePluginOrigin(
+	ctx context.Context, sourceRef, entryID, version string,
+) (*extensionpkg.MarketplacePluginAcquisition, error) {
+	if s.marketplaceCatalog == nil {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	entry, err := s.marketplaceCatalog.Entry(ctx, marketplacepkg.Origin{SourceRef: sourceRef, EntryID: entryID})
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil || (version != "" && version != entry.Version) {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	return s.marketplacePluginFromEntry(*entry)
+}
+
+// marketplacePluginFromEntry preserves the selected projection and pinned digest.
+func (s *daemonExtensionService) marketplacePluginFromEntry(
+	entry marketplacepkg.Entry,
+) (*extensionpkg.MarketplacePluginAcquisition, error) {
+	if s.marketplaceAcquirer == nil {
+		return nil, errors.New("daemon: marketplace package acquisition is unavailable")
+	}
+	details, err := marketplacepkg.ProjectEntry(entry)
+	if err != nil {
+		return nil, err
+	}
+	if details.SourceRef == marketplacepkg.CompozyCatalogRef || details.Extension == nil ||
+		details.Extension.Acquisition == nil {
+		return nil, marketplacepkg.ErrEntryNotFound
+	}
+	if !entry.Installable && entry.InstallBlocker != "package_unavailable" {
+		return nil, fmt.Errorf("daemon: marketplace plugin cannot be installed: %s", entry.InstallBlocker)
+	}
+	return &extensionpkg.MarketplacePluginAcquisition{
+		SourceName: entry.SourceName, Record: *details.Extension.Acquisition, Acquirer: s.marketplaceAcquirer,
+	}, nil
 }

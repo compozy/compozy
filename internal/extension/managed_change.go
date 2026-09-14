@@ -11,7 +11,7 @@ import (
 
 func restoreRemovedExtensionRecord(
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	installDir string,
 	change *stagedExtensionDirChange,
 ) error {
@@ -23,7 +23,7 @@ func restoreRemovedExtensionRecord(
 
 func restoreUpdatedExtensionRecord(
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	installDir string,
 	change *stagedExtensionDirChange,
 ) error {
@@ -35,7 +35,7 @@ func restoreUpdatedExtensionRecord(
 
 func reinstallExtensionInfo(
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	installDir string,
 	opts ...InstallOption,
 ) error {

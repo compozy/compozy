@@ -20,6 +20,9 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if kind, ok := configScalarMutationKinds[joined]; ok {
 		return kind, false, nil
 	}
+	if isMarketplaceSourceEnabledPath(path) {
+		return configSetBool, false, nil
+	}
 	if len(path) == 4 && path[0] == compozyconfig.LoopsConfigKey && path[1] == compozyconfig.LoopInputsConfigKey {
 		return configSetLoopInput, false, nil
 	}

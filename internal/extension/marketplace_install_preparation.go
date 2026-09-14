@@ -55,8 +55,13 @@ func (p *PreparedMarketplaceManagedInstall) Manifest() *Manifest {
 	return cloneManifest(p.install.manifest)
 }
 
-// Commit moves the staged artifact into place and persists its registry row.
-func (p *PreparedMarketplaceManagedInstall) Commit() (*ExtensionInfo, error) {
+// Digest returns the digest of the acquired archive, including unpinned direct-source previews.
+func (p *PreparedMarketplaceManagedInstall) Digest() string {
+	return p.install.archiveDigest
+}
+
+// Commit moves the staged artifact into place and attaches it to the resolved scope.
+func (p *PreparedMarketplaceManagedInstall) Commit(scope InstallationScope) (*ExtensionInfo, error) {
 	if p == nil || p.registry == nil || p.install.manifest == nil {
 		return nil, errors.New("extension: prepared marketplace install is required")
 	}
@@ -81,6 +86,7 @@ func (p *PreparedMarketplaceManagedInstall) Commit() (*ExtensionInfo, error) {
 		p.install.finalDir,
 		p.install.checksum,
 		WithInstallSource(SourceMarketplace),
+		WithInstallScope(scope),
 		WithInstallRegistryMetadata(
 			p.install.slug,
 			strings.TrimSpace(p.install.detail.Source),

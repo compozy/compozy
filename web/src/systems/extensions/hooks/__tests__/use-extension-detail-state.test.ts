@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     enabled?: boolean;
     name: string;
     workspaceId?: string | null;
+    profileName?: string | null;
   } | null,
   navigate: vi.fn(),
   toggle: { data: undefined as unknown, mutate: vi.fn(), mutateAsync: vi.fn() },
@@ -45,7 +46,12 @@ vi.mock("../use-extensions", () => ({
   useExtensionKitInventory: () => mocks.inventory,
 }));
 vi.mock("../use-extension-logs", () => ({
-  useExtensionLogs: (options: { enabled?: boolean; name: string; workspaceId?: string | null }) => {
+  useExtensionLogs: (options: {
+    enabled?: boolean;
+    name: string;
+    workspaceId?: string | null;
+    profileName?: string | null;
+  }) => {
     mocks.logsOptions = options;
     return mocks.logs;
   },
@@ -74,7 +80,7 @@ describe("useExtensionDetailState", () => {
 
   it("Should scope logs to the resolved extension instance instead of the active workspace", () => {
     mocks.detail.workspaceId = "ws_active";
-    mocks.detail.data = installedView({ dev: false, workspace_id: undefined });
+    mocks.detail.data = installedView({ dev: false, workspace_id: undefined, profile: "growth" });
 
     renderHook(() => useExtensionDetailState("otel-bridge"));
 
@@ -82,9 +88,10 @@ describe("useExtensionDetailState", () => {
       enabled: true,
       name: "otel-bridge",
       workspaceId: null,
+      profileName: "growth",
     });
 
-    mocks.detail.data = installedView({ dev: true, workspace_id: "ws_dev" });
+    mocks.detail.data = installedView({ dev: true, workspace_id: "ws_dev", profile: "research" });
 
     renderHook(() => useExtensionDetailState("otel-bridge"));
 
@@ -92,6 +99,7 @@ describe("useExtensionDetailState", () => {
       enabled: true,
       name: "otel-bridge",
       workspaceId: "ws_dev",
+      profileName: "research",
     });
   });
 
@@ -125,6 +133,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: false,
       name: "otel-bridge",
       version: "0.6.0",
@@ -161,6 +171,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: true,
       name: "slack-notify",
       version: "1.2.0",
@@ -168,15 +180,24 @@ describe("useExtensionDetailState", () => {
     expect(result.current.activeDialog).toBeNull();
   });
 
-  it("Should toggle the active profile without opening a network confirmation", async () => {
-    mocks.detail.data = installedView({ name: "dep-kit-ops" });
+  it("Should toggle the displayed profile without opening a network confirmation", async () => {
+    mocks.detail.data = installedView({
+      name: "dep-kit-ops",
+      profile: "captured",
+      workspace_id: "ws_captured",
+    });
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
       await result.current.requestToggle(true);
     });
 
-    expect(mocks.toggle.mutateAsync).toHaveBeenCalledWith({ enabled: true, name: "dep-kit-ops" });
+    expect(mocks.toggle.mutateAsync).toHaveBeenCalledWith({
+      enabled: true,
+      name: "dep-kit-ops",
+      profileName: "captured",
+      workspaceId: "ws_captured",
+    });
     expect(result.current.networkConfirm).toBeNull();
   });
 
@@ -207,7 +228,13 @@ describe("useExtensionDetailState", () => {
     // The consent decision and the resolved target survive the refusal.
     expect(result.current.networkConfirm).toEqual({
       digest: CURRENT_DIGEST,
-      variables: { allowUnverified: true, name: "dep-kit-ops", version: "1.2.0" },
+      variables: {
+        profileName: "default",
+        scope: "global",
+        allowUnverified: true,
+        name: "dep-kit-ops",
+        version: "1.2.0",
+      },
     });
     expect(result.current.activeDialog).toBeNull();
 
@@ -216,6 +243,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: true,
       confirmNetworkDigest: CURRENT_DIGEST,
       name: "dep-kit-ops",
@@ -254,6 +283,8 @@ describe("useExtensionDetailState", () => {
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      profileName: "default",
+      scope: "global",
       allowUnverified: false,
       name: "dep-kit-ops",
       version: "0.6.0",

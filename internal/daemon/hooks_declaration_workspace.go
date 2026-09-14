@@ -137,6 +137,7 @@ func scopeWorkspaceAgentHookDecls(
 
 func cloneDaemonHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
+	cloned.HookPlacement = src.ClonePlacement()
 	cloned.Args = append([]string(nil), src.Args...)
 	cloned.Env = cloneStringMap(src.Env)
 	cloned.SecretEnv = cloneStringMap(src.SecretEnv)

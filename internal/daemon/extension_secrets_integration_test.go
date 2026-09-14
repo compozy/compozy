@@ -18,6 +18,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -27,6 +29,8 @@ import (
 )
 
 func TestExtensionSecrets(t *testing.T) {
+	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
+		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
 	t.Run(
 		"Should prefer a development binding and fall back to the profile binding",
@@ -219,6 +223,8 @@ func newExtensionSecretIntegrationHarness(
 		withDaemonExtensionAutomation(&fakeAutomationManager{}),
 		withDaemonExtensionEventWriter(db),
 		withDaemonExtensionSecrets(db.ExtensionEnvRepo, serviceVault),
+		withDaemonExtensionInputs(db.ExtensionInputs),
+		withDaemonExtensionMCPAllocations(db.ExtensionMCP),
 	}
 	if workspaceResolver != nil {
 		serviceOptions = append(serviceOptions, withDaemonExtensionWorkspaceResolver(workspaceResolver))
@@ -326,9 +332,93 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Fatalf("SetExtensionSecrets(global) error = %v", err)
 	}
 	globalOwnedRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "BOUND_SECRET")
+	if _, err := harness.service.Enable(
+		t.Context(),
+		extensionName,
+		contract.EnableExtensionRequest{},
+		harness.actor,
+	); err != nil {
+		t.Fatal(err)
+	}
+	beforeRemoval, err := harness.service.runtime.Get(extensionName)
+	if err != nil || !beforeRemoval.Status.Active {
+		t.Fatalf("fixture was not active before removal: %#v %v", beforeRemoval, err)
+	}
+	beforeLogs := waitForSecretExtensionLogsAfter(
+		t,
+		harness.service,
+		extensionName,
+		harness.actor,
+		0,
+		"",
+		"runtime_secret=",
+	)
+	// Invariant: a committed daemon removal releases its MCP names; failed retirement preserves them and secrets.
+	// Owner: real daemon lifecycle integration; canonical suite: TestExtensionSecrets.
+	allocationTarget := extensionmcp.Target{
+		Extension:  extensionName,
+		ProfileID:  store.DefaultProfileID,
+		ServerName: "server",
+	}
+	allocation, err := harness.db.ExtensionMCP.Reserve(t.Context(), allocationTarget, "sticky-name", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.db.ExtensionMCP.Update(
+		t.Context(),
+		allocationTarget,
+		extensionmcp.Override{URL: "https://example.com/retained"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `CREATE TRIGGER fail_removal_allocations BEFORE DELETE ON extension_mcp_overrides BEGIN SELECT RAISE(ABORT, 'retirement failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Remove(t.Context(), extensionName, harness.actor); err == nil {
+		t.Fatal("retirement failure ignored")
+	}
+	retained, err := harness.db.ExtensionMCP.List(t.Context(), store.DefaultProfileID, "")
+	if err != nil || len(retained) != 1 || retained[0].RuntimeName != allocation.RuntimeName ||
+		retained[0].URL != "https://example.com/retained" {
+		t.Fatalf("failed removal changed override: %#v %v", retained, err)
+	}
+	if _, err := harness.service.registry.Get(extensionName); err != nil {
+		t.Fatal(err)
+	}
+	restoredRuntime, err := harness.service.runtime.Get(extensionName)
+	if err != nil || !restoredRuntime.Status.Active {
+		t.Fatalf("failed removal did not restore runtime readiness: %#v %v", restoredRuntime, err)
+	}
+	restoredStatus, err := harness.service.Status(t.Context(), extensionName)
+	if err != nil || len(restoredStatus.MissingEnv) != 0 {
+		t.Fatalf("restored API readiness=%#v %v", restoredStatus, err)
+	}
+	restartedLogs := waitForSecretExtensionLogsAfter(t, harness.service, extensionName, harness.actor,
+		beforeLogs.matched.Sequence, beforeLogs.matched.StreamEpoch, "runtime_secret=")
+	if !strings.Contains(restartedLogs.matched.Message, "runtime_secret=[REDACTED]") {
+		t.Fatalf("restored process did not receive its bound secret: %s", restartedLogs.matched.Message)
+	}
+	secret, err := harness.vault.ResolveRef(t.Context(), globalOwnedRef)
+	if err != nil || secret != ownedGlobal {
+		t.Fatalf("failed removal lost secret: %#v %v", secret, err)
+	}
+	if _, err := harness.db.DB().ExecContext(t.Context(), `DROP TRIGGER fail_removal_allocations`); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := harness.service.Remove(t.Context(), extensionName, harness.actor); err != nil {
 		t.Fatalf("Remove(global) error = %v", err)
 	}
+	if rows, err := harness.db.ExtensionMCP.List(
+		t.Context(),
+		store.DefaultProfileID,
+		"",
+	); err != nil ||
+		len(rows) != 0 {
+		t.Fatalf("committed removal retained allocations: %#v %v", rows, err)
+	}
+
 	assertExtensionBindingsRetired(
 		t,
 		harness.db,
@@ -430,9 +520,91 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Fatalf("matched dev log = %q, stale binding was injected", logMatch.matched.Message)
 	}
 	devOwnedRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, workspaceID, "BOUND_SECRET")
+	// Invariant: failed dev unlink retains names, overrides, and bindings; committed unlink releases only its instance.
+	// Owner: daemon development lifecycle with real runtime/SQLite/Vault; canonical suite: TestExtensionSecrets.
+	if _, err := harness.db.ExtensionMCP.Reserve(t.Context(), allocationTarget, "global-kept", nil); err != nil {
+		t.Fatal(err)
+	}
+	devTarget := allocationTarget
+	devTarget.WorkspaceID = workspaceID
+	if _, err := harness.db.ExtensionMCP.Reserve(t.Context(), devTarget, "dev-kept", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.db.ExtensionMCP.Update(
+		t.Context(),
+		devTarget,
+		extensionmcp.Override{URL: "https://example.com/dev"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	namedDevTarget := devTarget
+	namedDevTarget.ProfileID = "named-profile"
+	if _, err := harness.db.ExtensionMCP.Reserve(t.Context(), namedDevTarget, "dev-named", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `CREATE TRIGGER fail_dev_unlink_event BEFORE INSERT ON event_summaries WHEN NEW.type = 'extension.dev.unlinked' BEGIN SELECT RAISE(ABORT, 'injected dev unlink event failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	_, unlinkErr := harness.service.RemoveScoped(t.Context(), extensionName, devActor)
+	if unlinkErr == nil || !strings.Contains(unlinkErr.Error(), "injected dev unlink event failure") {
+		t.Fatalf("unlink event failure = %v", unlinkErr)
+	}
+	if _, err := harness.db.DB().ExecContext(t.Context(), `DROP TRIGGER fail_dev_unlink_event`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `CREATE TRIGGER fail_dev_allocations BEFORE DELETE ON extension_mcp_overrides WHEN OLD.workspace_id <> '' BEGIN SELECT RAISE(ABORT, 'dev retirement failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.RemoveScoped(t.Context(), extensionName, devActor); err == nil {
+		t.Fatal("dev allocation retirement failure ignored")
+	}
+	if _, err := harness.db.DB().ExecContext(t.Context(), `DROP TRIGGER fail_dev_allocations`); err != nil {
+		t.Fatal(err)
+	}
+	var unlinkEvents int
+	if err := harness.db.DB().
+		QueryRowContext(t.Context(), `SELECT COUNT(*) FROM event_summaries WHERE type = 'extension.dev.unlinked'`).
+		Scan(&unlinkEvents); err != nil ||
+		unlinkEvents != 0 {
+		t.Fatalf("failed retirement published a completed unlink event: %d %v", unlinkEvents, err)
+	}
+	if link, err := harness.service.registry.GetDevLink(
+		extensionName,
+		workspaceID,
+	); err != nil ||
+		link.BundleGeneration != secondGeneration {
+		t.Fatalf("failed unlink lost development generation: %#v %v", link, err)
+	}
+	devAllocations, err := harness.db.ExtensionMCP.List(t.Context(), store.DefaultProfileID, workspaceID)
+	if err != nil || len(devAllocations) != 1 || devAllocations[0].RuntimeName != "dev-kept" ||
+		devAllocations[0].URL != "https://example.com/dev" {
+		t.Fatalf("failed unlink changed dev allocation: %#v %v", devAllocations, err)
+	}
+	if value, err := harness.vault.ResolveRef(t.Context(), devOwnedRef); err != nil || value != ownedDev {
+		t.Fatalf("failed unlink lost dev vault value: %v", err)
+	}
+
 	if _, err := harness.service.RemoveScoped(t.Context(), extensionName, devActor); err != nil {
 		t.Fatalf("RemoveScoped(dev) error = %v", err)
 	}
+	if err := harness.db.DB().
+		QueryRowContext(t.Context(), `SELECT COUNT(*) FROM event_summaries WHERE type = 'extension.dev.unlinked'`).
+		Scan(&unlinkEvents); err != nil ||
+		unlinkEvents != 1 {
+		t.Fatalf("committed retirement event count: %d %v", unlinkEvents, err)
+	}
+	remainingAllocations, err := harness.db.ExtensionMCP.ListAll(t.Context())
+	if err != nil || len(remainingAllocations) != 1 || remainingAllocations[0].RuntimeName != "global-kept" ||
+		remainingAllocations[0].WorkspaceID != "" {
+		t.Fatalf(
+			"committed unlink changed another instance or retained its allocation: %#v %v",
+			remainingAllocations,
+			err,
+		)
+	}
+
 	assertExtensionBindingsRetired(
 		t,
 		harness.db,
@@ -1025,4 +1197,98 @@ func writeBoundSecretExtensionGenerationWithEnv(
 	t.Helper()
 	fixture := writeBoundSecretExtensionFixtureVersion(t, t.TempDir(), name, version, requiredEnv)
 	return publishSecretExtensionGeneration(t, origin, fixture)
+}
+
+// Invariant: a second secret-write failure leaves no installed package, input rows, bindings or vault material.
+// Owner: daemon install transaction; canonical suite: TestExtensionSecrets.
+func testExtensionInputInstallRollback(t *testing.T) {
+	t.Parallel()
+	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
+		allowUnverified: true, failingVault: true, actorReason: "input install rollback",
+	})
+	const name = "input-rollback"
+	root := t.TempDir()
+	manifest := `name = "input-rollback"
+version = "1.0.0"
+description = "Input install rollback fixture"
+min_compozy_version = "0.0.0"
+
+[[inputs]]
+id = "first"
+prompt = "First"
+type = "secret"
+required = true
+binding = { type = "env", name = "FIRST_KEY" }
+
+[[inputs]]
+id = "second"
+prompt = "Second"
+type = "secret"
+required = true
+binding = { type = "env", name = "SECOND_KEY" }
+
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "env", name = "WORKSPACE_ID" }
+
+[resources.mcp_servers.server]
+command = "server"
+env = { WORKSPACE_ID = "workspace" }
+secret_env = { FIRST_KEY = "first", SECOND_KEY = "second" }
+`
+	if err := os.WriteFile(filepath.Join(root, "extension.toml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	harness.failingVault.failSecondNextPut()
+	response := performExtensionTransportRequest(t, harness.transport, http.MethodPost, "/extensions",
+		mustExtensionTransportJSON(t, contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: root, AllowUnverified: true, Scope: "global",
+			Inputs: map[string]extensioninput.Value{
+				"first":     {Value: json.RawMessage(`"first-secret"`)},
+				"second":    {Value: json.RawMessage(`"second-secret"`)},
+				"workspace": {Value: json.RawMessage(`"team"`)},
+			},
+		}))
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("storage failure status=%d body=%s", response.Code, response.Body)
+	}
+	var failure contract.ErrorPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(failure.Error, "injected transport vault failure") {
+		t.Fatalf("primary storage failure was lost: %#v", failure)
+	}
+	assertSecretsAbsent(t, "failed input install", response.Body.String(), []string{"first-secret", "second-secret"})
+	instance := extensioninput.Instance{Extension: name, ProfileID: store.DefaultProfileID}
+	rows, err := harness.db.ExtensionInputs.List(t.Context(), instance)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("failed install retained input rows: %#v %v", rows, err)
+	}
+	bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(t.Context(), name, store.DefaultProfileID, "")
+	if err != nil || len(bindings) != 0 {
+		t.Fatalf("failed install retained bindings: %#v %v", bindings, err)
+	}
+	secrets, err := harness.vault.ListMetadata(t.Context(), vault.ExtensionSecretOwnerPrefix(name, ""))
+	if err != nil || len(secrets) != 0 {
+		t.Fatalf("failed install retained vault entries: %#v %v", secrets, err)
+	}
+	if _, err := harness.service.registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		t.Fatalf("failed install retained registry entry: %v", err)
+	}
+	if _, err := os.Stat(
+		extensionpkg.ManagedInstallPath(harness.service.homePaths, name),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("failed install retained package files: %v", err)
+	}
+	items, err := harness.service.List(t.Context())
+	if err != nil || len(items) != 0 {
+		t.Fatalf("failed install remained in public inventory: %#v %v", items, err)
+	}
 }

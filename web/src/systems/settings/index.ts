@@ -79,6 +79,7 @@ export {
   deleteSettingsProvider,
   getSettingsAutomation,
   getSettingsSandbox,
+  getSettingsMCPServer,
   getSettingsCmdPalette,
   getSettingsGeneral,
   getSettingsPersona,
@@ -218,6 +219,7 @@ export {
   settingsHooksListOptions,
   settingsNotificationPresetsOptions,
   settingsMCPServersListOptions,
+  settingsMCPServerDetailOptions,
   settingsMemoryOptions,
   settingsAttentionOptions,
   settingsShellOptions,
@@ -250,7 +252,13 @@ export {
   MCPSelectionStrip,
   MCPServerDeleteDialog,
   MCPServerEditor,
+  MCPOverrideEditor,
   MCPServersTable,
+  mcpServerRowTestId,
+  isExtensionOwnedMCPServer,
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
   ProviderCard,
   ProviderEditForm,
   ProviderDetailDialog,
@@ -285,8 +293,7 @@ export {
   SettingsSkillsScopeNotice,
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
-  SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   SettingsSkillsScopeSelector,
   SettingsEditorDialog,
   ModalSettingsFieldRow,
@@ -305,9 +312,20 @@ export {
   SettingsTiles,
   LayoutProfileGrid,
   LayoutStage,
+  MarketplaceSourceRow,
+  SettingsMarketplaceCatalogSection,
+  SettingsMarketplaceSourcesSection,
+  marketplaceCatalogDraftInvalid,
+  sameMarketplaceCatalogConfig,
   WindowManagerConfigEditor,
 } from "./components";
-export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
+export type {
+  MarketplaceSourceRowProps,
+  SettingsMarketplaceCatalogConfig,
+  SettingsMarketplaceCatalogSectionProps,
+  SettingsMarketplaceSourcesSectionProps,
+} from "./components";
+export type { MCPOverrideEditorProps, MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 export { settingsProviderToOption } from "./lib/provider-runtime-option";
@@ -350,6 +368,7 @@ export {
   useSettingsNotificationPresets,
   useSettingsHooks,
   useSettingsMCPServers,
+  useSettingsMCPServer,
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
@@ -419,3 +438,27 @@ export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model"
 export { ROLE_ORDER, type RoleRuntimeValue } from "./lib/roles-config";
 export type { RolesDisclosure } from "./hooks/use-roles-disclosure";
 export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
+
+export { useMCPEditor } from "./hooks/use-mcp-editor";
+export { useMCPOverrideEditor } from "./hooks/use-mcp-override-editor";
+export { useSettingsMCPPage } from "./hooks/use-settings-mcp-page";
+export { mcpDefinitionKey } from "./lib/mcp-management-target";
+export type {
+  MCPOverrideDraft,
+  MCPOverridePair,
+  MCPOverrideErrors,
+} from "./lib/mcp-override-model";
+
+export { useMCPDefinitionAuthorization } from "./hooks/use-mcp-definition-authorization";
+
+export {
+  getSettingsMarketplace,
+  updateSettingsMarketplace,
+} from "./adapters/settings-marketplace-api";
+export {
+  useSettingsMarketplace,
+  useUpdateSettingsMarketplace,
+} from "./hooks/use-settings-marketplace";
+export { settingsMarketplaceOptions } from "./lib/query-options";
+
+export type { SettingsMarketplaceSection, SettingsUpdateMarketplaceRequest } from "./types";

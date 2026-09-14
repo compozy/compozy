@@ -11,7 +11,7 @@ const meta: Meta<typeof StatusDot> = {
     docs: {
       description: {
         component:
-          "Five-tone glyph inbox vocabulary — warning solid (Needs review), danger solid (Blocked), warning ring (Stuck), accent solid (Mentions), faint ring (Updates). Composes next to an Eyebrow group label.",
+          "Six-tone glyph vocabulary — success solid (Running), warning solid (Needs review), danger solid (Blocked), warning ring (Stuck), accent solid (Mentions), faint ring (Updates). Composes next to an Eyebrow group label.",
       },
     },
   },
@@ -25,6 +25,10 @@ export const InboxVocabulary: Story = {
   args: { tone: "warning" },
   render: () => (
     <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <StatusDot tone="success" variant="solid" label="Running" />
+        <Eyebrow>Running</Eyebrow>
+      </div>
       <div className="flex items-center gap-2">
         <StatusDot tone="warning" variant="solid" label="Needs review" />
         <Eyebrow>Needs review</Eyebrow>

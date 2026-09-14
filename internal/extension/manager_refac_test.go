@@ -795,9 +795,10 @@ type recordingSourceSessionManager struct {
 }
 
 type faultingSourceSessionManager struct {
-	mu       sync.Mutex
-	delegate resources.SourceSessionManager
-	resetErr error
+	mu            sync.Mutex
+	delegate      resources.SourceSessionManager
+	resetErr      error
+	activationErr error
 }
 
 func (m *faultingSourceSessionManager) ActivateSourceSession(
@@ -806,6 +807,13 @@ func (m *faultingSourceSessionManager) ActivateSourceSession(
 	source resources.ResourceSource,
 	sessionNonce string,
 ) error {
+	m.mu.Lock()
+	err := m.activationErr
+	m.activationErr = nil
+	m.mu.Unlock()
+	if err != nil {
+		return err
+	}
 	return m.delegate.ActivateSourceSession(ctx, actor, source, sessionNonce)
 }
 

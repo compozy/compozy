@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useInstallMarketplaceExtension } from "../hooks/use-marketplace-actions";
 import type { ExtensionInstallRequest } from "../types";
 import { ExtensionInstallDialog } from "./extension-install-dialog";
+import type { ExtensionInstallSource } from "./extension-install-model";
 import { createExtensionInstallLogic } from "./extension-install-dialog-store";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { previewExtensionInstall, type ExtensionInstallPreview } from "@/systems/extensions";
@@ -14,7 +15,8 @@ const extensionInstallLogic = createExtensionInstallLogic();
 export interface ExtensionInstallDialogController {
   dialogs: React.ReactNode;
   isOpen: boolean;
-  open: () => void;
+  /** Opens the form on the given source; defaults to a local build. */
+  open: (source?: ExtensionInstallSource) => void;
 }
 
 /**
@@ -33,6 +35,7 @@ export function useExtensionInstallDialog(
   const [previewRequest, setPreviewRequest] = useState<ExtensionInstallRequest | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
+  const [initialSource, setInitialSource] = useState<ExtensionInstallSource>("local_path");
 
   const execute = async (request: ExtensionInstallRequest) => {
     await install.mutateAsync(request);
@@ -48,6 +51,8 @@ export function useExtensionInstallDialog(
     <>
       <ExtensionInstallDialog
         error={state.phase === "form" ? (previewError ?? state.error) : null}
+        initialSource={initialSource}
+        key={initialSource}
         onFormChange={() => {
           setPreview(null);
           setPreviewRequest(null);
@@ -67,6 +72,7 @@ export function useExtensionInstallDialog(
               execute,
               request: {
                 ...request,
+                ...(preview.digest_sha256 ? { expected_digest: preview.digest_sha256 } : {}),
                 ...(preview.network_requirement_digest
                   ? { confirm_network_digest: preview.network_requirement_digest }
                   : {}),
@@ -116,10 +122,16 @@ export function useExtensionInstallDialog(
   return {
     dialogs,
     isOpen: state.phase !== "closed",
-    open: () => store.trigger.installOpened(),
+    open: (source = "local_path") => {
+      setInitialSource(source);
+      store.trigger.installOpened();
+    },
   };
 }
 
 function requestsMatch(left: ExtensionInstallRequest, right: ExtensionInstallRequest): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return (
+    JSON.stringify({ ...left, inputs: undefined }) ===
+    JSON.stringify({ ...right, inputs: undefined })
+  );
 }

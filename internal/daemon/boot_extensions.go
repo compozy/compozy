@@ -2,9 +2,11 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 func (d *Daemon) attachExtensionRuntime(
@@ -12,9 +14,9 @@ func (d *Daemon) attachExtensionRuntime(
 	state *bootState,
 	extRegistry *extensionpkg.Registry,
 	manager extensionRuntime,
-) {
+) error {
 	state.deps.Extensions = d.newBootExtensionService(state, extRegistry, manager)
-	d.syncExtensionRuntimeConsumers(ctx, state)
+	return d.syncExtensionRuntimeConsumers(ctx, state)
 }
 
 func (d *Daemon) newBootExtensionService(
@@ -25,6 +27,12 @@ func (d *Daemon) newBootExtensionService(
 	var envBindings extensionpkg.EnvBindingLifecycleStore
 	if store, ok := any(state.registry).(extensionpkg.EnvBindingLifecycleStore); ok {
 		envBindings = store
+	}
+	var acquirer extensionpkg.MarketplacePackageAcquirer
+	var packageCache *pluginsource.PackageCache
+	if state.marketplace != nil {
+		acquirer = &marketplacePackageAcquirer{resolver: state.marketplace.resolver, logger: state.logger}
+		packageCache = state.marketplace.resolver.Cache
 	}
 	return newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:     extRegistry,
@@ -42,10 +50,15 @@ func (d *Daemon) newBootExtensionService(
 	},
 		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
+		withDaemonMarketplacePackageAcquirer(acquirer),
+		withDaemonMarketplacePackageCache(packageCache),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
 		withDaemonExtensionKitPublisher(state.extensionKitResources),
 		withDaemonExtensionSecrets(envBindings, state.providerVault),
+		withDaemonExtensionInputs(state.extensionInputs),
+		withDaemonExtensionMCPAllocations(state.extensionMCP),
+		withDaemonExtensionMCPDetails(&extensionMCPDetails{state: state}),
 		withDaemonExtensionAutomation(state.automation),
 		withDaemonExtensionResources(state.resourceKernel, resourceReconcileActor(), state.resourceCodecs),
 		withDaemonExtensionMCPRuntimeHealth(state.mcpRuntimeHealth),
@@ -53,29 +66,19 @@ func (d *Daemon) newBootExtensionService(
 	)
 }
 
-func (d *Daemon) syncExtensionRuntimeConsumers(ctx context.Context, state *bootState) {
-	for _, entry := range extensionResourcePublishers(state) {
-		if entry.publisher == nil {
-			continue
-		}
-		if err := entry.publisher.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync extension resources after extension boot failed",
-				"publisher",
-				entry.name,
-				"error",
-				err,
-			)
-		}
+func (d *Daemon) syncExtensionRuntimeConsumers(ctx context.Context, state *bootState) error {
+	if err := syncExtensionResourcePublishers(ctx, state); err != nil {
+		return err
 	}
 	if state.hookBindings != nil {
-		return
+		return nil
 	}
 	if rebuildable, ok := state.hooks.(interface {
 		Rebuild(context.Context) error
 	}); ok {
 		if err := rebuildable.Rebuild(ctx); err != nil {
-			state.logger.Error("daemon: rebuild hooks after extension boot failed", "error", err)
+			return fmt.Errorf("daemon: rebuild hooks after extension boot: %w", err)
 		}
 	}
+	return nil
 }

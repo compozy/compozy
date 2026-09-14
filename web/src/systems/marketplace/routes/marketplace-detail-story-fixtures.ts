@@ -10,6 +10,7 @@ export const kitExtensionFixture = {
   enabled: false,
   missing_env: ["DEP_KIT_WEBHOOK"],
   name: "dep-kit-ops",
+  inputs: [],
   declared_profiles: [
     {
       created_by_extension: true,
@@ -65,17 +66,21 @@ export const kitInventoryItems = [
 export function kitDetailHandlers(refuseUpdate = false) {
   return storybookMswParameters({
     marketplace: [
-      compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+      compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
         HttpResponse.json({
           entry: {
             description: "Dependency review agents, a weekly sweep, and a review board layout.",
+            digest_sha256: "a".repeat(64),
             entry_id: "dep-kit-ops",
+            install_slug: "compozy/dep-kit-ops",
+            installable: true,
             installed: true,
             installed_name: "dep-kit-ops",
             installed_version: "1.0.0",
-            kind: "extension",
+            manage_path: "/marketplace/installed",
             name: "dep-kit-ops",
-            source: "registry",
+            source: "compozy-catalog",
+            source_ref: "catalog:compozy",
             update_available: refuseUpdate,
             ...(refuseUpdate ? { version: "1.1.0" } : {}),
           },

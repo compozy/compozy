@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -68,7 +69,11 @@ func (m *Manager) renamePlan(
 	if err != nil {
 		return RenamePlan{}, fmt.Errorf("profile: list vault ref rewrites: %w", err)
 	}
-	plan.VaultRefRewrites = len(vaultRefRewrites)
+	fileRefRewrites, err := compozyconfig.CountProfileSecretRefRewrites(oldDir, profile.Name, newName)
+	if err != nil {
+		return RenamePlan{}, fmt.Errorf("profile: inspect configured secret refs: %w", err)
+	}
+	plan.VaultRefRewrites = len(vaultRefRewrites) + fileRefRewrites
 	if m.placements != nil {
 		plan.DormantPlacements, err = m.placements.PlacementsForProfile(ctx, profile.Name)
 		if err != nil {

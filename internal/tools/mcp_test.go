@@ -1109,7 +1109,7 @@ func (f *fakeMCPExecutor) CallTool(
 	}, nil
 }
 
-func (f *fakeMCPExecutor) Status(context.Context, SourceRef) (MCPAuthStatus, error) {
+func (f *fakeMCPExecutor) Status(context.Context, SourceRef, string) (MCPAuthStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.status, nil

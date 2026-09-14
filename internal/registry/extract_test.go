@@ -40,7 +40,13 @@ func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 			{name: "review/scripts/run.sh", content: "echo ok\n"},
 		})
 
-		if err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{}); err != nil {
+		if err := ExtractArchive(
+			t.Context(),
+			bytes.NewReader(archive),
+			extractRoot,
+			ExtractionLimits{},
+			"application/gzip",
+		); err != nil {
 			t.Fatalf("extractArchive() error = %v", err)
 		}
 
@@ -89,7 +95,11 @@ func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 			{name: "review/SKILL.md", content: "plain"},
 		})
 
-		if err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, root), extractLimits{}); err != nil {
+		if err := extractArchive(
+			bytes.NewReader(archive),
+			openArchiveTestRoot(t, root),
+			ExtractionLimits{},
+		); err != nil {
 			t.Fatalf("extractArchive() error = %v", err)
 		}
 
@@ -120,9 +130,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 			{name: "review/SKILL.md", content: "0123456789"},
 		})
 
-		err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{
-			maxDecompressedSize: 5,
-			maxFileCount:        DefaultMaxFileCount,
+		err := extractArchive(bytes.NewReader(archive), extractRoot, ExtractionLimits{
+			MaxBytes: 5,
+			MaxFiles: DefaultMaxFileCount,
 		})
 		if !errors.Is(err, errArchiveTooLarge) {
 			t.Fatalf("extractArchive(size limit) error = %v, want %v", err, errArchiveTooLarge)
@@ -154,9 +164,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 					t.Fatalf("decompressed archive size = %d, want > 1", rawSize)
 				}
 
-				err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), extractLimits{
-					maxDecompressedSize: rawSize - 1,
-					maxFileCount:        DefaultMaxFileCount,
+				err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), ExtractionLimits{
+					MaxBytes: rawSize - 1,
+					MaxFiles: DefaultMaxFileCount,
 				})
 				if !errors.Is(err, errArchiveTooLarge) {
 					t.Fatalf("extractArchive(%s raw limit) error = %v, want %v", format, err, errArchiveTooLarge)
@@ -172,9 +182,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		rawSize := decompressedArchiveSize(t, archive)
 		archive = appendGzipMember(t, archive, "trailing decompressed payload")
 
-		err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), extractLimits{
-			maxDecompressedSize: rawSize,
-			maxFileCount:        DefaultMaxFileCount,
+		err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), ExtractionLimits{
+			MaxBytes: rawSize,
+			MaxFiles: DefaultMaxFileCount,
 		})
 		if !errors.Is(err, errArchiveTooLarge) {
 			t.Fatalf("extractArchive(trailing decompressed payload) error = %v, want %v", err, errArchiveTooLarge)
@@ -192,9 +202,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 			{name: "three.txt", content: "three"},
 		})
 
-		err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{
-			maxDecompressedSize: DefaultMaxDecompressedSize,
-			maxFileCount:        2,
+		err := extractArchive(bytes.NewReader(archive), extractRoot, ExtractionLimits{
+			MaxBytes: DefaultMaxDecompressedSize,
+			MaxFiles: 2,
 		})
 		if !errors.Is(err, errArchiveTooManyFiles) {
 			t.Fatalf("extractArchive(file count) error = %v, want %v", err, errArchiveTooManyFiles)
@@ -208,7 +218,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		err := extractArchive(
 			bytes.NewReader(mustTarGz(t, []tarEntry{{name: "one/two/SKILL.md", content: "name: review\n"}})),
 			openArchiveTestRoot(t, root),
-			extractLimits{maxDecompressedSize: DefaultMaxDecompressedSize, maxFileCount: 2},
+			ExtractionLimits{MaxBytes: DefaultMaxDecompressedSize, MaxFiles: 2},
 		)
 		if !errors.Is(err, errArchiveTooManyFiles) {
 			t.Fatalf("extractArchive(implicit directory count) error = %v, want %v", err, errArchiveTooManyFiles)
@@ -225,10 +235,10 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		err := extractArchive(
 			bytes.NewReader(mustTarGz(t, []tarEntry{{name: "one/two/three/SKILL.md", content: "name: review\n"}})),
 			openArchiveTestRoot(t, root),
-			extractLimits{
-				maxDecompressedSize: DefaultMaxDecompressedSize,
-				maxFileCount:        DefaultMaxFileCount,
-				maxDepth:            3,
+			ExtractionLimits{
+				MaxBytes: DefaultMaxDecompressedSize,
+				MaxFiles: DefaultMaxFileCount,
+				MaxDepth: 3,
 			},
 		)
 		if !errors.Is(err, errArchiveTooDeep) {
@@ -249,7 +259,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 				archive := mustTarGz(t, []tarEntry{
 					{name: "review/link", typeflag: typeflag, linkname: "../target"},
 				})
-				err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), extractLimits{})
+				err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), ExtractionLimits{})
 				if !errors.Is(err, ErrUnsupportedArchiveEntryType) {
 					t.Fatalf(
 						"ExtractArchive(link type %d) error = %v, want %v",
@@ -269,7 +279,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 			{name: "../escape.txt", content: "nope"},
 		})
 
-		err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), extractLimits{})
+		err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, t.TempDir()), ExtractionLimits{})
 		if err == nil {
 			t.Fatal("ExtractArchive(traversal) error = nil, want failure")
 		}
@@ -299,7 +309,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 			{name: "review/SKILL.md", content: "name: review\n"},
 		})
 
-		err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{})
+		err := extractArchive(bytes.NewReader(archive), extractRoot, ExtractionLimits{})
 		if err == nil {
 			t.Fatal("ExtractArchive(symlinked parent) error = nil, want failure")
 		}
@@ -328,7 +338,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 
 		err := extractArchive(bytes.NewReader(mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "name: review\n"},
-		})), openArchiveTestRoot(t, root), extractLimits{})
+		})), openArchiveTestRoot(t, root), ExtractionLimits{})
 		if !errors.Is(err, ErrPathTraversesSymlink) {
 			t.Fatalf("ExtractArchive(internal symlinked parent) error = %v, want %v", err, ErrPathTraversesSymlink)
 		}
@@ -357,7 +367,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 
 		err := extractArchive(bytes.NewReader(mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "name: review\n"},
-		})), openArchiveTestRoot(t, root), extractLimits{})
+		})), openArchiveTestRoot(t, root), ExtractionLimits{})
 		if !errors.Is(err, ErrPathTraversesSymlink) {
 			t.Fatalf("ExtractArchive(final symlink) error = %v, want %v", err, ErrPathTraversesSymlink)
 		}
@@ -376,7 +386,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		err := extractArchive(bytes.NewReader(mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "first"},
 			{name: "review/SKILL.md", content: "second"},
-		})), openArchiveTestRoot(t, t.TempDir()), extractLimits{})
+		})), openArchiveTestRoot(t, t.TempDir()), ExtractionLimits{})
 		if !errors.Is(err, ErrArchiveDuplicateEntry) {
 			t.Fatalf("ExtractArchive(duplicate) error = %v, want %v", err, ErrArchiveDuplicateEntry)
 		}
@@ -387,7 +397,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 
 		err := extractArchive(bytes.NewReader(mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "name: review\n"},
-		})), nil, extractLimits{})
+		})), nil, ExtractionLimits{})
 		if err == nil {
 			t.Fatal("ExtractArchive(nil root) error = nil, want failure")
 		}
@@ -402,7 +412,7 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		err := extractArchive(
 			strings.NewReader("not-a-gzip-stream"),
 			openArchiveTestRoot(t, t.TempDir()),
-			extractLimits{},
+			ExtractionLimits{},
 		)
 		if err == nil {
 			t.Fatal("ExtractArchive(invalid gzip) error = nil, want failure")
@@ -918,7 +928,7 @@ func TestExtractArchivePreservesPermissionBits(t *testing.T) {
 			{name: "review/scripts/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o755},
 		})
 
-		if err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{}); err != nil {
+		if err := extractArchive(bytes.NewReader(archive), extractRoot, ExtractionLimits{}); err != nil {
 			t.Fatalf("ExtractArchive() error = %v", err)
 		}
 
@@ -953,7 +963,7 @@ func TestExtractArchiveStripsSpecialPermissionBits(t *testing.T) {
 			{name: "review/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o4755},
 		})
 
-		if err := extractArchive(bytes.NewReader(archive), extractRoot, extractLimits{}); err != nil {
+		if err := extractArchive(bytes.NewReader(archive), extractRoot, ExtractionLimits{}); err != nil {
 			t.Fatalf("ExtractArchive() error = %v", err)
 		}
 

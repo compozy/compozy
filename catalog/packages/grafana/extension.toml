@@ -1,0 +1,26 @@
+name = "grafana"
+version = "1.0.0"
+description = "Inspect Grafana dashboards, metrics, logs, traces, and alerts with write tools disabled."
+min_compozy_version = "0.5.0"
+
+[[inputs]]
+id = "grafana_url"
+prompt = "Grafana URL"
+type = "string"
+required = true
+binding = { type = "env", name = "GRAFANA_URL" }
+
+[[inputs]]
+id = "grafana_service_account_token"
+prompt = "Grafana service account token"
+type = "secret"
+required = true
+binding = { type = "env", name = "GRAFANA_SERVICE_ACCOUNT_TOKEN" }
+
+[resources.mcp_servers.grafana]
+transport = "stdio"
+command = "uvx"
+args = ["--from", "mcp-grafana==1.0.0", "mcp-grafana", "--disable-write"]
+env = { GRAFANA_URL = "grafana_url" }
+secret_env = { GRAFANA_SERVICE_ACCOUNT_TOKEN = "grafana_service_account_token" }
+default_scope = "workspace"

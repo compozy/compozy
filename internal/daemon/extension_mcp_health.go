@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -9,10 +10,12 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
 )
 
 func extensionMCPHealthKey(
+	ctx context.Context,
 	state *bootState,
 	record resources.Record[compozyconfig.MCPServer],
 ) mcppkg.RuntimeHealthKey {
@@ -20,22 +23,22 @@ func extensionMCPHealthKey(
 	if state == nil || state.extensions == nil || owner.Kind != extensionResourceOwnerKind {
 		return mcppkg.RuntimeHealthKey{}
 	}
-	key := extensionpkg.InstanceKey{
-		Name: owner.ID, WorkspaceID: extensionMCPInstanceWorkspaceID(record.Scope),
-	}.Normalize()
+	profileID, workspaceID, err := mcpExtensionBindingOwner(ctx, state, record.Scope)
+	if err != nil {
+		return mcppkg.RuntimeHealthKey{}
+	}
+	key := extensionpkg.InstanceKey{Name: owner.ID, ProfileID: profileID, WorkspaceID: workspaceID}.Normalize()
 	var ext *extensionpkg.Extension
-	var err error
-	if key.WorkspaceID != "" {
-		if runtime, ok := state.extensions.(extensionDevRuntime); ok {
-			ext, err = runtime.GetForInstance(key)
-		}
-	} else {
+	if runtime, ok := state.extensions.(extensionDevRuntime); ok {
+		ext, err = runtime.GetForInstance(key)
+	} else if key.WorkspaceID == "" {
 		ext, err = state.extensions.Get(key.Name)
 	}
 	if err != nil || ext == nil {
 		return mcppkg.RuntimeHealthKey{}
 	}
 	return mcppkg.RuntimeHealthKey{
+		ResourceID:       record.ID,
 		InstanceName:     key.Name,
 		WorkspaceID:      key.WorkspaceID,
 		BundleGeneration: extensionMCPHealthGeneration(ext),
@@ -43,17 +46,27 @@ func extensionMCPHealthKey(
 	}
 }
 
-func extensionMCPInstanceWorkspaceID(scope resources.ResourceScope) string {
-	normalized := scope.Normalize()
-	switch normalized.Kind {
-	case resources.ResourceScopeKindWorkspace:
-		return normalized.ID
-	case resources.ResourceScopeKindWorkspaceProfile:
-		workspaceID, _, _ := strings.Cut(normalized.ID, "@pf:")
-		return strings.TrimSpace(workspaceID)
-	default:
-		return ""
+func extensionMCPHealthKeyForTarget(
+	ctx context.Context,
+	state *bootState,
+	target mcpauth.Target,
+) (mcppkg.RuntimeHealthKey, error) {
+	if state == nil || state.mcpServerCatalog == nil || target.Owner == "" {
+		return mcppkg.RuntimeHealthKey{}, nil
 	}
+	for _, record := range state.mcpServerCatalog.Snapshot() {
+		if record.Owner.Kind != extensionResourceOwnerKind || record.Spec.Name != target.ServerName {
+			continue
+		}
+		candidate, err := mcpAuthTargetForResource(ctx, state, record.Scope, record.Spec.Name, record.Owner)
+		if err != nil {
+			return mcppkg.RuntimeHealthKey{}, err
+		}
+		if candidate.Normalize() == target.Normalize() {
+			return extensionMCPHealthKey(ctx, state, record), nil
+		}
+	}
+	return mcppkg.RuntimeHealthKey{}, nil
 }
 
 func extensionMCPHealthGeneration(ext *extensionpkg.Extension) string {
@@ -85,7 +98,7 @@ func extensionMCPHealthDiagnostics(
 	items := make([]contract.DiagnosticItem, 0, len(entries))
 	for _, entry := range entries {
 		items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
-			ID:            "extension.mcp." + key.Name + "." + entry.Key.ServerName + ".unhealthy",
+			ID:            "extension.mcp." + key.Name + "." + entry.Key.ServerName + "." + entry.Key.ResourceID + ".unhealthy",
 			Code:          contract.CodeExtensionMCPServerUnhealthy,
 			Category:      contract.CategoryExtension,
 			Title:         "Extension MCP server is unhealthy",

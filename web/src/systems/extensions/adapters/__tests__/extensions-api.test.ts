@@ -34,8 +34,26 @@ afterEach(() => {
 describe("extensions management reads", () => {
   it("Should read extension inventory and provenance with abortable generated requests", async () => {
     const controller = new AbortController();
-    mockJsonResponse({ extensions: extensionFixtures });
-    await expect(listExtensions({}, controller.signal)).resolves.toEqual(extensionFixtures);
+    const ownedServer = {
+      name: "remote",
+      owner: "extension:otel-bridge",
+      runtime_name: "otel-bridge.remote",
+      scope: "workspace",
+      workspace_id: "workspace-a",
+      profile: "growth",
+      transport: "http",
+      launch: "https://mcp.example.com",
+      status: "needs_authorization",
+      auth: {
+        method: "oauth",
+        registration: "dynamic",
+        issuer_url: "https://issuer.example.com",
+        scopes: ["read"],
+      },
+    };
+    const installed = [{ ...extensionFixtures[0]!, mcp_servers: [ownedServer] }];
+    mockJsonResponse({ extensions: installed });
+    await expect(listExtensions({}, controller.signal)).resolves.toEqual(installed);
     await expectFetchRequest({ path: "/api/extensions", signal: controller.signal });
 
     mockJsonResponse({ provenance: extensionProvenanceFixtures["otel-bridge"] });
@@ -45,24 +63,79 @@ describe("extensions management reads", () => {
     await expectFetchRequest({ callIndex: 1, path: "/api/extensions/otel-bridge/provenance" });
   });
 
-  it("Should read the kit inventory for one extension without a workspace selector", async () => {
+  it("Should read kit inventory for the selected workspace and profile", async () => {
     const items = extensionInventoryFixtures["dep-kit-ops"]!;
     const payload = { enabled: false, extension: "dep-kit-ops", items };
     mockJsonResponse(payload);
 
-    await expect(getExtensionInventory("dep-kit-ops")).resolves.toEqual(payload);
-    await expectFetchRequest({ path: "/api/extensions/dep-kit-ops/inventory" });
+    await expect(
+      getExtensionInventory("dep-kit-ops", { workspaceId: "ws-a", profileName: "research" })
+    ).resolves.toEqual(payload);
+    await expectFetchRequest({
+      path: "/api/extensions/dep-kit-ops/inventory?profile=research&workspace=ws-a",
+    });
   });
 
-  it("Should send a profile-only selector when no workspace is active", async () => {
-    mockJsonResponse({ extensions: extensionFixtures });
+  it.each([false, true])(
+    "Should normalize omitted arrays and send a profile-only selector (omitted=%s)",
+    async omitted => {
+      const extensions = extensionFixtures.map(extension => ({
+        ...extension,
+        mcp_servers: [],
+        inputs: [],
+        missing_inputs: [],
+      }));
+      const wire = extensions.map(extension =>
+        omitted
+          ? { ...extension, mcp_servers: undefined, inputs: undefined, missing_inputs: undefined }
+          : extension
+      );
+      mockJsonResponse({ extensions: wire });
 
-    await expect(listExtensions({ profileName: "growth" })).resolves.toEqual(extensionFixtures);
-    await expectFetchRequest({ path: "/api/extensions?profile=growth" });
-  });
+      await expect(listExtensions({ profileName: "growth" })).resolves.toEqual(extensions);
+      await expectFetchRequest({ path: "/api/extensions?profile=growth" });
+    }
+  );
 });
 
 describe("extensions management mutations", () => {
+  // Invariant: update recovery retains the requested input IDs at the owning HTTP adapter boundary.
+  it("Should preserve required input ids and send typed values when retrying an update", async () => {
+    const inputDefinitions = [
+      {
+        id: "region",
+        prompt: "Region",
+        type: "identifier",
+        required: true,
+        binding: { type: "url_query", name: "region" },
+        default: "eu",
+      },
+    ];
+    mockJsonResponse(
+      {
+        code: "extension_inputs_required",
+        error: "configuration required",
+        inputs: ["region"],
+        input_definitions: inputDefinitions,
+      },
+      { status: 422 }
+    );
+    await expect(updateExtension("sentry", {})).rejects.toMatchObject({
+      status: 422,
+      code: "extension_inputs_required",
+      requiredInputs: ["region"],
+      inputDefinitions,
+    });
+    const body = {
+      scope: "workspace" as const,
+      workspace_id: "ws-scoped",
+      profile: "marketing",
+      inputs: { region: { value: "eu" }, tracing: { value: false } },
+    };
+    mockJsonResponse({});
+    await updateExtension("sentry", body);
+    await expectFetchRequest({ callIndex: 1, method: "PUT", path: "/api/extensions/sentry", body });
+  });
   it("Should set one profile's extension enablement through the dedicated route", async () => {
     const controller = new AbortController();
     const result = { enabled: false, profile: "growth" };
@@ -81,6 +154,7 @@ describe("extensions management mutations", () => {
   it("Should preview an install before committing it", async () => {
     const request = { ref: "dep-kit-ops", source: "curated" as const, version: "1.1.0" };
     const preview = {
+      inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "dep-kit-ops",
       network_requirement_digest: "sha256:6f1c0a94d3b27e58",
@@ -100,6 +174,7 @@ describe("extensions management mutations", () => {
     ["name", { declared_profiles: [], placements: [] }],
     ["declared_profiles", { name: "dep-kit-ops", placements: [] }],
     ["placements", { name: "dep-kit-ops", declared_profiles: [] }],
+    ["inputs", { name: "dep-kit-ops", declared_profiles: [], placements: [] }],
   ])("Should reject a preview missing %s", async (field, payload) => {
     mockJsonResponse(payload);
 
@@ -155,11 +230,12 @@ describe("extensions management mutations", () => {
         after: 12,
         streamEpoch: "epoch-northstar",
         workspaceId: "ws_northstar",
+        profileName: "growth",
       })
     ).resolves.toEqual({ logs: [], stream_epoch: "epoch-northstar" });
     await expectFetchRequest({
       callIndex: 2,
-      path: "/api/extensions/otel-bridge/logs?workspace=ws_northstar&after=12&stream_epoch=epoch-northstar",
+      path: "/api/extensions/otel-bridge/logs?profile=growth&workspace=ws_northstar&after=12&stream_epoch=epoch-northstar",
     });
   });
 

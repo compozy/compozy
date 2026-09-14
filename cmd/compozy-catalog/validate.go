@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -23,12 +25,13 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 	if err := marketplace.ValidateCatalogDirectory(directory); err != nil {
 		return err
 	}
+	feedPath := filepath.Join(directory, "v3", "extensions.json")
 	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
-	raw, err := os.ReadFile(filepath.Join(directory, "extensions.json"))
+	raw, err := os.ReadFile(feedPath)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)
 	}
-	document, err := marketplace.DecodeDocument(marketplace.KindExtension, raw)
+	document, err := marketplace.DecodeDocument(raw)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: decode extension feed: %w", err)
 	}
@@ -37,10 +40,15 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 		return fmt.Errorf("compozy-catalog: create artifact validation directory: %w", err)
 	}
 	defer func() {
-		err = errors.Join(err, removeCatalogValidationDirectory(temporaryRoot))
+		err = errors.Join(err, removeCatalogTemporaryDirectory(temporaryRoot))
 	}()
 	for _, entry := range document.Entries {
-		if err := validateExtensionArtifact(ctx, directory, temporaryRoot, entry); err != nil {
+		if err := validateExtensionArtifact(
+			ctx,
+			directory,
+			temporaryRoot,
+			entry,
+		); err != nil {
 			return err
 		}
 	}
@@ -87,6 +95,16 @@ func validateExtensionArtifact(
 			manifest.Version,
 			entry.Version,
 		)
+	}
+
+	var payload struct {
+		Inputs []marketplace.EntryInput `json:"inputs"`
+	}
+	if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(payload.Inputs, manifest.Inputs) {
+		return fmt.Errorf("compozy-catalog: extension %q feed inputs differ from packaged manifest", entry.EntryID)
 	}
 	return nil
 }
@@ -137,9 +155,9 @@ func (d *catalogFileDownloader) Download(
 	}, nil
 }
 
-func removeCatalogValidationDirectory(path string) error {
+func removeCatalogTemporaryDirectory(path string) error {
 	if err := os.RemoveAll(path); err != nil {
-		return fmt.Errorf("compozy-catalog: remove artifact validation directory: %w", err)
+		return fmt.Errorf("compozy-catalog: remove catalog temporary directory: %w", err)
 	}
 	return nil
 }

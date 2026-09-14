@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	defaultSkillName            = "new-skill"
-	skillMarkdownFileName       = "SKILL.md"
-	nodeModulesDirectoryName    = "node_modules"
-	defaultMarketplaceRegistry  = "clawhub"
-	defaultMarketplaceSearchLim = 20
+	defaultSkillName         = "new-skill"
+	skillMarkdownFileName    = "SKILL.md"
+	nodeModulesDirectoryName = "node_modules"
 )
 
 var (
@@ -79,32 +77,4 @@ type skillWhereItem struct {
 	Winner    contract.SkillShadowEntryPayload   `json:"winner"`
 	Shadows   []contract.SkillShadowEntryPayload `json:"shadows"`
 	Exposures []contract.SkillExposurePayload    `json:"exposures"`
-}
-
-type skillInstallItem struct {
-	Name               string                                              `json:"name"`
-	Slug               string                                              `json:"slug"`
-	Version            string                                              `json:"version,omitempty"`
-	Registry           string                                              `json:"registry"`
-	Path               string                                              `json:"path"`
-	Hash               string                                              `json:"hash"`
-	Status             string                                              `json:"status"`
-	CleanupDiagnostics []contract.SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
-}
-
-type skillRemoveItem struct {
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
-	Path   string `json:"path"`
-	Status string `json:"status"`
-}
-
-type skillUpdateItem struct {
-	Name               string                                              `json:"name"`
-	Slug               string                                              `json:"slug"`
-	CurrentVersion     string                                              `json:"current_version,omitempty"`
-	LatestVersion      string                                              `json:"latest_version,omitempty"`
-	Path               string                                              `json:"path"`
-	Status             string                                              `json:"status"`
-	CleanupDiagnostics []contract.SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
 }

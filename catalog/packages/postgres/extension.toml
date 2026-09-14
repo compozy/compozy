@@ -1,0 +1,18 @@
+name = "postgres"
+version = "0.7.0"
+description = "Query PostgreSQL with Yaw Labs' maintained MCP server; it is read-only by default."
+min_compozy_version = "0.5.0"
+
+[[inputs]]
+id = "database_url"
+prompt = "PostgreSQL connection URL"
+type = "secret"
+required = true
+binding = { type = "env", name = "DATABASE_URL" }
+
+[resources.mcp_servers.postgres]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@yawlabs/postgres-mcp@0.7.0"]
+secret_env = { DATABASE_URL = "database_url" }
+default_scope = "workspace"

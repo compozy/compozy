@@ -1,0 +1,79 @@
+{
+    "layout": "claude-plugin",
+    "mcp_servers": [
+        {
+            "name": "tools",
+            "owner": "tool",
+            "scope": "global",
+            "transport": "http",
+            "launch": "remote",
+            "status": "ready",
+            "runtime_name": "tool--tools",
+            "auth": {
+                "method": "none"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "token",
+            "type": "secret",
+            "set": true,
+            "active": true
+        }
+    ],
+    "contents": {
+        "skills": 1,
+        "mcp_servers": 1,
+        "hooks": 0,
+        "loops": 0,
+        "agents": 0,
+        "bridges": 0
+    },
+    "origin": {
+        "source": "team",
+        "source_ref": "github:acme/plugins",
+        "entry_id": "tool"
+    },
+    "name": "tool",
+    "profile": "default",
+    "version": "1.0.0",
+    "type": "declarative",
+    "format": "declarative",
+    "source": "marketplace",
+    "enabled": true,
+    "state": "enabled",
+    "network_confirmation_required": false,
+    "consecutive_failures": 0,
+    "restart_backoff_ms": 0,
+    "update_available": false,
+    "digest_matched": true,
+    "daemon_running": true,
+    "provenance": {
+        "source_name": "team",
+        "source_ref": "github:acme/plugins",
+        "entry_id": "tool",
+        "resolved_ref": "cccccccccccccccccccccccccccccccccccccccc",
+        "layout": "claude-plugin",
+        "installed_from": "marketplace",
+        "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "digest_matched": true,
+        "checksum_verified": false,
+        "registry_tier": "unverified",
+        "installed_at": "2026-09-13T00:00:00Z",
+        "installed_by": "user",
+        "allow_unverified": true,
+        "trust": {
+            "decision": "allowed_unverified",
+            "registry_tier": "unverified",
+            "checksum_verified": false,
+            "allow_unverified": true
+        }
+    },
+    "trust": {
+        "decision": "allowed_unverified",
+        "registry_tier": "unverified",
+        "checksum_verified": false,
+        "allow_unverified": true
+    }
+}

@@ -7,78 +7,26 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 const (
-	skillOutputSlugValue = "Slug"
-	skillOutputSlugKey   = "slug"
+	skillOutputActionValue      = "Action"
+	skillOutputDescriptionValue = "Description"
+	skillOutputEnabledValue     = authoredContextEnabledValue
+	skillOutputActiveValue      = "Active"
+	skillOutputInactiveValue    = "Inactive reason"
+	skillOutputPathValue        = "Path"
+	skillOutputStatusValue      = "Status"
+	skillOutputValueValue       = "Value"
+	skillOutputActionKey        = authoredContextActionKey
+	skillOutputDescriptionKey   = "description"
+	skillOutputEnabledKey       = automationEnabledKey
+	skillOutputActiveKey        = authoredContextActiveKey
+	skillOutputInactiveKey      = "inactive_reason"
+	skillOutputPathKey          = cliPathKey
+	skillOutputStatusKey        = automationStatusKey
+	skillOutputValueKey         = "value"
 )
-
-const (
-	skillOutputActionValue       = "Action"
-	skillOutputDescriptionValue  = "Description"
-	skillOutputEnabledValue      = authoredContextEnabledValue
-	skillOutputActiveValue       = "Active"
-	skillOutputInactiveValue     = "Inactive reason"
-	skillOutputPathValue         = "Path"
-	skillOutputStatusValue       = "Status"
-	skillOutputValueValue        = "Value"
-	skillOutputActionKey         = authoredContextActionKey
-	skillOutputCurrentVersionKey = "current_version"
-	skillOutputDescriptionKey    = "description"
-	skillOutputEnabledKey        = automationEnabledKey
-	skillOutputActiveKey         = authoredContextActiveKey
-	skillOutputInactiveKey       = "inactive_reason"
-	skillOutputPathKey           = cliPathKey
-	skillOutputStatusKey         = automationStatusKey
-	skillOutputValueKey          = "value"
-)
-
-func skillSearchBundle(items []registrypkg.Listing) outputBundle {
-	return listBundle(
-		items,
-		items,
-		"Marketplace Skills",
-		[]string{
-			skillOutputSlugValue,
-			automationNameValue,
-			skillOutputDescriptionValue,
-			"Author",
-			versionValue,
-			"Downloads",
-		},
-		"skills",
-		[]string{
-			skillOutputSlugKey,
-			automationNameKey,
-			skillOutputDescriptionKey,
-			"author",
-			versionKey,
-			"downloads",
-		},
-		func(item registrypkg.Listing) []string {
-			return []string{
-				stringOrDash(item.Slug),
-				stringOrDash(item.Name),
-				stringOrDash(item.Description),
-				stringOrDash(item.Author),
-				stringOrDash(item.Version),
-				strconv.Itoa(item.Downloads),
-			}
-		},
-		func(item registrypkg.Listing) []string {
-			return []string{
-				item.Slug,
-				item.Name,
-				item.Description,
-				item.Author,
-				item.Version,
-				strconv.Itoa(item.Downloads),
-			}
-		},
-	)
-}
 
 func renderSkillInfoTranscript(item skillInfoItem) string {
 	rows := []struct {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -14,92 +13,30 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
 )
 
 const defaultMarketplaceEventWriteTimeout = 5 * time.Second
 
 type marketplaceRuntime struct {
-	mu       sync.RWMutex
-	store    marketplace.Store
-	notifier marketplace.Notifier
-	now      func() time.Time
-	service  marketplaceRuntimeService
-	stopped  bool
+	mu         sync.RWMutex
+	store      marketplace.Store
+	service    *marketplace.CatalogService
+	resolver   *pluginsource.Resolver
+	config     compozyconfig.MarketplaceRuntimeConfig
+	presets    *marketplace.PresetDocument
+	presetPath string
+	homePaths  compozyconfig.HomePaths
+	stopped    bool
 }
 
-type marketplaceRuntimeService interface {
-	marketplace.Service
-	marketplace.SkillInstallResolver
-}
-
-var (
-	_ marketplace.Service              = (*marketplaceRuntime)(nil)
-	_ marketplace.SkillInstallResolver = (*marketplaceRuntime)(nil)
-)
-
-func newMarketplaceRuntime(
-	store marketplace.Store,
-	notifier marketplace.Notifier,
-	cfg compozyconfig.MarketplaceCatalogConfig,
-	now func() time.Time,
-) (*marketplaceRuntime, error) {
-	if store == nil {
-		return nil, errors.New("daemon: marketplace store is required")
-	}
-	service, err := buildMarketplaceService(store, notifier, cfg, now)
-	if err != nil {
-		return nil, err
-	}
-	return &marketplaceRuntime{
-		store:    store,
-		notifier: notifier,
-		now:      now,
-		service:  service,
-	}, nil
-}
-
-func buildMarketplaceService(
-	marketplaceStore marketplace.Store,
-	notifier marketplace.Notifier,
-	cfg compozyconfig.MarketplaceCatalogConfig,
-	now func() time.Time,
-) (marketplaceRuntimeService, error) {
-	if err := cfg.Validate("marketplace.catalog"); err != nil {
-		return nil, err
-	}
-	ttl, err := time.ParseDuration(cfg.EffectiveTTL())
-	if err != nil {
-		return nil, fmt.Errorf("daemon: parse marketplace catalog TTL: %w", err)
-	}
-	timeout, err := time.ParseDuration(cfg.EffectiveTimeout())
-	if err != nil {
-		return nil, fmt.Errorf("daemon: parse marketplace catalog timeout: %w", err)
-	}
-	client := &http.Client{Timeout: timeout}
-	sources := make([]marketplace.Source, 0, len(marketplace.AllKinds()))
-	for _, kind := range marketplace.AllKinds() {
-		source, err := marketplace.NewSource(kind, cfg.EffectiveBaseURL(), client)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: create %q marketplace source: %w", kind, err)
-		}
-		sources = append(sources, source)
-	}
-	options := []marketplace.ServiceOption{marketplace.WithNotifier(notifier)}
-	if now != nil {
-		options = append(options, marketplace.WithNow(now))
-	}
-	service, err := marketplace.NewService(marketplaceStore, sources, ttl, timeout, options...)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create marketplace service: %w", err)
-	}
-	return service, nil
-}
+var _ marketplace.Service = (*marketplaceRuntime)(nil)
 
 func (r *marketplaceRuntime) Browse(
 	ctx context.Context,
-	kind marketplace.Kind,
 	query string,
 	offset int,
 	limit int,
@@ -108,19 +45,26 @@ func (r *marketplaceRuntime) Browse(
 	if err != nil {
 		return marketplace.BrowseResult{}, err
 	}
-	return service.Browse(ctx, kind, query, offset, limit)
+	return service.Browse(ctx, query, offset, limit)
 }
 
 func (r *marketplaceRuntime) Detail(
 	ctx context.Context,
-	kind marketplace.Kind,
-	entryID string,
+	source, entryID string,
 ) (*marketplace.Entry, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return service.Detail(ctx, kind, entryID)
+	return service.Detail(ctx, source, entryID)
+}
+
+func (r *marketplaceRuntime) Entry(ctx context.Context, origin marketplace.Origin) (*marketplace.Entry, error) {
+	service, err := r.currentService(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return service.Entry(ctx, origin)
 }
 
 func (r *marketplaceRuntime) ResolveExtensionInstall(
@@ -135,29 +79,48 @@ func (r *marketplaceRuntime) ResolveExtensionInstall(
 	return service.ResolveExtensionInstall(ctx, installSlug, version)
 }
 
-func (r *marketplaceRuntime) ResolveSkillInstalls(
-	ctx context.Context,
-	installSlugs []string,
-) ([]marketplace.Entry, error) {
-	service, err := r.currentService(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return service.ResolveSkillInstalls(ctx, installSlugs)
-}
-
 func (r *marketplaceRuntime) Refresh(
-	ctx context.Context,
-	kinds ...marketplace.Kind,
+	ctx context.Context, names ...string,
 ) (marketplace.RefreshReport, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return marketplace.RefreshReport{}, err
 	}
-	return service.Refresh(ctx, kinds...)
+	report, refreshErr := service.Refresh(ctx, names...)
+	if len(names) > 0 || ctx.Err() != nil {
+		return report, refreshErr
+	}
+	states, err := service.Status(ctx)
+	if err != nil {
+		return report, errors.Join(refreshErr, err)
+	}
+	outcomes := make(map[string]marketplace.RefreshOutcome, len(report.Outcomes))
+	for _, outcome := range report.Outcomes {
+		outcomes[outcome.Source] = outcome
+	}
+	var added []string
+	for _, state := range states {
+		if _, refreshed := outcomes[state.Source]; state.Enabled && !refreshed {
+			added = append(added, state.Source)
+		}
+	}
+	if len(added) > 0 {
+		more, err := service.Refresh(ctx, added...)
+		refreshErr = errors.Join(refreshErr, err)
+		for _, outcome := range more.Outcomes {
+			outcomes[outcome.Source] = outcome
+		}
+	}
+	report.Outcomes = report.Outcomes[:0]
+	for _, state := range states {
+		if outcome, refreshed := outcomes[state.Source]; refreshed {
+			report.Outcomes = append(report.Outcomes, outcome)
+		}
+	}
+	return report, refreshErr
 }
 
-func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.KindState, error) {
+func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.SourceState, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return nil, err
@@ -178,27 +141,28 @@ func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *compozyco
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("daemon: marketplace config reconciliation canceled: %w", err)
 	}
-	next, err := buildMarketplaceService(r.store, r.notifier, cfg.Marketplace.Catalog, r.now)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stopped {
+		return errors.New("daemon: marketplace runtime is stopped")
+	}
+	presets := r.presets
+	if r.config.Catalog.EffectiveBaseURL() != cfg.Marketplace.Catalog.EffectiveBaseURL() {
+		var err error
+		presets, err = readMarketplacePresets(r.presetPath, cfg.Marketplace.Catalog.EffectiveBaseURL())
+		if err != nil {
+			return err
+		}
+	}
+	sources, ttl, timeout, err := r.buildBindings(cfg.Marketplace, presets)
 	if err != nil {
 		return err
 	}
-	r.mu.Lock()
-	if r.stopped {
-		r.mu.Unlock()
-		return errors.Join(errors.New("daemon: marketplace runtime is stopped"), next.Close(ctx))
+	if err := r.service.Reconfigure(ctx, sources, ttl, timeout); err != nil {
+		return err
 	}
-	previous := r.service
-	if previous != nil {
-		if err := previous.Close(ctx); err != nil {
-			r.mu.Unlock()
-			return errors.Join(
-				fmt.Errorf("daemon: retire previous marketplace service: %w", err),
-				next.Close(context.WithoutCancel(ctx)),
-			)
-		}
-	}
-	r.service = next
-	r.mu.Unlock()
+	r.config = compozyconfig.CloneConfig(cfg).Marketplace
+	r.presets = presets
 	return nil
 }
 
@@ -223,7 +187,7 @@ func (r *marketplaceRuntime) Shutdown(ctx context.Context) error {
 
 func (r *marketplaceRuntime) Close(ctx context.Context) error { return r.Shutdown(ctx) }
 
-func (r *marketplaceRuntime) currentService(ctx context.Context) (marketplaceRuntimeService, error) {
+func (r *marketplaceRuntime) currentService(ctx context.Context) (marketplace.Service, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: marketplace context is required")
 	}
@@ -274,7 +238,7 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(
 		ProfileID: store.DefaultProfileID,
 		Type:      eventspkg.MarketplaceCatalogRefresh,
 		Outcome:   string(eventOutcome),
-		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
+		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Source, outcome.Outcome),
 	}, content))
 }
 
@@ -298,7 +262,7 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 		ProfileID: store.DefaultProfileID,
 		Type:      eventspkg.MarketplaceInstall,
 		Outcome:   string(eventOutcome),
-		Summary:   fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
+		Summary:   fmt.Sprintf("marketplace extension install %s", outcome.Outcome),
 	}, content))
 }
 
@@ -362,7 +326,39 @@ func (d *Daemon) bootMarketplace(ctx context.Context, state *bootState, cleanup 
 		return fmt.Errorf("daemon: create marketplace store: %w", err)
 	}
 	notifier := &daemonMarketplaceNotifier{writer: state.registry, logger: state.logger, now: d.now}
-	runtime, err := newMarketplaceRuntime(marketplaceStore, notifier, state.cfg.Marketplace.Catalog, d.now)
+	options := []marketplace.ServiceOption{marketplace.WithLogger(state.logger)}
+	if dbSource, ok := state.registry.(extensionDBSource); ok && dbSource.DB() != nil {
+		registry := extensionpkg.NewRegistry(dbSource.DB())
+		options = append(
+			options,
+			marketplace.WithInstalledPackages(func(ctx context.Context) ([]marketplace.InstalledPackage, error) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				installed, err := registry.List()
+				if err != nil {
+					return nil, err
+				}
+				packages := make([]marketplace.InstalledPackage, 0, len(installed))
+				for index := range installed {
+					item := &installed[index]
+					packages = append(packages, marketplace.InstalledPackage{
+						Name: item.Name, SourceName: item.Provenance.SourceName,
+						SourceRef: item.Provenance.SourceRef, DigestSHA256: item.Provenance.ArchiveDigestSHA256,
+					})
+				}
+				return packages, nil
+			}),
+		)
+	}
+	runtime, err := newMarketplaceRuntime(
+		ctx,
+		marketplaceStore,
+		notifier,
+		state.cfg.Marketplace,
+		d.homePaths,
+		d.now,
+		options...)
 	if err != nil {
 		return err
 	}

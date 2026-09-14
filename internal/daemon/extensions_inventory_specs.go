@@ -24,6 +24,7 @@ func projectExtensionKitItems(
 	ext *extensionpkg.Extension,
 	codecs *resources.CodecRegistry,
 	getenv func(string) string,
+	inputs extensionpkg.InputState,
 ) ([]extensionpkg.KitItem, error) {
 	if ext == nil || ext.Manifest == nil {
 		return nil, errors.New("daemon: inspected extension manifest is required")
@@ -39,7 +40,7 @@ func projectExtensionKitItems(
 	if err := collector.appendAgentSkillItems(ctx, codecs, ext); err != nil {
 		return nil, err
 	}
-	if err := collector.appendToolMCPItems(ctx, codecs, getenv, ext); err != nil {
+	if err := collector.appendToolMCPItems(ctx, codecs, getenv, ext, inputs); err != nil {
 		return nil, err
 	}
 	if err := collector.appendLoopItems(ctx, codecs, ext); err != nil {
@@ -156,6 +157,7 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 	codecs *resources.CodecRegistry,
 	getenv func(string) string,
 	ext *extensionpkg.Extension,
+	inputs extensionpkg.InputState,
 ) error {
 	if len(ext.Manifest.Resources.Tools) == 0 && len(ext.Manifest.Resources.MCPServers) == 0 {
 		return nil
@@ -172,7 +174,7 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 			scope:     userScope, owner: extensionOwner(ext.Info.Name), spec: cloneToolSpec(tool),
 		})
 	}
-	if err := appendExtensionMCPServerDeclarations(&declarations, ext, getenv, userScope); err != nil {
+	if err := c.appendInspectableMCPDeclarations(&declarations, ext, inputs, getenv, userScope); err != nil {
 		return err
 	}
 
@@ -200,6 +202,27 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 	}
 	for _, item := range desired.mcpServers {
 		c.append(compozyconfig.MCPServerResourceKind, item.id, item.spec.Name, item.encoded)
+	}
+	return nil
+}
+
+// Inventory can name unconfigured declarations without constructing a runnable transport spec.
+func (c *extensionKitItemCollector) appendInspectableMCPDeclarations(
+	desired *toolMCPDesiredResources, ext *extensionpkg.Extension, inputs extensionpkg.InputState,
+	getenv func(string) string, scope resources.ResourceScope,
+) error {
+	if err := extensionpkg.ValidateManifestInputs(ext.Manifest); err != nil {
+		return err
+	}
+	ready := extensionpkg.InputReadiness(ext.Manifest, inputs, getenv)
+	if len(ext.Manifest.Inputs) == 0 || (len(ready.MissingInputs) == 0 && len(ready.MissingEnv) == 0) {
+		return appendExtensionMCPServerDeclarations(desired, ext, inputs, getenv, scope)
+	}
+	for name := range ext.Manifest.Resources.MCPServers {
+		name = strings.TrimSpace(name)
+		id := managedPublicationID(mcpServerManagedIDPrefix, scope,
+			"extension/"+ext.Info.Name+"/mcp_server/"+name, nil, extensionOwner(ext.Info.Name))
+		c.append(compozyconfig.MCPServerResourceKind, id, name, nil)
 	}
 	return nil
 }
@@ -260,7 +283,7 @@ func (c *extensionKitItemCollector) appendHookItems(
 		}
 		c.append(
 			hookBindingResourceKind,
-			extensionHookBindingID(ext.Info.Name, validated.Name),
+			extensionHookBindingID(ext.Info.Name, validated),
 			validated.Name,
 			encoded,
 		)

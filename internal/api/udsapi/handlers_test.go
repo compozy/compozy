@@ -84,7 +84,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/settings/mcp-servers/:name",
 			"DELETE /api/settings/providers/:name",
 			"DELETE /api/resources/:kind/:id",
-			"DELETE /api/skills/marketplace/:name",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
@@ -187,9 +186,15 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/memory/providers/:provider_name",
 			"GET /api/memory/recall-traces/:session_id/:turn_seq",
 			"GET /api/memory/scope-show",
-			"GET /api/marketplace/:kind",
-			"GET /api/marketplace/:kind/:entry_id",
-			"GET /api/marketplace/search",
+			"GET /api/marketplace",
+			"GET /api/marketplace/entries/:entry_id",
+			"GET /api/marketplace/sources",
+			"POST /api/marketplace/sources",
+			"PATCH /api/marketplace/sources/:name",
+			"DELETE /api/marketplace/sources/:name",
+			"POST /api/marketplace/sources/:name/refresh",
+			"GET /api/settings/marketplace",
+			"PATCH /api/settings/marketplace",
 			"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 			"GET /api/workspaces/:workspace_id/network/inbox",
 			"GET /api/workspaces/:workspace_id/network/usage",
@@ -265,8 +270,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
 			"GET /api/settings/mcp-servers",
+			"GET /api/settings/mcp-servers/:name",
 			"GET /api/settings/mcp-servers/:name/auth/status",
-			"POST /api/settings/mcp-servers/install",
 			"POST /api/settings/mcp-servers/:name/auth/begin",
 			"POST /api/settings/mcp-servers/:name/auth/exchange",
 			"POST /api/settings/mcp-servers/:name/auth/logout",
@@ -492,8 +497,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/skills/:name/enable",
 			"POST /api/skills/:name/expose",
 			"POST /api/skills/:name/unexpose",
-			"POST /api/skills/marketplace/install",
-			"POST /api/skills/marketplace/update",
 			"POST /api/task-runs/:id/attach-session",
 			"POST /api/task-runs/:id/cancel",
 			"POST /api/task-runs/:id/complete",
@@ -642,19 +645,30 @@ func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
 		t,
 		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 	)
-	for _, path := range []string{
-		"/api/skills/marketplace/search",
-		"/api/skills/marketplace/info",
-		"/api/extensions/marketplace",
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/marketplace/search"},
+		{http.MethodGet, "/api/marketplace/mcp"},
+		{http.MethodGet, "/api/marketplace/skill"},
+		{http.MethodGet, "/api/marketplace/extension"},
+		{http.MethodGet, "/api/marketplace/mcp/github"},
+		{http.MethodGet, "/api/marketplace/skill/review"},
+		{http.MethodGet, "/api/marketplace/extension/review"},
+		{http.MethodGet, "/api/skills/marketplace/search"},
+		{http.MethodGet, "/api/skills/marketplace/info"},
+		{http.MethodGet, "/api/extensions/marketplace"},
+		{http.MethodPost, "/api/skills/marketplace/install"},
+		{http.MethodPost, "/api/skills/marketplace/update"},
+		{http.MethodDelete, "/api/skills/marketplace/review"},
 	} {
-		t.Run("Should return 404 for "+path, func(t *testing.T) {
+		t.Run("Should return 404 for "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
 
-			response := performRequest(t, engine, http.MethodGet, path, nil)
+			response := performRequest(t, engine, route.method, route.path, nil)
 			if response.Code != http.StatusNotFound {
 				t.Fatalf(
-					"GET %s status = %d, want %d; body=%s",
-					path,
+					"%s %s status = %d, want %d; body=%s",
+					route.method,
+					route.path,
 					response.Code,
 					http.StatusNotFound,
 					response.Body.String(),
@@ -792,18 +806,6 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				}
 			}
 			return envelope, nil
-		},
-		InstallMCPCatalogFn: func(
-			_ context.Context,
-			req settingspkg.MCPCatalogInstallRequest,
-		) (settingspkg.MCPCatalogInstallResult, error) {
-			return settingspkg.MCPCatalogInstallResult{
-				Item: settingspkg.MCPServerItem{
-					Name: req.Name, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
-					CatalogEntry: req.EntryID,
-				},
-				NextStep: settingspkg.MCPCatalogInstallNextStepNone,
-			}, nil
 		},
 	}
 	restartController := &stubSettingsRestartController{}
@@ -1110,28 +1112,15 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			},
 		},
 		{
-			name:       "Should install catalog MCP server",
+			name:       "Should reject retired catalog installation",
 			method:     http.MethodPost,
 			path:       "/api/settings/mcp-servers/install",
-			wantStatus: http.StatusOK,
-			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
-				EntryID:     "github",
-				Name:        "github-workspace",
-				Scope:       contract.SettingsLayeredScopeWorkspace,
-				WorkspaceID: "ws-1",
-				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
-			}),
+			body:       []byte(`{"entry_id":"github","values":{}}`),
+			wantStatus: http.StatusNotFound,
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
-				var response contract.InstallSettingsMCPServerResponse
-				decodeJSONResponse(t, recorder, &response)
-				if response.MCPServer.Name != "github-workspace" || response.NextStep != "none" {
-					t.Fatalf("response = %#v", response)
-				}
-				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
-					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
-					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
-					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
+				if !strings.Contains(recorder.Body.String(), "404") {
+					t.Fatalf("removed install body: %s", recorder.Body.String())
 				}
 			},
 		},

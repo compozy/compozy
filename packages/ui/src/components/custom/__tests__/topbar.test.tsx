@@ -130,6 +130,8 @@ describe("Topbar", () => {
     expect(document.querySelector("[data-slot='topbar-nav']")).toBeNull();
   });
 
+  // Invariant: breadcrumb navigation preserves the published count, including zero.
+  // Owner: shared Topbar; canonical suite: topbar.test.tsx.
   it("Should render drill-in back + crumbs without a workspace prefix (UT-092)", () => {
     const onBack = vi.fn();
     const onSelect = vi.fn();
@@ -138,6 +140,7 @@ describe("Topbar", () => {
         onBack,
         crumbs: [{ id: "tasks", label: "Tasks", onSelect }],
         crumb: "Run #128",
+        count: 0,
       });
       return null;
     }
@@ -154,6 +157,7 @@ describe("Topbar", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("heading", { level: 1, name: "Run #128" })).toBeInTheDocument();
     expect(screen.queryByText("compozy")).toBeNull();
+    expect(document.querySelector("[data-slot=topbar-count]")).toHaveTextContent("0");
   });
 
   it("Should keep edge parents visible and expose collapsed middle parents as menu items", () => {

@@ -3,14 +3,6 @@ export type {
   ProvenancePayload,
   SkillActionResponse,
   SkillContentResponse,
-  SkillMarketplaceInstallPayload,
-  SkillMarketplaceInstallRequest,
-  SkillMarketplaceInstallResponse,
-  SkillMarketplaceRemovePayload,
-  SkillMarketplaceRemoveResponse,
-  SkillMarketplaceUpdatePayload,
-  SkillMarketplaceUpdateRequest,
-  SkillMarketplaceUpdateResponse,
   SkillPayload,
   SkillShadowEntryPayload,
   SkillShadowsResponse,
@@ -38,11 +30,8 @@ export {
   unexposeSkill,
   getSkillContent,
   getSkillShadows,
-  installSkillMarketplace,
   listSkills,
-  removeSkillMarketplace,
   SkillApiError,
-  updateSkillMarketplace,
 } from "./adapters/skill-api";
 
 // Query infrastructure
@@ -80,10 +69,4 @@ export { SkillExposeTargetPicker } from "./components/skill-expose-target-picker
 export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";
 export { useSkillExpose, type SkillExposeModel } from "./hooks/use-skill-expose";
 export { useSkillExposures, type SkillExposuresModel } from "./hooks/use-skill-exposures";
-export {
-  useDisableSkill,
-  useEnableSkill,
-  useInstallSkillMarketplace,
-  useRemoveSkillMarketplace,
-  useUpdateSkillMarketplace,
-} from "./hooks/use-skill-actions";
+export { useDisableSkill, useEnableSkill } from "./hooks/use-skill-actions";

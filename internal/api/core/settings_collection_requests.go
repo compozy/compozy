@@ -55,6 +55,7 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		Command:   strings.TrimSpace(body.Server.Command),
 		Args:      cloneStrings(body.Server.Args),
 		Env:       cloneStringMap(body.Server.Env),
+		Headers:   cloneStringMap(body.Server.Headers),
 		SecretEnv: cloneStringMap(body.Server.SecretEnv),
 		URL:       strings.TrimSpace(body.Server.URL),
 	}
@@ -67,9 +68,11 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 			Scopes:          cloneStrings(body.Server.Auth.Scopes),
 		}
 	}
-	if err := server.Validate("server"); err != nil {
+	// Full validation belongs to the resolved definition: owned overrides may omit the package's transport and command.
+	if err := compozyconfig.ValidateMCPServerName(name); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(err)
 	}
+
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest:     req,
 		Name:                  name,

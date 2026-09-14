@@ -1298,7 +1298,7 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			name:      "Should require revisions for mutations",
 			args:      []string{"desktop", "create", "--workspace", "w1"},
 			wantKind:  windowManagerCLIValidationRequired,
-			wantField: windowManagerRevisionFlag,
+			wantField: cliRevisionKey,
 			wantError: "--revision is required",
 		},
 		{

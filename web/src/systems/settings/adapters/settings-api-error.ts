@@ -12,7 +12,8 @@ export class SettingsApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly detail?: SettingsErrorDetail
+    public readonly detail?: SettingsErrorDetail,
+    public readonly code?: string
   ) {
     super(message);
     this.name = "SettingsApiError";

@@ -43,7 +43,7 @@ func sessionCommandsBundle(record SessionCommandsRecord) outputBundle {
 		"Session Commands",
 		[]string{cliCommandValue, "LANE", automationSourceHeader, "SCOPE", "DESCRIPTION"},
 		"commands",
-		[]string{configCommandKey, "lane", automationSourceKey, automationScopeKey, "description"},
+		[]string{configCommandKey, "lane", automationSourceKey, automationScopeKey, cliDescriptionKey},
 		func(item SessionCommandRecord) []string {
 			return []string{
 				item.CanonicalToken,

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -55,8 +55,15 @@ type MarketplaceUpdatePreflight func(ExtensionInfo, *Manifest) error
 // MarketplaceUpdateCommit runs after registry persistence; failure restores the prior installation.
 type MarketplaceUpdateCommit func(ExtensionInfo, *Manifest) error
 
+// MarketplaceUpdateRollback restores candidate-owned state after the previous package and registry
+// record have been restored successfully, and before that installation is reloaded.
+type MarketplaceUpdateRollback func(context.Context, ExtensionInfo) error
+
 // MarketplaceInstallRequest describes one marketplace-backed extension install.
 type MarketplaceInstallRequest struct {
+	Plugin                    *MarketplacePluginAcquisition
+	Scope                     InstallationScope
+	ExpectedDigest            string
 	Slug                      string
 	SourceFilter              string
 	Version                   string
@@ -89,10 +96,12 @@ type MarketplaceUpdateRequest struct {
 	AllowUnverified           bool
 	InstalledBy               string
 	ResolveTrust              MarketplaceTrustResolver
+	ResolvePlugin             MarketplacePluginResolver
 	ArtifactHTTPClient        *http.Client
 	ObserveDigestVerification MarketplaceDigestVerificationObserver
 	PreflightCandidate        MarketplaceUpdatePreflight
 	CommitCandidate           MarketplaceUpdateCommit
+	RollbackCandidate         MarketplaceUpdateRollback
 	commitChange              func(*stagedExtensionDirChange) error
 	removeStaging             func(string) error
 }
@@ -148,7 +157,7 @@ func InstallMarketplaceManaged(
 	defer func() {
 		err = errors.Join(err, prepared.Close())
 	}()
-	return prepared.Commit()
+	return prepared.Commit(req.Scope)
 }
 
 func prepareMarketplaceManagedInstall(
@@ -161,16 +170,34 @@ func prepareMarketplaceManagedInstall(
 	if err != nil {
 		return marketplaceManagedInstall{}, err
 	}
+	return prepareMarketplacePackage(ctx, homePaths, loader, req, slug)
+}
+
+// The caller validates either installation consent or the read-only pinned-artifact contract.
+func prepareMarketplacePackage(ctx context.Context, homePaths compozyconfig.HomePaths, loader MarketplaceSourceLoader,
+	req MarketplaceInstallRequest, slug string,
+) (_ marketplaceManagedInstall, err error) {
 	var downloader registrypkg.Downloader
 	var closeDownloader func() error
 	var detail *registrypkg.Detail
-	if hasCuratedMarketplaceArtifact(req.Trust) {
+	switch {
+	case req.Plugin != nil:
+		downloader = &pluginMarketplaceDownloader{acquisition: req.Plugin}
+		detail = &registrypkg.Detail{
+			Listing: registrypkg.Listing{
+				Slug:    slug,
+				Source:  req.Plugin.SourceName,
+				Version: req.Plugin.Record.Version,
+			},
+			Repository: req.Plugin.Record.SourceRef,
+		}
+	case hasCuratedMarketplaceArtifact(req.Trust):
 		downloader, err = newCuratedMarketplaceArtifactDownloader(req.Trust, req.ArtifactHTTPClient)
 		if err != nil {
 			return marketplaceManagedInstall{}, err
 		}
 		detail = curatedMarketplaceArtifactDetail(slug, req.Trust)
-	} else {
+	default:
 		multi, registryErr := newExtensionMarketplaceRegistry(ctx, loader, req.SourceFilter)
 		if registryErr != nil {
 			return marketplaceManagedInstall{}, registryErr
@@ -231,6 +258,19 @@ func prepareMarketplaceManagedInstall(
 }
 
 func validateMarketplaceManagedInstallRequest(req MarketplaceInstallRequest) (string, error) {
+	if err := ValidateExpectedDigest(req.ExpectedDigest); err != nil {
+		return "", err
+	}
+	if req.Plugin != nil {
+		if err := req.Plugin.validate(req); err != nil {
+			return "", err
+		}
+	}
+	if req.Trust != nil {
+		if err := CheckExpectedDigest(req.ExpectedDigest, req.Trust.ArchiveDigestSHA256); err != nil {
+			return "", err
+		}
+	}
 	slug := strings.TrimSpace(req.Slug)
 	if slug == "" {
 		return "", errors.New("extension: marketplace slug is required")
@@ -267,7 +307,7 @@ func installMarketplaceArchive(
 	stagingDir string,
 ) (*registrypkg.InstallResult, error) {
 	version := strings.TrimSpace(req.Version)
-	expectedDigest := ""
+	expectedDigest := strings.ToLower(strings.TrimSpace(req.ExpectedDigest))
 	if req.Trust != nil {
 		version = strings.TrimSpace(req.Trust.Version)
 		expectedDigest = strings.TrimSpace(req.Trust.ArchiveDigestSHA256)
@@ -278,7 +318,14 @@ func installMarketplaceArchive(
 		ExpectedSHA256: expectedDigest,
 	}, stagingDir)
 	if err != nil {
-		err = mapMarketplaceRegistryError(slug, wrapCuratedDigestMismatch(err, req.Trust))
+		err = wrapCuratedDigestMismatch(err, req.Trust)
+		if mismatch, ok := errors.AsType[*registrypkg.ArchiveDigestMismatchError](err); ok && req.ExpectedDigest != "" {
+			err = &SourceChangedError{
+				ListedDigest:  mismatch.ExpectedSHA256,
+				FetchedDigest: mismatch.ActualSHA256,
+				Cause:         err,
+			}
+		}
 	}
 	if req.ObserveDigestVerification != nil {
 		req.ObserveDigestVerification(req.Trust, err)
@@ -313,6 +360,9 @@ func marketplaceInstallProvenance(
 		provenance = ExtensionProvenance{
 			Slug:           prepared.slug,
 			CatalogEntryID: strings.TrimSpace(prepared.trust.CatalogEntryID),
+			SourceName:     marketplacepkg.CompozyCatalogSource,
+			SourceRef:      marketplacepkg.CompozyCatalogRef,
+			EntryID:        strings.TrimSpace(prepared.trust.CatalogEntryID),
 			InstalledFrom:  ExtensionInstalledFromMarketplace,
 			SourceURL: firstNonEmpty(
 				curatedMarketplaceSourceURL(prepared.trust),
@@ -346,115 +396,18 @@ func marketplaceInstallProvenance(
 			},
 		}
 	}
+	if req.Plugin != nil {
+		provenance.SourceName = req.Plugin.SourceName
+		provenance.SourceRef = req.Plugin.Record.SourceRef
+		provenance.EntryID = req.Plugin.Record.EntryID
+		provenance.ResolvedRef = req.Plugin.Record.ResolvedRef
+		provenance.Layout = req.Plugin.Record.Layout
+		provenance.InstalledFrom = ExtensionInstalledFromMarketplace
+	}
 	provenance.Warnings = appendExtensionInstallCleanupWarnings(
 		provenance.Warnings,
 		prepared.slug,
 		prepared.cleanup,
 	)
 	return provenance
-}
-
-// RemoveManagedExtension removes one installed extension and rolls back the
-// registry and on-disk state if the caller's reload hook fails.
-func RemoveManagedExtension(
-	ctx context.Context,
-	homePaths compozyconfig.HomePaths,
-	registry LifecycleRegistry,
-	name string,
-	reload MutationReload,
-) (_ ManagedRemoveResult, err error) {
-	return removeManagedExtensionWithDataOps(
-		ctx,
-		homePaths,
-		registry,
-		name,
-		reload,
-		defaultExtensionDataRemovalOps(),
-	)
-}
-
-func removeManagedExtensionWithDataOps(
-	ctx context.Context,
-	homePaths compozyconfig.HomePaths,
-	registry LifecycleRegistry,
-	name string,
-	reload MutationReload,
-	dataRemovalOps extensionDataRemovalOps,
-) (_ ManagedRemoveResult, err error) {
-	if registry == nil {
-		return ManagedRemoveResult{}, errors.New("extension: registry is required")
-	}
-	info, err := registry.Get(name)
-	if err != nil {
-		return ManagedRemoveResult{}, err
-	}
-	installDir, err := InstalledExtensionDir(*info)
-	if err != nil {
-		return ManagedRemoveResult{}, err
-	}
-	change, err := stageExtensionDirRemoval(installDir)
-	if err != nil {
-		return ManagedRemoveResult{}, err
-	}
-
-	if err := registry.Uninstall(info.Name); err != nil {
-		return ManagedRemoveResult{}, errors.Join(err, change.Rollback())
-	}
-	if reload != nil {
-		if err := reload(ctx); err != nil {
-			restoreErr := restoreRemovedExtensionRecord(registry, *info, installDir, change)
-			if restoreErr == nil {
-				restoreErr = reload(ctx)
-			}
-			return ManagedRemoveResult{}, errors.Join(
-				fmt.Errorf("extension: reload after remove %q: %w", info.Name, err),
-				restoreErr,
-			)
-		}
-	}
-	dataCleanup, dataCleanupErr := removeAgentPluginDataForInstall(*info, homePaths, dataRemovalOps)
-	if dataCleanupErr != nil && !dataCleanup.quarantined {
-		restoreErr := restoreRemovedExtensionRecord(registry, *info, installDir, change)
-		if restoreErr == nil && reload != nil {
-			restoreErr = reload(ctx)
-		}
-		return ManagedRemoveResult{}, errors.Join(dataCleanupErr, restoreErr)
-	}
-	result := finalizeManagedExtensionRemoval(info.Name, installDir, change)
-	result.DataPath = dataCleanup.dataPath
-	result.QuarantinePath = dataCleanup.quarantinePath
-	if dataCleanupErr != nil {
-		result.Warnings = append(result.Warnings, extensionDataCleanupWarning(
-			info.Name,
-			dataCleanup.quarantinePath,
-			dataCleanupErr,
-		))
-	}
-	return result, nil
-}
-
-// InstalledExtensionDir returns the root directory for a persisted extension
-// registry row after validating the manifest path shape.
-func InstalledExtensionDir(info ExtensionInfo) (string, error) {
-	manifestPath := filepath.Clean(strings.TrimSpace(info.ManifestPath))
-	if manifestPath == "" || manifestPath == "." {
-		return "", fmt.Errorf("extension: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
-	}
-	if !filepath.IsAbs(manifestPath) {
-		return "", fmt.Errorf(
-			"extension: extension %q has a non-absolute manifest path %q",
-			info.Name,
-			info.ManifestPath,
-		)
-	}
-	switch filepath.Base(manifestPath) {
-	case "extension.toml", "extension.json", agentPluginManifestFileName:
-	default:
-		return "", fmt.Errorf("extension: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
-	}
-	installDir := filepath.Dir(manifestPath)
-	if installDir == "." || installDir == string(filepath.Separator) {
-		return "", fmt.Errorf("extension: extension %q has an invalid install directory %q", info.Name, installDir)
-	}
-	return installDir, nil
 }

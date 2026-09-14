@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/resources"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
@@ -290,26 +289,6 @@ func StatusForSkillError(err error) int {
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// StatusForSkillMarketplaceError maps skill marketplace lifecycle failures to transport statuses.
-func StatusForSkillMarketplaceError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, skillmarketplace.ErrValidation):
-		return http.StatusBadRequest
-	case errors.Is(err, skillmarketplace.ErrNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, skillmarketplace.ErrNotMarketplace):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, skillmarketplace.ErrUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, skillmarketplace.ErrNotConfigured):
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError

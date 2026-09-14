@@ -17,12 +17,12 @@ import (
 )
 
 type lateBootMarketplaceCatalog struct {
-	entry marketplacepkg.Entry
+	states []marketplacepkg.SourceState
+	entry  marketplacepkg.Entry
 }
 
 func lateBootMarketplaceEntry() marketplacepkg.Entry {
 	return marketplacepkg.Entry{
-		Kind:         marketplacepkg.KindExtension,
 		EntryID:      "late-boot-extension",
 		Name:         "Late boot extension",
 		Description:  "Attached after the native registry",
@@ -38,22 +38,27 @@ func lateBootMarketplaceEntry() marketplacepkg.Entry {
 
 func (c lateBootMarketplaceCatalog) Browse(
 	context.Context,
-	marketplacepkg.Kind,
 	string,
 	int,
 	int,
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{
 		Entries: []marketplacepkg.Entry{c.entry},
-		State:   marketplacepkg.KindState{Kind: marketplacepkg.KindExtension},
+		Sources: []marketplacepkg.SourceState{
+			{Source: marketplacepkg.CompozyCatalogSource, Kind: marketplacepkg.SourceKindFeed, Enabled: true},
+		},
 	}, nil
 }
 
 func (c lateBootMarketplaceCatalog) Detail(
 	context.Context,
-	marketplacepkg.Kind,
+	string,
 	string,
 ) (*marketplacepkg.Entry, error) {
+	return &c.entry, nil
+}
+
+func (c lateBootMarketplaceCatalog) Entry(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
 	return &c.entry, nil
 }
 
@@ -67,20 +72,16 @@ func (lateBootMarketplaceCatalog) ResolveExtensionInstall(
 
 func (lateBootMarketplaceCatalog) Refresh(
 	context.Context,
-	...marketplacepkg.Kind,
+	...string,
 ) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected Refresh call")
 }
 
-func (lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.KindState, error) {
+func (c lateBootMarketplaceCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
+	if c.states != nil {
+		return c.states, nil
+	}
 	return nil, errors.New("unexpected Status call")
-}
-
-func (lateBootMarketplaceCatalog) ResolveSkillInstalls(
-	context.Context,
-	[]string,
-) ([]marketplacepkg.Entry, error) {
-	return nil, errors.New("unexpected ResolveSkillInstalls call")
 }
 
 type lateBootExtensionService struct{}
@@ -228,8 +229,32 @@ func (scopedLateBootExtensionService) StatusScoped(
 
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
+	t.Run("Should list experimental sources with diagnostics through the native registry", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MarketplaceCatalog: lateBootMarketplaceCatalog{states: []marketplacepkg.SourceState{
+				{Source: "compozy-catalog", SourceRef: "catalog:compozy", Kind: "feed", Enabled: true},
+				{Source: "team", SourceRef: "github:team/plugins", Kind: "custom", Enabled: false},
+			}},
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDMarketplaceSources, Input: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := result.Structured
+		var response contract.MarketplaceSourcesResponse
+		if err := json.Unmarshal(raw, &response); err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Sources) != 2 || response.Sources[1].State != "off" || response.Sources[1].Diagnostics == nil ||
+			response.Sources[0].Stability != "experimental" {
+			t.Fatalf("native sources = %s", raw)
+		}
+	})
 
-	t.Run("Should reject an opaque cursor without a single kind", func(t *testing.T) {
+	t.Run("Should reject obsolete kind before catalog discovery", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -240,11 +265,11 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"cursor":"opaque"}`),
+				Input:  json.RawMessage(`{"kind":"extension"}`),
 			},
 		)
 		if err == nil || !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(cursor without kind) error = %v, want invalid input", err)
+			t.Fatalf("Registry.Call(obsolete kind) error = %v, want invalid input", err)
 		}
 	})
 
@@ -270,7 +295,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"kind":"extension"}`),
+				Input:  json.RawMessage(`{}`),
 			},
 		)
 		if err != nil {
@@ -292,10 +317,20 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 				actor taskpkg.ActorContext,
 			) ([]contract.ExtensionPayload, error) {
 				capturedActor = actor
-				return []contract.ExtensionPayload{{
-					Name: "workspace-extension", Version: "1.0.0", WorkspaceID: "ws-native",
-					Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: entry.EntryID},
-				}}, nil
+				return []contract.ExtensionPayload{
+					{
+						Name:        "workspace-extension",
+						Version:     "1.0.0",
+						WorkspaceID: "ws-native",
+						Provenance:  &contract.ExtensionProvenancePayload{CatalogEntryID: entry.EntryID},
+						// The scoped inventory owns the exact acquisition origin in the unified catalog contract.
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    "compozy-catalog",
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   entry.EntryID,
+						},
+					},
+				}, nil
 			},
 		}
 		state := &bootState{
@@ -320,7 +355,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
-				Input:  json.RawMessage(`{"kind":"extension"}`),
+				Input:  json.RawMessage(`{}`),
 			},
 		)
 		if err != nil {

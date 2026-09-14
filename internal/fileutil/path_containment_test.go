@@ -151,3 +151,123 @@ func TestPathWithinRoot(t *testing.T) {
 		})
 	}
 }
+
+func TestResolvePathWithinRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject targets that escape the root through symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		outside := t.TempDir()
+		linkPath := filepath.Join(root, "escape")
+		if err := os.Symlink(outside, linkPath); err != nil {
+			t.Fatalf("os.Symlink() error = %v", err)
+		}
+		outsideSkill := filepath.Join(outside, "SKILL.md")
+		if err := os.WriteFile(outsideSkill, []byte("outside"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		_, err := ResolvePathWithinRoot(root, filepath.Join(linkPath, "SKILL.md"))
+		if !errors.Is(err, ErrPathOutsideRoot) {
+			t.Fatalf("ResolvePathWithinRoot() error = %v, want ErrPathOutsideRoot", err)
+		}
+	})
+
+	t.Run("Should preserve lexical targets that stay within the root", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		targetDir := filepath.Join(root, "review")
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll() error = %v", err)
+		}
+		targetPath := filepath.Join(targetDir, "SKILL.md")
+		if err := os.WriteFile(targetPath, []byte("inside"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		resolved, err := ResolvePathWithinRoot(root, targetPath)
+		if err != nil {
+			t.Fatalf("ResolvePathWithinRoot() error = %v", err)
+		}
+		want, err := filepath.EvalSymlinks(targetPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(target) error = %v", err)
+		}
+		if got := resolved; got != want {
+			t.Fatalf("ResolvePathWithinRoot() = %q, want resolved %q", got, want)
+		}
+	})
+
+	t.Run("Should allow missing targets beneath the resolved root", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		targetPath := filepath.Join(root, "review", "SKILL.md")
+
+		resolved, err := ResolvePathWithinRoot(root, targetPath)
+		if err != nil {
+			t.Fatalf("ResolvePathWithinRoot() error = %v", err)
+		}
+		resolvedRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(root) error = %v", err)
+		}
+		want := filepath.Join(resolvedRoot, "review", "SKILL.md")
+		if got := resolved; got != want {
+			t.Fatalf("ResolvePathWithinRoot() = %q, want resolved %q", got, want)
+		}
+	})
+
+	t.Run("Should return the validated canonical target for an internal symlink", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		realDir := filepath.Join(root, "real")
+		if err := os.MkdirAll(realDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(real) error = %v", err)
+		}
+		target := filepath.Join(realDir, "SKILL.md")
+		if err := os.WriteFile(target, []byte("inside"), 0o644); err != nil {
+			t.Fatalf("WriteFile(target) error = %v", err)
+		}
+		alias := filepath.Join(root, "alias")
+		if err := os.Symlink(realDir, alias); err != nil {
+			t.Fatalf("Symlink(alias) error = %v", err)
+		}
+
+		resolved, err := ResolvePathWithinRoot(root, filepath.Join(alias, "SKILL.md"))
+		if err != nil {
+			t.Fatalf("ResolvePathWithinRoot() error = %v", err)
+		}
+		want, err := filepath.EvalSymlinks(target)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(target) error = %v", err)
+		}
+		if resolved != want {
+			t.Fatalf("ResolvePathWithinRoot() = %q, want canonical %q", resolved, want)
+		}
+	})
+
+	t.Run("Should reject blank roots", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ResolvePathWithinRoot("   ", "review/SKILL.md")
+		if !errors.Is(err, ErrPathRootRequired) {
+			t.Fatalf("ResolvePathWithinRoot() error = %v, want ErrPathRootRequired", err)
+		}
+	})
+
+	t.Run("Should reject percent-encoded traversal paths", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+
+		_, err := ResolvePathWithinRoot(root, filepath.Join(root, "%2e%2e", "escape", "SKILL.md"))
+		if !errors.Is(err, ErrPathOutsideRoot) {
+			t.Fatalf("ResolvePathWithinRoot() error = %v, want ErrPathOutsideRoot", err)
+		}
+	})
+}

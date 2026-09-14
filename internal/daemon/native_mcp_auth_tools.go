@@ -6,6 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/store"
+
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -20,6 +23,7 @@ const (
 )
 
 type mcpAuthStatusInput struct {
+	Owner      string `json:"owner,omitempty"`
 	ServerName string `json:"server_name"`
 }
 
@@ -75,6 +79,9 @@ func (n *daemonNativeTools) mcpStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := validateNativeMCPOwner(input.Owner); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	provider := n.mcpAuthProvider()
 	if provider == nil {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -87,40 +94,30 @@ func (n *daemonNativeTools) mcpStatus(
 	}
 	workspaceID := strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID))
 	status, err := provider.Status(ctx, toolspkg.SourceRef{
+
+		ProfileID:     scope.ProfileID,
 		Kind:          toolspkg.SourceMCP,
 		Owner:         serverName,
 		RawServerName: serverName,
 		WorkspaceID:   workspaceID,
-	})
+	}, strings.TrimSpace(input.Owner),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if strings.TrimSpace(status.ServerName) == "" {
 		status.ServerName = serverName
 	}
-	collectionRequest := settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers,
-		Scope:      settingspkg.ScopeUser,
-	}
-	if workspaceID != "" {
-		collectionRequest.Scope = settingspkg.ScopeWorkspace
-		collectionRequest.WorkspaceID = workspaceID
-	}
-	settingsService := n.settingsService()
-	if settingsService == nil {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeUnavailable,
-			req.ToolID,
-			"mcp runtime status provider is unavailable",
-			toolspkg.ErrToolUnavailable,
-			toolspkg.ReasonDependencyMissing,
-		)
-	}
-	envelope, err := settingsService.ListCollection(ctx, collectionRequest)
+	envelope, err := n.mcpStatusCollection(ctx, scope, req.ToolID, workspaceID)
 	if err != nil {
-		return toolspkg.ToolResult{}, fmt.Errorf("daemon: list MCP runtime status: %w", err)
+		return toolspkg.ToolResult{}, err
 	}
-	runtimeStatus, found := mcpRuntimeStatusByName(envelope.MCPServers, serverName)
+
+	runtimeStatus, found := mcpRuntimeStatusByName(
+		envelope.MCPServers,
+		serverName,
+		firstNonEmpty(status.Owner, input.Owner),
+	)
 	if !found {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeNotFound,
@@ -139,28 +136,46 @@ func (n *daemonNativeTools) mcpStatus(
 		State:                 state,
 		Auth:                  status,
 		Runtime:               runtimeStatus,
-		RepairPaths:           mcpAuthRepairPathsFor(status.ServerName),
+		RepairPaths:           mcpAuthRepairPathsFor(status),
 		CallableDiscoveryNote: nativeMCPCallableDiscoveryNote,
 	}
 	return structuredResult(payload, fmt.Sprintf("%s %s", status.ServerName, state))
 }
 
 func mcpRuntimeStatusByName(
-	servers []settingspkg.MCPServerItem,
-	serverName string,
+	servers []settingspkg.MCPServerItem, serverName, owner string,
 ) (*settingspkg.MCPServerRuntimeStatus, bool) {
 	want := strings.TrimSpace(serverName)
-	for _, server := range servers {
-		if strings.TrimSpace(server.Name) != want {
+	var selected *settingspkg.MCPServerItem
+	for i := range servers {
+		server := &servers[i]
+		actualOwner := firstNonEmpty(server.Owner, mcpDefinitionOwnerManual)
+		if owner != "" && actualOwner != owner {
 			continue
 		}
-		if server.RuntimeStatus == nil {
-			return nil, true
+		if server.RuntimeName != want &&
+			(server.Name != want || (owner == "" && actualOwner != mcpDefinitionOwnerManual)) {
+			continue
 		}
-		status := *server.RuntimeStatus
-		return &status, true
+		if selected != nil {
+			selectedOwner := firstNonEmpty(selected.Owner, mcpDefinitionOwnerManual)
+			if owner == "" && selectedOwner == mcpDefinitionOwnerManual && actualOwner != mcpDefinitionOwnerManual {
+				continue
+			}
+			if actualOwner == selectedOwner && selected.WorkspaceID != "" && server.WorkspaceID == "" {
+				continue
+			}
+		}
+		selected = server
 	}
-	return nil, false
+	if selected == nil {
+		return nil, false
+	}
+	if selected.RuntimeStatus == nil {
+		return nil, true
+	}
+	status := *selected.RuntimeStatus
+	return &status, true
 }
 
 func mcpRuntimeProbeState(state settingspkg.MCPServerRuntimeState, fallback string) string {
@@ -196,6 +211,9 @@ func (n *daemonNativeTools) mcpAuthStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := validateNativeMCPOwner(input.Owner); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	provider := n.mcpAuthProvider()
 	if provider == nil {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -207,11 +225,14 @@ func (n *daemonNativeTools) mcpAuthStatus(
 		)
 	}
 	status, err := provider.Status(ctx, toolspkg.SourceRef{
+
+		ProfileID:     scope.ProfileID,
 		Kind:          toolspkg.SourceMCP,
 		Owner:         serverName,
 		RawServerName: serverName,
 		WorkspaceID:   strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID)),
-	})
+	}, strings.TrimSpace(input.Owner),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -220,13 +241,26 @@ func (n *daemonNativeTools) mcpAuthStatus(
 	}
 	payload := mcpAuthStatusPayload{
 		Status:      status,
-		RepairPaths: mcpAuthRepairPathsFor(status.ServerName),
+		RepairPaths: mcpAuthRepairPathsFor(status),
 	}
 	return structuredResult(payload, fmt.Sprintf("%s %s", status.ServerName, status.Status))
 }
 
-func mcpAuthRepairPathsFor(serverName string) mcpAuthRepairPaths {
-	arg := strconv.Quote(strings.TrimSpace(serverName))
+func mcpAuthRepairPathsFor(status toolspkg.MCPAuthStatus) mcpAuthRepairPaths {
+	arg := strconv.Quote(strings.TrimSpace(status.ServerName))
+	if status.Owner != "" {
+		arg += " --owner " + strconv.Quote(status.Owner)
+	}
+	switch mcpauth.Scope(status.Scope) {
+	case mcpauth.ScopeWorkspace:
+		arg += " --scope workspace --workspace " + strconv.Quote(status.WorkspaceID)
+	case mcpauth.ScopeProfile:
+		arg += " --scope profile --profile " + strconv.Quote(status.WorkspaceID)
+	case mcpauth.ScopeWorkspaceProfile:
+		workspaceID, profileName, _ := strings.Cut(status.WorkspaceID, "@pf:")
+		arg += " --scope profile --profile " + strconv.Quote(profileName) + " --workspace " + strconv.Quote(workspaceID)
+	}
+
 	return mcpAuthRepairPaths{
 		StatusCLI:    "compozy mcp auth status " + arg,
 		LoginCLI:     "compozy mcp auth login " + arg,
@@ -250,4 +284,50 @@ func mcpProbeState(status toolspkg.MCPAuthStatus) string {
 		}
 	}
 	return nativeMCPStateHealthy
+}
+
+func validateNativeMCPOwner(owner string) error {
+	target := mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "server", Owner: strings.TrimSpace(owner)}
+	if err := target.Normalize().Validate(); err != nil {
+		return toolspkg.NewValidationError("owner", toolspkg.ReasonSchemaInvalid, err.Error())
+	}
+	return nil
+}
+
+func (n *daemonNativeTools) mcpStatusCollection(
+	ctx context.Context, scope toolspkg.Scope, toolID toolspkg.ToolID, workspaceID string,
+) (settingspkg.CollectionEnvelope, error) {
+	collectionRequest := settingspkg.CollectionRequest{
+		Collection: settingspkg.CollectionMCPServers,
+		Scope:      settingspkg.ScopeUser,
+	}
+	if workspaceID != "" {
+		collectionRequest.Scope = settingspkg.ScopeWorkspace
+		collectionRequest.WorkspaceID = workspaceID
+	}
+	if profileID := strings.TrimSpace(scope.ProfileID); profileID != "" && profileID != store.DefaultProfileID {
+		if n.deps.Profiles == nil {
+			return settingspkg.CollectionEnvelope{}, fmt.Errorf("daemon: profile reader is required for MCP status")
+		}
+		profileName, err := n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return settingspkg.CollectionEnvelope{}, err
+		}
+		collectionRequest.Scope, collectionRequest.ProfileName = settingspkg.ScopeProfile, profileName
+	}
+	settingsService := n.settingsService()
+	if settingsService == nil {
+		return settingspkg.CollectionEnvelope{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			toolID,
+			"mcp runtime status provider is unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	}
+	envelope, err := settingsService.ListCollection(ctx, collectionRequest)
+	if err != nil {
+		return settingspkg.CollectionEnvelope{}, fmt.Errorf("daemon: list MCP runtime status: %w", err)
+	}
+	return envelope, nil
 }

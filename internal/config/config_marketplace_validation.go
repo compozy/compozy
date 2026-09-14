@@ -25,9 +25,6 @@ func (c SkillsConfig) Validate() error {
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("skills.poll_interval must be positive: %s", c.PollInterval)
 	}
-	if err := c.Marketplace.Validate(); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -77,37 +74,6 @@ func (c ExtensionsResourceRateLimitConfig) Validate(path string) error {
 		return fmt.Errorf("%s.queue must be zero or positive: %d", path, c.Queue)
 	}
 	return nil
-}
-
-// Validate ensures the marketplace configuration is internally consistent when configured.
-func (c MarketplaceConfig) Validate() error {
-	registry := strings.TrimSpace(c.Registry)
-	baseURL := strings.TrimSpace(c.BaseURL)
-	if registry == "" && baseURL == "" {
-		return nil
-	}
-	if registry == "" {
-		return errors.New("skills.marketplace.registry is required")
-	}
-	if baseURL != "" {
-		parsed, err := url.Parse(baseURL)
-		if err != nil {
-			return fmt.Errorf("skills.marketplace.base_url is invalid: %w", err)
-		}
-		if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != urlSchemeHTTPS {
-			return fmt.Errorf("skills.marketplace.base_url must use http or https: %q", c.BaseURL)
-		}
-		if strings.TrimSpace(parsed.Host) == "" {
-			return fmt.Errorf("skills.marketplace.base_url must include a host: %q", c.BaseURL)
-		}
-	}
-
-	switch strings.ToLower(registry) {
-	case skillsMarketplaceRegistryClawhub:
-		return nil
-	default:
-		return fmt.Errorf("skills.marketplace.registry must be %q: %q", skillsMarketplaceRegistryClawhub, c.Registry)
-	}
 }
 
 // Validate ensures the GitHub extension source is internally consistent.

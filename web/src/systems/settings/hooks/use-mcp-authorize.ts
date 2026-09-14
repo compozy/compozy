@@ -26,16 +26,17 @@ const mcpAuthorizeLogic = createMCPAuthorizeLogic();
 
 interface MCPAuthorizeOptions {
   dismissOnConfirmation?: boolean;
-  onConfirmed?: (server: string) => void;
+  onConfirmed?: (server: string, filter: SettingsMCPAuthFilter) => void;
 }
 
 export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const beginMutation = useBeginMCPAuth();
   const exchangeMutation = useExchangeMCPAuth();
   const store = useStore(mcpAuthorizeLogic);
-  const onConfirmed = (server: string) => options.onConfirmed?.(server);
-
   const state = useSelector(store, snapshot => snapshot.context);
+  const onConfirmed = (server: string) => {
+    if (state.phase !== "idle") options.onConfirmed?.(server, state.filter);
+  };
   const beginExecution: MCPAuthorizeBegin = input => {
     const scopeApproval = input.scopeApproval;
     const scopes = normalizeMCPAuthScopes(scopeApproval?.approvedScopes ?? []);
@@ -88,6 +89,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   return {
     phase: state.phase,
     server: activeState?.server ?? null,
+    filter: activeState?.filter ?? null,
     begin: beginResponse,
     error,
     prior: activeState?.prior ?? null,

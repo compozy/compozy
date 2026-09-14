@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -35,8 +34,11 @@ func (s *daemonExtensionService) List(ctx context.Context) ([]contract.Extension
 	}
 
 	items := make([]contract.ExtensionPayload, 0, len(infos))
-	for _, info := range infos {
-		item, err := s.Status(ctx, info.Name)
+	for infoIndex := range infos {
+		item, err := s.Status(ctx, infos[infoIndex].Name)
+		if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -70,6 +72,16 @@ func (s *daemonExtensionService) Status(ctx context.Context, name string) (contr
 	ext, err := s.lookup(name)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
+	}
+	if projector, ok := s.runtime.(profiledExtensionRuntime); ok {
+		ext, _, err = projector.ProjectForProfile(
+			ctx,
+			extensionpkg.GlobalInstanceKey(name),
+			extensionDefaultProfileLens(),
+		)
+		if err != nil {
+			return contract.ExtensionPayload{}, err
+		}
 	}
 	return s.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
 }
@@ -151,6 +163,12 @@ func loadExtensionSnapshot(
 		}
 	}
 
+	if _, err := registry.ResolveInstallation(context.Background(), trimmed, extensionpkg.InstallationScope{
+		ProfileID: store.DefaultProfileID,
+	}); err != nil {
+		return nil, err
+	}
+
 	info, err := registry.Get(trimmed)
 	if err != nil {
 		return nil, err
@@ -174,7 +192,7 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 		return
 	}
 
-	manifest, err := extensionpkg.LoadManifest(filepath.Dir(ext.Info.ManifestPath))
+	manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(ext.Info.ManifestPath))
 	if err != nil {
 		if logger != nil {
 			logger.Debug(
@@ -199,7 +217,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if s.now != nil {
 		now = s.now()
 	}
-	payload := extensionpkg.DescribeExtension(ext, s.runtime != nil, now)
+	payload := extensionpkg.DescribeExtensionForProfile(ext, s.runtime != nil, now, profile.Name)
 	if ext == nil {
 		return payload, nil
 	}
@@ -209,6 +227,16 @@ func (s *daemonExtensionService) payloadFromExtension(
 		return contract.ExtensionPayload{}, errors.New("daemon: extension payload profile id and name are required")
 	}
 	payload.Profile = profile.Name
+	if err := s.populateExtensionInstallationProfile(ctx, &payload, profile.ID); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if s.runtime == nil {
+		contents, err := extensionpkg.InspectPackageContents(ctx, ext, profile.Name)
+		if err != nil {
+			return contract.ExtensionPayload{}, err
+		}
+		payload.Contents = contents
+	}
 	key := extensionpkg.InstanceKey{Name: ext.Info.Name, WorkspaceID: ext.Status.WorkspaceID}.Normalize()
 	if s.envBindings != nil {
 		bindings, err := s.envBindings.ResolveEnvBindings(ctx, key.Name, profile.ID, key.WorkspaceID)
@@ -236,19 +264,14 @@ func (s *daemonExtensionService) payloadFromExtension(
 		}
 		payload.MissingEnv = missing
 	}
-	if strings.TrimSpace(payload.NetworkRequirementDigest) != "" {
-		confirmation, err := s.registry.NetworkConfirmation(key)
-		if err != nil {
-			return contract.ExtensionPayload{}, fmt.Errorf(
-				"daemon: load extension network confirmation for %q in workspace %q: %w",
-				key.Name,
-				key.WorkspaceID,
-				err,
-			)
-		}
-		payload.NetworkRequirementDigest = confirmation.Digest
-		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&
-			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
+	if err := s.populateExtensionInputStatus(ctx, ext, profile.ID, &payload); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.populateExtensionNetworkStatus(key, &payload); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.populateExtensionMCPDetails(ctx, key, profile, &payload); err != nil {
+		return contract.ExtensionPayload{}, err
 	}
 	payload.Diagnostics = append(payload.Diagnostics, extensionMCPHealthDiagnostics(s.mcpRuntimeHealth, ext)...)
 	if err := s.enrichExtensionProfilePayload(ctx, &payload, ext.Manifest); err != nil {
@@ -315,4 +338,28 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 		Warnings:       append([]contract.DiagnosticItem(nil), value.Warnings...),
 		Error:          value.Error,
 	}
+}
+
+func (s *daemonExtensionService) populateExtensionNetworkStatus(
+	key extensionpkg.InstanceKey,
+	payload *contract.ExtensionPayload,
+) error {
+	if strings.TrimSpace(payload.NetworkRequirementDigest) != "" {
+		if !payload.Dev {
+			key = extensionpkg.GlobalInstanceKey(key.Name)
+		}
+		confirmation, err := s.registry.NetworkConfirmation(key)
+		if err != nil {
+			return fmt.Errorf(
+				"daemon: load extension network confirmation for %q in workspace %q: %w",
+				key.Name,
+				key.WorkspaceID,
+				err,
+			)
+		}
+		payload.NetworkRequirementDigest = confirmation.Digest
+		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&
+			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
+	}
+	return nil
 }

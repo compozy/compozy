@@ -4,12 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import {
-  appWindow,
-  openAppWindow,
-  setGlobalScope,
-  switchWorkspace,
-} from "../fixtures/os-navigation";
+import { appWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   profilesOperatorSelectors,
   settingsOperatorSelectors,
@@ -79,6 +74,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Memory",
       "Roles",
       "Skills",
+      "MCP servers",
       "Automation",
       "Network",
       "Notifications",
@@ -86,6 +82,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Remote access",
       "Hooks",
       "Extensions",
+      "Marketplace",
     ]);
 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
@@ -388,19 +385,7 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.disabledMessage).toContainText("applied immediately");
     await expect(settingsUI.skills.restartNotice).not.toBeVisible();
 
-    await settingsUI.skills.operationalLink.click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
-    await expect.poll(() => new URL(appPage.url()).search).toBe("");
-    await openAppWindow(appPage, "Settings", "settings");
-    await settingsUI.shell.sectionLink("skills").click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
-
-    await settingsWin
-      .getByTestId("settings-page-skills-advanced")
-      .getByTestId("settings-advanced-toggle")
-      .click();
-    await settingsUI.skills.policyRegistryInput.fill("clawhub");
-    await settingsUI.skills.policyBaseURLInput.fill("https://skills.example/browser-updated");
+    await settingsWin.getByTestId("settings-page-skills-enabled-switch").click();
     await expect(settingsUI.skills.save).toBeEnabled();
     await settingsUI.skills.save.click();
 
@@ -483,17 +468,14 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
+  await appPage.goto(runtime.url("/settings/mcp"), {
     waitUntil: "domcontentloaded",
   });
 
   await expect(settingsUI.mcpServers.page).toBeVisible();
 
-  await switchWorkspace(appPage, workspace.id, workspace.name);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(settingsUI.mcpServers.page).toBeVisible();
+  await appPage.getByTestId("settings-page-mcp-scope-workspace").click();
+  await appPage.getByTestId("settings-page-mcp-workspace").selectOption(workspace.id);
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
@@ -501,18 +483,14 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     target: browserSettingsOperatorFlowScenario.mcpServers.workspace.target,
   });
 
-  await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}" · workspace-config · applied now`
-  );
+  await expect(
+    settingsUI.mcpServers.rowSource(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
+  ).toHaveText(`workspace config · workspace · ${workspace.id}`);
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
 
-  await setGlobalScope(appPage, true);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(settingsUI.mcpServers.page).toBeVisible();
+  await appPage.getByTestId("settings-page-mcp-scope-user").click();
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
@@ -520,17 +498,16 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     target: browserSettingsOperatorFlowScenario.mcpServers.global.target,
   });
 
-  await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.global.name}" · global-mcp-sidecar · applied now`
-  );
+  await expect(
+    settingsUI.mcpServers.rowSource(browserSettingsOperatorFlowScenario.mcpServers.global.name)
+  ).toHaveText("global mcp.json · user");
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();
 
-  await setGlobalScope(appPage, false);
-  await appPage.goto(runtime.url("/marketplace/mcps"), {
-    waitUntil: "domcontentloaded",
-  });
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await appPage.getByTestId("settings-page-mcp-scope-workspace").click();
+  await appPage.getByTestId("settings-page-mcp-workspace").selectOption(workspace.id);
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
@@ -538,22 +515,28 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await settingsUI.mcpServers
     .editRow(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
     .click();
-  await appPage.getByRole("menuitem", { name: "Remove…" }).click();
-  await appPage
-    .getByLabel("Type to confirm")
-    .fill(browserSettingsOperatorFlowScenario.mcpServers.workspace.name);
-  await appPage
-    .getByTestId(
-      `marketplace-confirm-${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}`
-    )
-    .click();
-
-  await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `${browserSettingsOperatorFlowScenario.mcpServers.workspace.name} removed`
+  await expect(settingsUI.mcpServers.editor).toBeVisible();
+  await settingsUI.mcpServers.editorRemove.click();
+  await expect(settingsUI.mcpServers.deleteDialog).toContainText(workspace.id);
+  const removedResponse = appPage.waitForResponse(
+    response =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname ===
+        `/api/settings/mcp-servers/${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}`
   );
+  await settingsUI.mcpServers.deleteConfirm.click();
+  const removed = await removedResponse;
+  expect(removed.ok()).toBe(true);
+  const removal = await removed.json();
+  expect(removal).toMatchObject({ applied: true, next_action: "none" });
+  expect(removal.restart_required ?? false).toBe(false);
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).not.toBeVisible();
+  await appPage.getByTestId("settings-page-mcp-scope-user").click();
+  await expect(
+    settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
+  ).toBeVisible();
   await browserArtifacts.captureScreenshot("tc-int-011-mcp-workspace-scope", appPage);
 });
 
@@ -866,6 +849,18 @@ async function createMCPServerViaUI(
   await settingsUI.mcpServers.editorNameInput.fill(input.name);
   await settingsUI.mcpServers.editorCommandInput.fill(input.command);
   await settingsUI.mcpServers.editorTargetInput.selectOption(input.target);
+  const savedResponse = settingsUI.mcpServers.editorSave
+    .page()
+    .waitForResponse(
+      response =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/settings/mcp-servers/${input.name}`
+    );
   await settingsUI.mcpServers.editorSave.click();
+  const saved = await savedResponse;
+  expect(saved.ok()).toBe(true);
+  const mutation = await saved.json();
+  expect(mutation).toMatchObject({ applied: true, next_action: "none" });
+  expect(mutation.restart_required ?? false).toBe(false);
   await expect(settingsUI.mcpServers.editor).toBeHidden();
 }

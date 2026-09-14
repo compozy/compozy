@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/fileutil"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -49,7 +50,7 @@ func resolveInstallArtifact(path string) (artifactRoot string, manifestPath stri
 
 	switch filepath.Base(absPath) {
 	case manifestTOMLFileName, manifestJSONFileName, agentPluginManifestFileName:
-		return filepath.Dir(absPath), absPath, nil
+		return PackageRootFromManifest(absPath), absPath, nil
 	default:
 		return "", "", fmt.Errorf("extension: install path %q must be an extension directory or manifest file", absPath)
 	}
@@ -71,15 +72,22 @@ func resolveManifestPath(dir string) (string, error) {
 	}
 
 	pluginPath := filepath.Join(dir, agentPluginManifestFileName)
-	status, declared, err := agentplugin.ClassifyManifest(dir)
+	document, err := agentplugin.ReadManifest(dir)
 	if err != nil {
-		return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
-	}
-	switch status {
-	case agentplugin.SchemaSupported:
-		return pluginPath, nil
-	case agentplugin.SchemaUnsupportedVersion:
-		return "", &AgentPluginSchemaUnsupportedError{Root: dir, Declared: declared}
+		missing, isMissing := errors.AsType[*agentplugin.NotManifestError](err)
+		if (!isMissing || missing == nil) && !errors.Is(err, fileutil.ErrSymlink) &&
+			!errors.Is(err, fileutil.ErrDirectory) &&
+			!errors.Is(err, fileutil.ErrNotRegular) {
+			return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+		}
+	} else {
+		status, declared := document.Classify()
+		switch status {
+		case agentplugin.SchemaSupported:
+			return document.Path, nil
+		case agentplugin.SchemaUnsupportedVersion:
+			return "", &agentplugin.SchemaUnsupportedError{Root: dir, Declared: declared}
+		}
 	}
 
 	return "", &ManifestNotFoundError{
@@ -123,4 +131,16 @@ func mapRegistryConstraintError(err error, name string) error {
 		return &ExtensionExistsError{Name: name}
 	}
 	return fmt.Errorf("extension: persist %q: %w", name, err)
+}
+
+// PackageRootFromManifest returns the artifact root for native and client manifests.
+func PackageRootFromManifest(path string) string {
+	root := filepath.Dir(strings.TrimSpace(path))
+	if filepath.Base(path) == agentPluginManifestFileName {
+		switch filepath.Base(root) {
+		case ".claude-plugin", ".codex-plugin", ".cursor-plugin":
+			return filepath.Dir(root)
+		}
+	}
+	return root
 }

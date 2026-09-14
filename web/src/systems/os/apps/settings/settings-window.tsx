@@ -73,6 +73,11 @@ const SECTION_PAGES = {
       default: m.SkillsSettingsPage,
     }))
   ),
+  mcp: lazy(() =>
+    import("@/routes/_app/settings/-mcp-settings-page").then(m => ({
+      default: m.MCPSettingsPage,
+    }))
+  ),
   automation: lazy(() =>
     import("@/routes/_app/settings/-automation-settings-page").then(m => ({
       default: m.AutomationSettingsPage,
@@ -116,6 +121,11 @@ const SECTION_PAGES = {
   extensions: lazy(() =>
     import("@/routes/_app/settings/-extensions-settings-page").then(m => ({
       default: m.ExtensionsSettingsPage,
+    }))
+  ),
+  marketplace: lazy(() =>
+    import("@/routes/_app/settings/-marketplace-settings-page").then(m => ({
+      default: m.MarketplaceSettingsPage,
     }))
   ),
 } satisfies Partial<Record<string, LazyExoticComponent<ComponentType<SettingsSectionPageProps>>>>;

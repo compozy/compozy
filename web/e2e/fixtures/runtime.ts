@@ -32,17 +32,6 @@ import {
   type RuntimeMode,
 } from "./runtime-helpers";
 import { stopBrowserDaemonProcess, stopSpawnedDaemonProcess } from "./runtime-process";
-import {
-  closeSkillMarketplaceServer,
-  startSkillMarketplaceServer,
-  type SkillMarketplaceTestServer,
-} from "./skill-marketplace-server";
-
-export {
-  closeSkillMarketplaceServer,
-  startSkillMarketplaceServer,
-  type SkillMarketplaceTestServer,
-} from "./skill-marketplace-server";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
@@ -99,6 +88,7 @@ export interface BrowserRuntime {
   requestJSON<T>(pathname: string, init?: RequestInit): Promise<T>;
   requestOperatorJSON?<T>(pathname: string, init?: RequestInit): Promise<T>;
   resolveWorkspace(rootDir: string): Promise<WorkspacePayload>;
+  replaceMarketplaceCatalog(seed: NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]>): void;
   dispose(): Promise<void>;
 }
 export {
@@ -141,9 +131,9 @@ export {
 interface RuntimeLaunchState {
   extensionRegistryServer?: Server;
   marketplaceCatalogServer?: Server;
+  replaceMarketplaceCatalog?: BrowserRuntime["replaceMarketplaceCatalog"];
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
-  skillMarketplaceServer?: Server;
 }
 
 export async function createBrowserRuntime(
@@ -194,7 +184,6 @@ async function createBrowserRuntimeAttempt(
   const binaryPath = await ensureDaemonBinary(repoRoot);
   const paths = await createRuntimePaths();
   const boundHost = options.host ?? DEFAULT_HOST;
-  const skillMarketplace = await startSkillMarketplaceServer(options.seed?.skillMarketplace);
   let marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>> = undefined;
   let extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>> = undefined;
   let runtime: RuntimeLaunchState | undefined;
@@ -202,7 +191,9 @@ async function createBrowserRuntimeAttempt(
   try {
     extensionRegistry = await startExtensionRegistryServer(options.seed?.extensionRegistry);
     marketplaceCatalog = await startMarketplaceCatalogServer(
-      resolveMarketplaceCatalogSeed(options.seed?.marketplaceCatalog, extensionRegistry)
+      options.seed?.marketplaceCatalog === undefined
+        ? undefined
+        : resolveMarketplaceCatalogSeed(options.seed.marketplaceCatalog, extensionRegistry)
     );
     await seedBrowserRuntimeHome(
       {
@@ -224,7 +215,6 @@ async function createBrowserRuntimeAttempt(
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         networkEnabled: options.networkEnabled,
         port: httpPort,
-        skillsMarketplaceBaseURL: skillMarketplace?.baseURL,
         socketPath: paths.daemonSocket,
         toolsExternalDefault: options.toolsExternalDefault,
       }),
@@ -234,8 +224,12 @@ async function createBrowserRuntimeAttempt(
     const runtimeEnv = await createRuntimeEnv(paths, binaryPath, repoRoot, env);
     runtime = startDaemonProcess(binaryPath, repoRoot, runtimeEnv, paths.daemonLog);
     runtime.marketplaceCatalogServer = marketplaceCatalog?.server;
+    const catalog = marketplaceCatalog;
+    if (catalog) {
+      runtime.replaceMarketplaceCatalog = seed =>
+        catalog.replace(resolveMarketplaceCatalogSeed(seed, extensionRegistry));
+    }
     runtime.extensionRegistryServer = extensionRegistry?.server;
-    runtime.skillMarketplaceServer = skillMarketplace?.server;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
     await waitForRuntimeReady(
@@ -263,7 +257,6 @@ async function createBrowserRuntimeAttempt(
       error,
       runtime,
       paths,
-      skillMarketplace,
       marketplaceCatalog,
       extensionRegistry
     );
@@ -271,9 +264,9 @@ async function createBrowserRuntimeAttempt(
 }
 
 function resolveMarketplaceCatalogSeed(
-  seed: BrowserRuntimeSeed["marketplaceCatalog"],
+  seed: NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]>,
   extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
-): BrowserRuntimeSeed["marketplaceCatalog"] {
+): NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]> {
   if (!seed?.extensions) return seed;
   return {
     ...seed,
@@ -351,6 +344,13 @@ class ActiveBrowserRuntime implements BrowserRuntime {
     return runtimeURL(this.baseURL, pathname);
   }
 
+  replaceMarketplaceCatalog(seed: NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]>): void {
+    if (!this.launchState?.replaceMarketplaceCatalog) {
+      throw new Error("catalog replacement requires a launch-mode seeded catalog");
+    }
+    this.launchState.replaceMarketplaceCatalog(seed);
+  }
+
   async requestJSON<T>(pathname: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
     if (!headers.has("content-type") && init?.body !== undefined) {
@@ -411,7 +411,6 @@ class ActiveBrowserRuntime implements BrowserRuntime {
     }
 
     const serverResults = await Promise.allSettled([
-      closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
       closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
       closeExtensionRegistryServer(this.launchState.extensionRegistryServer),
     ]);
@@ -458,7 +457,6 @@ async function cleanupFailedRuntimeLaunch(
   cause: unknown,
   runtime: RuntimeLaunchState | undefined,
   paths: RuntimePaths,
-  skillMarketplace: SkillMarketplaceTestServer | undefined,
   marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>,
   extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
 ): Promise<never> {
@@ -471,11 +469,6 @@ async function cleanupFailedRuntimeLaunch(
     }
   }
 
-  try {
-    await closeSkillMarketplaceServer(skillMarketplace?.server);
-  } catch (error) {
-    cleanupErrors.push(errorFromUnknown(error));
-  }
   try {
     await closeMarketplaceCatalogServer(marketplaceCatalog?.server);
   } catch (error) {

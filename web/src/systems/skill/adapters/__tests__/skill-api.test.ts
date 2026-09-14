@@ -7,14 +7,11 @@ import {
   getSkill,
   getSkillContent,
   getSkillShadows,
-  installSkillMarketplace,
   listSkills,
   exposeSkill,
-  removeSkillMarketplace,
   SkillApiError,
   SkillExposeError,
   unexposeSkill,
-  updateSkillMarketplace,
 } from "@/systems/skill/adapters/skill-api";
 
 const validSkill = {
@@ -271,112 +268,6 @@ describe("SkillApiError", () => {
     expect(error.status).toBe(404);
     expect(error.message).toBe("test error");
     expect(error).toBeInstanceOf(Error);
-  });
-});
-
-describe("installSkillMarketplace", () => {
-  it("calls POST /api/skills/marketplace/install with the slug body", async () => {
-    mockJsonResponse({
-      skill: {
-        cleanup_diagnostics: [{ operation: "close_download_stream" }],
-        name: "demo",
-        slug: "@compozy/demo",
-        status: "installed",
-        hash: "sha256:demo",
-        path: "/opt/compozy/skills/demo",
-        registry: "clawhub",
-        version: "0.1.0",
-      },
-    });
-
-    const result = await installSkillMarketplace({ slug: "@compozy/demo" });
-    expect(result.cleanup_diagnostics).toEqual([{ operation: "close_download_stream" }]);
-    expect(result.status).toBe("installed");
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/skills/marketplace/install",
-      body: { slug: "@compozy/demo" },
-    });
-  });
-
-  it("throws SkillApiError on 503 when marketplace is unconfigured", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
-    await expect(installSkillMarketplace({ slug: "@compozy/demo" })).rejects.toThrow(SkillApiError);
-  });
-});
-
-describe("updateSkillMarketplace", () => {
-  it("calls POST /api/skills/marketplace/update with the supplied body", async () => {
-    mockJsonResponse({
-      skills: [
-        {
-          cleanup_diagnostics: [{ operation: "remove_replaced_backup" }],
-          name: "demo",
-          slug: "@compozy/demo",
-          status: "updated",
-          path: "/opt/compozy/skills/demo",
-          current_version: "0.1.0",
-          latest_version: "0.2.0",
-        },
-      ],
-    });
-
-    const result = await updateSkillMarketplace({ name: "demo" });
-    expect(result).toHaveLength(1);
-    expect(result[0]?.cleanup_diagnostics).toEqual([{ operation: "remove_replaced_backup" }]);
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/skills/marketplace/update",
-      body: { name: "demo" },
-    });
-  });
-
-  it("throws SkillApiError on 422 when the skill is not marketplace-managed", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 422 }));
-    await expect(updateSkillMarketplace({ name: "demo" })).rejects.toThrow(SkillApiError);
-  });
-});
-
-describe("removeSkillMarketplace", () => {
-  it("calls DELETE /api/skills/marketplace/{name}", async () => {
-    mockJsonResponse({
-      skill: {
-        name: "demo",
-        slug: "@compozy/demo",
-        status: "removed",
-        path: "/opt/compozy/skills/demo",
-      },
-    });
-
-    const result = await removeSkillMarketplace("demo");
-    expect(result.status).toBe("removed");
-    await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/skills/marketplace/demo",
-    });
-  });
-
-  it("throws SkillApiError with 404 for unknown installed name", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-    await expect(removeSkillMarketplace("missing")).rejects.toThrow(
-      "Installed marketplace skill not found: missing"
-    );
-  });
-
-  it("encodes name segment in URL", async () => {
-    mockJsonResponse({
-      skill: {
-        name: "my skill",
-        slug: "@compozy/my-skill",
-        status: "removed",
-        path: "/opt/compozy/skills/my-skill",
-      },
-    });
-    await removeSkillMarketplace("my skill");
-    await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/skills/marketplace/my%20skill",
-    });
   });
 });
 

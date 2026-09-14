@@ -3,7 +3,9 @@
 package daemon
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,9 +24,11 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
 	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
@@ -32,6 +37,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func nativeNetworkExtensionDownloadResult(
@@ -51,6 +57,10 @@ func nativeNetworkExtensionDownloadResult(
 }
 
 func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
+	t.Run(
+		"Should retain a committed HTTP batch update when the second artifact returns 404 [IT-007]",
+		testExtensionHTTPBatchPartialUpdate,
+	)
 	t.Run("Should match lifecycle parity through native extension tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -929,4 +939,189 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 			t.Errorf("Shutdown(native actor manager) error = %v", err)
 		}
 	})
+}
+
+// testExtensionHTTPBatchPartialUpdate exercises the HTTP handler and daemon lifecycle against
+// real registry HTTP I/O, package files, SQLite, and the extension manager.
+func testExtensionHTTPBatchPartialUpdate(t *testing.T) {
+	t.Parallel()
+	deps, registry, _, _ := newNativeExtensionToolDeps(t)
+	for _, name := range []string{"tool-ext", "z-bad"} {
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "extension.toml"),
+			extensionBatchManifest(name, "1.0.0"),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+		manifest, err := extensionpkg.LoadManifest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Install(manifest, root, checksum,
+			extensionpkg.WithInstallSource(extensionpkg.SourceMarketplace),
+			extensionpkg.WithInstallRegistryMetadata("acme/"+name, "github", "1.0.0"),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
+	if err := manager.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(context.Background()); err != nil {
+			t.Errorf("Stop(): %v", err)
+		}
+	})
+	artifactServer, downloads := newExtensionBatchArtifactServer(t)
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Runtime: manager, HomePaths: deps.HomePaths,
+		Profiles: deps.ProfileManager, Logger: discardLogger(),
+	}, withDaemonExtensionEventWriter(deps.ExtensionEvents),
+		withDaemonExtensionMarketplace(deps.ExtensionConfig,
+			func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{registrygithub.NewClient(artifactServer.URL,
+					registrygithub.WithHTTPClient(artifactServer.Client()), registrygithub.WithToken(""))}, nil
+			}),
+	)
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindHTTP, "batch update")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		Extensions: service, Logger: discardLogger(), TransportName: "http",
+		TaskActorContextResolver: func(*gin.Context, string) (taskpkg.ActorContext, error) { return actor, nil },
+	})
+	engine := gin.New()
+	engine.POST("/api/extensions/update", handlers.UpdateExtensions)
+	api := httptest.NewServer(engine)
+	t.Cleanup(api.Close)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, api.URL+"/api/extensions/update",
+		strings.NewReader(`{"all":true,"allow_unverified":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := api.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("Close(response): %v", err)
+		}
+	}()
+	var payload contract.ExtensionUpdateBatchResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || len(payload.Updates) != 2 {
+		t.Fatalf("batch response = %d %#v, want HTTP 200 and two outcomes", response.StatusCode, payload)
+	}
+	if payload.Updates[0].Name != "tool-ext" || payload.Updates[0].Status != "updated" ||
+		payload.Updates[1].Name != "z-bad" || payload.Updates[1].Status != "failed" || payload.Updates[1].Error == nil {
+		t.Fatalf("batch outcomes = %#v, want one committed update and one explicit failure", payload.Updates)
+	}
+	if got := downloads(); !reflect.DeepEqual(got, []string{"tool-ext", "z-bad"}) {
+		t.Fatalf("artifact requests = %v, want first success followed by second 404", got)
+	}
+	for name, version := range map[string]string{"tool-ext": "2.0.0", "z-bad": "1.0.0"} {
+		info, err := registry.Get(name)
+		if err != nil || info.Version != version {
+			t.Fatalf("Get(%s) = %#v, %v, want %s", name, info, err, version)
+		}
+		manifest, err := extensionpkg.LoadManifest(filepath.Dir(info.ManifestPath))
+		if err != nil || manifest.Version != version {
+			t.Fatalf("manifest(%s) = %#v, %v, want %s", name, manifest, err, version)
+		}
+		runtime, err := manager.Get(name)
+		if err != nil || runtime.Info.Version != version {
+			t.Fatalf("runtime(%s) = %#v, %v, want %s", name, runtime, err, version)
+		}
+	}
+}
+
+func newExtensionBatchArtifactServer(t *testing.T) (*httptest.Server, func() []string) {
+	t.Helper()
+	archive := extensionBatchArchive(t)
+	var mu sync.Mutex
+	var downloads []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /artifacts/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		mu.Lock()
+		downloads = append(downloads, name)
+		mu.Unlock()
+		if name != "tool-ext" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/gzip")
+		if _, err := w.Write(archive); err != nil {
+			t.Errorf("Write(artifact): %v", err)
+		}
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	mux.HandleFunc("GET /repos/acme/{name}/releases/{rest...}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		release := map[string]any{
+			"tag_name": "2.0.0",
+			"name":     name,
+			"assets": []map[string]any{
+				{"name": name + ".tar.gz", "browser_download_url": server.URL + "/artifacts/" + name},
+			},
+		}
+		var body any = release
+		if r.PathValue("rest") == "" {
+			body = []any{release}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(body); err != nil {
+			t.Errorf("Encode(release): %v", err)
+		}
+	})
+	return server, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(downloads)
+	}
+}
+
+func extensionBatchManifest(name, version string) []byte {
+	return []byte(fmt.Sprintf(`[extension]
+name = %q
+version = %q
+description = "Batch update integration fixture"
+min_compozy_version = "0.5.0"
+`, name, version))
+}
+
+func extensionBatchArchive(t *testing.T) []byte {
+	t.Helper()
+	manifest := extensionBatchManifest("tool-ext", "2.0.0")
+	var buffer bytes.Buffer
+	compressed := gzip.NewWriter(&buffer)
+	archive := tar.NewWriter(compressed)
+	if err := archive.WriteHeader(
+		&tar.Header{Name: "tool-ext/extension.toml", Mode: 0o644, Size: int64(len(manifest))},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := archive.Write(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
 }

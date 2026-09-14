@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
+export type SettingsMarketplaceSection = OperationResponse<"getSettingsMarketplace", 200>;
+export type SettingsUpdateMarketplaceRequest = OperationRequestBody<"updateSettingsMarketplace">;
 export type SettingsGeneralSection = OperationResponse<"getSettingsGeneral", 200>;
 export type SettingsPersonaSection = OperationResponse<"getSettingsPersona", 200>;
 export type SettingsPersonaFilter = NonNullable<OperationQuery<"getSettingsPersona">>;
@@ -119,6 +121,8 @@ export type SettingsHookListFilter = NonNullable<OperationQuery<"listSettingsHoo
 export type SettingsHookPutFilter = NonNullable<OperationQuery<"putSettingsHook">>;
 export type SettingsHookDeleteFilter = NonNullable<OperationQuery<"deleteSettingsHook">>;
 
+export type SettingsMCPServerDetail = OperationResponse<"getSettingsMCPServer", 200>;
+export type SettingsMCPServerGetFilter = NonNullable<OperationQuery<"getSettingsMCPServer">>;
 export type SettingsMCPServerCollection = OperationResponse<"listSettingsMCPServers", 200>;
 export type SettingsMCPServerEntry = SettingsMCPServerCollection["mcp_servers"][number];
 export type SettingsMCPServerRequest = OperationRequestBody<"putSettingsMCPServer">;
@@ -201,6 +205,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsGeneral", 200>
   | OperationResponse<"updateSettingsMemory", 200>
   | OperationResponse<"updateSettingsSkills", 200>
+  | OperationResponse<"updateSettingsMarketplace", 200>
   | OperationResponse<"updateSettingsAutomation", 200>
   | OperationResponse<"updateSettingsNetwork", 200>
   | OperationResponse<"updateSettingsAttention", 200>
@@ -224,6 +229,7 @@ export type SettingsSectionName =
   | SettingsMemorySection["section"]
   | SettingsRolesSection["section"]
   | SettingsSkillsSection["section"]
+  | SettingsMarketplaceSection["section"]
   | SettingsAutomationSection["section"]
   | SettingsNetworkSection["section"]
   | SettingsAttentionSection["section"]
@@ -263,10 +269,12 @@ export type SettingsSectionSlug =
   | "memory"
   | "roles"
   | "skills"
+  | "mcp"
   | "automation"
   | "network"
   | "gateway"
   | "attention"
   | "observability"
   | "hooks"
-  | "extensions";
+  | "extensions"
+  | "marketplace";

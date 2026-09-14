@@ -2,6 +2,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -9,45 +10,133 @@ import {
 } from "@compozy/ui";
 
 import { ExtensionInstallSummary } from "./extension-install-dialog";
-import type { ExtensionInstallPreview } from "@/systems/extensions";
+import type { ExtensionInstallPreview, ExtensionInstallRequest } from "@/systems/extensions";
 
-export function ExtensionInstallSummaryDialog({
-  open,
-  pending,
-  preview,
-  onConfirm,
-  onOpenChange,
-}: {
+import type { MarketplaceCatalogListing } from "../types";
+
+import { ExtensionInputFields } from "./extension-input-fields";
+import { useExtensionInputForm } from "./use-extension-input-form";
+import type { ExtensionInputDefinitions, ExtensionInputDraft } from "./extension-install-model";
+
+type SummaryDialogProps = {
   open: boolean;
   pending: boolean;
-  preview: ExtensionInstallPreview;
-  onConfirm: () => void;
+  onConfirm: (draft: ExtensionInputDraft) => void;
   onOpenChange: (open: boolean) => void;
-}) {
+} & (
+  | {
+      action: "install";
+      preview: ExtensionInstallPreview;
+      entry: MarketplaceCatalogListing;
+      destination: Pick<ExtensionInstallRequest, "scope" | "profile">;
+    }
+  | { action: "update"; name: string; definitions: ExtensionInputDefinitions }
+);
+
+/**
+ * Catalog confirmation step. Install keeps the package summary and asks for every declared input;
+ * update recovery asks only for the inputs the daemon reported missing. Both submit the same draft
+ * through the owning controller, which retries the already-scoped request.
+ */
+export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
+  const { open, pending, onConfirm, onOpenChange } = props;
+  const model = summaryDialogModel(props);
+  const { name, definitions, actionLabel } = model;
+  const form = useExtensionInputForm(definitions, name);
+  const hasInputs = definitions.length > 0;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="sm:max-w-(--width-modal-sm)" unframed>
-        <DialogHeader variant="ruled">
-          <DialogTitle>Install {preview.name}</DialogTitle>
-        </DialogHeader>
-        <div className="px-5 py-4">
-          <ExtensionInstallSummary preview={preview} />
-        </div>
-        <DialogFooter variant="ruled">
-          <Button
-            disabled={pending}
-            onClick={() => onOpenChange(false)}
-            type="button"
-            variant="ghost"
-          >
-            Cancel
-          </Button>
-          <Button disabled={pending} onClick={onConfirm} type="button">
-            {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending ? "Installing…" : "Install"}
-          </Button>
-        </DialogFooter>
+      <DialogContent
+        className="flex max-h-[min(var(--height-modal-md),80vh)] flex-col sm:max-w-(--width-modal-sm)"
+        data-testid="extension-install-summary-dialog"
+        unframed
+      >
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={event => {
+            event.preventDefault();
+            if (pending || !form.valid) return;
+            onConfirm(form.draft);
+          }}
+        >
+          <DialogHeader variant="ruled">
+            <DialogTitle>
+              {actionLabel} {name}
+            </DialogTitle>
+            <DialogDescription>{model.description}</DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+            {model.preview ? <ExtensionInstallSummary preview={model.preview} /> : null}
+            {hasInputs ? <ExtensionInputFields disabled={pending} form={form} /> : null}
+            {definitions.some(input => input.type === "secret") ? (
+              <p className="text-form-hint text-muted">
+                Secrets are stored in your vault. You can change them later from Installed.
+              </p>
+            ) : null}
+            {model.destination}
+          </div>
+          <DialogFooter variant="ruled">
+            {model.trust}
+            <Button
+              disabled={pending}
+              onClick={() => onOpenChange(false)}
+              type="button"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+            <Button
+              data-testid="extension-install-summary-confirm"
+              disabled={pending || !form.valid}
+              type="submit"
+            >
+              {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {pending ? model.pendingLabel : actionLabel}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+function summaryDialogModel(props: SummaryDialogProps) {
+  if (props.action === "update")
+    return {
+      name: props.name,
+      definitions: props.definitions,
+      actionLabel: "Update",
+      pendingLabel: "Updating…",
+      description: "Provide the required inputs to update this extension.",
+      preview: null,
+      destination: null,
+      trust: null,
+    };
+  return {
+    name: props.preview.name,
+    definitions: props.preview.inputs,
+    actionLabel: "Install",
+    pendingLabel: "Installing…",
+    description: props.entry.description,
+    preview:
+      props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0
+        ? props.preview
+        : null,
+    destination: (
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
+        <dt className="text-muted">Scope</dt>
+        <dd data-testid="extension-install-destination">
+          {props.destination.scope === "workspace" ? "Current workspace" : "Everywhere (global)"}
+          {" · "}
+          {props.destination.profile}
+        </dd>
+      </dl>
+    ),
+    trust: (
+      <span className="mr-auto text-form-hint text-muted">
+        {props.entry.tier === "official" ? "Official" : "Community"}
+        {props.entry.trust?.checksum_verified ? " · checksum verified" : ""}
+      </span>
+    ),
+  };
 }

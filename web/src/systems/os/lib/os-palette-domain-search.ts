@@ -121,7 +121,8 @@ export function terminalRoute(id: string): OsWindowRoute {
 }
 
 export function marketplaceEntryRoute(input: {
-  kind: "mcp" | "extension" | "skill";
+  source?: string;
+  profileName?: string;
   entryId: string;
   scope: WorkspaceScopeMode;
   workspaceId?: string | null;
@@ -141,8 +142,12 @@ export function marketplaceEntryRoute(input: {
           ...(installedName ? { installed_name: installedName } : {}),
         };
   return {
-    pathname: `/marketplace/${input.kind}/${encodedSegment(input.entryId)}`,
-    search,
+    pathname: `/marketplace/${encodedSegment(input.entryId)}`,
+    search: {
+      ...search,
+      ...(input.source ? { source: input.source } : {}),
+      ...(input.profileName ? { profile: input.profileName } : {}),
+    },
   };
 }
 
@@ -167,12 +172,6 @@ export function knowledgeRoute(input: {
       ...(input.workspaceId ? { workspace: input.workspaceId } : {}),
     },
   };
-}
-
-export function marketplaceCatalogTotal(
-  kinds: ReadonlyArray<{ items: readonly unknown[]; total?: number | null }> | undefined
-): number {
-  return (kinds ?? []).reduce((sum, kind) => sum + (kind.total ?? kind.items.length), 0);
 }
 
 export function rowSeed(

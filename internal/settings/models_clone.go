@@ -78,6 +78,7 @@ func cloneHookItem(value *HookItem) HookItem {
 
 func cloneHookDecl(value hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := value
+	cloned.HookPlacement = value.ClonePlacement()
 	cloned.Args = append([]string(nil), value.Args...)
 	cloned.Env = cloneStringMap(value.Env)
 	cloned.SecretEnv = cloneStringMap(value.SecretEnv)

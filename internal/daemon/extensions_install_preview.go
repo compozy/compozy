@@ -21,7 +21,14 @@ func (s *daemonExtensionService) PreviewInstall(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
-	prepared, err := s.prepareExtensionInstall(ctx, req, actor, extensionInstalledBy(actor))
+	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
+		defer s.marketplaceCache.Hold()()
+	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return contract.ExtensionInstallPreviewPayload{}, err
+	}
+	prepared, err := s.prepareExtensionInstall(ctx, req, actor, extensionInstalledBy(actor), target)
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
@@ -48,8 +55,17 @@ func (s *daemonExtensionService) PreviewInstall(
 	}
 	result := contract.ExtensionInstallPreviewPayload{
 		Name: prepared.name, NetworkRequirementDigest: digest,
+		DigestSHA256:     prepared.digest,
+		Inputs:           make([]contract.MarketplaceInputPayload, 0, len(prepared.manifest.Inputs)),
 		DeclaredProfiles: make([]contract.ExtensionInstallDeclaredProfilePayload, 0, len(plan.Profiles)),
 		Placements:       make([]contract.ExtensionPlacementPayload, 0),
+	}
+	for _, input := range prepared.manifest.Inputs {
+		result.Inputs = append(result.Inputs, contract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+			Default: input.Default,
+			Binding: contract.MarketplaceInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+		})
 	}
 	for _, entry := range plan.Profiles {
 		item := contract.ExtensionInstallDeclaredProfilePayload{

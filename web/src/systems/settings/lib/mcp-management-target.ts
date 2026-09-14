@@ -2,20 +2,39 @@ import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
 
 type MCPManagementTarget = Exclude<SettingsMCPServerTarget, "auto">;
 
-export type MCPManagementFilter =
-  | { scope: "user"; target: MCPManagementTarget }
-  | { scope: "profile"; target: MCPManagementTarget; profile: string; workspace_id?: string }
+export type MCPManagementFilter = { owner?: string } & (
+  | { scope: "user"; target?: MCPManagementTarget }
+  | { scope: "profile"; target?: MCPManagementTarget; profile: string; workspace_id?: string }
   | {
       scope: "workspace";
-      target: MCPManagementTarget;
+      target?: MCPManagementTarget;
       workspace_id: string;
-    };
+    }
+);
 
 /** Resolves the exact config owner that the daemon selected for an MCP row. */
 export function deriveMCPManagementFilter(
   server: SettingsMCPServerEntry
 ): MCPManagementFilter | null {
   const source = server.source_metadata?.effective_source;
+  if (source?.kind === "extension") {
+    const owner = server.owner?.trim();
+    if (!owner?.startsWith("extension:")) return null;
+    if (source.scope === "user") return { scope: "user", owner };
+    if (source.scope === "workspace" && source.workspace_id?.trim()) {
+      return { scope: "workspace", workspace_id: source.workspace_id.trim(), owner };
+    }
+    if (source.scope === "profile" && source.profile?.trim()) {
+      const workspaceId = source.workspace_id?.trim();
+      return {
+        scope: "profile",
+        profile: source.profile.trim(),
+        owner,
+        ...(workspaceId ? { workspace_id: workspaceId } : {}),
+      };
+    }
+    return null;
+  }
   switch (source?.kind) {
     case "global-config":
       return source.scope === "user" ? { scope: "user", target: "config" } : null;
@@ -56,4 +75,16 @@ export function mcpManagementScopeLabel(server: SettingsMCPServerEntry): string 
   if (filter.scope === "workspace") return `workspace · ${filter.workspace_id}`;
   if (filter.scope === "profile") return `profile · ${filter.profile}`;
   return "user";
+}
+
+/** Full definition identity for selection and React keys; names may repeat across owners and scopes. */
+export function mcpDefinitionKey(server: SettingsMCPServerEntry): string {
+  const filter = deriveMCPManagementFilter(server);
+  return JSON.stringify([
+    server.owner ?? "manual",
+    server.name,
+    filter?.scope ?? server.scope,
+    filter && "profile" in filter ? filter.profile : (server.profile ?? ""),
+    filter && "workspace_id" in filter ? (filter.workspace_id ?? "") : (server.workspace_id ?? ""),
+  ]);
 }

@@ -129,6 +129,7 @@ func (i *Installer) downloadInstallArchive(
 func (i *Installer) extractInstallPackage(
 	ctx context.Context,
 	reader io.Reader,
+	contentType string,
 	temporary *fileutil.Directory,
 ) (packageRoot *installedPackage, metadata installedPackageMetadata, err error) {
 	extractRoot, err := temporary.CreateDirectory("extract", 0o700)
@@ -144,11 +145,11 @@ func (i *Installer) extractInstallPackage(
 		}
 	}()
 
-	if err := extractArchiveWithContext(ctx, reader, extractRoot, extractLimits{
-		maxDecompressedSize: i.maxDecompressedSize,
-		maxFileCount:        i.maxFileCount,
-		maxDepth:            i.maxArchiveDepth,
-	}); err != nil {
+	if err := ExtractArchive(ctx, reader, extractRoot, ExtractionLimits{
+		MaxBytes: i.maxDecompressedSize,
+		MaxFiles: i.maxFileCount,
+		MaxDepth: i.maxArchiveDepth,
+	}, contentType); err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
 	packageRoot, metadata, err = loadInstalledPackageMetadata(temporary, "extract", extractRoot)
@@ -172,11 +173,11 @@ func validateDownloadContentType(contentType string) error {
 		return fmt.Errorf("%w: parse %q: %v", errUnexpectedContentType, trimmed, err)
 	}
 	switch mediaType {
-	case installerApplicationGzipPath, "application/x-gzip", "application/octet-stream":
+	case installerApplicationGzipPath, "application/x-gzip", "application/octet-stream", TarContentType:
 		return nil
 	default:
 		return fmt.Errorf(
-			"%w: got %q, want application/gzip, application/x-gzip, or application/octet-stream",
+			"%w: got %q, want application/gzip, application/x-gzip, application/octet-stream, or application/x-tar",
 			errUnexpectedContentType,
 			trimmed,
 		)

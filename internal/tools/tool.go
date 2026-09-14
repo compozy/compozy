@@ -235,8 +235,9 @@ type MCPCallExecutor interface {
 }
 
 // MCPAuthStatusProvider returns redacted MCP auth status for diagnostics.
+// definitionOwner selects an explicit definition when source has no ResourceID.
 type MCPAuthStatusProvider interface {
-	Status(ctx context.Context, source SourceRef) (MCPAuthStatus, error)
+	Status(ctx context.Context, source SourceRef, definitionOwner string) (MCPAuthStatus, error)
 }
 
 // PolicyEvaluator computes the effective policy decision for a descriptor.

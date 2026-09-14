@@ -223,17 +223,49 @@ func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error 
 	if err := operation.ensureActive(); err != nil {
 		return err
 	}
-	if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil {
+	return m.unlinkDevelopmentLocked(ctx, key)
+}
+
+func (m *Manager) unlinkDevelopmentLocked(ctx context.Context, key InstanceKey) (err error) {
+	link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
+	if err != nil {
 		return err
 	}
 	current, _ := m.lookupInstance(key)
+	transaction := newExtensionStartupTransaction(m, current)
+	defer func() {
+		if err != nil {
+			err = transaction.rollback(ctx, err)
+		}
+	}()
+	if err := m.retireWorkspaceProfileRuntimes(ctx, key, transaction); err != nil {
+		return err
+	}
+	restoreRuntime := false
+	transaction.add("development runtime", func(cleanupCtx context.Context) error {
+		if !restoreRuntime {
+			return nil
+		}
+		return m.restoreUnlinkedDevelopmentRuntime(cleanupCtx, key, link, current)
+	})
+	if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil {
+		return err
+	}
+	transaction.add("development link", func(context.Context) error { return m.restoreDevLink(key, link) })
+	restoreRuntime = true
+	if current != nil {
+		if err := m.stopManagedExtension(ctx, current); err != nil {
+			return err
+		}
+	}
 	m.mu.Lock()
 	m.deleteInstanceLocked(key)
 	delete(m.devLogs, key)
 	m.mu.Unlock()
-	if current != nil {
-		return m.stopManagedExtension(ctx, current)
+	if err := m.restoreWorkspaceInstallations(ctx, key); err != nil {
+		return err
 	}
+	transaction.commit()
 	return nil
 }
 
@@ -246,12 +278,27 @@ func (m *Manager) Logs(key InstanceKey, cursor ExtensionLogCursor) (ExtensionLog
 	if err := key.Validate(); err != nil {
 		return ExtensionLogSnapshot{}, err
 	}
-	if !key.IsGlobal() {
+	// A persisted dev link owns its log stream even before startup or after a failed reload.
+	if !key.IsGlobal() && m.registry != nil {
+		if _, err := m.registry.GetDevLink(key.Name, key.WorkspaceID); err == nil {
+			return m.logRingFor(key).snapshot(cursor), nil
+		} else if !errors.Is(err, ErrExtensionNotDevLinked) {
+			return ExtensionLogSnapshot{}, err
+		}
+	}
+	source, development, err := m.readInstanceSource(context.Background(), key)
+	if !key.IsGlobal() &&
+		(errors.Is(err, ErrExtensionNotFound) || (err == nil && source.WorkspaceID != key.WorkspaceID)) {
+		return ExtensionLogSnapshot{}, ErrExtensionNotDevLinked
+	}
+	if err != nil {
+		return ExtensionLogSnapshot{}, err
+	}
+	key = runtimeKeyForInstallation(key, source)
+	if development && m.registry != nil {
 		if _, err := m.registry.GetDevLink(key.Name, key.WorkspaceID); err != nil {
 			return ExtensionLogSnapshot{}, err
 		}
-	} else if _, err := m.registry.Get(key.Name); err != nil {
-		return ExtensionLogSnapshot{}, err
 	}
 	return m.logRingFor(key).snapshot(cursor), nil
 }

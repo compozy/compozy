@@ -4,18 +4,17 @@ import Link from "next/link";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { bundledExtensions, bundledSkills } from "@/lib/marketplace-bundled";
 import {
-  MARKETPLACE_FEED_FILENAMES,
   MARKETPLACE_SEARCH_COMMAND,
   extensionEntries,
-  mcpEntries,
-  skillEntries,
+  marketplacePresets,
 } from "@/lib/marketplace-catalog";
 import { MarketplaceFeedPipeline } from "./marketplace-feed-pipeline";
 import { MarketplaceInstallCommand } from "./marketplace-install-command";
 
 /**
- * Every number here is counted from the repository at build time. Nothing is a popularity metric,
- * because no such field exists in the feeds (`internal/marketplace/entry_*.go`).
+ * Every number here is counted from the repository at build time: the v3 extension feed, the
+ * plugin marketplace presets, the bundled manifests, and the in-tree bridge providers. Nothing is a
+ * popularity metric, because no such field exists in the feed.
  */
 function heroStats() {
   const bundledResources =
@@ -30,13 +29,10 @@ function heroStats() {
     ) + bundledSkills.length;
 
   return [
-    {
-      value: skillEntries.length + extensionEntries.length + mcpEntries.length,
-      label: "Catalog entries",
-    },
-    { value: bridgeProviders.length, label: "Bridge providers" },
+    { value: extensionEntries.length, label: "Extensions" },
+    { value: marketplacePresets.length, label: "Plugin marketplaces" },
     { value: bundledResources, label: "Bundled resources" },
-    { value: MARKETPLACE_FEED_FILENAMES.length, label: "JSON feeds" },
+    { value: bridgeProviders.length, label: "Bridge providers" },
   ];
 }
 
@@ -55,9 +51,9 @@ export function MarketplaceHero() {
               Install what your agents <em>need</em>
             </h1>
             <p className="mt-4 max-w-[64ch] text-site-lead text-muted">
-              Skills, MCP servers, extensions, and bridge providers from this build&apos;s
-              checked-in catalog snapshot. Search your daemon before installing: its active catalog
-              can differ.
+              Extensions that package MCP servers, skills, and tools, plus bridge providers, from
+              this build&apos;s checked-in catalog snapshot. Search your daemon before installing:
+              its active catalog can differ.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-4.5">
@@ -66,7 +62,7 @@ export function MarketplaceHero() {
                 className="min-w-0 flex-1 basis-85"
               />
               <Link
-                href="/marketplace/skills"
+                href="#catalog"
                 className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-fg"
               >
                 Browse the catalog
@@ -97,9 +93,8 @@ export function MarketplaceHero() {
         <p className="mt-9 flex items-start gap-2.5 text-small-body leading-relaxed text-subtle">
           <Terminal aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           <span>
-            The CLI also reaches third-party registries: <code>compozy skill search</code> and{" "}
-            <code>compozy extension search</code> cover ClawHub and GitHub Releases beyond this
-            catalog.
+            Beyond this catalog, <code>compozy extension install</code> also takes GitHub releases,
+            git URLs, and local directories.
           </span>
         </p>
       </div>

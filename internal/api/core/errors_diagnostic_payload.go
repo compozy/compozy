@@ -9,6 +9,7 @@ import (
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspace"
@@ -19,6 +20,8 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
 	switch {
+	case errors.Is(err, settingspkg.ErrMCPServerNameTaken):
+		payload.Code = "mcp_server_name_taken"
 	case errors.Is(err, session.ErrActiveTurnMismatch):
 		payload.Code = "active_turn_mismatch"
 		if fence, ok := errors.AsType[*session.ActiveTurnMismatchError](err); ok {

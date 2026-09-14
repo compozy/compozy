@@ -1,3 +1,4 @@
+import type { SettingsMarketplaceSection, SettingsMutationResult } from "../../types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
@@ -7,6 +8,9 @@ import {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   getSettingsGeneral,
+  getSettingsMarketplace,
+  updateSettingsMarketplace,
+  getSettingsMCPServer,
   getSettingsCmdPalette,
   getSettingsObservability,
   getSettingsPersona,
@@ -107,6 +111,36 @@ describe("SettingsApiError", () => {
 });
 
 describe("section reads and updates", () => {
+  // Invariant: catalog settings requests preserve the global payload and cancellation.
+  // Owner: settings adapter; canonical settings API suite.
+  it("reads and updates marketplace catalog settings", async () => {
+    const config = { base_url: "https://catalog.example", ttl: "2h", timeout: "17s" };
+    const envelope = {
+      ...generalSectionFixture,
+      section: "marketplace",
+      config,
+    } satisfies SettingsMarketplaceSection;
+    const signal = new AbortController().signal;
+    mockJsonResponse(envelope);
+    expect(await getSettingsMarketplace(signal)).toEqual(envelope);
+    await expectFetchRequest({ path: "/api/settings/marketplace", signal, callIndex: 0 });
+    const result = {
+      ...mutationFixture,
+      section: "marketplace",
+      applied: true,
+      restart_required: false,
+    } satisfies SettingsMutationResult;
+    mockJsonResponse(result);
+    expect(await updateSettingsMarketplace({ config }, signal)).toEqual(result);
+    await expectFetchRequest({
+      path: "/api/settings/marketplace",
+      method: "PATCH",
+      body: { config },
+      signal,
+      callIndex: 1,
+    });
+  });
+
   it("loads the general section envelope", async () => {
     mockJsonResponse(generalSectionFixture);
 
@@ -279,7 +313,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
       },
       links: [{ label: "skills", path: "/marketplace/skills" }],
     };
@@ -313,7 +346,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
         sources: ["agents"],
         custom_sources: [],
       },
@@ -351,7 +383,6 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: [],
         poll_interval: "5m",
-        marketplace: { registry: "compozy" },
         sources: ["agents"],
         custom_sources: ["/work/.agents/skills"],
       },
@@ -618,6 +649,61 @@ describe("collection endpoints", () => {
 
     await expectFetchRequest({
       path: "/api/settings/mcp-servers?scope=workspace&workspace_id=ws_alpha",
+    });
+  });
+
+  // Invariant: Settings data consumers receive the daemon's actionable collision code.
+  // Owner: HTTP adapter; canonical suite: settings-api.test.ts.
+  it("preserves the reserved MCP name error for callers", async () => {
+    mockJsonResponse(
+      { error: "MCP runtime name is reserved", code: "mcp_server_name_taken" },
+      { status: 422 }
+    );
+    await expect(
+      putSettingsMCPServer("github", { server: { name: "github", command: "gh" } })
+    ).rejects.toMatchObject({
+      name: "SettingsApiError",
+      status: 422,
+      code: "mcp_server_name_taken",
+    });
+  });
+
+  // Invariant: a detail request preserves the exact owner/profile/workspace selector and response identity.
+  // Owner: Settings API adapter; canonical suite: settings-api.test.ts.
+  it("gets an extension MCP detail with its owner-qualified scope", async () => {
+    const server = { name: "github", owner: "extension:github", runtime_name: "github.github" };
+    mockJsonResponse({ server });
+    const response = await getSettingsMCPServer("github", {
+      owner: " extension:github ",
+      scope: "profile",
+      profile: " marketing ",
+      workspace_id: " ws_alpha ",
+    });
+    expect(response.server).toEqual(server);
+    await expectFetchRequest({
+      path: "/api/settings/mcp-servers/github?scope=profile&workspace_id=ws_alpha&profile=marketing&owner=extension%3Agithub",
+    });
+  });
+
+  // Invariant: mutation requests preserve extension ownership without selecting a manual config file.
+  // Owner: Settings transport adapter; canonical suite: settings-api.test.ts.
+  it("puts and resets owner-qualified extension overrides", async () => {
+    const body = {
+      server: { name: "remote", url: "https://example.com/changed", headers: { "X-Region": "eu" } },
+    };
+    mockJsonResponse(mutationFixture);
+    await putSettingsMCPServer("remote", body, { scope: "user", owner: " extension:bundle " });
+    await expectFetchRequest({
+      method: "PUT",
+      body,
+      path: "/api/settings/mcp-servers/remote?scope=user&owner=extension%3Abundle",
+    });
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    await deleteSettingsMCPServer("remote", { scope: "user", owner: "extension:bundle" });
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/settings/mcp-servers/remote?scope=user&owner=extension%3Abundle",
     });
   });
 

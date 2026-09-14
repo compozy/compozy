@@ -306,21 +306,6 @@ type SkillsResponse struct {
 	Skills []SkillPayload `json:"skills"`
 }
 
-// SkillMarketplaceInstallResponse wraps one marketplace install result.
-type SkillMarketplaceInstallResponse struct {
-	Skill SkillMarketplaceInstallPayload `json:"skill"`
-}
-
-// SkillMarketplaceUpdateResponse wraps marketplace update results.
-type SkillMarketplaceUpdateResponse struct {
-	Skills []SkillMarketplaceUpdatePayload `json:"skills"`
-}
-
-// SkillMarketplaceRemoveResponse wraps one marketplace removal result.
-type SkillMarketplaceRemoveResponse struct {
-	Skill SkillMarketplaceRemovePayload `json:"skill"`
-}
-
 // SkillResponse wraps one shared skill payload.
 type SkillResponse struct {
 	Skill SkillPayload `json:"skill"`

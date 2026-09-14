@@ -3,7 +3,6 @@ package extensionpkg
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 )
 
@@ -23,7 +22,7 @@ func (m *Manager) InspectPackageResources(ctx context.Context, name string) (*Ex
 	if err != nil {
 		return nil, err
 	}
-	rootDir := filepath.Dir(strings.TrimSpace(info.ManifestPath))
+	rootDir := PackageRootFromManifest(strings.TrimSpace(info.ManifestPath))
 	manifest, err := LoadManifest(rootDir)
 	if err != nil {
 		return nil, err

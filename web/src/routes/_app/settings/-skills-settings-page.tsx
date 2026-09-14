@@ -11,8 +11,7 @@ import {
   SettingsSkillsScopeNotice,
   SettingsSkillsEngineSection,
   SettingsSkillsInstallPolicySection,
-  SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   SettingsSkillSourcesSection,
   SettingsSkillsScopeSelector,
   useSettingsSaveBarState,
@@ -61,14 +60,31 @@ export function SkillsSettingsPage() {
     );
   }
 
-  const { envelope, draft, setDraft, restart } = page;
+  return (
+    <SkillsSettingsContent
+      page={page}
+      envelope={page.envelope}
+      draft={page.draft}
+      policySaveState={policySaveState}
+    />
+  );
+}
+
+type SkillsPageModel = ReturnType<typeof useSettingsSkillsPage>;
+type LoadedSkillsProps = {
+  page: SkillsPageModel;
+  envelope: NonNullable<SkillsPageModel["envelope"]>;
+  draft: NonNullable<SkillsPageModel["draft"]>;
+};
+function SkillsSettingsContent({
+  page,
+  envelope,
+  draft,
+  policySaveState,
+}: LoadedSkillsProps & { policySaveState: ReturnType<typeof useSettingsSaveBarState> }) {
+  const { setDraft, restart } = page;
   const isPersonalPolicyScope = page.selection.scope === "user";
-  const scopeLabel =
-    page.selection.scope === "user"
-      ? page.personalLabel.toLowerCase()
-      : page.selection.scope === "workspace"
-        ? `workspace ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
-        : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
+  const scopeLabel = skillsScopeLabel(page);
 
   return (
     <SettingsPageFrame
@@ -137,51 +153,14 @@ export function SkillsSettingsPage() {
       <SettingsSkillSourcesSection model={page.sources} />
       {isPersonalPolicyScope ? (
         <>
-          <SettingsSkillsMarketplaceSection draft={draft} onChange={setDraft} />
-          <SettingsSkillsManageSection />
+          <SettingsSkillsDiscoverySection draft={draft} onChange={setDraft} />
         </>
       ) : null}
-      <SettingsDisabledSkillsSection
-        baselineDisabled={envelope.config.disabled_skills ?? []}
-        disabled={draft.disabled_skills ?? []}
-        note={
-          page.isRepositoryProfile
-            ? "read only · active profile projection"
-            : page.selection.scope === "agent"
-              ? `applies immediately · scoped to ${page.selectedAgent?.name ?? page.selection.agentName}${page.selectedWorkspace ? ` via ${page.selectedWorkspace.name}` : ""}`
-              : "applies immediately · no restart required"
-        }
-        emptyTitle={
-          page.selection.scope === "agent" ? "No agent-local tombstones" : "No skills installed"
-        }
-        emptyDescription={
-          page.selection.scope === "agent"
-            ? "This agent is currently inheriting the effective skill set without disabled logical names."
-            : "Manage availability from the Skills operational page; nothing has been disabled yet."
-        }
-        onToggle={page.toggleDisabled}
-        readOnly={page.isRepositoryProfile}
-        controls={
-          page.isRepositoryProfile ? undefined : (
-            <SettingsInlineSaveControls
-              controlTestIdPrefix="settings-page-skills-disabled"
-              testId="settings-page-skills-disabled-controls"
-              saveLabel="Apply"
-              isDirty={page.isDisabledDirty}
-              isSaving={page.isSavingDisabled}
-              error={page.saveDisabledError}
-              warnings={page.disabledWarnings}
-              lastAppliedLabel={page.lastDisabledLabel}
-              onSave={page.handleSaveDisabled}
-              onReset={page.handleResetDisabled}
-            />
-          )
-        }
-      />
+      <SkillsDisabledPolicy page={page} envelope={envelope} draft={draft} />
       {isPersonalPolicyScope ? (
         <SettingsAdvancedFold
           data-testid="settings-page-skills-advanced"
-          label="Advanced — endpoint & install policy"
+          label="Advanced — install policy"
           padded
         >
           <SettingsSkillsInstallPolicySection draft={draft} onChange={setDraft} />
@@ -193,4 +172,54 @@ export function SkillsSettingsPage() {
       ) : null}
     </SettingsPageFrame>
   );
+}
+
+function SkillsDisabledPolicy({ page, envelope, draft }: LoadedSkillsProps) {
+  return (
+    <SettingsDisabledSkillsSection
+      baselineDisabled={envelope.config.disabled_skills ?? []}
+      disabled={draft.disabled_skills ?? []}
+      note={
+        page.isRepositoryProfile
+          ? "read only · active profile projection"
+          : page.selection.scope === "agent"
+            ? `applies immediately · scoped to ${page.selectedAgent?.name ?? page.selection.agentName}${page.selectedWorkspace ? ` via ${page.selectedWorkspace.name}` : ""}`
+            : "applies immediately · no restart required"
+      }
+      emptyTitle={
+        page.selection.scope === "agent" ? "No agent-local tombstones" : "No skills installed"
+      }
+      emptyDescription={
+        page.selection.scope === "agent"
+          ? "This agent is currently inheriting the effective skill set without disabled logical names."
+          : "No skills have been disabled in this scope."
+      }
+      onToggle={page.toggleDisabled}
+      readOnly={page.isRepositoryProfile}
+      controls={
+        page.isRepositoryProfile ? undefined : (
+          <SettingsInlineSaveControls
+            controlTestIdPrefix="settings-page-skills-disabled"
+            testId="settings-page-skills-disabled-controls"
+            saveLabel="Apply"
+            isDirty={page.isDisabledDirty}
+            isSaving={page.isSavingDisabled}
+            error={page.saveDisabledError}
+            warnings={page.disabledWarnings}
+            lastAppliedLabel={page.lastDisabledLabel}
+            onSave={page.handleSaveDisabled}
+            onReset={page.handleResetDisabled}
+          />
+        )
+      }
+    />
+  );
+}
+
+function skillsScopeLabel(page: SkillsPageModel): string {
+  return page.selection.scope === "user"
+    ? page.personalLabel.toLowerCase()
+    : page.selection.scope === "workspace"
+      ? `workspace ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
+      : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
 }

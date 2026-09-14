@@ -39,7 +39,7 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := extensionpkg.BuildBundle(cmd.Context(), extensionpkg.BuildRequest{SourceDir: sourceDir})
+			result, err := extensionpkg.PrepareDevelopmentGeneration(cmd.Context(), sourceDir)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := extensionpkg.BuildBundle(cmd.Context(), extensionpkg.BuildRequest{SourceDir: sourceDir})
+			result, err := extensionpkg.PrepareDevelopmentGeneration(cmd.Context(), sourceDir)
 			if err != nil {
 				return err
 			}
@@ -247,7 +247,7 @@ func watchExtensionSource(
 			if filesnap.Equal(previous, current) {
 				continue
 			}
-			result, buildErr := extensionpkg.BuildBundle(cmd.Context(), extensionpkg.BuildRequest{SourceDir: sourceDir})
+			result, buildErr := extensionpkg.PrepareDevelopmentGeneration(cmd.Context(), sourceDir)
 			if buildErr != nil {
 				return buildErr
 			}

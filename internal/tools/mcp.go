@@ -233,7 +233,7 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	if isNilInterface(h.auth) {
 		return Available()
 	}
-	status, err := h.auth.Status(ctx, h.descriptor.Source)
+	status, err := h.auth.Status(ctx, h.descriptor.Source, "")
 	if err != nil {
 		return Unavailable(ReasonBackendUnhealthy)
 	}

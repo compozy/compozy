@@ -24,6 +24,7 @@ func sortedKeys[T any](items map[string]T) []string {
 
 func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
+	cloned.HookPlacement = src.ClonePlacement()
 	cloned.Args = slices.Clone(src.Args)
 	cloned.Env = cloneStringMap(src.Env)
 	cloned.SecretEnv = cloneStringMap(src.SecretEnv)
@@ -62,8 +63,8 @@ func cloneStringMap(src map[string]string) map[string]string {
 	return dst
 }
 
-func cloneExtensionInfo(info ExtensionInfo) ExtensionInfo {
-	cloned := info
+func cloneExtensionInfo(info *ExtensionInfo) ExtensionInfo {
+	cloned := *info
 	cloned.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(info.Permissions)
 	cloned.IngestDiagnostics = cloneDiagnosticItems(info.IngestDiagnostics)
@@ -76,6 +77,7 @@ func cloneManifest(src *Manifest) *Manifest {
 	}
 
 	cloned := *src
+	cloned.Inputs = cloneManifestInputs(src.Inputs)
 	cloned.IngestDiagnostics = cloneDiagnosticItems(src.IngestDiagnostics)
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)

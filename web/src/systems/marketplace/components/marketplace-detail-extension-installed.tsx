@@ -11,13 +11,14 @@ import {
 
 import { Empty, MonoId } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import {
   MarketplaceExtensionManageCard,
   MarketplaceExtensionNetworkCard,
   MarketplaceExtensionProvenanceCard,
   MarketplaceExtensionRuntimeCard,
 } from "./marketplace-detail-extension-rail";
+import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   ExtensionDiagnostics,
   ExtensionEnvironmentState,
@@ -45,14 +46,20 @@ import {
 } from "@/systems/extensions";
 
 interface MarketplaceDetailExtensionInstalledProps {
-  data: MarketplaceEntryResponse;
+  data: MarketplaceCatalogEntryResponse;
   logEventSourceFactory?: (url: string) => ExtensionLogEventSource;
+  /** Server cards poll their live Settings definition only while this is on. */
+  liveDataEnabled?: boolean;
 }
 
-/** Installed extension detail: the kit and its runtime are the body; the rail manages it. */
+/**
+ * Installed extension detail: the kit and its runtime are the body; the rail manages it, with a
+ * Server card per provided MCP server right under Manage.
+ */
 function MarketplaceDetailExtensionInstalled({
   data,
   logEventSourceFactory,
+  liveDataEnabled = true,
 }: MarketplaceDetailExtensionInstalledProps) {
   const entry = data.entry;
   const name = entry.installed_name?.trim() || entry.name;
@@ -79,6 +86,10 @@ function MarketplaceDetailExtensionInstalled({
                   : "marketplace-extension-manage-error"
               }
             />
+            <MarketplaceExtensionServerSection
+              inputs={data.extension?.inputs ?? []}
+              servers={data.extension?.mcp_servers ?? []}
+            />
             <MarketplaceExtensionDetailsCard data={data} />
             <MarketplaceExtensionTrustCard trust={entry.trust} />
           </>
@@ -101,7 +112,7 @@ function MarketplaceDetailExtensionInstalled({
                 <ExtensionDeclaredProfiles extension={extension} />
               </MarketplaceDetailSection>
             ) : null}
-            {state.workspaceId === null ? <MarketplaceExtensionKitSection state={state} /> : null}
+            <MarketplaceExtensionKitSection state={state} />
             <MarketplaceExtensionAccessSection extension={extension} />
             <MarketplaceExtensionEnvironmentSection extension={extension} />
             <MarketplaceExtensionDiagnosticsSection extension={extension} />
@@ -120,6 +131,13 @@ function MarketplaceDetailExtensionInstalled({
               onRequestRemoval={state.requestRemoval}
               onToggleEnabled={state.requestToggle}
               togglePending={state.toggle.isPending}
+            />
+            <MarketplaceExtensionServerSection
+              inputs={data.extension?.inputs ?? extension.inputs}
+              installed
+              liveDataEnabled={liveDataEnabled}
+              missingInputs={extension.missing_inputs}
+              servers={extension.mcp_servers}
             />
             <MarketplaceExtensionRuntimeCard extension={extension} facts={facts} />
             <MarketplaceExtensionTrustCard trust={entry.trust} />
@@ -149,7 +167,7 @@ function MarketplaceDetailExtensionInstalled({
       <RemoveExtensionDialog
         extension={extension}
         onOpenChange={open => (open ? state.requestRemoval() : state.dismissDialog())}
-        onRemoved={() => void state.navigate({ search: {}, to: "/marketplace/extensions" })}
+        onRemoved={() => void state.navigate({ search: {}, to: "/marketplace/installed" })}
         open={state.activeDialog === "remove"}
       />
     </>

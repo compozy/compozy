@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appWindow, openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   deleteExposeLink,
@@ -13,15 +13,11 @@ import {
   writeSkillDefinition,
 } from "../fixtures/skill-sources";
 import {
-  marketplaceOperatorSelectors,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
   settingsOperatorSelectors,
 } from "../fixtures/selectors";
-import {
-  skillExposeSelectors,
-  skillSourceSettingsSelectors,
-} from "../fixtures/skill-source-selectors";
+import { skillSourceSettingsSelectors } from "../fixtures/skill-source-selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
@@ -70,7 +66,7 @@ interface SettingsSkillsEnvelope {
 
 interface SkillDetailEnvelope {
   skill: {
-    exposures?: { path: string; target: string }[];
+    exposures?: { path: string; target: string; status: string }[];
   };
 }
 
@@ -268,7 +264,6 @@ test.describe("skill sources", () => {
 
   test("E2E-011: an exposed skill reports missing, repairs, and never touches a foreign entry", async ({
     appPage,
-    browserArtifacts,
     runtime,
   }) => {
     const paths = requirePaths(runtime);
@@ -280,45 +275,38 @@ test.describe("skill sources", () => {
     await ensureProjectWorkspace(appPage, runtime);
     const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
 
-    await openInstalledSkillDetail(appPage, runtime, NATIVE_SKILL);
-    const expose = skillExposeSelectors(appPage);
-    await expect(expose.panel).toBeVisible();
-
-    await expose.pickerTrigger.click();
-    await expose.pickerOption("agents").click();
-    await expose.pickerConfirm.click();
-
-    await expect(expose.rowStatus("agents")).toHaveText("active", { timeout: 20_000 });
-    const detail = await runtime.requestJSON<SkillDetailEnvelope>(
-      `/api/skills/${NATIVE_SKILL}?workspace_id=${encodeURIComponent(workspace.id)}`
-    );
-    const linkPath = detail.skill.exposures?.find(exposure => exposure.target === "agents")?.path;
-    expect(linkPath).toBeDefined();
-    if (linkPath === undefined) {
-      throw new Error("Active agents exposure did not include its resolved filesystem path.");
-    }
+    const detailPath = `/api/skills/${NATIVE_SKILL}?workspace_id=${encodeURIComponent(workspace.id)}`;
+    const exposePath = `/api/skills/${NATIVE_SKILL}/expose`;
+    const exposeRequest = {
+      method: "POST",
+      body: JSON.stringify({ targets: ["agents"], workspace_id: workspace.id }),
+    };
+    const inspect = async () => {
+      const detail = await runtime.requestJSON<SkillDetailEnvelope>(detailPath);
+      return detail.skill.exposures?.find(exposure => exposure.target === "agents");
+    };
+    await runtime.requestJSON(exposePath, exposeRequest);
+    const exposure = await inspect();
+    expect(exposure?.status).toBe("healthy");
+    const linkPath = exposure?.path;
+    if (!linkPath) throw new Error("Healthy exposure must include its filesystem path.");
     expect(await readLinkTarget(linkPath)).not.toBeNull();
-    await browserArtifacts.captureScreenshot("e2e-011-exposed-healthy", appPage);
 
-    // Someone removes our link outside CompozyOS; the record outlives it.
     await deleteExposeLink(linkPath);
-    await openInstalledSkillDetail(appPage, runtime, NATIVE_SKILL);
-    await expect(expose.rowStatus("agents")).toHaveText("the link was deleted", {
-      timeout: 20_000,
-    });
-
-    await expose.exposeAgain("agents").click();
-    await expect(expose.rowStatus("agents")).toHaveText("active", { timeout: 20_000 });
+    await expect.poll(async () => (await inspect())?.status).toBe("missing");
+    await runtime.requestJSON(exposePath, exposeRequest);
+    expect((await inspect())?.status).toBe("healthy");
     expect(await pathExists(linkPath)).toBe(true);
 
-    // Another app takes the path. CompozyOS reports it and offers nothing.
-    await replaceWithForeignLink(linkPath, path.join(paths.operatorHomeDir, "foreign-skill"));
-    await openInstalledSkillDetail(appPage, runtime, NATIVE_SKILL);
-    await expect(expose.row("agents")).toContainText("another app's file is there", {
-      timeout: 20_000,
+    const foreignTarget = path.join(paths.operatorHomeDir, "foreign-skill");
+    await replaceWithForeignLink(linkPath, foreignTarget);
+    await expect.poll(async () => (await inspect())?.status).toBe("foreign_conflict");
+    const conflict = await fetch(runtime.url(exposePath), {
+      ...exposeRequest,
+      headers: { "Content-Type": "application/json" },
     });
-    await expect(expose.row("agents").getByRole("button")).toHaveCount(0);
-    await browserArtifacts.captureScreenshot("e2e-011-foreign-conflict", appPage);
+    expect(conflict.status).toBe(409);
+    expect(await readLinkTarget(linkPath)).toBe(foreignTarget);
   });
 });
 
@@ -356,24 +344,4 @@ async function expectSkillAbsentFromPicker(
   await expect(
     menu.getByTestId("composer-command-item").filter({ hasText: skillName })
   ).toHaveCount(0, { timeout: 20_000 });
-}
-
-async function openInstalledSkillDetail(
-  appPage: import("@playwright/test").Page,
-  runtime: BrowserRuntime,
-  name: string
-): Promise<void> {
-  await appPage.goto(runtime.url("/marketplace/skills"), { waitUntil: "domcontentloaded" });
-  const marketplaceWin = appWindow(appPage, "marketplace");
-  await expect(marketplaceWin).toBeVisible();
-  const marketplace = marketplaceOperatorSelectors(marketplaceWin);
-  await expect(marketplace.kind("skill")).toBeVisible();
-  await appPage.getByTestId("marketplace-kind-search-skill").fill(name);
-  await appPage
-    .getByTestId(/^marketplace-installed-card-/)
-    .filter({ hasText: name })
-    .first()
-    .getByRole("link", { name: `View ${name} details` })
-    .click();
-  await expect(marketplace.detail).toContainText(name);
 }

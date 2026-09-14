@@ -11,18 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *BaseHandlers) marketplaceReadActorContext(
-	c *gin.Context,
-	action string,
+func (h *BaseHandlers) marketplaceReadActorForScope(
+	c *gin.Context, action string, scope marketplaceReadScope,
 ) (*taskpkg.ActorContext, bool) {
-	scope, err := parseMarketplaceReadScope(c.Query("scope"), c.Query("workspace_id"), c.Query("profile"))
-	if err != nil {
-		h.respondMarketplaceError(c, err)
-		return nil, false
-	}
 	if scope.scope == settingspkg.ScopeUser {
 		return nil, true
 	}
+	var err error
 
 	action = "marketplace." + strings.TrimSpace(action)
 	var actor taskpkg.ActorContext

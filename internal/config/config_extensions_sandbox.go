@@ -8,14 +8,12 @@ import (
 
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
-	Enabled                 bool              `toml:"enabled"`
-	Sources                 []string          `toml:"sources,omitempty"`
-	CustomSources           []string          `toml:"custom_sources,omitempty"`
-	DisabledSkills          []string          `toml:"disabled_skills,omitempty"`
-	PollInterval            time.Duration     `toml:"poll_interval"`
-	AllowedMarketplaceMCP   []string          `toml:"allowed_marketplace_mcp,omitempty"`
-	AllowedMarketplaceHooks []string          `toml:"allowed_marketplace_hooks,omitempty"`
-	Marketplace             MarketplaceConfig `toml:"marketplace,omitempty"`
+	Enabled                 bool          `toml:"enabled"`
+	Sources                 []string      `toml:"sources,omitempty"`
+	CustomSources           []string      `toml:"custom_sources,omitempty"`
+	DisabledSkills          []string      `toml:"disabled_skills,omitempty"`
+	PollInterval            time.Duration `toml:"poll_interval"`
+	AllowedMarketplaceHooks []string      `toml:"allowed_marketplace_hooks,omitempty"`
 }
 
 // ExtensionsConfig controls extension trust, sources, development, and resource policy.

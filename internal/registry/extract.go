@@ -33,10 +33,6 @@ var (
 	ErrUnsupportedArchiveEntryType = errors.New("unsupported archive entry type")
 	// ErrArchiveDuplicateEntry reports that an archive declared the same path more than once.
 	ErrArchiveDuplicateEntry = errors.New("archive contains duplicate entry")
-	// ErrPathRootRequired reports that PathWithinRoot received a blank root path.
-	ErrPathRootRequired = errors.New("root path is required")
-	// ErrPathOutsideRoot reports that a path resolves outside the provided root.
-	ErrPathOutsideRoot = errors.New("path must stay within the root directory")
 	// ErrPathTraversesSymlink reports a symlink or reparse point in the staging tree.
 	ErrPathTraversesSymlink = errors.New("path traverses symlink")
 
@@ -45,26 +41,30 @@ var (
 	errArchiveTooDeep      = errors.New("registry: archive entry exceeds max depth")
 )
 
-type extractLimits struct {
-	maxDecompressedSize int64
-	maxFileCount        int
-	maxDepth            int
+// ExtractionLimits bounds archive expansion; nonpositive fields use package defaults.
+type ExtractionLimits struct {
+	// MaxBytes counts decompressed TAR bytes, including metadata and padding.
+	MaxBytes int64
+	// MaxFiles counts files and directories, including implicit parents.
+	MaxFiles int
+	// MaxDepth counts path components relative to the extraction root.
+	MaxDepth int
 }
 
-func (l extractLimits) normalized() extractLimits {
-	if l.maxDecompressedSize <= 0 {
-		l.maxDecompressedSize = DefaultMaxDecompressedSize
+func (l ExtractionLimits) normalized() ExtractionLimits {
+	if l.MaxBytes <= 0 {
+		l.MaxBytes = DefaultMaxDecompressedSize
 	}
-	if l.maxFileCount <= 0 {
-		l.maxFileCount = DefaultMaxFileCount
+	if l.MaxFiles <= 0 {
+		l.MaxFiles = DefaultMaxFileCount
 	}
-	if l.maxDepth <= 0 {
-		l.maxDepth = DefaultMaxArchiveDepth
+	if l.MaxDepth <= 0 {
+		l.MaxDepth = DefaultMaxArchiveDepth
 	}
 	return l
 }
 
-func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLimits) (err error) {
+func extractArchive(reader io.Reader, root *fileutil.Directory, limits ExtractionLimits) (err error) {
 	if root == nil {
 		return ErrArchiveRootRequired
 	}
@@ -79,11 +79,18 @@ func extractArchive(reader io.Reader, root *fileutil.Directory, limits extractLi
 			err = errors.Join(err, fmt.Errorf("close gzip stream: %w", closeErr))
 		}
 	}()
+	return extractTar(gzipReader, root, limits)
+}
 
-	decompressed := newDecompressedArchiveReader(gzipReader, limits.maxDecompressedSize)
+func extractTar(reader io.Reader, root *fileutil.Directory, limits ExtractionLimits) error {
+	if root == nil {
+		return ErrArchiveRootRequired
+	}
+	limits = limits.normalized()
+	decompressed := newDecompressedArchiveReader(reader, limits.MaxBytes)
 	tarReader := tar.NewReader(decompressed)
 	seenEntries := make(map[string]struct{})
-	treeBudget := newArchiveTreeBudget(limits.maxFileCount, limits.maxDepth)
+	treeBudget := newArchiveTreeBudget(limits.MaxFiles, limits.MaxDepth)
 	for {
 		header, readErr := tarReader.Next()
 		if errors.Is(readErr, io.EOF) {

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/extensionmcp"
+
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -18,6 +20,220 @@ import (
 )
 
 const testMCPDefinitionFingerprint = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+// Invariant: OAuth tokens, registrations, and secrets are isolated by owner through save, reopen, and logout.
+// Owner: globaldb Vault persistence. Canonical suite: global_db_mcp_auth_test.go.
+func TestMCPAuthOwnerIsolation(t *testing.T) {
+	t.Parallel()
+	// Invariant: scoped allocations are sticky and override edits cannot rename another definition.
+	// Owner: extension MCP persistence; canonical suite: global_db_mcp_auth_test.go, IT-021.
+	t.Run("Should persist collision-free names and isolated overrides across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		db, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Error(err)
+			}
+		})
+		target := extensionmcp.Target{Extension: "github", ProfileID: store.DefaultProfileID, ServerName: "github"}
+		allocated, err := db.ExtensionMCP.Reserve(ctx, target, "", []string{"github", "github.github"})
+		if err != nil || allocated.RuntimeName != "github.github.2" {
+			t.Fatalf("allocation=%#v: %v", allocated, err)
+		}
+		if err := db.ExtensionMCP.Update(
+			ctx,
+			target,
+			extensionmcp.Override{Env: map[string]string{"REGION": "eu"}, URL: "https://example.com/override"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		other := target
+		other.Extension = "other"
+		if _, err := db.ExtensionMCP.Reserve(
+			ctx,
+			other,
+			allocated.RuntimeName,
+			nil,
+		); !errors.Is(
+			err,
+			extensionmcp.ErrNameTaken,
+		) {
+			t.Fatalf("explicit duplicate accepted: %v", err)
+		}
+		second, err := db.ExtensionMCP.Reserve(ctx, other, "", nil)
+		if err != nil || second.RuntimeName != "github" {
+			t.Fatalf("free plain name not selected: %#v %v", second, err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		db, err = OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		retained, err := db.ExtensionMCP.Reserve(ctx, target, "", nil)
+		if err != nil || retained.RuntimeName != allocated.RuntimeName || retained.Env["REGION"] != "eu" ||
+			retained.URL != "https://example.com/override" {
+			t.Fatalf("allocation/override changed on reopen: %#v %v", retained, err)
+		}
+		if _, err := db.ExtensionMCP.Reserve(
+			ctx,
+			target,
+			"",
+			[]string{retained.RuntimeName},
+		); !errors.Is(
+			err,
+			extensionmcp.ErrNameTaken,
+		) {
+			t.Fatalf("manual collision did not fail: %v", err)
+		}
+		if err := db.ExtensionMCP.DeleteInstance(ctx, other.Extension, other.ProfileID, other.WorkspaceID); err != nil {
+			t.Fatal(err)
+		}
+		sticky, err := db.ExtensionMCP.Reserve(ctx, target, "", nil)
+		if err != nil || sticky.RuntimeName != allocated.RuntimeName {
+			t.Fatalf("removing competitor renamed allocation: %v", err)
+		}
+		workspace := target
+		workspace.WorkspaceID = "workspace-a"
+		isolated, err := db.ExtensionMCP.Reserve(ctx, workspace, "", nil)
+		if err != nil || isolated.RuntimeName != "github" || len(isolated.Env) != 0 {
+			t.Fatalf("scope leaked override/allocation: %#v %v", isolated, err)
+		}
+		// Invariant: committed removal releases all profile projections, preserving workspace instances.
+		named := target
+		named.ProfileID = "named-profile"
+		if _, err := db.ExtensionMCP.Reserve(ctx, named, "", nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(ctx, `CREATE TRIGGER fail_mcp_retirement BEFORE DELETE ON extension_mcp_overrides WHEN OLD.profile = 'named-profile' BEGIN SELECT RAISE(ABORT, 'retirement failure'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ExtensionMCP.DeleteWorkspace(ctx, target.Extension, ""); err == nil {
+			t.Fatal("retirement fault ignored")
+		}
+		rows, err := db.ExtensionMCP.ListAll(ctx)
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("partial retirement: %#v %v", rows, err)
+		}
+		// Invariant: failed-install allocation cleanup is atomic across exact targets.
+		// Owner: SQLite allocation persistence; canonical suite: TestMCPAuthOwnerIsolation.
+		if err := db.ExtensionMCP.DeleteTargets(ctx, []extensionmcp.Target{target, named}); err == nil {
+			t.Fatal("batch retirement fault ignored")
+		}
+		rows, err = db.ExtensionMCP.ListAll(ctx)
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("partial batch retirement: %#v %v", rows, err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `DROP TRIGGER fail_mcp_retirement`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ExtensionMCP.DeleteWorkspace(ctx, target.Extension, ""); err != nil {
+			t.Fatal(err)
+		}
+		rows, err = db.ExtensionMCP.ListAll(ctx)
+		if err != nil || len(rows) != 1 || rows[0].WorkspaceID != workspace.WorkspaceID {
+			t.Fatalf("retirement crossed workspace: %#v %v", rows, err)
+		}
+		if _, err := db.ExtensionMCP.Reserve(ctx, other, allocated.RuntimeName, nil); err != nil {
+			t.Fatalf("committed removal did not release name: %v", err)
+		}
+	})
+	t.Run(
+		"Should keep equal server names independent for manual and extension owners in every scope [IT-021]",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			db, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			var targets []mcpauth.Target
+			issuedAt := time.Now().UTC()
+			for _, cell := range []mcpauth.Target{
+				{Scope: mcpauth.ScopeUser, ServerName: "github"},
+				{Scope: mcpauth.ScopeProfile, WorkspaceID: "marketing", ServerName: "github"},
+				{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "github"},
+				{Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "workspace-a@pf:marketing", ServerName: "github"},
+			} {
+				for _, owner := range []string{"manual", "extension:github", "extension:other"} {
+					target := cell
+					target.Owner = owner
+					targets = append(targets, target)
+					token := mcpAuthorizationTokenRecord(target, issuedAt)
+					token.AccessToken = string(target.Scope) + ":" + owner
+					if err := db.SaveMCPAuthToken(ctx, token); err != nil {
+						t.Fatal(err)
+					}
+					registration := mcpOAuthRegistrationRecord(t, target, issuedAt)
+					registration.ClientID = owner
+					secrets := mcpOAuthRegistrationSecrets()
+					secrets.ClientSecret = token.AccessToken
+					if _, err := db.SaveMCPAuthRegistration(ctx, registration, secrets); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			db, err = OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			secretVault, err := db.vaultService()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, target := range targets {
+				token, err := db.GetMCPAuthToken(ctx, target)
+				if err != nil || token.Target != target || token.AccessToken != string(target.Scope)+":"+target.Owner {
+					t.Fatalf("owner token isolation failed for %v: %v", target, err)
+				}
+				registration, err := db.GetMCPAuthRegistration(ctx, target)
+				if err != nil || registration.Target != target || registration.ClientID != target.Owner {
+					t.Fatalf("owner registration isolation failed for %v: %v", target, err)
+				}
+				secret, err := secretVault.ResolveRef(ctx, registration.ClientSecretRef)
+				if err != nil || secret != token.AccessToken {
+					t.Fatalf("owner registration secret isolation failed for %v: %v", target, err)
+				}
+				if target.Owner == "extension:github" {
+					if err := db.DeleteMCPAuthorizationState(ctx, target); err != nil {
+						t.Fatal(err)
+					}
+					for _, ref := range mcpAuthorizationSecretRefs(t, target, registration) {
+						assertVaultRefPresence(ctx, t, db.db, ref, false)
+					}
+				}
+			}
+			for _, target := range targets {
+				_, tokenErr := db.GetMCPAuthToken(ctx, target)
+				_, registrationErr := db.GetMCPAuthRegistration(ctx, target)
+				if target.Owner == "extension:github" {
+					if !errors.Is(tokenErr, mcpauth.ErrTokenNotFound) ||
+						!errors.Is(registrationErr, mcpauth.ErrRegistrationNotFound) {
+						t.Fatalf("logout retained authorization for %v", target)
+					}
+				} else if tokenErr != nil || registrationErr != nil {
+					t.Fatalf("logout removed another owner's state: %v, %v", tokenErr, registrationErr)
+				}
+			}
+		},
+	)
+}
 
 func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.T) {
 	t.Parallel()
@@ -294,7 +510,13 @@ func TestMCPAuthTokenStoreIsolatesSameNamedScopedCredentials(t *testing.T) {
 			).Scan(&accessRef); err != nil {
 				t.Fatalf("query access ref for %#v error = %v", target, err)
 			}
-			prefix, err := vault.MCPSecretOwnerPrefix(string(target.Scope), target.WorkspaceID, target.ServerName)
+			prefix, err := vault.MCPSecretOwnerPrefix(
+				vault.MCPSecretTarget{
+					Scope:       string(target.Scope),
+					WorkspaceID: target.WorkspaceID,
+					ServerName:  target.ServerName,
+				},
+			)
 			if err != nil {
 				t.Fatalf("MCPSecretOwnerPrefix(%#v) error = %v", target, err)
 			}
@@ -505,6 +727,63 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 
 func TestMCPAuthTokenScopeMigration(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should backfill both OAuth owners as manual without changing credential rows or vault bytes [IT-016]",
+		func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			previous, err := sql.Open(sqliteDriverName, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := previous.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := applyGlobalMigrationPrefix(
+				t,
+				previous,
+				globalMigrationPrefixBefore(t, "00113_schema.sql"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			ctx := testutil.Context(t)
+			queries := seedMCPOwnerMigrationFixture(t, previous)
+			before := make([]string, len(queries))
+			for i, query := range queries {
+				if err := previous.QueryRowContext(ctx, query).Scan(&before[i]); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := previous.Close(); err != nil {
+				t.Fatal(err)
+			}
+			migrated, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := migrated.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			for i, query := range queries {
+				var after string
+				if err := migrated.db.QueryRowContext(ctx, query).Scan(&after); err != nil || after != before[i] {
+					t.Fatalf("migration changed preserved credential projection %d: %v", i, err)
+				}
+			}
+			for _, table := range []string{"mcp_auth_tokens", "mcp_oauth_registrations"} {
+				var owner string
+				if err := migrated.db.QueryRowContext(ctx, "SELECT owner FROM "+table).
+					Scan(&owner); err != nil ||
+					owner != "manual" {
+					t.Fatalf("migration owner for %s = %q: %v", table, owner, err)
+				}
+			}
+		},
+	)
 	t.Run("Should hard-cut name-only tokens while preserving scoped marketplace secrets", func(t *testing.T) {
 		t.Parallel()
 
@@ -900,7 +1179,7 @@ func mcpAuthorizationSecretRefs(
 	registration mcpauth.ClientRegistration,
 ) []string {
 	t.Helper()
-	prefix, err := vault.MCPSecretOwnerPrefix(string(target.Scope), target.WorkspaceID, target.ServerName)
+	prefix, err := vault.MCPSecretOwnerPrefix(target.VaultTarget())
 	if err != nil {
 		t.Fatalf("MCPSecretOwnerPrefix(%#v) error = %v", target, err)
 	}
@@ -910,4 +1189,60 @@ func mcpAuthorizationSecretRefs(
 		registration.ClientSecretRef,
 		registration.RegistrationAccessTokenRef,
 	}
+}
+
+func seedMCPOwnerMigrationFixture(t *testing.T, previous *sql.DB) []string {
+	t.Helper()
+	ctx := testutil.Context(t)
+	const prefix = "vault:mcp/user/github/oauth/"
+	const timestamp = "2026-09-12T12:00:00Z"
+	for _, suffix := range []string{"access-token", "refresh-token", "dcr-client-secret", "registration-access-token"} {
+		if _, err := previous.ExecContext(
+			ctx,
+			`INSERT INTO vault_secrets(ref, kind, encrypted_value, created_at, updated_at)
+		VALUES (?, 'mcp-oauth', ?, ?, ?)`,
+			prefix+suffix,
+			"ciphertext:"+suffix,
+			timestamp,
+			timestamp,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := previous.ExecContext(ctx, `INSERT INTO mcp_auth_tokens(
+	scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+	access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at
+) VALUES ('user', '', 'github', ?, 'https://issuer.example', 'preserved-client', '["read"]', ?, ?,
+	'Bearer', ?, ?, ?)`, testMCPDefinitionFingerprint, prefix+"access-token", prefix+"refresh-token",
+		timestamp, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := previous.ExecContext(
+		ctx,
+		`INSERT INTO mcp_oauth_registrations(
+	scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+	token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
+	client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at
+) VALUES ('user', '', 'github', ?, 'https://mcp.example', 'https://issuer.example', 'preserved-client',
+	'client_secret_basic', ?, ?, 'https://issuer.example/register/client', ?, ?,
+	'http://127.0.0.1:8787/callback', '["read"]', ?)`,
+		testMCPDefinitionFingerprint,
+		prefix+"dcr-client-secret",
+		prefix+"registration-access-token",
+		timestamp,
+		timestamp,
+		timestamp,
+	); err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{
+		`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+		access_token_ref, refresh_token_ref, token_type, expires_at, obtained_at, updated_at) FROM mcp_auth_tokens`,
+		`SELECT json_array(scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+		token_endpoint_auth_method, client_secret_ref, registration_access_token_ref, registration_client_uri,
+		client_id_issued_at, client_secret_expires_at, redirect_uri, scopes_json, updated_at) FROM mcp_oauth_registrations`,
+		`SELECT json_group_array(json_array(ref, kind, encrypted_value, created_at, updated_at))
+		FROM (SELECT * FROM vault_secrets ORDER BY ref)`,
+	}
+	return queries
 }

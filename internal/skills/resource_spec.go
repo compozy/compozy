@@ -269,6 +269,7 @@ func cloneSkillHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
 	cloned := make([]hookspkg.HookDecl, 0, len(src))
 	for _, decl := range src {
 		next := decl
+		next.HookPlacement = decl.ClonePlacement()
 		next.Args = append([]string(nil), decl.Args...)
 		next.Env = cloneStringMap(decl.Env)
 		next.SecretEnv = cloneStringMap(decl.SecretEnv)

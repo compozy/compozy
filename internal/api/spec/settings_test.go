@@ -103,11 +103,6 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			},
 			{path: "/api/settings/mcp-servers", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
-				path:       "/api/settings/mcp-servers/install",
-				method:     "POST",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
-			{
 				path:       "/api/settings/mcp-servers/{name}/auth/begin",
 				method:     "POST",
 				transports: []Transport{TransportHTTP, TransportUDS},
@@ -830,35 +825,6 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
 		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env")
 
-		installMCP := operationFor(t, doc, "/api/settings/mcp-servers/install", "POST")
-		installMCPSchema := jsonRequestSchema(t, installMCP)
-		assertRequired(t, installMCPSchema, "entry_id", "values")
-		assertNotRequired(t, installMCPSchema, "name", "scope", "workspace_id", "profile")
-		assertEnumValues(t, propertySchema(t, installMCPSchema, "scope"), "profile", "user", "workspace")
-		installValuesSchema := propertySchema(t, installMCPSchema, "values")
-		installInputsSchema := propertySchema(t, installValuesSchema, "inputs")
-		if installInputsSchema.AdditionalProperties.Schema == nil ||
-			installInputsSchema.AdditionalProperties.Schema.Value == nil {
-			t.Fatal("install values.inputs additionalProperties schema = nil")
-		}
-		assertMCPSecretInputExactlyOneOf(t, installInputsSchema.AdditionalProperties.Schema.Value)
-		assertPropertyAbsent(t, installValuesSchema, "env")
-		assertPropertyAbsent(t, installValuesSchema, "oauth_client_secret")
-		installMCPResponseSchema := jsonResponseSchema(t, installMCP, 200)
-		assertRequired(t, installMCPResponseSchema, "mcp_server", "apply", "next_step")
-		installApplySchema := propertySchema(t, installMCPResponseSchema, "apply")
-		assertRequired(
-			t,
-			installApplySchema,
-			"applied",
-			"lifecycle",
-			"apply_record_id",
-			"active_generation",
-			"active_config_hash",
-			"next_action",
-		)
-		assertEnumValues(t, propertySchema(t, installMCPResponseSchema, "next_step"), "authorize", "none")
-
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
 		assertNotRequired(t, mcpListSchema, "workspace_id", "profile")
@@ -985,40 +951,6 @@ func assertSettingsUpdateTargetSetSchema(t *testing.T, schema *openapi3.Schema) 
 				t.Fatalf("settings update target set schema accepts invalid targets %v", test.value)
 			}
 		})
-	}
-}
-
-func assertMCPSecretInputExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
-	t.Helper()
-
-	if len(schema.OneOf) != 2 {
-		t.Fatalf("MCP secret input oneOf = %#v, want two variants", schema.OneOf)
-	}
-	wantProperties := map[string]bool{"value": false, "vault_ref": false}
-	for _, variantRef := range schema.OneOf {
-		if variantRef == nil || variantRef.Value == nil {
-			t.Fatalf("MCP secret input variant = %#v, want concrete schema", variantRef)
-		}
-		variant := variantRef.Value
-		if len(variant.Required) != 1 || len(variant.Properties) != 1 {
-			t.Fatalf("MCP secret input variant = %#v, want one required property", variant)
-		}
-		property := variant.Required[0]
-		if _, ok := wantProperties[property]; !ok {
-			t.Fatalf("MCP secret input property = %q, want value or vault_ref", property)
-		}
-		if _, ok := variant.Properties[property]; !ok {
-			t.Fatalf("MCP secret input variant missing required property %q", property)
-		}
-		if variant.AdditionalProperties.Has == nil || *variant.AdditionalProperties.Has {
-			t.Fatalf("MCP secret input %q variant allows additional properties", property)
-		}
-		wantProperties[property] = true
-	}
-	for property, found := range wantProperties {
-		if !found {
-			t.Fatalf("MCP secret input oneOf missing %q variant", property)
-		}
 	}
 }
 

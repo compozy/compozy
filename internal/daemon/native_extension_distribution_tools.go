@@ -52,18 +52,35 @@ func (n *daemonNativeTools) extensionSearch(
 
 func (n *daemonNativeTools) extensionProvenance(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionNameInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
+	name, err := requiredNativeExtensionName(req.ToolID, input.Name, input.Owner)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	provenance, err := n.extensionService().Provenance(ctx, name)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
+	}
+	var provenance contract.ExtensionProvenancePayload
+	if nativeExtensionDefaultRead(actor) {
+		provenance, err = n.extensionService().Provenance(ctx, name)
+	} else {
+		var item contract.ExtensionPayload
+		item, err = n.extensionService().StatusScoped(ctx, name, actor)
+		if err == nil {
+			if item.Provenance == nil {
+				err = extensionpkg.ErrExtensionNotFound
+			} else {
+				provenance = *item.Provenance
+			}
+		}
+	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}

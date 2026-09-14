@@ -81,44 +81,53 @@ func (s *daemonExtensionService) SetEnablement(
 		if err != nil {
 			return err
 		}
-		previous, err := s.registry.IsEnabledForProfile(name, profile.ID)
-		if err != nil {
-			return err
-		}
 		result = contract.ExtensionEnablementPayload{Profile: profile.Name, Enabled: req.Enabled}
-		if previous == req.Enabled {
-			return nil
-		}
-		if err := s.registry.SetEnabledForProfile(name, profile.ID, req.Enabled); err != nil {
-			return err
-		}
-		if err := s.reload(ctx); err != nil {
-			return s.rollbackProfileEnablement(ctx, name, profile.ID, previous, err)
-		}
-		if err := s.recordExtensionEnablementChanged(
-			ctx, actor, name, profile.ID, profile.Name, req.Enabled,
-		); err != nil {
-			return s.rollbackProfileEnablement(ctx, name, profile.ID, previous, err)
-		}
-		if s.paletteNotifier != nil {
-			if err := s.paletteNotifier.NotifyExtensionProfileChanged(
-				ctx,
-				"",
-				name,
-				cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(profile.ID), profile.Name),
-			); err != nil {
-				return s.rollbackProfileEnablement(
-					ctx, name, profile.ID, previous,
-					fmt.Errorf("daemon: invalidate extension palette: %w", err),
-				)
-			}
-		}
-		return nil
+		return s.applyProfileEnablement(ctx, name, profile.ID, profile.Name, req.Enabled, actor)
 	})
 	if err != nil {
 		return contract.ExtensionEnablementPayload{}, err
 	}
 	return result, nil
+}
+
+func (s *daemonExtensionService) applyProfileEnablement(
+	ctx context.Context, name, profileID, profileName string, enabled bool, actor taskpkg.ActorContext,
+) error {
+	previous, err := s.registry.IsEnabledForProfile(name, profileID)
+	if err != nil {
+		return err
+	}
+	if previous == enabled {
+		return nil
+	}
+	if err := s.checkProfileEnablementInputs(ctx, name, profileID, enabled); err != nil {
+		return err
+	}
+	if err := s.registry.SetEnabledForProfile(name, profileID, enabled); err != nil {
+		return err
+	}
+	if err := s.reload(ctx); err != nil {
+		return s.rollbackProfileEnablement(ctx, name, profileID, previous, err)
+	}
+	if err := s.recordExtensionEnablementChanged(
+		ctx, actor, name, profileID, profileName, enabled,
+	); err != nil {
+		return s.rollbackProfileEnablement(ctx, name, profileID, previous, err)
+	}
+	if s.paletteNotifier != nil {
+		if err := s.paletteNotifier.NotifyExtensionProfileChanged(
+			ctx,
+			"",
+			name,
+			cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(profileID), profileName),
+		); err != nil {
+			return s.rollbackProfileEnablement(
+				ctx, name, profileID, previous,
+				fmt.Errorf("daemon: invalidate extension palette: %w", err),
+			)
+		}
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) bindExtensionEnablementActor(

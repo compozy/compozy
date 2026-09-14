@@ -1,9 +1,11 @@
-# CH-marketplace-under-a-minute: The mid-session operator acquires each marketplace kind under a minute
+# CH-marketplace-under-a-minute: Acquire an extension under a minute
+
+Mission updated for the approved Marketplace hard cut. Historical debriefs stay in their dated reports; task_10 owns the next run.
 
 ```yaml
 charter:
   id: CH-marketplace-under-a-minute
-  mission: "As Bruno, mid-session, detour to Marketplace and acquire one skill, extension, and MCP server born-valid — capturing per-kind wall-clock from opening Marketplace to installed, each under 60 seconds — and prove discovery, management, and update states agree afterwards."
+  mission: "Acquire an extension under a minute, with truthful origin, destination and persisted state."
   mode: charter-with-tour
   persona:
     name: Bruno
@@ -11,23 +13,14 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-marketplace-acquisition
-  scenarios: [ET-web-marketplace-landing-browse, ET-web-marketplace-search-fanout, ET-web-marketplace-skill-install, ET-web-mcp-guided-install, ET-web-ext-policy-block, ET-web-catalog-navigation, ET-web-extensions-manage, ET-web-extension-detail, ET-web-extension-kit-inventory, ET-010, ET-014]
+  scenarios: [ET-web-marketplace-landing-browse, ET-web-marketplace-sources-add, ET-web-marketplace-sources-manage, ET-web-marketplace-installed-management]
   tour: Money Tour
-  time_box_minutes: 90
+  time_box_minutes: 60
   guidance:
     must_try:
-      - "Start a timer when the Marketplace sidebar item is clicked and stop it at the kind's true end (skill: installed + Manage lands on /skills/$name; extension: installed with truthful provenance and kit inventory; MCP: structurally valid server with truthful readiness on /mcp). Record all three timings — the PRD anchor is <60s per kind."
-      - "Search once and break one kind's source (isolated feed): the failed section owns its error strip while the other kinds stay usable; an all-zero query offers one clear-search recovery."
-      - "Attempt the unverified extension under default policy: Install must be focusable-but-unavailable, explain the real warning, link Settings › Extensions, and write nothing. Do the keyboard walk knowing BUG-20260714-keyboard-focus-invisible is open — record whether focus is findable, don't work around it."
-      - "In the MCP guided modal, submit with a missing required value and with a dangling vault ref: both must block with nothing written; then complete with one typed and one vault-referenced secret and confirm no plaintext in network, DOM, or fresh settings reads."
-      - "After each acquisition, re-read the marketplace and the kind's management home on a fresh load: installed state, version, provenance, kit inventory, and update badges must agree (skills/extensions semver only; MCP badge-less)."
-      - "Verify the sidebar Catalog order is exactly Marketplace · Extensions · Bridges · Skills · MCP · Knowledge, and /skills is installed-only with the Browse Marketplace recovery in topbar and empty state."
+      - "Time from opening Browse to a usable installed extension from the curated feed and then a team plugin source; record each duration against 60 seconds."
+      - "Compare the three-source landing, search-empty and degraded sections with the approved boards; use keyboard and a narrow window."
+      - "Cancel preview, supply required inputs, confirm unverified acquisition once, then verify origin and resources on a fresh Installed read."
     must_avoid:
-      - "Authorizing the MCP server (CH-mcp-authorize-repair-truth owns it); changing extension policy (CH-extension-policy-admin-gates owns Settings › Extensions); CLI/API acquisition (CH-agent-marketplace-parity)."
-  evidence_expectations:
-    - "A per-kind timing table (start/stop timestamps, elapsed seconds, pass/fail vs 60s) in the run report — this is the PRD time-to-acquire anchor's capture."
-    - "Screenshots at each kind's true end state and at the partial-failure strip; fresh-read JSON or screenshot proving discovery/management agreement per kind."
-    - "For every blocked install attempt: proof nothing was written (fresh settings/extensions/skills reads)."
+      - "Do not use retired per-kind Marketplace acquisition as a fallback or expose credentials in evidence."
 ```
-
-<!-- The charter is durable and immutable: each run's debrief belongs in that run's dated report. -->

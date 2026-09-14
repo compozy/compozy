@@ -43,6 +43,10 @@ func parseExtensionInstallPlan(
 		request.Source = contract.InstallExtensionSourceLocalPath
 		request.Ref = path
 		return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
+	case strings.HasPrefix(trimmed, "marketplace:"):
+		request.Source = contract.InstallExtensionSourceMarketplace
+		request.Ref = strings.TrimPrefix(trimmed, "marketplace:")
+		return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
 	case strings.HasPrefix(trimmed, "github:"):
 		request.Source = contract.InstallExtensionSourceGitHub
 		request.Ref = strings.TrimSpace(strings.TrimPrefix(trimmed, "github:"))
@@ -69,6 +73,9 @@ func parseExtensionInstallPlan(
 		}
 		request.Ref = trimmed
 		request.Source = contract.InstallExtensionSourceCurated
+		if strings.HasPrefix(trimmed, "compozy/") {
+			return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
+		}
 		githubRequest := request
 		githubRequest.Source = contract.InstallExtensionSourceGitHub
 		return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request, githubRequest}}, nil

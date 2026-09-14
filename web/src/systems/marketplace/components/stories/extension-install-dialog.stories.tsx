@@ -7,6 +7,7 @@ import { ExtensionInstallDialog } from "../extension-install-dialog";
 
 const PREVIEW = {
   name: "growth-kit",
+  inputs: [],
   declared_profiles: [
     {
       create: true,
@@ -46,5 +47,59 @@ export const DeclaredProfilesReview: Story = {
     onFormChange: fn(),
     onOpenChange: fn(),
     onSubmit: fn(),
+  },
+};
+
+export const PackagedInputs: Story = {
+  args: {
+    ...DeclaredProfilesReview.args,
+    preview: {
+      ...PREVIEW,
+      name: "durable-input-kit",
+      digest_sha256: "a".repeat(64),
+      inputs: [
+        {
+          id: "token",
+          prompt: "API key",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "TOKEN" },
+        },
+        {
+          id: "workspace_id",
+          prompt: "Workspace",
+          type: "identifier",
+          required: true,
+          binding: { type: "url_query", name: "workspace" },
+        },
+        {
+          id: "read_only",
+          prompt: "Read only",
+          type: "boolean",
+          required: false,
+          default: false,
+          binding: { type: "url_query", name: "read_only" },
+        },
+      ],
+    },
+  },
+};
+
+export const OptionalInput: Story = {
+  args: {
+    ...DeclaredProfilesReview.args,
+    preview: {
+      ...PREVIEW,
+      name: "context7",
+      inputs: [
+        {
+          id: "context7_api_key",
+          prompt: "Context7 API key",
+          type: "secret",
+          required: false,
+          binding: { type: "env", name: "CONTEXT7_API_KEY" },
+        },
+      ],
+    },
   },
 };

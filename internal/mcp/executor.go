@@ -56,7 +56,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	resolved, err := e.resolveServer(ctx, source)
+	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -137,7 +137,7 @@ func (e *CallExecutor) CallTool(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	resolved, err := e.resolveServer(ctx, source)
+	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -224,7 +224,7 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 // Status returns token-redacted auth diagnostics for registry availability.
 func (e *CallExecutor) Status(
 	ctx context.Context,
-	source toolspkg.SourceRef,
+	source toolspkg.SourceRef, definitionOwner string,
 ) (status toolspkg.MCPAuthStatus, err error) {
 	if e == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
@@ -247,7 +247,7 @@ func (e *CallExecutor) Status(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	resolved, err := e.resolveServer(ctx, source)
+	resolved, err := e.resolveServer(ctx, source, definitionOwner)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
 	}
@@ -260,7 +260,7 @@ func (e *CallExecutor) callContext(ctx context.Context) (context.Context, contex
 
 func (e *CallExecutor) resolveServer(
 	ctx context.Context,
-	source toolspkg.SourceRef,
+	source toolspkg.SourceRef, definitionOwner string,
 ) (ResolvedServer, error) {
 	if ctx == nil {
 		return ResolvedServer{}, toolspkg.NewToolError(
@@ -271,7 +271,7 @@ func (e *CallExecutor) resolveServer(
 			toolspkg.ReasonCallCanceled,
 		)
 	}
-	resolved, err := e.servers.ResolveMCPServer(ctx, source)
+	resolved, err := e.servers.ResolveMCPServer(ctx, source, definitionOwner)
 	if err != nil {
 		return ResolvedServer{}, fmt.Errorf("mcp: resolve configured server: %w", err)
 	}
@@ -361,10 +361,10 @@ func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {
 	if target == "" {
 		return false
 	}
-	if strings.TrimSpace(server.Name) == target {
+	if strings.TrimSpace(server.Name) == target || server.EffectiveRuntimeName() == target {
 		return true
 	}
-	id, err := toolspkg.Canonicalize(server.Name, "tool")
+	id, err := toolspkg.Canonicalize(server.EffectiveRuntimeName(), "tool")
 	if err != nil {
 		return false
 	}

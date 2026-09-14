@@ -132,7 +132,53 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a client-only manifest below the single archive wrapper", func(t *testing.T) {
+	for _, layout := range []string{".claude-plugin", ".codex-plugin", ".cursor-plugin"} {
+		for _, tc := range []struct {
+			name    string
+			schema  string
+			wantErr bool
+		}{
+			{"Should accept an omitted client schema", "", false},
+			{"Should accept the supported client schema", fmt.Sprintf(`"$schema":%q,`, agentplugin.PluginSchemaID), false},
+			{"Should reject an unsupported client schema", `"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",`, true},
+			{"Should reject an unrelated client schema", `"$schema":"https://example.invalid/other.json",`, true},
+			{"Should reject a null client schema", `"$schema":null,`, true},
+		} {
+			t.Run(tc.name+" in "+layout, func(t *testing.T) {
+				t.Parallel()
+				manifestPath := filepath.Join(layout, "plugin.json")
+				content := "{" + tc.schema + `"name":"client-only","version":"1.0.0"}`
+				archive := mustTarGz(t, []tarEntry{{name: filepath.ToSlash(manifestPath), content: content}})
+				downloader := &stubDownloader{
+					downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+						return &DownloadResult{
+							ContentType: "application/gzip",
+							Reader:      io.NopCloser(bytes.NewReader(archive)),
+						}, nil
+					},
+				}
+				target := filepath.Join(t.TempDir(), "client-only")
+				result, err := NewInstaller(downloader).Install(t.Context(), "client-only", DownloadOpts{}, target)
+				if tc.wantErr {
+					if err == nil || !strings.Contains(err.Error(), manifestPath) {
+						t.Fatalf("invalid manifest error = %v, want selected path %s", err, manifestPath)
+					}
+					if _, statErr := os.Stat(target); !errors.Is(statErr, os.ErrNotExist) {
+						t.Fatalf("invalid package was published: %v", statErr)
+					}
+					return
+				}
+				if err != nil || result.Name != "client-only" {
+					t.Fatalf("client package = %#v, error = %v", result, err)
+				}
+				installed, err := os.ReadFile(filepath.Join(target, manifestPath))
+				if err != nil || string(installed) != content {
+					t.Fatalf("authored manifest changed: content=%q error=%v", installed, err)
+				}
+			})
+		}
+	}
+	t.Run("Should preserve a client-only package root during extraction", func(t *testing.T) {
 		t.Parallel()
 		archive := mustTarGz(t, []tarEntry{
 			{name: "._.claude-plugin", content: "appledouble", format: tar.FormatPAX},
@@ -156,24 +202,66 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 				Reader:      io.NopCloser(bytes.NewReader(archive)),
 			}, nil
 		}}
-		_, err := NewInstaller(downloader).Install(
+		target := filepath.Join(t.TempDir(), "client-only")
+		result, err := NewInstaller(downloader).Install(
 			t.Context(),
 			"client-only",
 			DownloadOpts{},
-			filepath.Join(t.TempDir(), "client-only"),
+			target,
 		)
-		if !errors.Is(err, ErrClientSpecificPluginLayout) {
-			t.Fatalf("Install(client-only) error = %v, want ErrClientSpecificPluginLayout", err)
+		if err != nil {
+			t.Fatal(err)
 		}
-		var layoutErr *ClientSpecificPluginLayoutError
-		if !errors.As(err, &layoutErr) || layoutErr.Layout != installerClaudePluginDirectory {
-			t.Fatalf("Install(client-only) error = %#v, want .claude-plugin layout", err)
+		if result.Name != "client-only" {
+			t.Fatalf("installed name = %q", result.Name)
+		}
+		content, err := os.ReadFile(filepath.Join(target, ".claude-plugin", "plugin.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(content), "client-only") {
+			t.Fatalf("manifest = %s", content)
 		}
 	})
 }
 
 func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
 	t.Parallel()
+	t.Run("Should install canonical raw tar through the same verified package pipeline", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		manifest := []byte("name = \"raw-package\"\nversion = \"1.0.0\"\n")
+		if err := os.WriteFile(filepath.Join(root, "extension.toml"), manifest, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		if _, err := fileutil.WriteTarDirectory(t.Context(), &archive, root, nil, fileutil.TarLimits{}); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(archive.Bytes())
+		expected := hex.EncodeToString(digest[:])
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: TarContentType, Reader: io.NopCloser(bytes.NewReader(archive.Bytes())),
+				}, nil
+			},
+		}
+		target := filepath.Join(t.TempDir(), "raw-package")
+		result, err := NewInstaller(downloader).Install(t.Context(), "team/raw-package", DownloadOpts{
+			ExpectedSHA256: expected,
+		}, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ArchiveDigestSHA256 != expected || result.Name != "raw-package" || result.Checksum == expected {
+			t.Fatalf("raw package provenance = %+v", result)
+		}
+		got, err := os.ReadFile(filepath.Join(target, "extension.toml"))
+		if err != nil || !bytes.Equal(got, manifest) {
+			t.Fatalf("installed manifest = %q, %v", got, err)
+		}
+	})
 
 	t.Run("Should persist the verified archive digest separately from the tree checksum", func(t *testing.T) {
 		t.Parallel()

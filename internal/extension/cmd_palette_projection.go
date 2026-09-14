@@ -1,6 +1,8 @@
 package extensionpkg
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -141,7 +143,16 @@ func (m *Manager) cmdPaletteInstancesLocked(
 		}
 	}
 	instances := make([]cmdPaletteInstance, 0, len(byName))
-	for _, extension := range byName {
+	for name := range byName {
+		view := ProfileInstanceKey(name, profile.ID, workspaceID)
+		source, _, err := m.readInstanceSourceLocked(context.Background(), view)
+		if errors.Is(err, ErrExtensionNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		extension := m.readInstanceLocked(view, source)
 		if extension == nil || extension.manifest == nil {
 			continue
 		}

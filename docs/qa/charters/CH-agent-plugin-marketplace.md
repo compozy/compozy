@@ -25,3 +25,10 @@ charter:
 ```
 
 <!-- The charter is durable and immutable: each run's debrief belongs in its dated report. -->
+
+## Marketplace source continuation
+
+Task10 owns the remaining live walk for task07/08. Use the current
+ET-agent-plugin-marketplace-install scenario for source registration, unverified consent, approved
+digest changes, cached offline installation, equal-byte recovery, origin aliases/conflicts, and updates.
+Historical browser evidence does not verify the current source=marketplace acquisition route.

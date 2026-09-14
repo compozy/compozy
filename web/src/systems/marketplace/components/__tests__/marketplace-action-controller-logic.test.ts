@@ -1,16 +1,16 @@
 // Suite: marketplace action controller logic
-// Invariant: one dialog workflow is active and stale detail or trust completions cannot replace newer work.
+// Invariant: one trust dialog workflow is active and stale completions cannot replace newer work.
 // Boundary IN: pure marketplace dialog transitions.
 // Boundary OUT: accepted Query, mutation, and authorization executors scheduled by the store.
 import { describe, expect, it, vi } from "vitest";
 
-import { marketplaceListings } from "../../mocks";
+import { marketplaceCatalogFixture } from "../../mocks";
 import { marketplaceActionControllerLogic } from "../marketplace-action-controller-logic";
 
 describe("marketplaceActionControllerLogic", () => {
   it("Should keep a trust dialog mounted and notify after its accepted install settles", async () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const entry = marketplaceListings.extension[0]!;
+    const entry = marketplaceCatalogFixture.items[0]!;
     let resolveInstall!: (notify: boolean) => void;
     const install = new Promise<boolean>(resolve => {
       resolveInstall = resolve;
@@ -37,7 +37,7 @@ describe("marketplaceActionControllerLogic", () => {
 
   it("Should close trust consent without a success notice when network consent takes over", async () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const entry = marketplaceListings.extension[1]!;
+    const entry = marketplaceCatalogFixture.items[1]!;
     const notifySuccess = vi.fn();
     store.trigger.extensionTrustRequested({ entry });
     store.trigger.extensionTrustConfirmed({
@@ -50,40 +50,10 @@ describe("marketplaceActionControllerLogic", () => {
     expect(notifySuccess).not.toHaveBeenCalled();
   });
 
-  it("Should fence stale detail and trust completions after a newer dialog request", () => {
+  it("Should fence stale trust completions after a newer dialog request", () => {
     const store = marketplaceActionControllerLogic.createStore();
-    const firstEntry = marketplaceListings.mcp[0]!;
-    const secondEntry = marketplaceListings.mcp[1]!;
-    const firstTrustEntry = marketplaceListings.extension[1]!;
-    const secondTrustEntry = marketplaceListings.extension[0]!;
-
-    store.trigger.detailRequested({
-      describeFailure: String,
-      load: () => new Promise<never>(() => undefined),
-      selection: { entryId: firstEntry.entry_id },
-    });
-    const firstDetail = store.getSnapshot().context;
-    store.trigger.detailRequested({
-      describeFailure: String,
-      load: () => new Promise<never>(() => undefined),
-      selection: { entryId: secondEntry.entry_id },
-    });
-    const secondDetail = store.getSnapshot().context;
-    if (firstDetail.status !== "detailLoading" || secondDetail.status !== "detailLoading") {
-      throw new Error("The detail requests did not enter their loading phase.");
-    }
-
-    store.trigger.detailLoaded({ requestId: firstDetail.requestId });
-    expect(store.getSnapshot().context).toMatchObject({
-      status: "detailLoading",
-      requestId: secondDetail.requestId,
-    });
-
-    store.trigger.detailLoaded({ requestId: secondDetail.requestId });
-    expect(store.getSnapshot().context).toMatchObject({
-      selection: { entryId: secondEntry.entry_id },
-      status: "mcpInstall",
-    });
+    const firstTrustEntry = marketplaceCatalogFixture.items[1]!;
+    const secondTrustEntry = marketplaceCatalogFixture.items[0]!;
 
     store.trigger.extensionTrustRequested({ entry: firstTrustEntry });
     store.trigger.extensionTrustConfirmed({

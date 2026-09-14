@@ -173,7 +173,7 @@ func (e *CallExecutor) projectionSourceKey(
 	if e.servers == nil {
 		return mcpProjectionSourceKey(source, ""), true
 	}
-	resolved, err := e.resolveServer(ctx, source)
+	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return "", false
 	}

@@ -26,9 +26,13 @@ func sessionContextRowsToon(injected *contract.SessionContextInjectedPayload) st
 			strconv.FormatBool(row.Unchanged), strconv.FormatBool(row.Stale), row.Delivery,
 			strconv.FormatBool(row.HookModified), row.Name})
 	}
-	return renderToonArray("context_rows", []string{"key", "label", "kind", "owner_kind", "bytes", observeTokensLabel,
-		"delivered_turn_id", "delivery_sequence", "sent_at", "last_seen_turn_id", "unchanged", "stale",
-		"delivery", "hook_modified", "name"}, rows)
+	return renderToonArray(
+		"context_rows",
+		[]string{"key", "label", networkKindKey, "owner_kind", "bytes", observeTokensLabel,
+			"delivered_turn_id", "delivery_sequence", "sent_at", "last_seen_turn_id", "unchanged", "stale",
+			"delivery", "hook_modified", automationNameKey},
+		rows,
+	)
 }
 
 func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, error) {
@@ -90,8 +94,8 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		),
 		renderToonArray(
 			"spans",
-			[]string{sessionTurnIDKey, "key", "kind", "bytes", observeTokensLabel, "unchanged", "startup_dedup",
-				"delivery", "hook_modified", "name"},
+			[]string{sessionTurnIDKey, "key", networkKindKey, "bytes", observeTokensLabel, "unchanged", "startup_dedup",
+				"delivery", "hook_modified", automationNameKey},
 			spans,
 		),
 		renderToonArray(

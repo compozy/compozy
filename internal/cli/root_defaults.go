@@ -29,9 +29,6 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 			return compozyconfig.Load()
 		}
 	}
-	if d.loadSkillRegistrySources == nil {
-		d.loadSkillRegistrySources = defaultSkillRegistrySourceLoader
-	}
 	if d.resolveHome == nil {
 		d.resolveHome = compozyconfig.ResolveHomePaths
 	}

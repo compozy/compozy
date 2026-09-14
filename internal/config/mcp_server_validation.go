@@ -17,6 +17,14 @@ func (s MCPServer) Validate(path string) error {
 	if err := ValidateMCPServerName(s.Name); err != nil {
 		return fmt.Errorf("%s.name: %w", path, err)
 	}
+	if err := vault.ValidateMCPOwner(s.Owner); err != nil {
+		return fmt.Errorf("%s.owner: %w", path, err)
+	}
+	if s.RuntimeName != "" {
+		if err := ValidateMCPServerName(s.RuntimeName); err != nil {
+			return fmt.Errorf("%s.runtime_name: %w", path, err)
+		}
+	}
 	if err := transport.Validate(path + ".transport"); err != nil {
 		return err
 	}
@@ -26,7 +34,7 @@ func (s MCPServer) Validate(path string) error {
 	if err := validateMCPServerTransportFields(path, transport, s); err != nil {
 		return err
 	}
-	if err := validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv); err != nil {
+	if err := validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv, s.Owner); err != nil {
 		return err
 	}
 	if transport == MCPServerTransportStdio {
@@ -105,13 +113,18 @@ func (a MCPAuthConfig) Validate(path string) error {
 	}
 	switch registration {
 	case MCPAuthRegistrationAuto:
-		if strings.TrimSpace(a.IssuerURL) != "" || strings.TrimSpace(a.ClientID) != "" ||
+		if strings.TrimSpace(a.ClientID) != "" ||
 			strings.TrimSpace(a.ClientSecretRef) != "" {
 			return fmt.Errorf(
-				"%s issuer_url, client_id, and client_secret_ref require registration = %q",
+				"%s client_id and client_secret_ref require registration = %q",
 				path,
 				MCPAuthRegistrationPreRegistered,
 			)
+		}
+		if strings.TrimSpace(a.IssuerURL) != "" {
+			if err := ValidateMCPOAuthURL(path+".issuer_url", a.IssuerURL); err != nil {
+				return err
+			}
 		}
 	case MCPAuthRegistrationPreRegistered:
 		if strings.TrimSpace(a.IssuerURL) == "" {
@@ -193,6 +206,7 @@ func validateStdioMCPEnv(
 	transport MCPServerTransport,
 	env map[string]string,
 	secretEnv map[string]string,
+	owner string,
 ) error {
 	if transport != MCPServerTransportStdio {
 		return nil
@@ -207,7 +221,24 @@ func validateStdioMCPEnv(
 			return err
 		}
 	}
-	return vault.ValidateSecretEnvMap(path, "mcp", secretEnv)
+	for key, ref := range secretEnv {
+		if err := validateMCPServerSecretRef(ref, owner); err != nil {
+			return fmt.Errorf("%s.secret_env.%s is invalid: %w", path, key, err)
+		}
+	}
+	return nil
+}
+
+func validateMCPServerSecretRef(ref, owner string) error {
+	normalized := vault.NormalizeRef(ref)
+	if !strings.HasPrefix(normalized, "vault:extensions/") {
+		return vault.ValidateRefNamespace(normalized, "mcp")
+	}
+	extension, ok := strings.CutPrefix(vault.NormalizeMCPOwner(owner), "extension:")
+	if !ok {
+		return fmt.Errorf("extension secret references require an extension owner")
+	}
+	return vault.ValidateExtensionSecretRefOwner(normalized, extension)
 }
 
 // ValidateMCPServerName enforces the identity grammar shared by settings and auth targets.

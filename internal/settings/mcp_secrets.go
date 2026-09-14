@@ -54,7 +54,9 @@ func (s *service) prepareMCPSecretWrites(
 	if s.providerSecrets == nil {
 		return nil, validationError(errors.New("settings: secret store is not available"))
 	}
-	prefix, err := vault.MCPSecretOwnerPrefix(string(scope), workspaceID, serverName)
+	prefix, err := vault.MCPSecretOwnerPrefix(
+		vault.MCPSecretTarget{Scope: string(scope), WorkspaceID: workspaceID, ServerName: serverName},
+	)
 	if err != nil {
 		return nil, validationError(err)
 	}
@@ -404,7 +406,9 @@ func (s *service) prepareOwnedMCPSecretDeletes(
 	if s.providerSecrets == nil {
 		return nil, nil
 	}
-	prefix, err := vault.MCPSecretOwnerPrefix(string(scope), workspaceID, server.Name)
+	prefix, err := vault.MCPSecretOwnerPrefix(
+		vault.MCPSecretTarget{Scope: string(scope), WorkspaceID: workspaceID, ServerName: server.Name},
+	)
 	if err != nil {
 		return nil, err
 	}

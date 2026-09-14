@@ -51,7 +51,8 @@ func TestCloneConfig(t *testing.T) {
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated"
 		cloned.RoleSources[RoleCoordinator][RoleFieldModel] = RoleFieldSourceWorkspace
 		cloned.Skills.DisabledSkills[0] = "mutated"
-		cloned.Skills.AllowedMarketplaceMCP[0] = "mutated"
+		cloned.Marketplace.PluginSources[0].Name = "mutated"
+		*cloned.Marketplace.PluginSources[0].Enabled = false
 		cloned.Extensions.Resources.AllowedKinds[0] = resources.ResourceKind("task")
 		cloned.Tools.Policy.TrustedSources[0] = "mutated"
 		cloned.Session.Attachments.AllowedMIME[0] = "mutated"
@@ -87,9 +88,14 @@ func configCloneFixture() Config {
 	toolReadOnly := true
 	channelID := "operations"
 	return Config{
-		MCP:         MCPConfig{OAuth: MCPOAuthConfig{ClientMetadataURL: "https://example.com/client.json"}},
-		Marketplace: MarketplaceRuntimeConfig{Catalog: MarketplaceCatalogConfig{BaseURL: "file:///catalog"}},
-		Redact:      RedactConfig{Enabled: true},
+		MCP: MCPConfig{OAuth: MCPOAuthConfig{ClientMetadataURL: "https://example.com/client.json"}},
+		Marketplace: MarketplaceRuntimeConfig{
+			Catalog: MarketplaceCatalogConfig{BaseURL: "file:///catalog"},
+			PluginSources: []MarketplacePluginSourceConfig{
+				{Name: "team", Source: "github:team/plugins", Enabled: &enabled},
+			},
+		},
+		Redact: RedactConfig{Enabled: true},
 		WindowManager: WindowManagerConfig{
 			Snap:      WindowManagerSnapConfig{RepeatRatios: []float64{0.5}},
 			Shortcuts: map[string]windowmanager.ShortcutBinding{"focus": {"cmd+j"}},
@@ -125,7 +131,6 @@ func configCloneFixture() Config {
 		},
 		Skills: SkillsConfig{
 			DisabledSkills:          []string{"alpha"},
-			AllowedMarketplaceMCP:   []string{"trusted-mcp"},
 			AllowedMarketplaceHooks: []string{"trusted-hook"},
 		},
 		Extensions: ExtensionsConfig{Resources: ExtensionsResourcesConfig{

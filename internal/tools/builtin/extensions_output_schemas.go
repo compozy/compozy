@@ -6,6 +6,19 @@ const extensionDiagnosticOutputSchema = `{
 	"additionalProperties":true
 }`
 
+const extensionMCPServerOutputSchema = `{
+ "type":"object","required":["name","owner","transport","launch"],
+ "properties":{
+  "name":{"type":"string"},"owner":{"type":"string"},"scope":{"type":"string"},
+  "profile":{"type":"string"},"workspace_id":{"type":"string"},"runtime_name":{"type":"string"},
+  "transport":{"type":"string"},"launch":{"type":"string"},"status":{"type":"string"},
+  "auth":{"type":"object","required":["method"],"properties":{
+   "method":{"type":"string"},"registration":{"type":"string"},"issuer_url":{"type":"string"},
+   "scopes":{"type":"array","items":{"type":"string"}}
+  },"additionalProperties":false}
+ },"additionalProperties":false
+}`
+
 const extensionPayloadOutputSchema = `{
 	"type":"object",
 	"required":[
@@ -27,6 +40,7 @@ const extensionPayloadOutputSchema = `{
 		"update_available":{"type":"boolean"},
 		"digest_matched":{"type":"boolean"},
 		"daemon_running":{"type":"boolean"},
+ "mcp_servers":{"type":"array","items":` + extensionMCPServerOutputSchema + `},
 		"diagnostics":{"type":"array","items":` + extensionDiagnosticOutputSchema + `}
 	},
 	"additionalProperties":true

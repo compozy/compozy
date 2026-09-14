@@ -1,11 +1,14 @@
 package core
 
 import (
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func agentMCPAuthPayload(value compozyconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigViewPayload {
@@ -29,6 +32,9 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
 			Name:           strings.TrimSpace(value.Name),
+			Owner:          vault.NormalizeMCPOwner(value.Owner),
+			RuntimeName:    settingsMCPRuntimeName(value),
+			Override:       settingsMCPExtensionOverridePayload(value.Override),
 			Transport:      strings.TrimSpace(string(value.Transport)),
 			Command:        strings.TrimSpace(value.Command),
 			Args:           cloneStrings(value.Args),
@@ -107,5 +113,23 @@ func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload
 	return settingspkg.MCPSecretValues{
 		SecretEnv:         cloneStringMap(payload.SecretEnv),
 		OAuthClientSecret: oauthClientSecret,
+	}
+}
+
+func settingsMCPRuntimeName(value settingspkg.MCPServerItem) string {
+	if name := strings.TrimSpace(value.RuntimeName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(value.Name)
+}
+
+func settingsMCPExtensionOverridePayload(value *extensionmcp.Override) *contract.SettingsMCPExtensionOverridePayload {
+	if value == nil {
+		return nil
+	}
+	return &contract.SettingsMCPExtensionOverridePayload{
+		Env:     maps.Clone(value.Env),
+		Headers: maps.Clone(value.Headers),
+		URL:     value.URL,
 	}
 }

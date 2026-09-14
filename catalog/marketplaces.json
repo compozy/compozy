@@ -1,0 +1,18 @@
+{
+    "manifest_version": 3,
+    "generated_at": "2026-09-12T10:00:00Z",
+    "entries": [
+        {
+            "name": "claude-plugins-official",
+            "source": "github:anthropics/claude-plugins-official",
+            "description": "Anthropic's official Claude Code plugins",
+            "default": "on"
+        },
+        {
+            "name": "openai-codex",
+            "source": "github:openai/codex",
+            "description": "OpenAI's Codex plugin marketplace",
+            "default": "off"
+        }
+    ]
+}

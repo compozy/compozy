@@ -63,6 +63,7 @@ func settingsSectionValues() []string {
 		string(contract.SettingsSectionShell),
 		string(contract.SettingsSectionObservability),
 		string(contract.SettingsSectionHooksExtensions),
+		string(contract.SettingsSectionMarketplace),
 	}
 }
 
@@ -81,6 +82,7 @@ func settingsApplyTargetValues() []string {
 		string(contract.SettingsApplyTargetShell),
 		string(contract.SettingsApplyTargetObservability),
 		string(contract.SettingsApplyTargetHooksExtensions),
+		string(contract.SettingsApplyTargetMarketplace),
 		string(contract.SettingsApplyTargetProviders),
 		string(contract.SettingsApplyTargetMCPServers),
 		string(contract.SettingsApplyTargetSandboxes),
@@ -164,6 +166,7 @@ func settingsPermissionModeValues() []string {
 
 func settingsSourceKindValues() []string {
 	return []string{
+		string(contract.SettingsSourceExtension),
 		string(contract.SettingsSourceBuiltinProvider),
 		string(contract.SettingsSourceGlobalConfig),
 		string(contract.SettingsSourceProfileConfig),

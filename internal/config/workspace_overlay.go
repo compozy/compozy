@@ -10,11 +10,8 @@ func applyWorkspaceConfigOverlayFile(path string, dst *Config) error {
 	if dst == nil {
 		return errors.New("config: destination config is required")
 	}
-	overlay, err := loadConfigOverlayFile(path)
+	overlay, err := loadPersistedConfigOverlay(path, loadWorkspaceConfigOverlayBytes)
 	if err != nil {
-		return err
-	}
-	if err := validateWorkspaceConfigOverlay(path, &overlay); err != nil {
 		return err
 	}
 	if err := applyConfigOverlay(dst, &overlay, RoleFieldSourceWorkspace); err != nil {
@@ -28,11 +25,18 @@ func loadWorkspaceOverlayForWrite(
 	target WriteTarget,
 	rendered []byte,
 ) (configOverlay, error) {
-	overlay, err := loadConfigOverlayForWrite(path, target, rendered)
+	if target.isConfigTarget() && samePath(target.path, path) {
+		return loadWorkspaceConfigOverlayBytes(rendered, path)
+	}
+	return loadPersistedConfigOverlay(path, loadWorkspaceConfigOverlayBytes)
+}
+
+func loadWorkspaceConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {
+	overlay, err := loadConfigOverlayBytes(contents, source)
 	if err != nil {
 		return configOverlay{}, err
 	}
-	if err := validateWorkspaceConfigOverlay(path, &overlay); err != nil {
+	if err := validateWorkspaceConfigOverlay(source, &overlay); err != nil {
 		return configOverlay{}, err
 	}
 	return overlay, nil

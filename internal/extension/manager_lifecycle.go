@@ -40,7 +40,7 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	m.devOperationsDone = nil
 	m.extensions = make(map[string]*managedExtension)
 	m.devExtensions = make(map[InstanceKey]*managedExtension)
-	m.profileExtensions = make(map[InstanceKey]*managedExtension)
+	m.scopedExtensions = make(map[InstanceKey]*managedExtension)
 	m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
 	m.profileCoordinators = make(map[InstanceKey]*sync.Mutex)
 	m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
@@ -57,7 +57,7 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		m.devOperationsDone = nil
 		m.extensions = make(map[string]*managedExtension)
 		m.devExtensions = make(map[InstanceKey]*managedExtension)
-		m.profileExtensions = make(map[InstanceKey]*managedExtension)
+		m.scopedExtensions = make(map[InstanceKey]*managedExtension)
 		m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
 		m.profileCoordinators = make(map[InstanceKey]*sync.Mutex)
 		m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
@@ -66,24 +66,8 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	}
 
 	var errs []error
-	for _, info := range infos {
-		key := GlobalInstanceKey(info.Name)
-		ext := &managedExtension{
-			key:     key,
-			info:    info,
-			phase:   ExtensionPhaseDiscover,
-			logRing: m.logRingFor(key),
-		}
-		m.mu.Lock()
-		m.extensions[info.Name] = ext
-		m.mu.Unlock()
-
-		if !info.Enabled {
-			ext.lastError = ""
-			continue
-		}
-
-		if err := m.startOne(ctx, ext); err != nil {
+	for infoIndex := range infos {
+		if err := m.startInstalledPackage(ctx, &infos[infoIndex]); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -217,11 +201,11 @@ func (m *Manager) stopTargets() ([]string, []InstanceKey) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	instanceKeys := make([]InstanceKey, 0, len(m.devExtensions)+len(m.profileExtensions))
+	instanceKeys := make([]InstanceKey, 0, len(m.devExtensions)+len(m.scopedExtensions))
 	for key := range m.devExtensions {
 		instanceKeys = append(instanceKeys, key)
 	}
-	for key := range m.profileExtensions {
+	for key := range m.scopedExtensions {
 		instanceKeys = append(instanceKeys, key)
 	}
 	slices.SortFunc(instanceKeys, compareInstanceKeys)

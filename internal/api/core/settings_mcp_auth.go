@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +23,7 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 	}
 	payload := &contract.SettingsMCPAuthStatusPayload{
 		ServerName:   strings.TrimSpace(value.ServerName),
+		Owner:        vault.NormalizeMCPOwner(value.Owner),
 		Scope:        strings.TrimSpace(string(value.Scope)),
 		WorkspaceID:  strings.TrimSpace(value.WorkspaceID),
 		Status:       strings.TrimSpace(string(value.Status)),
@@ -232,6 +234,7 @@ func parseSettingsMCPAuthTarget(c *gin.Context) (settingspkg.MCPAuthTargetReques
 		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
 		ProfileName: strings.TrimSpace(c.Query("profile")),
 		Name:        name,
+		Owner:       strings.TrimSpace(c.Query("owner")),
 	}, nil
 }
 

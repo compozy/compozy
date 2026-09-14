@@ -20,6 +20,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -30,89 +31,137 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
+// Invariant: inventory enrichment uses persisted origin and retains local inventory on catalog failure.
+// Owner: core installed-extension joins; canonical suite: extensions_test.go.
+func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should enrich installed extension without browsing the capped catalog", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		sourceRef string
+		version   string
+		digest    string
+		update    bool
+	}{
+		{name: "Should enrich a curated extension without browsing the capped catalog", sourceRef: marketplacepkg.CompozyCatalogRef, version: "1.0.0", update: true},
+		{name: "Should keep a plugin with the same digest current despite a newer version label", sourceRef: "github:team/plugins", version: "1.0.0", digest: strings.Repeat("a", 64)},
+		{name: "Should detect changed plugin bytes even at the same version", sourceRef: "github:team/plugins", version: "1.2.0", digest: strings.Repeat("b", 64), update: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
-		browseCalled := false
-		detailEntryID := ""
-		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName: "http",
-			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{{
-					Name: "extension", Version: "1.0.0", Type: "wasm", Source: "marketplace",
-					Provenance: &contract.ExtensionProvenancePayload{
-						Slug: "acme/extension", CatalogEntryID: entry.EntryID,
+			entry := marketplaceEntryForTest()
+			var payload map[string]any
+			if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			payload["source_ref"] = tc.sourceRef
+			var err error
+			entry.Payload, err = json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			browseCalled := false
+			detailEntryID := ""
+			homePaths := testutil.NewTestHomePaths(t)
+			cfg := testConfigWithDisabledNetwork(homePaths)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName: "http",
+				Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					return []contract.ExtensionPayload{
+						{
+							Name:    "extension",
+							Version: tc.version,
+							Type:    "wasm",
+							Source:  "marketplace",
+							Origin: &contract.MarketplaceOriginPayload{
+								Source:    marketplacepkg.CompozyCatalogSource,
+								SourceRef: tc.sourceRef,
+								EntryID:   entry.EntryID,
+							},
+							Provenance: &contract.ExtensionProvenancePayload{
+								Slug: "acme/extension", CatalogEntryID: entry.EntryID, ArchiveDigestSHA256: tc.digest,
+							},
+						},
+					}, nil
+				}},
+				MarketplaceCatalog: marketplaceCatalogStub{
+					browseFn: func(
+						context.Context,
+						string,
+						int,
+					) (marketplacepkg.BrowseResult, error) {
+						browseCalled = true
+						return marketplacepkg.BrowseResult{}, errors.New("capped browse must not own the join")
 					},
-				}}, nil
-			}},
-			MarketplaceCatalog: marketplaceCatalogStub{
-				browseFn: func(
-					context.Context,
-					marketplacepkg.Kind,
-					string,
-					int,
-				) (marketplacepkg.BrowseResult, error) {
-					browseCalled = true
-					return marketplacepkg.BrowseResult{}, errors.New("capped browse must not own the join")
+					entryFn: func(_ context.Context, origin marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
+						if origin.SourceRef != tc.sourceRef {
+							t.Fatalf("source ref = %q, want %q", origin.SourceRef, tc.sourceRef)
+						}
+						detailEntryID = origin.EntryID
+						return &entry, nil
+					},
 				},
-				detailFn: func(
-					_ context.Context,
-					kind marketplacepkg.Kind,
-					entryID string,
-				) (*marketplacepkg.Entry, error) {
-					if kind != marketplacepkg.KindExtension {
-						t.Fatalf("detail kind = %q, want %q", kind, marketplacepkg.KindExtension)
-					}
-					detailEntryID = entryID
-					return &entry, nil
-				},
-			},
-			HomePaths: homePaths,
-			Config:    cfg,
-			Logger:    testutil.DiscardLogger(),
+				HomePaths: homePaths,
+				Config:    cfg,
+				Logger:    testutil.DiscardLogger(),
+			})
+			engine := gin.New()
+			engine.GET("/extensions", handlers.ListExtensions)
+
+			response := performRequest(t, engine, http.MethodGet, "/extensions", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+			}
+			var wire struct {
+				Extensions []map[string]json.RawMessage `json:"extensions"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+				t.Fatal(err)
+			}
+			if len(wire.Extensions) != 1 {
+				t.Fatalf("unexpected wire inventory: %s", response.Body.String())
+			}
+			for _, field := range []string{"mcp_servers", "inputs", "missing_inputs"} {
+				if _, exists := wire.Extensions[0][field]; exists {
+					t.Fatalf("empty optional field %q retained: %s", field, response.Body.String())
+				}
+			}
+
+			var responsePayload struct {
+				Extensions []struct {
+					Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
+					UpdateAvailable bool                                `json:"update_available"`
+					RemoteVersion   string                              `json:"remote_version"`
+				} `json:"extensions"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &responsePayload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if browseCalled {
+				t.Fatal("list extensions browsed the capped marketplace catalog")
+			}
+			if detailEntryID != entry.EntryID {
+				t.Fatalf("detail entry id = %q, want %q", detailEntryID, entry.EntryID)
+			}
+			if len(responsePayload.Extensions) != 1 || responsePayload.Extensions[0].Marketplace == nil {
+				t.Fatalf("extensions = %#v, want one exact marketplace projection", responsePayload.Extensions)
+			}
+			listing := responsePayload.Extensions[0].Marketplace
+			if listing.EntryID != entry.EntryID || listing.Description != entry.Description ||
+				!listing.Installed || listing.InstalledVersion != tc.version || listing.UpdateAvailable != tc.update {
+				t.Fatalf("marketplace listing = %#v, want exact installed update projection", listing)
+			}
+			if responsePayload.Extensions[0].UpdateAvailable != tc.update ||
+				(tc.update && responsePayload.Extensions[0].RemoteVersion != entry.Version) {
+				t.Fatalf(
+					"extension update projection = %#v, want update to %q",
+					responsePayload.Extensions[0],
+					entry.Version,
+				)
+			}
 		})
-		engine := gin.New()
-		engine.GET("/extensions", handlers.ListExtensions)
-
-		response := performRequest(t, engine, http.MethodGet, "/extensions", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
-		}
-		var payload struct {
-			Extensions []struct {
-				Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
-				UpdateAvailable bool                                `json:"update_available"`
-				RemoteVersion   string                              `json:"remote_version"`
-			} `json:"extensions"`
-		}
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-		if browseCalled {
-			t.Fatal("list extensions browsed the capped marketplace catalog")
-		}
-		if detailEntryID != entry.EntryID {
-			t.Fatalf("detail entry id = %q, want %q", detailEntryID, entry.EntryID)
-		}
-		if len(payload.Extensions) != 1 || payload.Extensions[0].Marketplace == nil {
-			t.Fatalf("extensions = %#v, want one exact marketplace projection", payload.Extensions)
-		}
-		listing := payload.Extensions[0].Marketplace
-		if listing.EntryID != entry.EntryID || listing.Description != entry.Description ||
-			!listing.Installed || listing.InstalledVersion != "1.0.0" || !listing.UpdateAvailable {
-			t.Fatalf("marketplace listing = %#v, want exact installed update projection", listing)
-		}
-		if !payload.Extensions[0].UpdateAvailable || payload.Extensions[0].RemoteVersion != entry.Version {
-			t.Fatalf("extension update projection = %#v, want update to %q", payload.Extensions[0], entry.Version)
-		}
-	})
-
+	}
 	t.Run("Should retain local inventory when exact catalog enrichment is unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -121,14 +170,22 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "http",
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-				return []contract.ExtensionPayload{{
-					Name: "offline-extension", Version: "1.0.0",
-					Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "extension.offline"},
-				}}, nil
+				return []contract.ExtensionPayload{
+					{
+						Name:    "offline-extension",
+						Version: "1.0.0",
+						Origin: &contract.MarketplaceOriginPayload{
+							Source:    marketplacepkg.CompozyCatalogSource,
+							SourceRef: marketplacepkg.CompozyCatalogRef,
+							EntryID:   "extension.offline",
+						},
+						Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: "extension.offline"},
+					},
+				}, nil
 			}},
 			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
 				context.Context,
-				marketplacepkg.Kind,
+				string,
 				string,
 			) (*marketplacepkg.Entry, error) {
 				return nil, errors.Join(errors.New("catalog offline"), marketplacepkg.ErrEntryNotFound)
@@ -294,13 +351,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			err  error
 			code string
 		}{
-			{
-				name: "Should classify a client-specific layout",
-				err: &extensionpkg.AgentPluginClientLayoutError{
-					Root: "/srv/aws-core", Layout: ".claude-plugin",
-				},
-				code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
-			},
+
 			{
 				name: "Should classify an unrelated root plugin manifest",
 				err:  &extensionpkg.AgentPluginNotManifestError{Root: "/srv/npm"},
@@ -308,7 +359,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			},
 			{
 				name: "Should classify an unsupported portable schema",
-				err: &extensionpkg.AgentPluginSchemaUnsupportedError{
+				err: &agentplugin.SchemaUnsupportedError{
 					Root: "/srv/future", Declared: "https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",
 				},
 				code: diagnosticcontract.CodeExtensionAgentPluginSchemaUnsupported,
@@ -383,6 +434,40 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		}
 	})
 
+	// Install request decoding owns rejection before lifecycle or preview dispatch.
+	for _, operation := range []string{"install", "preview"} {
+		t.Run("Should reject retired runtime_name before "+operation, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					t.Fatal("retired request dispatched install")
+					return contract.ExtensionPayload{}, nil
+				},
+				previewInstallFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
+					t.Fatal("retired request dispatched preview")
+					return contract.ExtensionInstallPreviewPayload{}, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			handler := handlers.InstallExtension
+			if operation == "preview" {
+				handler = handlers.PreviewExtensionInstall
+			}
+			engine.POST("/extensions", handler)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"curated","ref":"compozy/kit","runtime_name":"chosen"}`),
+			)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "runtime_name") {
+				t.Fatalf("retired input: status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+
 	t.Run("Should preview the exact install summary without invoking install", func(t *testing.T) {
 		t.Parallel()
 
@@ -443,6 +528,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 }
 
 type extensionServiceStub struct {
+	updateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
 	listFn             func(context.Context) ([]contract.ExtensionPayload, error)
 	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	updateBatchFn      func(context.Context, contract.UpdateExtensionsRequest, taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error)
@@ -504,12 +590,15 @@ func (s extensionServiceStub) PreviewInstall(
 	return contract.ExtensionInstallPreviewPayload{}, nil
 }
 
-func (extensionServiceStub) Update(
-	context.Context,
-	string,
-	contract.UpdateExtensionRequest,
-	taskpkg.ActorContext,
+func (s extensionServiceStub) Update(
+	ctx context.Context,
+	name string,
+	req contract.UpdateExtensionRequest,
+	actor taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
+	if s.updateFn != nil {
+		return s.updateFn(ctx, name, req, actor)
+	}
 	return contract.ManagedExtensionUpdatePayload{}, nil
 }
 
@@ -749,9 +838,9 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map undeclared bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingUndeclared, want: http.StatusBadRequest},
 		{name: "Should map dangling bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingDangling, want: http.StatusBadRequest},
 		{name: "Should map missing local paths to bad request", err: os.ErrNotExist, want: http.StatusBadRequest},
-		{name: "Should map a client layout to unprocessable", err: extensionpkg.ErrAgentPluginClientLayout, want: http.StatusUnprocessableEntity},
+
 		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
-		{name: "Should map an unsupported plugin schema to unprocessable", err: extensionpkg.ErrAgentPluginSchemaUnsupported, want: http.StatusUnprocessableEntity},
+		{name: "Should map an unsupported plugin schema to unprocessable", err: agentplugin.ErrSchemaUnsupported, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
@@ -932,6 +1021,80 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 
 func TestExtensionOperationErrorPayloads(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the shared lifecycle decoder preserves structured input/source errors and 409/422 status.
+	// Owner: extension HTTP boundary. Canonical suite: operation error payload tests.
+	for _, tc := range []struct {
+		name   string
+		cause  error
+		status int
+		code   string
+	}{
+		{"runtime name taken", extensionmcp.ErrNameTaken, http.StatusUnprocessableEntity, "mcp_server_name_taken"},
+		{"name conflict", &extensionpkg.ExtensionNameConflictError{Name: "example", SourceName: "team-catalog",
+			InstalledOrigin: marketplacepkg.Origin{SourceRef: "https://example.com/catalog", EntryID: "team/example"}},
+			http.StatusConflict, diagnosticcontract.CodeExtensionNameConflict},
+		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
+		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"},
+			InputDefinitions: []extensionpkg.ManifestInput{{ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
+				Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "workspace"}}}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
+		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
+	} {
+		t.Run("Should report "+tc.name+" with structured details", func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					return contract.ExtensionPayload{}, tc.cause
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"curated","ref":"compozy/example"}`),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Code != tc.code {
+				t.Fatalf("code = %s want %s", payload.Code, tc.code)
+			}
+			switch tc.code {
+			case diagnosticcontract.CodeExtensionNameConflict:
+				if payload.InstalledOrigin == nil || payload.InstalledOrigin.Source != "team-catalog" ||
+					payload.InstalledOrigin.SourceRef != "https://example.com/catalog" || payload.InstalledOrigin.EntryID != "team/example" {
+					t.Fatalf("installed origin = %#v", payload.InstalledOrigin)
+				}
+			case diagnosticcontract.CodeExtensionSourceChanged:
+				if payload.ListedDigest != strings.Repeat("a", 64) ||
+					payload.FetchedDigest != strings.Repeat("b", 64) {
+					t.Fatalf("source mismatch = %#v", payload)
+				}
+			case diagnosticcontract.CodeExtensionInputsRequired:
+				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
+					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("required inputs = %#v", payload)
+				}
+				if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||
+					payload.InputDefinitions[0].Prompt != "Workspace" || payload.InputDefinitions[0].Type != "identifier" ||
+					!payload.InputDefinitions[0].Required || payload.InputDefinitions[0].Binding.Name != "workspace" {
+					t.Fatalf("candidate definitions = %#v", payload.InputDefinitions)
+				}
+			case diagnosticcontract.CodeExtensionInputInvalid:
+				if payload.InputID != "workspace" {
+					t.Fatalf("invalid input id = %s", payload.InputID)
+				}
+			}
+		})
+	}
 
 	t.Run("Should return current digest and retry command for network confirmation", func(t *testing.T) {
 		t.Parallel()
@@ -1256,6 +1419,103 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 
 func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
+	// Invariant: the shared update decoder preserves selectors and typed inputs.
+	// Owner: shared update boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
+	t.Run("Should forward scoped updates", func(t *testing.T) {
+		t.Parallel()
+		assertScope := func(scope, workspaceID, profile string) {
+			t.Helper()
+			if scope != "workspace" || workspaceID != "ws-install" || profile != "marketing" {
+				t.Fatalf("update scope = %s/%s/%s", scope, workspaceID, profile)
+			}
+		}
+		service := extensionServiceStub{
+			updateFn: func(_ context.Context, name string, req contract.UpdateExtensionRequest, _ taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error) {
+				assertScope(req.Scope, req.WorkspaceID, req.Profile)
+				if string(req.Inputs["team"].Value) != `"updated-team"` {
+					t.Fatal("update lost typed input")
+				}
+				return contract.ManagedExtensionUpdatePayload{
+					Name:   name,
+					Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+				}, nil
+			},
+			updateBatchFn: func(_ context.Context, req contract.UpdateExtensionsRequest, _ taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error) {
+				assertScope(req.Scope, req.WorkspaceID, req.Profile)
+				if len(req.Names) != 1 || string(req.Inputs["team"].Value) != `"updated-team"` {
+					t.Fatal("batch lost selected input")
+				}
+				return []contract.ManagedExtensionUpdatePayload{
+					{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated},
+				}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/update", handlers.UpdateExtensions)
+		engine.PUT("/extensions/:name", handlers.UpdateExtension)
+		for _, route := range []string{"/extensions/tool-ext", "/extensions/update"} {
+			body := []byte(
+				`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`,
+			)
+			method := http.MethodPost
+			if route == "/extensions/tool-ext" {
+				method = http.MethodPut
+			}
+			response := performRequest(t, engine, method, route, body)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"updated"`) {
+				t.Fatalf("update response = %d, %s", response.Code, response.Body.String())
+			}
+		}
+	})
+
+	// Invariant: the shared install decoder preserves scoped selectors and typed inputs.
+	// Owner: shared request boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
+	t.Run("Should forward scoped install and preview", func(t *testing.T) {
+		t.Parallel()
+		assertRequest := func(request contract.InstallExtensionRequest) {
+			t.Helper()
+			if request.Scope != "workspace" || request.WorkspaceID != "ws-install" ||
+				request.Profile != "marketing" ||
+				string(request.Inputs["team"].Value) != `"selected-team"` {
+				t.Fatalf("scoped install request = %#v", request)
+			}
+		}
+		service := extensionServiceStub{
+			installFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+				assertRequest(req)
+				return contract.ExtensionPayload{
+					Name:        "scoped-package",
+					Profile:     req.Profile,
+					WorkspaceID: req.WorkspaceID,
+				}, nil
+			},
+			previewInstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
+				assertRequest(req)
+				return contract.ExtensionInstallPreviewPayload{Name: "scoped-package"}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		body := []byte(
+			`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`,
+		)
+		for _, route := range []string{"/extensions", "/extensions/preview-install"} {
+			response := performRequest(t, engine, http.MethodPost, route, body)
+			wantStatus := http.StatusOK
+			if route == "/extensions" {
+				wantStatus = http.StatusCreated
+			}
+			if response.Code != wantStatus {
+				t.Fatalf("status = %d, want %d: %s", response.Code, wantStatus, response.Body.String())
+			}
+			if !strings.Contains(response.Body.String(), `"name":"scoped-package"`) {
+				t.Fatalf("response = %s", response.Body.String())
+			}
+		}
+	})
 
 	const (
 		apiWorkspaceRootCanary = "/private/API-WORKSPACE-ROOT-CANARY"

@@ -1,4 +1,4 @@
-import { HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, ws, type HttpHandler } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
@@ -16,8 +16,52 @@ let initialStoryEntry = defaultStoryEntry;
 const runtime = new StorybookWindowManagerMockRuntime(workspaceId =>
   windowManagerStorySnapshot(initialStoryEntry, workspaceId)
 );
+const layoutStream = ws.link("*/api/workspaces/:workspaceId/window-manager/stream");
+
+export const windowManagerStreamHandler = layoutStream.addEventListener(
+  "connection",
+  ({ client, params }) => {
+    const workspaceId = String(params.workspaceId);
+    const clientId = client.url.searchParams.get("client_id") ?? "";
+    const registered = runtime.client(workspaceId, clientId);
+    if (registered === null) {
+      client.send(
+        JSON.stringify({
+          type: "error",
+          error: windowManagerError(
+            workspaceId,
+            "window_manager_client_not_found",
+            "Register the window-manager client before connecting."
+          ),
+        })
+      );
+      return;
+    }
+    const snapshot = runtime.snapshot(workspaceId);
+    client.send(
+      JSON.stringify({
+        type: "snapshot",
+        workspace_id: workspaceId,
+        revision: snapshot.revision,
+        snapshot,
+        client: registered,
+      })
+    );
+    const heartbeat = setInterval(() => {
+      client.send(
+        JSON.stringify({
+          type: "heartbeat",
+          workspace_id: workspaceId,
+          revision: runtime.snapshot(workspaceId).revision,
+        })
+      );
+    }, 30_000);
+    client.addEventListener("close", () => clearInterval(heartbeat));
+  }
+);
 
 export function resetWindowManagerMockState(initialEntry?: string): void {
+  for (const client of layoutStream.clients) client.close();
   initialStoryEntry = initialEntry ?? defaultStoryEntry;
   runtime.reset();
 }
@@ -59,9 +103,15 @@ export const handlers: HttpHandler[] = [
           { status: 422 }
         );
       }
-      return HttpResponse.json(runtime.register(workspaceId, clientId), {
-        status: 201,
-      });
+      return HttpResponse.json(
+        {
+          ...runtime.register(workspaceId, clientId),
+          attachment_token: `storybook:${workspaceId}:${clientId}`,
+        },
+        {
+          status: 201,
+        }
+      );
     }
   ),
   compozyApiMock.post(

@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,6 +32,7 @@ type Option func(*Client)
 type Client struct {
 	lookPath func(string) (string, error)
 	run      commandRunner
+	output   func(context.Context, string, ...string) (string, error)
 	version  gitVersionProbe
 	resolver outboundpolicy.Resolver
 	timeout  time.Duration
@@ -40,6 +40,7 @@ type Client struct {
 	maxUncompressedSize int64
 	maxFileCount        int
 	archiveTempDir      string
+	checkoutTempDir     string
 }
 
 var _ registry.Source = (*Client)(nil)
@@ -49,6 +50,7 @@ func NewClient(opts ...Option) *Client {
 	client := &Client{
 		lookPath: exec.LookPath,
 		run:      runGitCommand,
+		output:   runGitOutput,
 		version:  probeGitVersion,
 		resolver: net.DefaultResolver,
 		timeout:  defaultCloneTimeout,
@@ -157,51 +159,19 @@ func (c *Client) Download(
 	slug string,
 	opts registry.DownloadOpts,
 ) (_ *registry.DownloadResult, err error) {
-	if ctx == nil {
-		return nil, errors.New("gitsrc: context is required")
-	}
-	repository, err := parseRepositoryRef(slug)
+	checkout, err := c.cloneRepository(ctx, slug, strings.TrimSpace(opts.Version))
 	if err != nil {
 		return nil, err
-	}
-	executable, err := c.lookPath("git")
-	if err != nil {
-		return nil, newGitUnavailableError(err)
-	}
-	if err := c.requireSupportedGit(ctx, executable); err != nil {
-		return nil, err
-	}
-	addresses, err := resolveRepositoryAddresses(ctx, c.resolver, repository)
-	if err != nil {
-		return nil, err
-	}
-
-	// Git does not expose a portable per-checkout disk quota. The clone is confined
-	// to os.TempDir, so operators that accept arbitrary repositories must place that
-	// filesystem behind an OS quota; the timeout bounds how long the subprocess may write.
-	tempRoot, err := os.MkdirTemp("", "compozy-gitsrc-*")
-	if err != nil {
-		return nil, fmt.Errorf("gitsrc: create clone directory: %w", err)
 	}
 	defer func() {
-		err = errors.Join(err, removeCloneDirectory(tempRoot))
+		err = errors.Join(err, checkout.Close())
 	}()
-	checkoutDir := filepath.Join(tempRoot, "checkout")
-	cloneCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-	args := cloneArgs(repository, addresses, strings.TrimSpace(opts.Version), checkoutDir)
-	if err := c.run(cloneCtx, executable, args...); err != nil {
-		if cloneCtx.Err() != nil {
-			return nil, fmt.Errorf("gitsrc: clone timed out: %w", cloneCtx.Err())
-		}
-		return nil, fmt.Errorf("gitsrc: clone repository: %w", err)
-	}
 
 	maxSize := opts.MaxArchiveSize
 	if maxSize <= 0 {
 		maxSize = registry.DefaultMaxArchiveSize
 	}
-	archive, archiveSize, err := createRepositoryArchive(ctx, checkoutDir, archiveLimits{
+	archive, archiveSize, err := createRepositoryArchive(ctx, checkout.Path, archiveLimits{
 		maxCompressedSize:   maxSize,
 		maxUncompressedSize: c.maxUncompressedSize,
 		maxFileCount:        c.maxFileCount,
@@ -210,9 +180,12 @@ func (c *Client) Download(
 	if err != nil {
 		return nil, err
 	}
+	if err := checkout.Close(); err != nil {
+		return nil, errors.Join(err, archive.Close())
+	}
 	return &registry.DownloadResult{
 		Reader:      archive,
-		Slug:        repository.raw,
+		Slug:        checkout.Repository,
 		Version:     strings.TrimSpace(opts.Version),
 		ContentSize: archiveSize,
 		ContentType: archiveContentType,
@@ -225,7 +198,15 @@ func (c *Client) Close() error {
 }
 
 func cloneArgs(repository repositoryRef, addresses []netip.Addr, ref string, checkoutDir string) []string {
-	args := []string{
+	args := append(repositoryArgs(repository, addresses), "clone", "--depth", "1", "--single-branch")
+	if ref != "" {
+		args = append(args, "--branch", ref)
+	}
+	return append(args, "--", repository.raw, checkoutDir)
+}
+
+func repositoryArgs(repository repositoryRef, addresses []netip.Addr) []string {
+	return []string{
 		"-c", "protocol.allow=never",
 		"-c", "protocol.https.allow=always",
 		"-c", "http.followRedirects=false",
@@ -235,12 +216,7 @@ func cloneArgs(repository repositoryRef, addresses []netip.Addr, ref string, che
 		"-c", "credential.helper=",
 		"-c", "credential.interactive=false",
 		"-c", "core.hooksPath=" + os.DevNull,
-		"clone", "--depth", "1", "--single-branch",
 	}
-	if ref != "" {
-		args = append(args, "--branch", ref)
-	}
-	return append(args, "--", repository.raw, checkoutDir)
 }
 
 func runGitCommand(ctx context.Context, executable string, args ...string) error {

@@ -4,164 +4,215 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
+	"slices"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type refreshFlight struct {
-	done    chan struct{}
-	outcome RefreshOutcome
-	err     error
+	done       chan struct{}
+	cancel     context.CancelFunc
+	source     string
+	generation int64
+	outcome    RefreshOutcome
+	err        error
 }
 
-type refreshOnAccessSource interface {
-	refreshOnAccess() bool
+func (s *CatalogService) Refresh(ctx context.Context, names ...string) (RefreshReport, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return RefreshReport{}, err
+	}
+	s.sourceMu.RLock()
+	selected := make(map[string]bool, len(names))
+	for _, name := range names {
+		if _, exists := s.byName[name]; !exists {
+			s.sourceMu.RUnlock()
+			return RefreshReport{}, fmt.Errorf("%w: %s", ErrSourceStateMissing, name)
+		}
+		selected[name] = true
+	}
+	flights := make([]*refreshFlight, 0, len(s.sources))
+	for _, source := range s.sources {
+		if !source.binding.Config.Enabled || (len(selected) > 0 && !selected[source.binding.Config.Name]) {
+			continue
+		}
+		flight, err := s.startRefreshFlight(source, true)
+		if err != nil {
+			s.sourceMu.RUnlock()
+			return RefreshReport{}, err
+		}
+		flights = append(flights, flight)
+	}
+	s.sourceMu.RUnlock()
+	report := RefreshReport{Outcomes: make([]RefreshOutcome, 0, len(flights))}
+	var resultErr error
+	for _, flight := range flights {
+		outcome, err := awaitRefreshFlight(ctx, flight)
+		report.Outcomes = append(report.Outcomes, outcome)
+		if err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("refresh %s: %w", flight.source, err))
+		}
+	}
+	return report, resultErr
 }
 
-func (s *CatalogService) ensureFresh(ctx context.Context, kind Kind) error {
-	if source, ok := s.sources[kind].(refreshOnAccessSource); ok && source.refreshOnAccess() {
-		_, err := s.withRefreshFlight(ctx, kind)
-		return err
-	}
-	state, err := s.store.KindState(ctx, kind)
-	switch {
-	case errors.Is(err, ErrKindStateMissing):
-		_, err = s.withRefreshFlight(ctx, kind)
-		return err
-	case err != nil:
-		return err
-	case state.Stale || state.FetchedAt.IsZero() || !state.FetchedAt.Add(s.ttl).After(s.now().UTC()):
-		_, err = s.withRefreshFlight(ctx, kind)
-		return err
-	default:
-		return nil
-	}
-}
-
-func (s *CatalogService) withRefreshFlight(ctx context.Context, kind Kind) (RefreshOutcome, error) {
-	if err := ctx.Err(); err != nil {
-		return canceledRefreshOutcome(kind), err
-	}
+// startRefreshFlight is called under the source read lock; execution belongs to the service.
+func (s *CatalogService) startRefreshFlight(source *registeredSource, force bool) (*refreshFlight, error) {
 	s.flightMu.Lock()
+	defer s.flightMu.Unlock()
 	if s.closed {
-		s.flightMu.Unlock()
-		return canceledRefreshOutcome(kind), ErrServiceClosed
+		return nil, ErrServiceClosed
 	}
-	if existing := s.flights[kind]; existing != nil {
-		s.flightMu.Unlock()
-		return awaitRefreshFlight(ctx, kind, existing)
+	if source.flight != nil {
+		return source.flight, nil
 	}
-	flight := &refreshFlight{done: make(chan struct{})}
-	s.flights[kind] = flight
-	s.flightWG.Add(1)
-	refreshCtx, cancel := context.WithTimeout(s.lifecycleCtx, s.refreshTimeout)
-	s.flightMu.Unlock()
+	now := s.now().UTC()
+	if !force && !source.lastAttempt.IsZero() && source.lastAttempt.Add(s.ttl).After(now) {
+		return nil, nil
+	}
+	source.lastAttempt = now
 
-	// The flight map owns this goroutine until completion. Its service-level
-	// deadline bounds the lifetime independently of any individual caller.
-	go s.runRefreshFlight(refreshCtx, cancel, kind, flight)
-	return awaitRefreshFlight(ctx, kind, flight)
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if source.binding.Config.Kind == SourceKindFeed {
+		ctx, cancel = context.WithTimeout(s.lifecycleCtx, s.refreshTimeout)
+	} else {
+		// PluginSource owns the single budget spanning document, checkout and package work.
+		ctx, cancel = context.WithCancel(s.lifecycleCtx)
+	}
+	flight := &refreshFlight{
+		done:       make(chan struct{}),
+		cancel:     cancel,
+		source:     source.binding.Config.Name,
+		generation: source.generation,
+	}
+	source.flight = flight
+	s.flightWG.Go(func() {
+		defer cancel()
+		flight.outcome, flight.err = s.refreshWithPackageCache(ctx, source)
+		s.flightMu.Lock()
+		if source.flight == flight {
+			source.flight = nil
+		}
+		s.completedRefreshes++
+		close(flight.done)
+		s.flightMu.Unlock()
+	})
+	return flight, nil
 }
 
-func (s *CatalogService) runRefreshFlight(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	kind Kind,
-	flight *refreshFlight,
-) {
-	defer s.flightWG.Done()
-	defer cancel()
-	flight.outcome, flight.err = s.refreshKind(ctx, kind)
-	s.flightMu.Lock()
-	delete(s.flights, kind)
-	close(flight.done)
-	s.flightMu.Unlock()
-}
-
-func awaitRefreshFlight(ctx context.Context, kind Kind, flight *refreshFlight) (RefreshOutcome, error) {
+func awaitRefreshFlight(ctx context.Context, flight *refreshFlight) (RefreshOutcome, error) {
 	select {
 	case <-flight.done:
 		return flight.outcome, flight.err
 	case <-ctx.Done():
-		return canceledRefreshOutcome(kind), ctx.Err()
+		return failedRefreshOutcome(flight.source, flight.generation, errorClassCanceled), ctx.Err()
 	}
 }
 
-func canceledRefreshOutcome(kind Kind) RefreshOutcome {
-	return RefreshOutcome{
-		Kind:       kind,
-		Outcome:    RefreshOutcomeFailed,
-		ErrorClass: errorClassCanceled,
-	}
+func failedRefreshOutcome(source string, generation int64, class string) RefreshOutcome {
+	return RefreshOutcome{Source: source, Generation: generation, Outcome: RefreshOutcomeFailed, ErrorClass: class}
 }
 
-func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOutcome, error) {
-	source := s.sources[kind]
-	now := s.now().UTC()
-	document, err := source.Fetch(ctx)
+func (s *CatalogService) currentSource(source *registeredSource) error {
+	if s.byName[source.binding.Config.Name] != source || !source.binding.Config.Enabled {
+		return storepkg.ErrMarketplaceCatalogGenerationStale
+	}
+	return s.lifecycleError()
+}
+
+func (s *CatalogService) refreshSource(ctx context.Context, source *registeredSource) (RefreshOutcome, error) {
+	document, err := source.binding.Fetcher.Fetch(ctx)
 	if err != nil {
-		if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
-			return canceledRefreshOutcome(kind), errors.Join(lifecycleErr, err)
-		}
-		return s.recordFailure(
-			kind,
-			classifyFetchError(err),
-			errors.Join(ErrSourceUnavailable, err),
-		)
+		return s.recordFailure(source, classifyFetchError(err), errors.Join(ErrSourceUnavailable, err))
 	}
 	if document == nil {
 		return s.recordFailure(
-			kind,
+			source,
 			"validation",
 			errors.Join(ErrSourceUnavailable, errors.New("marketplace catalog: source returned nil document")),
 		)
 	}
-	document.FetchedAt = now
-	for index := range document.Entries {
-		document.Entries[index].FetchedAt = now
+	name := source.binding.Config.Name
+	fetched := *document
+	fetched.Entries = slices.Clone(document.Entries)
+	fetched.FetchedAt = s.now().UTC()
+	if fetched.SourceRef != "" && fetched.SourceRef != source.binding.Config.Ref {
+		return s.recordFailure(
+			source,
+			"validation",
+			errors.New("marketplace catalog: fetched document changed its origin"),
+		)
 	}
-	if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
-		return canceledRefreshOutcome(kind), lifecycleErr
+	fetched.SourceRef, fetched.SourceKind = source.binding.Config.Ref, source.binding.Config.Kind
+	for i := range fetched.Entries {
+		fetched.Entries[i].FetchedAt = fetched.FetchedAt
 	}
-	if err := s.store.ReplaceKind(ctx, kind, document); err != nil {
-		return s.recordFailure(kind, "store", err)
+	s.sourceMu.RLock()
+	if err := s.currentSource(source); err != nil {
+		s.sourceMu.RUnlock()
+		return failedRefreshOutcome(name, source.generation, "generation_stale"), err
+	}
+	err = s.store.ReplaceSource(ctx, name, source.generation, &fetched)
+	s.sourceMu.RUnlock()
+	if err != nil {
+		return s.recordFailure(source, "store", err)
+	}
+	if s.logger != nil {
+		skipped := 0
+		for _, entry := range fetched.Entries {
+			if entry.InstallBlocker == budgetExhausted {
+				skipped++
+			}
+		}
+		if skipped > 0 {
+			s.logger.WarnContext(ctx, "marketplace.source.budget_exhausted",
+				"source", name, "listed", len(fetched.Entries), "skipped", skipped)
+		}
 	}
 	outcome := RefreshOutcome{
-		Kind:       kind,
+		Source:     name,
+		Generation: source.generation,
 		Outcome:    RefreshOutcomeSucceeded,
-		EntryCount: len(document.Entries),
+		EntryCount: len(fetched.Entries),
 	}
 	if err := s.notify(outcome); err != nil {
-		return outcome, fmt.Errorf("marketplace catalog: persist %q refresh event: %w", kind, err)
+		return outcome, fmt.Errorf("marketplace catalog: persist %q refresh event: %w", name, err)
 	}
 	return outcome, nil
 }
 
 func (s *CatalogService) recordFailure(
-	kind Kind,
+	source *registeredSource,
 	errorClass string,
 	cause error,
 ) (RefreshOutcome, error) {
-	// Fetch/store failures may arrive because the refresh deadline expired. Use
-	// a fresh service-owned deadline so failure state and its event outlive that
-	// dead operation context while Close can still cancel and join the work.
-	failureCtx, cancel := s.boundedLifecycleContext()
+	ctx, cancel := s.boundedLifecycleContext()
 	defer cancel()
-	redacted := diagnostics.RedactAndBound(cause.Error(), maxStoredErrorBytes)
-	markErr := s.store.MarkKindStale(failureCtx, kind, errorClass, redacted)
-	state, stateErr := s.store.KindState(failureCtx, kind)
-	outcome := RefreshOutcome{
-		Kind:       kind,
-		Outcome:    RefreshOutcomeFailed,
-		Stale:      true,
-		ErrorClass: errorClass,
+	name := source.binding.Config.Name
+	outcome := failedRefreshOutcome(name, source.generation, errorClass)
+	s.sourceMu.RLock()
+	if err := s.currentSource(source); err != nil {
+		s.sourceMu.RUnlock()
+		outcome.ErrorClass = "generation_stale"
+		return outcome, errors.Join(cause, err)
 	}
+	redacted := diagnostics.RedactAndBound(cause.Error(), maxStoredErrorBytes)
+	markErr := s.store.MarkSourceStale(ctx, name, source.generation, errorClass, redacted)
+	if errors.Is(markErr, storepkg.ErrMarketplaceCatalogGenerationStale) {
+		s.sourceMu.RUnlock()
+		outcome.ErrorClass = "generation_stale"
+		return outcome, errors.Join(cause, markErr)
+	}
+	state, stateErr := s.store.SourceState(ctx, name)
+	s.sourceMu.RUnlock()
+	outcome.Stale = true
 	if stateErr == nil {
 		outcome.EntryCount = state.EntryCount
 	}
-	notifyErr := s.notify(outcome)
-	return outcome, errors.Join(cause, markErr, stateErr, notifyErr)
+	return outcome, errors.Join(cause, markErr, stateErr, s.notify(outcome))
 }
 
 func (s *CatalogService) notify(outcome RefreshOutcome) error {
@@ -178,7 +229,10 @@ func (s *CatalogService) notify(outcome RefreshOutcome) error {
 }
 
 func (s *CatalogService) boundedLifecycleContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(s.lifecycleCtx, s.refreshTimeout)
+	s.sourceMu.RLock()
+	timeout := s.refreshTimeout
+	s.sourceMu.RUnlock()
+	return context.WithTimeout(s.lifecycleCtx, timeout)
 }
 
 func classifyFetchError(err error) string {
@@ -187,10 +241,22 @@ func classifyFetchError(err error) string {
 		return ""
 	case errors.Is(err, context.Canceled):
 		return errorClassCanceled
+	case errors.Is(err, ErrRefreshBudgetExhausted):
+		return budgetExhausted
 	case errors.Is(err, context.DeadlineExceeded):
 		return errorClassTimeout
 	case errors.Is(err, ErrResponseTooLarge):
 		return "payload_too_large"
+	case errors.Is(err, pluginsource.ErrDocumentTooLarge):
+		return "marketplace_document_too_large"
+	case errors.Is(err, pluginsource.ErrNotMarketplace):
+		return "marketplace_not_a_marketplace"
+	}
+	if sourceErr, ok := errors.AsType[*pluginsource.SourceError](err); ok {
+		return sourceErr.Reason
+	}
+	if errors.Is(err, pluginsource.ErrSourceUnreachable) {
+		return "source_unreachable"
 	}
 	if matched, ok := errors.AsType[*UnsupportedManifestVersionError](err); ok && matched != nil {
 		return "manifest_version"
@@ -204,8 +270,20 @@ func classifyFetchError(err error) string {
 	if errors.Is(err, ErrCatalogValidation) {
 		return "validation"
 	}
-	if matched, ok := errors.AsType[*url.Error](err); ok && matched != nil {
-		return errorClassNetwork
-	}
 	return errorClassNetwork
+}
+
+// A flight finishing during the snapshot read still requires one final read.
+func (s *CatalogService) refreshingSince(completed uint64) bool {
+	s.flightMu.Lock()
+	defer s.flightMu.Unlock()
+	if s.completedRefreshes != completed {
+		return true
+	}
+	for _, source := range s.sources {
+		if source.flight != nil {
+			return true
+		}
+	}
+	return false
 }

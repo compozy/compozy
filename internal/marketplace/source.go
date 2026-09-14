@@ -31,16 +31,15 @@ type documentEnvelope struct {
 	Entries         *[]json.RawMessage `json:"entries"`
 }
 
-// HTTPSource fetches one per-kind document from the configured base URL.
+// HTTPSource fetches the extension catalog from the configured base URL.
 type HTTPSource struct {
-	kind             Kind
 	endpoint         string
 	client           http.Client
 	timeout          time.Duration
 	maxResponseBytes int64
 }
 
-var _ Source = (*HTTPSource)(nil)
+var _ FeedSource = (*HTTPSource)(nil)
 
 // HTTPSourceOption customizes bounded feed fetching.
 type HTTPSourceOption func(*HTTPSource)
@@ -55,11 +54,7 @@ func WithMaxResponseBytes(limit int64) HTTPSourceOption {
 }
 
 // NewHTTPSource creates one explicit-timeout feed source.
-func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HTTPSourceOption) (*HTTPSource, error) {
-	filename, err := kindFilename(kind)
-	if err != nil {
-		return nil, err
-	}
+func NewHTTPSource(baseURL string, client *http.Client, options ...HTTPSourceOption) (*HTTPSource, error) {
 	if client == nil || client.Timeout <= 0 {
 		return nil, errors.New("marketplace catalog: HTTP client timeout must be positive")
 	}
@@ -70,14 +65,13 @@ func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HT
 	if parsed.User != nil {
 		return nil, errors.New("marketplace catalog: base URL must not contain credentials")
 	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + filename
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/v3/extensions.json"
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	ownedClient := *client
 	timeout := ownedClient.Timeout
 	ownedClient.Timeout = 0
 	source := &HTTPSource{
-		kind:             kind,
 		endpoint:         parsed.String(),
 		client:           ownedClient,
 		timeout:          timeout,
@@ -91,15 +85,34 @@ func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HT
 	return source, nil
 }
 
-func (s *HTTPSource) Kind() Kind {
+// Fetch downloads and validates the extension catalog without mutating projection state.
+func (s *HTTPSource) Fetch(ctx context.Context) (*Document, error) {
 	if s == nil {
-		return ""
+		return nil, errors.New("marketplace catalog: HTTP source is required")
 	}
-	return s.kind
+	body, err := s.read(ctx, s.endpoint)
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodeDocument(body)
+	return document, errors.Join(err, decodeErr)
 }
 
-// Fetch downloads and validates the source document without mutating projection state.
-func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) {
+// FetchPresets reads the ordered v3 preset catalog through the same bounded transport.
+func (s *HTTPSource) FetchPresets(ctx context.Context) (*PresetDocument, error) {
+	if s == nil {
+		return nil, errors.New("marketplace catalog: HTTP source is required")
+	}
+	endpoint := strings.TrimSuffix(s.endpoint, "extensions.json") + "marketplaces.json"
+	body, err := s.read(ctx, endpoint)
+	if body == nil {
+		return nil, err
+	}
+	document, decodeErr := DecodePresets(body)
+	return document, errors.Join(err, decodeErr)
+}
+
+func (s *HTTPSource) read(ctx context.Context, endpoint string) (_ []byte, err error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
@@ -108,17 +121,17 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, s.endpoint, http.NoBody)
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: create %q request: %w", s.kind, err)
+		return nil, fmt.Errorf("marketplace catalog: create feed request: %w", err)
 	}
 	request.Header.Set("Accept", "application/json")
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: fetch %q feed: %w", s.kind, err)
+		return nil, fmt.Errorf("marketplace catalog: fetch feed: %w", err)
 	}
 	defer func() {
-		err = joinHTTPResponseErrors(err, drainAndCloseHTTPResponseBody(s.kind, response.Body))
+		err = joinHTTPResponseErrors(err, drainAndCloseHTTPResponseBody(response.Body))
 	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, &httpStatusError{status: response.StatusCode}
@@ -129,40 +142,36 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	limitedBody := &io.LimitedReader{R: response.Body, N: s.maxResponseBytes}
 	body, err := io.ReadAll(limitedBody)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, err)
+		return nil, fmt.Errorf("marketplace catalog: read feed response: %w", err)
 	}
 	if limitedBody.N == 0 {
 		extra, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
 		if len(extra) > 0 {
 			if readErr != nil {
-				readErr = fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, readErr)
+				readErr = fmt.Errorf("marketplace catalog: read feed response: %w", readErr)
 			}
 			return nil, joinHTTPResponseErrors(ErrResponseTooLarge, readErr)
 		}
 		if readErr != nil {
-			return nil, fmt.Errorf("marketplace catalog: read %q response: %w", s.kind, readErr)
+			return nil, fmt.Errorf("marketplace catalog: read feed response: %w", readErr)
 		}
 	}
-	document, err = DecodeDocument(s.kind, body)
-	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: validate %q feed: %w", s.kind, err)
-	}
-	return document, nil
+	return body, nil
 }
 
 // drainAndCloseHTTPResponseBody discards at most maxHTTPResponseDrainBytes before closing the body.
-func drainAndCloseHTTPResponseBody(kind Kind, body io.ReadCloser) error {
+func drainAndCloseHTTPResponseBody(body io.ReadCloser) error {
 	if body == nil {
 		return nil
 	}
 
 	_, drainErr := io.Copy(io.Discard, io.LimitReader(body, maxHTTPResponseDrainBytes))
 	if drainErr != nil {
-		drainErr = fmt.Errorf("marketplace catalog: drain %q response: %w", kind, drainErr)
+		drainErr = fmt.Errorf("marketplace catalog: drain extension catalog response: %w", drainErr)
 	}
 	closeErr := body.Close()
 	if closeErr != nil {
-		closeErr = fmt.Errorf("marketplace catalog: close %q response: %w", kind, closeErr)
+		closeErr = fmt.Errorf("marketplace catalog: close extension catalog response: %w", closeErr)
 	}
 	return joinHTTPResponseErrors(drainErr, closeErr)
 }
@@ -187,9 +196,9 @@ func joinHTTPResponseErrors(primary error, additional ...error) error {
 	}
 }
 
-// DecodeDocument strictly validates one complete v2 document.
-func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
-	document, err := decodeDocument(kind, raw)
+// DecodeDocument strictly validates the extension catalog family.
+func DecodeDocument(raw []byte) (*Document, error) {
+	document, err := decodeDocument(raw)
 	if err == nil || errors.Is(err, ErrCatalogDecode) {
 		return document, err
 	}
@@ -199,43 +208,39 @@ func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	return nil, fmt.Errorf("%w: %w", ErrCatalogValidation, err)
 }
 
-func decodeDocument(kind Kind, raw []byte) (*Document, error) {
-	if _, err := kindFilename(kind); err != nil {
-		return nil, err
-	}
+func decodeDocument(raw []byte) (*Document, error) {
 	var envelope documentEnvelope
 	if err := decodeStrict(raw, &envelope); err != nil {
-		return nil, fmt.Errorf("marketplace catalog %q document: %w", kind, err)
+		return nil, fmt.Errorf("marketplace catalog document: %w", err)
 	}
 	if envelope.ManifestVersion == nil || *envelope.ManifestVersion == 0 {
-		return nil, fmt.Errorf("marketplace catalog %q manifest_version is required", kind)
+		return nil, errors.New("marketplace catalog manifest_version is required")
 	}
 	if *envelope.ManifestVersion != ManifestVersion {
-		return nil, &UnsupportedManifestVersionError{Kind: kind, Version: *envelope.ManifestVersion}
+		return nil, &UnsupportedManifestVersionError{Version: *envelope.ManifestVersion}
 	}
 	if envelope.Entries == nil {
-		return nil, fmt.Errorf("marketplace catalog %q entries is required", kind)
+		return nil, errors.New("marketplace catalog entries is required")
 	}
-	if len(*envelope.Entries) > maxCatalogEntriesPerKind {
+	if len(*envelope.Entries) > maxCatalogEntriesPerSource {
 		return nil, fmt.Errorf(
-			"marketplace catalog %q entries exceeds limit %d",
-			kind,
-			maxCatalogEntriesPerKind,
+			"marketplace catalog entries exceeds limit %d",
+			maxCatalogEntriesPerSource,
 		)
 	}
 	generatedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(envelope.GeneratedAt))
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog %q generated_at must be RFC3339: %w", kind, err)
+		return nil, fmt.Errorf("marketplace catalog generated_at must be RFC3339: %w", err)
 	}
 	entries := make([]Entry, 0, len(*envelope.Entries))
 	for index, entryRaw := range *envelope.Entries {
-		entry, err := decodeKindEntry(kind, entryRaw)
+		entry, err := decodeExtensionEntry(entryRaw)
 		if err != nil {
-			return nil, fmt.Errorf("marketplace catalog %q entry %d: %w", kind, index, err)
+			return nil, fmt.Errorf("marketplace catalog entry %d: %w", index, err)
 		}
 		entries = append(entries, entry)
 	}
-	if err := validateDocumentEntries(kind, entries); err != nil {
+	if err := validateDocumentEntries(entries); err != nil {
 		return nil, err
 	}
 	return &Document{
@@ -243,19 +248,6 @@ func decodeDocument(kind Kind, raw []byte) (*Document, error) {
 		GeneratedAt:     generatedAt.UTC(),
 		Entries:         entries,
 	}, nil
-}
-
-func decodeKindEntry(kind Kind, raw []byte) (Entry, error) {
-	switch kind {
-	case KindMCP:
-		return decodeMCPEntry(raw)
-	case KindExtension:
-		return decodeExtensionEntry(raw)
-	case KindSkill:
-		return decodeSkillEntry(raw)
-	default:
-		return Entry{}, fmt.Errorf("marketplace catalog: unsupported kind %q", kind)
-	}
 }
 
 func decodeStrict(raw []byte, destination any) error {
@@ -272,17 +264,4 @@ func decodeStrict(raw []byte, destination any) error {
 		return fmt.Errorf("%w: decode JSON trailing data: %w", ErrCatalogDecode, err)
 	}
 	return nil
-}
-
-func kindFilename(kind Kind) (string, error) {
-	switch kind {
-	case KindMCP:
-		return "mcp.json", nil
-	case KindExtension:
-		return "extensions.json", nil
-	case KindSkill:
-		return "skills.json", nil
-	default:
-		return "", fmt.Errorf("marketplace catalog: unsupported kind %q", kind)
-	}
 }

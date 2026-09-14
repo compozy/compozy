@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: Create, update, rename, archive, unarchive, and delete use daemon-owned profile state; every planned mutation applies exactly the previewed revision, preserves or removes the documented ownership rows, and returns matching human and structured results.
 entry_points: compozy profile list|current|create|update|rename|archive|unarchive|delete; local HTTP/UDS /api/profiles routes
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260914-profile-rename-mcp-reference
+fix_status: fixed
+retest_status: pass
+fix_commits: c131f5764
+evidence: docs/qa/reports/2026-09-14-marketplace-review-public.md
+last_report: docs/qa/reports/2026-09-14-marketplace-review-public.md
 overlaps: ET-profile-selection-precedence; ET-profile-operations-recovery; ET-profile-lifecycle-race-guards; ET-profile-approval-owner-resume
 ---
 
@@ -32,3 +32,12 @@ Walk:
 
 Expected evidence: structured transcripts for every verb and plan, ownership counts before/after,
 Vault rewrite records, lifecycle events, and the final name-reuse result.
+
+PR636 review retest: seed manual and extension MCP tokens, registrations and configured client
+secrets in both profile and workspace-profile cells. Rename must enumerate every ref occurrence,
+keep tokens and registered client secrets decryptable under the new profile identity, and remove
+old refs. Deletion must count and remove all exclusive credential rows while preserving shared,
+user-scoped and other-profile credentials. Compare preview and actual removal counts. The real
+Vault/SQLite lifecycle suite passed; the targeted CLI walk is recorded below.
+
+PR636 targeted result 2026-09-14: Both configured profile layers and all 20 standalone credential refs across four owner cells renamed and deleted through public CLI with exact preview/apply counts and protected refs retained; encrypted OAuth rows remain owning integration evidence. See docs/qa/reports/2026-09-14-marketplace-review-public.md. Broader historical scenario steps were not rerun in this targeted pass.

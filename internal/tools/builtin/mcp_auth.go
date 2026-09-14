@@ -31,7 +31,11 @@ const mcpAuthStatusInputSchema = `{
 	"type":"object",
 	"required":["server_name"],
 	"properties":{
-		"server_name":{"type":"string"}
+		"server_name":{"type":"string"},
+		"owner":{
+			"type":"string",
+			"description":"Definition owner: manual or extension:<name>. Omit to resolve the runtime name, manual first."
+		}
 	},
 	"additionalProperties":false
 }`

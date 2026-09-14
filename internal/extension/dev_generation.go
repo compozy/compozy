@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +21,41 @@ type verifiedDevGeneration struct {
 	ManifestPath             string
 	Manifest                 *Manifest
 	NetworkRequirementDigest string
+}
+
+// PrepareDevelopmentGeneration validates portable source or builds a native bundle.
+func PrepareDevelopmentGeneration(ctx context.Context, sourceDir string) (*BuildResult, error) {
+	if ctx == nil {
+		return nil, errors.New("extension: development context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	req, err := normalizeBuildRequest(BuildRequest{SourceDir: sourceDir})
+	if err != nil {
+		return nil, err
+	}
+	document, err := readPortableDevManifest(req.SourceDir)
+	if err != nil {
+		return nil, err
+	}
+	if document == nil {
+		return BuildBundle(ctx, req)
+	}
+	manifest, err := loadAgentPluginDocument(req.SourceDir, "", document)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := ComputeDirectoryChecksum(req.SourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("extension: checksum portable development source: %w", err)
+	}
+	return &BuildResult{
+		GenerationDir:  req.SourceDir,
+		GenerationHash: hash,
+		ManifestPath:   document.Path,
+		Manifest:       manifest,
+	}, nil
 }
 
 func canonicalizeDevOrigin(workspaceRoot, originPath string) (string, error) {
@@ -78,12 +114,12 @@ func verifyDevGeneration(
 			ErrExtensionGenerationInvalid,
 		)
 	}
-	portable, err := isPortableDevOrigin(originPath)
+	document, err := readPortableDevManifest(originPath)
 	if err != nil {
 		return nil, err
 	}
-	if portable {
-		return verifyPortableDevGeneration(originPath, hash, resolvePortableDataDir)
+	if document != nil {
+		return verifyPortableDevGeneration(originPath, hash, document, resolvePortableDataDir)
 	}
 	generationDir := filepath.Join(originPath, "dist", generationPrefix+hash)
 	distRoot, err := filepath.EvalSymlinks(filepath.Join(originPath, "dist"))
@@ -133,26 +169,27 @@ func verifyDevGeneration(
 	}, nil
 }
 
-func isPortableDevOrigin(originPath string) (bool, error) {
+func readPortableDevManifest(originPath string) (*agentplugin.ManifestDocument, error) {
 	for _, name := range []string{manifestTOMLFileName, manifestJSONFileName} {
 		exists, err := fileExists(filepath.Join(originPath, name))
 		if err != nil {
-			return false, fmt.Errorf("extension: inspect development manifest %q: %w", name, err)
+			return nil, fmt.Errorf("extension: inspect development manifest %q: %w", name, err)
 		}
 		if exists {
-			return false, nil
+			return nil, nil
 		}
 	}
-	exists, err := fileExists(filepath.Join(originPath, agentPluginManifestFileName))
-	if err != nil {
-		return false, fmt.Errorf("extension: inspect Agent Plugins development manifest: %w", err)
+	document, err := agentplugin.ReadManifest(originPath)
+	if missing, ok := errors.AsType[*agentplugin.NotManifestError](err); ok && missing != nil {
+		return nil, nil
 	}
-	return exists, nil
+	return document, err
 }
 
 func verifyPortableDevGeneration(
 	originPath string,
 	hash string,
+	document *agentplugin.ManifestDocument,
 	resolveDataDir func(string) (string, error),
 ) (*verifiedDevGeneration, error) {
 	actualHash, err := ComputeDirectoryChecksum(originPath)
@@ -167,7 +204,7 @@ func verifyPortableDevGeneration(
 			actualHash,
 		)
 	}
-	name, err := agentplugin.ReadManifestName(originPath)
+	name, err := document.Name()
 	if err != nil {
 		return nil, fmt.Errorf("%w: read portable generation %q name: %w", ErrExtensionGenerationInvalid, hash, err)
 	}
@@ -183,7 +220,7 @@ func verifyPortableDevGeneration(
 			err,
 		)
 	}
-	manifest, err := LoadManifestWithAgentPluginDataDir(originPath, dataDir)
+	manifest, err := loadAgentPluginDocument(originPath, dataDir, document)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
@@ -200,7 +237,7 @@ func verifyPortableDevGeneration(
 		OriginPath:               originPath,
 		GenerationDir:            originPath,
 		GenerationHash:           hash,
-		ManifestPath:             filepath.Join(originPath, agentPluginManifestFileName),
+		ManifestPath:             document.Path,
 		Manifest:                 manifest,
 		NetworkRequirementDigest: networkDigest,
 	}, nil

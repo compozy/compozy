@@ -81,16 +81,11 @@ func ListProfileRefRewrites(
 	oldName string,
 	newName string,
 ) ([]ProfileRefRewrite, error) {
-	oldPrefix, newPrefix, err := profileRenamePrefixes(oldName, newName)
+	prefixes, err := profileRenameRefPrefixes(ctx, q, oldName, newName)
 	if err != nil {
 		return nil, err
 	}
 	rewrites := make([]ProfileRefRewrite, 0)
-	mcpOldPrefix, mcpNewPrefix, err := mcpProfileRenamePrefixes(oldName, newName)
-	if err != nil {
-		return nil, err
-	}
-	prefixes := []profileRefPrefix{{old: oldPrefix, new: newPrefix}, {old: mcpOldPrefix, new: mcpNewPrefix}}
 	locationRewrites, err := listProfileRefLocationRewrites(ctx, q, prefixes)
 	if err != nil {
 		return nil, err
@@ -112,8 +107,8 @@ func listProfileRefLocationRewrites(
 	for _, location := range profileRefLocations {
 		for _, prefix := range prefixes {
 			query := "SELECT " + location.column + " FROM " + location.table +
-				" WHERE " + location.column + " LIKE ? ORDER BY " + location.column
-			rows, queryErr := q.QueryContext(ctx, query, prefix.old+"%")
+				" WHERE SUBSTR(" + location.column + ", 1, LENGTH(?)) = ? ORDER BY " + location.column
+			rows, queryErr := q.QueryContext(ctx, query, prefix.old, prefix.old)
 			if queryErr != nil {
 				return nil, fmt.Errorf("vault: list profile ref rewrites from %s: %w", location.name, queryErr)
 			}
@@ -153,25 +148,28 @@ func listProfileMCPOwnerRewrites(
 ) ([]ProfileRefRewrite, error) {
 	rewrites := make([]ProfileRefRewrite, 0)
 	for _, location := range profileMCPRowLocations {
-		query := "SELECT workspace_id FROM " + location.table +
-			" WHERE scope = 'profile' AND workspace_id = ? ORDER BY workspace_id"
-		rows, queryErr := q.QueryContext(ctx, query, strings.TrimSpace(oldName))
+		query := "SELECT scope, workspace_id FROM " + location.table +
+			" WHERE (scope = 'profile' AND workspace_id = ?) OR" +
+			" (scope = 'workspace_profile' AND SUBSTR(workspace_id, -LENGTH(?)) = ?) ORDER BY scope, workspace_id"
+		suffix := "@pf:" + strings.TrimSpace(oldName)
+		rows, queryErr := q.QueryContext(ctx, query, strings.TrimSpace(oldName), suffix, suffix)
 		if queryErr != nil {
 			return nil, fmt.Errorf("vault: list profile MCP owner rewrites from %s: %w", location.name, queryErr)
 		}
 		for rows.Next() {
-			var owner string
-			if scanErr := rows.Scan(&owner); scanErr != nil {
+			var scope, owner string
+			if scanErr := rows.Scan(&scope, &owner); scanErr != nil {
 				closeErr := rows.Close()
 				return nil, errors.Join(
 					fmt.Errorf("vault: scan profile MCP owner rewrite from %s: %w", location.name, scanErr),
 					closeErr,
 				)
 			}
-			rewrites = append(
-				rewrites,
-				ProfileRefRewrite{Location: location.name, OldRef: owner, NewRef: strings.TrimSpace(newName)},
-			)
+			newOwner := strings.TrimSpace(newName)
+			if scope == MCPWorkspaceProfileScope {
+				newOwner = strings.TrimSuffix(owner, suffix) + "@pf:" + newOwner
+			}
+			rewrites = append(rewrites, ProfileRefRewrite{Location: location.name, OldRef: owner, NewRef: newOwner})
 		}
 		if rowsErr := rows.Err(); rowsErr != nil {
 			closeErr := rows.Close()
@@ -198,34 +196,26 @@ func (r *ProfileRefRewriter) RewriteProfileRefs(
 	if r == nil || r.keys == nil {
 		return errors.New("vault: profile ref rewriter is not configured")
 	}
-	oldPrefix, newPrefix, err := profileRenamePrefixes(oldName, newName)
+	prefixes, err := profileRenameRefPrefixes(ctx, exec, oldName, newName)
 	if err != nil {
 		return err
 	}
-	mcpOldPrefix, mcpNewPrefix, err := mcpProfileRenamePrefixes(oldName, newName)
-	if err != nil {
-		return err
-	}
-	if err := r.rewriteVaultRows(ctx, exec, oldPrefix, newPrefix, updatedAt); err != nil {
-		return err
-	}
-	if err := r.rewriteVaultRows(ctx, exec, mcpOldPrefix, mcpNewPrefix, updatedAt); err != nil {
-		return err
-	}
-	for _, prefix := range []profileRefPrefix{
-		{old: oldPrefix, new: newPrefix},
-		{old: mcpOldPrefix, new: mcpNewPrefix},
-	} {
+	for _, prefix := range prefixes {
+		if err := r.rewriteVaultRows(ctx, exec, prefix.old, prefix.new, updatedAt); err != nil {
+			return err
+		}
 		for _, location := range profileRefLocations[1:] {
 			query := "UPDATE " + location.table + " SET " + location.column +
-				" = REPLACE(" + location.column + ", ?, ?), updated_at = ? WHERE " + location.column + " LIKE ?"
+				" = ? || SUBSTR(" + location.column + ", LENGTH(?) + 1), updated_at = ?" +
+				" WHERE SUBSTR(" + location.column + ", 1, LENGTH(?)) = ?"
 			if _, execErr := exec.ExecContext(
 				ctx,
 				query,
-				prefix.old,
 				prefix.new,
+				prefix.old,
 				updatedAt,
-				prefix.old+"%",
+				prefix.old,
+				prefix.old,
 			); execErr != nil {
 				return fmt.Errorf("vault: rewrite profile refs in %s: %w", location.name, execErr)
 			}
@@ -233,13 +223,14 @@ func (r *ProfileRefRewriter) RewriteProfileRefs(
 	}
 	for _, location := range profileMCPRowLocations {
 		query := "UPDATE " + location.table +
-			" SET workspace_id = ?, updated_at = ? WHERE scope = 'profile' AND workspace_id = ?"
+			" SET workspace_id = CASE WHEN scope = 'profile' THEN ? ELSE" +
+			" SUBSTR(workspace_id, 1, LENGTH(workspace_id) - LENGTH(?)) || ? END, updated_at = ?" +
+			" WHERE (scope = 'profile' AND workspace_id = ?) OR" +
+			" (scope = 'workspace_profile' AND SUBSTR(workspace_id, -LENGTH(?)) = ?)"
+		oldSuffix := "@pf:" + strings.TrimSpace(oldName)
 		if _, err := exec.ExecContext(
-			ctx,
-			query,
-			strings.TrimSpace(newName),
-			updatedAt,
-			strings.TrimSpace(oldName),
+			ctx, query, strings.TrimSpace(newName), oldSuffix, "@pf:"+strings.TrimSpace(newName), updatedAt,
+			strings.TrimSpace(oldName), oldSuffix, oldSuffix,
 		); err != nil {
 			return fmt.Errorf("vault: rewrite profile MCP owner in %s: %w", location.name, err)
 		}
@@ -256,8 +247,8 @@ func (r *ProfileRefRewriter) rewriteVaultRows(
 ) error {
 	rows, err := exec.QueryContext(
 		ctx,
-		`SELECT ref, kind, encrypted_value FROM vault_secrets WHERE ref LIKE ? ORDER BY ref`,
-		oldPrefix+"%",
+		`SELECT ref, kind, encrypted_value FROM vault_secrets WHERE SUBSTR(ref, 1, LENGTH(?)) = ? ORDER BY ref`,
+		oldPrefix, oldPrefix,
 	)
 	if err != nil {
 		return fmt.Errorf("vault: list encrypted profile refs: %w", err)

@@ -167,6 +167,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__layout_validate":                expectedNativeEntry("Validating", " ", false, "🪟", "auto"),
 		"compozy__logs":                           expectedNativeEntry("Reading", " ", false, "📜", "query"),
 		"compozy__marketplace_search":             expectedNativeEntry("Searching", " for ", false, "🧩", "query"),
+		"compozy__marketplace_sources":            expectedNativeEntry("Reading", " ", false, "🧩", "auto"),
 		"compozy__loop_approve":                   expectedNativeEntry("Approving", " ", false, "🔁", "auto"),
 		"compozy__loop_cancel":                    expectedNativeEntry("Canceling", " ", false, "🔁", "auto"),
 		"compozy__loop_configure":                 expectedNativeEntry("Updating", " ", false, "🔁", "auto"),

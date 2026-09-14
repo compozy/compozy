@@ -35,6 +35,7 @@ func (r *Registry) ReconcileBundledProvenance(manifest *Manifest) error {
 		extensionPermissions(manifest),
 		info.InstalledAt,
 	)
+	provenance.Layout = manifest.Layout
 	provenanceJSON, err := json.Marshal(provenance)
 	if err != nil {
 		return fmt.Errorf("extension: marshal bundled provenance for %q: %w", info.Name, err)

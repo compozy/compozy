@@ -3,6 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
+	settingsMCPNotFoundDescription       = "MCP server or workspace not found"
 	settingsUpdateUnavailableDescription = "Update surface unavailable"
 	specInvalidSettingsScopeDescription  = "Invalid settings scope"
 )
@@ -30,8 +31,11 @@ func registrySettingsOperations() []OperationSpec {
 		putSettingsHookOperationSpec(),
 		deleteSettingsHookOperationSpec(),
 		getSettingsHooksExtensionsOperationSpec(),
+		getSettingsMarketplaceOperation(),
+		updateSettingsMarketplaceOperation(),
 		updateSettingsHooksExtensionsOperationSpec(),
 		listSettingsMCPServersOperationSpec(),
+		getSettingsMCPServerOperationSpec(),
 		putSettingsMCPServerOperationSpec(),
 		deleteSettingsMCPServerOperationSpec(),
 	}
@@ -392,7 +396,7 @@ func listSettingsMCPServersOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/settings/mcp-servers",
 		OperationID: "listSettingsMCPServers",
-		Summary:     "List settings-backed MCP servers",
+		Summary:     "List manual and extension-owned MCP servers",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  settingsLayeredParameters(),
@@ -409,7 +413,7 @@ func putSettingsMCPServerOperationSpec() OperationSpec {
 		Method:      httpMethodPut,
 		Path:        specAPISettingsMCPServersNamePath,
 		OperationID: "putSettingsMCPServer",
-		Summary:     "Create or replace one settings-backed MCP server",
+		Summary:     "Replace a manual MCP server or its extension override",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  settingsMCPServerParameters(),
@@ -420,6 +424,11 @@ func putSettingsMCPServerOperationSpec() OperationSpec {
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting MCP server change", Body: contract.ErrorPayload{}},
+			{
+				Status:      422,
+				Description: "MCP runtime name reserved by an extension (mcp_server_name_taken)",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -429,7 +438,7 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 		Method:      httpMethodDelete,
 		Path:        specAPISettingsMCPServersNamePath,
 		OperationID: "deleteSettingsMCPServer",
-		Summary:     "Delete one settings-backed MCP server",
+		Summary:     "Delete a manual MCP server or reset its extension override",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  settingsMCPServerParameters(),
@@ -437,7 +446,7 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: settingsMCPNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting MCP server change", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -447,6 +456,10 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 func settingsMCPServerParameters() []ParameterSpec {
 	parameters := []ParameterSpec{pathParam("name", "MCP server name")}
 	parameters = append(parameters, settingsLayeredParameters()...)
+	parameters = append(
+		parameters,
+		queryParam("owner", "Select manual or extension:<name>; omitted owner selects manual servers only", false),
+	)
 	return append(parameters, enumQueryParam(
 		"target",
 		"Select the persistence target",

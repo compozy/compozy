@@ -499,6 +499,36 @@ func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
 
 func TestExtensionToolProviderCatalog(t *testing.T) {
 	t.Parallel()
+	// Invariant: tool discovery honors installation profile reach even without
+	// a running manager. Owner: tool provider catalog; canonical suite: this suite.
+	t.Run("Should exclude unattached profiles from the manifest catalog", func(t *testing.T) {
+		t.Parallel()
+		env, fixture, _ := createExtensionToolProviderFixture(t, "ext-attached-tools", true)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		if err := env.registry.AttachInstallation(t.Context(), fixture.manifest.Name, InstallationScope{
+			ProfileID: profileID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.registry.DetachInstallation(t.Context(), fixture.manifest.Name, InstallationScope{}); err != nil {
+			t.Fatal(err)
+		}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			profileID string
+			want      int
+		}{
+			{profileID, 1}, {"", 0}, {"foreign-profile", 0},
+		} {
+			catalog, err := provider.List(t.Context(), toolspkg.Scope{Operator: true, ProfileID: tc.profileID})
+			if err != nil || len(catalog) != tc.want {
+				t.Fatalf("catalog for %q = %#v, %v; want %d entries", tc.profileID, catalog, err, tc.want)
+			}
+		}
+	})
 
 	t.Run("Should exclude portable manifests from native tool discovery", func(t *testing.T) {
 		t.Parallel()
@@ -818,10 +848,10 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
 		}
-		workspaceHealthyAInfo := cloneExtensionInfo(*healthyAInfo)
+		workspaceHealthyAInfo := cloneExtensionInfo(healthyAInfo)
 		workspaceHealthyAInfo.Name = brokenInfo.Name
 		workspaceHealthyAInfo.Source = SourceWorkspace
-		workspaceHealthyBInfo := cloneExtensionInfo(*healthyBInfo)
+		workspaceHealthyBInfo := cloneExtensionInfo(healthyBInfo)
 		workspaceHealthyBInfo.Name = brokenInfo.Name
 		workspaceHealthyBInfo.Source = SourceWorkspace
 		original, stat := readManifestContentAndMetadata(t, brokenInfo.ManifestPath)
@@ -1480,7 +1510,7 @@ func (f *fakeScopedExtensionToolRuntime) ListForWorkspace(workspaceID string) []
 	}
 	cloned := make([]ExtensionInfo, len(infos))
 	for i := range infos {
-		cloned[i] = cloneExtensionInfo(infos[i])
+		cloned[i] = cloneExtensionInfo(&infos[i])
 	}
 	return cloned
 }

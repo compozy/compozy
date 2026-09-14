@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	listMarketplaceSourcesFn           func(context.Context) (contract.MarketplaceSourcesResponse, error)
 	getSessionUsageTurnsFn             func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
 	searchSessionTranscriptFn          func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
 	getSessionOutlineFn                func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
@@ -121,11 +122,9 @@ type stubClient struct {
 	listExtensionsScopedFn      func(context.Context, string) ([]ExtensionRecord, error)
 	searchExtensionsFn          func(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	listExtensionCommandsFn     func(context.Context, string, string) (ExtensionCommandsRecord, error)
-	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
-	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
+	searchMarketplaceFn         func(context.Context, string, int, string, MarketplaceReadScope) (MarketplaceListRecord, error)
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
-	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
-	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
+	refreshMarketplaceFn        func(context.Context) (MarketplaceRefreshRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsLayeredScopeKind, string, string) (contract.SettingsMCPServersResponse, error)
 	getSettingsMCPAuthStatusFn  func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	beginSettingsMCPAuthFn      func(
@@ -358,9 +357,6 @@ type stubClient struct {
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	exposeSkillFn                 func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillExposeResponse, error)
 	unexposeSkillFn               func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillUnexposeResponse, error)
-	installSkillMarketplaceFn     func(context.Context, SkillMarketplaceInstallRequest) (SkillMarketplaceInstallRecord, error)
-	updateSkillMarketplaceFn      func(context.Context, SkillMarketplaceUpdateRequest) ([]SkillMarketplaceUpdateRecord, error)
-	removeSkillMarketplaceFn      func(context.Context, string) (SkillMarketplaceRemoveRecord, error)
 	listToolsFn                   func(context.Context, ToolQuery) (ToolsResponseRecord, error)
 	searchToolsFn                 func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
 	getToolFn                     func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
@@ -1221,56 +1217,33 @@ func (s *stubClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
 	limit int,
-	scope MarketplaceReadScope,
-) (MarketplaceSearchRecord, error) {
-	if s.searchMarketplaceFn != nil {
-		return s.searchMarketplaceFn(ctx, query, limit, scope)
-	}
-	return MarketplaceSearchRecord{}, errors.New("unexpected SearchMarketplace call")
-}
-
-func (s *stubClient) BrowseMarketplace(
-	ctx context.Context,
-	kind string,
-	query string,
-	limit int,
 	cursor string,
 	scope MarketplaceReadScope,
-) (MarketplaceKindRecord, error) {
-	if s.browseMarketplaceFn != nil {
-		return s.browseMarketplaceFn(ctx, kind, query, limit, cursor, scope)
+) (MarketplaceListRecord, error) {
+	if s.searchMarketplaceFn != nil {
+		return s.searchMarketplaceFn(ctx, query, limit, cursor, scope)
 	}
-	return MarketplaceKindRecord{}, errors.New("unexpected BrowseMarketplace call")
+	return MarketplaceListRecord{}, errors.New("unexpected SearchMarketplace call")
 }
 
 func (s *stubClient) MarketplaceInfo(
 	ctx context.Context,
-	kind string,
 	entryID string,
+	source string,
 	installedName string,
 	scope MarketplaceReadScope,
 ) (MarketplaceEntryRecord, error) {
 	if s.marketplaceInfoFn != nil {
-		return s.marketplaceInfoFn(ctx, kind, entryID, installedName, scope)
+		return s.marketplaceInfoFn(ctx, entryID, source, installedName, scope)
 	}
 	return MarketplaceEntryRecord{}, errors.New("unexpected MarketplaceInfo call")
 }
 
-func (s *stubClient) RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error) {
+func (s *stubClient) RefreshMarketplace(ctx context.Context) (MarketplaceRefreshRecord, error) {
 	if s.refreshMarketplaceFn != nil {
-		return s.refreshMarketplaceFn(ctx, kind)
+		return s.refreshMarketplaceFn(ctx)
 	}
 	return MarketplaceRefreshRecord{}, errors.New("unexpected RefreshMarketplace call")
-}
-
-func (s *stubClient) InstallSettingsMCPServer(
-	ctx context.Context,
-	request InstallSettingsMCPServerRequest,
-) (InstallSettingsMCPServerRecord, error) {
-	if s.installSettingsMCPServerFn != nil {
-		return s.installSettingsMCPServerFn(ctx, request)
-	}
-	return InstallSettingsMCPServerRecord{}, errors.New("unexpected InstallSettingsMCPServer call")
 }
 
 func (s *stubClient) ListSettingsMCPServers(
@@ -3051,36 +3024,6 @@ func (s *stubClient) UnexposeSkill(
 	return contract.SkillUnexposeResponse{}, errors.New("unexpected UnexposeSkill call")
 }
 
-func (s *stubClient) InstallSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceInstallRequest,
-) (SkillMarketplaceInstallRecord, error) {
-	if s.installSkillMarketplaceFn != nil {
-		return s.installSkillMarketplaceFn(ctx, request)
-	}
-	return SkillMarketplaceInstallRecord{}, errors.New("unexpected InstallSkillMarketplace call")
-}
-
-func (s *stubClient) UpdateSkillMarketplace(
-	ctx context.Context,
-	request SkillMarketplaceUpdateRequest,
-) ([]SkillMarketplaceUpdateRecord, error) {
-	if s.updateSkillMarketplaceFn != nil {
-		return s.updateSkillMarketplaceFn(ctx, request)
-	}
-	return nil, errors.New("unexpected UpdateSkillMarketplace call")
-}
-
-func (s *stubClient) RemoveSkillMarketplace(
-	ctx context.Context,
-	name string,
-) (SkillMarketplaceRemoveRecord, error) {
-	if s.removeSkillMarketplaceFn != nil {
-		return s.removeSkillMarketplaceFn(ctx, name)
-	}
-	return SkillMarketplaceRemoveRecord{}, errors.New("unexpected RemoveSkillMarketplace call")
-}
-
 func (s *stubClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
 	if s.listToolsFn != nil {
 		return s.listToolsFn(ctx, query)
@@ -4605,6 +4548,15 @@ func (s *stubClient) GetSessionOutline(
 		return s.getSessionOutlineFn(ctx, id)
 	}
 	return contract.SessionTranscriptOutlineResponse{}, errors.New("unexpected GetSessionOutline call")
+}
+
+func (s *stubClient) ListMarketplaceSources(ctx context.Context) (contract.MarketplaceSourcesResponse, error) {
+	if s.listMarketplaceSourcesFn != nil {
+		return s.listMarketplaceSourcesFn(ctx)
+	}
+	return contract.MarketplaceSourcesResponse{Sources: []contract.MarketplaceSourcePayload{{
+		Name: "compozy-catalog", Source: "catalog:compozy", Kind: "feed", Enabled: true,
+	}}}, nil
 }
 
 func (s *stubClient) GetSessionUsageTurns(ctx context.Context, id string) (contract.SessionUsageTurnsResponse, error) {

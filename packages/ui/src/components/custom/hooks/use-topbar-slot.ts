@@ -20,7 +20,7 @@ export interface TopbarSlotValue {
   glyph?: React.ReactNode;
   /** Icon well by default; `state` renders a bare live-state mark for document windows. */
   glyphPresentation?: "icon" | "state";
-  /** Optional mono count beside the title at root. */
+  /** Optional mono count beside the title at root or in a drill-in identity. */
   count?: React.ReactNode;
   /** Live status chip in the head trail (state-colored). */
   status?: React.ReactNode;

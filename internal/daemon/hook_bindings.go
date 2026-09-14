@@ -192,7 +192,7 @@ func (s *hookBindingSourceSyncer) bindingID(
 	owner *resources.ResourceOwner,
 ) (string, error) {
 	if owner != nil {
-		return extensionHookBindingID(owner.ID, spec.Name), nil
+		return extensionHookBindingID(owner.ID, spec), nil
 	}
 	encoded, err := s.codec.Encode(spec)
 	if err != nil {
@@ -248,8 +248,16 @@ func (s *hookBindingSourceSyncer) sameBinding(
 	return bytes.Equal(currentEncoded, desiredEncoded)
 }
 
-func extensionHookBindingID(extensionName string, hookName string) string {
-	return "extension/" + strings.TrimSpace(extensionName) + "/hook.binding/" + strings.TrimSpace(hookName)
+func extensionHookBindingID(extensionName string, hook hookspkg.HookDecl) string {
+	identity := strings.TrimSpace(hook.PlacementProfileID()) + "\x00" + strings.TrimSpace(hook.Matcher.WorkspaceID)
+	sum := sha256.Sum256([]byte(identity))
+	return "extension/" + strings.TrimSpace(
+		extensionName,
+	) + "/hook.binding/" + strings.TrimSpace(
+		hook.Name,
+	) + "/" + hex.EncodeToString(
+		sum[:12],
+	)
 }
 
 func extensionHookOwner(spec hookspkg.HookDecl) *resources.ResourceOwner {

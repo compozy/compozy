@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/fileutil"
+
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
-	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/session"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -143,11 +143,11 @@ func readNativeAttachmentPath(
 
 func resolveNativeAttachmentPath(workspaceRoots []string, path string) (string, error) {
 	for _, root := range workspaceRoots {
-		resolvedPath, err := skillmarketplace.PathInsideRoot(root, path)
+		resolvedPath, err := fileutil.ResolvePathWithinRoot(root, path)
 		switch {
 		case err == nil:
 			return resolvedPath, nil
-		case errors.Is(err, registrypkg.ErrPathOutsideRoot):
+		case errors.Is(err, fileutil.ErrPathOutsideRoot):
 			continue
 		default:
 			return "", fmt.Errorf("resolve attachment path: %w", err)

@@ -1,38 +1,9 @@
-import { Box, Plug, Puzzle, Wrench, type LucideIcon } from "lucide-react";
+import { ExtensionsApiError } from "@/systems/extensions";
+import { MarketplaceApiError } from "../adapters/marketplace-api-error";
+import type { MarketplaceCatalogListing } from "../types";
 
-import type { MarketplaceEntryResponse, MarketplaceKind, MarketplaceListing } from "../types";
-
-export type MarketplaceViewSort = "relevance" | "downloads" | "name";
-
-const MARKETPLACE_KIND_ICON: Record<MarketplaceKind, LucideIcon> = {
-  skill: Wrench,
-  extension: Puzzle,
-  mcp: Plug,
-};
-
-export function marketplaceKindIcon(kind: MarketplaceKind): LucideIcon {
-  return MARKETPLACE_KIND_ICON[kind] ?? Box;
-}
-
-const STANDARD_COUNT_FORMATTER = new Intl.NumberFormat("en", {
-  notation: "standard",
-  maximumFractionDigits: 1,
-});
-const COMPACT_COUNT_FORMATTER = new Intl.NumberFormat("en", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-export function isMarketplaceViewSort(value: unknown): value is MarketplaceViewSort {
-  return value === "relevance" || value === "downloads" || value === "name";
-}
-
-export function marketplaceEntrySlug(entry: MarketplaceListing): string {
+export function marketplaceEntrySlug(entry: MarketplaceCatalogListing): string {
   return entry.install_slug?.trim() || entry.entry_id;
-}
-
-export function formatMarketplaceCount(value: number): string {
-  return (value >= 1_000 ? COMPACT_COUNT_FORMATTER : STANDARD_COUNT_FORMATTER).format(value);
 }
 
 /** Public marketplace versions can arrive as exact release tags with a v/V prefix. */
@@ -42,44 +13,12 @@ export function formatMarketplaceVersion(version: string | null | undefined): st
   return `v${trimmed.replace(/^[vV]+/, "")}`;
 }
 
-export function formatMarketplaceMCPLaunch(
-  launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>
-): string | undefined {
-  if (launch.type === "remote") return launch.url;
-  if (launch.type === "docker") {
-    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
-  }
-  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
-    .filter(Boolean)
-    .join(" ");
-}
-
-export function sortMarketplaceEntries(
-  entries: readonly MarketplaceListing[],
-  sort: MarketplaceViewSort
-): MarketplaceListing[] {
-  const sorted = [...entries];
-  if (sort === "downloads") {
-    return sorted.sort((left, right) => (right.downloads ?? -1) - (left.downloads ?? -1));
-  }
-  if (sort === "name") {
-    return sorted.sort((left, right) => left.name.localeCompare(right.name));
-  }
-  return sorted;
-}
-
 export function marketplaceErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
 }
 
-/** Endpoint/issuer hosts render without their scheme in metadata lines. */
-export function stripMarketplaceUrlScheme(url: string): string {
-  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+export function marketplaceErrorCode(error: unknown): string | undefined {
+  if (error instanceof MarketplaceApiError) return error.diagnosticCode;
+  if (error instanceof ExtensionsApiError) return error.code;
+  return undefined;
 }
-
-export {
-  isMarketplaceKind,
-  MARKETPLACE_KIND_LABEL,
-  MARKETPLACE_KIND_ORDER,
-  MARKETPLACE_KIND_SINGULAR,
-} from "../lib/marketplace-kind";

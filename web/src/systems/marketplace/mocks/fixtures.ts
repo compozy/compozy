@@ -1,10 +1,10 @@
-import {
-  MARKETPLACE_KINDS,
-  type MarketplaceEntryResponse,
-  type MarketplaceKind,
-  type MarketplaceKindResponse,
-  type MarketplaceListing,
-  type MarketplaceSearchResponse,
+import type {
+  MarketplaceCatalogResponse,
+  MarketplaceCatalogEntryResponse,
+  MarketplaceCatalogListing,
+  MarketplaceSource,
+  MarketplaceSourcePreview,
+  MarketplaceSourcesResponse,
 } from "../types";
 
 const warningUnsigned = {
@@ -28,284 +28,233 @@ const warningNetwork = {
   title: "Network egress",
 };
 
-export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> = {
-  skill: [
-    {
-      author: "@compozy",
-      description: "Branch, review, and land PRs with the project's own checks as the gate.",
-      downloads: 3400,
-      entry_id: "git-flow",
-      install_slug: "compozy/git-flow",
-      installed: true,
-      installed_name: "git-flow",
-      installed_version: "1.4.2",
-      kind: "skill",
-      manage_path: "/marketplace/skills",
-      name: "git-flow",
-      source: "registry",
-      update_available: false,
-      version: "1.4.2",
+const entries: MarketplaceCatalogListing[] = [
+  {
+    author: "@compozy",
+    description: "Export session and tool spans to an OpenTelemetry collector.",
+    digest_sha256: "a".repeat(64),
+    installable: true,
+    entry_id: "otel-bridge",
+    install_slug: "compozy/otel-bridge",
+    installed: false,
+    name: "otel-bridge",
+    source: "compozy-catalog",
+    source_ref: "catalog:compozy",
+    manage_path: "/marketplace/installed",
+    tier: "official",
+    trust: {
+      allow_unverified: false,
+      checksum_verified: false,
+      decision: "verified",
+      registry_tier: "official",
+      warnings: [],
     },
-    {
-      author: "@compozy",
-      description:
-        "Keep packages/site docs aligned with OpenAPI and CLI help after contract changes.",
-      downloads: 840,
-      entry_id: "docs-sync",
-      install_slug: "compozy/docs-sync",
-      installed: false,
-      kind: "skill",
-      name: "docs-sync",
-      source: "registry",
-      update_available: false,
-      version: "0.9.1",
+    update_available: false,
+    version: "0.6.0",
+  },
+  {
+    author: "@community",
+    description: "Post run summaries to a Slack channel when a loop finishes.",
+    digest_sha256: "a".repeat(64),
+    installable: true,
+    entry_id: "slack-notify",
+    install_slug: "compozy/slack-notify",
+    installed: false,
+    name: "slack-notify",
+    source: "compozy-catalog",
+    source_ref: "catalog:compozy",
+    manage_path: "/marketplace/installed",
+    tier: "unverified",
+    trust: {
+      allow_unverified: true,
+      checksum_verified: false,
+      decision: "allowed_unverified",
+      registry_tier: "unverified",
+      warnings: [warningUnsigned, warningNetwork],
     },
-    {
-      author: "@compozy",
-      description:
-        "Spin an isolated COMPOZY_HOME lab with ports, provider homes, and a bootstrap manifest.",
-      downloads: 2100,
-      entry_id: "qa-bootstrap",
-      install_slug: "compozy/qa-bootstrap",
-      installed: true,
-      installed_name: "qa-bootstrap",
-      installed_version: "2.0.0",
-      kind: "skill",
-      manage_path: "/marketplace/skills",
-      name: "qa-bootstrap",
-      source: "registry",
-      update_available: true,
-      version: "2.2.0",
+    update_available: false,
+    version: "1.1.4",
+  },
+  {
+    author: "@community",
+    description: "An unverified extension blocked by the active daemon policy.",
+    digest_sha256: "a".repeat(64),
+    installable: true,
+    entry_id: "policy-blocked",
+    install_slug: "compozy/policy-blocked",
+    installed: false,
+    name: "policy-blocked",
+    source: "compozy-catalog",
+    source_ref: "catalog:compozy",
+    manage_path: "/marketplace/installed",
+    tier: "unverified",
+    trust: {
+      allow_unverified: false,
+      checksum_verified: false,
+      decision: "blocked",
+      registry_tier: "unverified",
+      warnings: [warningUnsigned],
     },
-    {
-      author: "@compozy",
-      description:
-        "Validate PRD and TechSpec inputs against the authoring playbook before drafting.",
-      downloads: 620,
-      entry_id: "spec-preflight",
-      install_slug: "compozy/spec-preflight",
-      installed: false,
-      kind: "skill",
-      name: "spec-preflight",
-      source: "registry",
-      update_available: false,
-      version: "1.0.3",
+    update_available: false,
+    version: "0.3.2",
+  },
+  /** Curated entry declaring the portable format; the marker is display metadata only. */
+  {
+    author: "@acme",
+    description: "Deploy checks and a tools API server, packaged in the Agent Plugins format.",
+    digest_sha256: "a".repeat(64),
+    installable: true,
+    entry_id: "acme-tools",
+    format: "agent-plugin",
+    install_slug: "compozy/acme-tools",
+    installed: false,
+    name: "acme.tools",
+    source: "compozy-catalog",
+    source_ref: "catalog:compozy",
+    manage_path: "/marketplace/installed",
+    tier: "community",
+    trust: {
+      allow_unverified: true,
+      checksum_verified: false,
+      decision: "allowed_unverified",
+      registry_tier: "community",
+      warnings: [warningUnsigned],
     },
-  ],
-  extension: [
-    {
-      author: "@compozy",
-      description: "Export session and tool spans to an OpenTelemetry collector.",
-      downloads: 1200,
-      entry_id: "otel-bridge",
-      install_slug: "compozy/otel-bridge",
-      installed: false,
-      kind: "extension",
-      name: "otel-bridge",
-      source: "registry",
-      tier: "official",
-      trust: {
-        allow_unverified: false,
-        checksum_verified: false,
-        decision: "verified",
-        registry_tier: "official",
-        warnings: [],
-      },
-      update_available: false,
-      version: "0.6.0",
-    },
-    {
-      author: "@community",
-      description: "Post run summaries to a Slack channel when a loop finishes.",
-      downloads: 840,
-      entry_id: "slack-notify",
-      install_slug: "community/slack-notify",
-      installed: false,
-      kind: "extension",
-      name: "slack-notify",
-      source: "registry",
-      tier: "unverified",
-      trust: {
-        allow_unverified: true,
-        checksum_verified: false,
-        decision: "allowed_unverified",
-        registry_tier: "unverified",
-        warnings: [warningUnsigned, warningNetwork],
-      },
-      update_available: false,
-      version: "1.1.4",
-    },
-    {
-      author: "@community",
-      description: "An unverified extension blocked by the active daemon policy.",
-      downloads: 210,
-      entry_id: "policy-blocked",
-      install_slug: "community/policy-blocked",
-      installed: false,
-      kind: "extension",
-      name: "policy-blocked",
-      source: "registry",
-      tier: "unverified",
-      trust: {
-        allow_unverified: false,
-        checksum_verified: false,
-        decision: "blocked",
-        registry_tier: "unverified",
-        warnings: [warningUnsigned],
-      },
-      update_available: false,
-      version: "0.3.2",
-    },
-    /** Curated entry declaring the portable format; the marker is display metadata only. */
-    {
-      author: "@acme",
-      description: "Deploy checks and a tools API server, packaged in the Agent Plugins format.",
-      downloads: 320,
-      entry_id: "acme-tools",
-      format: "agent-plugin",
-      install_slug: "acme/acme.tools",
-      installed: false,
-      kind: "extension",
-      name: "acme.tools",
-      source: "registry",
-      tier: "community",
-      trust: {
-        allow_unverified: true,
-        checksum_verified: false,
-        decision: "allowed_unverified",
-        registry_tier: "community",
-        warnings: [warningUnsigned],
-      },
-      update_available: false,
-      version: "2.1.0",
-    },
-  ],
-  mcp: [
-    {
-      author: "@modelcontextprotocol",
-      description:
-        "Repository issues, pull requests, and code search through a local stdio server.",
-      entry_id: "github",
-      install_slug: "github",
-      installed: false,
-      kind: "mcp",
-      name: "github",
-      source: "curated",
-      transport: "stdio",
-      update_available: false,
-      version: "0.6.2",
-    },
-    {
-      author: "@linear",
-      description: "Linear issues and projects through a remote OAuth server.",
-      entry_id: "linear",
-      install_slug: "linear",
-      installed: false,
-      kind: "mcp",
-      name: "linear",
-      source: "curated",
-      transport: "http",
-      update_available: false,
-      version: "1.0.0",
-    },
-  ],
+    update_available: false,
+    version: "2.1.0",
+  },
+];
+
+export const marketplaceCatalogFixture: MarketplaceCatalogResponse = {
+  total: entries.length,
+  revision: "catalog-fixture-v1",
+  stale: false,
+  sources: [{ name: "compozy-catalog", kind: "feed", state: "ok", count: entries.length }],
+  items: entries,
 };
 
-export const marketplaceSearchFixture: MarketplaceSearchResponse = {
-  query: "",
-  kinds: MARKETPLACE_KINDS.map(kind => ({
-    items: marketplaceListings[kind],
-    kind,
-    stale: false,
-    total: marketplaceListings[kind].length,
-  })),
-};
-
-export function marketplaceKindFixture(kind: MarketplaceKind): MarketplaceKindResponse {
+export function marketplaceCatalogDetailFixture(
+  entryId: string
+): MarketplaceCatalogEntryResponse | null {
+  const entry = entries.find(item => item.entry_id === entryId);
+  if (!entry) return null;
   return {
-    items: marketplaceListings[kind],
-    kind,
-    stale: false,
-    total: marketplaceListings[kind].length,
+    entry,
+    extension: {
+      artifact_url: `https://example.test/${encodeURIComponent(entry.entry_id)}.tar.gz`,
+      contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+      inputs: [],
+      mcp_servers: [],
+      digest_sha256: entry.digest_sha256,
+      install_slug: entry.install_slug ?? "",
+    },
   };
 }
 
-const skillDetail: MarketplaceEntryResponse = {
-  entry: marketplaceListings.skill[0]!,
-  skill: {
-    display_name: "Git flow",
-    install_slug: "compozy/git-flow",
-    license: "MIT",
-    readme:
-      "## What it does\n\ngit-flow drives the full branch lifecycle from inside a session. It reads the repository's own checks and treats a non-zero exit as a hard stop.\n\n## Usage\n\n```sh\ncompozy skill run git-flow --branch feat/session-cache\n```",
-    repository: "https://github.com/compozy/skill-git-flow",
-    tags: ["git", "review"],
-    versions: ["1.4.2", "1.4.1", "1.3.0"],
-  },
-};
+const READ_AT = "2026-09-13T09:12:00Z";
+const DEGRADED_READ_AT = "2026-09-10T14:02:11Z";
 
-const extensionDetail: MarketplaceEntryResponse = {
-  entry: marketplaceListings.extension[1]!,
-  extension: {
-    artifact_url:
-      "https://github.com/community/slack-notify/releases/download/v1.1.4/slack-notify-v1.1.4.tar.gz",
-    digest_sha256: "9be4d36a7bf48f5df88bb0ee3564561eaeaaeef2bcf76c2e2ad19856c045ef98",
-    install_slug: "community/slack-notify",
-    repository: "https://github.com/community/slack-notify",
+/** Every source row exactly as `GET /api/marketplace/sources` returns it, in authoritative order. */
+export const marketplaceSourceFixtures = {
+  feed: {
+    diagnostics: [],
+    document_path: "v3/extensions.json",
+    enabled: true,
+    installable: entries.length,
+    kind: "feed",
+    last_read_at: READ_AT,
+    name: "compozy-catalog",
+    plugins: entries.length,
+    source: "https://raw.githubusercontent.com/compozy/compozy/main/catalog",
+    stability: "experimental",
+    state: "ok",
   },
-};
-
-const blockedExtensionDetail: MarketplaceEntryResponse = {
-  entry: marketplaceListings.extension[2]!,
-  extension: {
-    artifact_url: "https://downloads.example.test/policy-blocked-v0.3.2.tar.gz",
-    digest_sha256: "4e5cc61de69ff94319af04e1297b2b92af605e200a5a2bd851e7c214f7da32e8",
-    install_slug: "community/policy-blocked",
+  presetOn: {
+    diagnostics: [],
+    document_path: ".claude-plugin/marketplace.json",
+    enabled: true,
+    installable: 6,
+    kind: "preset",
+    last_read_at: READ_AT,
+    name: "claude-plugins-official",
+    owner: "Anthropic",
+    plugins: 6,
+    source: "github:anthropics/claude-plugins-official",
+    stability: "experimental",
+    state: "ok",
   },
-};
-
-const mcpStdioDetail: MarketplaceEntryResponse = {
-  entry: marketplaceListings.mcp[0]!,
-  mcp: {
-    default_scope: "workspace",
-    inputs: [
+  presetOff: {
+    diagnostics: [],
+    enabled: false,
+    installable: 0,
+    kind: "preset",
+    last_read_at: null,
+    name: "openai-codex",
+    plugins: 0,
+    source: "github:openai/codex",
+    stability: "experimental",
+    state: "never",
+  },
+  customDegraded: {
+    diagnostics: [
       {
-        binding: { name: "GITHUB_PERSONAL_ACCESS_TOKEN", type: "env" },
-        id: "github_personal_access_token",
-        prompt: "GitHub personal access token",
-        required: true,
-        type: "secret",
+        category: "marketplace",
+        code: "load_failed",
+        data_freshness: "cached",
+        id: "load_failed:legacy-tool",
+        message:
+          'plugin "legacy-tool": no manifest found (checked plugin.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json)',
+        severity: "warning",
+        title: "Plugin dropped",
       },
     ],
-    launch: {
-      args: ["--read-only"],
-      digest: "sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
-      image: "ghcr.io/github/github-mcp-server",
-      type: "docker",
-    },
+    document_path: "marketplace.json",
+    enabled: true,
+    error: "ENOENT",
+    error_class: "source_unreachable",
+    installable: 3,
+    kind: "custom",
+    last_read_at: DEGRADED_READ_AT,
+    name: "team-plugins",
+    owner: "CompozyOS team",
+    plugins: 4,
+    source: "file:///Users/pedro/Dev/team-plugins",
+    stability: "experimental",
+    state: "degraded",
   },
+} satisfies Record<string, MarketplaceSource>;
+
+export const marketplaceSourcesFixture: MarketplaceSourcesResponse = {
+  sources: [
+    marketplaceSourceFixtures.feed,
+    marketplaceSourceFixtures.presetOn,
+    marketplaceSourceFixtures.presetOff,
+    marketplaceSourceFixtures.customDegraded,
+  ],
 };
 
-const mcpRemoteDetail: MarketplaceEntryResponse = {
-  entry: marketplaceListings.mcp[1]!,
-  mcp: {
-    auth: {
-      method: "oauth",
-      registration: "auto",
-    },
-    default_scope: "workspace",
-    inputs: [],
-    launch: {
-      type: "remote",
-      url: "https://mcp.linear.app/mcp",
-    },
-  },
+/** What `POST /api/marketplace/sources?dry_run=true` reports for a readable reference. */
+export const marketplaceSourcePreviewFixture: MarketplaceSourcePreview = {
+  diagnostics: [],
+  document_path: ".claude-plugin/marketplace.json",
+  installable: 6,
+  name: "claude-plugins-official",
+  owner: "Anthropic",
+  plugins: 6,
 };
 
-export const marketplaceDetails: Record<string, MarketplaceEntryResponse> = {
-  "skill:git-flow": skillDetail,
-  "extension:slack-notify": extensionDetail,
-  "extension:policy-blocked": blockedExtensionDetail,
-  "mcp:github": mcpStdioDetail,
-  "mcp:linear": mcpRemoteDetail,
+/** The registered row a successful `POST /api/marketplace/sources` returns for that preview. */
+export const marketplaceSourceAddedFixture: MarketplaceSource = {
+  diagnostics: [],
+  document_path: marketplaceSourcePreviewFixture.document_path,
+  enabled: true,
+  installable: marketplaceSourcePreviewFixture.installable,
+  kind: "custom",
+  last_read_at: READ_AT,
+  name: marketplaceSourcePreviewFixture.name,
+  owner: marketplaceSourcePreviewFixture.owner,
+  plugins: marketplaceSourcePreviewFixture.plugins,
+  source: "github:anthropics/claude-plugins-official",
+  stability: "experimental",
+  state: "ok",
 };

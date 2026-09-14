@@ -46,7 +46,7 @@ func (s *daemonExtensionService) InventoryScoped(
 	if err != nil {
 		return contract.ExtensionInventoryPayload{}, err
 	}
-	desired, err := projectExtensionKitItems(ctx, ext, s.resourceCodecs, s.getenv)
+	desired, err := s.projectExtensionInputKitItems(ctx, ext, profile.ID)
 	if err != nil {
 		return contract.ExtensionInventoryPayload{}, err
 	}

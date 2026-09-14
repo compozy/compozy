@@ -21,14 +21,17 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 	joinErrors := make([]error, 0)
 	for index := range items {
 		item := &items[index]
-		if item.Provenance == nil {
+		if item.Origin == nil || item.Origin.SourceRef == "" {
 			continue
 		}
-		entryID := strings.TrimSpace(item.Provenance.CatalogEntryID)
+		entryID := strings.TrimSpace(item.Origin.EntryID)
 		if entryID == "" {
 			continue
 		}
-		entry, err := h.MarketplaceCatalog.Detail(ctx, marketplacepkg.KindExtension, entryID)
+		entry, err := h.MarketplaceCatalog.Entry(
+			ctx,
+			marketplacepkg.Origin{SourceRef: item.Origin.SourceRef, EntryID: entryID},
+		)
 		if onlyMarketplaceEntryNotFound(err) {
 			continue
 		}
@@ -49,15 +52,14 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 
 		installed := newMarketplaceInstallIndex()
 		installation := marketplaceInstall{
+			extension:  item,
+			format:     strings.TrimSpace(item.Format),
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
 			managePath: marketplaceExtensionsInstalledPath,
 		}
-		installed.byEntryID[strings.TrimSpace(entry.EntryID)] = installation
-		if slug := strings.TrimSpace(entry.InstallSlug); slug != "" {
-			installed.bySlug[slug] = installation
-		}
-		listing, err := h.curatedMarketplaceListing(ctx, *entry, installed)
+		installed.byOrigin[marketplacepkg.Origin{SourceRef: item.Origin.SourceRef, EntryID: entryID}] = installation
+		listing, err := h.catalogMarketplaceListing(ctx, *entry, installed)
 		if err != nil {
 			joinErrors = append(
 				joinErrors,

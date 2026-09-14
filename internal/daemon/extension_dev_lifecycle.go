@@ -21,6 +21,7 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 	runtime extensionDevRuntime,
 	key extensionpkg.InstanceKey,
 	snapshot *extensionpkg.DevLink,
+	allocations *extensionMCPAllocationSnapshot,
 	cause error,
 ) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
@@ -42,6 +43,9 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 		rollbackErr = errors.Join(rollbackErr, s.restoreDevNetworkConfirmation(key, snapshot))
 		_, err = runtime.ActivateDevelopmentLink(rollbackCtx, key)
 		rollbackErr = errors.Join(rollbackErr, err)
+	}
+	if rollbackErr == nil {
+		rollbackErr = s.rollbackExtensionMCPAllocations(rollbackCtx, allocations)
 	}
 	rollbackErr = errors.Join(rollbackErr, s.syncExtensionConsumers(rollbackCtx))
 	if rollbackErr != nil {
@@ -90,7 +94,7 @@ func (s *daemonExtensionService) rollbackDevRemoval(
 ) error {
 	retirementErr := retirement.rollback(ctx, s)
 	return errors.Join(
-		s.rollbackDevLifecycle(ctx, runtime, key, snapshot, cause),
+		s.rollbackDevLifecycle(ctx, runtime, key, snapshot, nil, cause),
 		retirementErr,
 	)
 }

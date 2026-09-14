@@ -1,118 +1,62 @@
 ---
 title: Marketplace
-description: Discover, inspect, install, authorize, update, and manage skills, extensions, and MCP servers through one catalog.
+description: Browse the extension catalog, inspect an entry, and install its capabilities.
 ---
 
-This page helps you move from discovery to a managed capability. You will use the Marketplace web
-page or structured CLI and API surfaces to inspect provenance, install through each kind's owning
-lifecycle, and complete any required authorization. A catalog record proves where an item came
-from; it does not prove that the item is safe for every environment.
+Open Marketplace to browse one catalog of extensions. An extension can provide MCP servers,
+skills, tools, profiles, or other capabilities; its contents describe what you are installing.
+Search narrows the catalog. Installed entries stay marked in place, and the installed count opens
+[Installed](/docs/marketplace/installed), where you manage your local extensions.
 
 <OperatorNote>
-  Marketplace discovery is daemon-owned. Start the daemon before using the web page, the `compozy
-  marketplace` command group, extension registry operations, or MCP catalog install and
-  authorization.
+  Start the daemon before using Marketplace in the app or through the CLI and API. The public
+  [catalog](/marketplace) is a build-time snapshot; your daemon owns the active catalog and
+  installed state.
 </OperatorNote>
-
-The curated catalog is also browsable without a daemon at [compozy.com/marketplace](/marketplace).
-That static site renders its build-time, checked-in snapshot. Before installing from it, run
-`compozy marketplace search` against your daemon: its configured active catalog can differ.
 
 ## Browse And Inspect
 
-Open `/marketplace` to enter installed Skills, or go directly to `/marketplace/skills`,
-`/marketplace/mcps`, or `/marketplace/extensions`. Each kind page opens in Installed; choose
-Marketplace or use `?tab=market` to browse its catalog. `/marketplace/<kind>/<entry-id>` opens one catalog record.
-An installed skill detail also shows declared capabilities, recent calls, resolver provenance, and
-shadow resolution. An installed extension detail keeps its runtime state, health, daemon process,
-kit inventory, capabilities, actions, environment requirements, diagnostics, provenance, and
-management controls together.
+The app opens the catalog at `/marketplace`. Select an entry to inspect its description, contents,
+version, source, and trust decision. With one source, entries appear in a flat grid; multiple sources
+have separate sections. Refresh fetches the latest catalog. If a source is unreachable, cached
+entries remain visible with their stale status. An unavailable source is not an empty catalog.
 
-The CLI returns the daemon-owned active projection:
+The HTTP and UDS interfaces expose the same catalog:
 
-```bash
-# Browse every kind. An empty query returns real catalog slices.
-compozy marketplace search -o json
-
-# Search one kind.
-compozy marketplace search "linear" --kind mcp -o json
-
-# Continue that exact kind/query/scope from the returned next_cursor.
-compozy marketplace search "linear" --kind mcp --cursor '<next_cursor>' -o json
-
-# Inspect the stable catalog identity before installing.
-compozy marketplace info mcp linear -o json
-
-# Disambiguate an installed definition whose local name collides with a catalog entry.
-compozy marketplace info mcp linear --installed-name custom-linear -o json
+```http
+GET /api/marketplace?q=herdr&limit=20
+GET /api/marketplace/entries/herdr-bridge?source=compozy-catalog
 ```
 
-Use the returned `entry_id` with `compozy marketplace info`. Install commands use the kind-specific
-identifier shown by the active detail payload, such as an extension or skill `install_slug`.
-`--installed-name` disambiguates installed MCP, extension, and skill identities.
-The identifiers in the examples below are illustrative; substitute values returned by your active
-catalog.
+A page contains `items`, the filtered `total`, `sources`, `revision`, and `stale`, plus `next_cursor`
+when more entries remain. Pass the cursor unchanged with the same query, profile, and workspace.
+If the server returns `marketplace_cursor_stale` with `restart: true`, discard the earlier pages and
+start again. Identical refreshes retain the content revision. While `refreshing` is true,
+read the complete catalog again to observe pending source work; one failed source does not
+stop another source from finishing. When `refreshing` is absent or false, pending work has
+settled, even if `stale` and source errors remain.
 
-Single-kind responses return `next_cursor` when more rows remain. Treat it as opaque and pass it
-unchanged with the same kind, query, scope, and workspace; grouped search does not accept a cursor.
-Curated cursors fence the source projection. Remote skill registries do not expose a
-snapshot revision, so CompozyOS validates the prior page boundary with one bounded look-behind row. If
-that boundary changes, CompozyOS rejects the continuation; restart from the first page instead of
-combining shifted pages.
-`total` is the exact filtered total when the source can determine it. A source that cannot determine
-an exact total omits it while still returning `next_cursor`.
-
-JSON preserves the response envelope. Human and TOON output append a `Page` block; JSONL appends a
-`type: "page"` record after the item records. Read `next_cursor` from that page metadata in any
-output mode before requesting the continuation.
-
-Each kind can fail independently during grouped search. Read the affected kind's `stale`,
-`error_class`, and `error` fields instead of treating an empty group as proof that no items exist.
-A failed refresh keeps the last successful rows, marks that kind stale, and returns the per-kind
-failure report rather than pruning the projection. MCP, extension, and skill rows come from curated
-feed documents.
-
-The launch catalog includes Context7 for current library documentation, Repository Orientation for
-evidence-backed codebase mapping, and Documentation Writer for project and API documentation.
-These are ordinary feed entries: inspect the live detail record before installing because curation
-metadata can change independently of the daemon release.
-
-## Install A Skill
-
-Install the detail payload's skill slug through the existing skill lifecycle:
-
-```bash
-compozy skill install documentation-writer -o json
-compozy skill where documentation-writer -o json
-```
-
-The install writes marketplace provenance beside `SKILL.md`, scans the content, and then verifies
-that the effective skill resolver can discover the installed declaration. If a higher-precedence
-declaration shadows it, inspect `compozy skill where <name>` and repair the local precedence conflict
-before retrying.
-
-Skills do not carry a Marketplace trust badge because the skill source does not expose a trust
-field. Content scanning and installed provenance are separate runtime checks, not a safety rating.
+An entry is identified by `(source_ref, entry_id)`. Installed state joins on that origin, not a display
+name. Use `installed_name` when selecting a specific local installation. Entries without catalog
+provenance still appear in Installed. Follow the returned `manage_path` for management.
 
 ## Install An Extension
 
-Install the detail payload's extension slug, then inspect the persisted provenance:
+Choose Install on an entry whose trust decision allows installation. Entries that need configuration
+request their declared inputs before completing installation. Add also supports installation from
+GitHub or a local folder. Use the entry's `install_slug` for CLI installation:
 
 ```bash
-compozy extension install compozy/repository-orientation -o json
-compozy extension provenance repository-orientation -o json
+compozy extension install compozy/herdr-bridge -o json
+compozy extension provenance herdr-bridge -o json
 ```
 
-For a curated entry, CompozyOS downloads the feed's exact HTTPS `artifact_url`, pins its version and
-SHA-256 digest, verifies the download before extraction, and records the catalog entry, archive
-digest, extracted-tree checksum, registry tier, and trust report separately. Manual registry
-installs still resolve GitHub releases. A digest mismatch returns
-`extension_archive_digest_mismatch`; nothing is installed and `--allow-unverified` cannot bypass
-the mismatch. The matching `extension.digest.verify` event has `outcome=success`; a mismatch is
-persisted with `outcome=failure`, so failure queries include the rejected archive.
+For curated entries, the daemon downloads the exact HTTPS `artifact_url`, verifies `digest_sha256`
+before extraction, and records provenance. A mismatch returns `extension_archive_digest_mismatch`
+and does not install the package; `--allow-unverified` cannot bypass it. The pre-install trust report
+and a verified download are separate facts.
 
-Non-curated side-loads use a two-part gate. The live daemon policy must allow them, and the
-individual request must confirm the decision:
+A non-curated install requires both daemon policy and explicit consent:
 
 ```bash
 compozy config set extensions.trust.allow_unverified true -o json
@@ -120,177 +64,20 @@ compozy config reload -o json
 compozy extension install acme/private-extension --allow-unverified --yes -o json
 ```
 
-When policy is disabled, the structured diagnostic code is
-`extension_unverified_policy_blocked`; its evidence points to `/settings/extensions` and the
-`extensions.trust.allow_unverified` key. Enabling the policy does not weaken curated digest
-verification.
+If policy blocks the request, inspect `extension_unverified_policy_blocked` and its repair action.
+Do not infer runtime readiness from successful installation: a capability may still require inputs
+or authorization. MCP configuration and authorization are described in [MCP catalog operations](/docs/marketplace/mcp-catalog).
 
-## Install An MCP Server
+## CLI Discovery
 
-Catalog entries declare a typed launch distribution, authorization mode, and every operator input.
-The daemon locks those entry-owned fields, validates the submitted values, and writes one complete
-MCP definition or nothing.
-
-Context7 needs no required values and can be installed globally from the launch catalog:
+The existing CLI verbs remain available. Inspect their structured output before choosing an install target:
 
 ```bash
-compozy mcp install context7 --scope global -o json
+compozy marketplace search "herdr" -o json
+compozy marketplace info herdr-bridge --source compozy-catalog -o json
+compozy marketplace refresh -o json
 ```
 
-Use `--set id=value` for a non-secret input. Use `--secret id` to enter a secret through stdin or a
-hidden terminal prompt. To bind an existing present Vault ref:
-
-```bash
-printf "%s" "$GITHUB_TOKEN" | \
-  compozy vault put vault:mcp/shared/github-token --kind token --value-stdin
-
-compozy mcp install github \
-  --scope workspace \
-  --workspace <workspace-id> \
-  --vault-ref github_personal_access_token=vault:mcp/shared/github-token \
-  -o json
-```
-
-The input ID is catalog-owned: never substitute an environment variable name. The web guided
-installer offers the same typed-value, secret, or existing-Vault-ref choice. Settings responses return
-configured field names, never refs or secret values.
-For direct HTTP or UDS calls, `values` is a required nullable property: send `null` when the entry
-needs no operator inputs. Omission is rejected before the settings lifecycle runs.
-
-The install response reports both config `apply` and `next_step`. `apply.applied`,
-`apply.apply_record_id`, `apply.active_generation`, and `apply.next_action` tell you whether the
-daemon reconciled the new definition into its active configuration or whether repair is required.
-`next_step=authorize` means the structurally valid remote server still needs OAuth; `none` means
-there is no authorization step. Installation does not probe the MCP server and therefore does not
-claim runtime readiness.
-
-## Authorize A Remote MCP Server
-
-Start the daemon-owned PKCE flow after an OAuth catalog install:
-
-```bash
-compozy mcp auth login linear --scope global
-```
-
-CompozyOS returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
-or when the daemon HTTP bind is not loopback, use manual completion and paste the full redirect URL:
-
-```bash
-compozy mcp auth login linear --scope global --manual
-```
-
-Workspace authorization again requires both selectors:
-
-```bash
-compozy mcp auth login linear --scope workspace --workspace <workspace-id> --manual
-compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
-```
-
-Treat authorization as complete only when status is `authenticated` and `token_present` is `true`.
-A failed or canceled reauthorization preserves the existing token. The automatic HTTP callback is
-available only when the configured `mcp.oauth.redirect_uri` uses a loopback host; manual exchange is
-the supported remote-operator completion path. Automatic begin uses that configured URI exactly, so
-set it explicitly when the daemon uses a non-default loopback port.
-
-## Manage And Repair MCP Servers
-
-Open `/marketplace/mcps`. The page combines global definitions with definitions from
-the active workspace and keeps four signals independent:
-
-| Signal  | Runtime source                         | What to verify                                                    |
-| ------- | -------------------------------------- | ----------------------------------------------------------------- |
-| Config  | Scoped settings entry                  | The server definition exists.                                     |
-| Auth    | `auth_status.status` + `token_present` | OAuth is absent, needs login, expired, invalid, or confirmed.     |
-| Runtime | `runtime_status.state`                 | The daemon reports ready or a concrete repair state.              |
-| Probe   | `runtime_status.probe` + `tool_count`  | A probe was skipped, failed, or succeeded with a real tool count. |
-
-A configured row is not automatically ready. OAuth-capable HTTP servers receive Authorize or
-Reauthorize only when their reported state needs repair. The editor supports stdio command, args,
-environment and secret refs, plus remote HTTP URL and OAuth registration fields. Generic
-edits clear catalog provenance because the resulting definition is operator-managed.
-
-Agents can inspect redacted state with `compozy__mcp_status` and `compozy__mcp_auth_status`. Management
-mutations stay on CLI, HTTP, or UDS:
-
-```http
-GET /api/settings/mcp-servers
-PUT /api/settings/mcp-servers/{name}
-POST /api/settings/mcp-servers/{name}/auth/begin
-POST /api/settings/mcp-servers/{name}/auth/exchange
-POST /api/settings/mcp-servers/{name}/auth/logout
-GET /api/settings/mcp-servers/{name}/auth/status
-```
-
-The named status route reads only the target's redacted auth state; it does not start a runtime probe.
-The HTTP-only `GET /api/mcp/oauth/callback` handles loopback browser completion. Use the generated
-[Settings API reference](/docs/api/settings) for exact query and body schemas.
-
-## Update Semantics By Kind
-
-Marketplace does not invent one cross-kind update operation.
-
-| Kind      | Truthful update signal                                            | Action                                                                                                                          |
-| --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Skill     | Installed marketplace version compared with the registry version. | `compozy skill update <name> --check`, then `compozy skill update <name>`.                                                      |
-| Extension | Installed marketplace version compared with the registry version. | `compozy extension update <name> --check`, then `compozy extension update <name>`. Curated updates re-verify the pinned digest. |
-| MCP       | No update comparison or update action in v1.                      | Manage the installed definition and authorization state; do not infer freshness from a badge.                                   |
-
-Non-semver skill or extension versions do not produce a speculative update badge.
-
-## Read Trust As Provenance
-
-Marketplace trust fields answer where an artifact came from and which bytes were checked. They do
-not guarantee safe behavior.
-
-- Extension `registry_tier` records the catalog's source tier.
-- `checksum_verified` remains false before download verification and becomes true only after the
-  installed curated archive matches its pinned digest.
-- `warnings` and `decision` must be read before installation; do not replace them with a generic
-  verified badge.
-- MCP catalog provenance identifies the entry and version used to create the settings record. It
-  does not report server reachability or authorization readiness.
-- Skills have installed provenance and content verification, but no Marketplace trust tier.
-
-## Configure Catalog Refresh
-
-`[marketplace.catalog]` controls the curated MCP, extension, and skill feed projection:
-
-```toml
-[marketplace.catalog]
-base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
-ttl = "1h"
-timeout = "10s"
-```
-
-`make dev` and `make dev-daemon` read these documents from the checkout's `catalog/` directory through
-a process-local `file://` source. A normal daemon launch keeps the production `main` URL shown above.
-Local files refresh on access, so an existing remote projection and its TTL cannot mask checkout
-changes. The development override does not rewrite `config.toml`.
-
-All three keys apply live to the next fetch. Validate a change through the structured lifecycle:
-
-```bash
-compozy config set marketplace.catalog.ttl 30m -o json
-compozy config reload -o json
-compozy config apply-history --limit 5 -o json
-```
-
-A failed refresh preserves the last valid projection and marks that kind stale. A successful
-refresh atomically replaces the kind, so entries removed from the feed disappear from discovery.
-Installed-item management remains available when the catalog cannot refresh.
-Catalog validation requires typed `launch` distributions, exact versions for local packages, a
-verified digest for Docker, and a `default_scope`. Remote OAuth entries use automatic registration;
-their optional scopes must be unique and non-empty. A rejected document leaves the last valid
-projection intact and stale-marked.
-
-## Related References
-
-- [Marketplace CLI](/docs/cli/marketplace) lists exact discovery flags.
-- [Marketplace API](/docs/api/marketplace) lists browse, detail, and refresh schemas.
-- [MCP configuration and management](/docs/configuration/mcp-json) covers MCP fields,
-  precedence, status, and authorization.
-- [Install extensions](/docs/extensions/install) covers extension lifecycle and policy.
-- [Extension operations](/docs/extensions/install) covers kit inventory, preview, lifecycle consent,
-  and secret bindings.
-- [Configuration lifecycle matrix](/docs/configuration/lifecycle-matrix) is generated from
-  the runtime config owner.
+CLI discovery uses the same catalog as the app. Continue with the returned cursor and the same
+query and scope; obsolete kind selectors and two-argument info requests fail validation.
+For route parameters and response shapes, use the generated [Marketplace API reference](/docs/api/marketplace).

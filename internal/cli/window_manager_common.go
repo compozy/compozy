@@ -20,7 +20,7 @@ import (
 const (
 	windowManagerWorkspaceFlag    = "workspace"
 	windowManagerAppFlag          = "app"
-	windowManagerRevisionFlag     = "revision"
+	cliRevisionKey                = "revision"
 	windowManagerClientFlag       = "client"
 	windowManagerOriginFlag       = "origin"
 	windowManagerActorIDFlag      = "actor-id"
@@ -104,7 +104,7 @@ func addWindowManagerRouteFlags(cmd *cobra.Command, pathname *string, searchJSON
 func (flags *windowManagerMutationFlags) add(cmd *cobra.Command) {
 	cmd.Flags().
 		StringVar(&flags.workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
-	cmd.Flags().Uint64Var(&flags.revision, windowManagerRevisionFlag, 0, "Expected workspace revision")
+	cmd.Flags().Uint64Var(&flags.revision, cliRevisionKey, 0, "Expected workspace revision")
 	cmd.Flags().StringVar(&flags.clientID, windowManagerClientFlag, "", "Connected presentation client ID")
 	cmd.Flags().StringVar(&flags.origin, windowManagerOriginFlag, windowManagerCLIOrigin, "Command origin label")
 	cmd.Flags().StringVar(&flags.actorID, windowManagerActorIDFlag, "", "Optional actor identifier")
@@ -208,10 +208,10 @@ func requiredWindowManagerRevision(
 	cmd *cobra.Command,
 	value uint64,
 ) (*contract.WindowManagerRevision, error) {
-	if !cmd.Flags().Changed(windowManagerRevisionFlag) {
+	if !cmd.Flags().Changed(cliRevisionKey) {
 		return nil, newWindowManagerCLIValidationError(
 			windowManagerCLIValidationRequired,
-			windowManagerRevisionFlag,
+			cliRevisionKey,
 			errors.New("cli: --revision is required"),
 		)
 	}

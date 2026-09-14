@@ -1,20 +1,36 @@
 ---
 id: ET-web-marketplace-installed-management
 area: ET
-title: Manage every installed Marketplace kind
+title: Manage installed Marketplace extensions
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
-entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
+expected: The installed shelf opens a flat local extension inventory independent of catalog pagination or availability. Rows show contents, enablement and overflow actions; the updates line and Update all preserve per-item results, including partial failure.
+entry_points: /marketplace/installed; Marketplace installed-count shelf
 qa_status: pass
-bug_ids:
+bug_ids: [BUG-20260913-marketplace-installed-plugin-panic, BUG-20260913-marketplace-instance-mutation-scope, BUG-20260913-marketplace-workspace-dev-state]
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
-last_report: docs/qa/reports/2026-08-25-skill-sources.md
+evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/inventory-after-workspace-removal.json
+last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
+
+QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
+
+
+Marketplace catalog task 01 (2026-09-12): Use catalog, GitHub and local-folder installations. Filter the inventory, toggle an extension, inspect details, and update two entries with one download failing. The successful entry remains updated and the failed entry retains its prior version.
+
+Marketplace catalog task 04: Install one package globally and in a workspace with different input
+values. Disable it, update it, and restart the daemon: both installations, values, enablement and
+reserved MCP names survive. Remove the workspace installation: its MCP allocation is released,
+the global installation and package remain unchanged. Remove the last installation: the package
+and its remaining MCP allocations retire. Also exercise an active development link to confirm that
+workspace removal unlinks the overlay through its existing lifecycle. HTTP/UDS and SQLite failure
+compensation have focused integration coverage; this final UI walk remains untested.
+
+Execution is deferred to tasks 09/10 by the loop delivery contract. Earlier evidence and notes below describe the previous surface and do not verify this contract.
+
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: retained capture covers MCP installed UI only, not every Marketplace kind and its management actions.
 
@@ -79,3 +95,5 @@ update branch could not be walked without fabricated state; its detail contract 
 ET-web-extension-detail.
 
 QA impact 2026-08-25 (skill sources): reset because the installed skill detail gained a new daemon-backed control surface. The Exposures card now sits beside skill content, shadows, enable, and update, and origin attribution renders on the installed rows. Bundled skills must show no Exposures card at all — absent, not disabled — so the "only daemon-backed controls" claim in this scenario's promise has to be re-settled against the new card. Rides along in `CH-skill-expose-web-repair`.
+
+QA repair 2026-09-13 (final review): verify the required-authorization success notice, local manifest descriptions and real profile/workspace qualifiers. During a mixed-scope batch, observe 0-of-n and intermediate completion; completed groups regain controls while other groups remain pending. Open a global/profile row and a workspace row from Installed: the link and detail request must retain that row's profile/workspace independently of the active window selection. Targeted browser/request evidence and canonical owner receipts are in the dated Marketplace report and review-01 visual bundle.

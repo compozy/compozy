@@ -28,6 +28,179 @@ import (
 
 func TestManagerDevelopmentLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: removing a development overlay restores the published workspace attachment's live runtime.
+	// Owner: extension lifecycle; canonical suite: TestManagerDevelopmentLifecycle.
+	t.Run("Should resume a published workspace runtime after unlinking its development overlay", func(t *testing.T) {
+		t.Parallel()
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		workspace := newDevTestWorkspace(t, "workspace-published-overlay")
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			workspace.ID, workspace.RootDir, "Published overlay", env.installedAt, env.installedAt); err != nil {
+			t.Fatal(err)
+		}
+		manifestText := managerTestManifest("workspace-overlay", managerManifestOptions{
+			command: helperCommand(t), args: helperArgs(), withEnv: helperEnv("default", ""),
+			capabilities: []string{"tool.provider"}, resourceFamilies: []string{"tools"}, resourceMaxScope: "user",
+		})
+		published := createManagerTestExtension(t, manifestText, nil)
+		if err := env.registry.Install(published.manifest, published.dir, published.checksum, WithInstallScope(
+			InstallationScope{WorkspaceID: workspace.ID},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		origin := filepath.Join(workspace.RootDir, "overlay")
+		generation := writeDevTestGeneration(t, origin, strings.Replace(
+			manifestText, `version = "0.2.1"`, `version = "0.3.0"`, 1,
+		))
+		sourceSessions := &faultingSourceSessionManager{delegate: &recordingSourceSessionManager{}}
+		manager := NewManager(env.registry, WithSourceSessionManager(sourceSessions),
+			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
+			WithProfileNameResolver(fixedProfileNameResolver{profileID: "marketing"}))
+		startDevTestManager(t, manager)
+		key := InstanceKey{Name: published.manifest.Name, WorkspaceID: workspace.ID}
+		profileKey := ProfileInstanceKey(key.Name, profileID, workspace.ID)
+		if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+			t.Fatal(err)
+		}
+		activationFailure := errors.New("profile overlay activation rejected")
+		sourceSessions.failNextActivation(activationFailure)
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			t.Context(),
+			workspace.ID,
+			origin,
+			generation,
+		); !errors.Is(
+			err,
+			activationFailure,
+		) {
+			t.Fatalf("failed overlay activation = %v", err)
+		}
+		for _, view := range []InstanceKey{key, profileKey} {
+			restored, err := manager.GetForInstance(view)
+			if err != nil || !restored.Status.Active || restored.Status.PID == 0 || restored.DevLink != nil ||
+				restored.Info.Version != "0.2.1" {
+				t.Fatalf("activation rollback runtime = %#v, %v", restored, err)
+			}
+		}
+		if _, err := env.registry.GetDevLink(key.Name, key.WorkspaceID); !errors.Is(err, ErrExtensionNotDevLinked) {
+			t.Fatalf("activation rollback link = %v", err)
+		}
+		for _, overlay := range []bool{true, false} {
+			if overlay {
+				if _, err := manager.LinkDevelopmentFromOrigin(
+					t.Context(),
+					workspace.ID,
+					origin,
+					generation,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := manager.UnlinkDevelopment(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+			current, err := manager.GetForInstance(key)
+			version := "0.2.1"
+			if overlay {
+				version = "0.3.0"
+			}
+			if err != nil || current.Info.Version != version || !current.Status.Active || !current.Status.Registered ||
+				(current.DevLink != nil) != overlay || current.Status.WorkspaceID != workspace.ID {
+				t.Fatalf("overlay=%t runtime = %#v, %v", overlay, current, err)
+			}
+			if _, err := manager.Get(key.Name); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("workspace runtime exposed globally: %v", err)
+			}
+			if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+				t.Fatal(err)
+			}
+			profile, err := manager.GetForInstance(profileKey)
+			if err != nil || !profile.Status.Active || profile.Info.Version != version ||
+				(profile.DevLink != nil) != overlay || profile.Status.PID == current.Status.PID {
+				t.Fatalf("overlay=%t named profile = %#v, %v", overlay, profile, err)
+			}
+			if overlay {
+				if err := manager.Reload(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				restarted, err := manager.GetForInstance(key)
+				if err != nil || restarted.DevLink == nil || !restarted.Status.Active ||
+					restarted.Info.Version != version {
+					t.Fatalf("persisted overlay restart = %#v, %v", restarted, err)
+				}
+				if _, err := manager.ProvideToolsForInstance(t.Context(), profileKey); err != nil {
+					t.Fatal(err)
+				}
+				sourceSessions.failNextActivation(activationFailure)
+				if err := manager.UnlinkDevelopment(t.Context(), key); !errors.Is(err, activationFailure) {
+					t.Fatalf("failed published runtime restoration = %v", err)
+				}
+				for _, view := range []InstanceKey{key, profileKey} {
+					restored, err := manager.GetForInstance(view)
+					if err != nil || !restored.Status.Active || restored.Status.PID == 0 || restored.DevLink == nil ||
+						restored.Info.Version != version {
+						t.Fatalf("unlink rollback runtime = %#v, %v", restored, err)
+					}
+				}
+			}
+		}
+	})
+	// Invariant: an active development overlay is visible only in its workspace,
+	// independently of the published package's profile attachment. Owner: manager lifecycle.
+	t.Run("Should restore attachment visibility after unlinking a development overlay", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		published := createManagerTestExtension(t, devManifest("scoped-overlay", "0.1.0", ""), nil)
+		if err := env.registry.Install(published.manifest, published.dir, published.checksum, WithInstallScope(
+			InstallationScope{ProfileID: profileID},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		workspace := newDevTestWorkspace(t, "workspace-scoped-overlay")
+		origin := filepath.Join(workspace.RootDir, "overlay")
+		generation := writeDevTestGeneration(t, origin, devManifest("scoped-overlay", "0.2.0", ""))
+		manager := NewManager(env.registry, WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)))
+		startDevTestManager(t, manager)
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			t.Context(),
+			workspace.WorkspaceID,
+			origin,
+			generation,
+		); err != nil {
+			t.Fatal(err)
+		}
+		key := InstanceKey{Name: published.manifest.Name, WorkspaceID: workspace.WorkspaceID}
+		overlay, err := manager.GetForInstance(key)
+		if err != nil || overlay.Info.Version != "0.2.0" || overlay.DevLink == nil {
+			t.Fatalf("active overlay = %#v, %v", overlay, err)
+		}
+		if _, err := manager.GetForInstance(
+			InstanceKey{Name: key.Name, WorkspaceID: "foreign"},
+		); !errors.Is(
+			err,
+			ErrExtensionNotFound,
+		) {
+			t.Fatalf("foreign workspace read = %v, want not found", err)
+		}
+		if err := manager.UnlinkDevelopment(t.Context(), key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.GetForInstance(key); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("default profile after unlink = %v, want not found", err)
+		}
+		publishedRead, _, err := manager.ProjectForProfile(
+			t.Context(),
+			key,
+			ProfileLens{ID: profileID, Name: "marketing"},
+		)
+		if err != nil || publishedRead.Info.Version != "0.1.0" || publishedRead.DevLink != nil ||
+			publishedRead.Status.WorkspaceID != "" {
+			t.Fatalf("owning profile after unlink = %#v, %v", publishedRead, err)
+		}
+	})
 
 	t.Run("Should drain an admitted development candidate before stop snapshots instances", func(t *testing.T) {
 		t.Parallel()
@@ -699,110 +872,121 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		},
 	)
 
-	t.Run(
-		"Should reload portable source generations atomically and retain the last good diagnostics",
-		func(t *testing.T) {
-			t.Parallel()
+	for _, layout := range []string{"plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".cursor-plugin/plugin.json"} {
+		t.Run(
+			"Should reload "+layout+" source generations atomically and retain the last good diagnostics",
+			func(t *testing.T) {
+				t.Parallel()
 
-			env := newRegistryTestEnv(t)
-			workspace := newDevTestWorkspace(t, "workspace-portable")
-			origin := filepath.Join(workspace.RootDir, "portable-dev")
-			if err := os.MkdirAll(origin, 0o755); err != nil {
-				t.Fatalf("MkdirAll(portable origin) error = %v", err)
-			}
-			writeFile(t, filepath.Join(origin, agentPluginManifestFileName), fmt.Sprintf(
-				`{"$schema":%q,"name":"portable-dev","version":"1.0.0"}`,
-				agentplugin.PluginSchemaID,
-			))
-			skillPath := filepath.Join(origin, "skills", "review", "SKILL.md")
-			if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
-				t.Fatalf("MkdirAll(portable skill) error = %v", err)
-			}
-			writeFile(t, skillPath, "---\nname: review\ndescription: Review changes\n---\nReview the change.\n")
-			firstHash, err := ComputeDirectoryChecksum(origin)
-			if err != nil {
-				t.Fatalf("ComputeDirectoryChecksum(first) error = %v", err)
-			}
-			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-			manager := NewManager(
-				env.registry,
-				WithHomePaths(homePaths),
-				WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
-			)
-			startDevTestManager(t, manager)
-			if _, err := manager.LinkDevelopmentFromOrigin(
-				testutil.Context(t), workspace.WorkspaceID, origin, firstHash,
-			); err != nil {
-				t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
-			}
-
-			key := InstanceKey{Name: "portable-dev", WorkspaceID: workspace.WorkspaceID}
-			firstLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-			if err != nil {
-				t.Fatalf("GetDevLink(first) error = %v", err)
-			}
-			if firstLink.Format != FormatAgentPlugin || len(firstLink.IngestDiagnostics) != 0 {
-				t.Fatalf("first dev link = %#v, want portable without diagnostics", firstLink)
-			}
-			wantDataDir, err := homePaths.ExtensionDataPath(key.Name, key.WorkspaceID, "")
-			if err != nil {
-				t.Fatalf("ExtensionDataPath() error = %v", err)
-			}
-			current, err := manager.GetForInstance(key)
-			if err != nil {
-				t.Fatalf("GetForInstance(first) error = %v", err)
-			}
-			if current.Manifest == nil || current.Manifest.Format != FormatAgentPlugin {
-				t.Fatalf("current manifest = %#v, want portable", current.Manifest)
-			}
-			if _, statErr := os.Stat(wantDataDir); !errors.Is(statErr, os.ErrNotExist) {
-				t.Fatalf("portable dev data dir stat error = %v, want not created", statErr)
-			}
-
-			writeFile(t, skillPath, "---\nname: other\ndescription: Mismatch\n---\nMismatch.\n")
-			secondHash, err := ComputeDirectoryChecksum(origin)
-			if err != nil {
-				t.Fatalf("ComputeDirectoryChecksum(second) error = %v", err)
-			}
-			if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
-				t.Fatalf("ReloadExtension(second) error = %v", err)
-			}
-			secondLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-			if err != nil {
-				t.Fatalf("GetDevLink(second) error = %v", err)
-			}
-			if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
-				t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
-			}
-
-			writeFile(t, filepath.Join(origin, agentPluginManifestFileName), fmt.Sprintf(
-				`{"$schema":%q,"name":"Invalid Name","version":"1.0.0"}`,
-				agentplugin.PluginSchemaID,
-			))
-			fatalHash, err := ComputeDirectoryChecksum(origin)
-			if err != nil {
-				t.Fatalf("ComputeDirectoryChecksum(fatal) error = %v", err)
-			}
-			if _, err := manager.ReloadExtension(testutil.Context(t), key, fatalHash); err == nil {
-				t.Fatal("ReloadExtension(fatal manifest) error = nil, want validation failure")
-			}
-			retainedLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-			if err != nil {
-				t.Fatalf("GetDevLink(retained) error = %v", err)
-			}
-			if retainedLink.BundleGeneration != secondHash ||
-				!reflect.DeepEqual(retainedLink.IngestDiagnostics, secondLink.IngestDiagnostics) {
-				t.Fatalf(
-					"retained dev link = %#v, want last-good generation and diagnostics %#v",
-					retainedLink,
-					secondLink,
+				env := newRegistryTestEnv(t)
+				workspace := newDevTestWorkspace(t, "workspace-portable")
+				origin := filepath.Join(workspace.RootDir, "directory-name")
+				if err := os.MkdirAll(origin, 0o755); err != nil {
+					t.Fatalf("MkdirAll(portable origin) error = %v", err)
+				}
+				manifestPath := filepath.Join(origin, filepath.FromSlash(layout))
+				if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, manifestPath, fmt.Sprintf(
+					`{"$schema":%q,"name":"portable-dev","version":"1.0.0"}`,
+					agentplugin.PluginSchemaID,
+				))
+				skillPath := filepath.Join(origin, "skills", "review", "SKILL.md")
+				if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+					t.Fatalf("MkdirAll(portable skill) error = %v", err)
+				}
+				writeFile(t, skillPath, "---\nname: review\ndescription: Review changes\n---\nReview the change.\n")
+				first, err := PrepareDevelopmentGeneration(t.Context(), origin)
+				if err != nil {
+					t.Fatalf("PrepareDevelopmentGeneration(first) error = %v", err)
+				}
+				if first.Manifest.Name != "portable-dev" || first.ManifestPath != manifestPath {
+					t.Fatalf("prepared identity = %q at %q", first.Manifest.Name, first.ManifestPath)
+				}
+				firstHash := first.GenerationHash
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				manager := NewManager(
+					env.registry,
+					WithHomePaths(homePaths),
+					WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
 				)
-			}
-		},
-	)
+				startDevTestManager(t, manager)
+				if _, err := manager.LinkDevelopmentFromOrigin(
+					testutil.Context(t), workspace.WorkspaceID, origin, firstHash,
+				); err != nil {
+					t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
+				}
+
+				key := InstanceKey{Name: "portable-dev", WorkspaceID: workspace.WorkspaceID}
+				firstLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+				if err != nil {
+					t.Fatalf("GetDevLink(first) error = %v", err)
+				}
+				if firstLink.Format != FormatAgentPlugin || len(firstLink.IngestDiagnostics) != 0 {
+					t.Fatalf("first dev link = %#v, want portable without diagnostics", firstLink)
+				}
+				wantDataDir, err := homePaths.ExtensionDataPath(key.Name, key.WorkspaceID, "")
+				if err != nil {
+					t.Fatalf("ExtensionDataPath() error = %v", err)
+				}
+				current, err := manager.GetForInstance(key)
+				if err != nil {
+					t.Fatalf("GetForInstance(first) error = %v", err)
+				}
+				if current.Manifest == nil || current.Manifest.Format != FormatAgentPlugin {
+					t.Fatalf("current manifest = %#v, want portable", current.Manifest)
+				}
+				if _, statErr := os.Stat(wantDataDir); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("portable dev data dir stat error = %v, want not created", statErr)
+				}
+
+				writeFile(t, skillPath, "---\nname: other\ndescription: Mismatch\n---\nMismatch.\n")
+				second, err := PrepareDevelopmentGeneration(t.Context(), origin)
+				if err != nil {
+					t.Fatalf("PrepareDevelopmentGeneration(second) error = %v", err)
+				}
+				secondHash := second.GenerationHash
+				if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
+					t.Fatalf("ReloadExtension(second) error = %v", err)
+				}
+				secondLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+				if err != nil {
+					t.Fatalf("GetDevLink(second) error = %v", err)
+				}
+				if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
+					t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
+				}
+
+				writeFile(t, manifestPath, fmt.Sprintf(
+					`{"$schema":%q,"name":"Invalid Name","version":"1.0.0"}`,
+					agentplugin.PluginSchemaID,
+				))
+				fatalHash, err := ComputeDirectoryChecksum(origin)
+				if err != nil {
+					t.Fatalf("ComputeDirectoryChecksum(fatal) error = %v", err)
+				}
+				if _, err := manager.ReloadExtension(testutil.Context(t), key, fatalHash); err == nil {
+					t.Fatal("ReloadExtension(fatal manifest) error = nil, want validation failure")
+				}
+				retainedLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+				if err != nil {
+					t.Fatalf("GetDevLink(retained) error = %v", err)
+				}
+				if retainedLink.BundleGeneration != secondHash ||
+					!reflect.DeepEqual(retainedLink.IngestDiagnostics, secondLink.IngestDiagnostics) {
+					t.Fatalf(
+						"retained dev link = %#v, want last-good generation and diagnostics %#v",
+						retainedLink,
+						secondLink,
+					)
+				}
+			},
+		)
+	}
 }
 
 func TestManagerDevelopmentReloadConcurrency(t *testing.T) {
@@ -1739,4 +1923,10 @@ func assertDevRuntimeMatchesLink(
 		current.Status.LastGoodGeneration != link.BundleGeneration {
 		t.Fatalf("runtime status = %#v, persisted generation = %q", current.Status, link.BundleGeneration)
 	}
+}
+
+func (m *faultingSourceSessionManager) failNextActivation(err error) {
+	m.mu.Lock()
+	m.activationErr = err
+	m.mu.Unlock()
 }

@@ -3,24 +3,39 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensionenv"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
@@ -101,6 +116,56 @@ func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
 
 func TestDaemonExtensionProfileReads(t *testing.T) {
 	t.Parallel()
+	// Invariant: the persistence fallback cannot resurrect a package whose
+	// installation is absent. Owner: daemon snapshot loader; canonical suite: profile reads.
+	t.Run("Should enforce attachment authority when falling back from the runtime", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		dir := writeNativeLocalExtensionFixture(t, "unattached-package", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.DetachInstallation(
+			t.Context(),
+			manifest.Name,
+			extensionpkg.InstallationScope{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, runtime := range []extensionRuntime{nil, extensionpkg.NewManager(registry)} {
+			if _, err := loadExtensionSnapshot(
+				registry,
+				runtime,
+				discardLogger(),
+				manifest.Name,
+			); !errors.Is(
+				err,
+				extensionpkg.ErrExtensionNotFound,
+			) {
+				t.Fatalf("unattached persistence fallback with runtime %T = %v, want not found", runtime, err)
+			}
+		}
+		if err := registry.AttachInstallation(
+			t.Context(),
+			manifest.Name,
+			extensionpkg.InstallationScope{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := loadExtensionSnapshot(registry, nil, discardLogger(), manifest.Name)
+		if err != nil || snapshot.Manifest == nil || snapshot.Info.Name != manifest.Name {
+			t.Fatalf("attached persistence fallback = %#v, %v", snapshot, err)
+		}
+	})
 
 	t.Run("Should resolve the selected profile name", func(t *testing.T) {
 		t.Parallel()
@@ -312,6 +377,16 @@ func (p *blockingExtensionConsumerPublisher) Sync(ctx context.Context) error {
 func TestExtensionLifecycleCoordinator(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: concurrent acquisitions serialize by discovered package name; aliases are idempotent and foreign origins never overwrite.
+	// Owner: daemon lifecycle coordinator. Canonical suite: coordinator operations.
+	for _, foreign := range []bool{false, true} {
+		name := "Should return one installation for concurrent aliases of the same origin"
+		if foreign {
+			name = "Should refuse one of two concurrent origins claiming the same name"
+		}
+		t.Run(name, func(t *testing.T) { t.Parallel(); testConcurrentMarketplaceInstall(t, foreign) })
+	}
+
 	t.Run("Should keep a committed install successful when staging cleanup fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -413,6 +488,78 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			if err := <-results; err != nil {
 				t.Fatalf("instance lifecycle mutation error = %v", err)
 			}
+		}
+	})
+
+	// Invariant: package replacement excludes every same-package workspace mutation; cancellation releases all acquired locks.
+	// Owner: daemon lifecycle coordinator. Canonical suite: TestExtensionLifecycleCoordinator.
+	for _, scenario := range []struct {
+		name         string
+		packageFirst bool
+	}{
+		{name: "Should wait for workspace mutations before replacing a package"},
+		{name: "Should wait for package replacement before mutating another workspace", packageFirst: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			coordinator := newExtensionLifecycleCoordinator()
+			workspace := extensionpkg.InstanceKey{Name: "shared", WorkspaceID: "workspace-b"}
+			instanceMutation := func(ctx context.Context, fn func() error) error {
+				return coordinator.withInstance(ctx, workspace, fn)
+			}
+			packageMutation := func(ctx context.Context, fn func() error) error {
+				return coordinator.withPackageMutation(ctx, []string{"shared"}, fn)
+			}
+			holder, waiter := instanceMutation, packageMutation
+			if scenario.packageFirst {
+				holder, waiter = packageMutation, instanceMutation
+			}
+			err := holder(t.Context(), func() error {
+				ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+				defer cancel()
+				ran := false
+				err := waiter(ctx, func() error { ran = true; return nil })
+				if ran || !errors.Is(err, context.DeadlineExceeded) {
+					t.Errorf("conflicting mutation ran=%v error=%v", ran, err)
+				}
+				return coordinator.withPackageMutation(t.Context(), []string{"other"}, func() error { return nil })
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := waiter(t.Context(), func() error { return nil }); err != nil {
+				t.Fatalf("mutation after release: %v", err)
+			}
+			if len(coordinator.entries) != 0 || len(coordinator.packages) != 0 {
+				t.Fatal("completed and canceled mutations retained lifecycle locks")
+			}
+		})
+	}
+
+	t.Run("Should release earlier package locks when a later acquisition is canceled", func(t *testing.T) {
+		t.Parallel()
+		coordinator := newExtensionLifecycleCoordinator()
+		workspace := extensionpkg.InstanceKey{Name: "zeta", WorkspaceID: "workspace-a"}
+		err := coordinator.withInstance(t.Context(), workspace, func() error {
+			ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+			defer cancel()
+			ran := false
+			err := coordinator.withPackageMutation(ctx, []string{"zeta", "alpha", "alpha"}, func() error {
+				ran = true
+				return nil
+			})
+			if ran || !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("batch mutation ran=%v error=%v", ran, err)
+			}
+			retryCtx, retryCancel := context.WithTimeout(t.Context(), time.Second)
+			defer retryCancel()
+			return coordinator.withPackageMutation(retryCtx, []string{"alpha"}, func() error { return nil })
+		})
+		if err != nil {
+			t.Fatalf("reuse after partial acquisition: %v", err)
+		}
+		if len(coordinator.entries) != 0 || len(coordinator.packages) != 0 {
+			t.Fatal("partial acquisition retained lifecycle locks")
 		}
 	})
 
@@ -811,7 +958,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if !ok {
 			t.Fatalf("runtime after update rollback = %#v/%t, want %#v", afterRunning, ok, beforeRunning)
 		}
-		assertExtensionPublicState(t, "runtime after update rollback", afterRunning, beforeRunning)
+		assertExtensionPublicState(t, "runtime after update rollback", &afterRunning, &beforeRunning)
 		reloads := runtime.reloadSnapshot()
 		if len(reloads) != 2 || reloads[0].Version != "2.0.0" ||
 			reloads[0].NetworkRequirementDigest != secondDigest ||
@@ -936,7 +1083,33 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			}),
 		}
 
-		err := service.rollbackDevLifecycle(t.Context(), runtime, key, snapshot, cause)
+		// Invariant: dev rollback retains candidate names when restoring the link fails, and releases only new names after success.
+		// Owner: daemon lifecycle coordinator; canonical suite: TestExtensionLifecycleCoordinator.
+		service.mcpAllocations = db.ExtensionMCP
+		priorTarget := extensionmcp.Target{
+			Extension:   key.Name,
+			WorkspaceID: key.WorkspaceID,
+			ProfileID:   store.DefaultProfileID,
+			ServerName:  "retained",
+		}
+		if _, err := db.ExtensionMCP.Reserve(t.Context(), priorTarget, "retained-name", nil); err != nil {
+			t.Fatal(err)
+		}
+		globalTarget := priorTarget
+		globalTarget.WorkspaceID = ""
+		if _, err := db.ExtensionMCP.Reserve(t.Context(), globalTarget, "global-name", nil); err != nil {
+			t.Fatal(err)
+		}
+		allocations, err := service.snapshotMCPAllocations(t.Context(), key, extensionMCPWorkspaceAllocations)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidateTarget := priorTarget
+		candidateTarget.ServerName = "candidate-only"
+		if _, err := db.ExtensionMCP.Reserve(t.Context(), candidateTarget, "candidate-name", nil); err != nil {
+			t.Fatal(err)
+		}
+		err = service.rollbackDevLifecycle(t.Context(), runtime, key, snapshot, allocations, cause)
 		for label, want := range map[string]error{
 			"cause": cause, "stage": stageErr, "activation": activateErr, "consumer sync": syncErr,
 		} {
@@ -962,6 +1135,35 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}
 		if !reflect.DeepEqual(confirmation, originalConfirmation) {
 			t.Fatalf("development confirmation after rollback = %#v, want %#v", confirmation, originalConfirmation)
+		}
+		rows, err := db.ExtensionMCP.ListAll(t.Context())
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("failed link restoration released a name: %#v %v", rows, err)
+		}
+		runtime.stageErr, runtime.activateErr = nil, nil
+		service.agentSkill = agentSkillPublisherFunc(func(ctx context.Context) error {
+			rows, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil || len(rows) != 2 {
+				t.Fatalf("restored publication saw candidate name: %#v %v", rows, err)
+			}
+			return nil
+		})
+		if err := service.rollbackDevLifecycle(
+			t.Context(),
+			runtime,
+			key,
+			snapshot,
+			allocations,
+			cause,
+		); !errors.Is(
+			err,
+			cause,
+		) {
+			t.Fatalf("rollback lost its cause: %v", err)
+		}
+		retained, err := db.ExtensionMCP.List(t.Context(), store.DefaultProfileID, key.WorkspaceID)
+		if err != nil || len(retained) != 1 || retained[0].RuntimeName != "retained-name" {
+			t.Fatalf("dev rollback changed prior name: %#v %v", retained, err)
 		}
 	})
 
@@ -1338,13 +1540,13 @@ func (r *lifecycleStateRuntime) reloadSnapshot() []extensionpkg.ExtensionInfo {
 func assertExtensionPublicState(
 	t *testing.T,
 	label string,
-	got extensionpkg.ExtensionInfo,
-	want extensionpkg.ExtensionInfo,
+	got *extensionpkg.ExtensionInfo,
+	want *extensionpkg.ExtensionInfo,
 ) {
 	t.Helper()
-	infoType := reflect.TypeOf(got)
-	gotValue := reflect.ValueOf(got)
-	wantValue := reflect.ValueOf(want)
+	infoType := reflect.TypeOf(*got)
+	gotValue := reflect.ValueOf(*got)
+	wantValue := reflect.ValueOf(*want)
 	for index := range infoType.NumField() {
 		field := infoType.Field(index)
 		if !field.IsExported() {
@@ -1456,12 +1658,12 @@ func (h *lifecycleFailureHarness) assertRestored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registry.Get(after failure) error = %v", err)
 	}
-	assertExtensionPublicState(t, "registry after failure", *after, h.before)
+	assertExtensionPublicState(t, "registry after failure", after, &h.before)
 	running, ok := h.runtime.current()
 	if !ok {
 		t.Fatalf("running state after failure = %#v/%t, want %#v", running, ok, h.before)
 	}
-	assertExtensionPublicState(t, "running state after failure", running, h.before)
+	assertExtensionPublicState(t, "running state after failure", &running, &h.before)
 }
 
 func recordRuntimeHealthFailure(registry *mcppkg.RuntimeHealthRegistry, name string, generation string) {
@@ -1530,4 +1732,1040 @@ func lifecycleNetworkDigest(t *testing.T, channelScope string) string {
 		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
 	}
 	return digest
+}
+
+// Invariant: install/update input preflight precedes managed writes, and failed resource publication restores
+// files, registry, input rows, and vault state before reloading the old extension.
+// Owner: daemon lifecycle orchestration. Canonical suite: extensions_test.go.
+func TestDaemonExtensionInputLifecycle(t *testing.T) {
+	t.Parallel()
+	// Invariant: install attachment, inputs, secret ownership and response address the selected cell.
+	// Owner: daemon install coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+	for _, scenario := range []daemonScopedInstallCase{
+		{name: "Should retain global all-profile installation by default"},
+		{name: "Should install for an explicit global profile", profile: "marketing"},
+		{name: "Should install for an explicit default profile", profile: "default"},
+		{name: "Should install for all profiles in a workspace", workspaceID: "ws-install"},
+		{name: "Should install for one profile in a workspace", workspaceID: "ws-install", profile: "marketing"},
+		{name: "Should bind an agent install to its trusted cell", workspaceID: "ws-install", profile: "marketing", agent: true},
+		{name: "Should scope local package installation", workspaceID: "ws-install", profile: "marketing", local: true},
+		{name: "Should honor workspace default in trusted operator context", workspaceID: "ws-install", manifestScope: "workspace", useDefaults: true},
+		{name: "Should honor local package workspace default", workspaceID: "ws-install", manifestScope: "workspace", useDefaults: true, local: true},
+		{name: "Should let explicit global scope override a workspace default", scope: "global", manifestScope: "workspace"},
+		{name: "Should require workspace context for a workspace default", manifestScope: "workspace", useDefaults: true, errorField: "workspace_id"},
+		{name: "Should require explicit scope for mixed server defaults", manifestScope: "workspace", mixed: true, errorField: "scope"},
+		{name: "Should honor explicit workspace scope over mixed defaults", workspaceID: "ws-install", scope: "workspace", manifestScope: "workspace", mixed: true},
+		// Invariant: updates validate/restore only selected inputs and preserve every attachment.
+		// Owner: daemon lifecycle coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+		{name: "Should associate an unclassified install only after a successful operator reinstall", profile: "marketing", update: true, reinstall: true, associate: true},
+		{name: "Should refuse an agent associating an unclassified install", workspaceID: "ws-install", profile: "marketing", agent: true, update: true, reinstall: true, associate: true},
+		{name: "Should reinstall and roll back inputs for an explicit global profile", profile: "marketing", update: true, reinstall: true},
+		{name: "Should reinstall and roll back inputs for a workspace profile", workspaceID: "ws-install", profile: "marketing", update: true, reinstall: true},
+		{name: "Should reinstall and roll back inputs for a trusted agent", workspaceID: "ws-install", profile: "marketing", agent: true, update: true, reinstall: true},
+		{name: "Should update and roll back inputs for an explicit global profile", profile: "marketing", update: true},
+		{name: "Should update and roll back inputs for a workspace profile", workspaceID: "ws-install", profile: "marketing", update: true},
+		{name: "Should update and roll back inputs for a trusted agent", workspaceID: "ws-install", profile: "marketing", agent: true, update: true},
+		{name: "Should persist scoped native update inputs", workspaceID: "ws-install", profile: "marketing", update: true, native: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			testDaemonScopedInstall(t, scenario)
+		})
+	}
+	t.Run("Should reject invalid selectors and cross-scope writes before acquisition", func(t *testing.T) {
+		t.Parallel()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		marketing, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+			Logger: discardLogger(),
+		}, withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: t.TempDir()}, WorkspaceID: "ws-install",
+		}})).(*daemonExtensionService)
+		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "scope validation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("session-install", "ws-install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent.ReadScope = store.ReadScope{ProfileID: marketing.ID}
+		for _, scenario := range []struct {
+			name    string
+			request contract.InstallExtensionRequest
+			actor   taskpkg.ActorContext
+			field   string
+		}{
+			{name: "Should reject unknown scope", request: contract.InstallExtensionRequest{Scope: "other"}, actor: operator, field: "scope"},
+			{name: "Should reject contradictory workspace", request: contract.InstallExtensionRequest{Scope: "global", WorkspaceID: "ws-install"}, actor: operator, field: "workspace_id"},
+			{name: "Should require a workspace", request: contract.InstallExtensionRequest{Scope: "workspace"}, actor: operator, field: "workspace_id"},
+			{name: "Should require an existing profile", request: contract.InstallExtensionRequest{Profile: "absent"}, actor: operator, field: "profile"},
+			{name: "Should forbid another workspace", request: contract.InstallExtensionRequest{WorkspaceID: "ws-other"}, actor: agent},
+			{name: "Should forbid global escape", request: contract.InstallExtensionRequest{Scope: "global"}, actor: agent},
+			{name: "Should forbid another profile", request: contract.InstallExtensionRequest{Profile: "default"}, actor: agent},
+		} {
+			t.Run(scenario.name, func(t *testing.T) {
+				t.Parallel()
+				// Invalid source deliberately cannot reach acquisition; the selector error must win.
+				_, err := service.Install(t.Context(), scenario.request, scenario.actor)
+				if scenario.field == "" {
+					if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+						t.Fatalf("install error = %v", err)
+					}
+				} else if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); !ok || validation.Field != scenario.field {
+					t.Fatalf("install error = %v, want selector %s", err, scenario.field)
+				}
+			})
+		}
+	})
+
+	// Invariant: automatic allocations survive success and only new allocations are removed on failed installation.
+	// Owner: daemon install coordinator; canonical suite: TestDaemonExtensionInputLifecycle with real SQLite.
+	for _, scenario := range []string{"success", "publication failure", "completion failure"} {
+		t.Run("Should handle runtime allocation on "+scenario, func(t *testing.T) {
+			t.Parallel()
+			deps, registry, source, runtime := newNativeExtensionToolDeps(t)
+			db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+			sections := "[resources.mcp_servers.server]\ncommand = \"server\"\n"
+			archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
+			source.latestVersion = "1.0.0"
+			source.downloads["1.0.0"] = &registrypkg.DownloadResult{
+				Reader:      io.NopCloser(bytes.NewReader(archive)),
+				Slug:        "acme/tool-ext",
+				Version:     "1.0.0",
+				ContentSize: int64(len(archive)),
+				ContentType: "application/gzip",
+			}
+			for _, target := range []extensionmcp.Target{
+				{Extension: "tool-ext", ProfileID: store.DefaultProfileID, ServerName: "legacy"},
+				{Extension: "tool-ext", ProfileID: store.DefaultProfileID, WorkspaceID: "workspace-kept", ServerName: "server"},
+			} {
+				if _, err := db.ExtensionMCP.Reserve(t.Context(), target, "", nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Logger: discardLogger(), Now: time.Now},
+				withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources), withDaemonExtensionMCPAllocations(db.ExtensionMCP),
+			).(*daemonExtensionService)
+			sentinel := errors.New("injected post-allocation failure")
+			if scenario == "completion failure" {
+				service.eventWriter = &daemonExtensionEventStoreStub{writeErr: sentinel}
+			}
+			runtime.onReload = func(ctx context.Context) error {
+				if _, err := registry.Get("tool-ext"); errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+					return nil
+				}
+				for _, profileID := range []string{store.DefaultProfileID, "another-profile"} {
+					if _, err := db.ExtensionMCP.Reserve(ctx, extensionmcp.Target{
+						Extension: "tool-ext", ProfileID: profileID, ServerName: "server",
+					}, "", nil); err != nil {
+						return err
+					}
+				}
+				if scenario == "publication failure" {
+					return sentinel
+				}
+				return nil
+			}
+			actor, err := taskpkg.DeriveHumanActorContext(
+				"operator",
+				taskpkg.OriginKindCLI,
+				"runtime allocation lifecycle",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = service.Install(
+				t.Context(),
+				contract.InstallExtensionRequest{
+					Source:          contract.InstallExtensionSourceGitHub,
+					Ref:             "acme/tool-ext",
+					AllowUnverified: true,
+				},
+				actor,
+			)
+			records, readErr := db.ExtensionMCP.ListAll(t.Context())
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if scenario == "success" {
+				if err != nil || len(records) != 4 {
+					t.Fatalf("successful allocation: %#v %v", records, err)
+				}
+				found := false
+				for _, record := range records {
+					if record.ProfileID == store.DefaultProfileID && record.WorkspaceID == "" &&
+						record.ServerName == "server" {
+						found = record.RuntimeName == "server"
+					}
+				}
+				if !found {
+					t.Fatal("automatic runtime name was not retained")
+				}
+			} else {
+				if err == nil || len(records) != 2 {
+					t.Fatalf("failed install changed prior allocations: %#v %v", records, err)
+				}
+				if _, getErr := registry.Get("tool-ext"); !errors.Is(getErr, extensionpkg.ErrExtensionNotFound) {
+					t.Fatalf("failed install left registry row: %v", getErr)
+				}
+			}
+		})
+	}
+
+	t.Run(
+		"Should validate inputs before install and restore them before update rollback reload [IT-020]",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			deps, registry, source, runtime := newNativeExtensionToolDeps(t)
+			db, ok := deps.ExtensionEvents.(*globaldb.GlobalDB)
+			if !ok {
+				t.Fatal("fixture must expose its real global database")
+			}
+			secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			publisher := &lifecycleFailingPublisher{}
+			service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+				Registry: registry, Runtime: runtime, AgentSkill: publisher, HomePaths: deps.HomePaths,
+				Logger: discardLogger(), Now: time.Now, Getenv: func(string) string { return "" },
+			}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+				withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
+				withDaemonExtensionMCPAllocations(db.ExtensionMCP),
+			).(*daemonExtensionService)
+			actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "input lifecycle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			setSource := func(version string, addRegion bool) string {
+				sections := `[resources.mcp_servers.server]
+command = "server"
+secret_env = { TOKEN = "token" }
+[resources.mcp_servers.remote]
+transport = "http"
+url = "https://example.com/mcp?ws=&region="
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "ws" }
+[[inputs]]
+id = "token"
+prompt = "Token"
+type = "secret"
+required = true
+binding = { type = "env", name = "TOKEN" }
+`
+				if addRegion {
+					sections += `
+[[inputs]]
+id = "region"
+prompt = "Region"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "region" }
+`
+				}
+				archive := nativeExtensionTarGzWithNetwork(t, version, "", sections)
+				source.latestVersion = version
+				source.downloads[version] = &registrypkg.DownloadResult{
+					Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: version,
+					ContentSize: int64(len(archive)), ContentType: "application/gzip",
+				}
+				return fmt.Sprintf("%x", sha256.Sum256(archive))
+			}
+			digest := setSource("1.0.0", false)
+			request := contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceGitHub,
+				Ref: "acme/tool-ext", AllowUnverified: true}
+			profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
+				profilepkg.WithHomePaths(deps.HomePaths), profilepkg.WithLogger(discardLogger()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			service.profiles = profiles
+			preview, err := service.PreviewInstall(ctx, request, actor)
+			if err != nil || preview.DigestSHA256 != digest || len(preview.Inputs) != 2 {
+				t.Fatalf("unconfigured install preview must expose types and approved digest: %v, %v", preview, err)
+			}
+			request.ExpectedDigest = setSource("1.0.0", false)
+			if _, err := service.Install(
+				ctx,
+				request,
+				actor,
+			); !errors.Is(
+				err,
+				extensionpkg.ErrExtensionInputsRequired,
+			) {
+				t.Fatalf("missing-input install error = %v", err)
+			} else if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); !ok ||
+				!slices.Equal(required.MissingInputs, []string{"token", "workspace"}) {
+				t.Fatalf("missing-input error must name every manifest input, including secret ids: %v", err)
+			}
+			if _, err := registry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("preflight changed registry: %v", err)
+			}
+			if _, err := os.Stat(
+				extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"),
+			); !errors.Is(
+				err,
+				os.ErrNotExist,
+			) {
+				t.Fatalf("preflight changed managed files: %v", err)
+			}
+			request.ExpectedDigest = setSource("1.0.0", false)
+			request.Inputs = map[string]extensioninput.Value{
+				"workspace": {
+					Value: json.RawMessage(`"original-team"`),
+				},
+				"token": {Value: json.RawMessage(`"original-secret"`)},
+			}
+			installed, err := service.Install(ctx, request, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(installed.MissingInputs) != 0 || len(installed.MissingEnv) != 0 {
+				t.Fatalf("installed readiness = %#v", installed)
+			}
+			instance := extensioninput.Instance{Extension: "tool-ext", ProfileID: store.DefaultProfileID}
+			before, err := db.ExtensionInputs.List(ctx, instance)
+			if err != nil {
+				t.Fatal(err)
+			}
+			setSource("2.0.0", true)
+			if _, err := service.Update(
+				ctx,
+				"tool-ext",
+				contract.UpdateExtensionRequest{AllowUnverified: true},
+				actor,
+			); !errors.Is(
+				err,
+				extensionpkg.ErrExtensionInputsRequired,
+			) {
+				t.Fatalf("new required input update error = %v", err)
+			} else {
+				// Invariant: recovery describes only missing candidate inputs before changing installed state.
+				// Owner: daemon input lifecycle; canonical suite: TestDaemonExtensionInputLifecycle.
+				required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+				if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) ||
+					len(required.InputDefinitions) != 1 {
+					t.Fatalf("candidate recovery = %#v", err)
+				}
+				definition := required.InputDefinitions[0]
+				if definition.ID != "region" || definition.Prompt != "Region" || definition.Type != "identifier" ||
+					!definition.Required || definition.Binding.Type != "url_query" || definition.Binding.Name != "region" ||
+					len(definition.Default) != 0 {
+					t.Fatalf("candidate definition = %#v", definition)
+				}
+			}
+			info, err := registry.Get("tool-ext")
+			if err != nil || info.Version != "1.0.0" {
+				t.Fatalf("preflight changed installed version: %#v %v", info, err)
+			}
+			// Invariant: a failed update drops only candidate allocations before restoring publication.
+			// Owner: daemon lifecycle coordination; canonical suite: TestDaemonExtensionInputLifecycle.
+			priorTarget := extensionmcp.Target{
+				Extension:  "tool-ext",
+				ProfileID:  store.DefaultProfileID,
+				ServerName: "server",
+			}
+			if _, err := db.ExtensionMCP.Reserve(ctx, priorTarget, "original-server", nil); err != nil {
+				t.Fatal(err)
+			}
+			workspaceTarget := priorTarget
+			workspaceTarget.WorkspaceID = "other-workspace"
+			if _, err := db.ExtensionMCP.Reserve(ctx, workspaceTarget, "workspace-server", nil); err != nil {
+				t.Fatal(err)
+			}
+			otherTarget := priorTarget
+			otherTarget.Extension = "other-ext"
+			if _, err := db.ExtensionMCP.Reserve(ctx, otherTarget, "other-server", nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.ExtensionMCP.Update(ctx, workspaceTarget, extensionmcp.Override{
+				Env: map[string]string{"REGION": "retained"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			priorAllocations, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			candidateTarget := priorTarget
+			candidateTarget.ServerName = "candidate-only"
+			workspaceCandidate := candidateTarget
+			workspaceCandidate.WorkspaceID = workspaceTarget.WorkspaceID
+			var observations []string
+			runtime.onReload = func(ctx context.Context) error {
+				current, err := registry.Get("tool-ext")
+				if err != nil {
+					return err
+				}
+				rows, err := db.ExtensionInputs.List(ctx, instance)
+				if err != nil {
+					return err
+				}
+				if current.Version == "2.0.0" {
+					for _, target := range []extensionmcp.Target{candidateTarget, workspaceCandidate} {
+						if _, err := db.ExtensionMCP.Reserve(ctx, target, "candidate-server", nil); err != nil {
+							return err
+						}
+					}
+				} else {
+					allocations, err := db.ExtensionMCP.ListAll(ctx)
+					if err != nil || !reflect.DeepEqual(allocations, priorAllocations) {
+						t.Fatalf("rollback publication changed prior allocations: %#v %v", allocations, err)
+					}
+				}
+				observations = append(observations, current.Version+":"+string(rows["workspace"].Value))
+				return nil
+			}
+			setSource("2.0.0", true)
+			publisher.failNextSyncs(1)
+			_, err = service.Update(ctx, "tool-ext", contract.UpdateExtensionRequest{
+				AllowUnverified: true, Inputs: map[string]extensioninput.Value{
+					"workspace": {
+						Value: json.RawMessage(`"updated-team"`),
+					},
+					"token":  {Value: json.RawMessage(`"updated-secret"`)},
+					"region": {Value: json.RawMessage(`"us"`)},
+				},
+			}, actor)
+			if err == nil {
+				t.Fatal("publication failure was ignored")
+			}
+			if !slices.Equal(observations, []string{`2.0.0:"updated-team"`, `1.0.0:"original-team"`}) {
+				t.Fatalf("rollback reload order = %v", observations)
+			}
+			allocations, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil || !reflect.DeepEqual(allocations, priorAllocations) {
+				t.Fatalf("update rollback changed retained allocation: %#v %v", allocations, err)
+			}
+			after, err := db.ExtensionInputs.List(ctx, instance)
+			if err != nil || !reflect.DeepEqual(before, after) {
+				t.Fatalf("update rollback rows = %#v want %#v error %v", after, before, err)
+			}
+			ref := vault.ExtensionProfileSecretRef("tool-ext", store.DefaultProfileID, "", "TOKEN")
+			if value, err := secretVault.ResolveRef(ctx, ref); err != nil || value != "original-secret" {
+				t.Fatal("update rollback did not restore vault material")
+			}
+			version, err := os.ReadFile(
+				filepath.Join(extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"), "VERSION.txt"),
+			)
+			if err != nil || strings.TrimSpace(string(version)) != "1.0.0" {
+				t.Fatalf("update rollback file version = %q error %v", version, err)
+			}
+			setSource("2.0.0", true)
+			updated, err := service.Update(ctx, "tool-ext", contract.UpdateExtensionRequest{
+				AllowUnverified: true,
+				Inputs:          map[string]extensioninput.Value{"region": {Value: json.RawMessage(`"us"`)}},
+			}, actor)
+			if err != nil || updated.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
+				t.Fatalf("retry update = %#v error %v", updated, err)
+			}
+			allocations, err = db.ExtensionMCP.List(ctx, store.DefaultProfileID, "")
+			if err != nil || len(allocations) != 3 {
+				t.Fatalf("successful update lost allocation: %#v %v", allocations, err)
+			}
+		},
+	)
+}
+
+type daemonScopedInstallCase struct {
+	native        bool
+	update        bool
+	reinstall     bool
+	associate     bool
+	name          string
+	workspaceID   string
+	profile       string
+	agent         bool
+	local         bool
+	scope         string
+	manifestScope string
+	mixed         bool
+	useDefaults   bool
+	errorField    string
+}
+
+func testDaemonScopedInstall(t *testing.T, scenario daemonScopedInstallCase) {
+	t.Helper()
+	workspaceID, profileName, agent, local := scenario.workspaceID, scenario.profile, scenario.agent, scenario.local
+	ctx := t.Context()
+	deps, registry, source, _ := newNativeExtensionToolDeps(t)
+	db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+	workspaceRoot := t.TempDir()
+	stamp := store.FormatTimestamp(time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC))
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces
+		(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		"ws-install", workspaceRoot, "Install workspace", stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+
+	marketing, err := deps.ProfileManager.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileID := store.DefaultProfileID
+	if profileName == "marketing" {
+		profileID = marketing.ID
+	}
+	secretVault, err := vault.NewService(db.VaultRepo, vault.NewFileKeyProvider(t.TempDir(), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+		Logger: discardLogger(), Getenv: func(string) string { return "" },
+	}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+		withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
+		withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: workspaceRoot}, WorkspaceID: "ws-install",
+		}}),
+	).(*daemonExtensionService)
+	sections := `[resources.mcp_servers.server]
+command = "server"
+secret_env = { TOKEN = "token" }
+[resources.mcp_servers.remote]
+transport = "http"
+url = "https://example.com/mcp?ws="
+[[inputs]]
+id = "workspace"
+prompt = "Workspace"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "ws" }
+[[inputs]]
+id = "token"
+prompt = "Token"
+type = "secret"
+required = true
+binding = { type = "env", name = "TOKEN" }
+`
+	if scenario.manifestScope != "" {
+		sections = strings.Replace(sections, "[resources.mcp_servers.server]\n",
+			fmt.Sprintf("[resources.mcp_servers.server]\ndefault_scope = %q\n", scenario.manifestScope), 1)
+		if !scenario.mixed {
+			sections = strings.Replace(sections, "[resources.mcp_servers.remote]\n",
+				fmt.Sprintf("[resources.mcp_servers.remote]\ndefault_scope = %q\n", scenario.manifestScope), 1)
+		}
+	}
+	archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
+	source.latestVersion = "1.0.0"
+	source.downloads["1.0.0"] = &registrypkg.DownloadResult{
+		Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "1.0.0",
+		ContentSize: int64(len(archive)), ContentType: "application/gzip",
+	}
+	request := contract.InstallExtensionRequest{
+		Source:          contract.InstallExtensionSourceGitHub,
+		Ref:             "acme/tool-ext",
+		AllowUnverified: true,
+		Profile:         profileName,
+		WorkspaceID:     workspaceID,
+		Scope:           scenario.scope,
+		Inputs: map[string]extensioninput.Value{
+			"workspace": {
+				Value: json.RawMessage(`"selected-team"`),
+			},
+			"token": {Value: json.RawMessage(`"scoped-secret"`)},
+		},
+	}
+	if local {
+		request.Source = contract.InstallExtensionSourceLocalPath
+		request.Ref = writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0")
+		manifestPath := filepath.Join(request.Ref, "extension.toml")
+		manifest, readErr := os.ReadFile(manifestPath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if writeErr := os.WriteFile(manifestPath, append(manifest, []byte("\n"+sections)...), 0o600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "scoped install")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scenario.useDefaults {
+		request.WorkspaceID = ""
+		actor.Scope.WorkspaceID = workspaceID
+	}
+	if agent {
+		actor, err = taskpkg.DeriveAgentSessionActorContext("session-install", workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: profileID}
+		request.Profile, request.WorkspaceID = "", ""
+	}
+	installed, err := service.Install(ctx, request, actor)
+	if scenario.errorField != "" {
+		if validation, ok := errors.AsType[*extensionpkg.ManifestValidationError](
+			err,
+		); !ok ||
+			validation.Field != scenario.errorField {
+			t.Fatalf("install error = %v, want field %s", err, scenario.errorField)
+		}
+		if _, err := registry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("failed install persisted registry row: %v", err)
+		}
+		if _, err := os.Stat(
+			extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("failed default selection left managed package: %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	if installed.Profile != profileName || installed.WorkspaceID != workspaceID || len(installed.MissingInputs) != 0 {
+		t.Fatalf("installed scope/readiness = %#v", installed)
+	}
+	attachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachmentProfile := ""
+	if request.Profile != "" || agent {
+		attachmentProfile = profileID
+	}
+	wantInstallationProfile := ""
+	if attachmentProfile != "" {
+		wantInstallationProfile = profileName
+	}
+	if installed.InstallationProfile != wantInstallationProfile {
+		t.Fatalf("installation profile = %q, want %q", installed.InstallationProfile, wantInstallationProfile)
+	}
+	wantScope := extensionpkg.InstallationScope{ProfileID: attachmentProfile, WorkspaceID: workspaceID}
+	if len(attachments) != 1 || attachments[0].Scope != wantScope {
+		t.Fatalf("attachments = %#v, want %v", attachments, wantScope)
+	}
+	for _, cell := range []extensioninput.Instance{
+		{Extension: "tool-ext", ProfileID: store.DefaultProfileID},
+		{Extension: "tool-ext", ProfileID: marketing.ID},
+		{Extension: "tool-ext", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-install"},
+		{Extension: "tool-ext", ProfileID: marketing.ID, WorkspaceID: "ws-install"},
+	} {
+		rows, readErr := db.ExtensionInputs.List(ctx, cell)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		bindings, readErr := db.ListEnvBindings(ctx, "tool-ext", cell.ProfileID, cell.WorkspaceID)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if cell.ProfileID != profileID || cell.WorkspaceID != workspaceID {
+			if len(rows) != 0 || len(bindings) != 0 {
+				t.Fatalf("install leaked to %v: %v, %v", cell, rows, bindings)
+			}
+			continue
+		}
+		if len(rows) != 1 || string(rows["workspace"].Value) != `"selected-team"` || !rows["workspace"].Active {
+			t.Fatalf("selected inputs = %v", rows)
+		}
+		wantRef := vault.ExtensionProfileSecretRef("tool-ext", profileID, workspaceID, "TOKEN")
+		secret, resolveErr := secretVault.ResolveRef(ctx, wantRef)
+		if resolveErr != nil || secret != "scoped-secret" {
+			t.Fatal("selected vault secret was not persisted", resolveErr)
+		}
+
+		if len(bindings) != 1 || bindings[0].SecretRef != wantRef || bindings[0].Inactive {
+			t.Fatalf("selected secret bindings = %v, want %s", bindings, wantRef)
+		}
+	}
+
+	if !scenario.update {
+		return
+	}
+	selectedCell := extensioninput.Instance{Extension: "tool-ext", ProfileID: profileID, WorkspaceID: workspaceID}
+	beforeRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scenario.reinstall {
+		beforeInfo, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeBindings, err := db.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service.runtime = &fakeExtensionRuntime{onReload: func(context.Context) error {
+			return errors.New("idempotent install must not reload runtime")
+		}}
+		source.downloads["1.0.0"].Reader = io.NopCloser(bytes.NewReader(archive))
+		retried, err := service.Install(ctx, request, actor)
+		if err != nil || retried.Name != installed.Name {
+			t.Fatalf("same-request reinstall = %#v, %v", retried, err)
+		}
+		afterInfo, err := registry.Get("tool-ext")
+		if err != nil || !reflect.DeepEqual(beforeInfo, afterInfo) {
+			t.Fatalf("retry changed the registry: %v", err)
+		}
+		afterBindings, err := db.ListEnvBindings(ctx, "tool-ext", profileID, workspaceID)
+		if err != nil || !reflect.DeepEqual(beforeBindings, afterBindings) {
+			t.Fatalf("retry changed secret bindings: %v", err)
+		}
+		afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+		if err != nil || !reflect.DeepEqual(beforeRows, afterRows) {
+			t.Fatalf("retry changed input before-images: %v", err)
+		}
+		service.runtime = nil
+	}
+	otherWorkspace := "ws-install"
+	if workspaceID != "" {
+		otherWorkspace = ""
+	}
+	otherCell := extensioninput.Instance{
+		Extension:   "tool-ext",
+		ProfileID:   store.DefaultProfileID,
+		WorkspaceID: otherWorkspace,
+	}
+	otherScope := extensionpkg.InstallationScope{ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID}
+	if err := registry.AttachInstallation(ctx, "tool-ext", otherScope); err != nil {
+		t.Fatal(err)
+	}
+	otherRecord := extensioninput.Record{Type: "identifier", Value: json.RawMessage(`"other-team"`), Active: true,
+		UpdatedAt: time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)}
+	if err := db.ExtensionInputs.Apply(
+		ctx,
+		otherCell,
+		[]extensioninput.Mutation{{InputID: "workspace", After: &otherRecord}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	otherRef := vault.ExtensionProfileSecretRef("tool-ext", otherCell.ProfileID, otherCell.WorkspaceID, "TOKEN")
+	if _, err := secretVault.PutSecret(ctx, otherRef, extensionenv.BindingKind, "other-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutEnvBinding(ctx, extensionenv.Binding{
+		ExtensionName: "tool-ext", ProfileID: otherCell.ProfileID, WorkspaceID: otherCell.WorkspaceID,
+		EnvName: "TOKEN", InputID: "token", SecretRef: otherRef, Kind: extensionenv.BindingKind,
+		CreatedAt: otherRecord.UpdatedAt, UpdatedAt: otherRecord.UpdatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	attachments, err = registry.Installations(ctx, "tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateSections := strings.Replace(sections, "mcp?ws=", "mcp?ws=&region=", 1) + `
+[[inputs]]
+id = "region"
+prompt = "Region"
+type = "identifier"
+required = true
+binding = { type = "url_query", name = "region" }
+`
+	setCandidate := func() {
+		archive := nativeExtensionTarGzWithNetwork(t, "2.0.0", "", candidateSections)
+		source.latestVersion = "2.0.0"
+		if scenario.associate {
+			request.Source = contract.InstallExtensionSourceCurated
+			service.marketplaceCatalog = nativeExtensionCatalog{entry: &marketplacepkg.Entry{
+				EntryID:      "tool-ext",
+				InstallSlug:  "acme/tool-ext",
+				Version:      "2.0.0",
+				DigestSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)),
+				Tier:         "official",
+				Payload: json.RawMessage(
+					`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+				),
+			}}
+		}
+		source.downloads["2.0.0"] = &registrypkg.DownloadResult{
+			Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "2.0.0",
+			ContentSize: int64(len(archive)), ContentType: "application/gzip",
+		}
+	}
+	setCandidate()
+	batchRequest := contract.UpdateExtensionsRequest{All: true, CheckOnly: true, AllowUnverified: true,
+		Profile: profileName, WorkspaceID: otherWorkspace}
+	batchRequest.Scope = "workspace"
+	if otherWorkspace == "" {
+		batchRequest.Scope = "global"
+	}
+	filtered, err := service.UpdateBatch(ctx, batchRequest, actor)
+	if agent {
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("cross-workspace update batch error = %v", err)
+		}
+	} else if err != nil || len(filtered) != 0 {
+		t.Fatalf("update batch included an installation outside the selected cell: %v, %v", filtered, err)
+	}
+	batchRequest.WorkspaceID = workspaceID
+	batchRequest.Scope = "workspace"
+	if workspaceID == "" {
+		batchRequest.Scope = "global"
+	}
+	available, err := service.UpdateBatch(ctx, batchRequest, actor)
+	if err != nil || len(available) != 1 || available[0].Status != extensionpkg.MarketplaceUpdateStatusAvailable {
+		t.Fatalf("scoped update batch = %v, %v", available, err)
+	}
+	updateRequest := contract.UpdateExtensionRequest{
+		AllowUnverified: true,
+		Profile:         profileName,
+		WorkspaceID:     workspaceID,
+	}
+	if agent {
+		updateRequest.Profile, updateRequest.WorkspaceID = "", ""
+	}
+	mutate := func() (contract.ManagedExtensionUpdatePayload, error) {
+		if !scenario.reinstall {
+			return service.Update(ctx, "tool-ext", updateRequest, actor)
+		}
+		reinstallRequest := request
+		reinstallRequest.Inputs = updateRequest.Inputs
+		reinstalled, installErr := service.Install(ctx, reinstallRequest, actor)
+		if installErr != nil {
+			return contract.ManagedExtensionUpdatePayload{}, installErr
+		}
+		return contract.ManagedExtensionUpdatePayload{
+			Name:   reinstalled.Name,
+			Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+		}, nil
+	}
+	if scenario.associate && agent {
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := mutate(); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("agent association = %v", err)
+		}
+		after, err := registry.Get("tool-ext")
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatalf("denied association changed package: %v", err)
+		}
+		afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+		if err != nil || !reflect.DeepEqual(beforeRows, afterRows) {
+			t.Fatalf("denied association changed inputs: %v", err)
+		}
+		return
+	}
+	setCandidate()
+	if _, err := mutate(); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("missing scoped update input error = %v", err)
+	}
+	updateRequest.Inputs = map[string]extensioninput.Value{
+		"workspace": {Value: json.RawMessage(`"updated-team"`)},
+		"region":    {Value: json.RawMessage(`"west"`)},
+		"token":     {Value: json.RawMessage(`"updated-secret"`)},
+	}
+	publisher := &lifecycleFailingPublisher{}
+	// Package replacement must hold every workspace through candidate and rollback publication.
+	service.runtime = &fakeExtensionRuntime{onReload: func(reloadCtx context.Context) error {
+		for _, lockedWorkspace := range []string{workspaceID, "unselected-workspace"} {
+			lockCtx, cancel := context.WithTimeout(reloadCtx, 40*time.Millisecond)
+			entered := false
+			lockErr := service.lifecycle.withInstance(
+				lockCtx, extensionpkg.InstanceKey{Name: "tool-ext", WorkspaceID: lockedWorkspace},
+				func() error { entered = true; return nil },
+			)
+			cancel()
+			if entered || !errors.Is(lockErr, context.DeadlineExceeded) {
+				t.Errorf("update publication did not hold workspace %q: %v", lockedWorkspace, lockErr)
+			}
+		}
+		return nil
+	}}
+	service.agentSkill = publisher
+	publisher.failNextSyncs(1)
+	setCandidate()
+	if _, err := mutate(); err == nil {
+		t.Fatal("publication failure must fail update")
+	}
+	rolledBackRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil || !reflect.DeepEqual(rolledBackRows, beforeRows) {
+		t.Fatalf("input rollback changed before-images: %v", err)
+	}
+	targetRef := vault.ExtensionProfileSecretRef("tool-ext", profileID, workspaceID, "TOKEN")
+	secret, err := secretVault.ResolveRef(ctx, targetRef)
+	if err != nil || secret != "scoped-secret" {
+		t.Fatal("update rollback failed to restore selected secret", err)
+	}
+	oldManifest, err := extensionpkg.LoadManifest(extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext"))
+	if err != nil || oldManifest.Version != "1.0.0" {
+		t.Fatalf("rollback did not restore manifest: %v", err)
+	}
+	setCandidate()
+	var updated contract.ManagedExtensionUpdatePayload
+	if scenario.native {
+		deps.Workspaces = nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, workspaceRoot, workspaceID)
+		deps.Extensions = func() apicore.ExtensionService { return service }
+		nativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		body, marshalErr := json.Marshal(extensionUpdateInput{
+			Name: "tool-ext", Scope: updateRequest.Scope, Profile: updateRequest.Profile,
+			Version: updateRequest.Version, CheckOnly: updateRequest.CheckOnly,
+			Inputs: updateRequest.Inputs, AllowUnverified: updateRequest.AllowUnverified,
+			ConfirmNetworkDigest: updateRequest.ConfirmNetworkDigest,
+		})
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		result, callErr := nativeRegistry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true, ProfileID: profileID, WorkspaceID: workspaceID},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsUpdate, Input: body},
+		)
+		if callErr != nil {
+			t.Fatal(callErr)
+		}
+		var payload struct {
+			Updates []contract.ManagedExtensionUpdatePayload `json:"updates"`
+		}
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.Updates) != 1 {
+			t.Fatalf("native updates = %#v", payload)
+		}
+		updated = payload.Updates[0]
+	} else {
+		updated, err = mutate()
+	}
+	if err != nil || updated.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
+		t.Fatalf("scoped update = %#v, %v", updated, err)
+	}
+	if scenario.associate {
+		associated, err := registry.Get("tool-ext")
+		if err != nil || associated.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef ||
+			associated.Provenance.EntryID != "tool-ext" {
+			t.Fatalf("operator association did not persist the catalog origin: %v", err)
+		}
+	}
+	afterRows, err := db.ExtensionInputs.List(ctx, selectedCell)
+	if err != nil || len(afterRows) != 2 || string(afterRows["workspace"].Value) != `"updated-team"` ||
+		string(afterRows["region"].Value) != `"west"` {
+		t.Fatalf("selected update rows = %v, %v", afterRows, err)
+	}
+	secret, err = secretVault.ResolveRef(ctx, targetRef)
+	if err != nil || secret != "updated-secret" {
+		t.Fatal("selected secret update was not persisted", err)
+	}
+	otherRows, err := db.ExtensionInputs.List(ctx, otherCell)
+	if err != nil || len(otherRows) != 1 || !reflect.DeepEqual(otherRows["workspace"], otherRecord) {
+		t.Fatalf("update changed another cell: %v, %v", otherRows, err)
+	}
+	secret, err = secretVault.ResolveRef(ctx, otherRef)
+	if err != nil || secret != "other-secret" {
+		t.Fatal("update changed another cell's secret", err)
+	}
+	afterAttachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil || !reflect.DeepEqual(afterAttachments, attachments) {
+		t.Fatalf("update changed attachment before-images: %v", err)
+	}
+}
+
+func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
+	t.Helper()
+	deps, registry, source, runtime := newNativeExtensionToolDeps(t)
+	archive := nativeExtensionTarGz(t, "1.0.0")
+	digest := fmt.Sprintf("%x", sha256.Sum256(archive))
+	first := &marketplacepkg.Entry{
+		EntryID:      "tool-ext",
+		InstallSlug:  "acme/tool-ext",
+		Version:      "1.0.0",
+		DigestSHA256: digest,
+		Tier:         "official",
+		Payload: json.RawMessage(
+			`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+		),
+	}
+	second := *first
+	if foreign {
+		second.EntryID = "other-tool-ext"
+	}
+	second.InstallSlug = "compozy/" + second.EntryID
+	source.latestVersion = "1.0.0"
+	bothAcquired := make(chan struct{})
+	var acquisitions, publications atomic.Int32
+	source.download = func(ctx context.Context, _ string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+		if acquisitions.Add(1) == 2 {
+			close(bothAcquired)
+		}
+		select {
+		case <-bothAcquired:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return &registrypkg.DownloadResult{Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext",
+			Version: "1.0.0", ContentSize: int64(len(archive)), ContentType: "application/gzip"}, nil
+	}
+	runtime.onReload = func(context.Context) error { publications.Add(1); return nil }
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths, Profiles: deps.ProfileManager, Logger: discardLogger(),
+	}, withDaemonExtensionMarketplace(validNativeExtensionConfig(false), deps.ExtensionSources),
+		withDaemonExtensionCatalog(nativeExtensionCatalog{entries: map[string]*marketplacepkg.Entry{"acme/tool-ext": first, second.InstallSlug: &second}}),
+	).(*daemonExtensionService)
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "concurrent install")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	outcomes := make(chan error, 2)
+	var workers sync.WaitGroup
+	for _, ref := range []string{first.InstallSlug, second.InstallSlug} {
+		workers.Go(func() {
+			item, err := service.Install(
+				ctx,
+				contract.InstallExtensionRequest{Source: contract.InstallExtensionSourceCurated, Ref: ref},
+				actor,
+			)
+			if err == nil && item.Name != "tool-ext" {
+				err = fmt.Errorf("installed name = %q", item.Name)
+			}
+			outcomes <- err
+		})
+	}
+	workers.Wait()
+	close(outcomes)
+	conflicts := 0
+	for err := range outcomes {
+		if errors.Is(err, extensionpkg.ErrExtensionNameConflict) {
+			conflicts++
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantConflicts := 0
+	if foreign {
+		wantConflicts = 1
+	}
+	if conflicts != wantConflicts || acquisitions.Load() != 2 || publications.Load() != 1 {
+		t.Fatalf(
+			"concurrent install: conflicts=%d acquisitions=%d publications=%d",
+			conflicts,
+			acquisitions.Load(),
+			publications.Load(),
+		)
+	}
+	installed, err := registry.Get("tool-ext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installed.Provenance.EntryID != first.EntryID && installed.Provenance.EntryID != second.EntryID {
+		t.Fatalf("unexpected installed origin: %s", installed.Provenance.EntryID)
+	}
+	attachments, err := registry.Installations(ctx, "tool-ext")
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("duplicate attachments: %v, %v", attachments, err)
+	}
 }

@@ -57,15 +57,6 @@ base_url = "https://registry.example.test/api/v1"
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill", "code-review"}; !slices.Equal(got, want) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
-	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{
-		"@registry/mcp-a",
-		"@registry/mcp-b",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
-	}
 	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{
 		"@registry/hook-a",
 		"@registry/hook-b",
@@ -74,12 +65,6 @@ base_url = "https://registry.example.test/api/v1"
 		want,
 	) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
-	}
-	if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.Registry = %q, want %q", got, want)
-	}
-	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 	}
 }
 
@@ -210,40 +195,41 @@ func TestApplyConfigOverlayFileAppliesRedactionSnapshotSetting(t *testing.T) {
 	})
 }
 
-func TestApplyConfigOverlayFileLeavesMarketplaceDefaultsWhenOverlayOmitsFields(t *testing.T) {
-	t.Run("ShouldLeaveMarketplaceDefaultsWhenOverlayOmitsFields", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		cfg := DefaultWithHome(homePaths)
-		cfg.Skills.Marketplace = MarketplaceConfig{
-			Registry: "clawhub",
-			BaseURL:  "https://global.example.test/api/v1",
-		}
-
-		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-		writeFile(t, overlayPath, `
-[skills]
-enabled = true
-`)
-
-		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
-			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-		}
-
-		if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.Registry = %q, want %q", got, want)
-		}
-		if got, want := cfg.Skills.Marketplace.BaseURL, "https://global.example.test/api/v1"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.BaseURL = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestApplyConfigOverlayFileAppliesMarketplaceCatalogOverlay(t *testing.T) {
 	t.Parallel()
+	t.Run("Should load plugin source rows preserve omissions and honor explicit clearing", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		file := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, file, `
+[[marketplace.plugin_sources]]
+name = "team"
+source = "github:team/plugins"
+[[marketplace.plugin_sources]]
+name = "local"
+source = "file:///tmp/plugins"
+enabled = false
+`)
+		if err := ApplyConfigOverlayFile(file, &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.Marketplace.PluginSources) != 2 || cfg.Marketplace.PluginSources[0].Enabled != nil ||
+			cfg.Marketplace.PluginSources[1].EffectiveEnabled(true) {
+			t.Fatalf("decoded plugin rows = %+v", cfg.Marketplace.PluginSources)
+		}
+		writeFile(t, file, "[marketplace.catalog]\nttl = '20m'\n")
+		if err := ApplyConfigOverlayFile(file, &cfg); err != nil || len(cfg.Marketplace.PluginSources) != 2 {
+			t.Fatalf("catalog-only overlay lost plugin rows: %+v, %v", cfg.Marketplace, err)
+		}
+		writeFile(t, file, "[marketplace]\nplugin_sources = []\n")
+		if err := ApplyConfigOverlayFile(file, &cfg); err != nil || len(cfg.Marketplace.PluginSources) != 0 {
+			t.Fatalf("explicit clearing retained plugin rows: %+v, %v", cfg.Marketplace, err)
+		}
+	})
 
 	t.Run("Should apply marketplace catalog overlay", func(t *testing.T) {
 		t.Parallel()

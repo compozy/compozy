@@ -17,11 +17,15 @@ type Binding struct {
 	WorkspaceID string
 	EnvName     string
 	SecretRef   string
-	MCPServer   string
-	HeaderName  string
-	Kind        string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// InputID is empty for requires_env bindings.
+	InputID string
+	// Inactive rows are retained for updates.
+	Inactive   bool
+	MCPServer  string
+	HeaderName string
+	Kind       string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Store persists extension-instance environment bindings. An empty profileID

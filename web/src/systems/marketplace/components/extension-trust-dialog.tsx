@@ -12,10 +12,10 @@ import {
   Spinner,
 } from "@compozy/ui";
 
-import type { MarketplaceListing } from "../types";
+import type { MarketplaceCatalogListing } from "../types";
 
 type ExtensionTrustWarning = NonNullable<
-  NonNullable<MarketplaceListing["trust"]>["warnings"]
+  NonNullable<MarketplaceCatalogListing["trust"]>["warnings"]
 >[number];
 
 interface ExtensionTrustDialogProps {

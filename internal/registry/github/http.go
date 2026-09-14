@@ -143,7 +143,7 @@ func finalizeDownloadResponse(
 		return nil, "", 0, joinErrors(fmt.Errorf("github: spool download for %q: %w", slug, err), closeErr)
 	}
 	if closeErr != nil {
-		return nil, "", 0, closeErr
+		return nil, "", 0, errors.Join(closeErr, reader.Close())
 	}
 	if contentSize <= 0 {
 		contentSize = written
@@ -212,7 +212,7 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 	}
 	if remaining == 0 {
 		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
-			rateLimitErr := errors.New("github: rate limit exceeded; set GITHUB_TOKEN for higher limits")
+			rateLimitErr := fmt.Errorf("%w; set GITHUB_TOKEN for higher limits", ErrRateLimited)
 			return joinErrors(
 				rateLimitErr,
 				closeResponseBody(response.Body, fmt.Sprintf("rate limit response for %s", requestURLString(response))),

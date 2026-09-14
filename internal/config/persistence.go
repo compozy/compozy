@@ -334,37 +334,5 @@ func EditConfigOverlay(
 	target WriteTarget,
 	mutate func(*OverlayEditor) error,
 ) (Config, error) {
-	if !target.isConfigTarget() {
-		return Config{}, fmt.Errorf("config: write target %q is not a config overlay", target.Kind())
-	}
-	if mutate == nil {
-		return Config{}, errors.New("config: config overlay mutation is required")
-	}
-
-	contents, _, err := readOptionalRegularFile(target.path, "config overlay")
-	if err != nil {
-		return Config{}, err
-	}
-
-	editor, err := newOverlayEditor(target.path, contents)
-	if err != nil {
-		return Config{}, err
-	}
-	if err := mutate(editor); err != nil {
-		return Config{}, err
-	}
-
-	rendered, err := editor.Bytes()
-	if err != nil {
-		return Config{}, err
-	}
-
-	finalCfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, rendered)
-	if err != nil {
-		return Config{}, err
-	}
-	if err := writePersistedFile(target.path, rendered); err != nil {
-		return Config{}, err
-	}
-	return finalCfg, nil
+	return EditConfigOverlayAndApply(homePaths, workspaceRoot, target, mutate, nil)
 }

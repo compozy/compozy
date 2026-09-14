@@ -31,6 +31,8 @@ type GlobalDB struct {
 	*ToolRuntimeRepo
 	*VaultRepo
 	*ExtensionEnvRepo
+	ExtensionInputs *ExtensionInputRepo
+	ExtensionMCP    *ExtensionMCPRepo
 	*WatchEventsRepo
 	*DeadEntityRepo
 	*ApprovalGrantRepo

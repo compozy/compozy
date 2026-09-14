@@ -1,3 +1,9 @@
+import { useMCPDefinitionAuthorization } from "../use-mcp-definition-authorization";
+import { getSettingsMCPServer } from "../../adapters/settings-api";
+vi.mock("../../adapters/settings-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/settings-api")>()),
+  getSettingsMCPServer: vi.fn(),
+}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -28,6 +34,7 @@ const serverEntry = {
     refreshable: true,
     scope: "workspace",
     server_name: "linear",
+    owner: "manual",
     scopes: ["read"],
     status: "needs_login",
     token_present: false,
@@ -54,6 +61,7 @@ const beginResponse = {
 function authenticatedStatus() {
   return {
     server_name: "linear",
+    owner: "manual",
     scope: "workspace",
     status: "authenticated",
     token_present: true,
@@ -226,7 +234,7 @@ describe("useMCPAuthorize", () => {
     unmount();
     resolveExchange(authenticatedStatus());
 
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith("linear"));
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith("linear", filter));
   });
 
   it("accepts a full redirect URL for the exchange", async () => {
@@ -307,7 +315,7 @@ describe("useMCPAuthorize", () => {
     expect(result.current.phase).toBe("idle");
     expect(firstConfirmed).not.toHaveBeenCalled();
     expect(latestConfirmed).toHaveBeenCalledOnce();
-    expect(latestConfirmed).toHaveBeenCalledWith("linear");
+    expect(latestConfirmed).toHaveBeenCalledWith("linear", filter);
   });
 
   it("cancels back to idle", async () => {
@@ -320,5 +328,38 @@ describe("useMCPAuthorize", () => {
     act(() => result.current.cancel());
 
     expect(result.current.phase).toBe("idle");
+  });
+});
+
+// Invariant: authorization polling observes only the owner/scope whose login is pending.
+// Owner: Settings auth integration; canonical suite: use-mcp-authorize.test.tsx.
+describe("definition authorization polling", () => {
+  it("Should keep the extension owner through begin and successful status observation", async () => {
+    const ownedFilter = { ...filter, owner: "extension:kit" };
+    const owned: SettingsMCPServerEntry = {
+      ...serverEntry,
+      owner: "extension:kit",
+      runtime_name: "kit.linear",
+    };
+    vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
+    vi.mocked(getSettingsMCPServer).mockResolvedValue({
+      server: {
+        ...owned,
+        auth_status: { ...authenticatedStatus(), owner: "extension:kit", scope: "workspace" },
+      },
+    });
+    const { wrapper } = createWrapper();
+    const { result, unmount } = renderHook(() => useMCPDefinitionAuthorization(), { wrapper });
+    expect(getSettingsMCPServer).not.toHaveBeenCalled();
+    act(() => result.current.authorize.requestAuthorize(ownedFilter, owned));
+    await waitFor(() => expect(result.current.authorize.phase).toBe("confirmed"));
+    expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", ownedFilter, { mode: "automatic" });
+    expect(getSettingsMCPServer).toHaveBeenCalledWith(
+      "linear",
+      ownedFilter,
+      expect.any(AbortSignal)
+    );
+    expect(result.current.server?.owner).toBe("extension:kit");
+    unmount();
   });
 });

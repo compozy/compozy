@@ -25,5 +25,25 @@ func (s *Service) authServerMetadata(
 	if metadata == nil {
 		return nil, errors.New("mcp auth: authorization server metadata is required")
 	}
+	if cfg.registrationStrategy() == RegistrationAuto && strings.TrimSpace(cfg.IssuerURL) != "" &&
+		!issuersEqual(cfg.IssuerURL, metadata.Issuer) {
+		return nil, errors.New("mcp auth: configured issuer does not match authorization server metadata")
+	}
 	return metadata, nil
+}
+
+// hostedAuthorizationServer selects the pinned issuer only from resource-advertised servers.
+func hostedAuthorizationServer(cfg ServerConfig, issuers []string) (string, error) {
+	if len(issuers) == 0 {
+		return "", errors.New("mcp auth: protected resource metadata has no authorization servers")
+	}
+	if strings.TrimSpace(cfg.IssuerURL) == "" {
+		return strings.TrimSpace(issuers[0]), nil
+	}
+	for _, issuer := range issuers {
+		if issuersEqual(cfg.IssuerURL, issuer) {
+			return strings.TrimSpace(issuer), nil
+		}
+	}
+	return "", errors.New("mcp auth: configured issuer is not advertised by the protected resource")
 }

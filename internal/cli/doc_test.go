@@ -113,6 +113,8 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 		"compozy completion bash": {
 			want: docpost.OutputProfileRaw,
 		},
+		"compozy mcp":       {want: docpost.OutputProfileHelp},
+		"compozy skill":     {want: docpost.OutputProfileHelp},
 		"compozy mcp serve": {want: docpost.OutputProfileProtocol},
 		"compozy open":      {want: docpost.OutputProfileNoOutput},
 	}

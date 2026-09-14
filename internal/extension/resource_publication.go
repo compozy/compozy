@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -421,70 +420,4 @@ func mergeRequiredCapabilities(values []string, required string) []string {
 	merged = append(merged, required)
 	slices.Sort(merged)
 	return merged
-}
-
-// ResolveManifestMCPServerResources converts manifest MCP declarations into MCP server specs.
-func ResolveManifestMCPServerResources(
-	rootDir string,
-	manifest *Manifest,
-	getenv func(string) string,
-) ([]compozyconfig.MCPServer, error) {
-	if manifest == nil || len(manifest.Resources.MCPServers) == 0 {
-		return nil, nil
-	}
-
-	names := make([]string, 0, len(manifest.Resources.MCPServers))
-	for name := range manifest.Resources.MCPServers {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-
-	servers := make([]compozyconfig.MCPServer, 0, len(names))
-	for _, name := range names {
-		decl := manifest.Resources.MCPServers[name]
-		var err error
-		server := compozyconfig.MCPServer{
-			Name:      strings.TrimSpace(name),
-			CWD:       strings.TrimSpace(decl.CWD),
-			SecretEnv: normalizeStringMap(decl.SecretEnv),
-			Headers:   normalizeStringMap(decl.Headers),
-		}
-		switch strings.TrimSpace(decl.Transport) {
-		case "", string(compozyconfig.MCPServerTransportStdio):
-			server.Transport = compozyconfig.MCPServerTransportStdio
-			server.Command, err = resolveManifestCommand(rootDir, decl.Command, getenv, nil)
-			if err != nil {
-				return nil, err
-			}
-			server.Args, err = resolveManifestStringSlice(rootDir, decl.Args, getenv, nil)
-			if err != nil {
-				return nil, err
-			}
-			server.Env, err = resolveManifestStringMap(rootDir, decl.Env, getenv, nil)
-			if err != nil {
-				return nil, err
-			}
-		case string(compozyconfig.MCPServerTransportHTTP):
-			server.Transport = compozyconfig.MCPServerTransportHTTP
-			server.URL, err = resolveManifestString(rootDir, decl.URL, getenv, nil)
-			if err != nil {
-				return nil, fmt.Errorf("extension: resolve mcp server %q URL: %w", name, err)
-			}
-			server.Headers, err = resolveManifestStringMap(rootDir, decl.Headers, getenv, nil)
-			if err != nil {
-				return nil, fmt.Errorf("extension: resolve mcp server %q headers: %w", name, err)
-			}
-		default:
-			return nil, fmt.Errorf(
-				"extension: mcp server %q has unsupported transport %q",
-				name,
-				decl.Transport,
-			)
-		}
-		if err := server.Validate("extension.resources.mcp_servers[" + name + "]"); err != nil {
-			return nil, err
-		}
-		servers = append(servers, server)
-	}
-	return servers, nil
 }

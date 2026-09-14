@@ -3,8 +3,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { storyCompany } from "@/storybook/fintech-scenario";
-
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
@@ -74,17 +72,12 @@ const skillsEnvelope: SettingsSkillsSection = {
     enabled: true,
     disabled_skills: ["alpha"],
     poll_interval: "5m",
-    marketplace: {
-      registry: "compozy",
-      base_url: storyCompany.registryBaseUrl,
-    },
-    allowed_marketplace_mcp: [],
     allowed_marketplace_hooks: [],
     sources: ["agents"],
     custom_sources: [],
   },
   sources: settingsSkillSourcesFixture,
-  links: [{ label: "skills", path: "/marketplace/skills" }],
+  links: [{ label: "skills", path: "/marketplace" }],
 };
 
 const skillsMutationFixture: SettingsMutationResult = {
@@ -168,7 +161,7 @@ describe("useSettingsSkillsPage", () => {
     expect(result.current.isDisabledDirty).toBe(false);
   });
 
-  it("marks policy dirty independently when a marketplace field changes", async () => {
+  it("marks policy dirty independently when the scan interval changes", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
 
@@ -177,7 +170,7 @@ describe("useSettingsSkillsPage", () => {
     act(() => {
       result.current.setDraft({
         ...skillsEnvelope.config,
-        marketplace: { ...skillsEnvelope.config.marketplace, registry: "other" },
+        poll_interval: "2m",
       });
     });
 
@@ -234,7 +227,6 @@ describe("useSettingsSkillsPage", () => {
       {
         config: expect.objectContaining({
           disabled_skills: expect.arrayContaining(["alpha", "beta"]),
-          marketplace: skillsEnvelope.config.marketplace,
         }),
       },
       { scope: "user" }
@@ -373,7 +365,6 @@ describe("useSettingsSkillsPage", () => {
   it("Should replace a skills draft when its server scope changes", () => {
     const global = {
       enabled: true,
-      marketplace: { registry: "https://registry.example" },
       poll_interval: "5m",
       sources: ["agents"],
       custom_sources: [],

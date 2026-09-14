@@ -6,12 +6,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  cleanupBrowserRuntimePaths,
-  closeSkillMarketplaceServer,
-  resolveBrowserRuntimeEnv,
-  startSkillMarketplaceServer,
-} from "../runtime";
+import { cleanupBrowserRuntimePaths, resolveBrowserRuntimeEnv } from "../runtime";
 import {
   closeMarketplaceCatalogServer,
   startMarketplaceCatalogServer,
@@ -242,24 +237,6 @@ describe("runtime helpers", () => {
     ).toContain("[extensions.trust]\nallow_unverified = true\n");
   });
 
-  it("renders a seeded skill marketplace base URL for launch-mode browser E2E", () => {
-    expect(
-      renderRuntimeConfig({
-        host: "127.0.0.1",
-        port: 4321,
-        skillsMarketplaceBaseURL: "http://127.0.0.1:9876",
-        socketPath: "/tmp/compozy.sock",
-      })
-    ).toContain(
-      [
-        "[skills.marketplace]",
-        'registry = "clawhub"',
-        'base_url = "http://127.0.0.1:9876"',
-        "",
-      ].join("\n")
-    );
-  });
-
   it("renders a seeded curated marketplace base URL for launch-mode browser E2E", () => {
     expect(
       renderRuntimeConfig({
@@ -279,126 +256,40 @@ describe("runtime helpers", () => {
     );
   });
 
-  it("serves strict per-kind curated marketplace documents", async () => {
+  // Invariant: browser labs serve only v3 extension and preset documents.
+  // Owner: real HTTP fixture; canonical runtime helper suite.
+  it("serves the v3 catalog and source presets without retired feeds", async () => {
+    const preset = {
+      name: "team",
+      source: "github:acme/plugins",
+      description: "Team plugins",
+      default: "on" as const,
+    };
     const marketplace = await startMarketplaceCatalogServer({
-      generatedAt: "2026-07-14T00:00:00Z",
-      mcp: [
-        {
-          description: "Read repository metadata",
-          entry_id: "browser-github-mcp",
-          launch: {
-            package: "@browser/github-mcp",
-            type: "npm",
-            version: "1.0.0",
-          },
-          name: "Browser GitHub MCP",
-          version: "1.0.0",
-          default_scope: "global",
-        },
-      ],
-      skills: [
-        {
-          description: "Review browser changes",
-          entry_id: "browser-review-skill",
-          install_slug: "@compozy/browser-review-skill",
-          name: "Browser review skill",
-        },
-      ],
+      generatedAt: "2026-09-13T00:00:00Z",
+      presets: [preset],
     });
-    if (marketplace === undefined) {
-      throw new Error("expected seeded curated marketplace server");
-    }
+    if (!marketplace) throw new Error("expected catalog fixture");
     try {
-      const mcpResponse = await fetch(`${marketplace.baseURL}/mcp.json`);
-      expect(mcpResponse.status).toBe(200);
-      await expect(mcpResponse.json()).resolves.toEqual({
-        manifest_version: 2,
-        generated_at: "2026-07-14T00:00:00Z",
-        entries: [
-          {
-            description: "Read repository metadata",
-            entry_id: "browser-github-mcp",
-            launch: {
-              package: "@browser/github-mcp",
-              type: "npm",
-              version: "1.0.0",
-            },
-            name: "Browser GitHub MCP",
-            version: "1.0.0",
-            default_scope: "global",
-          },
-        ],
+      const extensions = await fetch(`${marketplace.baseURL}/v3/extensions.json`);
+      expect(extensions.status).toBe(200);
+      await expect(extensions.json()).resolves.toEqual({
+        manifest_version: 3,
+        generated_at: "2026-09-13T00:00:00Z",
+        entries: [],
       });
-      const extensionResponse = await fetch(`${marketplace.baseURL}/extensions.json`);
-      await expect(extensionResponse.json()).resolves.toMatchObject({ entries: [] });
-      expect((await fetch(`${marketplace.baseURL}/unknown.json`)).status).toBe(404);
+      const sources = await fetch(`${marketplace.baseURL}/v3/marketplaces.json`);
+      expect(sources.status).toBe(200);
+      await expect(sources.json()).resolves.toEqual({
+        manifest_version: 3,
+        generated_at: "2026-09-13T00:00:00Z",
+        entries: [preset],
+      });
+      for (const path of ["/mcp.json", "/skills.json", "/extensions.json", "/unknown.json"]) {
+        expect((await fetch(`${marketplace.baseURL}${path}`)).status).toBe(404);
+      }
     } finally {
       await closeMarketplaceCatalogServer(marketplace.server);
-    }
-  });
-
-  it("serves seeded skill marketplace listings through the ClawHub search contract", async () => {
-    const marketplace = await startSkillMarketplaceServer({
-      listings: [
-        {
-          author: "compozy",
-          description: "Marketplace metadata visible through the daemon catalog.",
-          downloads: 12,
-          name: "browser-marketplace-skill",
-          slug: "@compozy/browser-marketplace-skill",
-          version: "2.0.0",
-        },
-      ],
-    });
-    if (marketplace === undefined) {
-      throw new Error("expected seeded marketplace test server");
-    }
-    try {
-      const oldPathResponse = await fetch(`${marketplace.baseURL}/api/v1/skills?q=browser`);
-      expect(oldPathResponse.status).toBe(404);
-      await expect(oldPathResponse.json()).resolves.toEqual({ error: "not_found" });
-
-      const missingTypeResponse = await fetch(
-        `${marketplace.baseURL}/api/v1/search?q=browser-marketplace`
-      );
-      expect(missingTypeResponse.status).toBe(400);
-      await expect(missingTypeResponse.json()).resolves.toEqual({ error: "skill_type_required" });
-
-      const response = await fetch(
-        `${marketplace.baseURL}/api/v1/search?q=browser-marketplace&type=skill&limit=1`
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        results: [
-          {
-            author: "compozy",
-            description: "Marketplace metadata visible through the daemon catalog.",
-            downloads: 12,
-            name: "browser-marketplace-skill",
-            slug: "@compozy/browser-marketplace-skill",
-            source: "clawhub",
-            type: "skill",
-            version: "2.0.0",
-          },
-        ],
-      });
-
-      const detailResponse = await fetch(
-        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@compozy/browser-marketplace-skill")}`
-      );
-      expect(detailResponse.status).toBe(200);
-      await expect(detailResponse.json()).resolves.toMatchObject({
-        author: "compozy",
-        name: "browser-marketplace-skill",
-        slug: "@compozy/browser-marketplace-skill",
-        version: "2.0.0",
-      });
-      const downloadResponse = await fetch(
-        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@compozy/browser-marketplace-skill")}/download`
-      );
-      expect(downloadResponse.status).toBe(404);
-    } finally {
-      await closeSkillMarketplaceServer(marketplace.server);
     }
   });
 

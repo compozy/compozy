@@ -14,6 +14,7 @@ import {
   parseExtensionLogResetEvent,
 } from "../lib/extension-log-stream";
 import { extensionLogsOptions } from "../lib/query-options";
+import { extensionProfileKey } from "../lib/query-keys";
 import type { ExtensionLogsSnapshot } from "../types";
 import { extensionLogsLogic, type ExtensionLogStreamStatus } from "./extension-logs-store";
 
@@ -35,6 +36,7 @@ export interface ExtensionLogEventSource {
 export interface UseExtensionLogsOptions {
   name: string;
   workspaceId?: string | null;
+  profileName?: string | null;
   enabled?: boolean;
   eventSourceFactory?: (url: string) => ExtensionLogEventSource;
 }
@@ -65,13 +67,15 @@ function extensionLogError(error: unknown, fallback: string): Error {
 export function useExtensionLogs({
   name,
   workspaceId,
+  profileName,
   enabled = true,
   eventSourceFactory,
 }: UseExtensionLogsOptions): ExtensionLogsModel {
   const queryClient = useQueryClient();
   const normalizedName = name.trim();
-  const normalizedWorkspaceId = workspaceId?.trim() || undefined;
-  const instance = `${normalizedWorkspaceId ?? ""}\u0000${normalizedName}`;
+  const normalizedWorkspaceId = normalizedLogScope(workspaceId);
+  const normalizedProfileName = normalizedLogScope(profileName);
+  const instance = `${normalizedWorkspaceId ?? ""}\u0000${extensionProfileKey(normalizedProfileName)}\u0000${normalizedName}`;
   const { store } = useStoreBinding(instance, () => extensionLogsLogic.createStore());
   const connectionError = useSelector(store, snapshot => snapshot.context.error);
   const follow = useSelector(store, snapshot => snapshot.context.follow);
@@ -83,23 +87,22 @@ export function useExtensionLogs({
   );
   const historyOptions = extensionLogsOptions(normalizedName, {
     workspaceId: normalizedWorkspaceId,
+    profileName: normalizedProfileName,
   });
   const history = useQuery({
     ...historyOptions,
     enabled: enabled && normalizedName !== "" && !canStream,
   });
 
-  const status: ExtensionLogStreamStatus = !follow
-    ? "paused"
-    : enabled && normalizedName !== ""
-      ? streamStatus
-      : "idle";
+  const active = enabled && normalizedName !== "";
+  const status = extensionLogStatus(active, follow, streamStatus);
 
   useEffect(() => {
     if (!enabled || normalizedName === "" || !follow || !canStream) return undefined;
 
     const cacheKey = extensionLogsOptions(normalizedName, {
       workspaceId: normalizedWorkspaceId,
+      profileName: normalizedProfileName,
     }).queryKey;
     store.trigger.connecting();
     const generation = store.getSnapshot().context.generation;
@@ -145,7 +148,10 @@ export function useExtensionLogs({
       try {
         baseline = normalizeExtensionLogSnapshot(
           await queryClient.fetchQuery(
-            extensionLogsOptions(normalizedName, { workspaceId: normalizedWorkspaceId })
+            extensionLogsOptions(normalizedName, {
+              workspaceId: normalizedWorkspaceId,
+              profileName: normalizedProfileName,
+            })
           )
         );
       } catch (error) {
@@ -171,6 +177,7 @@ export function useExtensionLogs({
             after: extensionLogCursor(baseline.logs),
             streamEpoch: baseline.stream_epoch,
             workspaceId: normalizedWorkspaceId,
+            profileName: normalizedProfileName,
           })
         );
       } catch (error) {
@@ -229,6 +236,7 @@ export function useExtensionLogs({
     instance,
     normalizedName,
     normalizedWorkspaceId,
+    normalizedProfileName,
     queryClient,
     retryToken,
     store,
@@ -238,13 +246,7 @@ export function useExtensionLogs({
     entries: history.data?.logs ?? [],
     error: history.error ?? connectionError,
     follow,
-    isLoading:
-      enabled &&
-      normalizedName !== "" &&
-      follow &&
-      history.data === undefined &&
-      history.error === null &&
-      status !== "reconnecting",
+    isLoading: active && follow && history.isPending && status !== "reconnecting",
     refetch: () => {
       if (follow && canStream) store.trigger.retryRequested();
       else void history.refetch();
@@ -252,4 +254,16 @@ export function useExtensionLogs({
     setFollow: next => store.trigger.followChanged({ follow: next }),
     status,
   };
+}
+
+function normalizedLogScope(value: string | null | undefined): string | undefined {
+  return value?.trim() || undefined;
+}
+function extensionLogStatus(
+  active: boolean,
+  follow: boolean,
+  status: ExtensionLogStreamStatus
+): ExtensionLogStreamStatus {
+  if (!follow) return "paused";
+  return active ? status : "idle";
 }

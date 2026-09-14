@@ -80,6 +80,11 @@ func managedDevExtension(
 			Permissions:              manifest.Permissions,
 			Checksum:                 verified.GenerationHash,
 			NetworkRequirementDigest: verified.NetworkRequirementDigest,
+			Provenance: ExtensionProvenance{
+				InstalledFrom: ExtensionInstalledFromLocalPath,
+				SourceURL:     verified.OriginPath,
+				Layout:        manifest.Layout,
+			},
 		},
 		rootDir:          verified.GenerationDir,
 		manifest:         manifest,
@@ -117,9 +122,13 @@ func (m *Manager) activateAndPublishDevCandidate(
 		return nil, errors.New("extension: prepared development candidate is required")
 	}
 	key = key.Normalize()
+	if err := m.retireWorkspaceProfileRuntimes(ctx, key, candidate.startup.transaction); err != nil {
+		return nil, candidate.startup.transaction.rollback(ctx, err)
+	}
 	var previous *managedExtension
 	err := m.commitPreparedExtensionWithPublish(ctx, candidate, candidate.startup, func() {
 		previous = m.instanceLocked(key)
+		delete(m.scopedExtensions, key)
 		m.devExtensions[key] = candidate
 		candidate.deferSupervision = false
 		candidate.supervisionStopped = false

@@ -25,11 +25,20 @@ export const extensionKeys = {
       extensionProfileKey(profileName),
     ] as const,
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
-  logs: (name: string, workspaceId?: string | null) =>
-    [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name.trim()] as const,
-  /**
-   * The inventory route carries no workspace selector and resolves the global published instance,
-   * so the key stays name-only rather than implying a scope the route does not expose.
-   */
-  inventory: (name: string) => [...extensionKeys.all, "inventory", name] as const,
+  logs: (name: string, workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.all,
+      "logs",
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
+      name.trim(),
+    ] as const,
+  inventory: (name: string, workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.all,
+      "inventory",
+      name,
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
+    ] as const,
 };

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (s *service) putMCPServer(
@@ -41,6 +42,9 @@ func (s *service) putMCPServer(
 		scope, scopeID, name, &normalized, secrets,
 	)
 	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := normalizeMCPClientSecretOwner(&normalized, scope, scopeID, name); err != nil {
 		return MutationResult{}, err
 	}
 	secretCleanup, err := s.prepareMCPSecretCleanupPlan(
@@ -87,6 +91,20 @@ func (s *service) putMCPServer(
 	return result, nil
 }
 
+func normalizeMCPClientSecretOwner(server *compozyconfig.MCPServer, scope ScopeKind, scopeID, name string) error {
+	if strings.TrimSpace(server.Auth.ClientSecretRef) == "" {
+		return nil
+	}
+	ref, err := vault.NormalizeMCPClientSecretRef(server.Auth.ClientSecretRef, vault.MCPSecretTarget{
+		Scope: string(scope), WorkspaceID: scopeID, ServerName: name,
+	})
+	if err != nil {
+		return validationError(fmt.Errorf("settings: OAuth client secret reference: %w", err))
+	}
+	server.Auth.ClientSecretRef = ref
+	return nil
+}
+
 func (s *service) commitMCPServerDefinition(
 	ctx context.Context,
 	scope ScopeKind,
@@ -128,6 +146,12 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	preservation MCPSecretPreservation,
 	envPreservation []string,
 ) (compozyconfig.MCPServer, error) {
+	if err := s.validateManualMCPName(
+		ctx,
+		MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName, Name: name},
+	); err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
 	server.Name = strings.TrimSpace(server.Name)
 	if server.Name == "" {
 		server.Name = name

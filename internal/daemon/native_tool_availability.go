@@ -215,7 +215,7 @@ func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nat
 		return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 	})
 	availability.marketplace = n.dependencyAvailability(func() bool {
-		return n.deps.MarketplaceCatalog != nil || n.deps.MarketplaceSkills != nil
+		return n.deps.MarketplaceCatalog != nil
 	})
 	availability.resources = n.dependencyAvailability(func() bool { return n.deps.Resources != nil })
 	availability.mcpStatus = n.dependencyAvailability(func() bool {

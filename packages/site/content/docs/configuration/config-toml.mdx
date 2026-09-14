@@ -26,81 +26,81 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 
 ## Quick Reference
 
-| Section                              | Purpose                                                                              | Default                                                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
-| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
-| `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
-| `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
-| `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
-| `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                    | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
-| `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                  |
-| `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                    | agent fallback target, personalization on, no aliases                                                 |
-| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
-| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
-| `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
-| `[roles.dream]`                      | Dream-session routing.                                                               | disabled, builtin `dreaming-curator`                                                                  |
-| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                                   |
-| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                                  |
-| `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                                  |
-| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens             |
-| `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                          |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                      |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
-| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
-| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                        |
-| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
-| `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                  | `mode = "approve-all"`                                                                                |
-| `[worktrees]`                        | Managed placement, per-run branch namespace, bootstrap, and Git discovery freshness. | `$COMPOZY_HOME/worktrees`, `run/`, no copy/setup, 10m setup, 30s discovery                            |
-| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                                   |
-| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
-| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
-| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                              |
-| `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                              | CompozyOS public CIMD; loopback callback on port `2123`                                               |
-| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                            |
-| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
-| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
-| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
-| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                             |
-| `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                                |
-| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
-| `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
-| `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                      |
-| `[memory]`                           | Persistent memory runtime and profile memory directory.                              | disabled, `$COMPOZY_HOME/profiles/default/memory`                                                     |
-| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                                  |
-| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                      |
-| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                      |
-| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                         | 90 days, audit summary on, 64 KiB body cap                                                            |
-| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                     | post_message mode, capacity 1, coalesce 16                                                            |
-| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                         | 24 h, 3 sessions, 30 min ticker                                                                       |
-| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.             | jsonl, `$COMPOZY_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
-| `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                                  |
-| `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                     |
-| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
-| `[skills]`                           | Skill discovery, source roots, polling, disable list, and marketplace trust gates.   | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
-| `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                                 |
-| `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                  | `allow_unverified = true`; per-install consent still required                                         |
-| `[extensions.sources.*]`             | Published extension source availability and endpoints.                               | GitHub and git enabled, `https://api.github.com`                                                      |
-| `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                            | `watch_interval = "2s"`                                                                               |
-| `[extensions.resources]`             | Resource kinds, scope ceiling, and rate limits for extension-published resources.    | unrestricted kinds and scope, rate limits off                                                         |
-| `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                       |
-| `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                            |
-| `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
-| `[loops]`                            | Daemon reconciliation cadence for terminal Loop execution records.                   | `reconcile_interval = "1m"`                                                                           |
-| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery Loops, including node lifecycle policy.  | iteration cap 50, retry attempts 3, silence window 30m, fan-out 4                                     |
-| `[loops.defaults.watch]`             | Global/workspace seed defaults for `watch-source` Loops, including lifecycle policy. | no iteration cap, retry attempts 3, silence window 30m, fan-out 2                                     |
-| `[loops.breaker]`                    | Reload-scoped target breaker shared across Loop kinds.                               | 5 consecutive transport failures, 60s probe interval                                                  |
-| `[loops.inputs.<loop-name>]`         | Global/workspace defaults for declared inputs of one Loop.                           | empty map; per-key origin remains explicit                                                            |
-| `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
-| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                              |
-| `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
-| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                        |
-| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                               | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                        |
-| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                 | agents may force release, force fail, and retry                                                       |
-| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                        | empty list                                                                                            |
-| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.             | enabled; Local remains the execution default                                                          |
-| `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.               | disabled; both tier ports assigned by the operating system                                            |
+| Section                              | Purpose                                                                                | Default                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.    | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.           | providers `5s`, MCP `10s`, bridges `30s`                                                              |
+| `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
+| `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
+| `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
+| `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
+| `[shell.sessions]`                   | Live operator preferences for the session list.                                        | last-activity order, recent sessions                                                                  |
+| `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
+| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
+| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                       | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
+| `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
+| `[roles.dream]`                      | Dream-session routing.                                                                 | disabled, builtin `dreaming-curator`                                                                  |
+| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                    | enabled, builtin `dreaming-curator`                                                                   |
+| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                      | enabled, inherits the invoking agent                                                                  |
+| `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
+| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                            | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens             |
+| `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
+| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
+| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.                 | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
+| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
+| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
+| `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
+| `[worktrees]`                        | Managed placement, per-run branch namespace, bootstrap, and Git discovery freshness.   | `$COMPOZY_HOME/worktrees`, `run/`, no copy/setup, 10m setup, 30s discovery                            |
+| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.            | enabled, hosted MCP enabled, 256 KiB result default                                                   |
+| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                               | 30 seconds                                                                                            |
+| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                     | 5 minutes                                                                                             |
+| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                  | external tools disabled, 120 second approval timeout, no trusted sources                              |
+| `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                                | CompozyOS public CIMD; loopback callback on port `2123`                                               |
+| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                                | empty list                                                                                            |
+| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                              | empty map plus built-ins                                                                              |
+| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                       | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                    | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
+| `[[marketplace.plugin_sources]]`     | Plugin marketplace registrations and preset choices.                                   | Preset defaults; custom registrations enabled by default                                              |
+| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                   | local backend when no profile is selected                                                             |
+| `[observability]`                    | Event summary retention and global byte cap.                                           | enabled, 7 days, 1 GiB                                                                                |
+| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                         | enabled, 1 MiB segments, 256 MiB per session                                                          |
+| `[log]`                              | Structured log level and daemon-owned rotation.                                        | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
+| `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.      | `enabled = true`                                                                                      |
+| `[memory]`                           | Persistent memory runtime and profile memory directory.                                | disabled, `$COMPOZY_HOME/profiles/default/memory`                                                     |
+| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                                | hybrid, 300 ms, noop                                                                                  |
+| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                           | 4096 chars, 60 writes/min, all canonical origins                                                      |
+| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                         | top-K 5, raw 50, weighted fusion                                                                      |
+| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                           | 90 days, audit summary on, 64 KiB body cap                                                            |
+| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                       | post_message mode, capacity 1, coalesce 16                                                            |
+| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                           | 24 h, 3 sessions, 30 min ticker                                                                       |
+| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.               | jsonl, `$COMPOZY_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
+| `[memory.daily]`                     | Daily-log retention and rotation.                                                      | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                                  |
+| `[memory.file]`                      | Curated memory body and prompt-index limits.                                           | 200 lines, 25 KiB                                                                                     |
+| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                  | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                    | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
+| `[skills]`                           | Skill discovery, source roots, polling, disable list, and installed-skill trust gates. | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
+| `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                    | `allow_unverified = true`; per-install consent still required                                         |
+| `[extensions.sources.*]`             | Published extension source availability and endpoints.                                 | GitHub and git enabled, `https://api.github.com`                                                      |
+| `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                              | `watch_interval = "2s"`                                                                               |
+| `[extensions.resources]`             | Resource kinds, scope ceiling, and rate limits for extension-published resources.      | unrestricted kinds and scope, rate limits off                                                         |
+| `[automation]`                       | Automation scheduler defaults.                                                         | enabled, UTC, 5 concurrent jobs                                                                       |
+| `[[automation.jobs]]`                | Scheduled automation jobs.                                                             | empty list                                                                                            |
+| `[[automation.triggers]]`            | Event-driven automation triggers.                                                      | empty list                                                                                            |
+| `[loops]`                            | Daemon reconciliation cadence for terminal Loop execution records.                     | `reconcile_interval = "1m"`                                                                           |
+| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery Loops, including node lifecycle policy.    | iteration cap 50, retry attempts 3, silence window 30m, fan-out 4                                     |
+| `[loops.defaults.watch]`             | Global/workspace seed defaults for `watch-source` Loops, including lifecycle policy.   | no iteration cap, retry attempts 3, silence window 30m, fan-out 2                                     |
+| `[loops.breaker]`                    | Reload-scoped target breaker shared across Loop kinds.                                 | 5 consecutive transport failures, 60s probe interval                                                  |
+| `[loops.inputs.<loop-name>]`         | Global/workspace defaults for declared inputs of one Loop.                             | empty map; per-key origin remains explicit                                                            |
+| `[goals]`                            | Goal defaults and durable session-event relay controls.                                | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
+| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                  | block recurrence limit 2                                                                              |
+| `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime.   | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                        | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                        |
+| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                                 | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                        |
+| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                   | agents may force release, force fail, and retry                                                       |
+| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                          | empty list                                                                                            |
+| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.               | enabled; Local remains the execution default                                                          |
+| `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.                 | disabled; both tier ports assigned by the operating system                                            |
 
 ## Load And Merge Order
 
@@ -619,12 +619,7 @@ sources = ["agents"]
 custom_sources = []
 disabled_skills = ["experimental-skill"]
 poll_interval = "3s"
-allowed_marketplace_mcp = ["clawhub:@team/search-skill"]
 allowed_marketplace_hooks = ["clawhub:@team/format-hook"]
-
-[skills.marketplace]
-registry = "clawhub"
-base_url = "https://registry.example.com"
 
 [extensions.trust]
 allow_unverified = true
@@ -1770,19 +1765,20 @@ Cursor's discovery command defaults to `cursor-agent models`; its session launch
 
 ## `[marketplace.catalog]`
 
-CompozyOS fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
-validated independently and projected into the global database. If a fetch fails after a successful
-projection, CompozyOS keeps serving the prior rows with stale status instead of replacing them with an
-invalid or incomplete document.
+CompozyOS reads the extension catalog from `<base_url>/v3/extensions.json` and presets from
+`<base_url>/v3/marketplaces.json`. HTTP(S) and file mirrors must provide the v3 family.
+Missing or invalid v3 documents report a source failure. The daemon never reads root feeds
+as a fallback and never rewrites the configured base URL. Failed refreshes retain the last
+valid projection and mark it stale.
 
 This section is global-only because the projection and refresh service are global. Put it in
 `$COMPOZY_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
 
-| Key        | Type     | Default                                                          | Validation                                     | Effect                                                                              |
-| ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for `mcp.json`, `extensions.json`, and `skills.json`; applies live.  |
-| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | HTTP(S) cache age before browse refreshes that kind; local files refresh on access. |
-| `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                        |
+| Key        | Type     | Default                                                          | Validation                                     | Effect                                                                                |
+| ---------- | -------- | ---------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/compozy/main/catalog` | Absolute `http`, `https`, or local `file` URL. | Base directory for the v3 feed family; applies live.                                  |
+| `ttl`      | duration | `1h`                                                             | Positive Go duration.                          | Projection freshness for HTTP(S) and file catalogs; browse schedules stale refreshes. |
+| `timeout`  | duration | `10s`                                                            | Positive Go duration.                          | Deadline for one feed request; applies live.                                          |
 
 ```toml
 [marketplace.catalog]
@@ -1811,6 +1807,46 @@ Agent-side config mutation is narrower than the operator CLI. `compozy__config_s
 live lifecycle. It rejects `marketplace.catalog.base_url` with
 `config_trust_root_forbidden`; changing the feed root remains an operator action through
 `compozy config set`. Both surfaces require global scope for every `marketplace.catalog.*` write.
+
+## `[[marketplace.plugin_sources]]`
+
+Register plugin marketplaces in the global `config.toml`. Source identity is the normalized repository
+or folder reference; the display name does not identify installed packages.
+
+```toml
+[[marketplace.plugin_sources]]
+name = "team-plugins"
+source = "github:my-team/plugins"
+enabled = true
+
+[[marketplace.plugin_sources]]
+name = "local-plugins"
+source = "file:///absolute/path/to/plugins"
+enabled = false
+```
+
+| Key       | Type    | Default                                       | Validation                                                                                                                                  |
+| --------- | ------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`    | string  | Required                                      | Unique, 1–64 lowercase letters, digits, dots, underscores or hyphens. `compozy`, `compozy-catalog`, `.` and `..` are reserved.              |
+| `source`  | string  | Required                                      | `github:owner/repo`, `git+https://host/repository`, or an absolute local `file` URL. Credentials, query strings and fragments are rejected. |
+| `enabled` | boolean | Preset default, or `true` for a custom source | Explicit `false` disables the source.                                                                                                       |
+
+Distinct names may register the same acquisition reference. Equivalent GitHub spellings resolve to one
+origin, so those catalog items share installed state.
+Preset choices match `source`, so an upstream preset rename keeps the operator's enabled choice and uses
+the preset's current name. If several rows share that source, the current preset name selects its
+override; otherwise the first matching row does. Other rows remain custom registrations. The catalog order is the CompozyOS feed, presets in publication order, then
+custom sources in configuration order. A custom name that collides with a resolved preset is rejected.
+
+An overlay that omits `plugin_sources` preserves the current rows; an explicit
+`[marketplace] plugin_sources = []` clears the operator rows. Clearing an override restores the preset's
+default, so use `enabled = false` to disable a preset. Workspace and profile overlays cannot register
+global marketplaces. Plugin marketplace packages remain unverified; a digest identifies the listed
+bytes and does not establish publisher trust.
+
+The daemon restores the last valid preset document from its local cache on startup. Feed refreshes
+read the current presets and apply operator choices by source reference. Catalog reads use stored
+projections while refreshes run; disabling a source excludes its entries and cancels its refresh.
 
 ## `[observability]`
 
@@ -2065,7 +2101,7 @@ fallback (see [Extensions](/docs/extensions)).
 
 ## `[skills]`
 
-If `enabled = false`, skill polling and marketplace validation are skipped.
+If `enabled = false`, local skill discovery and polling are disabled.
 
 | Field                       | Type         | Default      | Valid values                                          | Description                                                                                       |
 | --------------------------- | ------------ | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -2074,7 +2110,6 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 | `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
 | `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
 | `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
-| `allowed_marketplace_mcp`   | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for MCP servers declared by marketplace skills.                                   |
 | `allowed_marketplace_hooks` | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for hooks declared by marketplace skills.                                         |
 
 `sources` and `custom_sources` pass through all four config layers — user, personal profile,
@@ -2093,12 +2128,18 @@ rejected with `invalid_source_path`.
 
 Walkthrough with expected output: [Use skills from your other tools](/docs/skills/sources).
 
-## `[skills.marketplace]`
+## Removed skill acquisition settings
 
-| Field      | Type       | Default | Valid values                                         | Description                         |
-| ---------- | ---------- | ------- | ---------------------------------------------------- | ----------------------------------- |
-| `registry` | string     | empty   | Empty or `clawhub`. Required when `base_url` is set. | Skill marketplace registry adapter. |
-| `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.            | Registry base URL override.         |
+`skills.marketplace.registry` and `skills.marketplace.base_url` are no longer active
+settings. On load, CompozyOS removes those keys and archives their values as inactive TOML
+comments in the same file. The archive and active configuration share one atomic write;
+repeated loads leave the migrated file unchanged. Unrelated comments, settings, installed
+skills and extension configuration are preserved. Settings and `compozy config set` reject
+new writes to the removed acquisition keys.
+
+The installed-skill hook allowlist above governs existing hook declarations. Embedded MCP
+declarations stay blocked; the archived `skills.allowed_marketplace_mcp` setting cannot enable them
+or remote skill acquisition.
 
 ## `[extensions.trust]`
 

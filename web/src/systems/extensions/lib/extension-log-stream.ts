@@ -10,6 +10,8 @@ export function buildExtensionLogsStreamUrl(
   const params = new URLSearchParams({ follow: "1" });
   const workspace = options.workspaceId?.trim() ?? "";
   if (workspace !== "") params.set("workspace", workspace);
+  const profile = options.profileName?.trim() ?? "";
+  if (profile !== "") params.set("profile", profile);
   if (options.after !== undefined && options.after > 0) params.set("after", String(options.after));
   const streamEpoch = options.streamEpoch?.trim() ?? "";
   if (streamEpoch !== "") params.set("stream_epoch", streamEpoch);

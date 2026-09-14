@@ -167,14 +167,6 @@ func (m *Manager) prepareExtensionStartup(
 	return prepared, nil
 }
 
-func (m *Manager) commitPreparedExtension(
-	ctx context.Context,
-	ext *managedExtension,
-	prepared *preparedExtensionStartup,
-) error {
-	return m.commitPreparedExtensionWithPublish(ctx, ext, prepared, nil)
-}
-
 func (m *Manager) commitPreparedExtensionWithPublish(
 	ctx context.Context,
 	ext *managedExtension,
@@ -234,7 +226,7 @@ func (m *Manager) commitPreparedExtensionWithPublish(
 		"hook_count", hookCount,
 	)
 	if supervise {
-		go m.superviseInstance(ext.instanceKey(), generation)
+		go m.superviseInstance(ext, generation)
 	}
 	return nil
 }

@@ -11,19 +11,283 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
 )
+
+func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should update a renamed origin by digest and retain rollback and consent", testPluginMarketplaceUpdate)
+	t.Run(
+		"Should install approved cached bytes offline and retain unverified origin across a source rename",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, resolver, root := pluginAcquisitionRequest(t)
+			if err := os.RemoveAll(root); err != nil {
+				t.Fatal(err)
+			}
+			preview, err := InspectMarketplacePackage(t.Context(), homePaths, req, "default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if preview.ResolvedRef != req.Plugin.Record.ResolvedRef || preview.Layout != req.Plugin.Record.Layout ||
+				preview.DigestSHA256 != req.Plugin.Record.DigestSHA256 {
+				t.Fatalf("offline inspection identity = %+v", preview)
+			}
+			info, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := req.Plugin.Record
+			if info.Provenance.SourceName != "team" || info.Provenance.SourceRef != record.SourceRef ||
+				info.Provenance.EntryID != record.EntryID || info.Provenance.ResolvedRef != record.ResolvedRef ||
+				info.Provenance.ArchiveDigestSHA256 != record.DigestSHA256 || info.Provenance.Layout != "claude-plugin" ||
+				info.Provenance.ChecksumVerified || !info.Provenance.DigestMatched || !info.Provenance.AllowUnverified ||
+				info.Provenance.RegistryTier != ExtensionRegistryTierUnverified {
+				t.Fatalf("plugin provenance = %+v", info.Provenance)
+			}
+			req.Plugin.SourceName, req.Slug = "renamed-team", "renamed-team/tool"
+			prepared, err := PrepareMarketplaceManagedInstall(t.Context(), homePaths, env.registry, nil, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := prepared.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := prepared.ValidateReinstall(info); err != nil || !prepared.MatchesInstalled(info) {
+				t.Fatalf("same-origin renamed acquisition was not recognized: %v", err)
+			}
+			foreign := *info
+			foreign.Provenance.SourceRef = "github:other/marketplace"
+			if err := prepared.ValidateReinstall(&foreign); !errors.Is(err, ErrExtensionNameConflict) {
+				t.Fatalf("foreign origin conflict = %v", err)
+			}
+			entries, err := os.ReadDir(resolver.Sources.TempDir)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("acquisition staging = %v, %v", entries, err)
+			}
+		},
+	)
+	t.Run("Should report changed live bytes without installing or caching them", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, resolver, root := pluginAcquisitionRequest(t)
+		if err := os.Remove(filepath.Join(resolver.Cache.Root, req.ExpectedDigest+".tar")); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(root, "tool", "README.md"), "Changed after listing")
+		_, err = InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
+		changed, ok := errors.AsType[*SourceChangedError](err)
+		if !ok || changed.ListedDigest != req.ExpectedDigest || changed.FetchedDigest == req.ExpectedDigest ||
+			len(changed.FetchedDigest) != 64 || !errors.Is(err, ErrExtensionSourceChanged) {
+			t.Fatalf("changed live acquisition = %v", err)
+		}
+		installed, err := env.registry.List()
+		if err != nil || len(installed) != 0 {
+			t.Fatalf("changed source was installed: %v, %v", installed, err)
+		}
+		entries, err := os.ReadDir(resolver.Cache.Root)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("changed bytes were cached: %v, %v", entries, err)
+		}
+	})
+	for _, scenario := range []string{"policy", "consent", "approval", "missing approval", "curated trust"} {
+		t.Run("Should reject invalid "+scenario+" before creating managed staging", func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			home := filepath.Join(t.TempDir(), "home")
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, _, _ := pluginAcquisitionRequest(t)
+			var expected error
+			switch scenario {
+			case "policy":
+				req.PolicyAllowsUnverified, expected = false, ErrExtensionUnverifiedPolicyBlocked
+			case "consent":
+				req.AllowUnverified, expected = false, ErrExtensionChecksumUnverified
+			case "approval":
+				req.ExpectedDigest, expected = strings.Repeat("0", 64), ErrExtensionSourceChanged
+			case "missing approval":
+				req.ExpectedDigest, expected = "", ErrManifestInvalid
+			case "curated trust":
+				req.Trust = &MarketplaceTrustEvidence{RegistryTier: ExtensionRegistryTierOfficial}
+			}
+			_, err = PrepareMarketplaceManagedInstall(t.Context(), homePaths, env.registry, nil, req)
+			if err == nil || (expected != nil && !errors.Is(err, expected)) {
+				t.Fatalf("%s refusal = %v", scenario, err)
+			}
+			if _, err := os.Stat(home); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("refused acquisition wrote the managed home: %v", err)
+			}
+		})
+	}
+}
+
+func testPluginMarketplaceUpdate(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"success", "rollback", "consent", "origin"} {
+		t.Run("Should preserve the plugin update contract for "+scenario, func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			install, resolver, root := pluginAcquisitionRequest(t)
+			before, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, install)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, filepath.Join(root, "tool", "README.md"), "Updated without changing semantic version")
+			doc, err := resolver.Sources.Fetch(t.Context(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := resolver.Resolve(t.Context(), doc, snapshot, doc.Plugins[0])
+			if err := errors.Join(err, snapshot.Close()); err != nil {
+				t.Fatal(err)
+			}
+			if record.DigestSHA256 == install.ExpectedDigest {
+				t.Fatal("changed package retained old digest")
+			}
+			if err := os.RemoveAll(root); err != nil {
+				t.Fatal(err)
+			}
+			plugin := &MarketplacePluginAcquisition{SourceName: "renamed", Record: record, Acquirer: resolver}
+			req := MarketplaceUpdateRequest{
+				Names:                  []string{before.Name},
+				PolicyAllowsUnverified: true,
+				AllowUnverified:        true,
+				ResolvePlugin: func(_ context.Context, sourceRef, entryID, version string) (*MarketplacePluginAcquisition, error) {
+					if sourceRef != before.Provenance.SourceRef || entryID != before.Provenance.EntryID ||
+						version != "" {
+						t.Errorf("update selected a different origin: %s/%s@%s", sourceRef, entryID, version)
+					}
+					return plugin, nil
+				},
+			}
+			req.CheckOnly = true
+			checked, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, nil)
+			if err != nil || len(checked) != 1 || checked[0].Status != MarketplaceUpdateStatusAvailable {
+				t.Fatalf("digest-only update check = %+v, %v", checked, err)
+			}
+			req.CheckOnly = false
+			var reload MutationReload
+			var wantErr error
+			switch scenario {
+			case "rollback":
+				wantErr = errors.New("publication rejected")
+				reload = func(context.Context) error { return wantErr }
+			case "consent":
+				req.AllowUnverified = false
+				wantErr = ErrExtensionChecksumUnverified
+			case "origin":
+				plugin.Record.SourceRef = "github:foreign/marketplace"
+			}
+			updated, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, reload)
+			if scenario != "success" {
+				if err == nil || (wantErr != nil && !errors.Is(err, wantErr)) {
+					t.Fatalf("update error = %v", err)
+				}
+				after, err := env.registry.Get(before.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(before.Provenance, after.Provenance) || before.Checksum != after.Checksum {
+					t.Fatalf("failed update replaced installed state: %+v", after)
+				}
+				return
+			}
+			if err != nil || len(updated) != 1 || updated[0].Status != MarketplaceUpdateStatusUpdated {
+				t.Fatalf("update = %+v, %v", updated, err)
+			}
+			after, err := env.registry.Get(before.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Provenance.SourceName != "renamed" || after.Provenance.SourceRef != record.SourceRef ||
+				after.Provenance.EntryID != record.EntryID || after.Provenance.ResolvedRef != record.ResolvedRef ||
+				after.Provenance.ArchiveDigestSHA256 != record.DigestSHA256 || !after.Provenance.DigestMatched ||
+				after.Provenance.ChecksumVerified || after.Provenance.RegistryTier != ExtensionRegistryTierUnverified ||
+				dereferenceOptionalString(after.RegistrySlug) != "renamed/tool" {
+				t.Fatalf("updated provenance = %+v", after)
+			}
+			requireFileContains(
+				t,
+				filepath.Join(ManagedInstallPath(homePaths, before.Name), "README.md"),
+				"Updated without changing semantic version",
+			)
+			current, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req, nil)
+			if err != nil || len(current) != 1 || current[0].Status != MarketplaceUpdateStatusCurrent {
+				t.Fatalf("repeat update = %+v, %v", current, err)
+			}
+		})
+	}
+}
+
+func pluginAcquisitionRequest(t *testing.T) (MarketplaceInstallRequest, *pluginsource.Resolver, string) {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(
+		filepath.Join(root, "tool"),
+		os.DirFS(filepath.Join("testdata", "client-plugins", "open-design")),
+	); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"tool","source":"./tool"}]}`)
+	resolver := &pluginsource.Resolver{
+		Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
+		Sources: pluginsource.Sources{TempDir: t.TempDir()},
+	}
+	doc, err := resolver.Sources.Fetch(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := resolver.Sources.OpenSnapshot(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := resolver.Resolve(t.Context(), doc, snapshot, doc.Plugins[0])
+	if err := errors.Join(err, snapshot.Close()); err != nil {
+		t.Fatal(err)
+	}
+	return MarketplaceInstallRequest{
+		Plugin: &MarketplacePluginAcquisition{SourceName: "team", Record: record, Acquirer: resolver},
+		Slug:   "team/tool", ExpectedDigest: record.DigestSHA256, PolicyAllowsUnverified: true, AllowUnverified: true,
+	}, resolver, root
+}
 
 type lifecycleSource struct {
 	name          string
@@ -76,7 +340,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dataPath, "state.db"), []byte("state"), 0o600); err != nil {
 			t.Fatalf("WriteFile(data) error = %v", err)
 		}
-		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, manifest.Name, nil)
+		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, manifest.Name, nil, nil)
 		if err != nil {
 			t.Fatalf("RemoveManagedExtension() error = %v", err)
 		}
@@ -96,13 +360,17 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 			t.Fatalf("Mkdir(data) error = %v", err)
 		}
 		fixedNow := time.Date(2026, 8, 15, 12, 0, 0, 123, time.UTC)
-		cleanup, err := removeExtensionDataPath(dataPath, extensionDataRemovalOps{
+		staged, err := stageExtensionDataPath(dataPath, extensionDataRemovalOps{
 			removeAll: func(string) error { return errors.New("injected delete failure") },
 			rename:    os.Rename,
 			now:       func() time.Time { return fixedNow },
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanup, err := staged.commit()
 		if err == nil || !cleanup.quarantined {
-			t.Fatalf("removeExtensionDataPath() = %#v, %v; want quarantined warning", cleanup, err)
+			t.Fatalf("staged data commit = %#v, %v; want quarantined warning", cleanup, err)
 		}
 		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("Stat(reachable data) error = %v, want not-exist", statErr)
@@ -118,16 +386,105 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := os.Mkdir(dataPath, 0o700); err != nil {
 			t.Fatalf("Mkdir(data) error = %v", err)
 		}
-		cleanup, err := removeExtensionDataPath(dataPath, extensionDataRemovalOps{
+		_, err := stageExtensionDataPath(dataPath, extensionDataRemovalOps{
 			removeAll: func(string) error { return errors.New("injected delete failure") },
 			rename:    func(string, string) error { return errors.New("injected quarantine failure") },
 			now:       time.Now,
 		})
-		if err == nil || cleanup.quarantined {
-			t.Fatalf("removeExtensionDataPath() = %#v, %v; want fatal cleanup failure", cleanup, err)
+		if err == nil {
+			t.Fatalf("stageExtensionDataPath() error = %v; want failure before deletion", err)
 		}
 		if _, statErr := os.Stat(dataPath); statErr != nil {
 			t.Fatalf("Stat(reachable data after failed remove) error = %v", statErr)
+		}
+	})
+
+	// Invariant: a failed durable retirement restores package and plugin data, even after cancellation.
+	// Owner: managed removal transaction; canonical suite: TestManagedAgentPluginDataLifecycle.
+	t.Run("Should restore staged data and registry when durable retirement fails", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := writeAgentPluginManifestFixture(t)
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
+			t.Fatal(err)
+		}
+		// The uninstall cascade must not enable a disabled named Profile on rollback.
+		financeID := insertActiveRegistryProfile(t, env, "finance")
+		marketingID := insertActiveRegistryProfile(t, env, "marketing")
+		if err := env.registry.SetEnabledForProfile(manifest.Name, financeID, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := env.db.ExecContext(
+			t.Context(),
+			`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at) VALUES (?, 'finance', ?, '2026-09-12T00:00:00Z')`,
+			manifest.Name,
+			financeID,
+		); err != nil {
+			t.Fatal(err)
+		}
+
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(dataPath, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(dataPath, "state"), "preserve-on-commit-error")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		reloads := 0
+		sentinel := errors.New("durable retirement failed")
+		_, err = RemoveManagedExtension(ctx, homePaths, env.registry, manifest.Name, func(ctx context.Context) error {
+			reloads++
+			if ctx.Err() != nil {
+				t.Fatal("rollback reload inherited canceled request")
+			}
+			if reloads == 2 {
+				for id, want := range map[string]bool{financeID: false, marketingID: true} {
+					enabled, err := env.registry.IsEnabledForProfile(manifest.Name, id)
+					if err != nil || enabled != want {
+						t.Fatalf("profile %s changed before rollback publication: enabled=%t err=%v", id, enabled, err)
+					}
+				}
+				var profileID, createdAt string
+				if err := env.db.QueryRowContext(ctx, `SELECT created_profile_id, created_at FROM extension_profile_markers WHERE extension_name = ? AND profile_name = 'finance'`, manifest.Name).
+					Scan(&profileID, &createdAt); err != nil ||
+					profileID != financeID ||
+					createdAt != "2026-09-12T00:00:00Z" {
+					t.Fatalf("profile provenance changed: %q %q %v", profileID, createdAt, err)
+				}
+			}
+
+			return nil
+		}, func(context.Context) error {
+			if _, err := os.Stat(dataPath); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("plugin data not staged before commit")
+			}
+			cancel()
+			return sentinel
+		})
+		if !errors.Is(err, sentinel) || reloads != 2 {
+			t.Fatalf("removal=%v reloads=%d", err, reloads)
+		}
+		if _, err := env.registry.Get(manifest.Name); err != nil {
+			t.Fatal(err)
+		}
+		requireFileContains(t, filepath.Join(dataPath, "state"), "preserve-on-commit-error")
+		if _, err := os.Stat(ManagedInstallPath(homePaths, manifest.Name)); err != nil {
+			t.Fatal(err)
 		}
 	})
 
@@ -170,6 +527,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 				rename:    os.Rename,
 				now:       func() time.Time { return fixedNow },
 			},
+			nil,
 		)
 		if err != nil || len(removed.Warnings) != 1 {
 			t.Fatalf("removeManagedExtensionWithDataOps() = %#v, %v; want completed with warning", removed, err)
@@ -227,6 +585,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 				rename:    func(string, string) error { return errors.New("injected quarantine failure") },
 				now:       time.Now,
 			},
+			nil,
 		)
 		if err == nil {
 			t.Fatal("removeManagedExtensionWithDataOps(double failure) error = nil, want failure")
@@ -329,9 +688,90 @@ func (s *lifecycleSource) packageSlug() string {
 	return s.slug
 }
 
+func testMarketplaceInstallationScope(t *testing.T, scope InstallationScope) {
+	t.Helper()
+	env := newRegistryTestEnv(t)
+	if scope.ProfileID == "marketing" {
+		scope.ProfileID = insertActiveRegistryProfile(t, env, "marketing")
+	}
+	if scope.WorkspaceID != "" {
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+   (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			scope.WorkspaceID, t.TempDir(), "Scoped install", store.FormatTimestamp(env.installedAt),
+			store.FormatTimestamp(env.installedAt)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := newLifecycleSourceNamed(t, "scoped-package", "github", "1.0.0", "2.0.0")
+	source.latestVersion = "1.0.0"
+	loader := func(context.Context) ([]registrypkg.Source, error) {
+		return []registrypkg.Source{source}, nil
+	}
+	installed, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, loader, MarketplaceInstallRequest{
+		Slug: "acme/scoped-package", SourceFilter: "github", Scope: scope,
+		PolicyAllowsUnverified: true, AllowUnverified: true,
+	})
+	if scope.ProfileID == "missing" {
+		if err == nil {
+			t.Fatal("installation with a missing profile succeeded")
+		}
+		if _, readErr := env.registry.Get("scoped-package"); !errors.Is(readErr, ErrExtensionNotFound) {
+			t.Fatalf("failed install registry row = %v", readErr)
+		}
+		packagePath, pathErr := ManagedInstallPathChecked(homePaths, "scoped-package")
+		if pathErr != nil {
+			t.Fatal(pathErr)
+		}
+		if _, statErr := os.Stat(packagePath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("failed install retained package files: %v", statErr)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments, err := env.registry.Installations(t.Context(), installed.Name)
+	if err != nil || len(attachments) != 1 || attachments[0].Scope != scope {
+		t.Fatalf("installed attachments = %#v, %v; want only %#v", attachments, err, scope)
+	}
+	source.latestVersion = "2.0.0"
+	updates, err := UpdateMarketplaceManaged(t.Context(), homePaths, env.registry, loader, MarketplaceUpdateRequest{
+		Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+	}, nil)
+	if err != nil || len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+		t.Fatalf("scoped update = %#v, %v", updates, err)
+	}
+	after, err := env.registry.Installations(t.Context(), installed.Name)
+	if err != nil || !reflect.DeepEqual(after, attachments) {
+		t.Fatalf("updated attachments = %#v, %v; want unchanged %#v", after, err, attachments)
+	}
+}
+
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
+	// Invariant: package acquisition persists exactly its requested attachment and cleans failed scope writes.
+	// Owner: managed install lifecycle. Canonical suite: marketplace_lifecycle_test.go.
+	for _, scope := range []InstallationScope{
+		{}, {ProfileID: "marketing"}, {WorkspaceID: "ws-scoped-install"},
+		{ProfileID: "marketing", WorkspaceID: "ws-scoped-install"}, {ProfileID: "missing"},
+	} {
+		t.Run(
+			fmt.Sprintf(
+				"Should retain only the requested installation scope %s/%s",
+				scope.ProfileID,
+				scope.WorkspaceID,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				testMarketplaceInstallationScope(t, scope)
+			},
+		)
+	}
 	t.Run(
-		"Should refresh a data-named package while preserving its isolated data and reject layout drift",
+		"Should refresh a data-named package while preserving its isolated data and reject unsupported schemas",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -347,7 +787,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			source.archives["2.0.0"] = lifecycleAgentPluginTarGz(t, "data", "2.0.0", false, map[string]string{
 				"skills/review/SKILL.md": "---\nname: review\n---\nMissing description.\n",
 			})
-			source.archives["3.0.0"] = lifecycleAgentPluginTarGz(t, "data", "3.0.0", true, nil)
+			source.archives["3.0.0"] = lifecycleTarGzFiles(t, map[string]string{
+				"data/.claude-plugin/plugin.json": `{"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json","name":"data","version":"3.0.0"}`,
+			})
 			loader := func(context.Context) ([]registrypkg.Source, error) {
 				return []registrypkg.Source{source}, nil
 			}
@@ -425,14 +867,14 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				},
 				nil,
 			)
-			if !errors.Is(updateErr, ErrAgentPluginClientLayout) {
+			if !errors.Is(updateErr, agentplugin.ErrSchemaUnsupported) {
 				t.Fatalf(
-					"UpdateMarketplaceManaged(client-layout drift) error = %v, want ErrAgentPluginClientLayout",
+					"UpdateMarketplaceManaged(unsupported schema) error = %v, want agentplugin.ErrSchemaUnsupported",
 					updateErr,
 				)
 			}
 			if !strings.Contains(updateErr.Error(), ".claude-plugin/plugin.json") {
-				t.Fatalf("client-layout drift error = %q, want layout path", updateErr)
+				t.Fatalf("unsupported schema error = %q, want layout path", updateErr)
 			}
 			retained, err := env.registry.Get(installed.Name)
 			if err != nil {
@@ -446,7 +888,14 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				t.Fatalf("portable data after drift = %q, %v; want preserved", data, readErr)
 			}
 
-			if _, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, installed.Name, nil); err != nil {
+			if _, err := RemoveManagedExtension(
+				t.Context(),
+				homePaths,
+				env.registry,
+				installed.Name,
+				nil,
+				nil,
+			); err != nil {
 				t.Fatalf("RemoveManagedExtension(data) error = %v", err)
 			}
 			if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
@@ -556,7 +1005,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		removeErr := errors.New("reload failed")
 		_, err = RemoveManagedExtension(
 			t.Context(), homePaths, env.registry, "lifecycle-ext",
-			func(context.Context) error { return removeErr },
+			func(context.Context) error { return removeErr }, nil,
 		)
 		if !errors.Is(err, removeErr) {
 			t.Fatalf("RemoveManagedExtension(reload failure) error = %v, want reload failure", err)
@@ -566,7 +1015,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		}
 		requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, "lifecycle-ext"), "VERSION.txt"), "2.0.0")
 
-		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, "lifecycle-ext", nil)
+		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, "lifecycle-ext", nil, nil)
 		if err != nil {
 			t.Fatalf("RemoveManagedExtension() error = %v", err)
 		}
@@ -681,7 +1130,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
-		installDir, err := InstalledExtensionDir(*installed)
+		installDir, err := InstalledExtensionDir(installed)
 		if err != nil {
 			t.Fatalf("InstalledExtensionDir() error = %v", err)
 		}
@@ -783,78 +1232,103 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return committed updates in a typed partial failure", func(t *testing.T) {
-		t.Parallel()
+	// Invariant: every selected package participates in a batch; committed successes survive failures in either order.
+	// Owner: managed update coordinator; canonical suite: TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure.
+	for _, selection := range []struct {
+		name        string
+		all         bool
+		names       []string
+		failedFirst bool
+	}{
+		{name: "Should return committed updates in an all-package partial failure", all: true},
+		{name: "Should process every distinct named package before reporting partial failure", names: []string{"a-good", "a-good", "z-bad"}},
+		{name: "Should update later selected packages after an earlier failure", names: []string{"z-bad", "a-good", "z-bad"}, failedFirst: true},
+	} {
+		t.Run(selection.name, func(t *testing.T) {
+			t.Parallel()
 
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		env := newRegistryTestEnv(t)
-		good := newLifecycleSourceNamed(t, "a-good", "good-registry", "1.0.0", "2.0.0")
-		bad := newLifecycleSourceNamed(t, "z-bad", "bad-registry", "1.0.0", "2.0.0")
-		loader := func(context.Context) ([]registrypkg.Source, error) {
-			return []registrypkg.Source{good, bad}, nil
-		}
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			env := newRegistryTestEnv(t)
+			good := newLifecycleSourceNamed(t, "a-good", "good-registry", "1.0.0", "2.0.0")
+			bad := newLifecycleSourceNamed(t, "z-bad", "bad-registry", "1.0.0", "2.0.0")
+			loader := func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{good, bad}, nil
+			}
 
-		for _, source := range []*lifecycleSource{good, bad} {
-			source.latestVersion = "1.0.0"
-			if _, err := InstallMarketplaceManaged(
+			for _, source := range []*lifecycleSource{good, bad} {
+				source.latestVersion = "1.0.0"
+				if _, err := InstallMarketplaceManaged(
+					t.Context(),
+					homePaths,
+					env.registry,
+					loader,
+					MarketplaceInstallRequest{
+						Slug:                   source.packageSlug(),
+						SourceFilter:           source.Name(),
+						PolicyAllowsUnverified: true,
+						AllowUnverified:        true,
+					},
+				); err != nil {
+					t.Fatalf("InstallMarketplaceManaged(%s) error = %v", source.packageName(), err)
+				}
+				source.latestVersion = "2.0.0"
+			}
+			bad.archives["2.0.0"] = lifecycleTarGzNamed(t, "wrong-identity", "2.0.0")
+
+			updates, err := UpdateMarketplaceManaged(
 				t.Context(),
 				homePaths,
 				env.registry,
 				loader,
-				MarketplaceInstallRequest{
-					Slug:                   source.packageSlug(),
-					SourceFilter:           source.Name(),
+				MarketplaceUpdateRequest{
+					All:                    selection.all,
+					Names:                  selection.names,
 					PolicyAllowsUnverified: true,
 					AllowUnverified:        true,
 				},
-			); err != nil {
-				t.Fatalf("InstallMarketplaceManaged(%s) error = %v", source.packageName(), err)
-			}
-			source.latestVersion = "2.0.0"
-		}
-		bad.archives["2.0.0"] = lifecycleTarGzNamed(t, "wrong-identity", "2.0.0")
+				nil,
+			)
 
-		updates, err := UpdateMarketplaceManaged(
-			t.Context(),
-			homePaths,
-			env.registry,
-			loader,
-			MarketplaceUpdateRequest{All: true, PolicyAllowsUnverified: true, AllowUnverified: true},
-			nil,
-		)
+			batchErr, batchErrMatched := errors.AsType[*MarketplaceUpdateBatchError](err)
+			if !batchErrMatched {
+				t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
+			}
+			if !errors.Is(err, ErrManifestInvalid) {
+				t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
+			}
+			if len(updates) != 2 {
+				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want an outcome for each distinct target", updates)
+			}
+			goodIndex, badIndex := 0, 1
+			if selection.failedFirst {
+				goodIndex, badIndex = 1, 0
+			}
+			if updates[goodIndex].Name != "a-good" || updates[goodIndex].Status != MarketplaceUpdateStatusUpdated ||
+				updates[badIndex].Name != "z-bad" || updates[badIndex].Status != MarketplaceUpdateStatusFailed ||
+				updates[badIndex].Error == nil || updates[badIndex].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
+				strings.Contains(updates[badIndex].Error.Message, "wrong-identity") {
+				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want ordered success and redacted failure", updates)
+			}
 
-		batchErr, batchErrMatched := errors.AsType[*MarketplaceUpdateBatchError](err)
-		if !batchErrMatched {
-			t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
-		}
-		if !errors.Is(err, ErrManifestInvalid) {
-			t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
-		}
-		if len(updates) != 2 || updates[0].Name != "a-good" ||
-			updates[0].Status != MarketplaceUpdateStatusUpdated || updates[1].Name != "z-bad" ||
-			updates[1].Status != MarketplaceUpdateStatusFailed || updates[1].Error == nil ||
-			updates[1].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
-			strings.Contains(updates[1].Error.Message, "wrong-identity") {
-			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want updated then redacted failed result", updates)
-		}
-		if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
-			!reflect.DeepEqual(batchErr.Completed, updates) {
-			t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
-		}
-		for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
-			info, getErr := env.registry.Get(name)
-			if getErr != nil {
-				t.Fatalf("registry.Get(%s) error = %v", name, getErr)
+			if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
+				!reflect.DeepEqual(batchErr.Completed, updates) {
+				t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
 			}
-			if info.Version != version {
-				t.Fatalf("registry.Get(%s).Version = %q, want %q", name, info.Version, version)
+			for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
+				info, getErr := env.registry.Get(name)
+				if getErr != nil {
+					t.Fatalf("registry.Get(%s) error = %v", name, getErr)
+				}
+				if info.Version != version {
+					t.Fatalf("registry.Get(%s).Version = %q, want %q", name, info.Version, version)
+				}
+				requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, name), "VERSION.txt"), version)
 			}
-			requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, name), "VERSION.txt"), version)
-		}
-	})
+		})
+	}
 }
 
 func TestMarketplaceLifecycleReportsPostCommitCleanupFailures(t *testing.T) {
@@ -1010,12 +1484,12 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 		}
 
 		if _, err := InstalledExtensionDir(
-			ExtensionInfo{Name: "bad", ManifestPath: "relative/extension.toml"},
+			&ExtensionInfo{Name: "bad", ManifestPath: "relative/extension.toml"},
 		); err == nil {
 			t.Fatal("InstalledExtensionDir(relative) error = nil, want failure")
 		}
 		if _, err := InstalledExtensionDir(
-			ExtensionInfo{Name: "bad", ManifestPath: filepath.Join(t.TempDir(), "README.md")},
+			&ExtensionInfo{Name: "bad", ManifestPath: filepath.Join(t.TempDir(), "README.md")},
 		); err == nil {
 			t.Fatal("InstalledExtensionDir(non-manifest) error = nil, want failure")
 		}
@@ -1130,6 +1604,160 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: reinstall uses one validated acquisition, rejects foreign identity and restores the complete prior record on publication failure.
+	// Owner: managed package transaction. Canonical suite: curated archive lifecycle.
+	for _, scenario := range []string{"same origin", "display alias", "unclassified association", "foreign source", "foreign entry", "completion failure"} {
+		t.Run("Should preserve acquisition identity during reinstall with "+scenario, func(t *testing.T) {
+			t.Parallel()
+			testCuratedPreparedReinstall(t, scenario)
+		})
+	}
+
+	// Invariant: pinned inspection reads declarations without installation consent or managed writes.
+	// Owner: extension acquisition. Canonical suite: curated archive lifecycle tests.
+	t.Run("Should inspect a community HTTPS package without installing it", func(t *testing.T) {
+		t.Parallel()
+		manifest := `name = "inspect-kit"
+version = "1.0.0"
+description = "Inspection fixture"
+min_compozy_version = "0.5.0"
+[[inputs]]
+id = "debug"
+prompt = "Debug"
+type = "boolean"
+default = false
+binding = { type = "url_query", name = "debug" }
+[resources.mcp_servers.remote]
+transport = "http"
+url = "https://mcp.example.test/private?debug=false&key=canary"
+default_scope = "workspace"
+[resources.mcp_servers.remote.auth]
+method = "oauth"
+registration = "dynamic"
+`
+		archive := lifecycleTarGzWithPayload(t, "inspect-kit", "1.0.0", map[string]string{"extension.toml": manifest})
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if _, err := w.Write(archive); err != nil {
+				t.Errorf("write inspection archive: %v", err)
+			}
+		}))
+		defer server.Close()
+		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := MarketplaceInstallRequest{
+			Slug: "team/inspect-kit", ArtifactHTTPClient: server.Client(),
+			Trust: &MarketplaceTrustEvidence{
+				CatalogEntryID: "inspect-kit", Version: "1.0.0",
+				ArchiveDigestSHA256: lifecycleArchiveDigest(archive),
+				ArtifactURL:         server.URL + "/inspect-kit.tar.gz", RegistryTier: ExtensionRegistryTierCommunity,
+			},
+		}
+		detail, err := InspectMarketplacePackage(t.Context(), paths, req, "marketing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if detail.Contents.MCPServers != 1 || len(detail.MCPServers) != 1 || len(detail.Inputs) != 1 {
+			t.Fatalf("detail = %#v", detail)
+		}
+		mcp := detail.MCPServers[0]
+		if mcp.Name != "remote" || mcp.Owner != "extension:inspect-kit" || mcp.Profile != "marketing" ||
+			mcp.Scope != "workspace" || mcp.Launch != "https://mcp.example.test" || mcp.Status != "" ||
+			mcp.RuntimeName != "" || mcp.Auth == nil || mcp.Auth.Registration != "dynamic" {
+			t.Fatalf("MCP summary = %#v", mcp)
+		}
+		if detail.Inputs[0].ID != "debug" || string(detail.Inputs[0].Default) != "false" {
+			t.Fatalf("inputs = %#v", detail.Inputs)
+		}
+		if _, err := os.Stat(ManagedInstallPath(paths, "inspect-kit")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("inspection installed managed files: %v", err)
+		}
+		req.Trust.ArchiveDigestSHA256 = strings.Repeat("a", 64)
+		_, err = InspectMarketplacePackage(t.Context(), paths, req, "marketing")
+		if !errors.Is(err, ErrExtensionSourceChanged) {
+			t.Fatalf("changed artifact = %v", err)
+		}
+	})
+
+	// Invariant: the approved catalog digest is checked before acquisition, then enforced against downloaded bytes.
+	// Owner: extension acquisition. Canonical suite: curated archive lifecycle tests.
+	t.Run("Should reject a changed listing before loading a registry source", func(t *testing.T) {
+		t.Parallel()
+		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := newRegistryTestEnv(t)
+		loaded := false
+		_, err = PrepareMarketplaceManagedInstall(
+			t.Context(),
+			paths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) {
+				loaded = true
+				return nil, errors.New("must not acquire")
+			},
+			MarketplaceInstallRequest{
+				Slug:           "acme/lifecycle-ext",
+				ExpectedDigest: strings.Repeat("a", 64),
+				Trust: &MarketplaceTrustEvidence{
+					CatalogEntryID:      "lifecycle-ext",
+					Version:             "1.0.0",
+					ArchiveDigestSHA256: strings.Repeat("b", 64),
+					RegistryTier:        ExtensionRegistryTierOfficial,
+				},
+			},
+		)
+		changed, ok := errors.AsType[*SourceChangedError](err)
+		if !ok || changed.ListedDigest != strings.Repeat("a", 64) || changed.FetchedDigest != strings.Repeat("b", 64) {
+			t.Fatalf("changed listing error = %v", err)
+		}
+		if loaded {
+			t.Fatal("changed listing loaded an acquisition source")
+		}
+		if _, err := env.registry.Get("lifecycle-ext"); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("changed listing wrote registry: %v", err)
+		}
+	})
+	t.Run("Should reject acquired bytes that differ from the approved digest", func(t *testing.T) {
+		t.Parallel()
+		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+		approved := strings.Repeat("a", 64)
+		_, err = PrepareMarketplaceManagedInstall(
+			t.Context(),
+			paths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug:           "acme/lifecycle-ext",
+				ExpectedDigest: approved,
+				Trust: &MarketplaceTrustEvidence{
+					CatalogEntryID:      "lifecycle-ext",
+					Version:             "1.0.0",
+					ArchiveDigestSHA256: approved,
+					RegistryTier:        ExtensionRegistryTierOfficial,
+				},
+			},
+		)
+		changed, ok := errors.AsType[*SourceChangedError](err)
+		if !ok || changed.ListedDigest != approved ||
+			changed.FetchedDigest != lifecycleArchiveDigest(source.archives["1.0.0"]) {
+			t.Fatalf("changed bytes error = %v", err)
+		}
+		if !errors.Is(err, ErrExtensionArchiveDigestMismatch) {
+			t.Fatalf("legacy archive mismatch identity was lost: %v", err)
+		}
+		if _, err := os.Stat(ManagedInstallPath(paths, "lifecycle-ext")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("changed bytes wrote managed files: %v", err)
+		}
+	})
+
 	t.Run("Should install and update a curated HTTPS artifact without registry fallback", func(t *testing.T) {
 		t.Parallel()
 
@@ -1182,6 +1810,12 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			t.Fatalf("installed source URL = %q, want %q", installed.Provenance.SourceURL, v1.Repository)
 		}
 
+		if installed.Provenance.SourceName != "compozy-catalog" ||
+			installed.Provenance.SourceRef != "catalog:compozy" ||
+			installed.Provenance.EntryID != v1.CatalogEntryID {
+			t.Fatalf("installed origin = %#v, want catalog acquisition identity", installed.Provenance)
+		}
+
 		v2 := &MarketplaceTrustEvidence{
 			CatalogEntryID:      "repository-orientation",
 			Version:             "1.1.0",
@@ -1219,6 +1853,10 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 		}
 		if info.Version != "1.1.0" || info.Provenance.ArchiveDigestSHA256 != v2.ArchiveDigestSHA256 {
 			t.Fatalf("updated extension = %#v, want catalog-pinned v1.1.0", info)
+		}
+
+		if info.Provenance.SourceRef != "catalog:compozy" || info.Provenance.EntryID != v2.CatalogEntryID {
+			t.Fatalf("updated origin = %#v, want persisted catalog acquisition identity", info.Provenance)
 		}
 	})
 
@@ -1900,5 +2538,153 @@ func requireFileContains(t *testing.T, path string, want string) {
 	}
 	if !strings.Contains(string(content), want) {
 		t.Fatalf("file %q = %q, want contains %q", path, string(content), want)
+	}
+}
+
+func testCuratedPreparedReinstall(t *testing.T, scenario string) {
+	t.Helper()
+	ctx := t.Context()
+	env := newRegistryTestEnv(t)
+	paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	archives := map[string][]byte{
+		"/1.tar.gz": lifecycleTarGzNamed(t, "reinstall-kit", "1.0.0"),
+		"/2.tar.gz": lifecycleTarGzNamed(t, "reinstall-kit", "2.0.0"),
+	}
+	var acquisitions atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acquisitions.Add(1)
+		if _, err := w.Write(archives[r.URL.Path]); err != nil {
+			t.Errorf("write archive: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	request := MarketplaceInstallRequest{Slug: "team/reinstall-kit", ArtifactHTTPClient: server.Client(),
+		Trust: &MarketplaceTrustEvidence{CatalogEntryID: "reinstall-kit", Version: "1.0.0",
+			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/1.tar.gz"]),
+			ArtifactURL:         server.URL + "/1.tar.gz", RegistryTier: ExtensionRegistryTierCommunity,
+		},
+	}
+	installed, err := InstallMarketplaceManaged(ctx, paths, env.registry, nil, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provenance := installed.Provenance
+	switch scenario {
+	case "display alias":
+		provenance.SourceName = "renamed-local-alias"
+	case "unclassified association":
+		provenance.SourceRef, provenance.EntryID, provenance.CatalogEntryID, provenance.SourceName = "", "", "", ""
+	case "foreign source":
+		provenance.SourceRef = "https://example.com/another-catalog"
+	case "foreign entry":
+		provenance.EntryID = "another-entry"
+	}
+	manifest, err := LoadManifest(ManagedInstallPath(paths, installed.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.registry.Install(manifest, ManagedInstallPath(paths, installed.Name), installed.Checksum,
+		WithInstallSource(SourceMarketplace), WithInstallReplaceExisting(), WithInstallProvenance(provenance),
+		WithInstallRegistryMetadata("team/reinstall-kit", marketplacepkg.CompozyCatalogSource, "1.0.0"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	installed, err = env.registry.Get(installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments, err := env.registry.Installations(ctx, installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Trust = &MarketplaceTrustEvidence{CatalogEntryID: "reinstall-kit", Version: "2.0.0",
+		ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/2.tar.gz"]),
+		ArtifactURL:         server.URL + "/2.tar.gz", RegistryTier: ExtensionRegistryTierCommunity,
+	}
+	prepared, err := PrepareMarketplaceManagedInstall(ctx, paths, env.registry, nil, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := prepared.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	candidateCommitted, restored, reloads := false, false, 0
+	completionErr := errors.New("completion persistence unavailable")
+	_, err = prepared.Reinstall(ctx, installed, nil,
+		func(ExtensionInfo, *Manifest) error { candidateCommitted = true; return nil },
+		func(context.Context, ExtensionInfo) error { restored = true; return nil },
+		func(context.Context) error { reloads++; return nil },
+		func(context.Context) error {
+			if scenario == "completion failure" {
+				return completionErr
+			}
+			return nil
+		},
+	)
+	failed := scenario == "foreign source" || scenario == "foreign entry" || scenario == "completion failure"
+	switch {
+	case scenario == "foreign source" || scenario == "foreign entry":
+		conflict, ok := errors.AsType[*ExtensionNameConflictError](err)
+		if !ok || !errors.Is(err, ErrExtensionNameConflict) ||
+			conflict.InstalledOrigin.SourceRef != provenance.SourceRef ||
+			conflict.InstalledOrigin.EntryID != provenance.EntryID ||
+			candidateCommitted ||
+			reloads != 0 {
+			t.Fatalf(
+				"foreign acquisition reached mutation: %v, committed=%v reloads=%d",
+				err,
+				candidateCommitted,
+				reloads,
+			)
+		}
+	case scenario == "completion failure":
+		if !errors.Is(err, completionErr) || !candidateCommitted || !restored || reloads != 2 {
+			t.Fatalf(
+				"completion rollback = %v, committed=%v restored=%v reloads=%d",
+				err,
+				candidateCommitted,
+				restored,
+				reloads,
+			)
+		}
+	case err != nil:
+		t.Fatal(err)
+	}
+	actual, err := env.registry.Get(installed.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedVersion := "2.0.0"
+	if failed {
+		expectedVersion = "1.0.0"
+		expected := *installed
+		if scenario == "completion failure" {
+			// A restored package is a new lifecycle owner; stale cleanup must not act on it.
+			if actual.lifecycleToken == installed.lifecycleToken || actual.lifecycleToken == "" {
+				t.Fatal("rollback did not replace the lifecycle owner token")
+			}
+			expected.lifecycleToken = actual.lifecycleToken
+		}
+		if !reflect.DeepEqual(*actual, expected) {
+			t.Fatal("failed reinstall changed the persisted package before-image")
+		}
+	} else if actual.Provenance.SourceRef != marketplacepkg.CompozyCatalogRef || actual.Provenance.EntryID != "reinstall-kit" {
+		t.Fatalf("reinstall origin = %#v", actual.Provenance)
+	}
+	manifest, err = LoadManifest(ManagedInstallPath(paths, installed.Name))
+	if err != nil || manifest.Version != expectedVersion {
+		t.Fatalf("installed manifest = %#v, %v", manifest, err)
+	}
+	afterAttachments, err := env.registry.Installations(ctx, installed.Name)
+	if err != nil || !reflect.DeepEqual(afterAttachments, attachments) {
+		t.Fatalf("attachments changed: %v", err)
+	}
+	if acquisitions.Load() != 2 {
+		t.Fatalf("reinstall reacquired its artifact: %d requests", acquisitions.Load())
 	}
 }

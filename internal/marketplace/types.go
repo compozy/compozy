@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
-const ManifestVersion = 2
+const ManifestVersion = 3
 
-// RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
-const RemoteSkillEntryPrefix = "skill_"
-
-const maxCatalogEntriesPerKind = 50_000
+const maxCatalogEntriesPerSource = 50_000
 
 const (
 	RefreshOutcomeSucceeded = "succeeded"
@@ -22,47 +21,56 @@ const (
 	InstallPolicyGatePassed = "passed"
 )
 
-// Kind identifies one curated feed document and projection partition.
-type Kind string
-
-const (
-	KindMCP       Kind = "mcp"
-	KindExtension Kind = "extension"
-	KindSkill     Kind = "skill"
-)
-
-// AllKinds returns the curated kinds in stable display-independent order.
-func AllKinds() []Kind {
-	return []Kind{KindMCP, KindExtension, KindSkill}
-}
-
-// Document is one validated per-kind catalog snapshot.
+// Document is one validated catalog snapshot.
 type Document struct {
+	SourceRef       string
+	SourceKind      string
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	Diagnostics     []pluginsource.Diagnostic
 	ManifestVersion int
 	GeneratedAt     time.Time
 	FetchedAt       time.Time
 	Entries         []Entry
 }
 
-// Entry is the durable common projection plus the kind-specific payload.
+// Entry is the durable extension projection and payload.
 type Entry struct {
-	Kind         Kind
-	EntryID      string
-	Name         string
-	Description  string
-	Version      string
-	PublishedAt  *time.Time
-	UpdatedAt    *time.Time
-	DigestSHA256 string
-	Tier         string
-	InstallSlug  string
-	Payload      json.RawMessage
-	FetchedAt    time.Time
+	Inputs         []EntryInput
+	Diagnostics    []CatalogDiagnostic
+	SourceName     string
+	Layout         string
+	Icon           string
+	Installable    bool
+	InstallBlocker string
+	ResolvedRef    string
+	EntryID        string
+	Name           string
+	Description    string
+	Version        string
+	PublishedAt    *time.Time
+	UpdatedAt      *time.Time
+	DigestSHA256   string
+	Tier           string
+	InstallSlug    string
+	Payload        json.RawMessage
+	FetchedAt      time.Time
 }
 
-// KindState reports the freshness and failure state for one feed projection.
-type KindState struct {
-	Kind            Kind
+// SourceState reports the freshness and failure state for one feed projection.
+type SourceState struct {
+	SourceRef       string
+	Kind            string
+	Enabled         bool
+	DocumentDigest  string
+	DocumentPath    string
+	Owner           string
+	Diagnostics     []pluginsource.Diagnostic
+	Installable     int
+	Source          string
+	Generation      int64
+	Revision        string
 	ManifestVersion int
 	GeneratedAt     time.Time
 	FetchedAt       time.Time
@@ -72,11 +80,33 @@ type KindState struct {
 	EntryCount      int
 }
 
-// BrowseResult returns projected rows with their truthful freshness state.
+// BrowseResult is one ordered page from the complete enabled source set.
 type BrowseResult struct {
+	Refreshing bool
+	Entries    []Entry
+	Total      int
+	Revision   string
+	Sources    []SourceState
+	Stale      bool
+	ErrorClass string
+	LastError  string
+}
+
+type SourcePage struct {
 	Entries []Entry
 	Total   int
-	State   KindState
+	State   SourceState
+}
+
+// SourceBinding ties immutable configuration to its acquisition owner.
+type SourceConfiguration struct {
+	Generation        int64
+	SourceGenerations map[string]int64
+}
+
+type SourceBinding struct {
+	Config  ResolvedSource
+	Fetcher Source
 }
 
 // ListResult is one deterministic page from the durable catalog projection.
@@ -85,9 +115,10 @@ type ListResult struct {
 	Total   int
 }
 
-// RefreshOutcome is the canonical per-kind refresh result.
+// RefreshOutcome is the canonical per-source refresh result.
 type RefreshOutcome struct {
-	Kind       Kind   `json:"kind"`
+	Source     string `json:"source,omitempty"`
+	Generation int64  `json:"generation"`
 	Outcome    string `json:"outcome"`
 	EntryCount int    `json:"entry_count"`
 	Stale      bool   `json:"stale"`
@@ -96,47 +127,45 @@ type RefreshOutcome struct {
 
 // InstallOutcome is the redacted canonical observation for one marketplace install attempt.
 type InstallOutcome struct {
-	Kind       Kind   `json:"kind"`
-	EntryID    string `json:"entry_id"`
-	Outcome    string `json:"outcome"`
-	PolicyGate string `json:"policy_gate"`
+	Origin      *Origin `json:"origin,omitempty"`
+	ResolvedRef string  `json:"resolved_ref,omitempty"`
+	EntryID     string  `json:"entry_id"`
+	Outcome     string  `json:"outcome"`
+	PolicyGate  string  `json:"policy_gate"`
 }
 
-// RefreshReport contains deterministic per-kind refresh outcomes.
+// RefreshReport contains deterministic per-source refresh outcomes.
 type RefreshReport struct {
 	Outcomes []RefreshOutcome `json:"outcomes"`
 }
 
-// Source fetches and validates one curated kind.
+// Source fetches and validates the curated extension feed.
 type Source interface {
-	Kind() Kind
 	Fetch(ctx context.Context) (*Document, error)
 }
 
 // Store persists the curated projection and freshness state.
 type Store interface {
-	ReplaceKind(ctx context.Context, kind Kind, document *Document) error
-	MarkKindStale(ctx context.Context, kind Kind, errorClass string, lastError string) error
-	ListKind(ctx context.Context, kind Kind, query string, offset int, limit int) (ListResult, error)
-	GetEntry(ctx context.Context, kind Kind, entryID string) (*Entry, error)
+	PackageDigests(context.Context, []string) (map[string]struct{}, error)
+	ConfigureSources(context.Context, []ResolvedSource, string) (SourceConfiguration, error)
+	BrowseSources(context.Context, []string, string, int, int) (BrowseResult, error)
+	ReplaceSource(ctx context.Context, source string, generation int64, document *Document) error
+	MarkSourceStale(ctx context.Context, source string, generation int64, errorClass, lastError string) error
+	BrowseSource(ctx context.Context, source, query string, offset, limit int) (SourcePage, error)
+	GetEntry(ctx context.Context, source string, entryID string) (*Entry, error)
 	GetExtensionByInstallSlug(ctx context.Context, installSlug string, version string) (*Entry, error)
-	ListSkillsByInstallSlugs(ctx context.Context, installSlugs []string) ([]Entry, error)
-	KindState(ctx context.Context, kind Kind) (*KindState, error)
+	SourceState(ctx context.Context, source string) (*SourceState, error)
 }
 
 // Service exposes internal curated browse, detail, refresh, and status operations.
 type Service interface {
-	Browse(ctx context.Context, kind Kind, query string, offset int, limit int) (BrowseResult, error)
-	Detail(ctx context.Context, kind Kind, entryID string) (*Entry, error)
+	Entry(context.Context, Origin) (*Entry, error)
+	Browse(ctx context.Context, query string, offset int, limit int) (BrowseResult, error)
+	Detail(ctx context.Context, source, entryID string) (*Entry, error)
 	ResolveExtensionInstall(ctx context.Context, installSlug string, version string) (*Entry, error)
-	Refresh(ctx context.Context, kinds ...Kind) (RefreshReport, error)
-	Status(ctx context.Context) ([]KindState, error)
+	Refresh(ctx context.Context, names ...string) (RefreshReport, error)
+	Status(ctx context.Context) ([]SourceState, error)
 	Close(ctx context.Context) error
-}
-
-// SkillInstallResolver batches curated identity reads for remote skill listings.
-type SkillInstallResolver interface {
-	ResolveSkillInstalls(ctx context.Context, installSlugs []string) ([]Entry, error)
 }
 
 // Notifier persists canonical marketplace observations.

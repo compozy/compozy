@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
-	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -276,93 +274,6 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
 }
 
-// InstallSkillMarketplace installs one remote marketplace skill.
-func (h *BaseHandlers) InstallSkillMarketplace(c *gin.Context) {
-	var req contract.SkillMarketplaceInstallRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondError(c, http.StatusBadRequest, fmt.Errorf("decode skill marketplace install request: %w", err))
-		return
-	}
-
-	result, err := h.skillMarketplaceService().Install(
-		c.Request.Context(),
-		req.Slug,
-		req.Version,
-	)
-	if err != nil {
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-	if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	if err := skillmarketplace.VerifyInstallVisible(h.SkillsRegistry, result); err != nil {
-		h.logSkillMarketplaceInstallVerificationFailure(result, err)
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SkillMarketplaceInstallResponse{
-		Skill: SkillMarketplaceInstallPayloadFromResult(result),
-	})
-}
-
-// UpdateSkillMarketplace checks or applies updates for marketplace skills.
-func (h *BaseHandlers) UpdateSkillMarketplace(c *gin.Context) {
-	var req contract.SkillMarketplaceUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondError(c, http.StatusBadRequest, fmt.Errorf("decode skill marketplace update request: %w", err))
-		return
-	}
-
-	results, err := h.skillMarketplaceService().Update(c.Request.Context(), skillmarketplace.UpdateRequest{
-		Name:      req.Name,
-		All:       req.All,
-		CheckOnly: req.CheckOnly,
-	})
-	if err != nil {
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-	if !req.CheckOnly {
-		if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
-			h.respondError(c, http.StatusInternalServerError, err)
-			return
-		}
-	}
-
-	c.JSON(http.StatusOK, contract.SkillMarketplaceUpdateResponse{
-		Skills: SkillMarketplaceUpdatePayloadsFromResults(results),
-	})
-}
-
-// RemoveSkillMarketplace removes one installed marketplace skill.
-func (h *BaseHandlers) RemoveSkillMarketplace(c *gin.Context) {
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%w: skill name is required", skillmarketplace.ErrValidation),
-		)
-		return
-	}
-	result, err := h.skillMarketplaceService().Remove(c.Request.Context(), name)
-	if err != nil {
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-	if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SkillMarketplaceRemoveResponse{
-		Skill: SkillMarketplaceRemovePayloadFromResult(result),
-	})
-}
-
 func (h *BaseHandlers) resolveSkill(
 	c *gin.Context,
 	name string,
@@ -383,69 +294,4 @@ func (h *BaseHandlers) resolveSkill(
 	}
 
 	return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
-}
-
-func (h *BaseHandlers) skillMarketplaceService() SkillMarketplaceService {
-	if h.SkillMarketplace != nil {
-		return h.SkillMarketplace
-	}
-	options := []skillmarketplace.Option{
-		skillmarketplace.WithLogger(h.Logger),
-		skillmarketplace.WithNow(h.Now),
-	}
-	if h.SkillExposures != nil {
-		exposureOptions := []skills.ExposeManagerOption{skills.WithExposureLogger(h.Logger)}
-		if h.SkillExposureEvents != nil {
-			exposureOptions = append(exposureOptions, skills.WithExposureEventStore(h.SkillExposureEvents))
-		}
-		exposures := skills.NewExposeManager(
-			h.SkillExposures,
-			compozyconfig.ResolveGlobalSkillRoots(&h.Config.Skills, h.HomePaths),
-			exposureOptions...,
-		)
-		options = append(options, skillmarketplace.WithExposureLifecycle(exposures))
-	}
-	return skillmarketplace.NewService(
-		h.HomePaths,
-		h.Config.Skills,
-		options...,
-	)
-}
-
-func (h *BaseHandlers) refreshSkillsAfterMarketplaceMutation(c *gin.Context) error {
-	if h.SkillsRegistry == nil {
-		return fmt.Errorf("%s: skills registry is not configured", h.transportName())
-	}
-	refresher, ok := h.SkillsRegistry.(SkillsRegistryRefresher)
-	if !ok {
-		return fmt.Errorf("%s: skills registry refresh is not configured", h.transportName())
-	}
-	if err := refresher.RefreshGlobal(c.Request.Context()); err != nil {
-		return fmt.Errorf("refresh skills registry after marketplace mutation: %w", err)
-	}
-	return nil
-}
-
-func (h *BaseHandlers) syncSkillsAfterMarketplaceMutation(c *gin.Context) error {
-	if h.SkillResources != nil {
-		if err := h.SkillResources.SyncSkills(c.Request.Context()); err != nil {
-			return fmt.Errorf("sync skill resources after marketplace mutation: %w", err)
-		}
-		return nil
-	}
-	return h.refreshSkillsAfterMarketplaceMutation(c)
-}
-
-func (h *BaseHandlers) logSkillMarketplaceInstallVerificationFailure(
-	result skillmarketplace.InstallResult,
-	err error,
-) {
-	h.Logger.Warn(
-		"skills marketplace: installed skill is not discoverable",
-		"name", result.Name,
-		"source", result.Registry,
-		"slug", result.Slug,
-		"path", result.Path,
-		"reason", err.Error(),
-	)
 }

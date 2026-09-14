@@ -25,24 +25,24 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 	networkAvailability := networkAvailabilityStoreDependency(state.registry)
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
-		WorkspaceResolver:        state.workspaceResolver,
-		ProfileResolver:          state.profiles,
-		AttentionWorkspaceMutes:  state.registry,
-		GeneralRuntime:           surface,
-		MemoryRuntime:            surface,
-		SkillsRuntime:            state.skillsRegistry,
-		AutomationRuntime:        surface,
-		NetworkRuntime:           surface,
-		ObservabilityRuntime:     surface,
-		Extensions:               surface,
-		TransportParity:          surface,
-		CmdPalette:               state.cmdPalette,
-		MCPAuth:                  surface,
-		MCPRuntime:               surface,
-		MCPCatalog:               settingsMarketplaceCatalogDependency(state.marketplace),
-		MarketplaceInstallEvents: state.marketplaceNotifier,
-		MCPDefinitionRetirer:     state.mcpToolProvider,
-		ModelCatalog:             state.modelCatalog,
+		WorkspaceResolver:       state.workspaceResolver,
+		ProfileResolver:         state.profiles,
+		AttentionWorkspaceMutes: state.registry,
+		GeneralRuntime:          surface,
+		MemoryRuntime:           surface,
+		SkillsRuntime:           state.skillsRegistry,
+		AutomationRuntime:       surface,
+		NetworkRuntime:          surface,
+		ObservabilityRuntime:    surface,
+		Extensions:              surface,
+		TransportParity:         surface,
+		CmdPalette:              state.cmdPalette,
+		MCPAuth:                 surface,
+		MCPRuntime:              surface,
+		MCPExtensions:           settingsMCPExtensionDefinitions{state: state},
+		MCPExtensionManagement:  settingsMCPExtensionDefinitions{state: state, auth: surface},
+		MCPDefinitionRetirer:    state.mcpToolProvider,
+		ModelCatalog:            state.modelCatalog,
 		RuntimeApplier: daemonSettingsRuntimeApplier{
 			daemon:              d,
 			state:               state,
@@ -73,6 +73,9 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: detect settings update install method: %w", err)
 	}
 
+	if extensions, ok := state.deps.Extensions.(*daemonExtensionService); ok && extensions.mcpDetails != nil {
+		extensions.mcpDetails.auth = surface
+	}
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = newSettingsUpdateController(d, updateManager)

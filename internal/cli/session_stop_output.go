@@ -28,7 +28,7 @@ func sessionStopBundle(result SessionStopRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Session Stop", []keyValue{
 				{Label: agentKernelSessionValue, Value: result.SessionID},
-				{Label: "State", Value: string(result.State)},
+				{Label: authoredContextStateValue, Value: string(result.State)},
 				{Label: "Verified", Value: strconv.FormatBool(result.Verified)},
 				{Label: "Escalated", Value: strconv.FormatBool(result.Escalated)},
 				{Label: "Cause", Value: stringOrDash(result.StopCause)},

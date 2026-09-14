@@ -1,69 +1,27 @@
 import { PackageX } from "lucide-react";
-import type { ReactNode } from "react";
 
 import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Skeleton } from "@compozy/ui";
 
-import type { MarketplaceEntryResponse, MarketplaceKind } from "../types";
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionView } from "./marketplace-detail-extension";
 import { MarketplaceDetailLede } from "./marketplace-detail-lede";
-import { MarketplaceDetailMCPView } from "./marketplace-detail-mcp";
-import { MarketplaceDetailSkillView } from "./marketplace-detail-skill";
-import { isMarketplaceKind } from "./marketplace-ui";
-import type { SettingsLayeredScope } from "@/systems/settings";
 
 interface MarketplaceDetailProps {
-  data: MarketplaceEntryResponse;
-  managementScope?: SettingsLayeredScope;
-  managementWorkspaceId?: string;
-  managementProfileName?: string;
+  data: MarketplaceCatalogEntryResponse;
   liveDataEnabled?: boolean;
 }
 
 /**
- * Marketplace entry detail. Each kind fills the body with its own story —
- * readme, authorization, or kit — and keeps the rail to short property cards.
- * Window identity and the primary action live in the OS head.
+ * Marketplace entry detail: the lede carries identity, the extension body fills the page —
+ * provenance and trust when browsing, the kit and its runtime once installed. Window identity
+ * and the primary action live in the OS head.
  */
-const MARKETPLACE_DETAIL_KIND_VIEWS: Record<
-  MarketplaceKind,
-  (props: MarketplaceDetailProps) => ReactNode
-> = {
-  extension: ({ data }) => <MarketplaceDetailExtensionView data={data} />,
-  mcp: ({
-    data,
-    managementScope,
-    managementWorkspaceId,
-    managementProfileName,
-    liveDataEnabled,
-  }) => (
-    <MarketplaceDetailMCPView
-      data={data}
-      liveDataEnabled={liveDataEnabled}
-      scope={managementScope}
-      workspaceId={managementWorkspaceId}
-      profileName={managementProfileName}
-    />
-  ),
-  skill: ({ data }) => <MarketplaceDetailSkillView data={data} />,
-};
-
-function MarketplaceDetail(props: MarketplaceDetailProps) {
-  const kind = props.data.entry.kind;
+function MarketplaceDetail({ data, liveDataEnabled = true }: MarketplaceDetailProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pt-6 pb-20")}>
-        <MarketplaceDetailLede data={props.data} />
-        {isMarketplaceKind(kind) ? (
-          MARKETPLACE_DETAIL_KIND_VIEWS[kind](props)
-        ) : (
-          <p
-            className="text-small-body text-danger"
-            data-testid="marketplace-detail-unknown-kind"
-            role="alert"
-          >
-            CompozyOS reported an entry kind this build can&apos;t render: {kind}.
-          </p>
-        )}
+        <MarketplaceDetailLede data={data} />
+        <MarketplaceDetailExtensionView data={data} liveDataEnabled={liveDataEnabled} />
       </div>
     </div>
   );
@@ -73,7 +31,7 @@ function MarketplaceDetailSkeleton() {
   return (
     <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pt-6 pb-20")} role="status">
       <div className="mb-6 flex items-start gap-3.5 border-b border-line pb-5">
-        <Skeleton className="size-(--size-provider-logo-well) shrink-0 rounded-lg" />
+        <Skeleton className="size-14 shrink-0 rounded-lg" />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <Skeleton className="h-5.5 w-55 max-w-full" />
           <Skeleton className="h-3 w-75 max-w-full" />

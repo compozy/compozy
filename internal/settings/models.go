@@ -105,6 +105,7 @@ const (
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
 	SectionHooksExtensions SectionName = "hooks-extensions"
+	SectionMarketplace     SectionName = "marketplace"
 )
 
 // CollectionName names one collection-oriented settings resource.
@@ -169,6 +170,8 @@ const (
 type SourceKind string
 
 const (
+	// SourceKindExtension identifies an extension-provided definition.
+	SourceKindExtension SourceKind = "extension"
 	// SourceKindBuiltinProvider identifies the builtin provider registry.
 	SourceKindBuiltinProvider SourceKind = "builtin-provider"
 	// SourceKindGlobalConfig identifies the global TOML config.
@@ -205,6 +208,7 @@ type SectionRequest struct {
 
 // SectionUpdateRequest identifies one section mutation.
 type SectionUpdateRequest struct {
+	Marketplace *compozyconfig.MarketplaceCatalogConfig
 	SectionRequest
 	General                        *GeneralSettings
 	Persona                        *compozyconfig.DefaultsConfig
@@ -244,6 +248,7 @@ type SkillSourcesOverride struct {
 
 // CollectionRequest identifies one collection read.
 type CollectionRequest struct {
+	Owner       string
 	Collection  CollectionName
 	Scope       ScopeKind
 	WorkspaceID string
@@ -275,6 +280,7 @@ type CollectionItemDeleteRequest struct {
 
 // SectionEnvelope returns one typed section payload.
 type SectionEnvelope struct {
+	Marketplace     *compozyconfig.MarketplaceCatalogConfig
 	Section         SectionName
 	Scope           ScopeKind
 	WorkspaceID     string

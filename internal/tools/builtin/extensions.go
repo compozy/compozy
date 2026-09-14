@@ -100,7 +100,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_list",
 		"Extensions List",
 		"List installed extensions through the daemon extension registry.",
-		emptyInputSchema,
+		extensionOwnerInputSchema,
 		extensionListOutputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -275,10 +275,20 @@ func nativeExtensionDescriptorWithOutput(
 	return descriptor
 }
 
+const extensionOwnerPattern = `^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$`
+
+const extensionOwnerInputSchema = `{
+ "type":"object","properties":{
+  "owner":{"type":"string","pattern":"` + extensionOwnerPattern + `"}
+ },"additionalProperties":false
+}`
+
 const extensionNameInputSchema = `{
 	"type":"object",
 	"required":["name"],
 	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -288,10 +298,16 @@ const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
 	"properties":{
-		"source":{"type":"string","enum":["curated","github","git","local_path"]},
+		"source":{"type":"string","enum":["curated","marketplace","github","git","local_path"]},
 		"ref":{"type":"string","minLength":1},
+		"scope":{"type":"string","enum":["global","workspace"],
+			"description":"Overrides manifest defaults; required when server defaults differ."},
+		"workspace":{"type":"string"},
+		"profile":{"type":"string"},
 		"version":{"type":"string"},
 		"asset":{"type":"string"},
+		"inputs":` + extensionValuesInputSchema + `,
+		"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
 		"allow_unverified":{"type":"boolean"},
 		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
@@ -301,14 +317,33 @@ const extensionInstallInputSchema = `{
 const extensionUpdateInputSchema = `{
 	"type":"object",
 	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string"},
+		"scope":{"type":"string","enum":["global","workspace"]},
+		"workspace":{"type":"string"},
+		"profile":{"type":"string"},
 		"all":{"type":"boolean"},
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
+		"inputs":` + extensionValuesInputSchema + `,
 		"allow_unverified":{"type":"boolean"},
 		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
+}`
+
+const extensionValuesInputSchema = `{
+	"type":"object",
+	"additionalProperties":{
+		"oneOf":[
+			{"type":"object","required":["value"],
+			 "properties":{"value":{"type":["string","boolean"]}},"additionalProperties":false},
+			{"type":"object","required":["vault_ref"],
+			 "properties":{"vault_ref":{"type":"string","minLength":1,"pattern":"^vault:extensions/.+$"}},
+			 "additionalProperties":false}
+		]
+	}
 }`
 
 const extensionInitInputSchema = `{
@@ -356,6 +391,8 @@ const extensionReloadInputSchema = `{
 	"type":"object",
 	"required":["name","generation_hash"],
 	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
 		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
 		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
@@ -367,6 +404,8 @@ const extensionLogsInputSchema = `{
 	"type":"object",
 	"required":["name"],
 	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
 		"after":{"type":"integer","minimum":0,"description":"Return entries after this sequence within stream_epoch"},
 		"stream_epoch":{"type":"string","minLength":1,"description":` +

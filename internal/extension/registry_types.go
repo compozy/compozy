@@ -44,6 +44,7 @@ type ExtensionInfo struct {
 }
 
 type installConfig struct {
+	scope            *InstallationScope
 	source           ExtensionSource
 	enabled          bool
 	replaceExisting  bool

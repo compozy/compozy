@@ -180,7 +180,7 @@ func (h *BaseHandlers) InstallExtension(c *gin.Context) {
 	}
 
 	var req contract.InstallExtensionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
@@ -456,7 +456,8 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {
 	switch req.Source {
-	case contract.InstallExtensionSourceCurated,
+	case contract.InstallExtensionSourceMarketplace,
+		contract.InstallExtensionSourceCurated,
 		contract.InstallExtensionSourceGitHub,
 		contract.InstallExtensionSourceGit,
 		contract.InstallExtensionSourceLocalPath:

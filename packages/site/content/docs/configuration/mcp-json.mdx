@@ -120,6 +120,10 @@ name in `preserve_env`. Use `preserve_secrets.secret_env` and
 requires a new value or an explicit Vault binding because preservation never crosses keys, scopes,
 or source files.
 
+Configured OAuth client-secret references must belong to the selected MCP target or the shared
+namespace. Settings rejects foreign-owner and daemon-managed token references before replacing
+the definition or removing its existing credential.
+
 ## Remote OAuth Auth Object
 
 Remote MCP servers can use OAuth 2.1 authorization code with PKCE. The config contains only
@@ -148,17 +152,20 @@ definition and returns an error. If secret restoration is partial, or the prior 
 be restored, the replacement remains committed and the mutation returns a warning describing the
 residual cleanup state.
 
-| Field               | Type         | Default     | Valid values                    | Description                                                               |
-| ------------------- | ------------ | ----------- | ------------------------------- | ------------------------------------------------------------------------- |
-| `registration`      | string       | `auto`      | `auto`, `pre_registered`.       | `auto` resolves protected-resource metadata, CIMD, then one DCR fallback. |
-| `issuer_url`        | string URL   | conditional | Absolute `http` or `https` URL. | Required with `pre_registered`; must match the discovered issuer.         |
-| `client_id`         | string       | conditional | Non-empty.                      | Required with `pre_registered`.                                           |
-| `client_secret_ref` | string       | empty       | `vault:mcp/**`.                 | Optional client secret for `pre_registered` only.                         |
-| `scopes`            | string array | empty       | Unique non-empty strings.       | Requested OAuth scopes.                                                   |
+| Field               | Type         | Default     | Valid values                      | Description                                                               |
+| ------------------- | ------------ | ----------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `registration`      | string       | `auto`      | `auto`, `pre_registered`.         | `auto` resolves protected-resource metadata, CIMD, then one DCR fallback. |
+| `issuer_url`        | string URL   | conditional | HTTPS URL; HTTP only on loopback. | Required with `pre_registered`; optional issuer restriction with `auto`.  |
+| `client_id`         | string       | conditional | Non-empty.                        | Required with `pre_registered`.                                           |
+| `client_secret_ref` | string       | empty       | `vault:mcp/**`.                   | Optional client secret for `pre_registered` only.                         |
+| `scopes`            | string array | empty       | Unique non-empty strings.         | Requested OAuth scopes.                                                   |
 
 For `registration = "auto"`, CompozyOS resolves protected-resource metadata, uses the provider's
 client metadata document support when available, and otherwise makes one Dynamic Client Registration
-attempt. A pre-registered entry must provide both `issuer_url` and `client_id`.
+attempt. An optional `issuer_url` restricts selection to that issuer among the authorities advertised
+by protected-resource metadata. The discovered authorization-server metadata must identify the same
+issuer; a mismatch fails before registration or token use. A pre-registered entry must provide both
+`issuer_url` and `client_id`. Automatic registration does not accept a configured client ID or secret.
 
 ## Client metadata identity
 
@@ -230,40 +237,20 @@ change, CompozyOS keeps the previous token record but does not report it as auth
 revoke it against the replacement provider, or send its bearer to that provider. Authorize the new
 definition again. Tokens created before definition binding was introduced also require one new login.
 
-## Install From The Curated Catalog
+## Marketplace Packages And Manual Servers
 
-Use the catalog install command when an MCP entry comes from Marketplace:
+Marketplace distributes extension packages, which may declare MCP servers. Browse the catalog,
+inspect the extension's inputs, and install it through the [extension workflow](/docs/marketplace).
+Extension runtime names are allocated automatically; extension inputs use their own secret namespace.
 
-```bash
-compozy mcp install github --scope workspace --workspace <workspace-id> \
-  --vault-ref github_personal_access_token=vault:mcp/shared/github-token -o json
-```
-
-For workspace scope, pass both `--scope workspace` and `--workspace <workspace-id>`. The daemon
-loads the catalog entry, locks its command, URL, and auth fields, checks required values and bound
-Vault refs, writes the MCP sidecar through the serialized config-apply lifecycle, and stamps catalog
-provenance. Inspect the response's `apply` object for the record ID, lifecycle, active generation,
-and required repair action. The install does not probe the MCP server, so a successful config apply
-does not claim server readiness. OAuth entries return `next_step: "authorize"`; other entries return
-`next_step: "none"`.
-
-Direct API callers must always include the nullable `values` property: send `null` for an input-free
-entry. Omitting `values` violates the request contract and returns `400` before installation.
-
-Use `--set id=value` for a non-secret catalog input, `--secret id` to enter one through stdin or a
-hidden prompt, or `--vault-ref id=vault:mcp/...` for an existing secret. Neither secret path puts
-secret material in shell arguments or history. Management reads return configured field names, never
-bound refs or secret values.
-
-Structured JSON output returns the complete install response: the committed `mcp_server`, config
-`apply` outcome, `next_step`, and any top-level diagnostics. In particular,
-`mcp_install_event_persist_failed` means the server and config apply remain committed while the
-Marketplace install event was not persisted. Inspect `warnings` before deciding whether operator
-cleanup is required.
+Manual MCP definitions continue to use the locations and settings write API documented above.
+Existing sidecar files and credentials remain valid. Manage an extension-owned server with
+`owner=extension:<installed-name>`; omit owner for a manual server. Removing a package uses the
+extension API, while MCP settings changes affect the selected server's configuration.
 
 ## Inspect Runtime Status
 
-The MCP Installed scope at `/marketplace/mcps` and
+Settings > MCP servers and
 `GET /api/settings/mcp-servers` keep configuration, authorization, runtime, and probe state
 separate. A configured server is not automatically ready.
 
@@ -282,7 +269,12 @@ compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o j
 ```
 
 Inside a CompozyOS session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
-redacted status. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
+redacted status. Both accept `server_name` and an optional `owner`, such as
+`{"server_name":"github","owner":"extension:github"}`. Without an owner, diagnostics select manual servers. Include the extension owner when
+addressing an extension-provided server. The caller's
+profile and workspace determine the effective registry. Returned auth diagnostics
+include the owning scope and owner, and CLI repair commands preserve those
+selectors. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
 
 The web repair action appears only for OAuth-capable HTTP servers that need their first login,
 have expired or invalid auth, or report `auth_refresh_failed`. Authorization success still requires
@@ -290,8 +282,8 @@ both `authenticated` and `token_present=true`; runtime and probe state remain in
 
 ## Edit A Configured Server
 
-Open `/marketplace/mcps` to inspect the effective user, active-profile, and workspace definitions,
-then open the matching Marketplace detail. MCP configuration supports:
+Open Settings > MCP servers to inspect the effective user, active-profile and workspace definitions,
+then select the server to edit. MCP configuration supports:
 
 - stdio `command`, `args`, literal `env`, and bound `secret_env` refs;
 - remote `http` transport and absolute `url`;
@@ -456,8 +448,7 @@ Use this when the tool belongs to one agent.
   mcp.json
 ```
 
-Use this when the tool belongs to one skill. Marketplace skill MCP servers are blocked unless the
-skill is explicitly allowlisted in `[skills].allowed_marketplace_mcp`. Skill-local `mcp.json`
+Use this when the tool belongs to one skill. MCP servers embedded in installed Marketplace skills are blocked. The retired MCP allowlist cannot enable them; skill content and provenance remain available. Skill-local `mcp.json`
 symlinks must resolve inside the skill directory; CompozyOS rejects sidecars that escape the approved
 skill root.
 
@@ -469,3 +460,41 @@ skill root.
 - [AGENT.md](/docs/configuration/agent-md) documents agent-local MCP declarations.
 - [SKILL.md](/docs/configuration/skill-md) documents skill-local MCP declarations.
 - [Marketplace](/docs/marketplace) covers discovery, guided install, updates, and trust.
+
+## Extension-provided servers
+
+The Settings MCP collection includes installed extension declarations alongside manual
+servers. Each row carries `owner` (`manual` or `extension:<name>`) and `runtime_name`.
+The logical `name` remains the name declared by the package and used with the owner
+for OAuth credentials. The runtime name identifies the server when names overlap.
+
+An extension's allocated runtime name is retained while it is disabled. A committed
+global removal releases that installation's allocations; a failed retirement
+keeps its names and overrides. A manual
+Settings write that claims a reserved name fails with HTTP 422 and
+`code: "mcp_server_name_taken"`; choose another manual server name.
+Extension rows use the `extension` source kind and have no config-file write target.
+Their `override` field contains only non-secret env, header, and URL overrides.
+
+Read one row with `GET /api/settings/mcp-servers/{name}` on HTTP or UDS. Pass
+`owner=extension:<name>` with the logical server name and the row's scope,
+workspace, and profile selectors. Without an owner, lookup selects a manual
+server first, then the allocated runtime name. An explicit extension owner never
+falls through to a manual server. Lookup uses the effective registry: a workspace
+can inherit its parent definitions, while a local definition takes precedence.
+Definitions from sibling workspaces or other profiles are excluded. The returned
+source identifies the scope that owns the definition and its credentials.
+
+Use `PUT /api/settings/mcp-servers/{name}` with the same owner selectors to replace
+an extension server's overrides. The body accepts only `env`, `headers`, and
+`url`; packaged command, arguments, transport, auth, and secret bindings remain
+part of the extension declaration. Overrides must also be valid for that
+declaration's transport. Omitted override fields revert to the package values.
+`DELETE` on an extension-owned row resets its overrides without removing the
+server or changing its allocated runtime name. Both operations apply live and
+clear only that definition's OAuth state, so it can authorize the updated server.
+
+Extension overrides are stored with the owning instance and have no config-file
+`target`. When creating or editing a manual server whose name also identifies an
+extension runtime, pass `owner=manual`; reserved runtime names still fail with
+`mcp_server_name_taken`.

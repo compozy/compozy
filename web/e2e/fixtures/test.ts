@@ -1,4 +1,5 @@
 import { copyFile } from "node:fs/promises";
+import path from "node:path";
 import process from "node:process";
 
 import { expect, test as base } from "@playwright/test";
@@ -30,6 +31,12 @@ export const test = base.extend<E2EFixtures>({
           await copyFile(runtime.paths.daemonLog, testInfo.outputPath("daemon-process.log")).catch(
             () => undefined
           );
+          // Restart helpers and replacement daemons write to the home log instead
+          // of the original child's captured stdout.
+          await copyFile(
+            path.join(runtime.paths.homeDir, "logs", "compozy.log"),
+            testInfo.outputPath("daemon-restart.log")
+          ).catch(() => undefined);
         }
         await runtime.dispose();
       }

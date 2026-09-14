@@ -232,6 +232,9 @@ func (s *service) populateSectionEnvelope(
 
 func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig.Config) bool {
 	switch envelope.Section {
+	case SectionMarketplace:
+		value := cfg.Marketplace.Catalog
+		envelope.Marketplace = &value
 	case SectionPersona:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}
 		section := PersonaSection{Config: cfg.Defaults}

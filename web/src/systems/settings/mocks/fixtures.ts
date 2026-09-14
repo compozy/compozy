@@ -9,6 +9,7 @@ import type {
   SettingsGeneralSection,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
+  SettingsMarketplaceSection,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
   SettingsMemorySection,
@@ -25,7 +26,7 @@ import type {
   SettingsSkillsSection,
   TerminalSettingsConfig,
 } from "@/systems/settings";
-import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyWorkspacePaths } from "@/storybook/fintech-scenario";
 
 export const terminalSettingsFixture: TerminalSettingsConfig = {
   default_shell: "",
@@ -120,6 +121,17 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
     messages_rejected: 1,
   },
   links: [{ label: "network", path: "/network" }],
+};
+
+export const settingsMarketplaceSectionFixture: SettingsMarketplaceSection = {
+  section: "marketplace",
+  scope: "user",
+  available_scopes: ["user"],
+  config: {
+    base_url: "https://raw.githubusercontent.com/compozy/compozy/main/catalog",
+    ttl: "1h",
+    timeout: "30s",
+  },
 };
 
 export const settingsAttentionSectionFixture: SettingsAttentionSection = {
@@ -548,17 +560,12 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     enabled: true,
     disabled_skills: ["alpha", "beta"],
     poll_interval: "5m",
-    marketplace: {
-      registry: "compozy",
-      base_url: storyCompany.registryBaseUrl,
-    },
-    allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
     sources: ["agents"],
     custom_sources: ["~/team-skills"],
   },
   sources: settingsSkillSourcesFixture,
-  links: [{ label: "skills", path: "/marketplace/skills" }],
+  links: [{ label: "skills", path: "/marketplace" }],
 };
 
 export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSection = {
@@ -1201,6 +1208,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "linear",
+      owner: "manual",
       scope: "workspace",
       status: "needs_login",
       token_present: false,
@@ -1230,6 +1238,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "sentry",
+      owner: "manual",
       scope: "workspace",
       status: "authenticated",
       token_present: true,
@@ -1260,6 +1269,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "notion",
+      owner: "manual",
       scope: "workspace",
       status: "expired",
       token_present: true,
@@ -1287,6 +1297,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "grafana",
+      owner: "manual",
       scope: "user",
       status: "invalid",
       token_present: true,
@@ -1313,6 +1324,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "github-remote",
+      owner: "manual",
       scope: "user",
       status: "authenticated",
       token_present: true,
@@ -1355,6 +1367,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "pagerduty",
+      owner: "manual",
       scope: "workspace",
       status: "authenticated",
       token_present: true,
@@ -1382,6 +1395,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "buildkite",
+      owner: "manual",
       scope: "user",
       status: "authenticated",
       token_present: true,
@@ -1399,6 +1413,96 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     source_metadata: mcpConfigSource("global-config", "user"),
   },
 ];
+
+/**
+ * Owner-aware rows for Settings › MCP servers (task_04): a manual `github` beside the
+ * `compozy/github` extension's own `github` (owner `extension:github`, runtime name
+ * `github.github`, OAuth needing login, with a stored override), plus a running
+ * extension server whose runtime name kept the plain manifest name.
+ */
+export const mcpExtensionServerFixtures: SettingsMCPServerEntry[] = [
+  {
+    name: "github",
+    transport: "stdio",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-github"],
+    env_keys: ["GITHUB_API_URL"],
+    secret_env_keys: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+    owner: "manual",
+    scope: "user",
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "ready",
+      probe: "succeeded",
+      tool_count: 12,
+    },
+    source_metadata: mcpConfigSource("global-mcp-sidecar", "user"),
+  },
+  {
+    name: "github",
+    transport: "http",
+    url: "https://api.githubcopilot.com/mcp",
+    owner: "extension:github",
+    runtime_name: "github.github",
+    auth: {
+      client_secret_configured: false,
+      registration: "dynamic",
+      issuer_url: "https://github.com/login/oauth",
+      scopes: ["repo", "read:org"],
+    },
+    auth_status: {
+      server_name: "github",
+      owner: "extension:github",
+      scope: "user",
+      status: "needs_login",
+      token_present: false,
+      refreshable: true,
+      diagnostic: "token absent",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "auth_required",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    override: { headers: { "X-GitHub-Api-Version": "2022-11-28" } },
+    scope: "user",
+    source_metadata: {
+      available_targets: [],
+      effective_source: { kind: "extension", scope: "user" },
+    },
+  },
+  {
+    name: "context7",
+    transport: "http",
+    url: "https://mcp.context7.com/mcp",
+    owner: "extension:context7",
+    runtime_name: "context7",
+    auth_status: null,
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "ready",
+      probe: "succeeded",
+      protocol_version: "2026-07-28",
+      tool_count: 2,
+    },
+    scope: "user",
+    source_metadata: {
+      available_targets: [],
+      effective_source: { kind: "extension", scope: "user" },
+    },
+  },
+];
+
+export const mcpOwnerCollectionFixture = {
+  available_scopes: ["user", "workspace"],
+  collection: "mcp-servers",
+  mcp_servers: [...mcpExtensionServerFixtures, ...mcpManagementServerFixtures],
+  scope: "user",
+} satisfies SettingsMCPServerCollection;
 
 export const mcpManagementCollectionFixture = {
   available_scopes: ["user", "workspace"],
@@ -1419,6 +1523,7 @@ export const mcpAuthBeginFixture = {
 
 export const mcpAuthStatusAuthenticatedFixture = {
   server_name: "linear",
+  owner: "manual",
   scope: "workspace",
   workspace_id: "ws-platform",
   status: "authenticated",

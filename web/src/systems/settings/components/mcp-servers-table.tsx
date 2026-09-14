@@ -1,11 +1,17 @@
 import { Button, cn, Pill } from "@compozy/ui";
 import { Pencil, Plug } from "lucide-react";
 
+import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
 
 import { MCPStatusCell } from "./mcp-status-cell";
-import { mcpProvenanceLine, mcpSourceKindLabel } from "./mcp-server-labels";
+import {
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
+  mcpServerRowTestId,
+} from "./mcp-server-labels";
 
 const HEADER_COLUMNS = ["Server", "Config", "Authorization", "Runtime", "Probe / tools", "Actions"];
 
@@ -15,8 +21,9 @@ const ROW_GRID = "md:grid-cols-[minmax(200px,1.4fr)_100px_150px_162px_140px_150p
 
 export interface MCPServersTableProps {
   servers: SettingsMCPServerEntry[];
+  /** Full definition identity (`mcpDefinitionKey`), never a bare name: names repeat across owners. */
   selectedServer?: string;
-  onSelect: (name: string) => void;
+  onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
 }
@@ -56,9 +63,9 @@ export function MCPServersTable({
       <div className="max-md:flex max-md:flex-col max-md:gap-2">
         {servers.map(server => (
           <MCPServerRow
-            key={`${server.name}-${server.source_metadata.effective_source.kind}`}
+            key={mcpDefinitionKey(server)}
             server={server}
-            selected={server.name === selectedServer}
+            selected={mcpDefinitionKey(server) === selectedServer}
             onSelect={onSelect}
             onEdit={onEdit}
             onAuthorize={onAuthorize}
@@ -69,6 +76,11 @@ export function MCPServersTable({
   );
 }
 
+/**
+ * One definition per row. Manual and extension-provided servers of the same name coexist: the
+ * owner word after the name and the provenance line tell them apart, and every action carries
+ * the full definition, never the name alone.
+ */
 function MCPServerRow({
   server,
   selected,
@@ -78,23 +90,25 @@ function MCPServerRow({
 }: {
   server: SettingsMCPServerEntry;
   selected: boolean;
-  onSelect: (name: string) => void;
+  onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
 }) {
   const status = composeMCPRowStatus(server);
+  const extension = mcpOwnerExtensionName(server.owner);
+  const runtimeName = mcpAllocatedRuntimeName(server);
   const endpoint =
     server.transport === "stdio"
       ? [server.command, ...(server.args ?? [])].filter(Boolean).join(" ")
       : server.url;
-  const sourceLine =
-    mcpProvenanceLine(server.catalog_entry, server.catalog_version) ??
-    mcpSourceKindLabel(server.source_metadata.effective_source.kind);
-  const rowTestId = `settings-page-mcp-servers-row-${server.name}`;
+  const sourceLine = mcpServerProvenanceLine(server);
+  const rowTestId = mcpServerRowTestId(server);
+  const accessibleName = extension ? `${server.name} from ${extension}` : server.name;
 
   return (
     <div
       data-testid={rowTestId}
+      data-owner={server.owner ?? "manual"}
       className={cn(
         "grid grid-cols-2 gap-x-3.5 gap-y-3 border-t border-line-soft p-3.5 transition-colors",
         ROW_GRID,
@@ -113,17 +127,36 @@ function MCPServerRow({
           <Plug className="size-[15px]" />
         </span>
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <button
               type="button"
               aria-current={selected ? "true" : undefined}
-              onClick={() => onSelect(server.name)}
+              aria-label={`Select ${accessibleName}`}
+              onClick={() => onSelect(server)}
               data-testid={`${rowTestId}-name`}
-              className="min-w-0 truncate text-left font-mono text-small-body font-medium text-fg-strong hover:underline"
+              className="min-w-0 truncate rounded-xs text-left font-mono text-small-body font-medium text-fg-strong hover:underline focus-visible:shadow-focus-ring focus-visible:outline-none"
             >
               {server.name}
             </button>
             <Pill tone="neutral">{server.transport}</Pill>
+            {extension ? (
+              <span
+                className="font-mono text-mono-id whitespace-nowrap text-faint"
+                data-testid={`${rowTestId}-owner`}
+                title={`Owner ${server.owner}`}
+              >
+                {server.owner}
+              </span>
+            ) : null}
+            {runtimeName ? (
+              <span
+                className="font-mono text-mono-id whitespace-nowrap text-faint"
+                data-testid={`${rowTestId}-runtime-name`}
+                title={`Runtime name ${runtimeName}`}
+              >
+                runs as {runtimeName}
+              </span>
+            ) : null}
           </div>
           <div
             className="mt-0.5 truncate font-mono text-mono-id text-muted"
@@ -151,6 +184,7 @@ function MCPServerRow({
             type="button"
             variant="neutral"
             size="sm"
+            aria-label={`${status.authorizeLabel} ${accessibleName}`}
             onClick={() => onAuthorize(server)}
             data-testid={`${rowTestId}-authorize`}
           >
@@ -162,7 +196,7 @@ function MCPServerRow({
           variant="ghost"
           size="icon-sm"
           onClick={() => onEdit(server)}
-          aria-label={`Edit ${server.name}`}
+          aria-label={`Edit ${accessibleName}`}
           data-testid={`${rowTestId}-edit`}
         >
           <Pencil className="size-3.5" />

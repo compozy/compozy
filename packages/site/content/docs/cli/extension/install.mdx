@@ -17,8 +17,13 @@ compozy extension install <source> [flags]
       --allow-unverified                     Allow install when the extension checksum is not registry-verified
       --asset string                         Select a specific registry asset when multiple archives exist
       --confirm-network-requirement string   Confirm the candidate extension network requirement digest
+      --expected-digest string               Pin the SHA-256 digest of the reviewed extension
   -h, --help                                 help for install
+      --input stringArray                    Set a manifest input as id=value (repeatable)
+      --input-file string                    Read input values from a JSON object of {value} or {vault_ref} envelopes
+      --scope string                         Install globally or in one workspace: global, workspace
       --version string                       Install a specific registry version
+      --workspace string                     Override workspace context
       --yes                                  Skip confirmation when using --allow-unverified
 ```
 

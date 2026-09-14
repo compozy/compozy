@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -114,7 +115,7 @@ func (p *ExtensionToolProvider) manifestToolsWithFingerprint(
 	if err != nil {
 		return nil, "", err
 	}
-	sources, err := p.manifestToolSources(profileID, workspaceID, infos)
+	sources, err := p.manifestToolSources(ctx, profileID, workspaceID, infos)
 	if err != nil {
 		return nil, "", err
 	}
@@ -167,6 +168,7 @@ func (p *ExtensionToolProvider) manifestToolInfos(workspaceID string) ([]Extensi
 }
 
 func (p *ExtensionToolProvider) manifestToolSources(
+	ctx context.Context,
 	profileID string,
 	workspaceID string,
 	infos []ExtensionInfo,
@@ -176,6 +178,13 @@ func (p *ExtensionToolProvider) manifestToolSources(
 		info := infos[i]
 		if normalizeExtensionFormat(info.Format) == FormatAgentPlugin {
 			continue
+		}
+		key, err := p.manifestInstallationKey(ctx, &info, profileID, workspaceID)
+		if errors.Is(err, ErrExtensionNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		enabled, err := p.registry.IsEnabledForProfile(info.Name, profileID)
 		if err != nil {
@@ -194,17 +203,34 @@ func (p *ExtensionToolProvider) manifestToolSources(
 			continue
 		}
 
-		source.key = ProfileInstanceKey(info.Name, profileID, "")
-		if workspaceID != "" {
-			if link, err := p.registry.GetDevLink(info.Name, workspaceID); err == nil &&
-				strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
-				source.key.WorkspaceID = workspaceID
-			}
-		}
+		source.key = key
 		source.snapshot = p.manifestSnapshot(info.ManifestPath)
 		sources = append(sources, source)
 	}
 	return sources, nil
+}
+
+func (p *ExtensionToolProvider) manifestInstallationKey(
+	ctx context.Context,
+	info *ExtensionInfo,
+	profileID, workspaceID string,
+) (InstanceKey, error) {
+	if workspaceID != "" {
+		link, err := p.registry.GetDevLink(info.Name, workspaceID)
+		if err == nil && strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
+			return ProfileInstanceKey(info.Name, profileID, workspaceID), nil
+		}
+		if err != nil && !errors.Is(err, ErrExtensionNotDevLinked) {
+			return InstanceKey{}, err
+		}
+	}
+	installation, err := p.registry.ResolveInstallation(ctx, info.Name, InstallationScope{
+		ProfileID: profileID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return InstanceKey{}, err
+	}
+	return ProfileInstanceKey(info.Name, profileID, installation.Scope.WorkspaceID), nil
 }
 
 func (p *ExtensionToolProvider) manifestSnapshot(path string) extensionManifestSnapshot {
@@ -284,7 +310,7 @@ func (p *ExtensionToolProvider) resolveManifestTools(
 				continue
 			}
 			manifestTools = append(manifestTools, extensionManifestTool{
-				info:       cloneExtensionInfo(source.info),
+				info:       cloneExtensionInfo(&source.info),
 				key:        source.key,
 				descriptor: cloneManifestToolDescriptor(&descriptors[j]),
 			})
@@ -440,7 +466,7 @@ func cloneExtensionManifestTools(src []extensionManifestTool) []extensionManifes
 	cloned := make([]extensionManifestTool, len(src))
 	for i := range src {
 		cloned[i] = extensionManifestTool{
-			info:       cloneExtensionInfo(src[i].info),
+			info:       cloneExtensionInfo(&src[i].info),
 			key:        src[i].key,
 			descriptor: cloneManifestToolDescriptor(&src[i].descriptor),
 		}

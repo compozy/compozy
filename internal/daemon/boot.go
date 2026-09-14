@@ -16,6 +16,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -139,6 +141,8 @@ type bootState struct {
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog      *resourceCatalog[compozyconfig.MCPServer]
 	extensionEnvBindings  extensionpkg.EnvBindingStore
+	extensionInputs       extensioninput.Store
+	extensionMCP          extensionmcp.Store
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
 	toolProjectionEpoch   *mcppkg.ProjectionEpoch
@@ -305,7 +309,7 @@ func (d *Daemon) bootSkillsPromptProvider(
 		func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
 		bootProfileNameResolver{state: state},
 	)
-	state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
+	state.mcpResolver = skills.NewMCPResolver(state.logger)
 	return skills.NewBoundedCatalogProvider(state.skillsRegistry, startupSkillsSectionBudget), nil
 }
 

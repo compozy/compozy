@@ -6,15 +6,17 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: A skill installs or updates from its stable marketplace detail, the card reflects the new installed state, and Manage opens /skills/$name for the installed skill.
 entry_points: /marketplace/skill/$entryId; skill card Install or Update action
-qa_status: pass
+qa_status: skipped
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
-retest_status: pass
+retest_status: ""
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
 last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-009; ET-010; ET-api-marketplace-namespace
 ---
+
+Retired by the approved Marketplace hard cut on 2026-09-13. Standalone remote skill acquisition has been removed. Current acquisition is extension installation; follow [Marketplace installed management](ET-web-marketplace-installed-management.md) and preserve existing local skill loading and exposure through [skill exposure lifecycle](ET-skill-exposure-lifecycle.md). Final replacement walks belong to tasks09/10. Historical evidence below does not validate the current contract.
 
 Added by marketplace Task 06. Use an entry whose display name differs from `entry_id` and install slug so detail identity, mutation identity, and Manage routing cannot collapse into one accidental field.
 

@@ -1,70 +1,65 @@
 import { useState } from "react";
 
-import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
-import type { MarketplaceListing } from "../types";
-import { deriveMCPManagementFilter } from "@/systems/settings";
+import type { InstalledExtensionView } from "@/systems/extensions";
 
-function entryKey(entry: MarketplaceListing): string {
-  return `${entry.kind}:${entry.entry_id}`;
-}
+import { installedExtensionKey, marketplaceOriginKey } from "../lib/marketplace-installed-view";
+import type { MarketplaceCatalogListing } from "../types";
 
-function installedItemKey(item: MarketplaceInstalledItem): string {
-  if (item.mcpServer) {
-    const filter = deriveMCPManagementFilter(item.mcpServer);
-    const owner = filter
-      ? `${filter.scope}:${filter.target}:${filter.scope === "workspace" ? filter.workspace_id : ""}`
-      : `${item.mcpServer.scope}:${item.mcpServer.workspace_id ?? ""}:unknown`;
-    return `mcp:${owner}:${item.mcpServer.name}`;
-  }
-  if (item.skill) return `skill:${item.skill.source}:${item.skill.name}`;
-  return `${item.entry.kind}:${item.entry.installed_name ?? item.entry.entry_id}`;
-}
-
+/**
+ * Pending and just-landed rows keyed by origin (catalog) or local installed name (Installed view).
+ * Names never join the two: a row is pending only for the identity the mutation addressed.
+ */
 function useMarketplacePending() {
-  const [pendingEntries, setPendingEntries] = useState<ReadonlyMap<string, number>>(
-    () => new Map()
-  );
-  const [flashIds, setFlashIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [pendingKeys, setPendingKeys] = useState<ReadonlyMap<string, number>>(() => new Map());
+  const [flashKeys, setFlashKeys] = useState<ReadonlySet<string>>(() => new Set());
 
-  const track = async <T>(key: string, action: () => Promise<T>): Promise<T> => {
-    setPendingEntries(current => {
+  const track = async <T>(keys: readonly string[], action: () => Promise<T>): Promise<T> => {
+    setPendingKeys(current => {
       const next = new Map(current);
-      next.set(key, (next.get(key) ?? 0) + 1);
+      for (const key of keys) next.set(key, (next.get(key) ?? 0) + 1);
       return next;
     });
     return Promise.resolve()
       .then(action)
       .finally(() => {
-        setPendingEntries(current => {
+        setPendingKeys(current => {
           const next = new Map(current);
-          const remaining = (next.get(key) ?? 1) - 1;
-          if (remaining > 0) next.set(key, remaining);
-          else next.delete(key);
+          for (const key of keys) {
+            const remaining = (next.get(key) ?? 1) - 1;
+            if (remaining > 0) next.set(key, remaining);
+            else next.delete(key);
+          }
           return next;
         });
       });
   };
 
+  const flash = (key: string) => setFlashKeys(current => new Set(current).add(key));
+  const endFlash = (key: string) =>
+    setFlashKeys(current => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+
   return {
-    flash: (entry: MarketplaceListing) => {
-      setFlashIds(current => new Set(current).add(entryKey(entry)));
-    },
-    handleFlashEnd: (entry: MarketplaceListing) => {
-      const key = entryKey(entry);
-      setFlashIds(current => {
-        const next = new Set(current);
-        next.delete(key);
-        return next;
-      });
-    },
-    isEntryFlashing: (entry: MarketplaceListing) => flashIds.has(entryKey(entry)),
-    isEntryPending: (entry: MarketplaceListing) => (pendingEntries.get(entryKey(entry)) ?? 0) > 0,
-    isItemPending: (item: MarketplaceInstalledItem) =>
-      (pendingEntries.get(installedItemKey(item)) ?? 0) > 0,
-    trackEntry: <T>(entry: MarketplaceListing, action: () => Promise<T>) =>
-      track(entryKey(entry), action),
-    trackItem: <T>(item: MarketplaceInstalledItem, action: () => Promise<T>) =>
-      track(installedItemKey(item), action),
+    flashEntry: (entry: MarketplaceCatalogListing) => flash(marketplaceOriginKey(entry)),
+    flashItem: (item: InstalledExtensionView) => flash(installedExtensionKey(item)),
+    endEntryFlash: (entry: MarketplaceCatalogListing) => endFlash(marketplaceOriginKey(entry)),
+    endItemFlash: (item: InstalledExtensionView) => endFlash(installedExtensionKey(item)),
+    isEntryFlashing: (entry: MarketplaceCatalogListing) =>
+      flashKeys.has(marketplaceOriginKey(entry)),
+    isItemFlashing: (item: InstalledExtensionView) => flashKeys.has(installedExtensionKey(item)),
+    isEntryPending: (entry: MarketplaceCatalogListing) =>
+      (pendingKeys.get(marketplaceOriginKey(entry)) ?? 0) > 0,
+    isItemPending: (item: InstalledExtensionView) =>
+      (pendingKeys.get(installedExtensionKey(item)) ?? 0) > 0,
+    trackEntry: <T>(entry: MarketplaceCatalogListing, action: () => Promise<T>) =>
+      track([marketplaceOriginKey(entry)], action),
+    trackItem: <T>(item: InstalledExtensionView, action: () => Promise<T>) =>
+      track([installedExtensionKey(item)], action),
+    trackItems: <T>(items: readonly InstalledExtensionView[], action: () => Promise<T>) =>
+      track(items.map(installedExtensionKey), action),
   };
 }
 

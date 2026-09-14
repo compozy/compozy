@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/extensionenv"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -533,6 +536,139 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), `kind must be "extension_env"`) {
 			t.Fatalf("PutEnvBinding(invalid kind) error = %v, want ownership-kind rejection", err)
+		}
+	})
+}
+
+// Invariant: input batches persist exact instance values across reopen and restore before-images without losing inactive rows.
+// Owner: global extension input persistence. Canonical suite: extension environment repository tests.
+func TestExtensionInputRepoLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve values across reopen and roll back an entire conflicted batch [UT-056]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		instance := extensioninput.Instance{
+			Extension:   "linear",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "workspace-a",
+		}
+		original := extensioninput.Record{
+			Type:      "identifier",
+			Value:     json.RawMessage(`"team-a"`),
+			Active:    true,
+			UpdatedAt: time.Now().UTC(),
+		}
+		if err := db.ExtensionInputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "workspace", After: &original}},
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, other := range []extensioninput.Instance{
+			{Extension: "other", ProfileID: instance.ProfileID, WorkspaceID: instance.WorkspaceID},
+			{Extension: instance.Extension, WorkspaceID: instance.WorkspaceID},
+			{Extension: instance.Extension, ProfileID: instance.ProfileID},
+		} {
+			values, err := db.ExtensionInputs.List(ctx, other)
+			if err != nil || len(values) != 0 {
+				t.Fatalf("instance isolation: values %v error %v", values, err)
+			}
+		}
+		path := db.Path()
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		values, err := reopened.ExtensionInputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !equalExtensionInputRecord(values["workspace"], original) {
+			t.Fatalf("reopened values = %#v", values)
+		}
+		inactive := original
+		inactive.Active = false
+		inactive.UpdatedAt = original.UpdatedAt.Add(time.Second)
+		created := extensioninput.Record{
+			Type:      "boolean",
+			Value:     json.RawMessage(`false`),
+			Active:    true,
+			UpdatedAt: inactive.UpdatedAt,
+		}
+		changes := []extensioninput.Mutation{
+			{InputID: "new", After: &created},
+			{InputID: "workspace", Before: &original, After: &inactive},
+		}
+		if err := reopened.ExtensionInputs.Apply(ctx, instance, changes); err != nil {
+			t.Fatal(err)
+		}
+		values, err = reopened.ExtensionInputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(values) != 2 || !equalExtensionInputRecord(values["workspace"], inactive) {
+			t.Fatalf("inactive values were lost: %#v", values)
+		}
+		stale := []extensioninput.Mutation{
+			{InputID: "must-rollback", After: &created},
+			{InputID: "workspace", Before: &original, After: &created},
+		}
+		if err := reopened.ExtensionInputs.Apply(ctx, instance, stale); !errors.Is(err, extensioninput.ErrConflict) {
+			t.Fatalf("stale batch error = %v", err)
+		}
+		values, err = reopened.ExtensionInputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(values) != 2 || !equalExtensionInputRecord(values["workspace"], inactive) {
+			t.Fatalf("conflicted batch changed values: %#v", values)
+		}
+		rollback := []extensioninput.Mutation{
+			{InputID: "new", Before: &created},
+			{InputID: "workspace", Before: &inactive, After: &original},
+		}
+		if err := reopened.ExtensionInputs.Apply(ctx, instance, rollback); err != nil {
+			t.Fatal(err)
+		}
+		values, err = reopened.ExtensionInputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(values) != 1 || !equalExtensionInputRecord(values["workspace"], original) {
+			t.Fatalf("rollback failed to restore before-images: %#v", values)
+		}
+	})
+	t.Run("Should reject secrets and mismatched JSON types before any write", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		instance := extensioninput.Instance{Extension: "example"}
+		for _, record := range []extensioninput.Record{
+			{Type: "secret", Value: json.RawMessage(`"secret-value"`), Active: true, UpdatedAt: time.Now()},
+			{Type: "boolean", Value: json.RawMessage(`"false"`), Active: true, UpdatedAt: time.Now()},
+			{Type: "string", Value: json.RawMessage(`true`), Active: true, UpdatedAt: time.Now()},
+		} {
+			if err := db.ExtensionInputs.Apply(
+				ctx,
+				instance,
+				[]extensioninput.Mutation{{InputID: "value", After: &record}},
+			); err == nil {
+				t.Fatal("invalid record was accepted")
+			}
+		}
+		values, err := db.ExtensionInputs.List(ctx, instance)
+		if err != nil || len(values) != 0 {
+			t.Fatalf("invalid batch wrote values: %v error %v", values, err)
 		}
 	})
 }

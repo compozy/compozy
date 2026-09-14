@@ -1,5 +1,10 @@
 import { apiClient, apiErrorMessage, apiRequestFailed } from "@/lib/api-client";
 
+import {
+  extensionOperationErrorMetadata,
+  type ExtensionOperationErrorMetadata,
+} from "./extension-operation-error";
+
 import type {
   ExtensionEnablement,
   ExtensionEntry,
@@ -25,20 +30,9 @@ function instanceQuery(
   };
 }
 
-/** The logs route is workspace-scoped; profile is not part of its generated contract. */
-function workspaceQuery(
-  scope: Pick<ExtensionInstanceScope, "workspaceId">
-): { workspace?: string } | undefined {
-  const workspace = scope.workspaceId?.trim() ?? "";
-  return workspace === "" ? undefined : { workspace };
-}
-
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
-export interface ExtensionsApiErrorMetadata {
-  readonly code?: string;
-  readonly currentDigest?: string;
-}
+export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
 
 export class ExtensionsApiError extends Error {
   /** Daemon error code, e.g. `extension_network_confirmation_required`. */
@@ -46,6 +40,12 @@ export class ExtensionsApiError extends Error {
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
   public readonly currentDigest: string | undefined;
+  public readonly installedOrigin: ExtensionsApiErrorMetadata["installedOrigin"];
+  public readonly listedDigest: string | undefined;
+  public readonly fetchedDigest: string | undefined;
+  public readonly inputId: string | undefined;
+  public readonly requiredInputs: readonly string[] | undefined;
+  public readonly inputDefinitions: ExtensionsApiErrorMetadata["inputDefinitions"];
 
   constructor(
     message: string,
@@ -57,26 +57,13 @@ export class ExtensionsApiError extends Error {
     this.name = "ExtensionsApiError";
     this.code = metadata.code;
     this.currentDigest = metadata.currentDigest;
+    this.listedDigest = metadata.listedDigest;
+    this.installedOrigin = metadata.installedOrigin;
+    this.fetchedDigest = metadata.fetchedDigest;
+    this.inputId = metadata.inputId;
+    this.requiredInputs = metadata.requiredInputs;
+    this.inputDefinitions = metadata.inputDefinitions;
   }
-}
-
-type DaemonErrorField = "code" | "current_digest";
-
-function errorField(error: unknown, field: DaemonErrorField): string | undefined {
-  if (error == null || typeof error !== "object") return undefined;
-  const value = Reflect.get(error, field);
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
-
-function daemonErrorMetadata(error: unknown): ExtensionsApiErrorMetadata {
-  const code = errorField(error, "code");
-  const currentDigest = errorField(error, "current_digest");
-  return {
-    ...(code ? { code } : {}),
-    ...(currentDigest ? { currentDigest } : {}),
-  };
 }
 
 function responseError(fallback: string, response: Response, error: unknown): ExtensionsApiError {
@@ -85,7 +72,7 @@ function responseError(fallback: string, response: Response, error: unknown): Ex
     daemonMessage ?? (response.status ? `${fallback} (${response.status})` : fallback),
     response.status,
     daemonMessage ? "daemon" : "transport",
-    daemonErrorMetadata(error)
+    extensionOperationErrorMetadata(error)
   );
 }
 
@@ -164,7 +151,12 @@ export async function listExtensions(
     throw responseError("Failed to list extensions", response, error);
   const fallback = "Failed to list extensions";
   const envelope = responseData(data, response, fallback);
-  return requiredArray(envelope.extensions, response, fallback, "extensions");
+  return requiredArray(envelope.extensions, response, fallback, "extensions").map(extension => ({
+    ...extension,
+    mcp_servers: extension.mcp_servers ?? [],
+    inputs: extension.inputs ?? [],
+    missing_inputs: extension.missing_inputs ?? [],
+  }));
 }
 
 export async function listExtensionLogs(
@@ -178,7 +170,7 @@ export async function listExtensionLogs(
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/logs", {
     params: {
       path: { name },
-      query: { ...workspaceQuery(options), after, stream_epoch: streamEpoch },
+      query: { ...instanceQuery(options), after, stream_epoch: streamEpoch },
     },
     signal,
   });
@@ -240,6 +232,7 @@ export async function previewExtensionInstall(
   requiredString(preview.name, response, fallback, "name");
   requiredArray(preview.declared_profiles, response, fallback, "declared_profiles");
   requiredArray(preview.placements, response, fallback, "placements");
+  requiredArray(preview.inputs, response, fallback, "inputs");
   return preview;
 }
 
@@ -257,16 +250,14 @@ export async function updateExtension(
     throw responseError(`Failed to update ${name}`, response, error);
 }
 
-/**
- * Shipped-vs-live kit resources for one extension. The route carries no instance selector: the
- * daemon answers for the global published instance.
- */
+/** Shipped and live resources for the selected extension workspace and profile. */
 export async function getExtensionInventory(
   name: string,
+  scope: ExtensionInstanceScope = {},
   signal?: AbortSignal
 ): Promise<ExtensionKitInventory> {
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/inventory", {
-    params: { path: { name } },
+    params: { path: { name }, query: instanceQuery(scope) },
     signal,
   });
   const fallback = `Failed to load kit inventory for ${name}`;
@@ -285,7 +276,7 @@ export async function getExtensionInventory(
   return envelope;
 }
 
-/** A workspace selects a dev unlink when present; an absent workspace removes the global row. */
+/** Remove the selected published or dev instance in its owning workspace and profile. */
 export async function removeExtension(
   name: string,
   scope?: ExtensionInstanceScope,

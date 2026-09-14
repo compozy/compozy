@@ -9,8 +9,17 @@ export type { MCPSelectionStripProps } from "./mcp-selection-strip";
 export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
 export { MCPServerEditor } from "./mcp-server-editor";
 export type { MCPServerEditorProps } from "./mcp-server-editor";
+export { MCPOverrideEditor } from "./mcp-override-editor";
+export type { MCPOverrideEditorProps } from "./mcp-override-editor";
 export { MCPServersTable } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
+export {
+  isExtensionOwnedMCPServer,
+  mcpAllocatedRuntimeName,
+  mcpOwnerExtensionName,
+  mcpServerProvenanceLine,
+  mcpServerRowTestId,
+} from "./mcp-server-labels";
 export { ProviderCard } from "./provider-card";
 export { ProviderRow } from "./provider-row";
 export { ProvidersToolbar } from "./providers-toolbar";
@@ -33,8 +42,7 @@ export { SettingsSkillSourceDiagnostics } from "./settings-skill-source-diagnost
 export { SettingsSkillCustomSources } from "./settings-skill-custom-sources";
 export {
   SettingsSkillsEngineSection,
-  SettingsSkillsManageSection,
-  SettingsSkillsMarketplaceSection,
+  SettingsSkillsDiscoverySection,
   type SettingsSkillsDraftSectionProps,
 } from "./settings-skills-engine-sections";
 export { SettingsSkillsInstallPolicySection } from "./settings-skills-install-policy-section";
@@ -52,6 +60,17 @@ export {
 } from "./setting-row";
 export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
+export { MarketplaceSourceRow } from "./marketplace-source-row";
+export type { MarketplaceSourceRowProps } from "./marketplace-source-row";
+export {
+  marketplaceCatalogDraftInvalid,
+  sameMarketplaceCatalogConfig,
+  type SettingsMarketplaceCatalogConfig,
+} from "./marketplace-catalog-draft";
+export { SettingsMarketplaceCatalogSection } from "./settings-marketplace-catalog-section";
+export type { SettingsMarketplaceCatalogSectionProps } from "./settings-marketplace-catalog-section";
+export { SettingsMarketplaceSourcesSection } from "./settings-marketplace-sources-section";
+export type { SettingsMarketplaceSourcesSectionProps } from "./settings-marketplace-sources-section";
 export type { SettingsGroupProps } from "./settings-group";
 export { SettingsUpdateTrackRow } from "./settings-update-track-row";
 export type { SettingsUpdateTrackRowProps } from "./settings-update-track-row";

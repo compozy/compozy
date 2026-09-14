@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/marketplace"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -174,16 +173,6 @@ type ProviderSecretStore interface {
 	DeleteSecret(ctx context.Context, ref string) error
 }
 
-// MCPCatalog provides the single curated entry read needed by settings-owned install orchestration.
-type MCPCatalog interface {
-	Detail(ctx context.Context, kind marketplace.Kind, entryID string) (*marketplace.Entry, error)
-}
-
-// MarketplaceInstallNotifier persists redacted install outcomes.
-type MarketplaceInstallNotifier interface {
-	NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome) error
-}
-
 // MCPDefinitionWriter persists one MCP definition to its selected config target.
 type MCPDefinitionWriter func(
 	homePaths compozyconfig.HomePaths,
@@ -214,8 +203,8 @@ type Dependencies struct {
 	CmdPalette                  CmdPaletteCatalog
 	MCPAuth                     MCPAuthRuntimeProvider
 	MCPRuntime                  MCPRuntimeProvider
-	MCPCatalog                  MCPCatalog
-	MarketplaceInstallEvents    MarketplaceInstallNotifier
+	MCPExtensions               MCPExtensionDefinitionResolver
+	MCPExtensionManagement      MCPExtensionManagement
 	MCPDefinitionWriter         MCPDefinitionWriter
 	MCPDefinitionRetirer        MCPDefinitionRetirer
 	ModelCatalog                modelcatalog.Service
@@ -247,8 +236,8 @@ type service struct {
 	cmdPalette                  CmdPaletteCatalog
 	mcpAuth                     MCPAuthRuntimeProvider
 	mcpRuntime                  MCPRuntimeProvider
-	mcpCatalog                  MCPCatalog
-	marketplaceInstallEvents    MarketplaceInstallNotifier
+	mcpExtensions               MCPExtensionDefinitionResolver
+	mcpExtensionManagement      MCPExtensionManagement
 	mcpDefinitionWriter         MCPDefinitionWriter
 	mcpDefinitionRetirer        MCPDefinitionRetirer
 	modelCatalog                modelcatalog.Service
@@ -314,8 +303,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		cmdPalette:                  deps.CmdPalette,
 		mcpAuth:                     deps.MCPAuth,
 		mcpRuntime:                  deps.MCPRuntime,
-		mcpCatalog:                  deps.MCPCatalog,
-		marketplaceInstallEvents:    deps.MarketplaceInstallEvents,
+		mcpExtensions:               deps.MCPExtensions,
+		mcpExtensionManagement:      deps.MCPExtensionManagement,
 		mcpDefinitionWriter:         mcpDefinitionWriter,
 		mcpDefinitionRetirer:        deps.MCPDefinitionRetirer,
 		modelCatalog:                deps.ModelCatalog,

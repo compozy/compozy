@@ -1,0 +1,56 @@
+package daemon
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+)
+
+// InspectCatalogExtension inspects the selected entry and digest without resolving a newer listing.
+func (s *daemonExtensionService) InspectCatalogExtension(
+	ctx context.Context,
+	entry marketplacepkg.Entry,
+	profileName string,
+) (contract.MarketplaceExtensionDetailPayload, error) {
+	if err := s.checkReady(); err != nil {
+		return contract.MarketplaceExtensionDetailPayload{}, err
+	}
+	details, err := marketplacepkg.ProjectEntry(entry)
+	if err != nil {
+		return contract.MarketplaceExtensionDetailPayload{}, err
+	}
+	if s.marketplaceCache != nil && details.SourceRef != marketplacepkg.CompozyCatalogRef {
+		defer s.marketplaceCache.Hold()()
+	}
+	if details.Extension == nil {
+		return contract.MarketplaceExtensionDetailPayload{}, errors.New(
+			"daemon: catalog inspection requires an extension entry",
+		)
+	}
+	if strings.TrimSpace(profileName) == "" {
+		profileName = daemonDefaultProfileName
+	}
+	request := extensionpkg.MarketplaceInstallRequest{
+		Slug: entry.InstallSlug, Version: entry.Version, ExpectedDigest: entry.DigestSHA256,
+	}
+	if details.SourceRef != marketplacepkg.CompozyCatalogRef {
+		request.Plugin, err = s.marketplacePluginFromEntry(entry)
+		if err != nil {
+			return contract.MarketplaceExtensionDetailPayload{}, err
+		}
+	} else {
+		request.Trust = &extensionpkg.MarketplaceTrustEvidence{
+			CatalogEntryID:      entry.EntryID,
+			Version:             entry.Version,
+			ArchiveDigestSHA256: entry.DigestSHA256,
+			RegistryTier:        entry.Tier,
+			ArtifactURL:         details.Extension.ArtifactURL,
+			Repository:          details.Extension.Repository,
+		}
+	}
+	return extensionpkg.InspectMarketplacePackage(ctx, s.homePaths, request, profileName)
+}

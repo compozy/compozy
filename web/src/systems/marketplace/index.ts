@@ -1,11 +1,14 @@
 export * from "./adapters/marketplace-api";
 export * from "./adapters/marketplace-actions-api";
 export * from "./hooks/use-marketplace";
+export * from "./hooks/use-marketplace-page";
+export { useMarketplaceExtensionMCPServer } from "./hooks/use-marketplace-detail-mcp-server";
 export * from "./hooks/use-marketplace-actions";
-export * from "./hooks/use-marketplace-kind-page";
 export * from "./lib/query-keys";
 export * from "./lib/query-options";
-export * from "./lib/marketplace-kind-config";
-export * from "./lib/marketplace-kind-search";
+export * from "./lib/marketplace-search";
+export * from "./lib/marketplace-installed-view";
 export * from "./types";
 export * from "./components";
+export * from "./adapters/marketplace-sources-api";
+export * from "./hooks/use-marketplace-sources";

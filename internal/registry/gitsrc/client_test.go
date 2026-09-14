@@ -13,12 +13,192 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 )
+
+func TestClientCheckout(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain a pinned tree until its owner closes it", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		client := newFixtureGitClient(t, t.TempDir(), 1)
+		WithCheckoutTempDir(root)(client)
+		commit := strings.Repeat("a", 40)
+		client.output = func(_ context.Context, _ string, args ...string) (string, error) {
+			if len(args) != 5 || args[0] != "-C" || args[2] != "rev-parse" || args[4] != "HEAD^{commit}" {
+				t.Errorf("commit inspection arguments = %v", args)
+			}
+			return commit + "\n", nil
+		}
+		checkout, err := client.Checkout(t.Context(), "https://example.com/acme/repo", "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checkout.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if checkout.Commit != commit || checkout.Repository != "https://example.com/acme/repo" {
+			t.Fatalf("checkout = %+v", checkout)
+		}
+		if _, err := os.Stat(filepath.Join(checkout.Path, "fixture-0.txt")); err != nil {
+			t.Fatalf("tree was removed before consumption: %v", err)
+		}
+		if err := checkout.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := checkout.Close(); err != nil {
+			t.Fatal(err)
+		}
+		assertEmptyDirectory(t, root)
+	})
+	t.Run("Should fetch an exact commit without interpreting it as a branch", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		client := newFixtureGitClient(t, t.TempDir(), 1)
+		WithCheckoutTempDir(root)(client)
+		commit := strings.Repeat("b", 40)
+		var commands [][]string
+		client.run = func(_ context.Context, _ string, args ...string) error {
+			commands = append(commands, slices.Clone(args))
+			if slices.Contains(args, "worktree") {
+				return os.MkdirAll(args[len(args)-2], 0o700)
+			}
+			return nil
+		}
+		client.output = func(context.Context, string, ...string) (string, error) { return commit, nil }
+		checkout, err := client.Checkout(t.Context(), "https://example.com/acme/repo", " "+commit+" ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := checkout.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if len(commands) != 3 || !slices.Contains(commands[0], "init") || !slices.Contains(commands[1], "fetch") ||
+			commands[1][len(commands[1])-1] != commit || !slices.Contains(commands[2], "worktree") {
+			t.Fatalf("pinned checkout operations = %v", commands)
+		}
+		for _, command := range commands {
+			if !slices.Contains(command, "credential.helper=") || !slices.Contains(command, "protocol.allow=never") ||
+				!slices.Contains(command, "http.curloptResolve=+example.com:443:8.8.8.8") {
+				t.Fatalf("checkout operation lost network/credential isolation: %v", command)
+			}
+		}
+		assertEmptyDirectory(t, root)
+	})
+	for _, objectFormat := range []string{"sha1", "sha256"} {
+		t.Run("Should materialize a pinned "+objectFormat+" repository", func(t *testing.T) {
+			t.Parallel()
+			executable, err := exec.LookPath("git")
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := filepath.Join(t.TempDir(), "source")
+			runFixture := func(args ...string) string {
+				t.Helper()
+				command := exec.CommandContext(t.Context(), executable, args...)
+				command.Env = isolatedGitEnvironment()
+				output, err := command.CombinedOutput()
+				if err != nil {
+					t.Fatalf("git fixture: %v: %s", err, output)
+				}
+				return strings.TrimSpace(string(output))
+			}
+			runFixture("init", "--object-format="+objectFormat, "--", source)
+			if err := os.WriteFile(filepath.Join(source, "fixture.txt"), []byte("pinned contents"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			runFixture("-C", source, "add", "fixture.txt")
+			runFixture("-C", source, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+				"-c", "commit.gpgsign=false", "commit", "-m", "fixture")
+			commit := runFixture("-C", source, "rev-parse", "HEAD")
+			const repository = "https://example.com/acme/repo"
+			client := NewClient(
+				WithCheckoutTempDir(t.TempDir()),
+				withRepositoryResolver(&staticRepositoryResolver{addresses: publicRepositoryAddresses()}),
+				WithRunner(func(ctx context.Context, executable string, args ...string) error {
+					args = slices.Clone(args)
+					for i, arg := range args {
+						if arg == repository {
+							args[i] = source
+						}
+					}
+					return runGitCommand(
+						ctx,
+						executable,
+						append([]string{"-c", "protocol.file.allow=always"}, args...)...)
+				}),
+			)
+			checkout, err := client.Checkout(t.Context(), repository, commit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := checkout.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			content, err := os.ReadFile(filepath.Join(checkout.Path, "fixture.txt"))
+			if err != nil || string(content) != "pinned contents" || checkout.Commit != commit {
+				t.Fatalf("pinned checkout: commit=%s content=%q error=%v", checkout.Commit, content, err)
+			}
+		})
+	}
+	t.Run("Should remove failed and unverifiable checkouts", func(t *testing.T) {
+		t.Parallel()
+		injected := errors.New("commit inspection failed")
+		for _, failure := range []string{"clone", "resolve", "invalid_commit", "wrong_commit", "cancel"} {
+			t.Run("Should clean up "+failure, func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				client := newFixtureGitClient(t, t.TempDir(), 1)
+				WithCheckoutTempDir(root)(client)
+				ref := "main"
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				client.output = func(context.Context, string, ...string) (string, error) {
+					if failure == "resolve" {
+						return "", injected
+					}
+					if failure == "wrong_commit" {
+						return strings.Repeat("b", 40), nil
+					}
+					return "not-a-commit", nil
+				}
+				if failure == "clone" || failure == "cancel" {
+					client.run = func(context.Context, string, ...string) error {
+						if failure == "cancel" {
+							cancel()
+						}
+						return injected
+					}
+				}
+				if failure == "wrong_commit" {
+					ref = strings.Repeat("a", 40)
+					client.run = func(context.Context, string, ...string) error { return nil }
+				}
+				checkout, err := client.Checkout(ctx, "https://example.com/acme/repo", ref)
+				cancel()
+				if err == nil || checkout != nil {
+					t.Fatalf("%s returned checkout %+v, %v", failure, checkout, err)
+				}
+				if (failure == "resolve" || failure == "clone") && !errors.Is(err, injected) {
+					t.Fatalf("%s lost original failure: %v", failure, err)
+				}
+				if failure == "cancel" && !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancellation lost context error: %v", err)
+				}
+				assertEmptyDirectory(t, root)
+			})
+		}
+	})
+}
 
 func TestClientDownload(t *testing.T) {
 	t.Parallel()

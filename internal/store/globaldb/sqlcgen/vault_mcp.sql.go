@@ -14,17 +14,24 @@ const deleteMCPAuthToken = `-- name: DeleteMCPAuthToken :execrows
 DELETE FROM mcp_auth_tokens
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type DeleteMCPAuthTokenParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
 func (q *Queries) DeleteMCPAuthToken(ctx context.Context, arg DeleteMCPAuthTokenParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteMCPAuthToken, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	result, err := q.db.ExecContext(ctx, deleteMCPAuthToken,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -49,17 +56,24 @@ const deleteMCPOAuthRegistration = `-- name: DeleteMCPOAuthRegistration :execrow
 DELETE FROM mcp_oauth_registrations
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type DeleteMCPOAuthRegistrationParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
 func (q *Queries) DeleteMCPOAuthRegistration(ctx context.Context, arg DeleteMCPOAuthRegistrationParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteMCPOAuthRegistration, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	result, err := q.db.ExecContext(ctx, deleteMCPOAuthRegistration,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -93,27 +107,35 @@ func (q *Queries) DeleteVaultSecret(ctx context.Context, ref string) (int64, err
 }
 
 const getMCPAuthToken = `-- name: GetMCPAuthToken :one
-SELECT scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
        token_type, expires_at, obtained_at, updated_at
 FROM mcp_auth_tokens
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type GetMCPAuthTokenParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
 func (q *Queries) GetMCPAuthToken(ctx context.Context, arg GetMCPAuthTokenParams) (McpAuthToken, error) {
-	row := q.db.QueryRowContext(ctx, getMCPAuthToken, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	row := q.db.QueryRowContext(ctx, getMCPAuthToken,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	var i McpAuthToken
 	err := row.Scan(
 		&i.Scope,
 		&i.WorkspaceID,
+		&i.Owner,
 		&i.ServerName,
 		&i.DefinitionFingerprint,
 		&i.Issuer,
@@ -134,12 +156,14 @@ SELECT access_token_ref, refresh_token_ref
 FROM mcp_auth_tokens
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type GetMCPAuthTokenRefsParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
@@ -149,35 +173,48 @@ type GetMCPAuthTokenRefsRow struct {
 }
 
 func (q *Queries) GetMCPAuthTokenRefs(ctx context.Context, arg GetMCPAuthTokenRefsParams) (GetMCPAuthTokenRefsRow, error) {
-	row := q.db.QueryRowContext(ctx, getMCPAuthTokenRefs, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	row := q.db.QueryRowContext(ctx, getMCPAuthTokenRefs,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	var i GetMCPAuthTokenRefsRow
 	err := row.Scan(&i.AccessTokenRef, &i.RefreshTokenRef)
 	return i, err
 }
 
 const getMCPOAuthRegistration = `-- name: GetMCPOAuthRegistration :one
-SELECT scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+SELECT scope, workspace_id, owner, server_name, definition_fingerprint, resource_url, issuer, client_id,
        token_endpoint_auth_method,
        client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
        client_secret_expires_at, redirect_uri, scopes_json, updated_at
 FROM mcp_oauth_registrations
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type GetMCPOAuthRegistrationParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
 func (q *Queries) GetMCPOAuthRegistration(ctx context.Context, arg GetMCPOAuthRegistrationParams) (McpOauthRegistration, error) {
-	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistration, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistration,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	var i McpOauthRegistration
 	err := row.Scan(
 		&i.Scope,
 		&i.WorkspaceID,
+		&i.Owner,
 		&i.ServerName,
 		&i.DefinitionFingerprint,
 		&i.ResourceUrl,
@@ -201,12 +238,14 @@ SELECT client_secret_ref, registration_access_token_ref
 FROM mcp_oauth_registrations
 WHERE scope = ?1
   AND workspace_id = ?2
-  AND server_name = ?3
+  AND owner = ?3
+  AND server_name = ?4
 `
 
 type GetMCPOAuthRegistrationRefsParams struct {
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id"`
+	Owner       string `json:"owner"`
 	ServerName  string `json:"server_name"`
 }
 
@@ -216,7 +255,12 @@ type GetMCPOAuthRegistrationRefsRow struct {
 }
 
 func (q *Queries) GetMCPOAuthRegistrationRefs(ctx context.Context, arg GetMCPOAuthRegistrationRefsParams) (GetMCPOAuthRegistrationRefsRow, error) {
-	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistrationRefs, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistrationRefs,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.Owner,
+		arg.ServerName,
+	)
 	var i GetMCPOAuthRegistrationRefsRow
 	err := row.Scan(&i.ClientSecretRef, &i.RegistrationAccessTokenRef)
 	return i, err
@@ -277,10 +321,10 @@ func (q *Queries) ListMCPAuthTokenRefsByWorkspace(ctx context.Context, workspace
 }
 
 const listMCPAuthTokens = `-- name: ListMCPAuthTokens :many
-SELECT scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
        token_type, expires_at, obtained_at, updated_at
-FROM mcp_auth_tokens ORDER BY scope ASC, workspace_id ASC, server_name ASC
+FROM mcp_auth_tokens ORDER BY scope ASC, workspace_id ASC, owner ASC, server_name ASC
 `
 
 func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error) {
@@ -295,6 +339,7 @@ func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error)
 		if err := rows.Scan(
 			&i.Scope,
 			&i.WorkspaceID,
+			&i.Owner,
 			&i.ServerName,
 			&i.DefinitionFingerprint,
 			&i.Issuer,
@@ -358,16 +403,16 @@ func (q *Queries) ListMCPOAuthRegistrationRefsByWorkspace(ctx context.Context, w
 
 const upsertMCPAuthToken = `-- name: UpsertMCPAuthToken :exec
 INSERT INTO mcp_auth_tokens (
-  scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+  scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
   access_token_ref, refresh_token_ref,
   token_type, expires_at, obtained_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9, ?10,
-  ?11, ?12, ?13
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11,
+  ?12, ?13, ?14
 )
-ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
+ON CONFLICT(scope, workspace_id, owner, server_name) DO UPDATE SET
   definition_fingerprint = excluded.definition_fingerprint, issuer = excluded.issuer,
   client_id = excluded.client_id, scopes_json = excluded.scopes_json,
   access_token_ref = excluded.access_token_ref, refresh_token_ref = excluded.refresh_token_ref,
@@ -378,6 +423,7 @@ ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
 type UpsertMCPAuthTokenParams struct {
 	Scope                 string         `json:"scope"`
 	WorkspaceID           string         `json:"workspace_id"`
+	Owner                 string         `json:"owner"`
 	ServerName            string         `json:"server_name"`
 	DefinitionFingerprint string         `json:"definition_fingerprint"`
 	Issuer                string         `json:"issuer"`
@@ -395,6 +441,7 @@ func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthToken
 	_, err := q.db.ExecContext(ctx, upsertMCPAuthToken,
 		arg.Scope,
 		arg.WorkspaceID,
+		arg.Owner,
 		arg.ServerName,
 		arg.DefinitionFingerprint,
 		arg.Issuer,
@@ -412,18 +459,18 @@ func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthToken
 
 const upsertMCPOAuthRegistration = `-- name: UpsertMCPOAuthRegistration :exec
 INSERT INTO mcp_oauth_registrations (
-  scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+  scope, workspace_id, owner, server_name, definition_fingerprint, resource_url, issuer, client_id,
   token_endpoint_auth_method,
   client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
   client_secret_expires_at, redirect_uri, scopes_json, updated_at
 ) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6, ?7,
-  ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15, ?16
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8,
+  ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16, ?17
 )
-ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
+ON CONFLICT(scope, workspace_id, owner, server_name) DO UPDATE SET
   definition_fingerprint = excluded.definition_fingerprint,
   resource_url = excluded.resource_url,
   issuer = excluded.issuer,
@@ -442,6 +489,7 @@ ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
 type UpsertMCPOAuthRegistrationParams struct {
 	Scope                      string         `json:"scope"`
 	WorkspaceID                string         `json:"workspace_id"`
+	Owner                      string         `json:"owner"`
 	ServerName                 string         `json:"server_name"`
 	DefinitionFingerprint      string         `json:"definition_fingerprint"`
 	ResourceUrl                string         `json:"resource_url"`
@@ -462,6 +510,7 @@ func (q *Queries) UpsertMCPOAuthRegistration(ctx context.Context, arg UpsertMCPO
 	_, err := q.db.ExecContext(ctx, upsertMCPOAuthRegistration,
 		arg.Scope,
 		arg.WorkspaceID,
+		arg.Owner,
 		arg.ServerName,
 		arg.DefinitionFingerprint,
 		arg.ResourceUrl,

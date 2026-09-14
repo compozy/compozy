@@ -25,6 +25,15 @@ func extensionOperationErrorPayload(
 
 	kind := classifyExtensionError(err)
 	switch kind {
+	case extensionErrorMCPNameTaken:
+		payload.Code = "mcp_server_name_taken"
+	case extensionErrorNameConflict,
+		extensionErrorSourceChanged,
+		extensionErrorSourceUnreachable,
+		extensionErrorMarketplaceSourceNotFound,
+		extensionErrorInputsRequired,
+		extensionErrorInputInvalid:
+		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorNetworkConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
 		if ok && confirmationErr != nil {
@@ -65,8 +74,7 @@ func extensionOperationErrorPayload(
 			message,
 			"",
 		)
-	case extensionErrorAgentPluginClientLayout,
-		extensionErrorAgentPluginNotManifest,
+	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
 	default:
@@ -79,8 +87,6 @@ func extensionOperationErrorPayload(
 // ExtensionAgentPluginErrorCode returns the stable branch key for one portable-package failure.
 func ExtensionAgentPluginErrorCode(err error) string {
 	switch classifyExtensionError(err) {
-	case extensionErrorAgentPluginClientLayout:
-		return diagnosticcontract.CodeExtensionAgentPluginClientLayout
 	case extensionErrorAgentPluginNotManifest:
 		return diagnosticcontract.CodeExtensionAgentPluginNotManifest
 	case extensionErrorAgentPluginSchemaUnsupported:
@@ -129,4 +135,55 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 	default:
 		return diagnosticcontract.CodeExtensionEnvBindingInvalid
 	}
+}
+
+// ExtensionAcquisitionErrorPayload maps candidate failures consistently across public transports.
+func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
+	payload := contract.ExtensionOperationErrorPayload{}
+	switch classifyExtensionError(err) {
+	case extensionErrorMarketplaceSourceNotFound:
+		payload.Code = "marketplace_source_not_found"
+	case extensionErrorSourceUnreachable:
+		payload.Code = "source_unreachable"
+	case extensionErrorNameConflict:
+		payload.Code = diagnosticcontract.CodeExtensionNameConflict
+		if conflict, ok := errors.AsType[*extensionpkg.ExtensionNameConflictError](err); ok {
+			payload.InstalledOrigin = &contract.MarketplaceOriginPayload{
+				Source: conflict.SourceName, SourceRef: conflict.InstalledOrigin.SourceRef,
+				EntryID: conflict.InstalledOrigin.EntryID,
+			}
+		}
+	case extensionErrorSourceChanged:
+		payload.Code = diagnosticcontract.CodeExtensionSourceChanged
+		if changed, ok := errors.AsType[*extensionpkg.SourceChangedError](err); ok {
+			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
+		}
+	case extensionErrorInputsRequired:
+		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
+		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
+			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+			for _, input := range required.InputDefinitions {
+				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
+					ID:       input.ID,
+					Prompt:   input.Prompt,
+					Type:     input.Type,
+					Required: input.Required,
+					Default:  slices.Clone(input.Default),
+					Binding: contract.MarketplaceInputBindingPayload{
+						Type: input.Binding.Type,
+						Name: input.Binding.Name,
+					},
+				})
+			}
+		}
+	case extensionErrorInputInvalid:
+		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
+		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
+			payload.InputID = invalid.InputID
+		}
+	default:
+		return payload, false
+	}
+	payload.Error = err.Error()
+	return payload, true
 }

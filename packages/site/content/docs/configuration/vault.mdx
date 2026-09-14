@@ -66,25 +66,15 @@ The response shape is always redacted:
 Fields such as `secret_value`, `encrypted_value`, tokens, and API keys are never returned by list,
 get, delete, settings read, CLI output, or web views.
 
-## MCP Catalog Bindings
+## MCP And Extension Bindings
 
-`compozy mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
-terminal prompt and creates a scope-qualified canonical ref. A
-`--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the `mcp`
-namespace.
+Manual MCP settings accept write-only secret values and store them in the scoped `mcp` namespace.
+Management reads expose configured keys and secret presence. The MCP executor resolves the stored
+refs when it launches or calls a server; credentials remain isolated by scope and owner.
 
-| Install scope | Canonical environment ref                             |
-| ------------- | ----------------------------------------------------- |
-| Global        | `vault:mcp/global/<server>/env/<KEY>`                 |
-| Workspace     | `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` |
-
-OAuth client secrets use the same owner prefix with `oauth/client-secret`. CompozyOS encodes workspace
-IDs that do not fit the Vault ref grammar, so two workspaces installing the same server do not
-share credential identity.
-
-Catalog uninstall removes only canonical refs created and owned by that install. It retains a
-shared ref supplied through `--vault-ref`. Settings reads expose configured field names and OAuth
-client-secret presence, never bound refs or stored plaintext.
+Extension manifest inputs use the extension's own scoped secret namespace. An input can bind an
+existing secret owned by that same extension instance. Manual MCP refs cannot be imported through
+an extension input. Existing manual MCP definitions and their credentials remain unchanged.
 
 ## CLI Usage
 

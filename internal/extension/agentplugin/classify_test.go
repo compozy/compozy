@@ -1,6 +1,7 @@
 package agentplugin
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -120,4 +121,59 @@ func TestValidateName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLocateManifest(t *testing.T) {
+	for _, layout := range []string{"claude-plugin", "codex-plugin", "cursor-plugin"} {
+		t.Run("Should locate the "+layout+" manifest", func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			expected := filepath.Join(root, "."+layout, "plugin.json")
+			writeJSONFile(t, expected, map[string]any{"name": "client"})
+			path, found, err := LocateManifest(root)
+			if err != nil || path != expected || found != layout {
+				t.Fatalf("LocateManifest = %q, %q, %v", path, found, err)
+			}
+		})
+	}
+	t.Run("Should prefer the root before any client layout", func(t *testing.T) {
+		t.Parallel()
+		root := newPackageRoot(t, "standard")
+		writeJSONFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), map[string]any{"name": "client"})
+		path, layout, err := LocateManifest(root)
+		if err != nil || path != filepath.Join(root, "plugin.json") || layout != LayoutStandard {
+			t.Fatalf("LocateManifest = %q, %q, %v", path, layout, err)
+		}
+		pkg := loadForTest(t, root)
+		if pkg.Name != "standard" || len(pkg.Diagnostics) != 0 {
+			t.Fatalf("root precedence = %#v", pkg)
+		}
+	})
+	t.Run("Should identify every checked path when no manifest exists", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		_, _, err := LocateManifest(root)
+		missing, ok := errors.AsType[*NotManifestError](err)
+		if !ok || len(missing.Checked) != 4 {
+			t.Fatalf("missing error = %v", err)
+		}
+		for _, path := range []string{"plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".cursor-plugin/plugin.json"} {
+			if !strings.Contains(err.Error(), filepath.Join(root, filepath.FromSlash(path))) {
+				t.Fatalf("missing path %q: %v", path, err)
+			}
+		}
+	})
+	t.Run("Should reject a linked first candidate without selecting another layout", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		target := filepath.Join(t.TempDir(), "plugin.json")
+		writeJSONFile(t, target, map[string]any{"name": "outside"})
+		if err := os.Symlink(target, filepath.Join(root, "plugin.json")); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+		writeJSONFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), map[string]any{"name": "client"})
+		if _, _, err := LocateManifest(root); err == nil {
+			t.Fatal("linked first candidate accepted")
+		}
+	})
 }

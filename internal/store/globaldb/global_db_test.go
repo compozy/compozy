@@ -442,6 +442,72 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: attachment migration preserves every installed package and its global/all-profile reach.
+	// Owner: global database upgrade. Canonical suite: reopen/preservation tests.
+	t.Run(
+		"Should backfill global extension installations without changing package or enablement state",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00114_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			const installedAt = "2026-09-01T00:00:00Z"
+			for _, name := range []string{"first", "second"} {
+				if _, err := prior.ExecContext(ctx, `INSERT INTO extensions
+   (name, version, source, manifest_path, installed_at, checksum) VALUES (?, '1.0.0', 'user', '/fixture/extension.toml', ?, 'digest')`, name, installedAt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO extension_profile_enablement
+   (extension_name, profile_id, enabled) VALUES ('second', ?, 0)`, store.DefaultProfileID); err != nil {
+				t.Fatal(err)
+			}
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				upgraded, err := OpenGlobalDB(ctx, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{"first", "second"} {
+					var profile, workspace, createdAt, version, checksum string
+					if err := upgraded.db.QueryRowContext(ctx, `SELECT i.profile_id, i.workspace_id, i.created_at, e.version, e.checksum
+     FROM extension_installations i JOIN extensions e ON e.name = i.extension_name WHERE e.name = ?`, name).
+						Scan(&profile, &workspace, &createdAt, &version, &checksum); err != nil {
+						t.Fatal(err)
+					}
+					if profile != "" || workspace != "" || createdAt != installedAt || version != "1.0.0" ||
+						checksum != "digest" {
+						t.Fatalf("migrated %s = %q %q %q %q %q", name, profile, workspace, createdAt, version, checksum)
+					}
+				}
+				var count, disabled int
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM extension_installations`).
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT enabled FROM extension_profile_enablement WHERE extension_name = 'second'`).
+					Scan(&disabled); err != nil {
+					t.Fatal(err)
+				}
+				if count != 2 || disabled != 0 {
+					t.Fatalf("count/disabled = %d/%d", count, disabled)
+				}
+				status, err := store.Status(ctx, upgraded.db, MigrationStream())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertCompleteMigrationStream(t, status, MigrationStream())
+				if err := upgraded.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
 	t.Run("Should migrate historical token totals without inventing cache reports", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
@@ -2297,6 +2363,8 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 			"workspace_id",
 			"env_name",
 			"secret_ref",
+			"input_id",
+			"active",
 			"mcp_server",
 			"header_name",
 			"kind",
@@ -2372,6 +2440,8 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 			"workspace_id",
 			"env_name",
 			"secret_ref",
+			"input_id",
+			"active",
 			"mcp_server",
 			"header_name",
 			"kind",
@@ -3319,6 +3389,57 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 			}
 		}
 
+		// Invariant: deleting a scope retires both persisted inputs and sticky MCP overrides.
+		// Owner: GlobalDB workspace lifecycle; canonical suite: this scoped deletion case.
+		for _, binding := range bindings {
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO extension_inputs
+				(extension, workspace_id, input_id, type, value_json, updated_at)
+				VALUES ('kit', ?, 'region', 'string', '"west"', '2026-09-14T00:00:00Z')`, binding.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO extension_mcp_overrides
+				(extension, workspace_id, server, runtime_name, updated_at)
+				VALUES ('kit', ?, 'api', 'kit.api', '2026-09-14T00:00:00Z')`, binding.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		transaction, err := globalDB.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := transaction.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := transaction.ExecContext(ctx, "DELETE FROM workspaces WHERE id = ?", workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := transaction.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("transaction retained %d scoped %s rows", count, table)
+			}
+		}
+		if err := transaction.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Fatalf("rollback restored %d scoped %s rows, want one", count, table)
+			}
+		}
+
 		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
@@ -3332,6 +3453,23 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 				t.Fatalf("preserved bindings for %q = %#v, %v; want one", preservedWorkspaceID, preserved, listErr)
 			}
 		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			for _, binding := range bindings {
+				want := 1
+				if binding.WorkspaceID == workspaceID {
+					want = 0
+				}
+				var count int
+				if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'kit' AND workspace_id = ?", binding.WorkspaceID).
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if count != want {
+					t.Fatalf("%s rows for workspace %q = %d, want %d", table, binding.WorkspaceID, count, want)
+				}
+			}
+		}
+
 		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
 			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
 		}
@@ -3339,6 +3477,17 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err != nil || len(reused) != 0 {
 			t.Fatalf("reused workspace bindings = %#v, %v; want no recovered secrets", reused, err)
 		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("reused workspace recovered %d stale %s rows", count, table)
+			}
+		}
+
 		if err := globalDB.PutEnvBinding(ctx, bindings[0]); err != nil {
 			t.Fatalf("PutEnvBinding(raw cascade fixture) error = %v", err)
 		}

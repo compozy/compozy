@@ -65,9 +65,12 @@ test.describe("Extension dev overlay and source-union install", () => {
 
     await completeOnboardingIfPrompted(appPage);
     await switchWorkspace(appPage, workspace.id, workspace.name);
-    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
-      waitUntil: "domcontentloaded",
-    });
+    await appPage.goto(
+      runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
+      {
+        waitUntil: "domcontentloaded",
+      }
+    );
     const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
@@ -91,9 +94,12 @@ test.describe("Extension dev overlay and source-union install", () => {
     await expect(marketplace.extensionLogsStatus).toContainText("Paused");
     await expect(marketplace.extensionLogsLines).toContainText(logSentinel);
 
-    await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
-    await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
-    await marketplace.extensionInstallEntry.click();
+    await appPage.goto(runtime.url("/marketplace/installed"), { waitUntil: "domcontentloaded" });
+    await expect(marketplaceWin.getByTestId("marketplace-installed-grid")).toBeVisible({
+      timeout: 20_000,
+    });
+    await marketplaceWin.getByTestId("marketplace-add").click();
+    await appPage.getByTestId("marketplace-add-local").click();
     await expect(marketplace.extensionInstallDialog).toBeVisible();
 
     await marketplace.extensionInstallRef.fill("relative/dist");
@@ -212,9 +218,12 @@ test.describe("Profile-aware extension management", () => {
     ]);
 
     await completeOnboardingIfPrompted(appPage);
-    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
-      waitUntil: "domcontentloaded",
-    });
+    await appPage.goto(
+      runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
+      {
+        waitUntil: "domcontentloaded",
+      }
+    );
 
     const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
@@ -264,9 +273,12 @@ test.describe("Profile-aware extension management", () => {
     await profiles.switcher.click();
     await profiles.switcherOption("growth").click();
     await expect(profiles.switcher).toContainText("growth");
-    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
-      waitUntil: "domcontentloaded",
-    });
+    await appPage.goto(
+      runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
+      {
+        waitUntil: "domcontentloaded",
+      }
+    );
     const growthMarketplace = appWindow(appPage, "marketplace");
     await expect(growthMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
     await expect(growthMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();

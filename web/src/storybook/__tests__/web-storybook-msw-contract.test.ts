@@ -57,10 +57,11 @@ describe("web Storybook MSW contract", () => {
     expect(signatures).toContain("GET /api/bridges/health/stream");
   });
 
-  it("registers the marketplace search handler required by marketplace route stories", () => {
+  it("registers the canonical catalog handler required by marketplace route stories", () => {
     const signatures = storybookSystemHandlers.map(handlerSignature);
 
-    expect(signatures).toContain("GET /api/marketplace/search");
+    expect(signatures).toContain("GET /api/marketplace");
+    expect(signatures).not.toContain("GET /api/marketplace/search");
   });
 
   it("registers the loop run event stream handler required by loop run route stories", () => {

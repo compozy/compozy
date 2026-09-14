@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -626,6 +627,82 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 	})
 
+	// Invariant: unrelated config apply and rollback preserve sources registered through their owner.
+	// Owner: live config composition; canonical suite: TestDaemonSettingsRuntimeApplier.
+	for _, failSync := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve independently registered sources when MCP sync failure is %t", failSync),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				feed := newMarketplaceFeedServer(t, "retained")
+				previous := compozyconfig.DefaultWithHome(home)
+				previous.Marketplace.Catalog.BaseURL = feed.URL
+				if err := os.WriteFile(
+					home.ConfigFile,
+					[]byte(fmt.Sprintf("[marketplace.catalog]\nbase_url = %q\n", feed.URL)),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+				repository := openDaemonTestGlobalDB(t)
+				catalogStore, err := marketplace.NewSQLiteStore(repository)
+				if err != nil {
+					t.Fatal(err)
+				}
+				runtime, err := newMarketplaceRuntime(t.Context(), catalogStore, nil, previous.Marketplace, home, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := runtime.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				source := t.TempDir()
+				if err := os.WriteFile(
+					filepath.Join(source, "marketplace.json"),
+					[]byte(`{"plugins":[]}`),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := runtime.AddSource(t.Context(), source, "retained-team", false); err != nil {
+					t.Fatal(err)
+				}
+				syncCalls := 0
+				applier := daemonSettingsRuntimeApplier{
+					daemon: &Daemon{},
+					state: &bootState{cfg: previous, marketplace: runtime,
+						toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+							syncCalls++
+							if failSync && syncCalls == 1 {
+								return errors.New("MCP sync failed")
+							}
+							return nil
+						}),
+					},
+				}
+				next := previous
+				next.Extensions.Trust.AllowUnverified = !previous.Extensions.Trust.AllowUnverified
+				failures := applier.ApplyActiveConfig(t.Context(), &next)
+				if (len(failures) > 0) != failSync {
+					t.Fatalf("failures = %v, want failure %t", failures, failSync)
+				}
+				states, err := runtime.Status(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !slices.ContainsFunc(
+					states,
+					func(state marketplace.SourceState) bool { return state.Source == "retained-team" },
+				) {
+					t.Fatalf("independently registered source disappeared: %#v", states)
+				}
+			},
+		)
+	}
+
 	t.Run("Should restore marketplace sources when another live dependency fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -654,11 +731,11 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewSQLiteStore() error = %v", err)
 		}
-		runtime, err := newMarketplaceRuntime(marketplaceStore, nil, previous.Marketplace.Catalog, nil)
+		runtime, err := newMarketplaceRuntime(t.Context(), marketplaceStore, nil, previous.Marketplace, homePaths, nil)
 		if err != nil {
 			t.Fatalf("newMarketplaceRuntime() error = %v", err)
 		}
-		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+		if _, err := runtime.Refresh(t.Context()); err != nil {
 			t.Fatalf("Refresh(seed) error = %v", err)
 		}
 
@@ -671,7 +748,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				toolMCPResources: toolMCPPublisherFunc(func(ctx context.Context) error {
 					syncCalls++
 					if syncCalls == 1 {
-						if _, err := runtime.Refresh(ctx, marketplace.KindSkill); err != nil {
+						if _, err := runtime.Refresh(ctx); err != nil {
 							return errors.Join(errors.New("verify active marketplace source"), err)
 						}
 						assertMarketplaceRuntimeEntry(t, runtime, "rollback-second")
@@ -684,7 +761,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if len(failures) != 1 || failures[0].Subsystem != "mcp" {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want one mcp failure", failures)
 		}
-		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+		if _, err := runtime.Refresh(t.Context()); err != nil {
 			t.Fatalf("Refresh(after rollback) error = %v", err)
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")

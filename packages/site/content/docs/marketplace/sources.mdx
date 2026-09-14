@@ -1,0 +1,122 @@
+---
+title: Plugin sources
+description: Configure plugin marketplaces and install the exact packages you reviewed.
+---
+
+Plugin sources add extensions from GitHub, an HTTPS Git repository, or a local folder to the daemon's
+Marketplace. The folder or repository must contain `marketplace.json` at its root or under
+`.claude-plugin/`. Each listed plugin is loaded with the same manifest loader used during installation.
+The listing reports `installable`, `install_blocker`, layout, and the digest of its captured package.
+
+## Manage sources (experimental)
+
+Source management is experimental for this release. List, add, refresh, and remove sources through the
+CLI; changes are saved to the daemon's global `config.toml` and applied immediately:
+
+```bash
+compozy marketplace sources list -o json
+compozy marketplace sources add example/team-plugins --name team -o json
+compozy marketplace sources refresh team -o json
+compozy extension install team/tool --allow-unverified --yes -o json
+compozy marketplace sources remove team -o json
+```
+
+An absolute folder or a GitHub repository URL works with `sources add` too. Removing a source keeps
+its installed extensions. Presets can be disabled, but cannot be removed. The CompozyOS feed stays on.
+If a plugin slug also names an existing curated acquisition ref, that curated ref keeps priority;
+`compozy extension install marketplace:team/tool` explicitly selects the plugin source.
+
+The [Marketplace API reference](/docs/api/marketplace) documents the same HTTP and UDS operations:
+
+| Operation                                    | Behavior                                                                            |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `GET /api/marketplace/sources`               | All source rows, including disabled presets, ordered by the daemon.                 |
+| `POST /api/marketplace/sources?dry_run=true` | Inspect `{ "ref": "example/team-plugins", "name": "team" }` without registering it. |
+| `POST /api/marketplace/sources`              | Validate and save the source, then refresh its packages.                            |
+| `PATCH /api/marketplace/sources/team`        | Send `{ "enabled": false }` or `{ "enabled": true }`.                               |
+| `DELETE /api/marketplace/sources/team`       | Remove a custom source.                                                             |
+| `POST /api/marketplace/sources/team/refresh` | Return the current state, including a degraded state if acquisition failed.         |
+
+Every source includes `stability: experimental` and a `diagnostics` array. A `degraded` source keeps
+its last successful listing. Disabled sources are neither fetched nor listed in Browse. A source that
+has not been read reports `never`. `compozy marketplace refresh` reports every source and exits with
+status 1 only when all attempted sources failed.
+
+A name collision returns `marketplace_source_exists` with `suggested_name`. A name retained by an
+installed extension returns `marketplace_source_name_retained` with `retained_by`. Use another name
+or the original source ref. `compozy` and `compozy-catalog` are reserved. A rejected document reports
+`marketplace_not_a_marketplace` with both `checked` paths, or `marketplace_document_too_large` above
+2 MiB. Fix the source and preview again.
+
+## Configure a source
+
+Add a source in `config.toml` and reload the configuration:
+
+```toml
+[[marketplace.plugin_sources]]
+name = "team"
+source = "github:example/team-plugins"
+enabled = true
+```
+
+Sources also accept `git+https://example.com/team/plugins.git` and an absolute file URL such as
+`file:///Users/me/team-plugins`. The CompozyOS feed supplies presets. An explicit config row for the same
+source overrides its enabled state, even if the preset is renamed. Disabled sources are not fetched.
+Refresh with `compozy marketplace refresh -o json`, then inspect the returned source states.
+
+Source names appear in install slugs. The immutable identity is `(source_ref, entry_id)`. Registering
+the same repository under two names lists it twice but joins both rows to the same installed extension.
+An installed extension keeps its identity if that source is removed and later registered again.
+A name retained by an installed extension cannot be reassigned to a different source.
+
+## Install approved bytes
+
+Read the entry detail before installing. Send its install slug and digest through HTTP or UDS:
+
+```json
+{
+  "source": "marketplace",
+  "ref": "team/tool",
+  "expected_digest": "<digest_sha256 from the entry>",
+  "allow_unverified": true
+}
+```
+
+Use this body with `POST /api/extensions`. The daemon also requires
+`extensions.trust.allow_unverified = true`. Plugin marketplaces are unverified: a Claude plugin layout
+or a matching digest does not establish publisher trust. Required inputs use the normal extension
+confirmation flow. A different origin that declares an already installed instance name returns
+`409 extension_name_conflict`.
+
+The daemon captures the listed package in its home-owned cache and verifies its digest when reading
+it. Refresh sweeps unreferenced packages oldest first toward a 1 GiB budget. Current catalog rows and
+installed provenance keep their packages pinned; in-flight publication finishes before pins are read.
+If pins alone exceed the budget, refresh reports the capacity error and preserves those packages.
+Installation uses cached bytes even if the source later changes or goes offline. Missing or corrupt
+blobs appear with `install_blocker: package_unavailable` in the catalog. The daemon can reacquire a
+missing or corrupt blob and proceed only if the digest still matches.
+
+| Response                                  | Next step                                                     |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `404 marketplace_source_not_found`        | Choose a source currently registered in the catalog.          |
+| `409 extension_source_changed`            | Refresh, inspect the new package, and approve its new digest. |
+| `503 source_unreachable`                  | Restore source access and retry the approved package.         |
+| `422 extension_checksum_unverified`       | Review the unverified package and provide explicit consent.   |
+| `422 extension_unverified_policy_blocked` | Review the daemon's extension trust policy.                   |
+
+Updates select the current package by installed origin and compare digests, including when the
+version is unchanged. They retain the existing input, publication, attachment, and rollback behavior.
+Inspect the recorded source, resolved revision, layout, and digest with
+`compozy extension provenance <installed-name> -o json`.
+
+## Catalog settings
+
+Settings → Marketplace also edits the CompozyOS catalog base URL, refresh TTL and request timeout. These settings apply live and preserve your plugin sources. The same fields are available through `GET` and `PATCH /api/settings/marketplace` as `config.base_url`, `config.ttl` and `config.timeout`.
+
+To disable a named source from the CLI:
+
+```bash
+compozy config set marketplace.plugin_sources.team.enabled false --scope user
+```
+
+Source settings are global. Disabling or removing a source keeps its installed extensions available in Installed. The original source name remains reserved for those installed packages until they are removed; re-adding the same source is allowed.

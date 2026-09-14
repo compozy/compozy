@@ -32,6 +32,7 @@ func TestDaemonMCPAuthNotifierWritesOnlyRedactedLifecycleOutcome(t *testing.T) {
 		notifier.NotifyMCPAuth(context.Background(), mcpauth.LifecycleOutcome{
 			Action: mcpauth.LifecycleExchange,
 			Target: mcpauth.Target{
+				Owner: "extension:linear",
 				Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear",
 			},
 			Outcome:    "failure",
@@ -51,6 +52,7 @@ func TestDaemonMCPAuthNotifierWritesOnlyRedactedLifecycleOutcome(t *testing.T) {
 			t.Fatalf("json.Unmarshal(event content) error = %v", err)
 		}
 		want := map[string]string{
+			"owner":        "extension:linear",
 			"server_name":  "linear",
 			"scope":        "workspace",
 			"workspace_id": "workspace-a",

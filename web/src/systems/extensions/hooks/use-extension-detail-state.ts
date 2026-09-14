@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { extensionInstallationScope } from "../lib/extension-installation-scope";
 import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
 import { extensionTrustFacts } from "../lib/extension-trust-facts";
 import {
@@ -53,18 +54,22 @@ export function useExtensionDetailState(
   const instanceWorkspaceId = extension?.workspace_id?.trim() || null;
   const inventory = useExtensionKitInventory(
     name,
-    extension !== null && instanceWorkspaceId === null
+    { workspaceId: instanceWorkspaceId, profileName: extension?.profile ?? detail.profileName },
+    extension !== null
   );
   const logs = useExtensionLogs({
     enabled: extension !== null,
     eventSourceFactory: options.logEventSourceFactory,
     name,
     workspaceId: instanceWorkspaceId,
+    profileName: extension?.profile ?? detail.profileName,
   });
 
   const updateVariables = (allowUnverified: boolean): UpdateExtensionVariables | null => {
     if (!extension) return null;
     return {
+      ...extensionInstallationScope(extension),
+      scope: extension.workspace_id ? "workspace" : "global",
       allowUnverified,
       name: extension.name,
       version: options.updateVersion?.trim() || extension.remote_version?.trim() || undefined,
@@ -106,7 +111,12 @@ export function useExtensionDetailState(
     requestRemoval: () => setDialogState({ type: "dialog", dialog: "remove" }),
     requestToggle: async (enabled: boolean) => {
       if (!extension) return;
-      await runToggle({ enabled, name: extension.name });
+      await runToggle({
+        enabled,
+        name: extension.name,
+        profileName: extension.profile,
+        workspaceId: instanceWorkspaceId,
+      });
     },
     /**
      * An unverified installation still needs an explicit per-update decision, so the consent

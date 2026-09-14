@@ -185,30 +185,30 @@ func newViewProgramManagerForTest(
 	timeout time.Duration,
 	process processHandle,
 ) *Manager {
-	return &Manager{
-		defaultViewTimeout: timeout,
-		extensions: map[string]*managedExtension{
-			name: {
-				info: ExtensionInfo{
-					Name: name,
-					Capabilities: CapabilitiesConfig{
-						Provides: []string{extensionprotocol.CapabilityProvideViewProvider},
-					},
+	manager := NewManager(nil)
+	manager.defaultViewTimeout = timeout
+	manager.extensions = map[string]*managedExtension{
+		name: {
+			info: ExtensionInfo{
+				Name: name,
+				Capabilities: CapabilitiesConfig{
+					Provides: []string{extensionprotocol.CapabilityProvideViewProvider},
 				},
-				active:     true,
-				generation: generation,
-				process:    process,
-				initialize: &subprocess.InitializeResponse{
-					AcceptedCapabilities: subprocess.AcceptedCapabilities{
-						Provides: []string{extensionprotocol.CapabilityProvideViewProvider},
-					},
-					ImplementedMethods: []string{
-						string(extensionprotocol.ExtensionServiceMethodViewOpen),
-						string(extensionprotocol.ExtensionServiceMethodViewEvent),
-						string(extensionprotocol.ExtensionServiceMethodViewClose),
-					},
+			},
+			active:     true,
+			generation: generation,
+			process:    process,
+			initialize: &subprocess.InitializeResponse{
+				AcceptedCapabilities: subprocess.AcceptedCapabilities{
+					Provides: []string{extensionprotocol.CapabilityProvideViewProvider},
+				},
+				ImplementedMethods: []string{
+					string(extensionprotocol.ExtensionServiceMethodViewOpen),
+					string(extensionprotocol.ExtensionServiceMethodViewEvent),
+					string(extensionprotocol.ExtensionServiceMethodViewClose),
 				},
 			},
 		},
 	}
+	return manager
 }

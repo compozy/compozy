@@ -889,7 +889,7 @@ func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	}
 }
 
-func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
+func TestHTTPInstallPortableManifestContract(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -935,9 +935,9 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 		code string
 	}{
 		{
-			name: "Should reject a client-specific layout",
+			name: "Should reject a malformed client manifest",
 			path: clientLayout,
-			code: "extension_agent_plugin_client_layout",
+			code: "extension_agent_plugin_manifest_invalid",
 		},
 		{
 			name: "Should reject an unrelated directory",
@@ -970,10 +970,22 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 				body := readAndCloseHTTPBody(t, response)
 				t.Fatalf("HTTP install status = %d, want 422; body=%s", response.StatusCode, string(body))
 			}
-			var payload compozycontract.ExtensionOperationErrorPayload
-			decodeHTTPJSON(t, response, &payload)
-			if payload.Code != testCase.code {
-				t.Fatalf("HTTP install error code = %q, want %q", payload.Code, testCase.code)
+			if testCase.code == "extension_agent_plugin_manifest_invalid" {
+				var payload compozycontract.ExtensionValidationErrorPayload
+				decodeHTTPJSON(t, response, &payload)
+				if payload.Diagnostic == nil || payload.Diagnostic.Code != testCase.code || len(payload.Issues) == 0 {
+					t.Fatalf(
+						"HTTP manifest validation error = %#v, want %q and validation issues",
+						payload,
+						testCase.code,
+					)
+				}
+			} else {
+				var payload compozycontract.ExtensionOperationErrorPayload
+				decodeHTTPJSON(t, response, &payload)
+				if payload.Code != testCase.code {
+					t.Fatalf("HTTP install error code = %q, want %q", payload.Code, testCase.code)
+				}
 			}
 			installed, err := registry.List()
 			if err != nil {
@@ -981,6 +993,68 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 			}
 			if !reflect.DeepEqual(installed, before) {
 				t.Fatalf("installed extensions = %#v, want registry unchanged from %#v", installed, before)
+			}
+		})
+	}
+
+	for _, layout := range []string{"claude-plugin", "codex-plugin", "cursor-plugin"} {
+		t.Run("Should install a valid "+layout+" package with its recorded layout", func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			directory := filepath.Join(root, "."+layout)
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			name := "client-" + layout
+			manifest, err := json.Marshal(map[string]any{"name": name, "version": "1.0.0", "hooks": map[string]any{}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(directory, "plugin.json"), manifest, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			body, err := json.Marshal(
+				compozycontract.InstallExtensionRequest{
+					Source:          compozycontract.InstallExtensionSourceLocalPath,
+					Ref:             root,
+					AllowUnverified: true,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := mustHTTPRequest(
+				t,
+				runtimeHarness.HTTPClient,
+				http.MethodPost,
+				runtimeHarness.HTTPURL("/api/extensions"),
+				body,
+				nil,
+			)
+			if response.StatusCode != http.StatusCreated {
+				t.Fatalf("client install status = %d: %s", response.StatusCode, readAndCloseHTTPBody(t, response))
+			}
+			var payload compozycontract.ExtensionResponse
+			decodeHTTPJSON(t, response, &payload)
+			if payload.Extension.Name != name || payload.Extension.Layout != layout ||
+				payload.Extension.Contents.Hooks != 0 {
+				t.Fatalf("client payload = %#v", payload)
+			}
+			found := false
+			for _, diagnostic := range payload.Extension.Diagnostics {
+				if diagnostic.Code == "client_component_ignored" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("ignored hooks diagnostic missing: %#v", payload.Extension.Diagnostics)
+			}
+			installed, err := registry.Get(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if installed.Provenance.Layout != layout {
+				t.Fatalf("persisted layout = %q", installed.Provenance.Layout)
 			}
 		})
 	}

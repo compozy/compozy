@@ -7,7 +7,4 @@ export {
   skillExposeSuccessFixture,
   skillExposuresFixture,
   skillFixtures,
-  skillMarketplaceInstallFixture,
-  skillMarketplaceRemoveFixture,
-  skillMarketplaceUpdateFixtures,
 } from "./fixtures";

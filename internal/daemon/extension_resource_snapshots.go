@@ -49,23 +49,70 @@ func extensionResourceSnapshots(
 		return strings.Compare(left.Name, right.Name)
 	})
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos))
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
-	for _, info := range infos {
-		if !info.Enabled {
+	for infoIndex := range infos {
+		if !infos[infoIndex].Enabled {
 			continue
 		}
-		ext, loadErr := loadExtensionSnapshot(registry, runtime, logger, info.Name)
-		if loadErr != nil {
-			return nil, fmt.Errorf("daemon: load installed extension %q for resource sync: %w", info.Name, loadErr)
+		snapshot, loadErr := installedDefaultProfileResourceSnapshot(registry, runtime, logger, infos[infoIndex].Name)
+		if errors.Is(loadErr, extensionpkg.ErrExtensionNotFound) {
+			continue
 		}
-		snapshots = append(snapshots, scopedExtensionResourceSnapshot{extension: ext, scope: globalScope})
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		snapshots = append(snapshots, snapshot)
 	}
 
-	links, err := registry.ListDevLinks()
+	development, err := workspaceExtensionResourceSnapshots(registry, runtime, logger)
+	return append(snapshots, development...), err
+}
+
+func installedDefaultProfileResourceSnapshot(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	logger *slog.Logger,
+	name string,
+) (scopedExtensionResourceSnapshot, error) {
+	installation, err := registry.ResolveInstallation(context.Background(), name, extensionpkg.InstallationScope{
+		ProfileID: store.DefaultProfileID,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("daemon: list development extensions for resource sync: %w", err)
+		return scopedExtensionResourceSnapshot{}, err
 	}
-	if len(links) == 0 {
+	ext, err := loadExtensionSnapshot(registry, runtime, logger, name)
+	if err != nil {
+		return scopedExtensionResourceSnapshot{}, fmt.Errorf(
+			"daemon: load installed extension %q for resource sync: %w",
+			name,
+			err,
+		)
+	}
+	snapshot := scopedExtensionResourceSnapshot{
+		extension: ext,
+		scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+	}
+	if installation.Scope.ProfileID != "" {
+		snapshot.scope = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindProfile,
+			ID:   installation.Scope.ProfileID,
+		}
+		snapshot.profileID = installation.Scope.ProfileID
+	}
+	return snapshot, nil
+}
+
+func workspaceExtensionResourceSnapshots(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	logger *slog.Logger,
+) ([]scopedExtensionResourceSnapshot, error) {
+	snapshots := make([]scopedExtensionResourceSnapshot, 0)
+
+	keys, err := workspaceExtensionKeys(context.Background(), registry)
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
 		return snapshots, nil
 	}
 	if runtime == nil {
@@ -73,11 +120,10 @@ func extensionResourceSnapshots(
 	}
 	scopedRuntime, ok := runtime.(scopedExtensionRuntime)
 	if !ok {
-		logUnsupportedDevelopmentLinks(logger, len(links))
+		logUnsupportedDevelopmentLinks(logger, len(keys))
 		return snapshots, nil
 	}
-	for _, link := range links {
-		key := (extensionpkg.InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}).Normalize()
+	for _, key := range keys {
 		ext, loadErr := scopedRuntime.GetForInstance(key)
 		if loadErr != nil {
 			if errors.Is(loadErr, extensionpkg.ErrExtensionNotFound) {
@@ -91,7 +137,7 @@ func extensionResourceSnapshots(
 				continue
 			}
 			return nil, fmt.Errorf(
-				"daemon: load development extension %q for workspace %q resource sync: %w",
+				"daemon: load workspace extension %q for workspace %q resource sync: %w",
 				key.Name,
 				key.WorkspaceID,
 				loadErr,
@@ -172,7 +218,7 @@ func extensionProfileResourceSnapshots(
 	if err != nil {
 		return nil, err
 	}
-	development, err := developmentExtensionProfileSnapshots(ctx, registry, projector, activeProfiles)
+	development, err := workspaceExtensionProfileSnapshots(ctx, registry, projector, activeProfiles)
 	if err != nil {
 		return nil, err
 	}
@@ -186,17 +232,19 @@ func installedExtensionProfileSnapshots(
 	profiles []extensionpkg.ProfileLens,
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos)*len(profiles))
-	for _, info := range infos {
+	for infoIndex := range infos {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
 				ctx,
-				extensionpkg.GlobalInstanceKey(info.Name),
+				extensionpkg.GlobalInstanceKey(infos[infoIndex].Name),
 				profile,
 			)
+			if errors.Is(projectErr, extensionpkg.ErrExtensionNotFound) {
+				continue
+			}
 			if projectErr != nil {
 				return nil, fmt.Errorf(
-					"daemon: project installed extension %q for profile %q: %w",
-					info.Name,
+					"daemon: project installed extension %q for profile %q: %w", infos[infoIndex].Name,
 					profile.Name,
 					projectErr,
 				)
@@ -217,19 +265,18 @@ func installedExtensionProfileSnapshots(
 	return snapshots, nil
 }
 
-func developmentExtensionProfileSnapshots(
+func workspaceExtensionProfileSnapshots(
 	ctx context.Context,
 	registry *extensionpkg.Registry,
 	projector profiledExtensionRuntime,
 	profiles []extensionpkg.ProfileLens,
 ) ([]scopedExtensionResourceSnapshot, error) {
-	links, err := registry.ListDevLinks()
+	keys, err := workspaceExtensionKeys(ctx, registry)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: list development extensions for profile resource sync: %w", err)
+		return nil, err
 	}
-	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(links)*len(profiles))
-	for _, link := range links {
-		key := (extensionpkg.InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}).Normalize()
+	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(keys)*len(profiles))
+	for _, key := range keys {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
 				ctx,
@@ -241,7 +288,7 @@ func developmentExtensionProfileSnapshots(
 			}
 			if projectErr != nil {
 				return nil, fmt.Errorf(
-					"daemon: project development extension %q for workspace %q and profile %q: %w",
+					"daemon: project workspace extension %q for workspace %q and profile %q: %w",
 					key.Name,
 					key.WorkspaceID,
 					profile.Name,
@@ -281,4 +328,46 @@ func logUnsupportedDevelopmentLinks(logger *slog.Logger, count int) {
 	if logger != nil {
 		logger.Warn("extension.resource_sync.dev_links_unsupported", "dev_link_count", count)
 	}
+}
+
+// Published attachments and development overlays share one effective runtime per workspace and profile.
+func workspaceExtensionKeys(ctx context.Context, registry *extensionpkg.Registry) ([]extensionpkg.InstanceKey, error) {
+	infos, err := registry.List()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[extensionpkg.InstanceKey]bool)
+	for infoIndex := range infos {
+		installations, err := registry.Installations(ctx, infos[infoIndex].Name)
+		if err != nil {
+			return nil, err
+		}
+		for _, installation := range installations {
+			if installation.Scope.WorkspaceID != "" {
+				key := extensionpkg.InstanceKey{
+					Name:        infos[infoIndex].Name,
+					WorkspaceID: installation.Scope.WorkspaceID,
+				}
+				seen[key.Normalize()] = true
+			}
+		}
+	}
+	links, err := registry.ListDevLinks()
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range links {
+		seen[(extensionpkg.InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}).Normalize()] = true
+	}
+	keys := make([]extensionpkg.InstanceKey, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b extensionpkg.InstanceKey) int {
+		if order := strings.Compare(a.Name, b.Name); order != 0 {
+			return order
+		}
+		return strings.Compare(a.WorkspaceID, b.WorkspaceID)
+	})
+	return keys, nil
 }

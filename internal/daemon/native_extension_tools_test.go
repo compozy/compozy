@@ -35,6 +35,7 @@ import (
 type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
+	download      func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
 }
 
 func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) {
@@ -67,15 +68,15 @@ func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) 
 }
 
 type nativeExtensionCatalog struct {
-	entry *marketplacepkg.Entry
-	err   error
+	entry   *marketplacepkg.Entry
+	entries map[string]*marketplacepkg.Entry
+	err     error
 }
 
 func (nativeExtensionCatalog) Close(context.Context) error { return nil }
 
 func (c nativeExtensionCatalog) Browse(
 	context.Context,
-	marketplacepkg.Kind,
 	string,
 	int,
 	int,
@@ -83,23 +84,28 @@ func (c nativeExtensionCatalog) Browse(
 	return marketplacepkg.BrowseResult{}, errors.New("unexpected catalog browse")
 }
 
-func (c nativeExtensionCatalog) Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
+func (c nativeExtensionCatalog) Detail(context.Context, string, string) (*marketplacepkg.Entry, error) {
 	return nil, errors.New("unexpected catalog detail")
 }
 
+func (c nativeExtensionCatalog) Entry(context.Context, marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
+	return nil, errors.New("unexpected catalog origin lookup")
+}
+
 func (c nativeExtensionCatalog) ResolveExtensionInstall(
-	context.Context,
-	string,
-	string,
+	_ context.Context, ref string, _ string,
 ) (*marketplacepkg.Entry, error) {
+	if c.entries != nil {
+		return c.entries[ref], c.err
+	}
 	return c.entry, c.err
 }
 
-func (c nativeExtensionCatalog) Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error) {
+func (c nativeExtensionCatalog) Refresh(context.Context, ...string) (marketplacepkg.RefreshReport, error) {
 	return marketplacepkg.RefreshReport{}, errors.New("unexpected catalog refresh")
 }
 
-func (c nativeExtensionCatalog) Status(context.Context) ([]marketplacepkg.KindState, error) {
+func (c nativeExtensionCatalog) Status(context.Context) ([]marketplacepkg.SourceState, error) {
 	return nil, errors.New("unexpected catalog status")
 }
 
@@ -142,10 +148,11 @@ func (s *nativeExtensionSource) Info(context.Context, string) (*registrypkg.Deta
 }
 
 func (s *nativeExtensionSource) Download(
-	_ context.Context,
-	_ string,
-	opts registrypkg.DownloadOpts,
+	ctx context.Context, slug string, opts registrypkg.DownloadOpts,
 ) (*registrypkg.DownloadResult, error) {
+	if s.download != nil {
+		return s.download(ctx, slug, opts)
+	}
 	version := strings.TrimSpace(opts.Version)
 	if version == "" {
 		version = s.latestVersion
@@ -162,6 +169,52 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	// Invariant: global native reads retain the selected profile even without a workspace.
+	// Owner: native extension boundary. Canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should forward named profiles for list info and provenance", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, baseRuntime := newNativeExtensionToolDeps(t)
+		root := writeNativeLocalExtensionFixture(t, "profile-kit", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := extensionpkg.InstallLocalManaged(deps.HomePaths, extRegistry, manifest, root, checksum); err != nil {
+			t.Fatal(err)
+		}
+		ext, err := baseRuntime.Get("profile-kit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := &profileReadProjectedRuntime{profileReadDevRuntime: &profileReadDevRuntime{ext: ext}}
+		deps.ExtensionRuntime = func() extensionRuntime { return runtime }
+		profile, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		for _, toolID := range []toolspkg.ToolID{
+			toolspkg.ToolIDExtensionsList, toolspkg.ToolIDExtensionsInfo, toolspkg.ToolIDExtensionsProvenance,
+		} {
+			runtime.lastProfile = extensionpkg.ProfileLens{}
+			input := json.RawMessage(`{"name":"profile-kit","owner":"extension:profile-kit"}`)
+			if toolID == toolspkg.ToolIDExtensionsList {
+				input = json.RawMessage(`{"owner":"extension:profile-kit"}`)
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, ProfileID: profile.ID},
+				toolspkg.CallRequest{ToolID: toolID, Input: input})
+			if err != nil {
+				t.Fatalf("%s: %v", toolID, err)
+			}
+			if runtime.lastProfile.ID != profile.ID || runtime.lastProfile.Name != "marketing" {
+				t.Fatalf("%s profile = %#v", toolID, runtime.lastProfile)
+			}
+		}
+	})
 	t.Run("Should expose inventory through native bindings", func(t *testing.T) {
 		t.Parallel()
 
@@ -262,6 +315,79 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				result,
 				[]byte(`"last_error":"extension development origin is unavailable"`),
 			)
+		}
+	})
+
+	// Invariant: native callers can branch on name conflict and inspect the installed acquisition.
+	// Owner: native extension boundary. Canonical suite: daemon native extension tools.
+	t.Run("Should report the installed origin in a native name conflict", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.ExtensionNameConflictError{Name: "kit", SourceName: "team",
+			InstalledOrigin: marketplacepkg.Origin{SourceRef: "https://example.com/catalog", EntryID: "team/kit"}}
+		err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_name_conflict" || !errors.Is(err, extensionpkg.ErrExtensionNameConflict) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native name conflict = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.InstalledOrigin == nil || payload.InstalledOrigin.SourceRef != cause.InstalledOrigin.SourceRef ||
+			payload.InstalledOrigin.EntryID != cause.InstalledOrigin.EntryID || payload.InstalledOrigin.Source != "team" {
+			t.Fatalf("native installed origin = %#v", payload.InstalledOrigin)
+		}
+	})
+
+	// Invariant: native acquisition failures retain recovery metadata, including after partial batch progress.
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should retain missing candidate fields after a partial native update", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.InputsRequiredError{
+			MissingInputs: []string{"region"},
+			InputDefinitions: []extensionpkg.ManifestInput{{ID: "region", Prompt: "Region", Type: "identifier",
+				Required: true, Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "region"}}},
+		}
+		err := nativeExtensionUpdateToolError(toolspkg.ToolIDExtensionsUpdate,
+			[]contract.ManagedExtensionUpdatePayload{{Name: "completed"}},
+			&extensionpkg.MarketplaceUpdateBatchError{FailedName: "kit", Cause: cause})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_inputs_required" || !errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native input recovery = %#v", err)
+		}
+		var payload nativeExtensionUpdatePartialPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.CompletedCount != 1 || payload.FailedTarget != "kit" || len(payload.Updates) != 1 ||
+			payload.Updates[0].Name != "completed" || payload.OperationError == nil ||
+			len(
+				payload.OperationError.InputDefinitions,
+			) != 1 || payload.OperationError.InputDefinitions[0].Prompt != "Region" {
+			t.Fatalf("native partial recovery = %#v", payload)
+		}
+	})
+
+	t.Run("Should retain changed source digests in a native conflict", func(t *testing.T) {
+		t.Parallel()
+		cause := &extensionpkg.SourceChangedError{
+			ListedDigest:  strings.Repeat("a", 64),
+			FetchedDigest: strings.Repeat("b", 64),
+		}
+		err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_source_changed" || !errors.Is(err, toolspkg.ErrToolConflict) ||
+			toolErr.PartialResult == nil {
+			t.Fatalf("native source conflict = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.ListedDigest != cause.ListedDigest || payload.FetchedDigest != cause.FetchedDigest {
+			t.Fatalf("native source digests = %#v", payload)
 		}
 	})
 
@@ -567,13 +693,59 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			t.Fatalf("Registry.Call(extensions_info) error = %v", err)
 		}
 		requireNativeStructuredContains(t, infoResult, []byte(`"tool-ext"`))
+		// Invariant: explicit owner selectors cannot redirect a named extension read or mutation.
+		// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+		for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDExtensionsInfo, toolspkg.ToolIDExtensionsInventory,
+			toolspkg.ToolIDExtensionsProvenance, toolspkg.ToolIDExtensionsRemove, toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsDisable, toolspkg.ToolIDExtensionsUpdate, toolspkg.ToolIDExtensionsReload, toolspkg.ToolIDExtensionsLogs} {
+			if _, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolID,
+					Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:other"}`),
+				},
+			); err == nil {
+				t.Fatalf("%s accepted a mismatched owner", toolID)
+			}
+		}
+		if retained, err := extRegistry.Get(
+			"tool-ext",
+		); err != nil || retained.Version != updated.Version ||
+			retained.Enabled != updated.Enabled {
+			t.Fatalf("owner rejection changed installed state: %#v %v", retained, err)
+		}
+		ownedInfo, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDExtensionsInfo,
+				Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:tool-ext"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, ownedInfo, []byte(`"tool-ext"`))
+		ownedList, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDExtensionsList,
+				Input:  json.RawMessage(`{"owner":"extension:missing"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, ownedList, []byte(`"extensions":[]`))
 
 		removeResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsRemove,
-				Input:  json.RawMessage(`{"name":"tool-ext"}`),
+				Input:  json.RawMessage(`{"name":"tool-ext","owner":"extension:tool-ext"}`),
 			},
 		)
 		if err != nil {
@@ -639,7 +811,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			ContentSize: -1, ContentType: "application/gzip",
 		}
 		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
-			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			EntryID:     "extension.acme.tool-ext",
 			InstallSlug: "acme/tool-ext", Version: "1.0.0", DigestSHA256: digest, Tier: "official",
 			Payload: json.RawMessage(
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
@@ -695,18 +867,15 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail closed when catalog refresh and lookup both fail", func(t *testing.T) {
+	t.Run("Should fail closed when catalog lookup fails", func(t *testing.T) {
 		t.Parallel()
 
-		refreshErr := errors.New("catalog unavailable")
-		catalog := nativeExtensionCatalog{err: &marketplacepkg.ExtensionInstallResolutionError{
-			RefreshErr: refreshErr,
-			LookupErr:  marketplacepkg.ErrEntryNotFound,
-		}}
+		lookupErr := errors.New("catalog unavailable")
+		catalog := nativeExtensionCatalog{err: lookupErr}
 		service := &daemonExtensionService{marketplaceCatalog: catalog}
 		trust, err := service.resolveMarketplaceExtensionTrust(t.Context(), "acme/tool-ext", "1.0.0")
-		if trust != nil || !errors.Is(err, refreshErr) || !errors.Is(err, marketplacepkg.ErrEntryNotFound) {
-			t.Fatalf("resolveMarketplaceExtensionTrust() = (%#v, %v), want fail-closed combined error", trust, err)
+		if trust != nil || !errors.Is(err, lookupErr) {
+			t.Fatalf("resolveMarketplaceExtensionTrust() = (%#v, %v), want fail-closed lookup error", trust, err)
 		}
 	})
 
@@ -715,7 +884,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
 		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
-			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			EntryID:     "extension.acme.tool-ext",
 			InstallSlug: "acme/tool-ext", Version: "1.0.0",
 			DigestSHA256: strings.Repeat("0", sha256.Size*2), Tier: "official",
 			Payload: json.RawMessage(
@@ -933,7 +1102,12 @@ func nativeExtensionTarGz(t *testing.T, version string) []byte {
 	return nativeExtensionTarGzWithNetwork(t, version, "")
 }
 
-func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope string) []byte {
+func nativeExtensionTarGzWithNetwork(
+	t *testing.T,
+	version string,
+	channelScope string,
+	manifestSections ...string,
+) []byte {
 	t.Helper()
 
 	integrationManifestSections := ""
@@ -953,6 +1127,7 @@ channel_scopes = [%q]
 `, channelScope)
 	}
 
+	integrationManifestSections += "\n" + strings.Join(manifestSections, "\n")
 	files := map[string]string{
 		filepath.Join("tool-ext", "extension.toml"): fmt.Sprintf(`[extension]
 name = "tool-ext"

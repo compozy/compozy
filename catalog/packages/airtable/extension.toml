@@ -1,0 +1,13 @@
+name = "airtable"
+version = "1.0.0"
+description = "Search and manage Airtable bases through Airtable's hosted MCP server."
+min_compozy_version = "0.5.0"
+
+[resources.mcp_servers.airtable]
+transport = "http"
+url = "https://mcp.airtable.com/mcp"
+default_scope = "workspace"
+
+[resources.mcp_servers.airtable.auth]
+method = "oauth"
+registration = "dynamic"

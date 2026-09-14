@@ -21,6 +21,14 @@ import (
 func TestMCPAuthCommandTreeHardCutsAuthorizeAlias(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject retired catalog installation before opening a client", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := executeRootCommand(t, commandDeps{}, "mcp", "install", "github", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "unknown command") {
+			t.Fatalf("retired mcp install: %v", err)
+		}
+	})
+
 	t.Run("Should resolve canonical login and reject the removed authorize alias", func(t *testing.T) {
 		t.Parallel()
 
@@ -577,6 +585,88 @@ func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 
 func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
+	// Invariant: --owner addresses the selected definition and rejects malformed identities.
+	// Owner: MCP CLI commands; canonical suite: mcp_auth_test.go.
+	t.Run("Should pass the selected extension owner to status and logout", func(t *testing.T) {
+		t.Parallel()
+		read := func(_ context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error) {
+			if target.Owner != "extension:linear" || target.Name != "linear" {
+				t.Fatalf("command lost its definition owner: %#v", target)
+			}
+			return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
+		}
+		client := &stubClient{getSettingsMCPAuthStatusFn: read, logoutSettingsMCPAuthFn: read}
+		for _, action := range []string{"status", "logout"} {
+			if _, _, err := executeRootCommand(t, newTestDeps(t, client), "mcp", "auth", action, "linear",
+				"--owner", " extension:linear ", "-o", "json"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := (mcpAuthCommandOptions{scope: "user", owner: "extension:bad/name"}).target("linear"); err == nil {
+			t.Fatal("malformed extension owner accepted")
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		owner string
+		want  []string
+	}{
+		{"Should filter an unqualified status list by extension owner", " extension:linear ", []string{"extension:linear"}},
+		{"Should filter an unqualified status list by manual owner", "manual", []string{"manual"}},
+		{"Should retain all owners when no selector is supplied", "", []string{"manual", "extension:linear"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{listSettingsMCPServersFn: func(
+				_ context.Context, _ contract.SettingsLayeredScopeKind, _, _ string,
+			) (contract.SettingsMCPServersResponse, error) {
+				servers := make([]contract.SettingsMCPServerItemPayload, 0, 2)
+				for _, owner := range []string{"manual", "extension:linear"} {
+					status := mcpAuthStatus("linear", "user", "", false, nil)
+					status.Owner = owner
+					servers = append(servers, contract.SettingsMCPServerItemPayload{
+						Name: "linear", Owner: owner, Scope: contract.SettingsScopeUser, AuthStatus: &status,
+					})
+				}
+				return contract.SettingsMCPServersResponse{MCPServers: servers}, nil
+			}}
+			args := []string{"mcp", "auth", "status", "-o", "json"}
+			if tc.owner != "" {
+				args = append(args, "--owner", tc.owner)
+			}
+			stdout, _, err := executeRootCommand(t, newTestDeps(t, client), args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var statuses []SettingsMCPAuthStatusRecord
+			if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
+				t.Fatal(err)
+			}
+			if len(statuses) != len(tc.want) {
+				t.Fatalf("statuses = %#v, want owners %v", statuses, tc.want)
+			}
+			for i, owner := range tc.want {
+				if statuses[i].Owner != owner {
+					t.Fatalf("status = %#v, want owner %s", statuses[i], owner)
+				}
+			}
+		})
+	}
+	t.Run("Should reject a malformed owner before listing auth statuses", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{listSettingsMCPServersFn: func(
+			_ context.Context, _ contract.SettingsLayeredScopeKind, _, _ string,
+		) (contract.SettingsMCPServersResponse, error) {
+			t.Fatal("malformed owner reached the daemon listing")
+			return contract.SettingsMCPServersResponse{}, nil
+		}}
+		_, _, err := executeRootCommand(t, newTestDeps(t, client),
+			"mcp", "auth", "status", "--owner", "extension:bad/name", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "MCP owner must be") {
+			t.Fatalf("malformed owner error = %v", err)
+		}
+	})
 
 	t.Run("Should honor workspace identity for status and logout", func(t *testing.T) {
 		t.Parallel()

@@ -83,6 +83,8 @@ func docOutputProfiles(root *cobra.Command) map[string]docpost.OutputProfile {
 			profile = docpost.OutputProfileHelp
 		}
 		switch command.CommandPath() {
+		case "compozy mcp", "compozy skill":
+			profile = docpost.OutputProfileHelp
 		case "compozy open":
 			profile = docpost.OutputProfileNoOutput
 		case "compozy mcp serve":

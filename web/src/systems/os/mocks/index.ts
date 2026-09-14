@@ -1,4 +1,4 @@
-export { handlers, resetWindowManagerMockState } from "./handlers";
+export { handlers, resetWindowManagerMockState, windowManagerStreamHandler } from "./handlers";
 export {
   windowManagerClientFixture,
   osOperatorNotificationEventFixture,

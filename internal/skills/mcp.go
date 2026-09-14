@@ -10,19 +10,17 @@ import (
 
 // MCPResolver collects and resolves MCP server declarations from enabled skills.
 type MCPResolver struct {
-	allowedMarketplace []string
-	logger             *slog.Logger
+	logger *slog.Logger
 }
 
-// NewMCPResolver constructs an MCPResolver from skills config and logger settings.
-func NewMCPResolver(cfg compozyconfig.SkillsConfig, logger *slog.Logger) *MCPResolver {
+// NewMCPResolver constructs an MCPResolver with logger settings.
+func NewMCPResolver(logger *slog.Logger) *MCPResolver {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	return &MCPResolver{
-		allowedMarketplace: cloneStrings(cfg.AllowedMarketplaceMCP),
-		logger:             logger,
+		logger: logger,
 	}
 }
 
@@ -39,7 +37,6 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []compozyconfig.MCPServer {
 	}
 
 	ordered := orderSkillsBySource(skills)
-	allowedMarketplace := marketplaceAllowlist(mr.allowedMarketplace)
 
 	resolved := make([]compozyconfig.MCPServer, 0)
 	index := make(map[string]int)
@@ -50,7 +47,7 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []compozyconfig.MCPServer {
 			continue
 		}
 		for _, server := range skill.MCPServers {
-			if !marketplaceSkillAllowed(skill, allowedMarketplace) {
+			if !SkillMCPAllowed(skill) {
 				mr.logger.Warn(
 					"blocked MCP server",
 					"skill_name", skill.Meta.Name,
@@ -117,57 +114,17 @@ func orderSkillsBySource(skills []*Skill) []*Skill {
 	return ordered
 }
 
-func marketplaceAllowlist(values []string) map[string]struct{} {
-	allowed := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		allowed[trimmed] = struct{}{}
-	}
-
-	return allowed
-}
-
-func marketplaceSkillAllowed(skill *Skill, allowedMarketplace map[string]struct{}) bool {
+// SkillMCPAllowed restricts embedded MCP declarations to supported local skill sources.
+func SkillMCPAllowed(skill *Skill) bool {
 	if skill == nil {
 		return false
 	}
-
 	switch skill.Source {
 	case SourceBundled, SourceUser, SourceAdditional, SourceWorkspace, SourceProfile, SourceWorkspaceProfile:
 		return true
-	case SourceMarketplace:
-		for _, key := range marketplaceConsentKeys(skill) {
-			if _, ok := allowedMarketplace[key]; ok {
-				return true
-			}
-		}
-		return false
 	default:
 		return false
 	}
-}
-
-func marketplaceConsentKeys(skill *Skill) []string {
-	if skill == nil || skill.Provenance == nil {
-		return nil
-	}
-
-	provenance := skill.Provenance
-	keys := make([]string, 0, 3)
-	if slug := strings.TrimSpace(provenance.Slug); slug != "" {
-		keys = append(keys, slug)
-		if registry := strings.TrimSpace(provenance.Registry); registry != "" {
-			keys = append(keys, registry+":"+slug)
-		}
-	}
-	if hash := strings.TrimSpace(provenance.Hash); hash != "" {
-		keys = append(keys, hash)
-	}
-
-	return keys
 }
 
 func toConfigMCPServer(decl MCPServerDecl) compozyconfig.MCPServer {
@@ -178,12 +135,4 @@ func toConfigMCPServer(decl MCPServerDecl) compozyconfig.MCPServer {
 		Env:       cloneStringMap(decl.Env),
 		SecretEnv: cloneStringMap(decl.SecretEnv),
 	}
-}
-
-func cloneStrings(values []string) []string {
-	if values == nil {
-		return nil
-	}
-
-	return append([]string(nil), values...)
 }

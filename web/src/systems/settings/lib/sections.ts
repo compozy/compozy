@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Brain,
+  Cable,
   Command,
   Cpu,
   Network,
@@ -11,6 +12,7 @@ import {
   Radio,
   Route,
   SlidersHorizontal,
+  Store,
   Terminal,
   UsersRound,
   UserRoundCog,
@@ -113,6 +115,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
       "registry marketplace policy disabled install sources folders agents claude custom directories origin expose",
   },
   {
+    slug: "mcp",
+    label: "MCP servers",
+    icon: Cable,
+    group: "runtime",
+    keywords:
+      "mcp servers tools transport stdio http oauth authorize extension override runtime name workspace",
+  },
+  {
     slug: "automation",
     label: "Automation",
     icon: Zap,
@@ -161,6 +171,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Puzzle,
     group: "system",
     keywords: "policy registry unverified trust",
+  },
+  {
+    slug: "marketplace",
+    label: "Marketplace",
+    icon: Store,
+    group: "system",
+    keywords:
+      "catalog feed plugin marketplaces sources presets custom refresh ttl timeout base_url experimental",
   },
 ] as const;
 

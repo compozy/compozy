@@ -90,12 +90,11 @@ func (s *Service) metadataForConfig(ctx context.Context, cfg ServerConfig) (Meta
 	if err != nil {
 		return Metadata{}, err
 	}
-	if len(prm.AuthorizationServers) == 0 {
-		return Metadata{}, errors.New(
-			"mcp auth: protected resource metadata has no authorization servers",
-		)
+	issuer, err := hostedAuthorizationServer(cfg, prm.AuthorizationServers)
+	if err != nil {
+		return Metadata{}, err
 	}
-	asm, err := s.authServerMetadata(ctx, cfg, prm.AuthorizationServers[0])
+	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {
 		return Metadata{}, err
 	}

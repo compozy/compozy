@@ -2,6 +2,8 @@
 package agentplugin
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -47,6 +49,27 @@ const (
 	SchemaUnrelated
 )
 
+var ErrSchemaUnsupported = errors.New("extension: Agent Plugins schema is unsupported")
+
+// SchemaUnsupportedError retains manifest identity across acquisition and loading boundaries.
+type SchemaUnsupportedError struct {
+	Path     string
+	Root     string
+	Declared string
+}
+
+var _ error = &SchemaUnsupportedError{}
+
+func (e *SchemaUnsupportedError) Error() string {
+	return fmt.Sprintf(
+		"extension: %s declares Agent Plugins schema %q; this daemon supports 1.0.0",
+		cmp.Or(strings.TrimSpace(e.Path), strings.TrimSpace(e.Root)),
+		strings.TrimSpace(e.Declared),
+	)
+}
+
+func (e *SchemaUnsupportedError) Unwrap() error { return ErrSchemaUnsupported }
+
 // LoadOptions supplies the instance-specific data root used for expansion.
 type LoadOptions struct {
 	DataDir string
@@ -54,6 +77,7 @@ type LoadOptions struct {
 
 // Package is the validated, portable package projection.
 type Package struct {
+	Layout      string
 	Name        string
 	Version     string
 	Description string
@@ -95,6 +119,7 @@ type ServerSpec struct {
 
 // Diagnostic records one non-fatal component skip.
 type Diagnostic struct {
+	Code    string
 	Scope   string
 	Message string
 }

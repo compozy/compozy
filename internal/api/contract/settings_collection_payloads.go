@@ -96,6 +96,7 @@ type SettingsProviderItemPayload struct {
 }
 
 type SettingsMCPServerPayload struct {
+	Headers   map[string]string             `json:"headers,omitempty"`
 	Name      string                        `json:"name"`
 	Transport string                        `json:"transport,omitempty"`
 	Command   string                        `json:"command,omitempty"`
@@ -136,6 +137,7 @@ type SettingsMCPAuthConfigViewPayload struct {
 
 type SettingsMCPAuthStatusPayload struct {
 	ServerName   string     `json:"server_name"`
+	Owner        string     `json:"owner"`
 	Scope        string     `json:"scope"`
 	WorkspaceID  string     `json:"workspace_id,omitempty"`
 	Profile      string     `json:"profile,omitempty"`
@@ -163,7 +165,17 @@ type SettingsMCPServerRuntimeStatusPayload struct {
 	Diagnostic      string `json:"diagnostic,omitempty"`
 }
 
+// SettingsMCPExtensionOverridePayload exposes only validated non-secret override fields.
+type SettingsMCPExtensionOverridePayload struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	URL     string            `json:"url,omitempty"`
+}
+
 type SettingsMCPServerItemPayload struct {
+	Owner          string                                 `json:"owner,omitempty"`
+	RuntimeName    string                                 `json:"runtime_name,omitempty"`
+	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitempty"`
 	Name           string                                 `json:"name"`
 	Transport      string                                 `json:"transport"`
 	Command        string                                 `json:"command,omitempty"`

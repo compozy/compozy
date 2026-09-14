@@ -1709,7 +1709,7 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(nil)),
 		WithLogger(slog.New(logs)),
 	)
 
@@ -2023,7 +2023,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	})
 }
 
-func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
+func TestCreateBlocksMarketplaceSkillMCPServers(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -2042,7 +2042,7 @@ func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(nil)),
 	)
 
 	session := createSession(t, h)

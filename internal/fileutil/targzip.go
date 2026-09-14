@@ -17,10 +17,10 @@ import (
 var (
 	// ErrTarGzipCompressedLimit reports that the compressed stream exceeded its byte budget.
 	ErrTarGzipCompressedLimit = errors.New("fileutil: tar gzip compressed size limit exceeded")
-	// ErrTarGzipUncompressedLimit reports that the raw tar stream exceeded its byte budget.
-	ErrTarGzipUncompressedLimit = errors.New("fileutil: tar gzip uncompressed size limit exceeded")
-	// ErrTarGzipFileCountLimit reports that the archive exceeded its entry budget.
-	ErrTarGzipFileCountLimit = errors.New("fileutil: tar gzip file count limit exceeded")
+	// ErrTarSizeLimit reports that the raw tar stream exceeded its byte budget.
+	ErrTarSizeLimit = errors.New("fileutil: tar size limit exceeded")
+	// ErrTarFileCountLimit reports that the archive exceeded its entry budget.
+	ErrTarFileCountLimit = errors.New("fileutil: tar file count limit exceeded")
 )
 
 // TarGzipLimits bounds the archive while it is produced. Non-positive values disable a limit.
@@ -35,6 +35,18 @@ type TarGzipStats struct {
 	CompressedSize   int64
 	UncompressedSize int64
 	FileCount        int
+}
+
+// TarLimits bounds raw TAR bytes and entries; nonpositive values disable each limit.
+type TarLimits struct {
+	MaxBytes     int64
+	MaxFileCount int
+}
+
+// TarStats reports raw TAR bytes and counted entries, including partial writes.
+type TarStats struct {
+	Bytes     int64
+	FileCount int
 }
 
 // WriteTarGzipDirectory writes a deterministic gzip-compressed tar stream.
@@ -53,12 +65,32 @@ func WriteTarGzipDirectory(
 		return stats, errors.New("fileutil: tar gzip destination is required")
 	}
 
-	compressed := newTarGzipLimitWriter(destination, limits.MaxCompressedSize, ErrTarGzipCompressedLimit)
+	compressed := newArchiveLimitWriter(destination, limits.MaxCompressedSize, ErrTarGzipCompressedLimit)
 	gzipWriter := gzip.NewWriter(compressed)
 	gzipWriter.ModTime = time.Unix(0, 0).UTC()
 	gzipWriter.OS = 255
-	uncompressed := newTarGzipLimitWriter(gzipWriter, limits.MaxUncompressedSize, ErrTarGzipUncompressedLimit)
-	tarWriter := tar.NewWriter(uncompressed)
+	tarStats, tarErr := WriteTarDirectory(ctx, gzipWriter, root, excludeTopLevel, TarLimits{
+		MaxBytes: limits.MaxUncompressedSize, MaxFileCount: limits.MaxFileCount,
+	})
+	gzipCloseErr := gzipWriter.Close()
+	stats.CompressedSize = compressed.written
+	stats.UncompressedSize, stats.FileCount = tarStats.Bytes, tarStats.FileCount
+	return stats, errors.Join(tarErr, gzipCloseErr)
+}
+
+// WriteTarDirectory writes canonical raw TAR, excluding named top-level entries and their descendants.
+func WriteTarDirectory(
+	ctx context.Context,
+	destination io.Writer,
+	root string,
+	excludeTopLevel map[string]struct{},
+	limits TarLimits,
+) (stats TarStats, err error) {
+	if ctx == nil || destination == nil {
+		return stats, errors.New("fileutil: tar context and destination are required")
+	}
+	bounded := newArchiveLimitWriter(destination, limits.MaxBytes, ErrTarSizeLimit)
+	tarWriter := tar.NewWriter(bounded)
 
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -82,22 +114,20 @@ func WriteTarGzipDirectory(
 			return nil
 		}
 		if limits.MaxFileCount > 0 && stats.FileCount >= limits.MaxFileCount {
-			return fmt.Errorf("%w: limit=%d", ErrTarGzipFileCountLimit, limits.MaxFileCount)
+			return fmt.Errorf("%w: limit=%d", ErrTarFileCountLimit, limits.MaxFileCount)
 		}
 		stats.FileCount++
-		return writeTarGzipEntry(ctx, tarWriter, path, relative, entry)
+		return writeTarEntry(ctx, tarWriter, path, relative, entry)
 	})
 	tarCloseErr := tarWriter.Close()
-	gzipCloseErr := gzipWriter.Close()
-	stats.CompressedSize = compressed.written
-	stats.UncompressedSize = uncompressed.written
-	if err := errors.Join(walkErr, tarCloseErr, gzipCloseErr); err != nil {
+	stats.Bytes = bounded.written
+	if err := errors.Join(walkErr, tarCloseErr); err != nil {
 		return stats, fmt.Errorf("fileutil: archive directory %q: %w", root, err)
 	}
 	return stats, nil
 }
 
-func writeTarGzipEntry(
+func writeTarEntry(
 	ctx context.Context,
 	writer *tar.Writer,
 	path string,
@@ -137,12 +167,12 @@ func writeTarGzipEntry(
 		return nil
 	}
 
-	file, err := os.Open(path)
+	file, err := OpenRegularFile(path)
 	if err != nil {
 		return fmt.Errorf("fileutil: open archive entry %q: %w", path, err)
 	}
 	defer func() {
-		err = errors.Join(err, closeTarGzipFile(file, path))
+		err = errors.Join(err, closeArchiveFile(file, path))
 	}()
 	if _, err := io.Copy(writer, &contextReader{ctx: ctx, reader: file}); err != nil {
 		return fmt.Errorf("fileutil: write archive entry %q: %w", path, err)
@@ -162,18 +192,18 @@ func (r *contextReader) Read(buffer []byte) (int, error) {
 	return r.reader.Read(buffer)
 }
 
-type tarGzipLimitWriter struct {
+type archiveLimitWriter struct {
 	destination io.Writer
 	limit       int64
 	written     int64
 	limitErr    error
 }
 
-func newTarGzipLimitWriter(destination io.Writer, limit int64, limitErr error) *tarGzipLimitWriter {
-	return &tarGzipLimitWriter{destination: destination, limit: limit, limitErr: limitErr}
+func newArchiveLimitWriter(destination io.Writer, limit int64, limitErr error) *archiveLimitWriter {
+	return &archiveLimitWriter{destination: destination, limit: limit, limitErr: limitErr}
 }
 
-func (w *tarGzipLimitWriter) Write(data []byte) (int, error) {
+func (w *archiveLimitWriter) Write(data []byte) (int, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
@@ -204,7 +234,7 @@ func (w *tarGzipLimitWriter) Write(data []byte) (int, error) {
 	return written, nil
 }
 
-func closeTarGzipFile(file *os.File, path string) error {
+func closeArchiveFile(file *os.File, path string) error {
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("fileutil: close archive entry %q: %w", path, err)
 	}

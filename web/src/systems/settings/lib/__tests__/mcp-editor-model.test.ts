@@ -1,3 +1,9 @@
+import {
+  toMCPOverrideDraft,
+  toMCPOverrideRequest,
+  validateMCPOverride,
+} from "../mcp-override-model";
+import { mcpDefinitionKey } from "../mcp-management-target";
 import { describe, expect, it } from "vitest";
 
 import type { SettingsMCPServerEntry } from "../../types";
@@ -480,5 +486,71 @@ describe("validateDraft", () => {
         },
       }).valid
     ).toBe(true);
+  });
+});
+
+// Invariant: extension overrides contain only editable values, with no manifest or credential fields.
+// Owner: Settings editor serialization; canonical suite: mcp-editor-model.test.ts.
+describe("extension MCP overrides", () => {
+  it("Should initialize only explicit overrides and preserve empty values", () => {
+    const entry = {
+      ...remoteEntry(),
+      owner: "extension:linear",
+      override: {
+        headers: { "X-Team": "  exact  ", "X-Empty": "" },
+        url: "https://override.example/mcp",
+      },
+    };
+    const draft = toMCPOverrideDraft(entry);
+    expect(draft.env).toEqual([]);
+    expect(toMCPOverrideRequest(entry.name, draft)).toEqual({
+      server: {
+        name: "linear",
+        env: {},
+        headers: { "X-Team": "  exact  ", "X-Empty": "" },
+        url: "https://override.example/mcp",
+      },
+    });
+    expect(toMCPOverrideDraft(remoteEntry())).toEqual({ env: [], headers: [], url: "" });
+  });
+  it("Should reject duplicate headers, multiline values and transport-incompatible overrides", () => {
+    expect(
+      validateMCPOverride(
+        {
+          env: [],
+          headers: [
+            { key: "X-Team", value: "a" },
+            { key: "x-team", value: "b" },
+            { key: "X-Line", value: "a\r\nb" },
+          ],
+          url: "",
+        },
+        "http"
+      ).errors.headers
+    ).toEqual({ 1: "Duplicate name", 2: "Invalid value" });
+    expect(
+      validateMCPOverride({ env: [{ key: "REGION", value: "us" }], headers: [], url: "" }, "http")
+        .valid
+    ).toBe(false);
+    expect(validateMCPOverride({ env: [], headers: [], url: "" }, "http").valid).toBe(true);
+    expect(
+      validateMCPOverride({ env: [], headers: [], url: "https://user:secret@example.test" }, "http")
+        .valid
+    ).toBe(false);
+  });
+  it("Should distinguish equal names across owner and scope", () => {
+    const manual = remoteEntry();
+    const extension = { ...manual, owner: "extension:kit" };
+    const sibling = { ...extension, owner: "extension:other" };
+    const scoped: SettingsMCPServerEntry = {
+      ...extension,
+      scope: "workspace",
+      workspace_id: "ws-b",
+      source_metadata: {
+        available_targets: [],
+        effective_source: { kind: "extension", scope: "workspace", workspace_id: "ws-b" },
+      },
+    };
+    expect(new Set([manual, extension, sibling, scoped].map(mcpDefinitionKey)).size).toBe(4);
   });
 });

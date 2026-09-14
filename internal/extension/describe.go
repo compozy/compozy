@@ -25,6 +25,13 @@ const (
 
 // DescribeExtension projects one extension snapshot into the shared CLI/API payload.
 func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contract.ExtensionPayload {
+	return DescribeExtensionForProfile(ext, daemonRunning, now, hostAPIBridgesDefaultKey)
+}
+
+// DescribeExtensionForProfile projects package metadata through the selected profile placement.
+func DescribeExtensionForProfile(
+	ext *Extension, daemonRunning bool, now time.Time, profileName string,
+) contract.ExtensionPayload {
 	if ext == nil {
 		return contract.ExtensionPayload{}
 	}
@@ -34,9 +41,13 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		uptimeSeconds = max(int64(now.Sub(ext.Status.LastStartedAt).Seconds()), 0)
 	}
 
+	description := ""
+	layout := ext.Info.Provenance.Layout
 	requiresEnv := []string(nil)
 	missingEnv := []string(nil)
 	if ext.Manifest != nil {
+		description = ext.Manifest.Description
+		layout = ext.Manifest.Layout
 		requiresEnv = append(requiresEnv, ext.Manifest.RequiresEnv...)
 		if !ext.Status.MissingEnvChecked {
 			missingEnv = ext.Manifest.MissingEnv(nil)
@@ -45,7 +56,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	if len(ext.Status.MissingEnv) > 0 {
 		missingEnv = append([]string(nil), ext.Status.MissingEnv...)
 	}
-	state := extensionState(ext.Info, ext.Status, daemonRunning)
+	state := extensionState(&ext.Info, ext.Status, daemonRunning)
 	lastError := ext.Status.LastError
 	bootDiagnostic := devBootFailureDiagnostic(ext.Status.FailureCode)
 	if bootDiagnostic != "" {
@@ -57,11 +68,17 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	}
 
 	return contract.ExtensionPayload{
-		Name:                     ext.Info.Name,
-		Profile:                  hostAPIBridgesDefaultKey,
+		Name:        ext.Info.Name,
+		Description: description,
+		Layout:      layout,
+		Contents:    extensionSnapshotContentsForProfile(ext, profileName),
+		MCPServers:  extensionServerPayloads(ext, profileName),
+		Inputs:      []contract.ExtensionInputStatePayload{}, MissingInputs: []string{},
+		Origin:                   extensionOriginPayload(ext.Info.Provenance),
+		Profile:                  profileName,
 		WorkspaceID:              ext.Status.WorkspaceID,
 		Version:                  ext.Info.Version,
-		Type:                     extensionType(ext.Manifest, ext.Info),
+		Type:                     extensionType(ext.Manifest, &ext.Info),
 		Format:                   string(normalizeExtensionFormat(ext.Info.Format)),
 		Source:                   ext.Info.Source.String(),
 		Enabled:                  ext.Info.Enabled,
@@ -75,14 +92,14 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 			(strings.TrimSpace(ext.Info.NetworkConfirmedBy) == "" || ext.Info.NetworkConfirmedAt.IsZero()),
 		PID:                 ext.Status.PID,
 		UptimeSeconds:       uptimeSeconds,
-		Health:              extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
+		Health:              extensionHealth(ext.Manifest, &ext.Info, ext.Status, daemonRunning),
 		HealthMessage:       ext.Status.HealthMessage,
 		LastError:           lastError,
 		FailureCode:         ext.Status.FailureCode,
 		ConsecutiveFailures: ext.Status.ConsecutiveFailures,
 		RestartBackoffMS:    ext.Status.RestartBackoff.Milliseconds(),
 		GenerationHash:      ext.Status.GenerationHash,
-		Dev:                 ext.DevLink != nil || ext.Status.WorkspaceID != "",
+		Dev:                 ext.DevLink != nil,
 		OverridesPublished:  ext.OverridesPublished,
 		OriginPath:          originPath,
 		RemoteVersion:       dereferenceOptionalString(ext.Info.RemoteVersion),
@@ -90,25 +107,25 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		DaemonRunning:       daemonRunning,
 		Provenance:          extensionProvenancePayload(ext.Info.Provenance),
 		Trust:               extensionTrustPayload(ext.Info.Provenance),
-		Diagnostics:         extensionProjectionDiagnostics(ext.Info),
+		Diagnostics:         extensionProjectionDiagnostics(&ext.Info),
 	}
 }
 
-func extensionProjectionDiagnostics(info ExtensionInfo) []contract.DiagnosticItem {
+func extensionProjectionDiagnostics(info *ExtensionInfo) []contract.DiagnosticItem {
 	diagnostics := make([]contract.DiagnosticItem, 0, len(info.IngestDiagnostics)+len(info.Provenance.Warnings))
 	diagnostics = append(diagnostics, info.IngestDiagnostics...)
 	diagnostics = append(diagnostics, info.Provenance.Warnings...)
 	return diagnostics
 }
 
-func extensionType(manifest *Manifest, info ExtensionInfo) string {
+func extensionType(manifest *Manifest, info *ExtensionInfo) string {
 	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Permissions.Requires) > 0 {
 		return describeSubprocessKey
 	}
 	return describeResourceKey
 }
 
-func extensionState(info ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
+func extensionState(info *ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
 	if !info.Enabled {
 		return describeDisabledKey
 	}
@@ -127,7 +144,7 @@ func extensionState(info ExtensionInfo, status ExtensionStatus, daemonRunning bo
 	return extensionStateEnabled
 }
 
-func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
+func extensionHealth(manifest *Manifest, info *ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
 	if !daemonRunning {
 		return extensionHealthUnknown
 	}
@@ -156,6 +173,11 @@ func extensionProvenancePayload(
 	}
 	return &contract.ExtensionProvenancePayload{
 		Slug:                value.Slug,
+		SourceName:          value.SourceName,
+		SourceRef:           value.SourceRef,
+		EntryID:             value.EntryID,
+		ResolvedRef:         value.ResolvedRef,
+		Layout:              value.Layout,
 		CatalogEntryID:      value.CatalogEntryID,
 		InstalledFrom:       value.InstalledFrom,
 		SourceURL:           value.SourceURL,
@@ -187,7 +209,7 @@ func extensionTrustPayload(value ExtensionProvenance) *contract.ExtensionTrustRe
 }
 
 func hasExtensionProvenance(value ExtensionProvenance) bool {
-	return value.Slug != "" ||
+	return value.SourceRef != "" || value.EntryID != "" || value.Slug != "" ||
 		value.CatalogEntryID != "" ||
 		value.InstalledFrom != "" ||
 		value.SourceURL != "" ||

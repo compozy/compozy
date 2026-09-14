@@ -1,5 +1,5 @@
 // Suite: Extension log stream
-// Invariant: one `(name, workspace)` Query snapshot owns log data, while the XState store owns only
+// Invariant: one `(name, workspace, profile)` Query snapshot owns log data, while the XState store owns only
 // follow and connection lifecycle. Every resumed cursor is paired with its stream epoch, and a
 // daemon ring replacement atomically replaces the cached snapshot before later deltas append.
 // Boundary IN: useExtensionLogs stream lifecycle and canonical cache updates.
@@ -26,6 +26,7 @@ import {
   EXTENSION_LOG_EVENT_NAME,
   EXTENSION_LOG_RESET_EVENT_NAME,
   useExtensionLogs,
+  type UseExtensionLogsOptions,
 } from "../use-extension-logs";
 
 class FakeEventSource {
@@ -105,13 +106,14 @@ function setup(
   }
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
+  const initialProps: UseExtensionLogsOptions = { enabled, name, workspaceId };
   const view = renderHook(
-    (props: { enabled?: boolean; name: string; workspaceId: string | null }) =>
+    (props: UseExtensionLogsOptions) =>
       useExtensionLogs({
         ...props,
         ...(provideEventSourceFactory ? { eventSourceFactory } : {}),
       }),
-    { initialProps: { enabled, name, workspaceId }, wrapper }
+    { initialProps, wrapper }
   );
   return { client, sources, ...view };
 }
@@ -419,6 +421,45 @@ describe("useExtensionLogs", () => {
     await waitFor(() => expect(view.sources).toHaveLength(2));
     act(() => view.sources[1]?.onopen?.(new Event("open")));
     expect(view.result.current.status).toBe("live");
+  });
+
+  it("Should replace profile stream state without mixing same-name log snapshots", async () => {
+    const view = setup("ops-extension", "ws_northstar");
+    await waitFor(() => expect(view.sources).toHaveLength(1));
+    act(() => view.result.current.setFollow(false));
+    mocks.listExtensionLogs.mockResolvedValueOnce(
+      logSnapshot("epoch-growth", [logEntry(1, "growth boot", "epoch-growth")])
+    );
+    view.rerender({ name: "ops-extension", workspaceId: "ws_northstar", profileName: "growth" });
+    await waitFor(() => expect(view.sources).toHaveLength(2));
+    expect(view.result.current.follow).toBe(true);
+    expect(view.result.current.entries.map(entry => entry.message)).toEqual(["growth boot"]);
+    expect(mocks.listExtensionLogs).toHaveBeenLastCalledWith(
+      "ops-extension",
+      { workspaceId: "ws_northstar", profileName: "growth" },
+      expect.any(AbortSignal)
+    );
+    const params = new URL(view.sources[1]!.url, "http://localhost").searchParams;
+    expect(params.get("profile")).toBe("growth");
+    expect(params.get("workspace")).toBe("ws_northstar");
+    expect(params.get("stream_epoch")).toBe("epoch-growth");
+    act(() => {
+      view.sources[0]?.emitAfterClose(EXTENSION_LOG_EVENT_NAME, logEntry(2, "late default line"));
+      view.sources[1]?.emit(EXTENSION_LOG_EVENT_NAME, logEntry(2, "growth line", "epoch-growth"));
+    });
+    await waitFor(() =>
+      expect(view.result.current.entries.map(entry => entry.message)).toEqual([
+        "growth boot",
+        "growth line",
+      ])
+    );
+    expect(
+      view.client
+        .getQueryData<ExtensionLogsSnapshot>(
+          extensionLogsOptions("ops-extension", { workspaceId: "ws_northstar" }).queryKey
+        )
+        ?.logs.map(entry => entry.message)
+    ).toEqual(["boot"]);
   });
 
   it("Should recreate the scoped Query and reject late frames when the instance changes", async () => {

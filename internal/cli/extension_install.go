@@ -23,12 +23,21 @@ func installExtension(
 	if running {
 		return client.InstallExtension(ctx, request)
 	}
+	if request.Profile != "" || request.WorkspaceID != "" || request.Scope == workspaceFlagName {
+		return ExtensionRecord{}, errors.New("cli: scoped extension installation requires a running daemon")
+	}
 	if request.Source != contract.InstallExtensionSourceLocalPath {
 		return ExtensionRecord{}, errors.New("cli: extension install from a published source requires a running daemon")
 	}
 	prepared, err := prepareExtensionInstall(request.Ref)
 	if err != nil {
 		return ExtensionRecord{}, err
+	}
+	if err := extensionpkg.CheckExpectedDigest(request.ExpectedDigest, prepared.Checksum); err != nil {
+		return ExtensionRecord{}, err
+	}
+	if len(request.Inputs) > 0 || len(prepared.Manifest.Inputs) > 0 {
+		return ExtensionRecord{}, errors.New("cli: extension install with manifest inputs requires a running daemon")
 	}
 
 	return withLocalExtensionRegistry(
@@ -56,7 +65,7 @@ func installExtension(
 			if err != nil {
 				return ExtensionRecord{}, err
 			}
-			return localExtensionRecord(*info, deps.now, deps.getenv), nil
+			return localExtensionRecord(ctx, info, deps.now, deps.getenv)
 		},
 	)
 }

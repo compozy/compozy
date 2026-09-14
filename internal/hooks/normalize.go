@@ -70,7 +70,7 @@ func normalizeHookDecl(decl HookDecl, resolve ExecutorResolver, bindExecutor boo
 
 	registered := RegisteredHook{
 		Name:      normalized.Name,
-		ProfileID: normalized.ProfileID,
+		ProfileID: normalized.PlacementProfileID(),
 		Event:     normalized.Event,
 		Source:    normalized.Source,
 		Mode:      normalized.Mode,
@@ -191,25 +191,25 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 
 func cloneNormalizedHookDecl(decl HookDecl) HookDecl {
 	return HookDecl{
-		Name:         strings.TrimSpace(decl.Name),
-		ProfileID:    strings.TrimSpace(decl.ProfileID),
-		Event:        decl.Event,
-		Source:       decl.Source,
-		Mode:         decl.Mode,
-		Required:     decl.Required,
-		Priority:     decl.Priority,
-		PrioritySet:  decl.PrioritySet,
-		Timeout:      decl.Timeout,
-		Enabled:      cloneBoolPtr(decl.Enabled),
-		Matcher:      normalizeHookMatcher(decl.Matcher),
-		ExecutorKind: decl.ExecutorKind,
-		Command:      strings.TrimSpace(decl.Command),
-		Args:         append([]string(nil), decl.Args...),
-		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
-		Env:          cloneStringMap(decl.Env),
-		SecretEnv:    cloneStringMap(decl.SecretEnv),
-		Metadata:     cloneStringMap(decl.Metadata),
-		SkillSource:  decl.SkillSource,
+		HookPlacement: decl.ClonePlacement(),
+		Name:          strings.TrimSpace(decl.Name),
+		Event:         decl.Event,
+		Source:        decl.Source,
+		Mode:          decl.Mode,
+		Required:      decl.Required,
+		Priority:      decl.Priority,
+		PrioritySet:   decl.PrioritySet,
+		Timeout:       decl.Timeout,
+		Enabled:       cloneBoolPtr(decl.Enabled),
+		Matcher:       normalizeHookMatcher(decl.Matcher),
+		ExecutorKind:  decl.ExecutorKind,
+		Command:       strings.TrimSpace(decl.Command),
+		Args:          append([]string(nil), decl.Args...),
+		WorkingDir:    strings.TrimSpace(decl.WorkingDir),
+		Env:           cloneStringMap(decl.Env),
+		SecretEnv:     cloneStringMap(decl.SecretEnv),
+		Metadata:      cloneStringMap(decl.Metadata),
+		SkillSource:   decl.SkillSource,
 	}
 }
 

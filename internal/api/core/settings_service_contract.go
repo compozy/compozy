@@ -8,7 +8,6 @@ import (
 
 // SettingsService exposes the daemon-owned settings read and mutation surface to API transports.
 type SettingsService interface {
-	MCPSettingsInstaller
 	MCPSettingsAuth
 	ProviderModelSettingsCurator
 	GetSection(ctx context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)

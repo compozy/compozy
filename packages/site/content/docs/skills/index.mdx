@@ -33,10 +33,10 @@ only when it needs it.
     meta="Authoring"
   />
   <RouteRow
-    href="/docs/skills/marketplace"
-    label="Marketplace"
-    title="Discover and install community skills"
-    description="Use this page to install, update, and remove ClawHub-sourced skills with `compozy skill`."
+    href="/docs/extensions/install"
+    label="Distribution"
+    title="Install skills packaged with extensions"
+    description="Install versioned extension resources, then inspect and manage the included skills locally."
     meta="Distribution"
   />
   <RouteRow
@@ -106,16 +106,16 @@ CompozyOS resolves eight layers of filesystem-backed skills. The final layer com
 agent's `skills/` directory when one effective agent is selected. Later rows override earlier rows
 when the same skill name is visible.
 
-| Precedence | Tier                | Directory or owner                                                       | Notes                                                                        |
-| ---------- | ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
-| 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
-| 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                      |
-| 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                             |
-| 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                   |
-| 6          | `workspace`         | `<workspace>/.compozy/skills/...` plus workspace configured roots        | The project's own skills.                                                    |
-| 7          | `workspace_profile` | `<workspace>/.compozy/profiles/<name>/skills/...` plus its source roots  | Binds only while that profile is active. Repository-authored, read-only.     |
-| 8          | `agent_local`       | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                         |
+| Precedence | Tier                | Directory or owner                                                       | Notes                                                                                      |
+| ---------- | ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.                            |
+| 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Previously acquired skills retain their provenance. Load-time hash verification must pass. |
+| 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                                    |
+| 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                                           |
+| 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                                 |
+| 6          | `workspace`         | `<workspace>/.compozy/skills/...` plus workspace configured roots        | The project's own skills.                                                                  |
+| 7          | `workspace_profile` | `<workspace>/.compozy/profiles/<name>/skills/...` plus its source roots  | Binds only while that profile is active. Repository-authored, read-only.                   |
+| 8          | `agent_local`       | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                                       |
 
 Agent-local is resolved from the winning `AGENT.md` directory only after CompozyOS chooses the
 effective agent definition for that scope. It does not create a separate skill mode; it only
@@ -362,18 +362,9 @@ At session start, CompozyOS merges MCP servers in this order:
 3. agent MCP servers
 4. skill MCP servers
 
-Marketplace skill MCP servers are blocked unless `skills.allowed_marketplace_mcp` contains one of
-the skill's consent keys: the marketplace slug, `registry:slug`, or the installed hash.
-
-```toml
-[skills]
-allowed_marketplace_mcp = ["@author/postgres-tools"]
-
-[skills.marketplace]
-registry = "clawhub"
-```
-
-There is no interactive MCP consent prompt today. Consent is a static config allowlist.
+MCP servers embedded in installed Marketplace skills are blocked. The retired MCP allowlist cannot
+enable them. Skill content and provenance remain available; manual and extension-provided MCP
+servers keep their existing configuration and credentials.
 
 ## Reload And Failure Behavior
 
@@ -391,12 +382,25 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 | Critical verification finding | The skill is blocked from loading.                                                                                                                      |
 | Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |
 
+## Installed skill provenance
+
+Existing skills installed from a registry keep their `.compozy-meta.json` sidecar. It records
+`hash`, `registry`, `slug`, `version` and `installed_at`. CompozyOS verifies the installed
+directory hash on load; a mismatch blocks the skill. The ordinary content scanner still applies.
+Local skill list, info, view and exposure operations continue to work without contacting ClawHub.
+The sidecar is provenance for installed content; it does not enable remote acquisition.
+
+Standalone registry search, install, update and removal commands are retired. Acquire new packaged
+skills through extensions, and manage their package through the extension lifecycle. Existing
+installed-skill hook declarations remain subject to the configured hook allowlist; embedded MCP
+declarations stay blocked.
+
 ## Related Pages
 
 - [Use skills from your other tools](/docs/skills/sources) walks through source configuration, origin
   labels, and exposing a skill back to another tool.
 - [SKILL.md Format](/docs/skills/skill-md) documents the file format and schema.
-- [Marketplace](/docs/skills/marketplace) shows how to search, install, update, and remove skills.
+- [Extension installation](/docs/extensions/install) explains how to acquire packaged skills.
 - [Bundled Skill](/docs/skills/bundled) documents the `compozy` skill shipped in the CompozyOS binary.
 - [Agent Definitions](/docs/agents/definitions) explains how agents and skill-aware MCP servers meet at session start.
 - [Spawning](/docs/agents/spawning) follows the ACP startup path that receives skill MCP servers.

@@ -91,13 +91,12 @@ TOML overlays are field-aware. A field changes only when the overlay provides th
 | Unknown TOML keys                       | Fail config loading with an unknown-key error.                            |
 | Missing config files                    | Treated as absent.                                                        |
 
-This example keeps the global marketplace URL while changing only skill enablement:
+This example keeps the global skill scan interval while changing only skill enablement:
 
 ```toml
 # ~/.compozy/config.toml
-[skills.marketplace]
-registry = "clawhub"
-base_url = "https://registry.example.test/api/v1"
+[skills]
+poll_interval = "5m"
 ```
 
 ```toml
@@ -106,8 +105,8 @@ base_url = "https://registry.example.test/api/v1"
 enabled = false
 ```
 
-The final config has `skills.enabled = false`, but keeps the global marketplace registry and
-`base_url`.
+The final config has `skills.enabled = false`, while the inherited `skills.poll_interval = "5m"`
+remains in effect.
 
 ## MCP Sidecars
 

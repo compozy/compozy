@@ -320,15 +320,8 @@ describe("marketplace operator selectors", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const selectors = marketplaceOperatorSelectors({ getByTestId });
 
-    expect(selectors.kindNavigation).toBe(`locator:${marketplaceOperatorTestIds.kindNavigation}`);
     expect(selectors.detail).toBe(`locator:${marketplaceOperatorTestIds.detail}`);
     expect(selectors.detailAction).toBe(`locator:${marketplaceOperatorTestIds.detailAction}`);
-    expect(selectors.mcpInstallDialog).toBe(
-      `locator:${marketplaceOperatorTestIds.mcpInstallDialog}`
-    );
-    expect(selectors.mcpInstallConfirm).toBe(
-      `locator:${marketplaceOperatorTestIds.mcpInstallConfirm}`
-    );
     expect(selectors.extensionKitInventory).toBe(
       `locator:${marketplaceOperatorTestIds.extensionKitInventory}`
     );
@@ -346,13 +339,6 @@ describe("marketplace operator selectors", () => {
     );
     expect(selectors.card("browser-skill")).toBe("locator:marketplace-card-browser-skill");
     expect(selectors.action("browser-skill")).toBe("locator:marketplace-action-browser-skill");
-    expect(selectors.kind("skill")).toBe("locator:marketplace-kind-skill");
-    expect(selectors.mcpVaultSelector("BROWSER_TOKEN")).toBe(
-      "locator:mcp-vault-selector-BROWSER_TOKEN"
-    );
-    expect(selectors.mcpCreateSecret("BROWSER_TOKEN")).toBe(
-      "locator:mcp-create-secret-BROWSER_TOKEN"
-    );
   });
 });
 
@@ -429,12 +415,6 @@ describe("settings operator selectors", () => {
     expect(selectors.skills.disabledToggle("browser-disabled-skill")).toBe(
       "locator:settings-page-skills-disabled-toggle-browser-disabled-skill"
     );
-    expect(selectors.skills.policyRegistryInput).toBe(
-      `locator:${settingsSkillsTestIds.policyRegistryInput}`
-    );
-    expect(selectors.skills.policyBaseURLInput).toBe(
-      `locator:${settingsSkillsTestIds.policyBaseURLInput}`
-    );
     expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
     expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
     expect(selectors.providers.editor).toBe(`locator:${settingsProvidersTestIds.editor}`);
@@ -452,13 +432,13 @@ describe("settings operator selectors", () => {
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
     expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
     expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
-      "locator:marketplace-installed-card-browser-global-mcp"
+      "locator:settings-page-mcp-servers-row-browser-global-mcp"
     );
     expect(selectors.mcpServers.rowSource("browser-global-mcp")).toBe(
-      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] [data-slot="pill"]'
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-source"
     );
     expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
-      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] button[aria-label^="More for"]'
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
     );
     expect(selectors.mcpServers.editorRemove).toBe("locator:settings-mcp-servers-editor-remove");
 

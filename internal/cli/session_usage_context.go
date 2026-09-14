@@ -14,7 +14,7 @@ func sessionContextHuman(value contract.SessionContextPayload) string {
 	if (value.State == "" || value.State == contract.SessionContextStateUnknown) && value.Injected == nil {
 		return ""
 	}
-	rows := []keyValue{{Label: "State", Value: string(value.State)}}
+	rows := []keyValue{{Label: authoredContextStateValue, Value: string(value.State)}}
 	if value.Used != nil {
 		used := formatInt64Ptr(value.Used)
 		if value.Size != nil {

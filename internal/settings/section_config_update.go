@@ -42,6 +42,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateObservabilitySection(ctx, req)
 	case SectionHooksExtensions:
 		return s.updateHooksExtensionsSection(ctx, req)
+	case SectionMarketplace:
+		return s.updateMarketplaceSection(ctx, req)
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
 	}

@@ -1,48 +1,67 @@
-import { Skeleton } from "@compozy/ui";
+import type { ReactNode } from "react";
 
-import type { MarketplaceListing } from "../types";
-import { MarketplaceCard } from "./marketplace-card";
+import { cn, Skeleton } from "@compozy/ui";
 
 interface MarketplaceGridProps {
-  entries: readonly MarketplaceListing[];
-  isEntryPending?: (entry: MarketplaceListing) => boolean;
-  onAction: (entry: MarketplaceListing) => void;
+  children: ReactNode;
+  className?: string;
+  "data-testid"?: string;
 }
 
-function MarketplaceGrid({ entries, isEntryPending, onAction }: MarketplaceGridProps) {
+/** Row-card grid: two columns from 960px of window width (container query), one below. */
+function MarketplaceGrid({
+  children,
+  className,
+  "data-testid": testId = "marketplace-grid",
+}: MarketplaceGridProps) {
   return (
     <div
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-      data-testid="marketplace-grid"
+      className={cn("grid grid-cols-1 gap-2 @min-[960px]:grid-cols-2", className)}
+      data-testid={testId}
       data-view="cards"
     >
-      {entries.map(entry => (
-        <MarketplaceCard
-          entry={entry}
-          key={`${entry.kind}:${entry.entry_id}`}
-          onAction={onAction}
-          pending={isEntryPending?.(entry) ?? false}
-        />
-      ))}
+      {children}
     </div>
   );
 }
 
-function MarketplaceGridSkeleton({ count = 6 }: { count?: number }) {
+const SKELETON_WIDTHS = [
+  [38, 78],
+  [52, 64],
+  [30, 84],
+  [44, 70],
+  [36, 76],
+  [48, 62],
+] as const;
+
+/** Skeleton rows in the real grid: static blocks, no shimmer — the row grammar is the signal. */
+function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; className?: string }) {
   return (
-    <div
-      aria-label="Loading marketplace entries"
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-      role="status"
+    <MarketplaceGrid
+      className={cn(
+        "[&_[data-slot=skeleton]]:animate-none [&_[data-slot=skeleton]]:bg-surface-glaze [&_[data-slot=skeleton]]:bg-none",
+        className
+      )}
+      data-testid="marketplace-grid-skeleton"
     >
-      {Array.from({ length: count }, (_, index) => (
-        <div className="flex min-h-38 flex-col rounded-lg bg-canvas-soft p-4" key={index}>
-          <Skeleton className="h-2.5 w-3/5" />
-          <Skeleton className="mt-1.5 h-2.5 w-5/6" />
-          <Skeleton className="mt-auto h-2.5 w-2/5" />
-        </div>
-      ))}
-    </div>
+      {Array.from({ length: count }, (_, index) => {
+        const [title, description] = SKELETON_WIDTHS[index % SKELETON_WIDTHS.length]!;
+        return (
+          <div
+            aria-hidden="true"
+            className="grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-canvas-soft px-3 py-2.5"
+            key={index}
+          >
+            <Skeleton className="size-(--size-provider-logo-well) rounded-md" />
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Skeleton className="h-2.75" style={{ width: `${title}%` }} />
+              <Skeleton className="h-2.5" style={{ width: `${description}%` }} />
+            </div>
+            <Skeleton className="h-6 w-13 rounded-md" />
+          </div>
+        );
+      })}
+    </MarketplaceGrid>
   );
 }
 

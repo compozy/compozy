@@ -1,0 +1,66 @@
+{
+    "entry": {
+        "source_ref": "github:acme/plugins",
+        "layout": "claude-plugin",
+        "installable": true,
+        "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "entry_id": "tool",
+        "name": "Tool",
+        "description": "Team engineering tools",
+        "version": "1.0.0",
+        "author": "acme",
+        "install_slug": "team/tool",
+        "source": "team",
+        "tier": "unverified",
+        "format": "declarative",
+        "installed": false,
+        "update_available": false,
+        "trust": {
+            "decision": "allowed_unverified",
+            "registry_tier": "unverified",
+            "checksum_verified": false,
+            "allow_unverified": true
+        }
+    },
+    "extension": {
+        "resolved_ref": "cccccccccccccccccccccccccccccccccccccccc",
+        "layout": "claude-plugin",
+        "inputs": [
+            {
+                "id": "token",
+                "prompt": "Access token",
+                "type": "secret",
+                "required": true,
+                "binding": {
+                    "type": "header",
+                    "name": "Authorization"
+                }
+            }
+        ],
+        "mcp_servers": [
+            {
+                "name": "tools",
+                "owner": "tool",
+                "scope": "global",
+                "transport": "http",
+                "launch": "remote",
+                "status": "ready",
+                "runtime_name": "tool--tools",
+                "auth": {
+                    "method": "none"
+                }
+            }
+        ],
+        "contents": {
+            "skills": 1,
+            "mcp_servers": 1,
+            "hooks": 0,
+            "loops": 0,
+            "agents": 0,
+            "bridges": 0
+        },
+        "install_slug": "team/tool",
+        "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "repository": "https://github.com/acme/plugins"
+    }
+}

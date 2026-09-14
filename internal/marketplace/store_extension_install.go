@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// GetExtensionByInstallSlug resolves one exact feed-authoritative extension acquisition row.
+// GetExtensionByInstallSlug resolves a canonical catalog slug or a retained feed acquisition slug.
 func (s *SQLiteStore) GetExtensionByInstallSlug(
 	ctx context.Context,
 	installSlug string,
@@ -22,6 +22,19 @@ func (s *SQLiteStore) GetExtensionByInstallSlug(
 		return nil, errors.New("marketplace catalog: extension install slug is required")
 	}
 	trimmedVersion := strings.TrimSpace(version)
+	if entryID, canonical := strings.CutPrefix(trimmedSlug, "compozy/"); canonical && entryID != "" {
+		entry, err := s.GetEntry(ctx, CompozyCatalogSource, entryID)
+		if err == nil {
+			if trimmedVersion != "" && entry.Version != trimmedVersion {
+				return nil, fmt.Errorf("%w: extension install %s@%s", ErrEntryNotFound, trimmedSlug, trimmedVersion)
+			}
+			entry.InstallSlug = trimmedSlug
+			return entry, nil
+		}
+		if !errors.Is(err, ErrEntryNotFound) {
+			return nil, err
+		}
+	}
 	row, err := s.repository.GetMarketplaceExtensionByInstallSlug(ctx, trimmedSlug, trimmedVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("%w: extension install %s@%s", ErrEntryNotFound, trimmedSlug, trimmedVersion)

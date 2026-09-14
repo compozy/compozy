@@ -1,8 +1,8 @@
 CREATE TABLE marketplace_catalog_entries (
-	kind           TEXT NOT NULL CHECK (kind IN ('mcp', 'extension', 'skill')),
+	source         TEXT NOT NULL CHECK (trim(source) <> ''),
 	entry_id       TEXT NOT NULL CHECK (trim(entry_id) <> ''),
 	name           TEXT NOT NULL CHECK (trim(name) <> ''),
-	description    TEXT NOT NULL CHECK (trim(description) <> ''),
+	description    TEXT NOT NULL,
 	version        TEXT NOT NULL DEFAULT '',
 	published_at   TEXT,
 	updated_at     TEXT,
@@ -11,17 +11,41 @@ CREATE TABLE marketplace_catalog_entries (
 	install_slug   TEXT,
 	payload_json   TEXT NOT NULL CHECK (json_valid(payload_json)),
 	fetched_at     TEXT NOT NULL CHECK (trim(fetched_at) <> ''),
-	PRIMARY KEY (kind, entry_id)
+	layout         TEXT NOT NULL DEFAULT '',
+ icon           TEXT NOT NULL DEFAULT '',
+ installable    INTEGER NOT NULL DEFAULT 1 CHECK (installable IN (0, 1)),
+ install_blocker TEXT NOT NULL DEFAULT '',
+ resolved_ref   TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY (source, entry_id)
 );
 
-CREATE INDEX idx_marketplace_catalog_entries_kind_name
-	ON marketplace_catalog_entries(kind, name, entry_id);
+CREATE INDEX idx_marketplace_catalog_entries_source_name
+	ON marketplace_catalog_entries(source, name, entry_id);
 
 CREATE TABLE marketplace_catalog_state (
-	kind             TEXT NOT NULL PRIMARY KEY CHECK (kind IN ('mcp', 'extension', 'skill')),
+	source           TEXT NOT NULL PRIMARY KEY CHECK (trim(source) <> ''),
+	source_ref       TEXT NOT NULL DEFAULT '',
+	config_revision  TEXT NOT NULL DEFAULT '',
+	document_digest  TEXT NOT NULL DEFAULT '',
+	diagnostics_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(diagnostics_json) AND json_type(diagnostics_json) = 'array'),
 	manifest_version INTEGER NOT NULL CHECK (manifest_version >= 0),
 	generated_at     TEXT,
 	fetched_at       TEXT NOT NULL DEFAULT '',
 	stale            INTEGER NOT NULL DEFAULT 0 CHECK (stale IN (0, 1)),
-	last_error       TEXT NOT NULL DEFAULT ''
+	last_error       TEXT NOT NULL DEFAULT '',
+ kind_of_source   TEXT NOT NULL DEFAULT 'feed' CHECK (kind_of_source IN ('feed', 'preset', 'custom')),
+ enabled          INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+ plugins          INTEGER NOT NULL DEFAULT 0 CHECK (plugins >= 0),
+ installable      INTEGER NOT NULL DEFAULT 0 CHECK (installable >= 0),
+ error_class      TEXT NOT NULL DEFAULT '',
+ document_path    TEXT NOT NULL DEFAULT '',
+ owner            TEXT NOT NULL DEFAULT '',
+ revision         TEXT NOT NULL DEFAULT '',
+ generation       INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0)
+);
+
+CREATE TABLE marketplace_catalog_config (
+ id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+ generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0),
+ revision TEXT NOT NULL DEFAULT ''
 );

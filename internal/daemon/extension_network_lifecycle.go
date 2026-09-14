@@ -23,7 +23,7 @@ func (s *daemonExtensionService) configureUpdateNetworkGate(
 	}
 	expectedDigest = strings.TrimSpace(expectedDigest)
 	req.PreflightCandidate = func(info extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest) error {
-		digest, required, err := candidateNetworkConfirmationRequirement(info, manifest)
+		digest, required, err := candidateNetworkConfirmationRequirement(&info, manifest)
 		if err != nil || !required {
 			return err
 		}
@@ -33,7 +33,7 @@ func (s *daemonExtensionService) configureUpdateNetworkGate(
 		return nil
 	}
 	req.CommitCandidate = func(info extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest) error {
-		digest, required, err := candidateNetworkConfirmationRequirement(info, manifest)
+		digest, required, err := candidateNetworkConfirmationRequirement(&info, manifest)
 		if err != nil || !required {
 			return err
 		}
@@ -59,7 +59,7 @@ func (s *daemonExtensionService) configureUpdateNetworkGate(
 }
 
 func candidateNetworkConfirmationRequirement(
-	info extensionpkg.ExtensionInfo,
+	info *extensionpkg.ExtensionInfo,
 	manifest *extensionpkg.Manifest,
 ) (string, bool, error) {
 	digest, err := extensionpkg.NetworkParticipationRequirementDigest(manifest.NetworkParticipation)

@@ -24,11 +24,18 @@ func (s *daemonExtensionService) Install(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
+		defer s.marketplaceCache.Hold()()
+	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
 	}
 	installedBy := extensionInstalledBy(actor)
-	prepared, err := s.prepareExtensionInstall(ctx, req, actor, installedBy)
+	prepared, err := s.prepareExtensionInstall(ctx, req, actor, installedBy, target)
 	if err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
@@ -36,26 +43,36 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	event.ExtensionName = prepared.name
-	confirmation, err := s.prepareInstallNetworkConfirmation(
-		prepared.manifest,
-		strings.TrimSpace(req.ConfirmNetworkDigest),
-		actor,
-	)
-	if err != nil {
-		return contract.ExtensionPayload{}, errors.Join(err, prepared.Close())
-	}
 	var item contract.ExtensionPayload
 	mutation := func() error {
-		return s.commitPreparedInstall(ctx, prepared, confirmation, actor, event, &item)
+		if prepared.published != nil {
+			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
+				return s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item)
+			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
+				return readErr
+			}
+		}
+		confirmation, confirmErr := s.prepareInstallNetworkConfirmation(
+			prepared.manifest, strings.TrimSpace(req.ConfirmNetworkDigest), actor,
+		)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
-	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
+	if prepared.published != nil {
+		err = s.lifecycle.withPackageMutation(ctx, []string{prepared.name}, mutation)
+	} else {
+		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
+	}
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
-	return item, nil
+	err = s.notifyMarketplaceExtensionInstalled(ctx, &item)
+	return item, err
 }
 
 func (s *daemonExtensionService) commitPreparedInstall(
@@ -65,51 +82,55 @@ func (s *daemonExtensionService) commitPreparedInstall(
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
+	inputs *extensionInputPlan,
 ) error {
 	if err := prepared.commit(); err != nil {
 		return err
+	}
+	if _, err := (extensionInputBinder{service: s}).Commit(ctx, inputs); err != nil {
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	if confirmation != nil {
 		if err := s.registry.ConfirmNetworkRequirement(
 			extensionpkg.GlobalInstanceKey(prepared.name), confirmation.Digest,
 			confirmation.ConfirmedBy, confirmation.ConfirmedAt,
 		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 		if err := s.recordExtensionNetworkConfirmedEvent(
 			ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
 		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
 	if prepared.manifest != nil && len(prepared.manifest.Profiles) > 0 {
 		if s.profiles == nil {
 			return s.rollbackFailedInstall(
-				ctx, prepared.name, errors.New("daemon: profile manager is required for declared profiles"),
+				ctx, prepared.name, errors.New("daemon: profile manager is required for declared profiles"), inputs,
 			)
 		}
 		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, prepared.manifest)
 		if err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 		if err := s.recordDeclaredProfileCreatedEvents(ctx, actor, prepared.name, results); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
 	if err := s.reload(ctx); err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	var err error
-	*item, err = s.Status(ctx, prepared.name)
+	*item, err = s.installedTargetStatus(ctx, prepared.name, prepared.target)
 	if err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	completedEvent := event
 	completedEvent.Type = eventspkg.ExtensionInstallCompleted
 	completedEvent.ExtensionName = item.Name
 	completedEvent.DigestMatched = item.DigestMatched
 	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
-		return s.rollbackFailedInstall(ctx, prepared.name, err)
+		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	return nil
 }
@@ -146,15 +167,23 @@ func (s *daemonExtensionService) Update(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionUpdatePayload{}, err
 	}
+	if s.marketplaceCache != nil {
+		defer s.marketplaceCache.Hold()()
+	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return contract.ManagedExtensionUpdatePayload{}, err
+	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err := s.lifecycle.withName(ctx, name, func() error {
+	err = s.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
 		var updateErr error
 		items, updateErr = s.updateBatchUnlocked(ctx, contract.UpdateExtensionsRequest{
 			Names:           []string{name},
 			Version:         req.Version,
 			CheckOnly:       req.CheckOnly,
 			AllowUnverified: req.AllowUnverified,
-		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest))
+			Inputs:          req.Inputs,
+		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest), target)
 		return updateErr
 	})
 	if err != nil {
@@ -177,14 +206,21 @@ func (s *daemonExtensionService) UpdateBatch(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return nil, err
 	}
+	if s.marketplaceCache != nil {
+		defer s.marketplaceCache.Hold()()
+	}
+	target, err := s.resolveExtensionScope(ctx, req.Scope, req.WorkspaceID, req.Profile, actor)
+	if err != nil {
+		return nil, err
+	}
 	names, err := s.lifecycleUpdateNames(req)
 	if err != nil {
 		return nil, err
 	}
 	var items []contract.ManagedExtensionUpdatePayload
-	err = s.lifecycle.withNames(ctx, names, func() error {
+	err = s.lifecycle.withPackageMutation(ctx, names, func() error {
 		var updateErr error
-		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "")
+		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "", target)
 		return updateErr
 	})
 	return items, err
@@ -195,17 +231,31 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	req contract.UpdateExtensionsRequest,
 	actor taskpkg.ActorContext,
 	confirmNetworkDigest string,
+	target extensionMutationTarget,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
+	if len(req.Inputs) > 0 && (req.All || len(req.Names) != 1) {
+		return nil, &extensionpkg.ManifestValidationError{
+			Field:   "inputs",
+			Message: "inputs require exactly one extension update",
+		}
+	}
+	names, err := s.scopedMarketplaceUpdateNames(ctx, req, target)
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return []contract.ManagedExtensionUpdatePayload{}, nil
+	}
 	cfg := s.marketplaceConfig()
 	domainReq := extensionpkg.MarketplaceUpdateRequest{
-		Names:                  req.Names,
-		All:                    req.All,
+		Names:                  names,
 		CheckOnly:              req.CheckOnly,
 		Version:                req.Version,
 		AllowUnverified:        req.AllowUnverified,
 		InstalledBy:            extensionInstalledBy(actor),
 		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		ResolveTrust:           s.marketplaceTrustResolver(),
+		ResolvePlugin:          s.resolveMarketplacePluginOrigin,
 	}
 	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
@@ -214,28 +264,8 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
 	confirmed := s.configureUpdateNetworkGate(&domainReq, confirmNetworkDigest, actor)
-	previousCommitCandidate := domainReq.CommitCandidate
-	domainReq.CommitCandidate = func(
-		info extensionpkg.ExtensionInfo,
-		manifest *extensionpkg.Manifest,
-	) error {
-		if previousCommitCandidate != nil {
-			if err := previousCommitCandidate(info, manifest); err != nil {
-				return err
-			}
-		}
-		if manifest == nil || len(manifest.Profiles) == 0 {
-			return nil
-		}
-		if s.profiles == nil {
-			return errors.New("daemon: profile manager is required for declared profiles")
-		}
-		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, manifest)
-		if err != nil {
-			return err
-		}
-		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
-	}
+	s.configureUpdateProfileGate(ctx, &domainReq, actor)
+	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs, target)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,
@@ -262,34 +292,61 @@ func (s *daemonExtensionService) Remove(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	var item contract.ManagedExtensionRemovePayload
-	err := s.lifecycle.withName(ctx, name, func() error {
-		retirement, retireErr := s.retireExtensionSecretBindings(ctx, extensionpkg.GlobalInstanceKey(name))
-		if retireErr != nil {
-			return retireErr
-		}
-		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, s.reload)
-		if removeErr != nil {
-			return errors.Join(removeErr, retirement.rollback(ctx, s))
-		}
-		s.evictExtensionMCPHealth(name, "")
-		item = contract.ManagedExtensionRemovePayload{
-			Name:           removed.Name,
-			Path:           removed.Path,
-			DataPath:       removed.DataPath,
-			QuarantinePath: removed.QuarantinePath,
-			Status:         removed.Status,
-			Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
-		}
-		return s.recordExtensionRemoveEvent(ctx, actor, item)
-	})
-	return item, err
+	return s.removeInstalledExtension(ctx, name, actor, "")
+}
+
+func (s *daemonExtensionService) removeManagedExtensionLocked(
+	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey,
+) (contract.ManagedExtensionRemovePayload, error) {
+	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+	if retireErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, retireErr
+	}
+	removed, removeErr := extensionpkg.RemoveManagedExtension(
+		ctx,
+		s.homePaths,
+		s.registry,
+		name,
+		func(reloadCtx context.Context) error {
+			// A restored registry row means the domain coordinator is compensating the removal.
+			// Restore credentials before consumers resolve the reinstalled declaration.
+			if _, err := s.registry.Get(name); err == nil {
+				if err := retirement.rollback(reloadCtx, s); err != nil {
+					return err
+				}
+				retirement = nil
+			} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				return err
+			}
+			return s.reload(reloadCtx)
+		},
+		func(ctx context.Context) error {
+			if s.mcpAllocations == nil {
+				return nil
+			}
+			return s.mcpAllocations.DeleteWorkspace(ctx, name, key.WorkspaceID)
+		},
+	)
+	if removeErr != nil {
+		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
+	}
+	s.evictExtensionMCPHealth(name, key.WorkspaceID)
+	item := contract.ManagedExtensionRemovePayload{
+		Name:           removed.Name,
+		Path:           removed.Path,
+		DataPath:       removed.DataPath,
+		QuarantinePath: removed.QuarantinePath,
+		Status:         removed.Status,
+		Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
+	}
+	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 
 func (s *daemonExtensionService) rollbackFailedInstall(
 	ctx context.Context,
 	name string,
 	installErr error,
+	inputs *extensionInputPlan,
 ) error {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
@@ -298,7 +355,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
 	defer cancel()
 
-	var rollbackErr error
+	rollbackErr := (extensionInputBinder{service: s}).Rollback(rollbackCtx, inputs)
 	if err := s.registry.Uninstall(trimmedName); err != nil && !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		rollbackErr = errors.Join(
 			rollbackErr,
@@ -342,6 +399,11 @@ func (s *daemonExtensionService) Enable(
 		preview, previewErr := s.previewExtension(ctx, name)
 		if previewErr != nil {
 			return previewErr
+		}
+		if len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0 {
+			return &extensionpkg.InputsRequiredError{
+				MissingInputs: slices.Clone(preview.MissingInputs), MissingEnv: slices.Clone(preview.MissingEnv),
+			}
 		}
 		if len(preview.AgentConflicts) > 0 {
 			return &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}

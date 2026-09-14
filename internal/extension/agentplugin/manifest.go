@@ -5,11 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
-
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 var manifestFields = map[string]struct{}{
@@ -22,24 +18,46 @@ const (
 	jsonObjectIssueMessage = "must be a JSON object"
 )
 
-// Load validates the root manifest and independently discovers portable
-// components. Only root-manifest failures are returned as errors.
+// Load validates the selected manifest and independently discovers its components.
+// Only manifest failures are returned as errors.
 func Load(dir string, opts LoadOptions) (*Package, error) {
 	root, err := canonicalExistingPrefix(dir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
 	}
-	content, err := readManifestContent(root)
+	manifest, err := ReadManifest(root)
 	if err != nil {
-		return nil, err
+		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
+			return nil, err
+		}
+		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
 	}
+	return manifest.Load(opts)
+}
 
-	pkg, schema, err := decodeManifest(content)
+func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
+	root, err := canonicalExistingPrefix(m.root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", m.root, err)
+	}
+	content, layout := m.content, m.Layout
+
+	var pkg *Package
+	if layout == LayoutStandard {
+		var schema string
+		pkg, schema, err = decodeManifest(content)
+		if err == nil {
+			discoverSkills(root, pkg)
+			loadMCP(root, opts.DataDir, schema, pkg)
+		}
+	} else {
+		pkg, err = clientAdapters[layout](root, content, opts)
+	}
 	if err != nil {
 		return nil, err
 	}
-	discoverSkills(root, pkg)
-	loadMCP(root, opts.DataDir, schema, pkg)
+	pkg.Layout = layout
+
 	sort.Slice(pkg.Diagnostics, func(left, right int) bool {
 		if pkg.Diagnostics[left].Scope == pkg.Diagnostics[right].Scope {
 			return pkg.Diagnostics[left].Message < pkg.Diagnostics[right].Message
@@ -49,17 +67,8 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	return pkg, nil
 }
 
-// ReadManifestName reads only the authored package name needed to resolve its data directory.
-// Load still performs the complete schema and component validation exactly once afterward.
-func ReadManifestName(dir string) (string, error) {
-	root, err := canonicalExistingPrefix(dir)
-	if err != nil {
-		return "", fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
-	}
-	content, err := readManifestContent(root)
-	if err != nil {
-		return "", err
-	}
+func (m *ManifestDocument) Name() (string, error) {
+	content := m.content
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(content, &fields); err != nil || fields == nil {
 		return "", &ManifestError{Issues: []Issue{{Path: "$", Message: jsonObjectIssueMessage}}}
@@ -75,24 +84,6 @@ func ReadManifestName(dir string) (string, error) {
 		return "", &ManifestError{Issues: issues}
 	}
 	return name, nil
-}
-
-func readManifestContent(root string) ([]byte, error) {
-	manifestPath := filepath.Join(root, manifestFileName)
-	content, _, err := fileutil.ReadRegularFile(manifestPath)
-	if err == nil {
-		return content, nil
-	}
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json is required"}}}
-	case errors.Is(err, fileutil.ErrSymlink),
-		errors.Is(err, fileutil.ErrDirectory),
-		errors.Is(err, fileutil.ErrNotRegular):
-		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
-	default:
-		return nil, fmt.Errorf("read Agent Plugins manifest %q: %w", manifestPath, err)
-	}
 }
 
 func decodeManifest(content []byte) (*Package, string, error) {

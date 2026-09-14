@@ -67,34 +67,52 @@ beforeEach(() => {
 });
 
 describe("useToggleExtension", () => {
-  it("Should roll an optimistic toggle back and toast the daemon error", async () => {
-    const { queryClient, wrapper } = setup();
-    const original = extensionFixtures.map(extension => ({ ...extension }));
-    queryClient.setQueryData(extensionKeys.list(null, "default"), original);
-    let rejectToggle: ((error: Error) => void) | undefined;
-    mocks.setExtensionEnablement.mockReturnValue(
-      new Promise((_resolve, reject) => {
-        rejectToggle = reject;
-      })
-    );
-    const { result } = renderHook(() => useToggleExtension(), { wrapper });
+  it.each([{}, { profileName: "captured", workspaceId: "ws_captured" }])(
+    "Should roll an optimistic toggle back in its selected scope %j and toast the daemon error",
+    async scope => {
+      const { queryClient, wrapper } = setup();
+      const original = extensionFixtures.map(extension => ({ ...extension }));
+      queryClient.setQueryData(
+        extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default"),
+        original
+      );
+      const unrelatedKey = extensionKeys.list("ws_unrelated", "other");
+      queryClient.setQueryData(unrelatedKey, original);
+      let rejectToggle: ((error: Error) => void) | undefined;
+      mocks.setExtensionEnablement.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectToggle = reject;
+        })
+      );
+      const { result } = renderHook(() => useToggleExtension(), { wrapper });
 
-    act(() => result.current.mutate({ enabled: false, name: "otel-bridge" }));
+      act(() => result.current.mutate({ enabled: false, name: "otel-bridge", ...scope }));
 
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
-      ).toBe(false)
-    );
-    act(() => rejectToggle?.(new Error("daemon refused the toggle")));
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryData<typeof original>(
+            extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default")
+          )?.[0]?.enabled
+        ).toBe(false)
+      );
+      act(() => rejectToggle?.(new Error("daemon refused the toggle")));
 
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
-      ).toBe(true)
-    );
-    expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
-  });
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryData<typeof original>(
+            extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default")
+          )?.[0]?.enabled
+        ).toBe(true)
+      );
+      expect(queryClient.getQueryData(unrelatedKey)).toEqual(original);
+      expect(mocks.setExtensionEnablement).toHaveBeenCalledWith(
+        "otel-bridge",
+        scope.profileName ?? "default",
+        false
+      );
+      expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
+    }
+  );
 
   it("Should change enablement only for the active profile", async () => {
     mocks.activeProfileName = "growth";
@@ -169,6 +187,29 @@ describe("useToggleExtension", () => {
 });
 
 describe("useUpdateExtension", () => {
+  // Invariant: the mutation uses explicit installation identity and input values together.
+  // Owner: extension action data mapping; canonical suite: use-extension-actions.test.tsx.
+  it("Should forward input recovery for the selected published installation", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
+    const inputs = { project_ref: { value: "new-project" }, tracing: { value: false } };
+    await act(async () => {
+      await result.current.mutateAsync({
+        name: "scoped-kit",
+        scope: "workspace",
+        workspaceId: "ws-project",
+        profileName: "marketing",
+        inputs,
+      });
+    });
+    expect(mocks.updateExtension).toHaveBeenCalledWith("scoped-kit", {
+      allow_unverified: false,
+      scope: "workspace",
+      workspace_id: "ws-project",
+      profile: "marketing",
+      inputs,
+    });
+  });
   it("Should carry the ratified digest on a confirmed update retry", async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useUpdateExtension(), { wrapper });
@@ -241,13 +282,18 @@ describe("extension lifecycle mutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: marketplaceKeys.all });
   });
 
-  it("Should scope only a dev unlink to the active workspace instance", async () => {
+  it("Should remove the selected workspace attachment and preserve inherited global targeting", async () => {
     mocks.activeWorkspaceId = "ws_northstar";
     const { wrapper } = setup();
     const { result } = renderHook(() => useRemoveExtension(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ dev: true, name: "slack-notify" });
+      await result.current.mutateAsync({
+        dev: true,
+        name: "slack-notify",
+        profileName: "default",
+        workspaceId: "ws_northstar",
+      });
     });
 
     expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {
@@ -255,6 +301,18 @@ describe("extension lifecycle mutations", () => {
       workspaceId: "ws_northstar",
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify dev overlay unlinked");
+    await act(async () => {
+      await result.current.mutateAsync({
+        dev: false,
+        name: "workspace-kit",
+        profileName: "marketing",
+        workspaceId: "ws_selected",
+      });
+    });
+    expect(mocks.removeExtension).toHaveBeenLastCalledWith("workspace-kit", {
+      profileName: "marketing",
+      workspaceId: "ws_selected",
+    });
 
     await act(async () => {
       await result.current.mutateAsync({ dev: false, name: "otel-bridge" });

@@ -75,6 +75,22 @@ func TestRenderHumanExecutionError(t *testing.T) {
 
 func TestRenderExtensionOperationExecutionError(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report required input ids and recovery flags with exit two", func(t *testing.T) {
+		t.Parallel()
+		body := []byte(
+			`{"error":"extension: inputs required","code":"extension_inputs_required","inputs":["token","workspace"]}`,
+		)
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		var stderr bytes.Buffer
+		if code := writeExecutionError(&stderr, []string{"extension", "install", "compozy/sentry"}, err); code != 2 {
+			t.Fatalf("missing inputs exit code = %d, want 2", code)
+		}
+		for _, want := range []string{"token", "workspace", "--input", "--input-file", "extension_inputs_required"} {
+			if !strings.Contains(stderr.String(), want) {
+				t.Fatalf("error output omitted %q: %s", want, stderr.String())
+			}
+		}
+	})
 
 	payload := contract.ExtensionOperationErrorPayload{
 		Error:         "network confirmation required",
@@ -104,12 +120,7 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 			name    string
 			payload any
 		}{
-			{
-				name: "Should use exit one for a client-specific layout",
-				payload: contract.ExtensionOperationErrorPayload{
-					Error: "client-specific layout", Code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
-				},
-			},
+
 			{
 				name: "Should use exit one and preserve issues for an invalid manifest",
 				payload: contract.ExtensionValidationErrorPayload{

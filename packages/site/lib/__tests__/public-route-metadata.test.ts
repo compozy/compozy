@@ -77,8 +77,8 @@ vi.mock("@/lib/source", () => ({
 }));
 
 vi.mock("@/lib/marketplace-catalog", () => ({
-  MARKETPLACE_KINDS: ["skills"],
-  entriesForKind: (kind: string) => (kind === "skills" ? [{ entry_id: "example-skill" }] : []),
+  extensionEntries: [{ entry_id: "example-extension" }],
+  marketplaceEntryPath: (entry: { entry_id: string }) => `/marketplace/${entry.entry_id}`,
 }));
 
 vi.mock("@/lib/changelog/github-client", () => ({
@@ -138,7 +138,7 @@ describe("public route metadata", () => {
     expect(urls).toContain(absoluteUrl("/docs/network/protocol/implementation-status/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bridges/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bundled/spec-cycle/"));
-    expect(urls).toContain(absoluteUrl("/marketplace/skills/example-skill/"));
+    expect(urls).toContain(absoluteUrl("/marketplace/example-extension/"));
     expect(urls.filter(url => url.includes("/changelog"))).toEqual([
       absoluteUrl("/changelog/"),
       absoluteUrl("/changelog/feed.xml"),

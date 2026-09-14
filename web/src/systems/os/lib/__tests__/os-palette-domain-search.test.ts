@@ -14,7 +14,6 @@ import {
   knowledgeRoute,
   jobRoute,
   loopRoute,
-  marketplaceCatalogTotal,
   marketplaceEntryRoute,
   networkChannelRoute,
   paletteTaskFilters,
@@ -82,19 +81,22 @@ describe("os-palette-domain-search helpers", () => {
     ]);
   });
 
-  it("Should carry marketplace scope and installed identity into the detail route", () => {
+  it("Should carry marketplace origin, scope and installed identity into the detail route", () => {
     expect(
       marketplaceEntryRoute({
         entryId: "ops/extension",
         installedName: "ops-extension",
-        kind: "extension",
+        source: "compozy-catalog",
+        profileName: "marketing",
         scope: "workspace",
         workspaceId: "ws-a",
       })
     ).toEqual({
-      pathname: "/marketplace/extension/ops%2Fextension",
+      pathname: "/marketplace/ops%2Fextension",
       search: {
         installed_name: "ops-extension",
+        source: "compozy-catalog",
+        profile: "marketing",
         scope: "workspace",
         workspace_id: "ws-a",
       },
@@ -122,15 +124,6 @@ describe("os-palette-domain-search helpers", () => {
       pathname: "/knowledge",
       search: { memory: "notes.md", scope: "workspace", workspace: "ws-a" },
     });
-  });
-
-  it("Should prefer marketplace kind totals over loaded item counts", () => {
-    expect(
-      marketplaceCatalogTotal([
-        { items: [{}, {}], total: 40 },
-        { items: [{}], total: null },
-      ])
-    ).toBe(41);
   });
 
   it("Should scope catalog filters to one workspace or every workspace", () => {

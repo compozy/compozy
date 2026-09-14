@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -253,7 +254,11 @@ func mcpAuthStatuses(
 	opts mcpAuthCommandOptions,
 ) []SettingsMCPAuthStatusRecord {
 	statuses := make([]SettingsMCPAuthStatusRecord, 0, len(servers))
+	owner := strings.TrimSpace(opts.owner)
 	for _, server := range servers {
+		if owner != "" && vault.NormalizeMCPOwner(server.Owner) != owner {
+			continue
+		}
 		if string(server.Scope) != strings.TrimSpace(opts.scope) ||
 			server.WorkspaceID != strings.TrimSpace(opts.workspaceID) ||
 			server.Profile != strings.TrimSpace(opts.profile) {

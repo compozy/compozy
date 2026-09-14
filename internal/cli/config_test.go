@@ -1167,6 +1167,7 @@ func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
 		name string
 		path string
 	}{
+		{name: "Should reject retired marketplace MCP policy", path: "skills.allowed_marketplace_mcp"},
 		{name: "Should reject legacy defaults environment", path: "defaults.environment"},
 		{name: "Should reject legacy environment profile", path: "environments.dev.backend"},
 		{name: "Should reject recall signal metrics", path: "memory.recall.signals.metrics_enabled"},

@@ -24,7 +24,6 @@ export interface RuntimeConfigInput {
   marketplaceCatalogBaseURL?: string;
   networkEnabled?: boolean;
   port: number;
-  skillsMarketplaceBaseURL?: string;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
 }
@@ -93,14 +92,6 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           "[extensions.sources.github]",
           "enabled = true",
           `base_url = ${tomlString(input.extensionsGitHubBaseURL)}`,
-          "",
-        ]),
-    ...(input.skillsMarketplaceBaseURL === undefined
-      ? []
-      : [
-          "[skills.marketplace]",
-          'registry = "clawhub"',
-          `base_url = ${tomlString(input.skillsMarketplaceBaseURL)}`,
           "",
         ]),
     ...(input.marketplaceCatalogBaseURL === undefined

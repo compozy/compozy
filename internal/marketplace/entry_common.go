@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -25,7 +26,7 @@ type entryCommon struct {
 	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
-func (c entryCommon) validate(kind Kind) error {
+func (c entryCommon) validate() error {
 	fields := []struct {
 		name  string
 		value string
@@ -36,20 +37,14 @@ func (c entryCommon) validate(kind Kind) error {
 	}
 	for _, field := range fields {
 		if strings.TrimSpace(field.value) == "" {
-			return fmt.Errorf("marketplace catalog %q entry %s is required", kind, field.name)
+			return fmt.Errorf("marketplace catalog entry %s is required", field.name)
 		}
 	}
 	entryID := strings.TrimSpace(c.EntryID)
 	if entryID == "." || entryID == ".." || !entryIDPattern.MatchString(entryID) {
-		return fmt.Errorf("marketplace catalog %q entry_id must be one URL-safe path segment", kind)
+		return errors.New("marketplace catalog entry_id must be one URL-safe path segment")
 	}
-	if kind == KindSkill && strings.HasPrefix(entryID, RemoteSkillEntryPrefix) {
-		return fmt.Errorf(
-			"marketplace catalog %q entry_id must not use reserved prefix %q",
-			kind,
-			RemoteSkillEntryPrefix,
-		)
-	}
+
 	if _, err := parseOptionalTimestamp(c.PublishedAt, "published_at"); err != nil {
 		return err
 	}
@@ -59,7 +54,7 @@ func (c entryCommon) validate(kind Kind) error {
 	return nil
 }
 
-func commonEntry(kind Kind, common entryCommon, payload any) (Entry, error) {
+func commonEntry(common entryCommon, payload any) (Entry, error) {
 	publishedAt, err := parseOptionalTimestamp(common.PublishedAt, "published_at")
 	if err != nil {
 		return Entry{}, err
@@ -70,10 +65,9 @@ func commonEntry(kind Kind, common entryCommon, payload any) (Entry, error) {
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return Entry{}, fmt.Errorf("marketplace catalog %q encode entry %q: %w", kind, common.EntryID, err)
+		return Entry{}, fmt.Errorf("marketplace catalog encode entry %q: %w", common.EntryID, err)
 	}
 	return Entry{
-		Kind:        kind,
 		EntryID:     strings.TrimSpace(common.EntryID),
 		Name:        strings.TrimSpace(common.Name),
 		Description: strings.TrimSpace(common.Description),

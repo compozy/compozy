@@ -477,7 +477,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		resolvedRefs := make(chan string, 1)
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{Server: server, Target: target}, nil
 			}),
 			WithTokenStore(store),
@@ -605,7 +605,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		resolver := ServerResolverFunc(func(
 			_ context.Context,
-			source toolspkg.SourceRef,
+			source toolspkg.SourceRef, _ string,
 		) (ResolvedServer, error) {
 			switch source.ResourceID {
 			case "mcp-workspace-a":
@@ -1909,6 +1909,26 @@ func TestListMCPTools(t *testing.T) {
 }
 
 func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.T) {
+	// Invariant: tool discovery uses the allocated runtime name, retaining resource routing identity.
+	// Owner: MCP descriptor projection; canonical suite: executor_test.go.
+	t.Run("Should keep allocated and manual tool names distinct", func(t *testing.T) {
+		t.Parallel()
+		executor := &CallExecutor{}
+		tool := mcpsdk.Tool{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}
+		manual, err := executor.descriptorFromTool(toolspkg.SourceRef{}, compozyconfig.MCPServer{Name: "github"}, tool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		owned, err := executor.descriptorFromTool(toolspkg.SourceRef{ResourceID: "extension-record"},
+			compozyconfig.MCPServer{Name: "github", Owner: "extension:github", RuntimeName: "github.github"}, tool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if owned.ID == manual.ID || owned.Source.RawServerName != "github.github" ||
+			owned.Source.ResourceID != "extension-record" {
+			t.Fatalf("allocated tool lost its runtime/resource identity: %#v", owned)
+		}
+	})
 	t.Run("Should preserve valid presentation metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -2030,7 +2050,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-path-miss", ServerName: server.Name,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
@@ -2066,7 +2086,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-a", ServerName: server.Name,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
@@ -2111,7 +2131,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			Name: healthKey.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: failedURL,
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				serverMu.RLock()
 				resolved := server
 				serverMu.RUnlock()
@@ -2158,7 +2178,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-input", ServerName: "fixture",
 		}
 		executor, err := NewMCPCallExecutor(
-			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				resolved := compozyconfig.MCPServer{
 					Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
 				}
@@ -2609,6 +2629,27 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 }
 
 func TestMCPCallExecutorHelpers(t *testing.T) {
+	t.Run("Should preserve the explicit definition owner through auth diagnostics", func(t *testing.T) {
+		t.Parallel()
+		server := compozyconfig.MCPServer{Name: "github", Owner: "extension:bundle", Command: "test-mcp"}
+		executor := newTestMCPExecutor(t, server)
+		executor.servers = ServerResolverFunc(
+			func(_ context.Context, source toolspkg.SourceRef, owner string) (ResolvedServer, error) {
+				if owner != "extension:bundle" || source.RawServerName != "github" {
+					t.Fatalf("diagnostic selection = %q/%q", owner, source.RawServerName)
+				}
+				target := userMCPExecutorTarget(server.Name)
+				target.Owner = owner
+				return ResolvedServer{Server: server, Target: target}, nil
+			},
+		)
+		status, err := executor.Status(testContext(t), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "github", RawServerName: "github",
+		}, "extension:bundle")
+		if err != nil || status.Owner != "extension:bundle" || status.ServerName != "github" {
+			t.Fatalf("diagnostic status = %#v, error = %v", status, err)
+		}
+	})
 	t.Run("Should Return Redacted Status And Use Secret Lookup Internally", func(t *testing.T) {
 		t.Parallel()
 
@@ -2643,7 +2684,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Kind:          toolspkg.SourceMCP,
 			Owner:         "secure",
 			RawServerName: "secure",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
@@ -2658,6 +2699,10 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			t.Fatal("status.ExpiresAt aliases auth service input pointer")
 		}
 		cfg := fakeAuth.lastServerConfig()
+		if status.Owner != cfg.Target.Owner || status.Scope != string(cfg.Target.Scope) ||
+			status.WorkspaceID != cfg.Target.WorkspaceID {
+			t.Fatalf("redacted status lost auth target identity: %#v, want %#v", status, cfg.Target)
+		}
 		if got, want := cfg.ClientSecret, "client-secret"; got != want {
 			t.Fatalf("auth cfg ClientSecret = %q, want %q", got, want)
 		}
@@ -2672,7 +2717,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Kind:          toolspkg.SourceMCP,
 			Owner:         "plain",
 			RawServerName: "plain",
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("Status(unconfigured) error = %v", err)
 		}
@@ -2699,7 +2744,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			ToolID: "mcp__github__echo",
 		})
 		requireReason(t, err, toolspkg.ReasonCallCanceled)
-		_, err = executor.Status(nilContext, toolspkg.SourceRef{RawServerName: "github"})
+		_, err = executor.Status(nilContext, toolspkg.SourceRef{RawServerName: "github"}, "")
 		requireReason(t, err, toolspkg.ReasonCallCanceled)
 		_, err = executor.ListTools(testContext(t), toolspkg.SourceRef{RawServerName: "missing"})
 		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
@@ -3444,7 +3489,7 @@ func newTestMCPExecutor(
 	t.Helper()
 
 	executor, err := NewMCPCallExecutor(
-		ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+		ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 			return ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil
 		}),
 		options...,
@@ -3640,6 +3685,15 @@ func (s *fakeAuthService) Status(ctx context.Context, cfg mcpauth.ServerConfig) 
 
 	s.lastConfig = cfg
 	status := s.status
+	if status.Owner == "" {
+		status.Owner = cfg.Target.Owner
+	}
+	if status.Scope == "" {
+		status.Scope = cfg.Target.Scope
+	}
+	if status.WorkspaceID == "" {
+		status.WorkspaceID = cfg.Target.WorkspaceID
+	}
 	if status.ServerName == "" {
 		status.ServerName = cfg.Target.ServerName
 	}
@@ -3658,6 +3712,15 @@ func (s *fakeAuthService) Refresh(ctx context.Context, cfg mcpauth.ServerConfig)
 		return mcpauth.Status{}, s.refreshErr
 	}
 	status := s.refresh
+	if status.Owner == "" {
+		status.Owner = cfg.Target.Owner
+	}
+	if status.Scope == "" {
+		status.Scope = cfg.Target.Scope
+	}
+	if status.WorkspaceID == "" {
+		status.WorkspaceID = cfg.Target.WorkspaceID
+	}
 	if status.ServerName == "" {
 		status.ServerName = cfg.Target.ServerName
 	}

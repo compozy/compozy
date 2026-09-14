@@ -3,12 +3,15 @@ package marketplace
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 
 	storepkg "github.com/compozy/compozy/internal/store"
 )
@@ -33,79 +36,8 @@ func NewSQLiteStore(repository storepkg.MarketplaceCatalogRepository) (*SQLiteSt
 	return &SQLiteStore{repository: repository}, nil
 }
 
-// ReplaceKind validates and atomically replaces one kind's projection.
-func (s *SQLiteStore) ReplaceKind(ctx context.Context, kind Kind, document *Document) error {
-	if err := s.checkReady(ctx); err != nil {
-		return err
-	}
-	if err := validateReplacement(kind, document); err != nil {
-		return err
-	}
-	replacement := storepkg.MarketplaceCatalogReplacement{
-		Kind:            string(kind),
-		ManifestVersion: int64(document.ManifestVersion),
-		GeneratedAt:     storepkg.FormatNullableTimestamp(document.GeneratedAt),
-		FetchedAt:       storepkg.FormatTimestamp(document.FetchedAt),
-		Entries:         make([]storepkg.MarketplaceCatalogEntry, 0, len(document.Entries)),
-	}
-	for _, entry := range document.Entries {
-		replacement.Entries = append(replacement.Entries, marketplaceEntryToRow(entry, document.FetchedAt))
-	}
-	if err := s.repository.ReplaceMarketplaceCatalog(ctx, replacement); err != nil {
-		return fmt.Errorf("marketplace catalog: replace %q projection: %w", kind, err)
-	}
-	return nil
-}
-
-// MarkKindStale records a redacted failure without touching projected entries.
-func (s *SQLiteStore) MarkKindStale(
-	ctx context.Context,
-	kind Kind,
-	errorClass string,
-	lastError string,
-) error {
-	if err := s.checkReady(ctx); err != nil {
-		return err
-	}
-	if _, err := kindFilename(kind); err != nil {
-		return err
-	}
-	if err := s.repository.MarkMarketplaceCatalogStale(
-		ctx,
-		string(kind),
-		encodeStoredError(errorClass, lastError),
-	); err != nil {
-		return fmt.Errorf("marketplace catalog: mark %q stale: %w", kind, err)
-	}
-	return nil
-}
-
-// ListKind returns deterministic projected entries matching name or description.
-func (s *SQLiteStore) ListKind(
-	ctx context.Context,
-	kind Kind,
-	query string,
-	offset int,
-	limit int,
-) (ListResult, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return ListResult{}, err
-	}
-	if _, err := kindFilename(kind); err != nil {
-		return ListResult{}, err
-	}
-	if offset < 0 {
-		return ListResult{}, fmt.Errorf("marketplace catalog: list offset must be non-negative: %d", offset)
-	}
-	rows, err := s.repository.ListMarketplaceCatalogEntries(
-		ctx,
-		string(kind),
-		maxCatalogEntriesPerKind,
-	)
-	if err != nil {
-		return ListResult{}, fmt.Errorf("marketplace catalog: list %q entries: %w", kind, err)
-	}
-	needle := foldMarketplaceText(query)
+func listCatalogRows(rows []storepkg.MarketplaceCatalogEntry, query string, offset, limit int) (ListResult, error) {
+	needle := foldMarketplaceText(NormalizeQuery(query))
 	entries := make([]Entry, 0, len(rows))
 	for _, row := range rows {
 		entry, mapErr := marketplaceEntryFromRow(row)
@@ -134,23 +66,20 @@ func (s *SQLiteStore) ListKind(
 }
 
 // GetEntry returns one projected entry by immutable feed identity.
-func (s *SQLiteStore) GetEntry(ctx context.Context, kind Kind, entryID string) (*Entry, error) {
+func (s *SQLiteStore) GetEntry(ctx context.Context, source string, entryID string) (*Entry, error) {
 	if err := s.checkReady(ctx); err != nil {
-		return nil, err
-	}
-	if _, err := kindFilename(kind); err != nil {
 		return nil, err
 	}
 	trimmedID := strings.TrimSpace(entryID)
 	if trimmedID == "" {
 		return nil, errors.New("marketplace catalog: entry id is required")
 	}
-	row, err := s.repository.GetMarketplaceCatalogEntry(ctx, string(kind), trimmedID)
+	row, err := s.repository.GetMarketplaceCatalogEntry(ctx, source, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: %s/%s", ErrEntryNotFound, kind, trimmedID)
+		return nil, fmt.Errorf("%w: %s/%s", ErrEntryNotFound, source, trimmedID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read %q entry %q: %w", kind, trimmedID, err)
+		return nil, fmt.Errorf("marketplace catalog: read %q entry %q: %w", source, trimmedID, err)
 	}
 	entry, err := marketplaceEntryFromRow(row)
 	if err != nil {
@@ -159,39 +88,45 @@ func (s *SQLiteStore) GetEntry(ctx context.Context, kind Kind, entryID string) (
 	return &entry, nil
 }
 
-// KindState returns persisted freshness plus the current projected row count.
-func (s *SQLiteStore) KindState(ctx context.Context, kind Kind) (*KindState, error) {
+// SourceState returns persisted freshness plus the current projected row count.
+func (s *SQLiteStore) SourceState(ctx context.Context, source string) (*SourceState, error) {
 	if err := s.checkReady(ctx); err != nil {
 		return nil, err
 	}
-	if _, err := kindFilename(kind); err != nil {
-		return nil, err
-	}
-	row, err := s.repository.GetMarketplaceCatalogState(ctx, string(kind))
+	row, err := s.repository.GetMarketplaceCatalogState(ctx, source)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: %s", ErrKindStateMissing, kind)
+		return nil, fmt.Errorf("%w: %s", ErrSourceStateMissing, source)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: read %q state: %w", kind, err)
+		return nil, fmt.Errorf("marketplace catalog: read %q state: %w", source, err)
 	}
-	state, err := marketplaceKindStateFromRow(row)
+	state, err := marketplaceSourceStateFromRow(row)
 	if err != nil {
 		return nil, err
 	}
 	return &state, nil
 }
 
-func marketplaceKindStateFromRow(row storepkg.MarketplaceCatalogState) (KindState, error) {
+func marketplaceSourceStateFromRow(row storepkg.MarketplaceCatalogState) (SourceState, error) {
 	manifestVersion, err := storedCatalogInt(row.ManifestVersion, "manifest_version")
 	if err != nil {
-		return KindState{}, err
+		return SourceState{}, err
 	}
 	entryCount, err := storedCatalogInt(row.EntryCount, "entry_count")
 	if err != nil {
-		return KindState{}, err
+		return SourceState{}, err
 	}
-	state := KindState{
-		Kind:            Kind(row.Kind),
+	installable, err := storedCatalogInt(row.Installable, "installable")
+	if err != nil {
+		return SourceState{}, err
+	}
+	state := SourceState{
+		SourceRef: row.SourceRef, Kind: row.Kind, Enabled: row.Enabled, Installable: installable,
+		DocumentDigest: row.DocumentDigest, DocumentPath: row.DocumentPath, Owner: row.Owner,
+		ErrorClass: row.ErrorClass, LastError: row.LastError,
+		Source:          row.Source,
+		Generation:      row.Generation,
+		Revision:        row.Revision,
 		ManifestVersion: manifestVersion,
 		Stale:           row.Stale,
 		EntryCount:      entryCount,
@@ -199,18 +134,23 @@ func marketplaceKindStateFromRow(row storepkg.MarketplaceCatalogState) (KindStat
 	if strings.TrimSpace(row.GeneratedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.GeneratedAt)
 		if err != nil {
-			return KindState{}, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", row.Kind, err)
+			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", row.Source, err)
 		}
 		state.GeneratedAt = parsed
 	}
 	if strings.TrimSpace(row.FetchedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.FetchedAt)
 		if err != nil {
-			return KindState{}, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", row.Kind, err)
+			return SourceState{}, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", row.Source, err)
 		}
 		state.FetchedAt = parsed
 	}
-	state.ErrorClass, state.LastError = decodeStoredError(row.LastError)
+	state.Diagnostics = []pluginsource.Diagnostic{}
+	if row.DiagnosticsJSON != "" {
+		if err := json.Unmarshal([]byte(row.DiagnosticsJSON), &state.Diagnostics); err != nil {
+			return SourceState{}, fmt.Errorf("marketplace catalog: decode source diagnostics: %w", err)
+		}
+	}
 	return state, nil
 }
 
@@ -238,50 +178,61 @@ func (s *SQLiteStore) checkReady(ctx context.Context) error {
 	return nil
 }
 
-func validateReplacement(kind Kind, document *Document) error {
-	if _, err := kindFilename(kind); err != nil {
-		return err
-	}
+func validateReplacement(document *Document) error {
 	if document == nil {
-		return fmt.Errorf("marketplace catalog %q document is required", kind)
+		return errors.New("marketplace catalog document is required")
 	}
 	if document.ManifestVersion != ManifestVersion {
-		return &UnsupportedManifestVersionError{Kind: kind, Version: document.ManifestVersion}
+		return &UnsupportedManifestVersionError{Version: document.ManifestVersion}
 	}
-	if document.GeneratedAt.IsZero() || document.FetchedAt.IsZero() {
-		return fmt.Errorf("marketplace catalog %q generated_at and fetched_at are required", kind)
+	if document.SourceKind != SourceKindPreset && document.SourceKind != SourceKindCustom &&
+		document.GeneratedAt.IsZero() {
+		return errors.New("marketplace catalog generated_at and fetched_at are required")
 	}
-	return validateDocumentEntries(kind, document.Entries)
+	if document.FetchedAt.IsZero() {
+		return errors.New("marketplace catalog fetched_at is required")
+	}
+	return validateDocumentEntries(document.Entries)
 }
 
 func marketplaceEntryToRow(entry Entry, fetchedAt time.Time) storepkg.MarketplaceCatalogEntry {
 	return storepkg.MarketplaceCatalogEntry{
-		Kind:         string(entry.Kind),
-		EntryID:      strings.TrimSpace(entry.EntryID),
-		Name:         strings.TrimSpace(entry.Name),
-		Description:  strings.TrimSpace(entry.Description),
-		Version:      strings.TrimSpace(entry.Version),
-		PublishedAt:  formatOptionalTime(entry.PublishedAt),
-		UpdatedAt:    formatOptionalTime(entry.UpdatedAt),
-		DigestSHA256: strings.TrimSpace(entry.DigestSHA256),
-		Tier:         strings.TrimSpace(entry.Tier),
-		InstallSlug:  strings.TrimSpace(entry.InstallSlug),
-		PayloadJSON:  string(entry.Payload),
-		FetchedAt:    storepkg.FormatTimestamp(fetchedAt),
+		Source:         entry.SourceName,
+		Layout:         entry.Layout,
+		Icon:           entry.Icon,
+		Installable:    entry.Installable,
+		InstallBlocker: entry.InstallBlocker,
+		ResolvedRef:    entry.ResolvedRef,
+		EntryID:        strings.TrimSpace(entry.EntryID),
+		Name:           strings.TrimSpace(entry.Name),
+		Description:    strings.TrimSpace(entry.Description),
+		Version:        strings.TrimSpace(entry.Version),
+		PublishedAt:    formatOptionalTime(entry.PublishedAt),
+		UpdatedAt:      formatOptionalTime(entry.UpdatedAt),
+		DigestSHA256:   strings.TrimSpace(entry.DigestSHA256),
+		Tier:           strings.TrimSpace(entry.Tier),
+		InstallSlug:    strings.TrimSpace(entry.InstallSlug),
+		PayloadJSON:    string(entry.Payload),
+		FetchedAt:      storepkg.FormatTimestamp(fetchedAt),
 	}
 }
 
 func marketplaceEntryFromRow(row storepkg.MarketplaceCatalogEntry) (Entry, error) {
 	entry := Entry{
-		Kind:         Kind(row.Kind),
-		EntryID:      row.EntryID,
-		Name:         row.Name,
-		Description:  row.Description,
-		Version:      row.Version,
-		DigestSHA256: row.DigestSHA256,
-		Tier:         row.Tier,
-		InstallSlug:  row.InstallSlug,
-		Payload:      []byte(row.PayloadJSON),
+		SourceName:     row.Source,
+		Layout:         row.Layout,
+		Icon:           row.Icon,
+		Installable:    row.Installable,
+		InstallBlocker: row.InstallBlocker,
+		ResolvedRef:    row.ResolvedRef,
+		EntryID:        row.EntryID,
+		Name:           row.Name,
+		Description:    row.Description,
+		Version:        row.Version,
+		DigestSHA256:   row.DigestSHA256,
+		Tier:           row.Tier,
+		InstallSlug:    row.InstallSlug,
+		Payload:        []byte(row.PayloadJSON),
 	}
 	if strings.TrimSpace(row.PublishedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.PublishedAt)
@@ -302,6 +253,13 @@ func marketplaceEntryFromRow(row storepkg.MarketplaceCatalogEntry) (Entry, error
 		return Entry{}, fmt.Errorf("marketplace catalog: parse entry fetched_at: %w", err)
 	}
 	entry.FetchedAt = parsed
+	var payload struct {
+		Inputs []EntryInput `json:"inputs"`
+	}
+	if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+		return Entry{}, fmt.Errorf("marketplace catalog: decode stored inputs: %w", err)
+	}
+	entry.Inputs = payload.Inputs
 	return entry, nil
 }
 
@@ -320,25 +278,4 @@ func normalizeListLimit(limit int) int {
 		return maxListLimit
 	}
 	return limit
-}
-
-func encodeStoredError(errorClass string, lastError string) string {
-	trimmedClass := strings.TrimSpace(errorClass)
-	trimmedError := strings.TrimSpace(lastError)
-	if trimmedClass == "" {
-		return trimmedError
-	}
-	return "[" + trimmedClass + "] " + trimmedError
-}
-
-func decodeStoredError(stored string) (string, string) {
-	trimmed := strings.TrimSpace(stored)
-	if !strings.HasPrefix(trimmed, "[") {
-		return "", trimmed
-	}
-	end := strings.IndexByte(trimmed, ']')
-	if end <= 1 {
-		return "", trimmed
-	}
-	return strings.TrimSpace(trimmed[1:end]), strings.TrimSpace(trimmed[end+1:])
 }

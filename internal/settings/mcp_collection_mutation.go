@@ -15,6 +15,22 @@ func (s *service) putMCPCollectionItem(
 	if req.MCPServer == nil {
 		return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
 	}
+	target, owned, err := s.extensionMCPMutationTarget(
+		ctx,
+		MCPAuthTargetRequest{
+			Scope:       scope,
+			WorkspaceID: workspaceID,
+			ProfileName: req.ProfileName,
+			Name:        name,
+			Owner:       req.Owner,
+		},
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if owned {
+		return s.putExtensionMCPOverride(ctx, target, req)
+	}
 	return s.putMCPServer(
 		ctx,
 		scope,

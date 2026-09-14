@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -17,38 +20,43 @@ import (
 )
 
 type daemonExtensionService struct {
-	marketplaceMu      sync.RWMutex
-	searchMu           sync.Mutex
-	consumerSyncOnce   sync.Once
-	consumerSyncGate   chan struct{}
-	searchCache        map[string]extensionSearchSnapshot
-	registry           *extensionpkg.Registry
-	runtime            extensionRuntime
-	hookBinds          hookBindingPublisher
-	agentSkill         agentSkillPublisher
-	toolMCP            toolMCPPublisher
-	loops              loopResourcePublisher
-	sessions           SessionManager
-	extensionKit       extensionKitResourcePublisher
-	homePaths          compozyconfig.HomePaths
-	logger             *slog.Logger
-	now                func() time.Time
-	getenv             func(string) string
-	extensionConfig    compozyconfig.ExtensionsConfig
-	marketplaceLoader  extensionMarketplaceSourceLoader
-	marketplaceCatalog marketplacepkg.Service
-	eventWriter        extensionLifecycleEventWriter
-	workspaceResolver  workspacepkg.RuntimeResolver
-	envBindings        extensionpkg.EnvBindingLifecycleStore
-	secretVault        extensionSecretVault
-	automation         extensionAutomationPreviewer
-	lifecycle          *extensionLifecycleCoordinator
-	resourceStore      resources.RawStore
-	resourceActor      resources.MutationActor
-	resourceCodecs     *resources.CodecRegistry
-	mcpRuntimeHealth   *mcppkg.RuntimeHealthRegistry
-	paletteNotifier    *extensionPaletteNotifier
-	profiles           *profilepkg.Manager
+	marketplaceMu       sync.RWMutex
+	searchMu            sync.Mutex
+	consumerSyncOnce    sync.Once
+	consumerSyncGate    chan struct{}
+	searchCache         map[string]extensionSearchSnapshot
+	registry            *extensionpkg.Registry
+	runtime             extensionRuntime
+	hookBinds           hookBindingPublisher
+	agentSkill          agentSkillPublisher
+	toolMCP             toolMCPPublisher
+	loops               loopResourcePublisher
+	sessions            SessionManager
+	extensionKit        extensionKitResourcePublisher
+	homePaths           compozyconfig.HomePaths
+	logger              *slog.Logger
+	now                 func() time.Time
+	getenv              func(string) string
+	extensionConfig     compozyconfig.ExtensionsConfig
+	marketplaceLoader   extensionMarketplaceSourceLoader
+	marketplaceCatalog  marketplacepkg.Service
+	marketplaceAcquirer extensionpkg.MarketplacePackageAcquirer
+	marketplaceCache    *pluginsource.PackageCache
+	eventWriter         extensionLifecycleEventWriter
+	workspaceResolver   workspacepkg.RuntimeResolver
+	envBindings         extensionpkg.EnvBindingLifecycleStore
+	inputs              extensioninput.Store
+	mcpAllocations      extensionmcp.Store
+	mcpDetails          *extensionMCPDetails
+	secretVault         extensionSecretVault
+	automation          extensionAutomationPreviewer
+	lifecycle           *extensionLifecycleCoordinator
+	resourceStore       resources.RawStore
+	resourceActor       resources.MutationActor
+	resourceCodecs      *resources.CodecRegistry
+	mcpRuntimeHealth    *mcppkg.RuntimeHealthRegistry
+	paletteNotifier     *extensionPaletteNotifier
+	profiles            *profilepkg.Manager
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -84,6 +92,16 @@ func withDaemonExtensionCatalog(catalog marketplacepkg.Service) daemonExtensionS
 	return func(service *daemonExtensionService) {
 		service.marketplaceCatalog = catalog
 	}
+}
+
+func withDaemonMarketplacePackageAcquirer(
+	acquirer extensionpkg.MarketplacePackageAcquirer,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.marketplaceAcquirer = acquirer }
+}
+
+func withDaemonMarketplacePackageCache(cache *pluginsource.PackageCache) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.marketplaceCache = cache }
 }
 
 func withDaemonExtensionEventWriter(writer extensionLifecycleEventWriter) daemonExtensionServiceOption {
@@ -206,4 +224,8 @@ func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg compozyconfig.Ex
 	s.marketplaceMu.Lock()
 	s.extensionConfig = cfg
 	s.marketplaceMu.Unlock()
+}
+
+func withDaemonExtensionMCPAllocations(allocations extensionmcp.Store) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) { service.mcpAllocations = allocations }
 }

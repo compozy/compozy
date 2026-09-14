@@ -94,8 +94,6 @@ type BaseHandlerConfig struct {
 	SkillResources              SkillResourceSyncer
 	SkillExposures              store.SkillExposureRepository
 	SkillExposureEvents         store.EventSummaryStore
-	SkillMarketplace            SkillMarketplaceService
-	InstalledSkillMarketplace   InstalledSkillMarketplaceService
 	TaskActorContextResolver    TaskActorContextResolver
 	MemoryStore                 *memory.Store
 	DreamTrigger                DreamTrigger
@@ -185,8 +183,6 @@ type BaseHandlers struct {
 	SkillResources               SkillResourceSyncer
 	SkillExposures               store.SkillExposureRepository
 	SkillExposureEvents          store.EventSummaryStore
-	SkillMarketplace             SkillMarketplaceService
-	InstalledSkillMarketplace    InstalledSkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
@@ -295,8 +291,6 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SkillResources:               cfg.SkillResources,
 		SkillExposures:               cfg.SkillExposures,
 		SkillExposureEvents:          cfg.SkillExposureEvents,
-		SkillMarketplace:             cfg.SkillMarketplace,
-		InstalledSkillMarketplace:    cfg.InstalledSkillMarketplace,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,

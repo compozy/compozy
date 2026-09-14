@@ -5,8 +5,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 export function useMarketplaceDetailScope(search: MarketplaceDetailSearch) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const { destination } = useProfileReadScope();
-  const requestedProfile =
-    search.scope === "profile" ? search.profile?.trim() || null : destination;
+  const requestedProfile = search.profile?.trim() || destination;
   const profileName = requestedProfile === PERMANENT_PROFILE ? null : requestedProfile;
   const workspaceId = search.scope === "user" ? null : (search.workspace_id ?? activeWorkspaceId);
   return {

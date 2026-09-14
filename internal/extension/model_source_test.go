@@ -243,7 +243,7 @@ func TestModelSourceIdentityHelpersShouldValidateInputs(t *testing.T) {
 		if got := nilSource.ID(); got != "" {
 			t.Fatalf("(*ModelSource)(nil).ID() = %q, want empty", got)
 		}
-		if _, err := NewExtensionModelSource(ExtensionInfo{Name: "bad/source"}, nil); err == nil {
+		if _, err := NewExtensionModelSource(&ExtensionInfo{Name: "bad/source"}, nil); err == nil {
 			t.Fatal("NewExtensionModelSource(invalid name) error = nil, want slug validation error")
 		}
 	})
@@ -265,7 +265,7 @@ func TestModelSourceListModelsShouldRejectInvalidRuntimeState(t *testing.T) {
 		},
 		{
 			name: "Should reject disabled extension source",
-			source: mustTestModelSource(t, ExtensionInfo{
+			source: mustTestModelSource(t, &ExtensionInfo{
 				Name:    "ext-disabled-source",
 				Enabled: false,
 				Capabilities: CapabilitiesConfig{
@@ -278,7 +278,7 @@ func TestModelSourceListModelsShouldRejectInvalidRuntimeState(t *testing.T) {
 		},
 		{
 			name: "Should reject missing model source capability",
-			source: mustTestModelSource(t, ExtensionInfo{
+			source: mustTestModelSource(t, &ExtensionInfo{
 				Name:    "ext-missing-capability",
 				Enabled: true,
 			}, func() ModelSourceRuntime {
@@ -288,7 +288,7 @@ func TestModelSourceListModelsShouldRejectInvalidRuntimeState(t *testing.T) {
 		},
 		{
 			name: "Should reject nil runtime resolver",
-			source: mustTestModelSource(t, ExtensionInfo{
+			source: mustTestModelSource(t, &ExtensionInfo{
 				Name:    "ext-nil-resolver",
 				Enabled: true,
 				Capabilities: CapabilitiesConfig{
@@ -299,7 +299,7 @@ func TestModelSourceListModelsShouldRejectInvalidRuntimeState(t *testing.T) {
 		},
 		{
 			name: "Should reject unavailable runtime",
-			source: mustTestModelSource(t, ExtensionInfo{
+			source: mustTestModelSource(t, &ExtensionInfo{
 				Name:    "ext-nil-runtime",
 				Enabled: true,
 				Capabilities: CapabilitiesConfig{
@@ -731,7 +731,7 @@ func TestModelSourceShouldFailClosedWithoutBlockingCatalogList(t *testing.T) {
 		now := time.Date(2026, 5, 7, 11, 30, 0, 0, time.UTC)
 		store := openModelSourceTestStore(t)
 		runtime := &fakeModelSourceRuntime{}
-		deniedSource, err := NewExtensionModelSource(ExtensionInfo{
+		deniedSource, err := NewExtensionModelSource(&ExtensionInfo{
 			Name:    "ext-denied",
 			Enabled: true,
 		}, func() ModelSourceRuntime {
@@ -794,7 +794,7 @@ func (r *fakeModelSourceRuntime) ListModelSourceRows(
 func newTestModelSource(t *testing.T, name string, runtime *fakeModelSourceRuntime) *ModelSource {
 	t.Helper()
 
-	return mustTestModelSource(t, ExtensionInfo{
+	return mustTestModelSource(t, &ExtensionInfo{
 		Name:    name,
 		Enabled: true,
 		Capabilities: CapabilitiesConfig{
@@ -807,7 +807,7 @@ func newTestModelSource(t *testing.T, name string, runtime *fakeModelSourceRunti
 
 func mustTestModelSource(
 	t *testing.T,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	resolver ModelSourceRuntimeResolver,
 ) *ModelSource {
 	t.Helper()
@@ -920,7 +920,7 @@ func startSubprocessModelSource(
 	if err != nil {
 		t.Fatalf("Registry.Get(%q) error = %v", name, err)
 	}
-	source, err := NewExtensionModelSource(*info, func() ModelSourceRuntime {
+	source, err := NewExtensionModelSource(info, func() ModelSourceRuntime {
 		return manager
 	})
 	if err != nil {

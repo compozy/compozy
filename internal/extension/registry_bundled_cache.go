@@ -25,9 +25,10 @@ func (r *Registry) EnabledBundledNames() ([]string, error) {
 		return nil, err
 	}
 	names := make([]string, 0)
-	for _, info := range infos {
-		if info.Enabled && info.Source == SourceBundled {
-			names = append(names, info.Name)
+	for infoIndex := range infos {
+		if infos[infoIndex].Enabled &&
+			infos[infoIndex].Source == SourceBundled {
+			names = append(names, infos[infoIndex].Name)
 		}
 	}
 	r.bundledCacheNames = names

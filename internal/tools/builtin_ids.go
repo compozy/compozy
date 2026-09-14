@@ -385,6 +385,8 @@ const (
 	ToolIDAutomationSuggestionsDismiss ToolID = "compozy__automation_suggestions_dismiss"
 	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
 	ToolIDMarketplaceSearch ToolID = "compozy__marketplace_search"
+	// ToolIDMarketplaceSources lists global experimental marketplace sources.
+	ToolIDMarketplaceSources ToolID = "compozy__marketplace_sources"
 	// ToolIDResourcesList lists desired-state resource records.
 	ToolIDResourcesList ToolID = "compozy__resources_list"
 	// ToolIDResourcesInfo reads one desired-state resource record.
@@ -442,7 +444,7 @@ const (
 	ToolsetIDAutomation ToolsetID = "compozy__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
 	ToolsetIDExtensions ToolsetID = "compozy__extensions"
-	// ToolsetIDMarketplace groups cross-kind marketplace discovery tools.
+	// ToolsetIDMarketplace groups Marketplace extension catalog and source inspection tools.
 	ToolsetIDMarketplace ToolsetID = "compozy__marketplace"
 	// ToolsetIDResources groups desired-state resource inspection tools.
 	ToolsetIDResources ToolsetID = "compozy__resources"

@@ -25,13 +25,15 @@ const (
 
 type extensionEntry struct {
 	entryCommon
-	InstallSlug  string `json:"install_slug"`
-	ArtifactURL  string `json:"artifact_url"`
-	DigestSHA256 string `json:"digest_sha256"`
-	Tier         string `json:"tier,omitempty"`
-	Author       string `json:"author,omitempty"`
-	Repository   string `json:"repository,omitempty"`
-	Format       string `json:"format,omitempty"`
+	Icon         string       `json:"icon,omitempty"`
+	Inputs       []EntryInput `json:"inputs,omitempty"`
+	InstallSlug  string       `json:"install_slug"`
+	ArtifactURL  string       `json:"artifact_url"`
+	DigestSHA256 string       `json:"digest_sha256"`
+	Tier         string       `json:"tier,omitempty"`
+	Author       string       `json:"author,omitempty"`
+	Repository   string       `json:"repository,omitempty"`
+	Format       string       `json:"format,omitempty"`
 }
 
 func decodeExtensionEntry(raw []byte) (Entry, error) {
@@ -39,8 +41,11 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 	if err := decodeStrict(raw, &value); err != nil {
 		return Entry{}, err
 	}
-	if err := value.validate(KindExtension); err != nil {
+	if err := value.validate(); err != nil {
 		return Entry{}, err
+	}
+	if err := ValidateInputGrammar(value.Inputs); err != nil {
+		return Entry{}, fmt.Errorf("marketplace catalog extension entry %q: %w", value.EntryID, err)
 	}
 	if strings.TrimSpace(value.Version) == "" {
 		return Entry{}, fmt.Errorf("marketplace catalog extension entry %q version is required", value.EntryID)
@@ -78,13 +83,29 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 		return Entry{}, err
 	}
 	value.Format = format
-	entry, err := commonEntry(KindExtension, value.entryCommon, value)
+	var diagnostics []CatalogDiagnostic
+	if err := ValidateIcon(value.Icon); err != nil {
+		diagnostics = append(
+			diagnostics,
+			CatalogDiagnostic{
+				EntryID: value.EntryID,
+				Field:   "icon",
+				Code:    "marketplace.icon.invalid",
+				Message: err.Error(),
+			},
+		)
+		value.Icon = ""
+	}
+	entry, err := commonEntry(value.entryCommon, value)
 	if err != nil {
 		return Entry{}, err
 	}
 	entry.InstallSlug = strings.TrimSpace(value.InstallSlug)
 	entry.DigestSHA256 = strings.ToLower(strings.TrimSpace(value.DigestSHA256))
 	entry.Tier = tier
+	entry.Icon = value.Icon
+	entry.Inputs = value.Inputs
+	entry.Diagnostics = diagnostics
 	return entry, nil
 }
 

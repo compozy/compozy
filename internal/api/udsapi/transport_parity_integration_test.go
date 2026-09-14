@@ -3,8 +3,11 @@
 package udsapi
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1970,6 +1973,17 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		})
 	}
 	runtimeHarness := startMarketplaceHarness(t)
+	// Establish one committed snapshot before comparing nonblocking reads across transports.
+	var refreshed compozycontract.MarketplaceRefreshResponse
+	if err := runtimeHarness.HTTPJSON(
+		t.Context(),
+		http.MethodPost,
+		"/api/marketplace/refresh",
+		nil,
+		&refreshed,
+	); err != nil {
+		t.Fatalf("refresh parity fixture: %v", err)
+	}
 
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {
@@ -1979,17 +1993,17 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	t.Run("Should return the same grouped search payload over HTTP, UDS, and CLI", func(t *testing.T) {
-		path := "/api/marketplace/search?limit=20"
-		var httpValue compozycontract.MarketplaceSearchResponse
+	t.Run("Should return the same catalog payload over HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/marketplace?limit=20"
+		var httpValue compozycontract.MarketplaceListResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
-		var udsValue compozycontract.MarketplaceSearchResponse
+		var udsValue compozycontract.MarketplaceListResponse
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
 			t.Fatalf("UDSJSON(%s) error = %v", path, err)
 		}
-		var cliValue compozycontract.MarketplaceSearchResponse
+		var cliValue compozycontract.MarketplaceListResponse
 		if err := clients.CLI.RunJSON(
 			ctx,
 			&cliValue,
@@ -2005,36 +2019,8 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
 	})
 
-	t.Run("Should return the same kind browse payload over HTTP, UDS, and CLI", func(t *testing.T) {
-		path := "/api/marketplace/extension?limit=20"
-		var httpValue compozycontract.MarketplaceKindResponse
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
-			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
-		}
-		var udsValue compozycontract.MarketplaceKindResponse
-		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
-			t.Fatalf("UDSJSON(%s) error = %v", path, err)
-		}
-		var cliValue compozycontract.MarketplaceKindResponse
-		if err := clients.CLI.RunJSON(
-			ctx,
-			&cliValue,
-			"marketplace",
-			"search",
-			"--kind",
-			"extension",
-			"--limit",
-			"20",
-			"-o",
-			"json",
-		); err != nil {
-			t.Fatalf("CLI marketplace kind search error = %v", err)
-		}
-		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
-	})
-
 	t.Run("Should return the same entry detail payload over HTTP, UDS, and CLI", func(t *testing.T) {
-		path := "/api/marketplace/extension/bridge-github"
+		path := "/api/marketplace/entries/bridge-github"
 		var httpValue compozycontract.MarketplaceEntryResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -2049,7 +2035,6 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 			&cliValue,
 			"marketplace",
 			"info",
-			"extension",
 			"bridge-github",
 			"-o",
 			"json",
@@ -2057,61 +2042,6 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 			t.Fatalf("CLI marketplace info error = %v", err)
 		}
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
-	})
-
-	t.Run("Should install the same catalog MCP semantics over HTTP, UDS, and CLI", func(t *testing.T) {
-		path := "/api/settings/mcp-servers/install"
-		request := compozycontract.InstallSettingsMCPServerRequest{
-			EntryID: "filesystem",
-			Name:    "filesystem-parity",
-			Scope:   compozycontract.SettingsLayeredScopeUser,
-			Values:  &compozycontract.SettingsMCPCatalogInstallValuesPayload{},
-		}
-		var httpValue compozycontract.InstallSettingsMCPServerResponse
-		var udsValue compozycontract.InstallSettingsMCPServerResponse
-		var cliValue compozycontract.InstallSettingsMCPServerResponse
-		t.Run("Should install over HTTP from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.HTTPJSON(installCtx, http.MethodPost, path, request, &httpValue); err != nil {
-				t.Fatalf("HTTPJSON(%s) error = %v", path, err)
-			}
-		})
-		t.Run("Should install over UDS from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.UDSJSON(installCtx, http.MethodPost, path, request, &udsValue); err != nil {
-				t.Fatalf("UDSJSON(%s) error = %v", path, err)
-			}
-		})
-		t.Run("Should install over CLI from fresh state", func(t *testing.T) {
-			harness := startMarketplaceHarness(t)
-			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancelInstall()
-			if err := harness.CLI.RunJSON(
-				installCtx,
-				&cliValue,
-				"mcp",
-				"install",
-				"filesystem",
-				"--name",
-				"filesystem-parity",
-				"--scope",
-				"user",
-				"-o",
-				"json",
-			); err != nil {
-				t.Fatalf("CLI mcp install error = %v", err)
-			}
-		})
-		assertTransportMCPInstallParity(t, path, httpValue, udsValue, cliValue)
-		if httpValue.MCPServer.CatalogEntry != "filesystem" ||
-			httpValue.MCPServer.CatalogVersion != "1.0.0" ||
-			httpValue.NextStep != compozycontract.SettingsMCPInstallNextStepNone {
-			t.Fatalf("catalog MCP install response = %#v", httpValue)
-		}
 	})
 
 	t.Run("Should preserve the current extension search envelope across HTTP, UDS, and CLI", func(t *testing.T) {
@@ -2158,8 +2088,8 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refresh the same curated kind over guarded HTTP and unguarded UDS", func(t *testing.T) {
-		path := "/api/marketplace/refresh?kind=extension"
+	t.Run("Should refresh the same catalog source over guarded HTTP and unguarded UDS", func(t *testing.T) {
+		path := "/api/marketplace/refresh"
 		var httpValue compozycontract.MarketplaceRefreshResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -2174,32 +2104,61 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 func newTransportMarketplaceCatalogServer(t testing.TB) *httptest.Server {
 	t.Helper()
+	manifest := `[extension]
+name = "bridge-github"
+version = "1.0.0"
+description = "Connect GitHub events to Compozy"
+min_compozy_version = "0.5.0"
 
-	documents := map[string]string{
-		"/mcp.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"filesystem","name":"Filesystem","description":"Read approved local files",` +
-			`"version":"1.0.0","launch":{"type":"npm","package":"server-filesystem","version":"1.0.0"},` +
-			`"default_scope":"global"}]}`,
-		"/extensions.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
-			`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
-			`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
-			`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
-			`"tier":"official"}]}`,
-		"/skills.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
-			`"description":"Operate Compozy through structured surfaces","version":"1.0.0",` +
-			`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]}]}`,
+[capabilities]
+provides = []
+
+[permissions]
+requires = []
+`
+	var archive bytes.Buffer
+	compressed := gzip.NewWriter(&archive)
+	writer := tar.NewWriter(compressed)
+	if err := writer.WriteHeader(
+		&tar.Header{Name: "bridge-github/extension.toml", Mode: 0o600, Size: int64(len(manifest))},
+	); err != nil {
+		t.Fatal(err)
 	}
+	if _, err := io.WriteString(writer, manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(archive.Bytes()))
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		document, ok := documents[request.URL.Path]
-		if !ok {
+		switch request.URL.Path {
+		case "/package.tgz":
+			if _, err := response.Write(archive.Bytes()); err != nil {
+				t.Errorf("write package: %v", err)
+			}
+		case "/v3/marketplaces.json":
+			if _, err := io.WriteString(
+				response,
+				`{"manifest_version":3,"generated_at":"2026-09-13T00:00:00Z","entries":[]}`,
+			); err != nil {
+				t.Errorf("write presets: %v", err)
+			}
+		case "/v3/extensions.json":
+			response.Header().Set("Content-Type", "application/json")
+			document := `{"manifest_version":3,"generated_at":"2026-09-13T00:00:00Z","entries":[{` +
+				`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
+				`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
+				`"artifact_url":"http://` + request.Host + `/package.tgz",` +
+				`"digest_sha256":"` + digest + `","tier":"official"}]}`
+			if _, err := io.WriteString(response, document); err != nil {
+				t.Errorf("write catalog: %v", err)
+			}
+		default:
 			http.NotFound(response, request)
-			return
-		}
-		response.Header().Set("Content-Type", "application/json")
-		if _, err := io.WriteString(response, document); err != nil {
-			t.Errorf("write marketplace catalog response error = %v", err)
 		}
 	}))
 	t.Cleanup(server.Close)
@@ -2235,34 +2194,6 @@ func assertTransportMarketplaceParity(t testing.TB, path string, values ...any) 
 			valueJSON,
 		)
 	}
-}
-
-func assertTransportMCPInstallParity(
-	t testing.TB,
-	path string,
-	values ...compozycontract.InstallSettingsMCPServerResponse,
-) {
-	t.Helper()
-
-	normalized := make([]any, 0, len(values))
-	for index, value := range values {
-		if !strings.HasPrefix(value.Apply.ApplyRecordID, "cfgapp-") {
-			t.Fatalf("%s transport %d apply_record_id = %q, want cfgapp-*", path, index, value.Apply.ApplyRecordID)
-		}
-		if len(value.Apply.ActiveConfigHash) != len("sha256:")+64 ||
-			!strings.HasPrefix(value.Apply.ActiveConfigHash, "sha256:") {
-			t.Fatalf(
-				"%s transport %d active_config_hash = %q, want sha256 digest",
-				path,
-				index,
-				value.Apply.ActiveConfigHash,
-			)
-		}
-		value.Apply.ApplyRecordID = ""
-		value.Apply.ActiveConfigHash = ""
-		normalized = append(normalized, value)
-	}
-	assertTransportMarketplaceParity(t, path, normalized...)
 }
 
 func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.T) {

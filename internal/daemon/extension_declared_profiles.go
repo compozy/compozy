@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -26,21 +25,27 @@ func reconcileDeclaredExtensionProfiles(
 	if err != nil {
 		return fmt.Errorf("daemon: list extensions for declared profiles: %w", err)
 	}
-	for _, info := range installed {
-		manifestPath := strings.TrimSpace(info.ManifestPath)
+	for infoIndex := range installed {
+		manifestPath := strings.TrimSpace(installed[infoIndex].ManifestPath)
 		if manifestPath == "" {
 			continue
 		}
-		manifest, err := extensionpkg.LoadManifest(filepath.Dir(manifestPath))
+		manifest, err := extensionpkg.LoadManifest(extensionpkg.PackageRootFromManifest(manifestPath))
 		if err != nil {
-			logger.Warn("daemon: skip declared profiles from invalid extension", "extension", info.Name, "error", err)
+			logger.Warn(
+				"daemon: skip declared profiles from invalid extension",
+				"extension",
+				installed[infoIndex].Name,
+				"error",
+				err,
+			)
 			continue
 		}
 		if len(manifest.Profiles) == 0 {
 			continue
 		}
 		if _, err := extensionpkg.ApplyDeclaredProfiles(ctx, profiles, manifest); err != nil {
-			return fmt.Errorf("daemon: reconcile extension %q declared profiles: %w", info.Name, err)
+			return fmt.Errorf("daemon: reconcile extension %q declared profiles: %w", installed[infoIndex].Name, err)
 		}
 	}
 	return nil

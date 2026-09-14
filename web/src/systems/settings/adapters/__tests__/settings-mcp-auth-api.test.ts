@@ -17,6 +17,37 @@ afterEach(() => {
 });
 
 describe("MCP auth adapter", () => {
+  // Invariant: every OAuth request preserves the chosen definition owner.
+  // Owner: Settings HTTP adapter; canonical suite: settings-mcp-auth-api.test.ts.
+  it("carries the extension owner through begin, exchange, and logout", async () => {
+    const filter = { scope: "user" as const, owner: " extension:linear " };
+    const requests = [
+      {
+        action: "begin",
+        body: { mode: "automatic" as const },
+        call: () => beginSettingsMCPAuth("linear", filter, { mode: "automatic" }),
+      },
+      {
+        action: "exchange",
+        body: { redirect_url: "https://callback.example/?code=x&state=y" },
+        call: () =>
+          exchangeSettingsMCPAuth("linear", filter, {
+            redirect_url: "https://callback.example/?code=x&state=y",
+          }),
+      },
+      { action: "logout", body: undefined, call: () => logoutSettingsMCPAuth("linear", filter) },
+    ];
+    for (const request of requests) {
+      vi.mocked(globalThis.fetch).mockClear();
+      mockJsonResponse({});
+      await request.call();
+      await expectFetchRequest({
+        method: "POST",
+        body: request.body,
+        path: `/api/settings/mcp-servers/linear/auth/${request.action}?scope=user&owner=extension%3Alinear`,
+      });
+    }
+  });
   it("begins MCP auth with the scoped target", async () => {
     mockJsonResponse({
       authorization_url: "https://auth.linear.app/oauth/authorize?state=x",

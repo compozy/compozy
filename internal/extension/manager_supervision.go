@@ -6,13 +6,15 @@ import (
 	"errors"
 	"fmt"
 
-	"path/filepath"
-
 	"strings"
 	"time"
 )
 
 func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
+	return m.startOneWithPublish(ctx, ext, nil)
+}
+
+func (m *Manager) startOneWithPublish(ctx context.Context, ext *managedExtension, publish func()) error {
 	if err := m.discoverExtension(ext); err != nil {
 		return err
 	}
@@ -26,7 +28,7 @@ func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
 	if err != nil {
 		return err
 	}
-	return m.commitPreparedExtension(ctx, ext, prepared)
+	return m.commitPreparedExtensionWithPublish(ctx, ext, prepared, publish)
 }
 
 func (m *Manager) discoverExtension(ext *managedExtension) error {
@@ -37,7 +39,7 @@ func (m *Manager) discoverExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseDiscover, err)
 	}
 
-	rootDir := filepath.Dir(manifestPath)
+	rootDir := PackageRootFromManifest(manifestPath)
 	if rootDir == "." || rootDir == "" {
 		err := fmt.Errorf("invalid manifest path %q", manifestPath)
 		m.setFailure(ext, ExtensionPhaseDiscover, err)
@@ -101,12 +103,13 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 	return nil
 }
 
-func (m *Manager) superviseInstance(key InstanceKey, generation int64) {
+func (m *Manager) superviseInstance(expected *managedExtension, generation int64) {
 	defer m.wg.Done()
+	key := expected.instanceKey()
 
 	for {
 		owner, proc, interval, ok := m.currentSupervisedInstance(key, generation)
-		if !ok {
+		if !ok || owner != expected {
 			return
 		}
 

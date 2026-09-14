@@ -90,7 +90,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/settings/hooks/:name",
 		"DELETE /api/settings/mcp-servers/:name",
 		"DELETE /api/settings/providers/:name",
-		"DELETE /api/skills/marketplace/:name",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
@@ -211,9 +210,15 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/memory/providers/:provider_name",
 		"GET /api/memory/recall-traces/:session_id/:turn_seq",
 		"GET /api/memory/scope-show",
-		"GET /api/marketplace/:kind",
-		"GET /api/marketplace/:kind/:entry_id",
-		"GET /api/marketplace/search",
+		"GET /api/marketplace",
+		"GET /api/marketplace/entries/:entry_id",
+		"GET /api/marketplace/sources",
+		"POST /api/marketplace/sources",
+		"PATCH /api/marketplace/sources/:name",
+		"DELETE /api/marketplace/sources/:name",
+		"POST /api/marketplace/sources/:name/refresh",
+		"GET /api/settings/marketplace",
+		"PATCH /api/settings/marketplace",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
 		"GET /api/workspaces/:workspace_id/network/usage",
@@ -287,8 +292,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",
+		"GET /api/settings/mcp-servers/:name",
 		"GET /api/settings/mcp-servers/:name/auth/status",
-		"POST /api/settings/mcp-servers/install",
 		"POST /api/settings/mcp-servers/:name/auth/begin",
 		"POST /api/settings/mcp-servers/:name/auth/exchange",
 		"POST /api/settings/mcp-servers/:name/auth/logout",
@@ -509,8 +514,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/skills/:name/enable",
 		"POST /api/skills/:name/expose",
 		"POST /api/skills/:name/unexpose",
-		"POST /api/skills/marketplace/install",
-		"POST /api/skills/marketplace/update",
 		"POST /api/task-runs/:id/attach-session",
 		"POST /api/task-runs/:id/cancel",
 		"POST /api/task-runs/:id/complete",
@@ -634,19 +637,30 @@ func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
 		t,
 		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 	)
-	for _, path := range []string{
-		"/api/skills/marketplace/search",
-		"/api/skills/marketplace/info",
-		"/api/extensions/marketplace",
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/marketplace/search"},
+		{http.MethodGet, "/api/marketplace/mcp"},
+		{http.MethodGet, "/api/marketplace/skill"},
+		{http.MethodGet, "/api/marketplace/extension"},
+		{http.MethodGet, "/api/marketplace/mcp/github"},
+		{http.MethodGet, "/api/marketplace/skill/review"},
+		{http.MethodGet, "/api/marketplace/extension/review"},
+		{http.MethodGet, "/api/skills/marketplace/search"},
+		{http.MethodGet, "/api/skills/marketplace/info"},
+		{http.MethodGet, "/api/extensions/marketplace"},
+		{http.MethodPost, "/api/skills/marketplace/install"},
+		{http.MethodPost, "/api/skills/marketplace/update"},
+		{http.MethodDelete, "/api/skills/marketplace/review"},
 	} {
-		t.Run("Should return 404 for "+path, func(t *testing.T) {
+		t.Run("Should return 404 for "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
 
-			response := performRequest(t, engine, http.MethodGet, path, nil)
+			response := performRequest(t, engine, route.method, route.path, nil)
 			if response.Code != http.StatusNotFound {
 				t.Fatalf(
-					"GET %s status = %d, want %d; body=%s",
-					path,
+					"%s %s status = %d, want %d; body=%s",
+					route.method,
+					route.path,
 					response.Code,
 					http.StatusNotFound,
 					response.Body.String(),
@@ -1333,7 +1347,6 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodPut, path: "/api/settings/providers/demo", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/providers/demo"},
 		{method: http.MethodPut, path: "/api/settings/mcp-servers/server-a", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/settings/mcp-servers/install", body: []byte(`{}`)},
 		{
 			method: http.MethodPost,
 			path:   "/api/settings/mcp-servers/server-a/auth/begin?scope=global",
@@ -1534,20 +1547,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	settingsService := &stubSettingsService{
-		InstallMCPCatalogFn: func(
-			_ context.Context,
-			req settingspkg.MCPCatalogInstallRequest,
-		) (settingspkg.MCPCatalogInstallResult, error) {
-			return settingspkg.MCPCatalogInstallResult{
-				Item: settingspkg.MCPServerItem{
-					Name: req.Name, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
-					CatalogEntry: req.EntryID,
-				},
-				NextStep: settingspkg.MCPCatalogInstallNextStepNone,
-			}, nil
-		},
-	}
+	settingsService := &stubSettingsService{}
 	restartController := &stubSettingsRestartController{}
 	var (
 		installedReq   contract.InstallExtensionRequest
@@ -1634,45 +1634,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			},
 		},
 		{
-			name:       "Should install a catalog MCP server with strict request and response mapping",
+			name:       "Should reject retired catalog installation",
 			method:     http.MethodPost,
 			path:       "/api/settings/mcp-servers/install",
-			wantStatus: http.StatusOK,
-			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
-				EntryID:     "github",
-				Name:        "github-workspace",
-				Scope:       contract.SettingsLayeredScopeWorkspace,
-				WorkspaceID: "ws-1",
-				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
-					Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
-						"TOKEN": {VaultRef: "vault:mcp/shared/token"},
-					},
-				},
-			}),
-			assert: func(t *testing.T) {
-				t.Helper()
-				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
-					settingsService.LastMCPCatalogInstall.Name != "github-workspace" ||
-					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
-					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
-					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
-				}
-				if got, want := settingsService.LastMCPCatalogInstall.Values.Inputs["TOKEN"].VaultRef, "vault:mcp/shared/token"; got != want {
-					t.Fatalf("LastMCPCatalogInstall.Values.Inputs[TOKEN].VaultRef = %q, want %q", got, want)
-				}
-			},
+			body:       []byte(`{"entry_id":"github","values":{}}`),
+			wantStatus: http.StatusNotFound,
 			assertBody: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
-				var response contract.InstallSettingsMCPServerResponse
-				if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-					t.Fatalf("json.Unmarshal(MCP install response) error = %v; body=%s", err, recorder.Body.String())
-				}
-				if response.MCPServer.Name != "github-workspace" ||
-					response.MCPServer.Scope != contract.SettingsScopeWorkspace ||
-					response.MCPServer.WorkspaceID != "ws-1" ||
-					response.MCPServer.CatalogEntry != "github" ||
-					response.NextStep != contract.SettingsMCPInstallNextStepNone {
-					t.Fatalf("MCP install response = %#v, want persisted workspace catalog item", response)
+				if !strings.Contains(recorder.Body.String(), "404") {
+					t.Fatalf("removed install body: %s", recorder.Body.String())
 				}
 			},
 		},

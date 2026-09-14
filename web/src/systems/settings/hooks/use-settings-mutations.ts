@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
 
 import {
@@ -114,9 +115,20 @@ function invalidateHooks(queryClient: ReturnType<typeof useQueryClient>) {
   ]);
 }
 
-function invalidateMCPServers(queryClient: ReturnType<typeof useQueryClient>) {
+export function invalidateMCPState(queryClient: ReturnType<typeof useQueryClient>, owner?: string) {
+  const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() })];
+  if (owner?.startsWith("extension:")) {
+    tasks.push(
+      queryClient.invalidateQueries({ queryKey: extensionKeys.all }),
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.all })
+    );
+  }
+  return Promise.all(tasks);
+}
+
+function invalidateMCPServers(queryClient: ReturnType<typeof useQueryClient>, owner?: string) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+    invalidateMCPState(queryClient, owner),
     invalidateSettingsApplyRecords(queryClient),
   ]);
 }
@@ -356,7 +368,8 @@ export function usePutSettingsMCPServer() {
     mutationFn: ({ name, body, filter }: MCPPutParams) =>
       putSettingsMCPServer(name, body, filter ?? {}),
     onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateMCPServers(queryClient),
+    onSettled: (_data, _error, variables) =>
+      invalidateMCPServers(queryClient, variables.filter?.owner),
   });
 }
 
@@ -366,7 +379,8 @@ export function useDeleteSettingsMCPServer() {
   return useMutation({
     mutationFn: ({ name, filter }: MCPDeleteParams) => deleteSettingsMCPServer(name, filter ?? {}),
     onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateMCPServers(queryClient),
+    onSettled: (_data, _error, variables) =>
+      invalidateMCPServers(queryClient, variables.filter?.owner),
   });
 }
 
@@ -400,7 +414,8 @@ export function useExchangeMCPAuth() {
   return useMutation({
     mutationFn: ({ name, filter, body }: MCPAuthExchangeParams) =>
       exchangeSettingsMCPAuth(name, filter, body),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+    onSettled: (_data, _error, variables) =>
+      invalidateMCPState(queryClient, variables.filter.owner),
   });
 }
 
@@ -409,7 +424,8 @@ export function useLogoutMCPAuth() {
 
   return useMutation({
     mutationFn: ({ name, filter }: MCPAuthParams) => logoutSettingsMCPAuth(name, filter),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+    onSettled: (_data, _error, variables) =>
+      invalidateMCPState(queryClient, variables.filter.owner),
   });
 }
 

@@ -12,7 +12,7 @@ import (
 
 var _ store.MarketplaceCatalogRepository = (*MarketplaceRepo)(nil)
 
-// ReplaceMarketplaceCatalog atomically prunes and replaces one curated kind.
+// ReplaceMarketplaceCatalog atomically prunes and replaces one catalog source.
 func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 	ctx context.Context,
 	replacement store.MarketplaceCatalogReplacement,
@@ -22,7 +22,7 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("store: begin marketplace catalog %q replacement: %w", replacement.Kind, err)
+		return fmt.Errorf("store: begin marketplace catalog %q replacement: %w", replacement.Source, err)
 	}
 	committed := false
 	defer func() {
@@ -32,30 +32,59 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			err = errors.Join(
 				err,
-				fmt.Errorf("store: roll back marketplace catalog %q replacement: %w", replacement.Kind, rollbackErr),
+				fmt.Errorf("store: roll back marketplace catalog %q replacement: %w", replacement.Source, rollbackErr),
 			)
 		}
 	}()
 
 	queries := sqlcgen.New(tx)
-	if err := queries.DeleteMarketplaceCatalogEntriesByKind(ctx, replacement.Kind); err != nil {
-		return fmt.Errorf("store: prune marketplace catalog %q projection: %w", replacement.Kind, err)
+	claimed, err := queries.ClaimMarketplaceCatalogGeneration(ctx, sqlcgen.ClaimMarketplaceCatalogGenerationParams{
+		Source: replacement.Source, SourceRef: replacement.SourceRef, Generation: replacement.Generation,
+	})
+	if err != nil {
+		return fmt.Errorf("store: claim marketplace source generation: %w", err)
 	}
+	if claimed != 1 {
+		return store.ErrMarketplaceCatalogGenerationStale
+	}
+	if err := queries.DeleteMarketplaceCatalogEntriesBySource(ctx, replacement.Source); err != nil {
+		return fmt.Errorf("store: prune marketplace catalog %q projection: %w", replacement.Source, err)
+	}
+	installable := int64(0)
 	for _, entry := range replacement.Entries {
+		if entry.Source != replacement.Source {
+			return errors.New("store: marketplace entry source does not match replacement")
+		}
+		if entry.Installable {
+			installable++
+		}
 		if err := insertMarketplaceCatalogEntry(ctx, queries, entry); err != nil {
 			return err
 		}
 	}
+	kind, diagnostics := replacement.Kind, replacement.DiagnosticsJSON
+	if kind == "" {
+		kind = "feed"
+	}
+	if diagnostics == "" {
+		diagnostics = "[]"
+	}
 	if err := queries.UpsertMarketplaceCatalogStateFresh(ctx, sqlcgen.UpsertMarketplaceCatalogStateFreshParams{
-		Kind:            replacement.Kind,
+		SourceRef: replacement.SourceRef, KindOfSource: kind, DocumentDigest: replacement.DocumentDigest,
+		DocumentPath: replacement.DocumentPath, Owner: replacement.Owner, DiagnosticsJson: diagnostics,
+		Source:          replacement.Source,
+		Generation:      replacement.Generation,
+		Revision:        replacement.Revision,
+		Plugins:         int64(len(replacement.Entries)),
+		Installable:     installable,
 		ManifestVersion: replacement.ManifestVersion,
 		GeneratedAt:     marketplaceCatalogNullString(replacement.GeneratedAt),
 		FetchedAt:       replacement.FetchedAt,
 	}); err != nil {
-		return fmt.Errorf("store: upsert marketplace catalog %q state: %w", replacement.Kind, err)
+		return fmt.Errorf("store: upsert marketplace catalog %q state: %w", replacement.Source, err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit marketplace catalog %q replacement: %w", replacement.Kind, err)
+		return fmt.Errorf("store: commit marketplace catalog %q replacement: %w", replacement.Source, err)
 	}
 	committed = true
 	return nil
@@ -63,18 +92,19 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 
 // MarkMarketplaceCatalogStale records a refresh failure without changing entries.
 func (r *MarketplaceRepo) MarkMarketplaceCatalogStale(
-	ctx context.Context,
-	kind string,
-	lastError string,
+	ctx context.Context, source string, generation int64, errorClass, lastError string,
 ) error {
 	if err := r.checkReady(ctx, "mark marketplace catalog stale"); err != nil {
 		return err
 	}
-	if err := r.queries.MarkMarketplaceCatalogStateStale(ctx, sqlcgen.MarkMarketplaceCatalogStateStaleParams{
-		Kind:      kind,
-		LastError: lastError,
-	}); err != nil {
-		return fmt.Errorf("store: mark marketplace catalog %q stale: %w", kind, err)
+	changed, err := r.queries.MarkMarketplaceCatalogStateStale(ctx, sqlcgen.MarkMarketplaceCatalogStateStaleParams{
+		Source: source, Generation: generation, ErrorClass: errorClass, LastError: lastError,
+	})
+	if err != nil {
+		return fmt.Errorf("store: mark marketplace catalog %q stale: %w", source, err)
+	}
+	if changed != 1 {
+		return store.ErrMarketplaceCatalogGenerationStale
 	}
 	return nil
 }
@@ -82,18 +112,18 @@ func (r *MarketplaceRepo) MarkMarketplaceCatalogStale(
 // ListMarketplaceCatalogEntries returns deterministic filtered projections.
 func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	ctx context.Context,
-	kind string,
+	source string,
 	limit int64,
 ) ([]store.MarketplaceCatalogEntry, error) {
 	if err := r.checkReady(ctx, "list marketplace catalog entries"); err != nil {
 		return nil, err
 	}
 	rows, err := r.queries.ListMarketplaceCatalogEntries(ctx, sqlcgen.ListMarketplaceCatalogEntriesParams{
-		Kind:        kind,
+		Source:      source,
 		ResultLimit: limit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("store: list marketplace catalog %q entries: %w", kind, err)
+		return nil, fmt.Errorf("store: list marketplace catalog %q entries: %w", source, err)
 	}
 	entries := make([]store.MarketplaceCatalogEntry, 0, len(rows))
 	for _, row := range rows {
@@ -102,23 +132,23 @@ func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	return entries, nil
 }
 
-// GetMarketplaceCatalogEntry returns one projection by immutable feed identity.
+// GetMarketplaceCatalogEntry returns one projection by source and entry identity.
 func (r *MarketplaceRepo) GetMarketplaceCatalogEntry(
 	ctx context.Context,
-	kind string,
+	source string,
 	entryID string,
 ) (store.MarketplaceCatalogEntry, error) {
 	if err := r.checkReady(ctx, "get marketplace catalog entry"); err != nil {
 		return store.MarketplaceCatalogEntry{}, err
 	}
 	row, err := r.queries.GetMarketplaceCatalogEntry(ctx, sqlcgen.GetMarketplaceCatalogEntryParams{
-		Kind:    kind,
+		Source:  source,
 		EntryID: entryID,
 	})
 	if err != nil {
 		return store.MarketplaceCatalogEntry{}, fmt.Errorf(
 			"store: get marketplace catalog %q entry %q: %w",
-			kind,
+			source,
 			entryID,
 			err,
 		)
@@ -129,24 +159,33 @@ func (r *MarketplaceRepo) GetMarketplaceCatalogEntry(
 // GetMarketplaceCatalogState returns persisted freshness plus the projected count.
 func (r *MarketplaceRepo) GetMarketplaceCatalogState(
 	ctx context.Context,
-	kind string,
+	source string,
 ) (store.MarketplaceCatalogState, error) {
 	if err := r.checkReady(ctx, "get marketplace catalog state"); err != nil {
 		return store.MarketplaceCatalogState{}, err
 	}
-	row, err := r.queries.GetMarketplaceCatalogState(ctx, kind)
+	row, err := r.queries.GetMarketplaceCatalogState(ctx, source)
 	if err != nil {
-		return store.MarketplaceCatalogState{}, fmt.Errorf("store: get marketplace catalog %q state: %w", kind, err)
+		return store.MarketplaceCatalogState{}, fmt.Errorf("store: get marketplace catalog %q state: %w", source, err)
 	}
+	return marketplaceCatalogStateFromRow(row), nil
+}
+
+func marketplaceCatalogStateFromRow(row sqlcgen.GetMarketplaceCatalogStateRow) store.MarketplaceCatalogState {
 	return store.MarketplaceCatalogState{
-		Kind:            row.Kind,
+		SourceRef: row.SourceRef, Kind: row.KindOfSource, Enabled: row.Enabled != 0,
+		DocumentDigest: row.DocumentDigest, DocumentPath: row.DocumentPath, Owner: row.Owner,
+		DiagnosticsJSON: row.DiagnosticsJson, Installable: row.Installable, ErrorClass: row.ErrorClass,
+		Source:          row.Source,
+		Generation:      row.Generation,
+		Revision:        row.Revision,
 		ManifestVersion: row.ManifestVersion,
 		GeneratedAt:     row.GeneratedAt.String,
 		FetchedAt:       row.FetchedAt,
 		Stale:           row.Stale != 0,
 		LastError:       row.LastError,
 		EntryCount:      row.EntryCount,
-	}, nil
+	}
 }
 
 func insertMarketplaceCatalogEntry(
@@ -155,38 +194,48 @@ func insertMarketplaceCatalogEntry(
 	entry store.MarketplaceCatalogEntry,
 ) error {
 	if err := queries.InsertMarketplaceCatalogEntry(ctx, sqlcgen.InsertMarketplaceCatalogEntryParams{
-		Kind:         entry.Kind,
-		EntryID:      entry.EntryID,
-		Name:         entry.Name,
-		Description:  entry.Description,
-		Version:      entry.Version,
-		PublishedAt:  marketplaceCatalogNullString(entry.PublishedAt),
-		UpdatedAt:    marketplaceCatalogNullString(entry.UpdatedAt),
-		DigestSha256: marketplaceCatalogNullString(entry.DigestSHA256),
-		Tier:         marketplaceCatalogNullString(entry.Tier),
-		InstallSlug:  marketplaceCatalogNullString(entry.InstallSlug),
-		PayloadJson:  entry.PayloadJSON,
-		FetchedAt:    entry.FetchedAt,
+		Source:         entry.Source,
+		Layout:         entry.Layout,
+		Icon:           entry.Icon,
+		Installable:    int64(boolToInt(entry.Installable)),
+		InstallBlocker: entry.InstallBlocker,
+		ResolvedRef:    entry.ResolvedRef,
+		EntryID:        entry.EntryID,
+		Name:           entry.Name,
+		Description:    entry.Description,
+		Version:        entry.Version,
+		PublishedAt:    marketplaceCatalogNullString(entry.PublishedAt),
+		UpdatedAt:      marketplaceCatalogNullString(entry.UpdatedAt),
+		DigestSha256:   marketplaceCatalogNullString(entry.DigestSHA256),
+		Tier:           marketplaceCatalogNullString(entry.Tier),
+		InstallSlug:    marketplaceCatalogNullString(entry.InstallSlug),
+		PayloadJson:    entry.PayloadJSON,
+		FetchedAt:      entry.FetchedAt,
 	}); err != nil {
-		return fmt.Errorf("store: insert marketplace catalog %q entry %q: %w", entry.Kind, entry.EntryID, err)
+		return fmt.Errorf("store: insert marketplace catalog %q entry %q: %w", entry.Source, entry.EntryID, err)
 	}
 	return nil
 }
 
 func marketplaceCatalogEntryFromRow(row sqlcgen.MarketplaceCatalogEntry) store.MarketplaceCatalogEntry {
 	return store.MarketplaceCatalogEntry{
-		Kind:         row.Kind,
-		EntryID:      row.EntryID,
-		Name:         row.Name,
-		Description:  row.Description,
-		Version:      row.Version,
-		PublishedAt:  row.PublishedAt.String,
-		UpdatedAt:    row.UpdatedAt.String,
-		DigestSHA256: row.DigestSha256.String,
-		Tier:         row.Tier.String,
-		InstallSlug:  row.InstallSlug.String,
-		PayloadJSON:  row.PayloadJson,
-		FetchedAt:    row.FetchedAt,
+		Source:         row.Source,
+		Layout:         row.Layout,
+		Icon:           row.Icon,
+		Installable:    row.Installable != 0,
+		InstallBlocker: row.InstallBlocker,
+		ResolvedRef:    row.ResolvedRef,
+		EntryID:        row.EntryID,
+		Name:           row.Name,
+		Description:    row.Description,
+		Version:        row.Version,
+		PublishedAt:    row.PublishedAt.String,
+		UpdatedAt:      row.UpdatedAt.String,
+		DigestSHA256:   row.DigestSha256.String,
+		Tier:           row.Tier.String,
+		InstallSlug:    row.InstallSlug.String,
+		PayloadJSON:    row.PayloadJson,
+		FetchedAt:      row.FetchedAt,
 	}
 }
 

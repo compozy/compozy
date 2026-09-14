@@ -1,0 +1,141 @@
+{
+    "captured_at": "2026-09-13T01:02:52.268679+00:00",
+    "icons": {
+        "context7": {
+            "page": "https://context7.com",
+            "asset": "https://context7.com/favicon.ico",
+            "file": "catalog/icons/context7.png",
+            "sha256": "5d42a0cad320600ee0ebb805065f212a81a257895e9dc39687b7958602ea4f70",
+            "bytes": 1489,
+            "conversion": null
+        },
+        "notion": {
+            "page": "https://www.notion.com",
+            "asset": "https://www.notion.com/front-static/logo-ios.png",
+            "file": "catalog/icons/notion.png",
+            "sha256": "483846a85e43e22879445047b83b22033e70fcc25ab34809ebadb7f856507ee0",
+            "bytes": 8078,
+            "conversion": null
+        },
+        "sentry": {
+            "page": "https://github.com/getsentry/sentry/blob/master/static/images/logo-sentry.svg",
+            "asset": "https://raw.githubusercontent.com/getsentry/sentry/master/static/images/logo-sentry.svg",
+            "file": "catalog/icons/sentry.svg",
+            "sha256": "4131091b0100dc2c1346672261c0de5d1ae8f6aa4092ff518f6046f149089b47",
+            "bytes": 741,
+            "conversion": null
+        },
+        "postgres": {
+            "page": "https://www.postgresql.org",
+            "asset": "https://www.postgresql.org/media/img/about/press/elephant.png",
+            "file": "catalog/icons/postgres.png",
+            "sha256": "ff92fb5d12a7fa6b23c2eb403d2edf4fbc58ced802021e1f02c3583cb70957be",
+            "bytes": 50279,
+            "conversion": null
+        },
+        "supabase": {
+            "page": "https://supabase.com",
+            "asset": "https://supabase.com/favicon/favicon-196x196.png",
+            "file": "catalog/icons/supabase.png",
+            "sha256": "e47735b2f299f741bc83ddf181e391191d75b769c6d89de8401342b69c651a93",
+            "bytes": 3439,
+            "conversion": null
+        },
+        "brave-search": {
+            "page": "https://brave.com",
+            "asset": "https://brave.com/static-assets/images/cropped-brave_appicon_release-192x192.png",
+            "file": "catalog/icons/brave-search.png",
+            "sha256": "97567c070955e885787eb1e45768d0e977a88c4b42de6985072b338f29d61552",
+            "bytes": 3263,
+            "conversion": null
+        },
+        "playwright": {
+            "page": "https://playwright.dev",
+            "asset": "https://playwright.dev/img/playwright-logo.ico",
+            "file": "catalog/icons/playwright.png",
+            "sha256": "cc9363d70df4f3ab5fe29ae3f4f20a724cfcf0966867e0cc96226a86441d4402",
+            "bytes": 13620,
+            "conversion": "Extracted the original embedded PNG bytes from ICO without resizing or recoloring."
+        },
+        "stripe": {
+            "page": "https://stripe.com",
+            "asset": "https://images.stripeassets.com/fzn2n1nzq965/1hgcBNd12BfT9VLgbId7By/01d91920114b124fb4cf6d448f9f06eb/favicon.svg",
+            "file": "catalog/icons/stripe.svg",
+            "sha256": "7253e3eb4657773723a696a1f4ad9c8f62794191b9f09c1359db74a51d2d3ae5",
+            "bytes": 412,
+            "conversion": null
+        },
+        "posthog": {
+            "page": "https://posthog.com",
+            "asset": "https://posthog.com/favicon.svg?v=6e5ac8d4a5b381b5caa29396fbf7c955",
+            "file": "catalog/icons/posthog.svg",
+            "sha256": "fba86905097b8ecfdc5d010d3b5724085e11c7bb7f5dfe83ba60b14b1c68a4e5",
+            "bytes": 1232,
+            "conversion": null
+        },
+        "airtable": {
+            "page": "https://www.airtable.com",
+            "asset": "https://www.airtable.com/favicon.ico",
+            "file": "catalog/icons/airtable.png",
+            "sha256": "8020f46841434ab3782fa38d6b8d6c47b3ea69fc025ba8f8d3608e87c36c9aa3",
+            "bytes": 1505,
+            "conversion": null
+        },
+        "gitlab": {
+            "page": "https://about.gitlab.com",
+            "asset": "https://about.gitlab.com/images/ico/favicon-192x192.png",
+            "file": "catalog/icons/gitlab.png",
+            "sha256": "8274a7c15c1c7c5a07fdb684f8a7e5b417fe74ea2321fdd1c830fc9b18b50cb0",
+            "bytes": 6405,
+            "conversion": null
+        },
+        "atlassian": {
+            "page": "https://www.atlassian.com/legal/trademark",
+            "asset": "https://wac-cdn.atlassian.com/dam/jcr:986e0688-32ee-4a8f-b7e6-4b9367f73234/Atlassian-icon-blue.svg?cdnVersion=3667",
+            "file": "catalog/icons/atlassian.svg",
+            "sha256": "368014ebc810f8185fec5cf80678928b0f1c0e4a00a582a4652fbb3eb1d7451c",
+            "bytes": 856,
+            "conversion": null
+        },
+        "grafana": {
+            "page": "https://github.com/grafana/grafana/tree/main/public/img",
+            "asset": "https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg",
+            "file": "catalog/icons/grafana.svg",
+            "sha256": "50806d5a65779e79f746398570e0fc322d5de55e19f0be87a275963f0947bb5e",
+            "bytes": 5690,
+            "conversion": null
+        },
+        "calcom": {
+            "page": "https://cal.com",
+            "asset": "https://framerusercontent.com/images/KLEuLsreYtfUbTcK9TjmfF0QoGY.png",
+            "file": "catalog/icons/calcom.png",
+            "sha256": "efc641b42b19649f123eab5f122d4fec02df47ce07f2fe447b4dc3fe492ce667",
+            "bytes": 13146,
+            "conversion": null
+        },
+        "cloudflare": {
+            "page": "https://www.cloudflare.com",
+            "asset": "https://www.cloudflare.com/favicon.ico",
+            "file": "catalog/icons/cloudflare.png",
+            "sha256": "5414bc6e4b3f6e10f99b5d37abf4420da4dcaece66f8f2c08e090e87267adbc5",
+            "bytes": 908,
+            "conversion": null
+        },
+        "github": {
+            "page": "packages/ui/src/logos/github.tsx",
+            "asset": "packages/ui/src/logos/github.tsx",
+            "file": "catalog/icons/github.svg",
+            "sha256": "05a444f7be15aa89b3b61caf921b8be8f2d6fad2cd227933c29611cc8c204639",
+            "bytes": 764,
+            "conversion": "Static SVG render of the existing @compozy/ui brand component. GithubLogo invertocat, color white."
+        },
+        "linear": {
+            "page": "packages/ui/src/logos/linear.tsx",
+            "asset": "packages/ui/src/logos/linear.tsx",
+            "file": "catalog/icons/linear.svg",
+            "sha256": "5387180dceaae43ce395bc58c9a28dfd37953459eb94a4c8a07cab281056e40c",
+            "bytes": 771,
+            "conversion": "Static SVG render of the existing @compozy/ui brand component. LinearLogo logo variant, dark mode."
+        }
+    }
+}

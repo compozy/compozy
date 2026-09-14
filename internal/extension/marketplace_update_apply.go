@@ -10,7 +10,7 @@ func applyResolvedMarketplaceUpdate(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
-	info ExtensionInfo,
+	info *ExtensionInfo,
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 	resolution marketplaceUpdateResolution,
@@ -25,21 +25,5 @@ func applyResolvedMarketplaceUpdate(
 		return marketplaceUpdateApplyResult{}, err
 	}
 
-	return applyMarketplaceExtensionUpdate(
-		ctx,
-		homePaths,
-		registry,
-		resolution.downloader,
-		info,
-		resolution.latestVersion,
-		resolution.registryName,
-		req.AllowUnverified,
-		req.InstalledBy,
-		resolution.trust,
-		req.ObserveDigestVerification,
-		req.PreflightCandidate,
-		req.CommitCandidate,
-		reload,
-		marketplaceUpdateCleanupForRequest(req),
-	)
+	return applyMarketplaceExtensionUpdate(ctx, homePaths, registry, info, req, resolution, reload)
 }

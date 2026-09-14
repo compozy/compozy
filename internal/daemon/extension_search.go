@@ -110,11 +110,11 @@ func (s *daemonExtensionService) enrichExtensionSearchUpdates(items []contract.E
 		}
 		return
 	}
-	bySlug := make(map[string]extensionpkg.ExtensionInfo, len(installed))
-	for _, info := range installed {
-		slug := strings.TrimSpace(dereferenceDaemonExtensionString(info.RegistrySlug))
+	bySlug := make(map[string]*extensionpkg.ExtensionInfo, len(installed))
+	for infoIndex := range installed {
+		slug := strings.TrimSpace(dereferenceDaemonExtensionString(installed[infoIndex].RegistrySlug))
 		if slug != "" {
-			bySlug[slug] = info
+			bySlug[slug] = &installed[infoIndex]
 		}
 	}
 	for index := range items {
@@ -248,7 +248,6 @@ func (s *daemonExtensionService) searchCuratedExtensions(
 	}
 	result, err := s.marketplaceCatalog.Browse(
 		ctx,
-		marketplacepkg.KindExtension,
 		query,
 		0,
 		extensionSearchSnapshotLimit,
@@ -275,7 +274,7 @@ func (s *daemonExtensionService) searchCuratedExtensions(
 			Tier: entry.Tier, Integrity: integrity,
 		})
 	}
-	if result.State.Stale {
+	if result.Stale {
 		return items, errors.New("curated extension catalog is stale")
 	}
 	return items, nil
