@@ -2227,18 +2227,33 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("profiles.List() error = %v", err)
 	}
-	extensionHooks, err := projector.HookDeclarationsForProfiles(
-		testutil.Context(t),
-		activeExtensionProfileLenses(profiles),
-	)
+	activeProfiles := activeExtensionProfileLenses(profiles)
+	extensionHooks, err := projector.HookDeclarationsForProfiles(testutil.Context(t), activeProfiles)
 	if err != nil {
 		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
 	}
-	if len(extensionHooks) != 1 {
-		t.Fatalf("HookDeclarationsForProfiles() count = %d, want 1", len(extensionHooks))
+	var daemonHooks []hookspkg.HookDecl
+	for _, hook := range extensionHooks {
+		if hook.Name == "ext-daemon-hook" {
+			daemonHooks = append(daemonHooks, hook)
+		}
 	}
-	if extensionHooks[0].Source != hookspkg.HookSourceExtension || extensionHooks[0].Priority != 300 {
-		t.Fatalf("extension hook = %#v, want source extension with priority 300", extensionHooks[0])
+	if len(daemonHooks) != len(activeProfiles) {
+		t.Fatalf("ext-daemon hook count = %d, want %d (one per active profile)", len(daemonHooks), len(activeProfiles))
+	}
+	for _, profile := range activeProfiles {
+		count := 0
+		for _, hook := range daemonHooks {
+			if hook.PlacementProfileID() == profile.ID {
+				count++
+				if hook.Source != hookspkg.HookSourceExtension || hook.Priority != 300 {
+					t.Fatalf("extension hook = %#v, want source extension with priority 300", hook)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("profile %q has %d ext-daemon hooks, want 1", profile.Name, count)
+		}
 	}
 
 	payload := hookspkg.SessionPostCreatePayload{
@@ -2247,6 +2262,7 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 			Timestamp: time.Now().UTC(),
 		},
 		SessionContext: hookspkg.SessionContext{
+			ProfileID: store.DefaultProfileID,
 			SessionID: "sess-ext",
 			AgentName: "coder",
 			State:     string(session.StateActive),

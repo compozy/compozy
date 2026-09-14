@@ -34,6 +34,7 @@ import (
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
@@ -5042,6 +5043,7 @@ type integrationExtensionService struct {
 	homePaths                        compozyconfig.HomePaths
 	registry                         *extensionpkg.Registry
 	manager                          *extensionpkg.Manager
+	profiles                         *profilepkg.Manager
 	marketplaceLoader                extensionpkg.MarketplaceSourceLoader
 	marketplacePolicyAllowUnverified bool
 	marketplaceTrust                 *extensionpkg.MarketplaceTrustEvidence
@@ -5378,6 +5380,56 @@ func (s *integrationExtensionService) Install(
 		return contract.ExtensionPayload{}, err
 	}
 	return s.Status(ctx, manifest.Name)
+}
+
+func (s *integrationExtensionService) PreviewInstall(
+	ctx context.Context,
+	req contract.InstallExtensionRequest,
+	_ taskpkg.ActorContext,
+) (_ contract.ExtensionInstallPreviewPayload, resultErr error) {
+	if s.marketplaceTrust == nil {
+		if err := extensionpkg.ValidateUnverifiedSideLoad(
+			req.Ref, req.Ref, s.marketplacePolicyAllowUnverified, req.AllowUnverified,
+		); err != nil {
+			return contract.ExtensionInstallPreviewPayload{}, err
+		}
+	}
+	sourceFilter := string(req.Source)
+	if req.Source == contract.InstallExtensionSourceCurated {
+		sourceFilter = ""
+	}
+	prepared, err := extensionpkg.PrepareMarketplaceManagedInstall(
+		ctx, s.homePaths, s.registry, s.marketplaceLoader, extensionpkg.MarketplaceInstallRequest{
+			Slug: req.Ref, SourceFilter: sourceFilter, Version: req.Version, Asset: req.Asset,
+			ExpectedDigest: req.ExpectedDigest, PolicyAllowsUnverified: s.marketplacePolicyAllowUnverified,
+			AllowUnverified: req.AllowUnverified, Trust: s.marketplaceTrust,
+		},
+	)
+	if err != nil {
+		return contract.ExtensionInstallPreviewPayload{}, err
+	}
+	defer func() { resultErr = errors.Join(resultErr, prepared.Close()) }()
+	manifest := prepared.Manifest()
+	plan, err := extensionpkg.BuildDeclaredProfilePlan(ctx, s.profiles, manifest)
+	if err != nil {
+		return contract.ExtensionInstallPreviewPayload{}, err
+	}
+	preview := contract.ExtensionInstallPreviewPayload{
+		Name: prepared.Name(), DigestSHA256: prepared.Digest(),
+		Inputs:           make([]contract.MarketplaceInputPayload, 0, len(manifest.Inputs)),
+		DeclaredProfiles: make([]contract.ExtensionInstallDeclaredProfilePayload, 0, len(plan.Profiles)),
+	}
+	for _, input := range manifest.Inputs {
+		preview.Inputs = append(preview.Inputs, contract.MarketplaceInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+		})
+	}
+	for _, profile := range plan.Profiles {
+		preview.DeclaredProfiles = append(preview.DeclaredProfiles, contract.ExtensionInstallDeclaredProfilePayload{
+			Name: profile.Name, Create: profile.Create,
+		})
+	}
+	return preview, nil
 }
 
 func (s *integrationExtensionService) Update(
@@ -5899,6 +5951,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		homePaths:                        d.homePaths,
 		registry:                         extRegistry,
 		manager:                          extManager,
+		profiles:                         profiles,
 		marketplaceLoader:                d.extensionMarketplaceLoader(),
 		marketplacePolicyAllowUnverified: d.cfg.Extensions.Trust.AllowUnverified,
 		marketplaceTrust:                 d.extensionTrust,
@@ -5907,6 +5960,29 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	d.mu.Lock()
 	d.extensions = extService
 	d.mu.Unlock()
+
+	marketplaceStore, err := marketplace.NewSQLiteStore(registry)
+	if err != nil {
+		return fmt.Errorf("new marketplace store: %w", err)
+	}
+	feed, err := marketplace.NewSource(d.cfg.Marketplace.Catalog.EffectiveBaseURL(),
+		&http.Client{Timeout: time.Second})
+	if err != nil {
+		return fmt.Errorf("new marketplace feed: %w", err)
+	}
+	marketplaceService, err := marketplace.NewService(ctx, marketplaceStore, []marketplace.SourceBinding{{
+		Config: marketplace.ResolvedSource{
+			Name: marketplace.CompozyCatalogSource, Ref: marketplace.CompozyCatalogRef,
+			Kind: marketplace.SourceKindFeed, Enabled: true,
+		},
+		Fetcher: feed,
+	}}, time.Minute, time.Minute)
+	if err != nil {
+		return fmt.Errorf("new marketplace service: %w", err)
+	}
+	defer func() {
+		joinRunError("close marketplace service", marketplaceService.Close(context.Background()))
+	}()
 
 	automationManager, err := automationpkg.New(
 		automationpkg.WithStore(registry),
@@ -5978,6 +6054,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
 		udsapi.WithExtensionService(extService),
+		udsapi.WithMarketplaceCatalogService(marketplaceService),
 		udsapi.WithSoulAuthoring(soulAuthoring),
 		udsapi.WithSoulRefresher(manager),
 		udsapi.WithHeartbeatAuthoring(heartbeatAuthoring),

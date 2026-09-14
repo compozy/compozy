@@ -1,7 +1,7 @@
 name = "playwright"
 version = "0.0.78"
 description = "Automate browser workflows with Microsoft's Playwright MCP server in headless mode."
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [resources.mcp_servers.playwright]
 transport = "stdio"

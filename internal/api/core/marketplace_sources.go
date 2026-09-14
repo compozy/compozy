@@ -37,8 +37,17 @@ func (h *BaseHandlers) marketplaceSources(c *gin.Context) MarketplaceSourcesServ
 	return service
 }
 
+func (h *BaseHandlers) marketplaceSourcesReader(c *gin.Context) MarketplaceSourcesReader {
+	service, ok := h.MarketplaceCatalog.(MarketplaceSourcesReader)
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("marketplace sources are unavailable"))
+		return nil
+	}
+	return service
+}
+
 func (h *BaseHandlers) ListMarketplaceSources(c *gin.Context) {
-	service := h.marketplaceSources(c)
+	service := h.marketplaceSourcesReader(c)
 	if service == nil {
 		return
 	}

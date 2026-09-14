@@ -1,7 +1,7 @@
 name = "supabase"
 version = "1.0.0"
 description = "Work with a selected Supabase project through Supabase's hosted MCP server in read-only mode."
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [[inputs]]
 id = "project_ref"

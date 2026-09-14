@@ -57,6 +57,15 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+// WithCompozyExecutableResolver supplies the executable used by bundled extension commands.
+func WithCompozyExecutableResolver(resolver func() (string, error)) Option {
+	return func(d *Daemon) {
+		if resolver != nil {
+			d.executable = resolver
+		}
+	}
+}
+
 // WithBridgeSecretResolver injects the daemon-owned resolver used to convert
 // bridge secret bindings into launch-time bound secret material. When this
 // option is not supplied, daemon boot wires the canonical vault-backed resolver.

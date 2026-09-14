@@ -26,6 +26,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	tailscale "github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
+	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
@@ -38,6 +39,7 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -311,6 +313,7 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	t.Helper()
 
+	compozyBinary := e2etest.BuildCompozyBinary(t)
 	homePaths := referenceHomePaths(t)
 	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
@@ -362,6 +365,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 		daemonpkg.WithHomePaths(homePaths),
 		daemonpkg.WithConfig(&cfg),
 		daemonpkg.WithLogger(logger),
+		daemonpkg.WithCompozyExecutableResolver(func() (string, error) { return compozyBinary, nil }),
 	)
 	if err != nil {
 		t.Fatalf("daemon.New() error = %v", err)
@@ -423,6 +427,13 @@ func referenceDisableBundledExtensions(t *testing.T, homePaths compozyconfig.Hom
 	}
 	if err := registry.Disable(tailscale.Name); err != nil {
 		t.Fatalf("Disable(tailscale) error = %v", err)
+	}
+
+	if err := opendesign.EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(open-design) error = %v", err)
+	}
+	if err := registry.Disable(opendesign.Name); err != nil {
+		t.Fatalf("Disable(open-design) error = %v", err)
 	}
 }
 
@@ -1172,7 +1183,6 @@ func referenceConfig(t *testing.T, homePaths compozyconfig.HomePaths, command st
 	cfg.Defaults.Agent = "coder"
 	cfg.Defaults.Provider = acpmock.ProviderName
 	cfg.Memory.Enabled = false
-	cfg.Skills.Enabled = false
 	cfg.Extensions.Trust.AllowUnverified = true
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	return cfg

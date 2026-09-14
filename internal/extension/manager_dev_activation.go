@@ -82,7 +82,6 @@ func managedDevExtension(
 			NetworkRequirementDigest: verified.NetworkRequirementDigest,
 			Provenance: ExtensionProvenance{
 				InstalledFrom: ExtensionInstalledFromLocalPath,
-				SourceURL:     verified.OriginPath,
 				Layout:        manifest.Layout,
 			},
 		},

@@ -226,7 +226,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		}
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			toolspkg.Scope{Operator: true, WorkspaceID: "workspace-native-agent"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsRemove,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -904,6 +904,19 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	cfg := testConfig(t, deps.HomePaths)
 	resolved := newHarnessIntegrationWorkspace(t, deps.HomePaths, cfg, t.TempDir())
 	resolved.ID = workspaceID
+	workspaceStore, ok := deps.ExtensionEvents.(interface {
+		InsertWorkspace(context.Context, workspacepkg.Workspace) error
+	})
+	if !ok {
+		t.Fatalf("extension event store = %T, want workspace registration", deps.ExtensionEvents)
+	}
+	now := time.Now().UTC()
+	if err := workspaceStore.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+		ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
 	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
 		t.Fatal(err)

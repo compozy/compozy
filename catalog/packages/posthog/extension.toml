@@ -1,7 +1,7 @@
 name = "posthog"
 version = "1.0.0"
 description = "Analyze product data, feature flags, and observability signals through PostHog's hosted MCP server."
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [resources.mcp_servers.posthog]
 transport = "http"

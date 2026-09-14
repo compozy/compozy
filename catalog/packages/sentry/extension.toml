@@ -1,7 +1,7 @@
 name = "sentry"
 version = "1.0.0"
 description = "Investigate Sentry issues, events, projects, and releases through its hosted MCP server."
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [resources.mcp_servers.sentry]
 transport = "http"

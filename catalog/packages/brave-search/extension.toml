@@ -1,7 +1,7 @@
 name = "brave-search"
 version = "2.1.0"
 description = "Search the web through Brave's official MCP server."
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [[inputs]]
 id = "brave_api_key"

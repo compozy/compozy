@@ -22,3 +22,8 @@ QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser 
 Use a fixture folder; duplicate add and a missing/oversized document exit 2 with structured details. Toggle via config set marketplace.plugin_sources.<name>.enabled false --scope user. Install a named-source plugin with extension install; preserve curated owner/repo resolution.
 
 Task_08 defines the behavior; task_10 owns the live walk and screenshots. Focused integration receipts are not QA verdicts.
+
+QA impact 2026-09-14 (release CI repair): the daemon-backed CLI source list and install preview
+must use the configured marketplace service. Recheck list, add, remove, and preview with a local
+source through the public CLI after the release build; focused integration tests are supporting
+evidence, not a new live QA verdict.

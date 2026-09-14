@@ -3158,6 +3158,19 @@ func newIntegrationDriver() *integrationDriver {
 	}
 }
 
+// Synthetic process handles are identified by their completion channel, not the host PID table.
+func (*integrationDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return false, errors.New("integration driver: process is required")
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
