@@ -28,6 +28,81 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should repair MCP definitions and add servers while existing auth status fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+[[mcp_servers]]
+name = "repair-cloud"
+transport = "http"
+url = "https://mcp.example.test/mcp"
+[mcp_servers.auth]
+registration = "pre_registered"
+issuer_url = "https://login.example.test"
+client_id = "desktop"
+client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
+`)
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		statusErr := errors.New("credential belongs to another owner")
+		service := testService(t, homePaths, Dependencies{
+			MCPAuth:      &recordingMCPAuthRuntime{statusErr: statusErr},
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		if _, err := service.ListCollection(
+			ctx,
+			CollectionRequest{Collection: CollectionMCPServers},
+		); !errors.Is(
+			err,
+			statusErr,
+		) {
+			t.Fatalf("expected unavailable auth status before repair: %v", err)
+		}
+		for _, name := range []string{"repair-cloud", "new-cloud"} {
+			result, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+				Name:              name,
+				MCPServer: &compozyconfig.MCPServer{
+					Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.test/mcp",
+					Auth: compozyconfig.MCPAuthConfig{
+						Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+						IssuerURL:    "https://login.example.test", ClientID: "desktop",
+						ClientSecretRef: "env:REPAIRED_CLIENT_SECRET",
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("apply %s with unavailable prior auth status: %v", name, err)
+			}
+			wantLifecycle := lifecycle.LiveAdd
+			if name == "repair-cloud" {
+				wantLifecycle = lifecycle.RestartRequired
+			}
+			if result.Record.Lifecycle != wantLifecycle {
+				t.Fatalf("%s lifecycle = %s, want %s", name, result.Record.Lifecycle, wantLifecycle)
+			}
+			cfg, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			index := slices.IndexFunc(
+				cfg.MCPServers,
+				func(server compozyconfig.MCPServer) bool { return server.Name == name },
+			)
+			if index < 0 || cfg.MCPServers[index].Auth.ClientSecretRef != "env:REPAIRED_CLIENT_SECRET" {
+				t.Fatalf("%s repaired definition was not persisted", name)
+			}
+		}
+	})
+
 	// Invariant: extension override applies live without activating unrelated pending config; DELETE resets only the override.
 	// Owner: Settings config-apply coordinator; canonical suite: config_apply_service_test.go with real apply records.
 	t.Run("Should record extension overrides without applying pending config changes", func(t *testing.T) {

@@ -623,6 +623,7 @@ func (extensionMCPDefinitionStub) ResolveMCPExtensionDefinition(
 }
 
 type recordingMCPAuthRuntime struct {
+	statusErr       error
 	statusTarget    mcpauth.Target
 	statusServer    compozyconfig.MCPServer
 	beginTarget     mcpauth.Target
@@ -659,7 +660,7 @@ func (r *recordingMCPAuthRuntime) MCPAuthStatus(
 ) (mcpauth.Status, error) {
 	r.statusTarget = target
 	r.statusServer = server
-	return confirmedMCPAuthRuntimeStatus(target), nil
+	return confirmedMCPAuthRuntimeStatus(target), r.statusErr
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthBegin(

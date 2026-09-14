@@ -790,3 +790,5 @@ refs before definition commit and exclusive-secret cleanup. Reuse the existing V
 HTTP/UDS/CLI now receive the existing validation error for the invalid mutation. Own/shared/env and
 released user refs retain their established rules. No config/schema/DTO/tool IDs change. The canonical
 Settings secret-write suite and public MCP authorization scenario own preservation evidence.
+
+MCP repair follow-up: Settings determines pre-mutation existence from owner-qualified definitions without requiring successful auth/runtime probes. CLI/HTTP/UDS configuration application retains its existing validation, ownership and lifecycle contracts. Web can repair an invalid configured credential through the same Settings PUT; no schema, native tool ID, hook, official skill or workspace isolation change. The existing config-apply suite owns repair/addition classification and persisted definition evidence.

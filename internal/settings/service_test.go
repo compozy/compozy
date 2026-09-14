@@ -3820,7 +3820,6 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				t.Fatal("rejected client secret removed the existing credential")
 			}
 		}
-
 	})
 
 	t.Run("Should reject preservation when the exact target has no existing binding", func(t *testing.T) {

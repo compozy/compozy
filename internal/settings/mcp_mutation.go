@@ -44,14 +44,8 @@ func (s *service) putMCPServer(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if strings.TrimSpace(normalized.Auth.ClientSecretRef) != "" {
-		ref, err := vault.NormalizeMCPClientSecretRef(normalized.Auth.ClientSecretRef, vault.MCPSecretTarget{
-			Scope: string(scope), WorkspaceID: scopeID, ServerName: name,
-		})
-		if err != nil {
-			return MutationResult{}, validationError(fmt.Errorf("settings: OAuth client secret reference: %w", err))
-		}
-		normalized.Auth.ClientSecretRef = ref
+	if err := normalizeMCPClientSecretOwner(&normalized, scope, scopeID, name); err != nil {
+		return MutationResult{}, err
 	}
 	secretCleanup, err := s.prepareMCPSecretCleanupPlan(
 		ctx, scope, scopeID, name, target.Kind(), sources, normalized,
@@ -95,6 +89,20 @@ func (s *service) putMCPServer(
 	item := committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources)
 	result.MCPServer = &item
 	return result, nil
+}
+
+func normalizeMCPClientSecretOwner(server *compozyconfig.MCPServer, scope ScopeKind, scopeID, name string) error {
+	if strings.TrimSpace(server.Auth.ClientSecretRef) == "" {
+		return nil
+	}
+	ref, err := vault.NormalizeMCPClientSecretRef(server.Auth.ClientSecretRef, vault.MCPSecretTarget{
+		Scope: string(scope), WorkspaceID: scopeID, ServerName: name,
+	})
+	if err != nil {
+		return validationError(fmt.Errorf("settings: OAuth client secret reference: %w", err))
+	}
+	server.Auth.ClientSecretRef = ref
+	return nil
 }
 
 func (s *service) commitMCPServerDefinition(

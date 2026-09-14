@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"strings"
 
@@ -104,6 +105,24 @@ func (s *service) collectionItemExistsBeforeMutation(
 	if trimmedName == "" {
 		return false, nil
 	}
+	if req.Collection == CollectionMCPServers {
+		scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
+		if err != nil {
+			return false, err
+		}
+		profileName, err := normalizeSettingsProfileName(scope, req.ProfileName)
+		if err != nil {
+			return false, err
+		}
+		_, _, err = s.resolveMCPAuthTarget(ctx, MCPAuthTargetRequest{
+			Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName,
+			Name: trimmedName, Owner: req.Owner,
+		})
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	}
 	envelope, err := s.ListCollection(ctx, req)
 	if err != nil {
 		return false, err
@@ -112,12 +131,6 @@ func (s *service) collectionItemExistsBeforeMutation(
 	case CollectionProviders:
 		for i := range envelope.Providers {
 			item := &envelope.Providers[i]
-			if item.Name == trimmedName {
-				return true, nil
-			}
-		}
-	case CollectionMCPServers:
-		for _, item := range envelope.MCPServers {
 			if item.Name == trimmedName {
 				return true, nil
 			}
