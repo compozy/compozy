@@ -16,6 +16,8 @@ import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it, vi } from "vitest";
 
+vi.unmock("next/image");
+
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
@@ -34,6 +36,7 @@ vi.mock("@/lib/source", () => ({
 import { MarketplaceCatalogBrowser } from "@/components/marketplace/marketplace-catalog-browser";
 import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
 import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
+import { MarketplaceEntryLogo } from "@/components/marketplace/marketplace-entry-logo";
 import { MarketplaceBundledSection } from "@/components/marketplace/marketplace-bundled-section";
 import BundledExtensionPage, {
   generateStaticParams as generateBundledExtensionParams,
@@ -69,6 +72,23 @@ describe("marketplace catalog", () => {
     manifest_version: 3,
     generated_at: "2026-09-12T10:00:00Z",
     entries: extensionEntries,
+  });
+
+  it("Should optimize published raster icons and retain the fallback after a failed load", () => {
+    const entry = findEntry("context7");
+    expect(entry).toBeDefined();
+    if (!entry) throw new Error("The curated Context7 package is required for this journey");
+    const { container } = render(<MarketplaceEntryLogo entry={entry} size="lg" />);
+    const icon = container.querySelector("img");
+    expect(icon).not.toBeNull();
+    if (!icon) throw new Error("The catalog icon did not render");
+    const request = new URL(icon.src);
+    expect(request.pathname).toBe("/_next/image");
+    expect(request.searchParams.get("url")).toBe(entry.icon);
+    expect(icon.srcset.split(",")).toHaveLength(2);
+    fireEvent.error(icon);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('[data-rung="brand"], [data-rung="marble"]')).not.toBeNull();
   });
 
   it("Should load all nineteen current packages without standalone skill entries", () => {

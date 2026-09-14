@@ -158,8 +158,6 @@ function MarketplaceExtensionServerLiveCard({
       ? marketplaceServerStatus("needs_configuration")
       : ((live.server ? liveExtensionServerStatus(live.server) : null) ??
         marketplaceServerStatus(server.status));
-  const repair = missingInputs.length === 0 && live.server ? authorizeLabel(live.server) : null;
-  const published = Boolean(server.runtime_name?.trim());
   return (
     <MarketplaceDetailRailCard
       data-testid={`marketplace-extension-server-${server.name}`}
@@ -186,45 +184,13 @@ function MarketplaceExtensionServerLiveCard({
           showRuntimeName
         />
       </div>
-      {published && live.server ? (
-        <div
-          className="flex flex-wrap items-center gap-1.5 px-3.5 pt-1.5 pb-1"
-          data-testid={`marketplace-extension-server-actions-${server.name}`}
-        >
-          {repair ? (
-            <Button
-              data-testid={`marketplace-extension-server-authorize-${server.name}`}
-              onClick={() => onAuthorize(live.server!)}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {repair}
-            </Button>
-          ) : null}
-          <Button
-            data-testid={`marketplace-extension-server-edit-${server.name}`}
-            onClick={() => onEdit(live.server!)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Settings2 aria-hidden="true" className="size-3" />
-            Edit configuration
-          </Button>
-        </div>
-      ) : published && live.query.error ? (
-        <div className="flex items-center gap-2 px-3.5 pt-1.5 pb-1">
-          <span className="text-transcript-caption text-faint">Live status unavailable.</span>
-          <Button onClick={() => void live.query.refetch()} size="xs" type="button" variant="ghost">
-            Retry
-          </Button>
-        </div>
-      ) : !published ? (
-        <MarketplaceDetailRailNote>
-          Not published yet — no runtime name has been allocated.
-        </MarketplaceDetailRailNote>
-      ) : null}
+      <MarketplaceExtensionServerActions
+        server={server}
+        live={live}
+        missingInputs={missingInputs}
+        onAuthorize={onAuthorize}
+        onEdit={onEdit}
+      />
     </MarketplaceDetailRailCard>
   );
 }
@@ -338,3 +304,65 @@ function formatServerScope(server: MarketplaceExtensionServer): string | null {
 
 export { MarketplaceExtensionServerSection };
 export type { MarketplaceExtensionServerSectionProps };
+
+function MarketplaceExtensionServerActions({
+  server,
+  live,
+  missingInputs,
+  onAuthorize,
+  onEdit,
+}: {
+  server: MarketplaceExtensionServer;
+  live: ReturnType<typeof useMarketplaceExtensionMCPServer>;
+  missingInputs: readonly string[];
+  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onEdit: (entry: SettingsMCPServerEntry) => void;
+}) {
+  const entry = live.server;
+  if (!server.runtime_name?.trim())
+    return (
+      <MarketplaceDetailRailNote>
+        Not published yet — no runtime name has been allocated.
+      </MarketplaceDetailRailNote>
+    );
+  const repair = missingInputs.length === 0 && entry ? authorizeLabel(entry) : null;
+  return (
+    <>
+      {entry ? (
+        <div
+          className="flex flex-wrap items-center gap-1.5 px-3.5 pt-1.5 pb-1"
+          data-testid={`marketplace-extension-server-actions-${server.name}`}
+        >
+          {repair ? (
+            <Button
+              data-testid={`marketplace-extension-server-authorize-${server.name}`}
+              onClick={() => onAuthorize(entry)}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              {repair}
+            </Button>
+          ) : null}
+          <Button
+            data-testid={`marketplace-extension-server-edit-${server.name}`}
+            onClick={() => onEdit(entry)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Settings2 aria-hidden="true" className="size-3" />
+            Edit configuration
+          </Button>
+        </div>
+      ) : live.query.error ? (
+        <div className="flex items-center gap-2 px-3.5 pt-1.5 pb-1">
+          <span className="text-transcript-caption text-faint">Live status unavailable.</span>
+          <Button onClick={() => void live.query.refetch()} size="xs" type="button" variant="ghost">
+            Retry
+          </Button>
+        </div>
+      ) : null}{" "}
+    </>
+  );
+}

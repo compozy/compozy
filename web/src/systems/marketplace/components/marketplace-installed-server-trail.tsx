@@ -8,6 +8,7 @@ import {
   MCPOverrideEditor,
   useMCPDefinitionAuthorization,
   useMCPOverrideEditor,
+  type SettingsMCPServerEntry,
 } from "@/systems/settings";
 
 import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
@@ -40,54 +41,25 @@ function MarketplaceInstalledServerTrail(props: MarketplaceInstalledTrailProps) 
   );
   const authorization = useMCPDefinitionAuthorization();
   const override = useMCPOverrideEditor();
-  const name = installedDisplayName(item);
-  const runtimeName = target?.runtime_name?.trim();
-  const allocated = runtimeName && target && runtimeName !== target.name ? runtimeName : null;
-  const statusTestId =
-    resolved?.status.key === "needs_configuration"
-      ? `marketplace-installed-needs-configuration-${extension.name}`
-      : `marketplace-installed-server-status-${extension.name}`;
 
   return (
     <>
       <MarketplaceInstalledTrailControls
         {...props}
         leading={
-          <>
-            {resolved ? (
-              <MarketplaceServerStatusWord data-testid={statusTestId} view={resolved.status} />
-            ) : null}
-            {allocated ? (
-              <span
-                className="font-mono text-mono-id text-faint"
-                data-testid={`marketplace-installed-runtime-name-${extension.name}`}
-                title={`Runtime name ${allocated}`}
-              >
-                {allocated}
-              </span>
-            ) : null}
-            {needsAuthorization && published && target ? (
-              <Button
-                aria-label={`Authorize ${target.name} for ${name}`}
-                data-testid={`marketplace-installed-authorize-${extension.name}`}
-                disabled={pending || !live.server}
-                onClick={() => {
-                  const entry = live.server;
-                  const filter = entry ? deriveMCPAuthFilter(entry) : null;
-                  if (entry && filter) authorization.authorize.requestAuthorize(filter, entry);
-                }}
-                size="sm"
-                type="button"
-                variant="neutral"
-              >
-                {live.query.isPending && !live.server ? (
-                  <Spinner aria-hidden="true" className="size-3" />
-                ) : null}
-                Authorize
-              </Button>
-            ) : null}
-          </>
+          <MarketplaceInstalledServerLeading
+            item={item}
+            resolved={resolved}
+            target={target}
+            live={live}
+            pending={pending}
+            onAuthorize={entry => {
+              const filter = deriveMCPAuthFilter(entry);
+              if (filter) authorization.authorize.requestAuthorize(filter, entry);
+            }}
+          />
         }
+
         menuItems={
           published ? (
             <DropdownMenuItem
@@ -116,3 +88,65 @@ function MarketplaceInstalledServerTrail(props: MarketplaceInstalledTrailProps) 
 }
 
 export { MarketplaceInstalledServerTrail };
+
+function MarketplaceInstalledServerLeading({
+  item,
+  resolved,
+  target,
+  live,
+  pending,
+  onAuthorize,
+}: {
+  item: MarketplaceInstalledTrailProps["item"];
+  resolved: ReturnType<typeof installedExtensionServerStatus>;
+  target: MarketplaceInstalledTrailProps["item"]["extension"]["mcp_servers"][number] | undefined;
+  live: ReturnType<typeof useMarketplaceExtensionMCPServer>;
+  pending: boolean;
+  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+}) {
+  const { extension } = item;
+  const published = Boolean(target?.runtime_name?.trim());
+  const needsAuthorization = resolved?.status.key === "needs_authorization";
+  const name = installedDisplayName(item);
+  const runtimeName = target?.runtime_name?.trim();
+  const allocated = runtimeName && target && runtimeName !== target.name ? runtimeName : null;
+  const statusTestId =
+    resolved?.status.key === "needs_configuration"
+      ? `marketplace-installed-needs-configuration-${extension.name}`
+      : `marketplace-installed-server-status-${extension.name}`;
+  return (
+    <>
+      {resolved ? (
+        <MarketplaceServerStatusWord data-testid={statusTestId} view={resolved.status} />
+      ) : null}
+      {allocated ? (
+        <span
+          className="font-mono text-mono-id text-faint"
+          data-testid={`marketplace-installed-runtime-name-${extension.name}`}
+          title={`Runtime name ${allocated}`}
+        >
+          {allocated}
+        </span>
+      ) : null}
+      {needsAuthorization && published && target ? (
+        <Button
+          aria-label={`Authorize ${target.name} for ${name}`}
+          data-testid={`marketplace-installed-authorize-${extension.name}`}
+          disabled={pending || !live.server}
+          onClick={() => {
+            const entry = live.server;
+            if (entry) onAuthorize(entry);
+          }}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          {live.query.isPending && !live.server ? (
+            <Spinner aria-hidden="true" className="size-3" />
+          ) : null}
+          Authorize
+        </Button>
+      ) : null}
+    </>
+  );
+}

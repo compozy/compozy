@@ -147,13 +147,10 @@ function useMarketplaceActionController(
     const key = marketplaceOriginKey(entry);
     if (entryActions.current.has(key)) return;
     entryActions.current.add(key);
-    try {
-      await pending.trackEntry(entry, action);
-    } catch (error) {
-      reportFailure(error, `Failed to update ${entry.name}`);
-    } finally {
-      entryActions.current.delete(key);
-    }
+    await pending
+      .trackEntry(entry, action)
+      .catch(error => reportFailure(error, `Failed to update ${entry.name}`))
+      .finally(() => entryActions.current.delete(key));
   };
 
   const withPendingItem = async (item: InstalledExtensionView, action: () => Promise<void>) => {

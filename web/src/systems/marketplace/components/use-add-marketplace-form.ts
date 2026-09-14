@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState, type ChangeEvent } from "react";
 
 import { useAddMarketplaceSource } from "../hooks/use-marketplace-sources";
@@ -38,18 +38,13 @@ export function useAddMarketplaceForm({ onOpenChange, onAdded }: AddMarketplaceF
   );
   const resetAdd = add.reset;
 
-  const checking = checked !== null && preview.isFetching;
-  const found: MarketplaceSourcePreview | null =
-    checked !== null && preview.isSuccess && !preview.isFetching ? preview.data : null;
-  const failureSource = add.error ?? (checked !== null && !checking ? preview.error : null);
-  const failure: AddMarketplaceFailure | null = failureSource
-    ? describeMarketplaceFailure(
-        failureSource,
-        checked ?? draft,
-        add.error ? "The marketplace could not be added." : "The marketplace could not be read."
-      )
-    : null;
-  const canAdd = found !== null && checked !== null && !add.isPending;
+  const { checking, found, failure, canAdd } = marketplaceFormReadiness(
+    draft,
+    checked,
+    preview,
+    add.error,
+    add.isPending
+  );
 
   const edit = (patch: Partial<AddMarketplaceDraft>) => {
     setDraft(current => ({ ...current, ...patch }));
@@ -117,3 +112,25 @@ export function useAddMarketplaceForm({ onOpenChange, onAdded }: AddMarketplaceF
 }
 
 export type AddMarketplaceForm = ReturnType<typeof useAddMarketplaceForm>;
+
+function marketplaceFormReadiness(
+  draft: AddMarketplaceDraft,
+  checked: AddMarketplaceDraft | null,
+  preview: UseQueryResult<MarketplaceSourcePreview>,
+  addError: Error | null,
+  adding: boolean
+) {
+  const checking = checked !== null && preview.isFetching;
+  const found: MarketplaceSourcePreview | null =
+    checked !== null && preview.isSuccess && !preview.isFetching ? preview.data : null;
+  const failureSource = addError ?? (checked !== null && !checking ? preview.error : null);
+  const failure: AddMarketplaceFailure | null = failureSource
+    ? describeMarketplaceFailure(
+        failureSource,
+        checked ?? draft,
+        addError ? "The marketplace could not be added." : "The marketplace could not be read."
+      )
+    : null;
+  const canAdd = found !== null && checked !== null && !adding;
+  return { checking, found, failure, canAdd };
+}

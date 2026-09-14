@@ -40,10 +40,9 @@ type SummaryDialogProps = {
  */
 export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
   const { open, pending, onConfirm, onOpenChange } = props;
-  const name = props.action === "install" ? props.preview.name : props.name;
-  const definitions = props.action === "install" ? props.preview.inputs : props.definitions;
+  const model = summaryDialogModel(props);
+  const { name, definitions, actionLabel } = model;
   const form = useExtensionInputForm(definitions, name);
-  const actionLabel = props.action === "install" ? "Install" : "Update";
   const hasInputs = definitions.length > 0;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -64,45 +63,20 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
             <DialogTitle>
               {actionLabel} {name}
             </DialogTitle>
-            {props.action === "update" ? (
-              <DialogDescription>
-                Provide the required inputs to update this extension.
-              </DialogDescription>
-            ) : (
-              <DialogDescription>{props.entry.description}</DialogDescription>
-            )}
+            <DialogDescription>{model.description}</DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-            {props.action === "install" &&
-            (props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0) ? (
-              <ExtensionInstallSummary preview={props.preview} />
-            ) : null}
+            {model.preview ? <ExtensionInstallSummary preview={model.preview} /> : null}
             {hasInputs ? <ExtensionInputFields disabled={pending} form={form} /> : null}
             {definitions.some(input => input.type === "secret") ? (
               <p className="text-form-hint text-muted">
                 Secrets are stored in your vault. You can change them later from Installed.
               </p>
             ) : null}
-            {props.action === "install" ? (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
-                <dt className="text-muted">Scope</dt>
-                <dd data-testid="extension-install-destination">
-                  {props.destination.scope === "workspace"
-                    ? "Current workspace"
-                    : "Everywhere (global)"}
-                  {" · "}
-                  {props.destination.profile}
-                </dd>
-              </dl>
-            ) : null}
+            {model.destination}
           </div>
           <DialogFooter variant="ruled">
-            {props.action === "install" ? (
-              <span className="mr-auto text-form-hint text-muted">
-                {props.entry.tier === "official" ? "Official" : "Community"}
-                {props.entry.trust?.checksum_verified ? " · checksum verified" : ""}
-              </span>
-            ) : null}
+            {model.trust}
             <Button
               disabled={pending}
               onClick={() => onOpenChange(false)}
@@ -117,11 +91,52 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
               type="submit"
             >
               {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {pending ? (props.action === "install" ? "Installing…" : "Updating…") : actionLabel}
+              {pending ? model.pendingLabel : actionLabel}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+function summaryDialogModel(props: SummaryDialogProps) {
+  if (props.action === "update")
+    return {
+      name: props.name,
+      definitions: props.definitions,
+      actionLabel: "Update",
+      pendingLabel: "Updating…",
+      description: "Provide the required inputs to update this extension.",
+      preview: null,
+      destination: null,
+      trust: null,
+    };
+  return {
+    name: props.preview.name,
+    definitions: props.preview.inputs,
+    actionLabel: "Install",
+    pendingLabel: "Installing…",
+    description: props.entry.description,
+    preview:
+      props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0
+        ? props.preview
+        : null,
+    destination: (
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
+        <dt className="text-muted">Scope</dt>
+        <dd data-testid="extension-install-destination">
+          {props.destination.scope === "workspace" ? "Current workspace" : "Everywhere (global)"}
+          {" · "}
+          {props.destination.profile}
+        </dd>
+      </dl>
+    ),
+    trust: (
+      <span className="mr-auto text-form-hint text-muted">
+        {props.entry.tier === "official" ? "Official" : "Community"}
+        {props.entry.trust?.checksum_verified ? " · checksum verified" : ""}
+      </span>
+    ),
+  };
 }

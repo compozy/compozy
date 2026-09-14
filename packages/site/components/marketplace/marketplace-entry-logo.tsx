@@ -2,6 +2,7 @@
 
 import { bridgeKindIconRegistry, CatalogCard, cn, KindIcon } from "@compozy/ui";
 import Avatar from "boring-avatars";
+import Image from "next/image";
 import { Component, useState, type ReactNode } from "react";
 import type { ExtensionEntry } from "@/lib/marketplace-catalog";
 
@@ -88,7 +89,7 @@ export function MarketplaceEntryLogo({
   if (icon && icon !== failedIcon) {
     return (
       <CatalogCard.Logo tone="neutral" size="lg" className={wellClass} data-rung="icon">
-        <img
+        <Image
           alt=""
           className={cn("block rounded-xs object-contain", ICON_CLASS[size])}
           decoding="async"
@@ -96,6 +97,8 @@ export function MarketplaceEntryLogo({
           onError={() => setFailedIcon(icon)}
           referrerPolicy="no-referrer"
           src={icon}
+          width={size === "lg" ? 40 : 28}
+          height={size === "lg" ? 40 : 28}
         />
       </CatalogCard.Logo>
     );

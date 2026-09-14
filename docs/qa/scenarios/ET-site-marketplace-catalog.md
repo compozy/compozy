@@ -26,6 +26,17 @@ must return not-found without redirects. Documentation Writer has no standalone 
 Final tasks09/10 own live rendering, keyboard/narrow-screen and visual evidence; focused
 schema/index tests do not close this row.
 
+## React Doctor follow-up — 2026-09-14
+
+Raster feed icons use Next Image with fixed dimensions and responsive optimizer URLs.
+The remote allowlist comes from the checked-in v3 feed. Verify successful image delivery
+once the feed's `main/catalog/icons/*` assets are published; before merge those upstream
+URLs return 404. The real development-server walk of `/marketplace/context7/` verified
+that this failure retains the seeded logo fallback and readable page content. It did not
+prove successful remote image optimization. The existing catalog suite separately verifies
+optimizer markup with the real Next Image component and the error fallback.
+See [the focused follow-up report](../reports/2026-09-14-marketplace-react-doctor.md).
+
 ## Historical evidence
 
 Added 2026-07-29 with the site IA restructure (spec `.compozy/tasks/site-docs-ia/_spec.md`

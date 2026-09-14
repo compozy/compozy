@@ -53,11 +53,6 @@ export function MarketplaceSourceRow({
   onRemove,
 }: MarketplaceSourceRowProps) {
   const testId = marketplaceSourceTestId(source.name);
-  const origin = marketplaceSourceOrigin(source);
-  const degraded = marketplaceSourceDegraded(source);
-  const wasRead = marketplaceSourceWasRead(source);
-  const reason = marketplaceSourceReason(source);
-  const alwaysOn = source.kind === "feed";
 
   return (
     <Collapsible
@@ -65,156 +60,13 @@ export function MarketplaceSourceRow({
       data-state-word={source.state}
       data-testid={testId}
     >
-      <div className="flex min-h-11 min-w-0 items-center gap-2 px-3">
-        <CollapsibleTrigger
-          className={cn(
-            "group/marketplace-source flex min-w-0 flex-1 items-center gap-2 py-2 text-left",
-            "rounded-sm focus-visible:shadow-focus-ring focus-visible:outline-none"
-          )}
-          data-testid={`${testId}-disclosure`}
-          type="button"
-        >
-          <ChevronDown
-            aria-hidden="true"
-            className={cn(
-              "size-3.5 shrink-0 -rotate-90 text-faint",
-              "transition-transform duration-base group-data-panel-open/marketplace-source:rotate-0"
-            )}
-          />
-          <span className="truncate text-sm text-fg">{source.name}</span>
-          {source.kind === "custom" ? (
-            <Pill data-testid={`${testId}-custom`} form="hollow" size="xs">
-              custom
-            </Pill>
-          ) : null}
-          {degraded ? (
-            <Pill data-testid={`${testId}-degraded`} size="xs" tone="warning">
-              couldn&rsquo;t refresh
-            </Pill>
-          ) : null}
-        </CollapsibleTrigger>
-        <div className="flex shrink-0 items-center gap-2">
-          {pending ? <Spinner aria-hidden="true" className="size-3 text-subtle" /> : null}
-          {!source.enabled ? (
-            <span className="text-form-hint text-subtle" data-testid={`${testId}-off`}>
-              off
-            </span>
-          ) : wasRead ? (
-            <Pill data-testid={`${testId}-count`} size="xs">
-              {marketplaceSourceCountLabel(source)}
-            </Pill>
-          ) : null}
-          {alwaysOn ? (
-            <Pill data-testid={`${testId}-always-on`} size="xs">
-              always on
-            </Pill>
-          ) : null}
-          {onToggle ? (
-            <Switch
-              aria-label={`List ${source.name} in the Marketplace`}
-              checked={source.enabled}
-              data-testid={`${testId}-toggle`}
-              disabled={pending}
-              onCheckedChange={onToggle}
-              size="sm"
-            />
-          ) : null}
-        </div>
-      </div>
-      <CollapsibleContent>
-        <div className="flex min-w-0 flex-col gap-1 px-3 pb-2.5 pl-8.5">
-          {degraded ? (
-            <p className="text-small-body text-fg" data-testid={`${testId}-sentence`}>
-              <span className="font-medium">
-                {marketplaceSourceDegradedSentence(source, origin)}
-              </span>
-              {wasRead && source.plugins > 0 ? (
-                <>
-                  {" "}
-                  Its {marketplaceSourceCountLabel(source)} still show in the Marketplace from the
-                  last read, {source.last_read_at ? <Time iso={source.last_read_at} /> : null}.
-                </>
-              ) : null}
-            </p>
-          ) : null}
-          {!source.enabled && !wasRead ? (
-            <p className="text-small-body text-muted" data-testid={`${testId}-sentence`}>
-              Turn it on to read its plugin list. CompozyOS will not contact this{" "}
-              {origin.kind === "feed" ? "feed" : origin.kind} until then.
-            </p>
-          ) : null}
-          <PropertyRow
-            data-testid={`${testId}-origin`}
-            label={origin.label}
-            mono
-            valueTitle={origin.value}
-          >
-            {origin.value}
-          </PropertyRow>
-          {source.document_path ? (
-            <PropertyRow data-testid={`${testId}-document`} label="Document" mono>
-              {source.owner
-                ? `${source.document_path} · owner ${source.owner}`
-                : source.document_path}
-            </PropertyRow>
-          ) : null}
-          <PropertyRow data-testid={`${testId}-last-read`} label="Last read">
-            {source.last_read_at ? <Time iso={source.last_read_at} /> : "never"}
-          </PropertyRow>
-          {wasRead ? (
-            <PropertyRow data-testid={`${testId}-plugins`} label="Plugins">
-              {marketplaceSourcePluginsLine(source)}
-            </PropertyRow>
-          ) : null}
-          {degraded && reason ? (
-            <PropertyRow data-testid={`${testId}-reason`} label="Reason" mono>
-              {reason}
-            </PropertyRow>
-          ) : null}
-          {source.diagnostics.length > 0 ? (
-            <MarketplaceSourceDiagnostics diagnostics={source.diagnostics} testId={testId} />
-          ) : null}
-          <div className="flex flex-wrap items-center gap-1 pt-1.5">
-            {source.enabled ? (
-              <Button
-                data-testid={`${testId}-refresh`}
-                disabled={pending}
-                onClick={onRefresh}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <RefreshCw aria-hidden="true" className="size-3" />
-                {degraded ? "Try again" : "Refresh now"}
-              </Button>
-            ) : null}
-            {source.enabled && wasRead && source.plugins > 0 ? (
-              <Button
-                data-testid={`${testId}-show`}
-                nativeButton={false}
-                render={<Link to="/marketplace" />}
-                size="sm"
-                variant="ghost"
-              >
-                Show in Marketplace
-              </Button>
-            ) : null}
-            {onRemove ? (
-              <Button
-                className="text-danger hover:text-danger"
-                data-testid={`${testId}-remove`}
-                disabled={pending}
-                onClick={onRemove}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Remove
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </CollapsibleContent>
+      <MarketplaceSourceSummary source={source} pending={pending} onToggle={onToggle} />
+      <MarketplaceSourceDetails
+        source={source}
+        pending={pending}
+        onRefresh={onRefresh}
+        onRemove={onRemove}
+      />
     </Collapsible>
   );
 }
@@ -242,5 +94,210 @@ function MarketplaceSourceDiagnostics({
         ))}
       </ul>
     </div>
+  );
+}
+
+function MarketplaceSourceSummary({
+  source,
+  pending,
+  onToggle,
+}: Pick<MarketplaceSourceRowProps, "source" | "pending" | "onToggle">) {
+  const testId = marketplaceSourceTestId(source.name);
+  const degraded = marketplaceSourceDegraded(source);
+  const wasRead = marketplaceSourceWasRead(source);
+  const alwaysOn = source.kind === "feed";
+  return (
+    <div className="flex min-h-11 min-w-0 items-center gap-2 px-3">
+      <CollapsibleTrigger
+        className={cn(
+          "group/marketplace-source flex min-w-0 flex-1 items-center gap-2 py-2 text-left",
+          "rounded-sm focus-visible:shadow-focus-ring focus-visible:outline-none"
+        )}
+        data-testid={`${testId}-disclosure`}
+        type="button"
+      >
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-3.5 shrink-0 -rotate-90 text-faint",
+            "transition-transform duration-base group-data-panel-open/marketplace-source:rotate-0"
+          )}
+        />
+        <span className="truncate text-sm text-fg">{source.name}</span>
+        {source.kind === "custom" ? (
+          <Pill data-testid={`${testId}-custom`} form="hollow" size="xs">
+            custom
+          </Pill>
+        ) : null}
+        {degraded ? (
+          <Pill data-testid={`${testId}-degraded`} size="xs" tone="warning">
+            couldn&rsquo;t refresh
+          </Pill>
+        ) : null}
+      </CollapsibleTrigger>
+      <div className="flex shrink-0 items-center gap-2">
+        {pending ? <Spinner aria-hidden="true" className="size-3 text-subtle" /> : null}
+        {!source.enabled ? (
+          <span className="text-form-hint text-subtle" data-testid={`${testId}-off`}>
+            off
+          </span>
+        ) : wasRead ? (
+          <Pill data-testid={`${testId}-count`} size="xs">
+            {marketplaceSourceCountLabel(source)}
+          </Pill>
+        ) : null}
+        {alwaysOn ? (
+          <Pill data-testid={`${testId}-always-on`} size="xs">
+            always on
+          </Pill>
+        ) : null}
+        {onToggle ? (
+          <Switch
+            aria-label={`List ${source.name} in the Marketplace`}
+            checked={source.enabled}
+            data-testid={`${testId}-toggle`}
+            disabled={pending}
+            onCheckedChange={onToggle}
+            size="sm"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+function MarketplaceSourceDetails({
+  source,
+  pending,
+  onRefresh,
+  onRemove,
+}: MarketplaceSourceRowProps) {
+  const testId = marketplaceSourceTestId(source.name);
+  const origin = marketplaceSourceOrigin(source);
+  const degraded = marketplaceSourceDegraded(source);
+  const wasRead = marketplaceSourceWasRead(source);
+  const reason = marketplaceSourceReason(source);
+  return (
+    <CollapsibleContent>
+      <div className="flex min-w-0 flex-col gap-1 px-3 pb-2.5 pl-8.5">
+        <MarketplaceSourceRecoveryNotice source={source} />
+        <PropertyRow
+          data-testid={`${testId}-origin`}
+          label={origin.label}
+          mono
+          valueTitle={origin.value}
+        >
+          {origin.value}
+        </PropertyRow>
+        {source.document_path ? (
+          <PropertyRow data-testid={`${testId}-document`} label="Document" mono>
+            {source.owner
+              ? `${source.document_path} · owner ${source.owner}`
+              : source.document_path}
+          </PropertyRow>
+        ) : null}
+        <PropertyRow data-testid={`${testId}-last-read`} label="Last read">
+          {source.last_read_at ? <Time iso={source.last_read_at} /> : "never"}
+        </PropertyRow>
+        {wasRead ? (
+          <PropertyRow data-testid={`${testId}-plugins`} label="Plugins">
+            {marketplaceSourcePluginsLine(source)}
+          </PropertyRow>
+        ) : null}
+        {degraded && reason ? (
+          <PropertyRow data-testid={`${testId}-reason`} label="Reason" mono>
+            {reason}
+          </PropertyRow>
+        ) : null}
+        {source.diagnostics.length > 0 ? (
+          <MarketplaceSourceDiagnostics diagnostics={source.diagnostics} testId={testId} />
+        ) : null}
+        <MarketplaceSourceActions
+          source={source}
+          pending={pending}
+          onRefresh={onRefresh}
+          onRemove={onRemove}
+        />
+      </div>
+    </CollapsibleContent>
+  );
+}
+function MarketplaceSourceActions({
+  source,
+  pending,
+  onRefresh,
+  onRemove,
+}: MarketplaceSourceRowProps) {
+  const testId = marketplaceSourceTestId(source.name);
+  const degraded = marketplaceSourceDegraded(source);
+  const wasRead = marketplaceSourceWasRead(source);
+  return (
+    <div className="flex flex-wrap items-center gap-1 pt-1.5">
+      {source.enabled ? (
+        <Button
+          data-testid={`${testId}-refresh`}
+          disabled={pending}
+          onClick={onRefresh}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <RefreshCw aria-hidden="true" className="size-3" />
+          {degraded ? "Try again" : "Refresh now"}
+        </Button>
+      ) : null}
+      {source.enabled && wasRead && source.plugins > 0 ? (
+        <Button
+          data-testid={`${testId}-show`}
+          nativeButton={false}
+          render={<Link to="/marketplace" />}
+          size="sm"
+          variant="ghost"
+        >
+          Show in Marketplace
+        </Button>
+      ) : null}
+      {onRemove ? (
+        <Button
+          className="text-danger hover:text-danger"
+          data-testid={`${testId}-remove`}
+          disabled={pending}
+          onClick={onRemove}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Remove
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function MarketplaceSourceRecoveryNotice({ source }: Pick<MarketplaceSourceRowProps, "source">) {
+  const testId = marketplaceSourceTestId(source.name);
+  const origin = marketplaceSourceOrigin(source);
+  const degraded = marketplaceSourceDegraded(source);
+  const wasRead = marketplaceSourceWasRead(source);
+  return (
+    <>
+      {degraded ? (
+        <p className="text-small-body text-fg" data-testid={`${testId}-sentence`}>
+          <span className="font-medium">{marketplaceSourceDegradedSentence(source, origin)}</span>
+          {wasRead && source.plugins > 0 ? (
+            <>
+              {" "}
+              Its {marketplaceSourceCountLabel(source)} still show in the Marketplace from the last
+              read, {source.last_read_at ? <Time iso={source.last_read_at} /> : null}.
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {!source.enabled && !wasRead ? (
+        <p className="text-small-body text-muted" data-testid={`${testId}-sentence`}>
+          Turn it on to read its plugin list. CompozyOS will not contact this{" "}
+          {origin.kind === "feed" ? "feed" : origin.kind} until then.
+        </p>
+      ) : null}
+    </>
   );
 }

@@ -20,19 +20,20 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
   );
   const refresh = useRefreshMarketplaceCatalog();
   const lastFailureToast = useRef(Number.NEGATIVE_INFINITY);
-  const refreshCatalog = async () => {
-    try {
-      const response = await refresh.mutateAsync();
-      const failed = response.sources.find(result => result.error_class);
-      if (failed) throw new Error(`Could not refresh the catalog (${failed.error_class})`);
-    } catch (error) {
-      const now = Date.now();
-      if (now - lastFailureToast.current >= 5_000) {
-        lastFailureToast.current = now;
-        toast.error(error instanceof Error ? error.message : "Failed to refresh the marketplace");
-      }
+  const reportRefreshFailure = (error: unknown) => {
+    const now = Date.now();
+    if (now - lastFailureToast.current >= 5_000) {
+      lastFailureToast.current = now;
+      toast.error(error instanceof Error ? error.message : "Failed to refresh the marketplace");
     }
   };
+  const refreshCatalog = () =>
+    refresh.mutateAsync().then(response => {
+      const failed = response.sources.find(result => result.error_class);
+      if (failed) {
+        reportRefreshFailure(new Error(`Could not refresh the catalog (${failed.error_class})`));
+      }
+    }, reportRefreshFailure);
   const pages = catalog.data?.pages ?? [];
   const first = pages[0];
   const catalogItems = pages.flatMap(page => page.items);

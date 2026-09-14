@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import { mcpEditorLogic } from "../stores/mcp-editor-store";
+import { mcpEditorLogic, type MCPEditorState } from "../stores/mcp-editor-store";
 import { deriveMCPManagementFilter } from "../lib/mcp-management-target";
 import {
   emptyDraft,
@@ -117,29 +117,7 @@ function useMCPEditor({
     editorLogic.trigger.targetChanged({ target });
   };
 
-  const validation = editor.mode === "closed" ? null : validateDraft(editor.draft);
-  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
-  const nameConflict =
-    editor.mode === "create" &&
-    editorName.length > 0 &&
-    servers.some(server => {
-      const management = deriveMCPManagementFilter(server);
-      if (!management) return false;
-      return (
-        management.scope === editor.scope &&
-        !management.owner?.startsWith("extension:") &&
-        (management.scope === "user" || management.workspace_id === editor.workspaceId) &&
-        (management.scope !== "profile" || management.profile === editor.profileName) &&
-        server.name.toLowerCase() === editorName.toLowerCase()
-      );
-    });
-  const errors =
-    validation === null
-      ? {}
-      : nameConflict
-        ? { ...validation.errors, name: `An MCP server named "${editorName}" already exists.` }
-        : validation.errors;
-  const isValid = validation !== null && validation.valid && !nameConflict;
+  const { errors, isValid } = mcpEditorValidation(editor, servers);
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -203,3 +181,30 @@ function useMCPEditor({
 
 export { useMCPEditor };
 export type { UseMCPEditorOptions };
+
+function mcpEditorValidation(editor: MCPEditorState, servers: readonly SettingsMCPServerEntry[]) {
+  const validation = editor.mode === "closed" ? null : validateDraft(editor.draft);
+  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
+  const nameConflict =
+    editor.mode === "create" &&
+    editorName.length > 0 &&
+    servers.some(server => {
+      const management = deriveMCPManagementFilter(server);
+      if (!management) return false;
+      return (
+        management.scope === editor.scope &&
+        !management.owner?.startsWith("extension:") &&
+        (management.scope === "user" || management.workspace_id === editor.workspaceId) &&
+        (management.scope !== "profile" || management.profile === editor.profileName) &&
+        server.name.toLowerCase() === editorName.toLowerCase()
+      );
+    });
+  const errors =
+    validation === null
+      ? {}
+      : nameConflict
+        ? { ...validation.errors, name: `An MCP server named "${editorName}" already exists.` }
+        : validation.errors;
+  const isValid = validation !== null && validation.valid && !nameConflict;
+  return { errors, isValid };
+}

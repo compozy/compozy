@@ -76,7 +76,6 @@ export function ExtensionInstallDialog({
   ]);
   const inputForm = useExtensionInputForm(preview?.inputs ?? [], acquisitionIdentity);
   const [fieldErrors, setFieldErrors] = useState<ExtensionInstallFieldError>({});
-  const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
   const patch = (next: Partial<ExtensionInstallForm>) => {
     setFieldErrors({});
     onFormChange?.();
@@ -121,93 +120,7 @@ export function ExtensionInstallDialog({
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-            <Field>
-              <FieldLabel id="extension-install-source-label">Source</FieldLabel>
-              <RadioGroup
-                aria-labelledby="extension-install-source-label"
-                className="grid gap-2"
-                data-testid="extension-install-source"
-                onValueChange={value => patch({ source: value as ExtensionInstallSource })}
-                value={form.source}
-              >
-                {EXTENSION_INSTALL_SOURCES.map(option => (
-                  <div className="flex items-center gap-2" key={option.value}>
-                    <RadioGroupItem
-                      data-testid={`extension-install-source-${option.value}`}
-                      id={`extension-install-source-${option.value}`}
-                      value={option.value}
-                    />
-                    <Label htmlFor={`extension-install-source-${option.value}`}>
-                      {option.label}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </Field>
-
-            <Field data-invalid={fieldErrors.ref ? true : undefined}>
-              <FieldHeader>
-                <FieldLabel htmlFor="extension-install-ref">
-                  {source?.refLabel ?? "Reference"}
-                </FieldLabel>
-                {source?.hint ? (
-                  <HelpTip label={`About ${source.refLabel.toLowerCase()}`}>{source.hint}</HelpTip>
-                ) : null}
-              </FieldHeader>
-              <Input
-                aria-describedby={fieldErrors.ref ? "extension-install-ref-error" : undefined}
-                aria-invalid={fieldErrors.ref ? true : undefined}
-                data-testid="extension-install-ref"
-                id="extension-install-ref"
-                onChange={event => patch({ ref: event.target.value })}
-                placeholder={source?.refPlaceholder}
-                value={form.ref}
-              />
-              {fieldErrors.ref ? (
-                <FieldError
-                  data-testid="extension-install-ref-error"
-                  id="extension-install-ref-error"
-                >
-                  {fieldErrors.ref}
-                </FieldError>
-              ) : null}
-            </Field>
-
-            {form.source !== "local_path" ? (
-              <Field>
-                <FieldHeader>
-                  <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
-                  <HelpTip label="About version">
-                    Optional. Leave empty to take the latest release the source resolves.
-                  </HelpTip>
-                </FieldHeader>
-                <Input
-                  data-testid="extension-install-version"
-                  id="extension-install-version"
-                  onChange={event => patch({ version: event.target.value })}
-                  placeholder="0.4.2"
-                  value={form.version}
-                />
-              </Field>
-            ) : null}
-
-            {form.source === "github" ? (
-              <Field>
-                <FieldHeader>
-                  <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
-                  <HelpTip label="About asset">
-                    Optional. Required only when a release publishes several archives.
-                  </HelpTip>
-                </FieldHeader>
-                <Input
-                  data-testid="extension-install-asset"
-                  id="extension-install-asset"
-                  onChange={event => patch({ asset: event.target.value })}
-                  placeholder="hello_darwin_arm64.tar.gz"
-                  value={form.asset}
-                />
-              </Field>
-            ) : null}
+            <ExtensionInstallSourceFields form={form} errors={fieldErrors} onChange={patch} />
 
             <Field orientation="horizontal">
               <Checkbox
@@ -292,5 +205,101 @@ export function ExtensionInstallSummary({ preview }: { preview: ExtensionInstall
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ExtensionInstallSourceFields({
+  form,
+  errors: fieldErrors,
+  onChange: patch,
+}: {
+  form: ExtensionInstallForm;
+  errors: ExtensionInstallFieldError;
+  onChange: (next: Partial<ExtensionInstallForm>) => void;
+}) {
+  const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
+  return (
+    <>
+      <Field>
+        <FieldLabel id="extension-install-source-label">Source</FieldLabel>
+        <RadioGroup
+          aria-labelledby="extension-install-source-label"
+          className="grid gap-2"
+          data-testid="extension-install-source"
+          onValueChange={value => patch({ source: value as ExtensionInstallSource })}
+          value={form.source}
+        >
+          {EXTENSION_INSTALL_SOURCES.map(option => (
+            <div className="flex items-center gap-2" key={option.value}>
+              <RadioGroupItem
+                data-testid={`extension-install-source-${option.value}`}
+                id={`extension-install-source-${option.value}`}
+                value={option.value}
+              />
+              <Label htmlFor={`extension-install-source-${option.value}`}>{option.label}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </Field>
+
+      <Field data-invalid={fieldErrors.ref ? true : undefined}>
+        <FieldHeader>
+          <FieldLabel htmlFor="extension-install-ref">{source?.refLabel ?? "Reference"}</FieldLabel>
+          {source?.hint ? (
+            <HelpTip label={`About ${source.refLabel.toLowerCase()}`}>{source.hint}</HelpTip>
+          ) : null}
+        </FieldHeader>
+        <Input
+          aria-describedby={fieldErrors.ref ? "extension-install-ref-error" : undefined}
+          aria-invalid={fieldErrors.ref ? true : undefined}
+          data-testid="extension-install-ref"
+          id="extension-install-ref"
+          onChange={event => patch({ ref: event.target.value })}
+          placeholder={source?.refPlaceholder}
+          value={form.ref}
+        />
+        {fieldErrors.ref ? (
+          <FieldError data-testid="extension-install-ref-error" id="extension-install-ref-error">
+            {fieldErrors.ref}
+          </FieldError>
+        ) : null}
+      </Field>
+
+      {form.source !== "local_path" ? (
+        <Field>
+          <FieldHeader>
+            <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
+            <HelpTip label="About version">
+              Optional. Leave empty to take the latest release the source resolves.
+            </HelpTip>
+          </FieldHeader>
+          <Input
+            data-testid="extension-install-version"
+            id="extension-install-version"
+            onChange={event => patch({ version: event.target.value })}
+            placeholder="0.4.2"
+            value={form.version}
+          />
+        </Field>
+      ) : null}
+
+      {form.source === "github" ? (
+        <Field>
+          <FieldHeader>
+            <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
+            <HelpTip label="About asset">
+              Optional. Required only when a release publishes several archives.
+            </HelpTip>
+          </FieldHeader>
+          <Input
+            data-testid="extension-install-asset"
+            id="extension-install-asset"
+            onChange={event => patch({ asset: event.target.value })}
+            placeholder="hello_darwin_arm64.tar.gz"
+            value={form.asset}
+          />
+        </Field>
+      ) : null}
+    </>
   );
 }

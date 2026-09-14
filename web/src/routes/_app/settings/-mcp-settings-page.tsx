@@ -51,9 +51,6 @@ export function MCPSettingsPage() {
     ),
   });
 
-  const lane: MCPScopeLane = page.workspaceId ? "workspace" : "user";
-  const personalLabel = page.profile === "default" ? "User" : `Profile · ${page.profile}`;
-  const firstWorkspace = page.workspaces[0];
   const needingAuthorization = page.servers.filter(
     server => authorizeLabel(server) !== null
   ).length;
@@ -104,42 +101,7 @@ export function MCPSettingsPage() {
       slug="mcp"
       width="wide"
     >
-      <SettingsGroup bare title="Scope">
-        <div className="flex flex-wrap items-center gap-3" data-testid="settings-page-mcp-scope">
-          <PillGroup<MCPScopeLane>
-            aria-label="MCP servers scope"
-            items={[
-              { value: "user", label: personalLabel, testId: "settings-page-mcp-scope-user" },
-              {
-                value: "workspace",
-                label: "Workspace",
-                disabled: page.workspaces.length === 0,
-                testId: "settings-page-mcp-scope-workspace",
-              },
-            ]}
-            onChange={next =>
-              page.selectWorkspace(next === "user" ? null : (firstWorkspace?.id ?? null))
-            }
-            size="sm"
-            value={lane}
-          />
-          {lane === "workspace" ? (
-            <NativeSelect
-              aria-label="Workspace"
-              className="w-56"
-              data-testid="settings-page-mcp-workspace"
-              onChange={event => page.selectWorkspace(event.target.value || null)}
-              value={page.workspaceId ?? ""}
-            >
-              {page.workspaces.map(workspace => (
-                <NativeSelectOption key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          ) : null}
-        </div>
-      </SettingsGroup>
+      <MCPScopeSelector page={page} />
 
       <SettingsGroup
         bare
@@ -175,33 +137,7 @@ export function MCPSettingsPage() {
         </div>
       </SettingsGroup>
 
-      {page.editorProps ? (
-        <MCPServerEditor
-          {...page.editorProps}
-          onRemove={
-            page.editorProps.entry && !isExtensionOwnedMCPServer(page.editorProps.entry)
-              ? () => {
-                  const entry = page.editorProps?.entry;
-                  page.editorProps?.onClose();
-                  if (entry) page.requestRemove(entry);
-                }
-              : undefined
-          }
-        />
-      ) : null}
-      {page.overrideProps ? <MCPOverrideEditor {...page.overrideProps} /> : null}
-      <MCPAuthorizeDialog
-        authorize={page.authorization.authorize}
-        scope={page.authorization.scope}
-        server={page.authorization.server}
-      />
-      <MCPServerDeleteDialog
-        error={page.removal.error?.message ?? null}
-        isDeleting={page.removal.isPending}
-        onClose={page.closeRemove}
-        onConfirm={page.remove}
-        target={page.removing}
-      />
+      <MCPSettingsDialogs page={page} />
     </SettingsPageFrame>
   );
 }
@@ -297,5 +233,82 @@ function MCPServersBody({
       selectedServer={page.selectedKey}
       servers={page.filteredServers}
     />
+  );
+}
+
+function MCPScopeSelector({ page }: { page: MCPPageModel }) {
+  const lane: MCPScopeLane = page.workspaceId ? "workspace" : "user";
+  const personalLabel = page.profile === "default" ? "User" : `Profile · ${page.profile}`;
+  const firstWorkspace = page.workspaces[0];
+  return (
+    <SettingsGroup bare title="Scope">
+      <div className="flex flex-wrap items-center gap-3" data-testid="settings-page-mcp-scope">
+        <PillGroup<MCPScopeLane>
+          aria-label="MCP servers scope"
+          items={[
+            { value: "user", label: personalLabel, testId: "settings-page-mcp-scope-user" },
+            {
+              value: "workspace",
+              label: "Workspace",
+              disabled: page.workspaces.length === 0,
+              testId: "settings-page-mcp-scope-workspace",
+            },
+          ]}
+          onChange={next =>
+            page.selectWorkspace(next === "user" ? null : (firstWorkspace?.id ?? null))
+          }
+          size="sm"
+          value={lane}
+        />
+        {lane === "workspace" ? (
+          <NativeSelect
+            aria-label="Workspace"
+            className="w-56"
+            data-testid="settings-page-mcp-workspace"
+            onChange={event => page.selectWorkspace(event.target.value || null)}
+            value={page.workspaceId ?? ""}
+          >
+            {page.workspaces.map(workspace => (
+              <NativeSelectOption key={workspace.id} value={workspace.id}>
+                {workspace.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        ) : null}
+      </div>
+    </SettingsGroup>
+  );
+}
+function MCPSettingsDialogs({ page }: { page: MCPPageModel }) {
+  return (
+    <>
+      {page.editorProps ? (
+        <MCPServerEditor
+          {...page.editorProps}
+          onRemove={
+            page.editorProps.entry && !isExtensionOwnedMCPServer(page.editorProps.entry)
+              ? () => {
+                  const entry = page.editorProps?.entry;
+                  page.editorProps?.onClose();
+                  if (entry) page.requestRemove(entry);
+                }
+              : undefined
+          }
+        />
+      ) : null}
+      {page.overrideProps ? <MCPOverrideEditor {...page.overrideProps} /> : null}
+      <MCPAuthorizeDialog
+        authorize={page.authorization.authorize}
+        scope={page.authorization.scope}
+        server={page.authorization.server}
+      />
+      <MCPServerDeleteDialog
+        error={page.removal.error?.message ?? null}
+        isDeleting={page.removal.isPending}
+        onClose={page.closeRemove}
+        onConfirm={page.remove}
+        target={page.removing}
+      />{" "}
+    </>
   );
 }

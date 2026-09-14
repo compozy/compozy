@@ -1,6 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMDX } from "fumadocs-mdx/next";
+import extensionsFeed from "../../catalog/v3/extensions.json" with { type: "json" };
 
 const withMDX = createMDX();
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -60,6 +61,9 @@ const config = {
     ],
   },
   images: {
+    remotePatterns: extensionsFeed.entries.flatMap(entry =>
+      entry.icon?.startsWith("https://") ? [new URL(entry.icon)] : []
+    ),
     formats: ["image/avif", "image/webp"],
     qualities: [75, 90],
   },

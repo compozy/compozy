@@ -252,7 +252,7 @@ function MarketplaceUpdatesLine({
   const updateAll = async () => {
     const names = updates.map(item => item.extension.name);
     setProgress({ done: 0, total: names.length });
-    try {
+    const runBatch = async () => {
       const groups = new Map<
         string,
         { request: ExtensionBatchUpdateRequest; items: InstalledExtensionView[] }
@@ -268,19 +268,22 @@ function MarketplaceUpdatesLine({
       const results = await Promise.allSettled(
         [...groups.values()].map(group =>
           actions.trackInstalledItems(group.items, async () => {
-            try {
-              const result = await batch.mutateAsync(group.request);
-              for (const update of result.updates) {
-                if (update.status !== "updated" || update.error) continue;
-                const item = group.items.find(item => item.extension.name === update.name);
-                if (item) actions.flashItem(item);
-              }
-              return result;
-            } finally {
-              setProgress(current =>
-                current ? { ...current, done: current.done + group.items.length } : current
-              );
-            }
+            const itemsByName = new Map(group.items.map(item => [item.extension.name, item]));
+            return batch
+              .mutateAsync(group.request)
+              .then(result => {
+                for (const update of result.updates) {
+                  if (update.status !== "updated" || update.error) continue;
+                  const item = itemsByName.get(update.name);
+                  if (item) actions.flashItem(item);
+                }
+                return result;
+              })
+              .finally(() => {
+                setProgress(current =>
+                  current ? { ...current, done: current.done + group.items.length } : current
+                );
+              });
           })
         )
       );
@@ -299,11 +302,10 @@ function MarketplaceUpdatesLine({
       if (landed > 0) {
         toast.success(`${landed} of ${names.length} updated`);
       }
-    } catch (error) {
-      toast.error(marketplaceErrorMessage(error, "Failed to update extensions"));
-    } finally {
-      setProgress(null);
-    }
+    };
+    await runBatch()
+      .catch(error => toast.error(marketplaceErrorMessage(error, "Failed to update extensions")))
+      .finally(() => setProgress(null));
   };
 
   const busy = batch.isPending || progress !== null;

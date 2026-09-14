@@ -67,16 +67,13 @@ export function MCPOverrideEditor({
   onSave,
   onReset,
 }: MCPOverrideEditorProps) {
-  const urlId = useId();
   if (!open) return null;
-  const isRemote = entry.transport !== "stdio";
   const hasStoredOverride = Boolean(
     entry.override &&
     (Object.keys(entry.override.env ?? {}).length > 0 ||
       Object.keys(entry.override.headers ?? {}).length > 0 ||
       entry.override.url?.trim())
   );
-  const scopeLabel = mcpManagementScopeLabel(entry) ?? entry.scope;
   const ownerName = entry.owner?.replace(/^extension:/, "") ?? "";
 
   return (
@@ -113,92 +110,14 @@ export function MCPOverrideEditor({
         />
 
         <EntityDialogBody className="flex flex-col" data-testid="settings-mcp-override-editor-body">
-          <FormSection
-            description="These fields come from the extension package and cannot be edited here."
-            title="Package declaration"
-          >
-            <ImmutableIdentity
-              data-testid="settings-mcp-override-editor-identity"
-              rows={[
-                { label: "Server", mono: true, value: entry.name },
-                { label: "Owner", mono: true, value: entry.owner ?? "" },
-                ...(entry.runtime_name?.trim()
-                  ? [{ label: "Runtime name", mono: true, value: entry.runtime_name }]
-                  : []),
-                { label: "Scope", mono: true, value: scopeLabel },
-                isRemote
-                  ? { label: "URL", mono: true, value: entry.url ?? "—" }
-                  : {
-                      label: "Command",
-                      mono: true,
-                      value:
-                        [entry.command, ...(entry.args ?? [])].filter(Boolean).join(" ") || "—",
-                    },
-                { label: "Auth", value: entry.auth ? "OAuth (from the package)" : "None" },
-              ]}
-            />
-          </FormSection>
-
-          <FormSection
-            description={
-              isRemote
-                ? "Headers are sent on every request. Leave the endpoint blank to keep the package URL."
-                : "Environment variables are added to the process the package declares."
-            }
-            rightLabel={isRemote ? "remote endpoint" : "local process"}
-            title="Override"
-          >
-            {isRemote ? (
-              <>
-                <div>
-                  <MCPFieldLabel hint="optional" htmlFor={urlId}>
-                    Endpoint
-                  </MCPFieldLabel>
-                  <Input
-                    aria-describedby={errors.url ? `${urlId}-error` : undefined}
-                    aria-invalid={errors.url ? true : undefined}
-                    className="font-mono"
-                    data-testid="settings-mcp-override-editor-url"
-                    disabled={isSaving}
-                    id={urlId}
-                    onChange={event => onChange({ ...draft, url: event.target.value })}
-                    placeholder={entry.url ?? "https://"}
-                    value={draft.url}
-                  />
-                  {errors.url ? (
-                    <p
-                      className="mt-1.5 text-caption text-danger"
-                      id={`${urlId}-error`}
-                      role="alert"
-                    >
-                      {errors.url}
-                    </p>
-                  ) : null}
-                </div>
-                <MCPOverridePairsEditor
-                  addLabel="Add header"
-                  disabled={isSaving}
-                  errors={errors.headers}
-                  field="headers"
-                  keyPlaceholder="Header"
-                  label="Headers"
-                  pairs={draft.headers}
-                  onChange={headers => onChange({ ...draft, headers })}
-                />
-              </>
-            ) : (
-              <MCPOverridePairsEditor
-                addLabel="Add variable"
-                disabled={isSaving}
-                errors={errors.env}
-                field="env"
-                keyPlaceholder="KEY"
-                label="Environment"
-                pairs={draft.env}
-                onChange={env => onChange({ ...draft, env })}
-              />
-            )}
-          </FormSection>
+          <MCPPackageDeclaration entry={entry} />
+          <MCPOverrideFields
+            entry={entry}
+            draft={draft}
+            errors={errors}
+            isSaving={isSaving}
+            onChange={onChange}
+          />
 
           {saveError ? (
             <Alert data-testid="settings-mcp-override-editor-error" role="alert" variant="danger">
@@ -346,5 +265,104 @@ function MCPOverridePairsEditor({
         </Button>
       </div>
     </div>
+  );
+}
+
+function MCPPackageDeclaration({ entry }: Pick<MCPOverrideEditorProps, "entry">) {
+  const isRemote = entry.transport !== "stdio";
+  const scopeLabel = mcpManagementScopeLabel(entry) ?? entry.scope;
+  return (
+    <FormSection
+      description="These fields come from the extension package and cannot be edited here."
+      title="Package declaration"
+    >
+      <ImmutableIdentity
+        data-testid="settings-mcp-override-editor-identity"
+        rows={[
+          { label: "Server", mono: true, value: entry.name },
+          { label: "Owner", mono: true, value: entry.owner ?? "" },
+          ...(entry.runtime_name?.trim()
+            ? [{ label: "Runtime name", mono: true, value: entry.runtime_name }]
+            : []),
+          { label: "Scope", mono: true, value: scopeLabel },
+          isRemote
+            ? { label: "URL", mono: true, value: entry.url ?? "—" }
+            : {
+                label: "Command",
+                mono: true,
+                value: [entry.command, ...(entry.args ?? [])].filter(Boolean).join(" ") || "—",
+              },
+          { label: "Auth", value: entry.auth ? "OAuth (from the package)" : "None" },
+        ]}
+      />
+    </FormSection>
+  );
+}
+function MCPOverrideFields({
+  entry,
+  draft,
+  errors,
+  isSaving,
+  onChange,
+}: Pick<MCPOverrideEditorProps, "entry" | "draft" | "errors" | "isSaving" | "onChange">) {
+  const urlId = useId();
+  const isRemote = entry.transport !== "stdio";
+  return (
+    <FormSection
+      description={
+        isRemote
+          ? "Headers are sent on every request. Leave the endpoint blank to keep the package URL."
+          : "Environment variables are added to the process the package declares."
+      }
+      rightLabel={isRemote ? "remote endpoint" : "local process"}
+      title="Override"
+    >
+      {isRemote ? (
+        <>
+          <div>
+            <MCPFieldLabel hint="optional" htmlFor={urlId}>
+              Endpoint
+            </MCPFieldLabel>
+            <Input
+              aria-describedby={errors.url ? `${urlId}-error` : undefined}
+              aria-invalid={errors.url ? true : undefined}
+              className="font-mono"
+              data-testid="settings-mcp-override-editor-url"
+              disabled={isSaving}
+              id={urlId}
+              onChange={event => onChange({ ...draft, url: event.target.value })}
+              placeholder={entry.url ?? "https://"}
+              value={draft.url}
+            />
+            {errors.url ? (
+              <p className="mt-1.5 text-caption text-danger" id={`${urlId}-error`} role="alert">
+                {errors.url}
+              </p>
+            ) : null}
+          </div>
+          <MCPOverridePairsEditor
+            addLabel="Add header"
+            disabled={isSaving}
+            errors={errors.headers}
+            field="headers"
+            keyPlaceholder="Header"
+            label="Headers"
+            pairs={draft.headers}
+            onChange={headers => onChange({ ...draft, headers })}
+          />
+        </>
+      ) : (
+        <MCPOverridePairsEditor
+          addLabel="Add variable"
+          disabled={isSaving}
+          errors={errors.env}
+          field="env"
+          keyPlaceholder="KEY"
+          label="Environment"
+          pairs={draft.env}
+          onChange={env => onChange({ ...draft, env })}
+        />
+      )}
+    </FormSection>
   );
 }
