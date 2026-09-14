@@ -125,6 +125,9 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := vault.ValidateMCPOwner(resolvedOpts.owner); err != nil {
+				return err
+			}
 			if len(args) == 1 {
 				target, targetErr := resolvedOpts.target(args[0])
 				if targetErr != nil {

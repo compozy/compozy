@@ -42,6 +42,14 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if err := os.CopyFS(filepath.Join(root, "good"), os.DirFS(fixture)); err != nil {
 					t.Fatal(err)
 				}
+				if err := os.MkdirAll(filepath.Join(root, "good", "commands"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(root, "good", "commands", "ignored.md"), "Client-only command")
+				before, err := ComputeDirectoryChecksum(filepath.Join(root, "good"))
+				if err != nil {
+					t.Fatal(err)
+				}
 				broken := filepath.Join(root, "broken", ".claude-plugin")
 				if err := os.MkdirAll(broken, 0o700); err != nil {
 					t.Fatal(err)
@@ -50,7 +58,7 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				writeFile(
 					t,
 					filepath.Join(root, "marketplace.json"),
-					`{"plugins":[{"name":"good","source":"./good"},{"name":"broken","source":"./broken"}]}`,
+					`{"plugins":[{"name":"good","source":"./good","icon":"http://images.example.test/private-canary.png"},{"name":"broken","source":"./broken"}]}`,
 				)
 				resolver := &pluginsource.Resolver{
 					Cache:   &pluginsource.PackageCache{Root: t.TempDir()},
@@ -72,9 +80,13 @@ func TestPluginCatalogInstallability(t *testing.T) {
 					t.Fatal(err)
 				}
 				entries, diagnostics := doc.Entries, doc.Diagnostics
-				if len(entries) != 2 || len(diagnostics) != 1 || !entries[0].Installable ||
+				if len(entries) != 2 || len(diagnostics) != 3 || !entries[0].Installable ||
 					entries[1].Installable || entries[1].InstallBlocker != "load_failed" || entries[1].Layout != "claude-plugin" {
 					t.Fatalf("real loader projection = %+v, diagnostics %+v, %v", entries, diagnostics, err)
+				}
+				if diagnostics[0].Plugin != "good" || diagnostics[0].Code != "client_component_ignored" ||
+					diagnostics[1].Plugin != "good" || diagnostics[1].Code != "marketplace.icon.invalid" || entries[0].Icon != "" {
+					t.Fatalf("qualified plugin diagnostics = %+v", diagnostics)
 				}
 				detail, err := marketplace.ProjectEntry(entries[0])
 				if err != nil || detail.Extension.InstanceName != tc.name ||
@@ -85,6 +97,21 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if detail.SourceRef != doc.SourceRef ||
 					detail.Extension.Acquisition.DigestSHA256 != entries[0].DigestSHA256 {
 					t.Fatalf("projected acquisition does not identify the inspected bytes: %+v", detail)
+				}
+				paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				preview, err := InspectMarketplacePackage(t.Context(), paths, MarketplaceInstallRequest{
+					Slug: entries[0].InstallSlug, ExpectedDigest: entries[0].DigestSHA256,
+					Plugin: &MarketplacePluginAcquisition{SourceName: "team", Record: *detail.Extension.Acquisition, Acquirer: resolver},
+				}, "default")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if preview.ResolvedRef != detail.Extension.Acquisition.ResolvedRef || preview.Layout != "claude-plugin" ||
+					len(preview.Diagnostics) != 1 || preview.Diagnostics[0].Code != "client_component_ignored" {
+					t.Fatalf("dry inspection metadata = %+v", preview)
 				}
 				db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "catalog.db"))
 				if err != nil {
@@ -117,17 +144,13 @@ func TestPluginCatalogInstallability(t *testing.T) {
 				if err != nil || page.Total != 2 || page.State.Installable != 1 ||
 					page.State.SourceRef != doc.SourceRef || page.State.DocumentDigest != doc.DocumentDigest ||
 					page.State.DocumentPath != doc.DocumentPath || !page.State.GeneratedAt.IsZero() ||
-					len(page.State.Diagnostics) != 1 || page.Entries[0].InstallBlocker != "load_failed" ||
+					len(page.State.Diagnostics) != 3 || page.Entries[0].InstallBlocker != "load_failed" ||
 					!page.Entries[1].Installable || page.Entries[1].Description != "" {
 					t.Fatalf("durable plugin projection = %+v, %v", page, err)
 				}
 				remaining, err := os.ReadDir(resolver.Sources.TempDir)
 				if err != nil || len(remaining) != 0 {
 					t.Fatalf("inspection retained temporary trees: %v, %v", remaining, err)
-				}
-				before, err := ComputeDirectoryChecksum(fixture)
-				if err != nil {
-					t.Fatal(err)
 				}
 				after, err := ComputeDirectoryChecksum(filepath.Join(root, "good"))
 				if err != nil || before != after {

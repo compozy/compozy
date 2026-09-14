@@ -438,11 +438,11 @@ Task05 canonical discovery consumers: native marketplace_search and CLI search n
 
 Task06 client plugin loading: existing extension CLI/HTTP/UDS and native install surfaces now accept Claude/Codex/Cursor manifest directories through grammar adapters. Package bytes, trust gates, extension identity, manual MCPs and scoped credential ownership are preserved. Unsupported client commands/agents/hooks emit client_component_ignored; none become executable hooks. Nested manifest paths retain the package root for resource delivery, updates and removal. Provenance and the shared ExtensionPayload expose the detected layout; OpenAPI/TS consumers are regenerated. Official skill and extension docs describe the accepted grammar. No config or database shape changes. ET-agent-plugin-marketplace-install is untested for the new behavior; task10 owns the remaining live/visual walks. Focused archive/SQLite/HTTP lifecycle evidence is recorded in marketplace-catalog/memory/task_06.md.
 
-Task05 documentation closeout: the configuration reference now removes active registry/base_url examples and root-feed fallback promises. Marketplace CLI examples use the canonical one-argument info and no kind flag. The migration guide and release notes list removed CLI/API/native acquisition inputs and preserved extension, manual MCP and installed-skill state. Retired QA rows stay skipped with replacement journeys linked; current namespace/search rows remain untested for final09/10. The installed-skill MCP authorization field remains active pending the explicit task05 consent decision; docs do not claim that removal has shipped. Task02 still owns v3 publisher/site conversion and the obsolete standalone skill-store guide.
+Task05 documentation closeout: the configuration reference now removes active registry/base_url examples and root-feed fallback promises. Marketplace CLI examples use the canonical one-argument info and no kind flag. The migration guide and release notes list removed CLI/API/native acquisition inputs and preserved extension, manual MCP and installed-skill state. Retired QA rows stay skipped with replacement journeys linked; current namespace/search rows remain untested for final09/10. At this checkpoint, the installed-skill MCP authorization field remained active pending the task05 consent decision. The later Task05 embedded MCP retirement entry supersedes this status: the field is retired and archived, and embedded Marketplace-skill MCPs stay disabled. Task02 still owns v3 publisher/site conversion and the obsolete standalone skill-store guide.
 
 Task02 publisher cut: compozy-catalog publish emits only v3 extension/preset feeds and verified package artifacts; the production v2 semantic adapter and copied decoder are deleted. Validation reads only v3 and always compares feed inputs with the packaged manifest. Existing extension entry metadata and artifact bytes are preserved by the canonical publisher suite. The 17 package definitions now compare launch/auth/input/default-scope behavior with an immutable pre-feature fixture, independent of root MCP feeds. No daemon config, native tool, credential, workspace or installed-state shape changes in this slice. Site kind consumers/root assets and the remaining task02 docs/schema obligations are still pending; existing final09/10 QA ownership remains.
 
-Task02 site data and docs cut: the public catalog reads the single v3 extension/preset schema, uses direct /marketplace/<entry_id> routes, and removes Kind unions, root feed imports/outputs and the old standalone skill acquisition guide. Search and sitemap use current entry identities. Installed skill provenance stays documented in the local skills guide; its MCP consent allowlist remains unchanged pending the separate task05 decision. Existing extension install refs/artifacts, bundled resources and bridge setup remain preserved. Official extension authoring guidance already covers inputs/auth/default scope. No additional native tool, workspace, credential or database change in this slice. Site UI integration and its focused checks are in progress; ET-site-marketplace-catalog and MS-marketplace-catalog-live-config retain final09/10 live QA ownership.
+Task02 site data and docs cut: the public catalog reads the single v3 extension/preset schema, uses direct /marketplace/<entry_id> routes, and removes Kind unions, root feed imports/outputs and the old standalone skill acquisition guide. Search and sitemap use current entry identities. Installed skill provenance stays documented in the local skills guide; its MCP consent allowlist was unchanged at this checkpoint pending the task05 decision. The later Task05 embedded MCP retirement entry supersedes that status; the hook allowlist remains active. Existing extension install refs/artifacts, bundled resources and bridge setup remain preserved. Official extension authoring guidance already covers inputs/auth/default scope. No additional native tool, workspace, credential or database change in this slice. Site UI integration and its focused checks are in progress; ET-site-marketplace-catalog and MS-marketplace-catalog-live-config retain final09/10 live QA ownership.
 
 Task03 input ownership naming: requires_env bindings and optional expected_digest remain current supported extension behavior. Reader/helper comments now name those mechanisms directly rather than marking them legacy. No public DTO, config, persistence, runtime behavior or QA contract changes in this editorial/refactor slice; focused binder, lifecycle, readiness and SQLite input suites pass. Public scoped-install propagation remains pending in task03/04.
 
@@ -730,3 +730,30 @@ The canonical sources and generated v3 feed now contain19entries. Web, site, CLI
 native Marketplace discovery consume that feed; their contracts, config, hooks, official skill and
 workspace state are unchanged. Previously published package bytes and installed copies are retained.
 The existing publisher/runtime-source suite verifies absence and preservation of the remaining entries.
+
+Marketplace PR636 single-review remediation: the existing source synchronizer now applies the
+retired Marketplace skill-MCP rule during dynamic resource publication and aborts boot on failed
+reconciliation. Installed skill bytes/provenance, local declarations, manual MCPs and extension
+resources remain protected. Auth config validates client-secret ownership before resolution;
+manual user references from released config retain access to their own persisted keys, while
+shared and environment references remain explicit. Profile lifecycle enumerates manual and
+extension-owned profile/workspace-profile secret prefixes, re-encrypts renamed ciphertext with
+its new identity in the existing transaction, and includes those credentials in deletion previews.
+No public CLI/HTTP/UDS/native IDs or database shape changes accompany these corrections. Web
+Settings and profile lifecycle actions consume the same runtime boundaries; official skill commands
+remain current. Plugin inspection/classification/loading share one securely read manifest and
+resolve package data paths before loading components. Owning runtime, Vault/SQLite lifecycle and
+manifest suites supply focused evidence; affected scenario additions require final live re-walks
+and heavy gates remain assigned to current-head GitHub CI.
+
+Marketplace source mutations now serialize canonical overlay writes and restore rejected changes,
+including original comments or prior file absence. Catalog source membership and its in-memory
+publication commit under the same lifecycle lock. Failed add/disable/remove operations retain the
+prior catalog snapshot; external overlay replacements are preserved with an explicit retry error.
+Workspace extension hooks now use the effective profile/workspace projection. Persisted hook
+bindings retain profile identity and workspace shadowing, including development packages without
+hooks; reconstructed dispatch preserves these boundaries. Inventory hook IDs include the same
+profile/workspace identity as published bindings. Existing CLI/HTTP/UDS/native operations and Web
+controls consume these fixes; no new public route, config key or SQLite schema change is needed.
+Focused real SQLite/reconciliation/subprocess suites passed. The existing source-management and
+plugin-development QA scenarios include the affected public re-walks; current-head CI remains pending.

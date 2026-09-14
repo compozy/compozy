@@ -45,6 +45,13 @@ func TestWriteTarDirectory(t *testing.T) {
 		if err := os.WriteFile(outside, []byte("leak!"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		probe := filepath.Join(root, "symlink-capability-probe")
+		if err := os.Symlink(outside, probe); err != nil {
+			t.Skipf("Symlink(external replacement) unavailable: %v", err)
+		}
+		if err := os.Remove(probe); err != nil {
+			t.Fatal(err)
+		}
 		var archive bytes.Buffer
 		swapped := false
 		writer := archiveWriteFunc(func(raw []byte) (int, error) {

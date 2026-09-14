@@ -44,7 +44,8 @@ func parseMarketplaceSourceAPIError(statusCode int, status string, body []byte) 
 	switch payload.Code {
 	case "marketplace_source_exists", "marketplace_not_a_marketplace", "marketplace_document_too_large",
 		"marketplace_source_invalid_ref", "marketplace_source_preset_readonly", "marketplace_source_not_found",
-		"marketplace_source_name_retained", "marketplace_source_name_reserved", "marketplace_source_name_invalid":
+		"marketplace_source_name_retained", "marketplace_source_name_reserved", "marketplace_source_name_invalid",
+		"source_unreachable":
 		payload.Error = redactToolDiagnostic(payload.Error)
 		return true, &marketplaceSourceAPIError{statusCode: statusCode, status: status, payload: payload}
 	default:

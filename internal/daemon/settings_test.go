@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -482,18 +483,56 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
+	// Invariant: unavailable auth status preserves normalized definition ownership.
+	// Owner: daemon settings runtime surface; canonical suite: settings_test.go.
+	for _, owner := range []string{"", "manual", "extension:remote-docs"} {
+		t.Run("Should retain auth owner when the token store is unavailable "+owner, func(t *testing.T) {
+			t.Parallel()
+			target := globalMCPTestTarget("remote-docs")
+			target.Owner = owner
+			surface := &settingsRuntimeSurface{}
+			status, err := surface.MCPAuthStatus(t.Context(), target, compozyconfig.MCPServer{
+				Name: "remote-docs", Owner: owner,
+				Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.Owner != target.Normalize().Owner || status.ServerName != target.ServerName ||
+				status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
+				t.Fatalf("unavailable status lost target identity: %#v, want %#v", status, target.Normalize())
+			}
+			if status.Status != mcpauth.StatusNeedsLogin || status.Diagnostic != "token store unavailable" || status.TokenPresent {
+				t.Fatalf("unexpected unavailable status: %#v", status)
+			}
+		})
+	}
+
 	t.Run("Should resolve MCP client_secret_ref before computing auth status", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		secrets, err := vault.NewService(db, vault.NewFileKeyProvider(t.TempDir(), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonicalRef := "vault:mcp/user/remote-docs/oauth/client-secret"
+		if _, err := secrets.PutSecret(ctx, canonicalRef, "oauth-client-secret", "client-secret"); err != nil {
+			t.Fatal(err)
+		}
 		called := false
 		surface := &settingsRuntimeSurface{
 			secretResolver: func(_ context.Context, ref string) (string, error) {
 				called = true
-				if ref != "vault:mcp/global/remote-docs/oauth/client-secret" {
+				if ref != canonicalRef {
 					t.Fatalf("secret resolver ref = %q, want remote-docs client secret ref", ref)
 				}
-				return "client-secret", nil
+				value, err := secrets.ResolveRef(ctx, ref)
+				if err == nil && value != "client-secret" {
+					t.Fatal("stored client secret did not decrypt")
+				}
+				return value, err
 			},
 		}
 

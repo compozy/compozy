@@ -607,6 +607,67 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name  string
+		owner string
+		want  []string
+	}{
+		{"Should filter an unqualified status list by extension owner", " extension:linear ", []string{"extension:linear"}},
+		{"Should filter an unqualified status list by manual owner", "manual", []string{"manual"}},
+		{"Should retain all owners when no selector is supplied", "", []string{"manual", "extension:linear"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{listSettingsMCPServersFn: func(
+				_ context.Context, _ contract.SettingsLayeredScopeKind, _, _ string,
+			) (contract.SettingsMCPServersResponse, error) {
+				servers := make([]contract.SettingsMCPServerItemPayload, 0, 2)
+				for _, owner := range []string{"manual", "extension:linear"} {
+					status := mcpAuthStatus("linear", "user", "", false, nil)
+					status.Owner = owner
+					servers = append(servers, contract.SettingsMCPServerItemPayload{
+						Name: "linear", Owner: owner, Scope: contract.SettingsScopeUser, AuthStatus: &status,
+					})
+				}
+				return contract.SettingsMCPServersResponse{MCPServers: servers}, nil
+			}}
+			args := []string{"mcp", "auth", "status", "-o", "json"}
+			if tc.owner != "" {
+				args = append(args, "--owner", tc.owner)
+			}
+			stdout, _, err := executeRootCommand(t, newTestDeps(t, client), args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var statuses []SettingsMCPAuthStatusRecord
+			if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
+				t.Fatal(err)
+			}
+			if len(statuses) != len(tc.want) {
+				t.Fatalf("statuses = %#v, want owners %v", statuses, tc.want)
+			}
+			for i, owner := range tc.want {
+				if statuses[i].Owner != owner {
+					t.Fatalf("status = %#v, want owner %s", statuses[i], owner)
+				}
+			}
+		})
+	}
+	t.Run("Should reject a malformed owner before listing auth statuses", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{listSettingsMCPServersFn: func(
+			_ context.Context, _ contract.SettingsLayeredScopeKind, _, _ string,
+		) (contract.SettingsMCPServersResponse, error) {
+			t.Fatal("malformed owner reached the daemon listing")
+			return contract.SettingsMCPServersResponse{}, nil
+		}}
+		_, _, err := executeRootCommand(t, newTestDeps(t, client),
+			"mcp", "auth", "status", "--owner", "extension:bad/name", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "MCP owner must be") {
+			t.Fatalf("malformed owner error = %v", err)
+		}
+	})
+
 	t.Run("Should honor workspace identity for status and logout", func(t *testing.T) {
 		t.Parallel()
 

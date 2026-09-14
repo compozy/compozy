@@ -1,4 +1,4 @@
-import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
+import { ExtensionsApiError } from "@/systems/extensions";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { MarketplaceCatalogListing } from "../types";
 

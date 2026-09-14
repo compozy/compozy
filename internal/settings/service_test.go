@@ -766,6 +766,63 @@ func withSettingsSection(request SectionRequest, section SectionName) SectionReq
 	return request
 }
 
+// not parallel: exercises the process catalog-source environment.
+// Invariant: unrelated catalog edits do not persist the runtime-only source override.
+// Owner: settings section persistence; canonical suite: service_test.go.
+func TestUpdateSectionMarketplaceRuntimeSource(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		storedURL   string
+		explicitURL string
+	}{
+		{name: "Should preserve an absent source during TTL edits"},
+		{name: "Should preserve the configured source during TTL edits", storedURL: "https://catalog.example.test"},
+		{name: "Should persist an explicit source edit", storedURL: "https://catalog.example.test", explicitURL: "https://new.example.test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(compozyconfig.MarketplaceCatalogBaseURLEnv, "file:///tmp/runtime-only-catalog")
+			homePaths := testHomePaths(t)
+			contents := baseSettingsConfig()
+			if tc.storedURL != "" {
+				contents += "\n[marketplace.catalog]\nbase_url = \"" + tc.storedURL + "\"\n"
+			}
+			writeFile(t, homePaths.ConfigFile, contents)
+			service := testService(t, homePaths, Dependencies{})
+			cfg, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			desired := cfg.Marketplace.Catalog
+			desired.TTL = "37m"
+			desired.Timeout = "17s"
+			if tc.explicitURL != "" {
+				desired.BaseURL = tc.explicitURL
+			}
+			if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+				SectionRequest: SectionRequest{Section: SectionMarketplace}, Marketplace: &desired,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv(compozyconfig.MarketplaceCatalogBaseURLEnv, "")
+			stored, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantURL := tc.storedURL
+			if tc.explicitURL != "" {
+				wantURL = tc.explicitURL
+			}
+			if wantURL == "" {
+				wantURL = compozyconfig.DefaultMarketplaceCatalogBaseURL
+			}
+			if stored.Marketplace.Catalog.BaseURL != wantURL || stored.Marketplace.Catalog.TTL != desired.TTL ||
+				stored.Marketplace.Catalog.Timeout != desired.Timeout {
+				t.Fatalf("persisted catalog = %#v, want source %q with updated TTL and timeout", stored.Marketplace.Catalog, wantURL)
+			}
+		})
+	}
+}
+
 func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	t.Parallel()
 

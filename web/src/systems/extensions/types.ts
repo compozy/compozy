@@ -1,7 +1,11 @@
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 
-export type ExtensionEntry = OperationResponse<"listExtensions", 200>["extensions"][number];
+type ExtensionPayload = OperationResponse<"listExtensions", 200>["extensions"][number];
+type ExtensionArrayField = "mcp_servers" | "inputs" | "missing_inputs";
+export type ExtensionEntry = Omit<ExtensionPayload, ExtensionArrayField> & {
+  [Field in ExtensionArrayField]: NonNullable<ExtensionPayload[Field]>;
+};
 export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 200>["provenance"];
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
 export type ExtensionLogsSnapshot = OperationResponse<"getExtensionLogs", 200>;

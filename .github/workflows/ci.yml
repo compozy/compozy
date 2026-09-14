@@ -482,6 +482,14 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+      - name: Verify read-only config and retirement migration on Windows
+        run: >-
+          go test ./internal/config
+          -run '^(TestPersistedOverlayWindowsReadPermissions|TestLoadConfigArchivesRetiredSkillAcquisition)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
   desktop:
     name: Desktop (format, lint, test, build)
     runs-on: ubuntu-latest

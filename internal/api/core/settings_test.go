@@ -565,6 +565,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
+	settings.GET("/marketplace", handlers.GetSettingsMarketplace)
+	settings.PATCH("/marketplace", handlers.UpdateSettingsMarketplace)
 	settings.GET("/roles", handlers.GetSettingsRoles)
 	settings.PATCH("/roles", handlers.UpdateSettingsRoles)
 	settings.GET("/skills", handlers.GetSettingsSkills)
@@ -2095,6 +2097,22 @@ func TestUpdateSettingsGeneralRequiresRedactionGatePresence(t *testing.T) {
 func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: absent Marketplace config must not reach the mutation boundary.
+	// Owner: shared Settings request parser; canonical suite: settings_test.go.
+	for _, body := range []string{`{}`, `{"config":null}`} {
+		t.Run("Should reject absent Marketplace config "+body, func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/marketplace", []byte(body))
+			var payload contract.ErrorPayload
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if response.Code != http.StatusBadRequest || !strings.Contains(payload.Error, "marketplace.config is required") || service.ApplySectionCalls != 0 {
+				t.Fatalf("absent config response=%d %#v; mutations=%d", response.Code, payload, service.ApplySectionCalls)
+			}
+		})
+	}
+
 	tests := []struct {
 		name string
 		path string
@@ -2143,29 +2161,27 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		})
 	}
 
-	for _, transport := range []string{"api-core-http", "api-core-uds"} {
-		t.Run("Should reject retired Marketplace MCP policy before mutation via "+transport, func(t *testing.T) {
-			t.Parallel()
-			service := &stubSettingsService{}
-			fixture := newSettingsHandlerFixture(t, transport, service, nil)
-			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills",
-				[]byte(`{"config":{"allowed_marketplace_mcp":["clawhub:@team/old"]}}`))
-			var payload contract.ErrorPayload
-			decodeJSON(t, response.Body.Bytes(), &payload)
-			if response.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 ||
-				!strings.Contains(
-					payload.Error,
-					"unknown field",
-				) || !strings.Contains(payload.Error, "allowed_marketplace_mcp") {
-				t.Fatalf(
-					"retired policy response=%d %+v, mutations=%d",
-					response.Code,
-					payload,
-					service.UpdateSectionCalls,
-				)
-			}
-		})
-	}
+	t.Run("Should reject retired Marketplace MCP policy before mutation", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills",
+			[]byte(`{"config":{"allowed_marketplace_mcp":["clawhub:@team/old"]}}`))
+		var payload contract.ErrorPayload
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if response.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 ||
+			!strings.Contains(
+				payload.Error,
+				"unknown field",
+			) || !strings.Contains(payload.Error, "allowed_marketplace_mcp") {
+			t.Fatalf(
+				"retired policy response=%d %+v, mutations=%d",
+				response.Code,
+				payload,
+				service.UpdateSectionCalls,
+			)
+		}
+	})
 	for _, field := range []string{"default_channel", "port"} {
 		t.Run("Should reject removed network field "+field, func(t *testing.T) {
 			t.Parallel()
@@ -2672,6 +2688,25 @@ func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
 // TestUpdateSettingsSectionHandlersDelegateValidPayloads verifies decoded writes and echoed application outcomes.
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve explicit empty Marketplace config reset semantics", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.Marketplace == nil || *req.Marketplace != (compozyconfig.MarketplaceCatalogConfig{}) {
+					t.Fatalf("explicit config lost its presence: %#v", req.Marketplace)
+				}
+				return settingspkg.ApplyResult{Section: req.Section, Scope: req.Scope, Applied: true}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/marketplace", []byte(`{"config":{}}`))
+		var payload contract.SettingsApplyResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if response.Code != http.StatusOK || !payload.Applied || service.ApplySectionCalls != 1 {
+			t.Fatalf("explicit config response=%d %#v; mutations=%d", response.Code, payload, service.ApplySectionCalls)
+		}
+	})
 
 	t.Run("Should echo the window-manager section with its failed apply receipt", func(t *testing.T) {
 		t.Parallel()
@@ -4258,38 +4293,36 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	// Owner: HTTP/UDS request decoder; canonical suite: settings_test.go.
 	t.Run("Should pass partial MCP overrides and owner-qualified deletes through both transports", func(t *testing.T) {
 		t.Parallel()
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			t.Run(transport, func(t *testing.T) {
-				t.Parallel()
-				service := &stubSettingsService{}
-				fixture := newSettingsHandlerFixture(t, transport, service, nil)
-				path := "/api/settings/mcp-servers/remote?scope=profile&profile=marketing&workspace_id=workspace-a&owner=extension:bundle"
-				result := performRequest(
-					t,
-					fixture.Engine,
-					http.MethodPut,
-					path,
-					[]byte(`{"server":{"url":"https://example.com/changed","headers":{"X-Region":"eu"}}}`),
-				)
-				if result.Code != http.StatusOK {
-					t.Fatalf("partial override rejected: %d %s", result.Code, result.Body.String())
-				}
-				req := service.LastPutCollectionRequest
-				if req.Owner != "extension:bundle" || req.Scope != settingspkg.ScopeProfile ||
-					req.ProfileName != "marketing" ||
-					req.WorkspaceID != "workspace-a" ||
-					req.MCPServer == nil ||
-					req.MCPServer.Headers["X-Region"] != "eu" ||
-					req.MCPServer.Command != "" ||
-					req.MCPServer.Transport != "" {
-					t.Fatalf("partial override lost selectors or acquired package fields: %#v", req)
-				}
-				result = performRequest(t, fixture.Engine, http.MethodDelete, path, nil)
-				if result.Code != http.StatusOK || service.LastDeleteRequest.Owner != "extension:bundle" {
-					t.Fatalf("owner lost on DELETE: %d %#v", result.Code, service.LastDeleteRequest)
-				}
-			})
-		}
+		t.Run("Should decode the shared request", func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+			path := "/api/settings/mcp-servers/remote?scope=profile&profile=marketing&workspace_id=workspace-a&owner=extension:bundle"
+			result := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				path,
+				[]byte(`{"server":{"url":"https://example.com/changed","headers":{"X-Region":"eu"}}}`),
+			)
+			if result.Code != http.StatusOK {
+				t.Fatalf("partial override rejected: %d %s", result.Code, result.Body.String())
+			}
+			req := service.LastPutCollectionRequest
+			if req.Owner != "extension:bundle" || req.Scope != settingspkg.ScopeProfile ||
+				req.ProfileName != "marketing" ||
+				req.WorkspaceID != "workspace-a" ||
+				req.MCPServer == nil ||
+				req.MCPServer.Headers["X-Region"] != "eu" ||
+				req.MCPServer.Command != "" ||
+				req.MCPServer.Transport != "" {
+				t.Fatalf("partial override lost selectors or acquired package fields: %#v", req)
+			}
+			result = performRequest(t, fixture.Engine, http.MethodDelete, path, nil)
+			if result.Code != http.StatusOK || service.LastDeleteRequest.Owner != "extension:bundle" {
+				t.Fatalf("owner lost on DELETE: %d %#v", result.Code, service.LastDeleteRequest)
+			}
+		})
 	})
 
 	// Invariant: extension detail requires owner plus logical name, prefers the local definition, inherits its parent, and excludes siblings.
@@ -4298,144 +4331,140 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		"Should resolve MCP detail by owner and logical name without crossing scope",
 		func(t *testing.T) {
 			t.Parallel()
-			for _, transport := range []string{"api-core-http", "api-core-uds"} {
-				t.Run(transport, func(t *testing.T) {
-					t.Parallel()
-					service := &stubSettingsService{
-						ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-							return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
-								{
-									Name:        "github",
-									Owner:       "extension:github",
-									RuntimeName: "github.github",
-									Scope:       settingspkg.ScopeUser,
-								},
-								{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
-								{
-									Name:        "github",
-									Owner:       "extension:github",
-									RuntimeName: "github.github.2",
-									Scope:       settingspkg.ScopeWorkspace,
-									WorkspaceID: "workspace-a",
-								},
-							}}, nil
-						},
+			t.Run("Should decode the shared request", func(t *testing.T) {
+				t.Parallel()
+				service := &stubSettingsService{
+					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
+							{
+								Name:        "github",
+								Owner:       "extension:github",
+								RuntimeName: "github.github",
+								Scope:       settingspkg.ScopeUser,
+							},
+							{Name: "github", Owner: "manual", Scope: settingspkg.ScopeUser},
+							{
+								Name:        "github",
+								Owner:       "extension:github",
+								RuntimeName: "github.github.2",
+								Scope:       settingspkg.ScopeWorkspace,
+								WorkspaceID: "workspace-a",
+							},
+						}}, nil
+					},
+				}
+				fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+				for _, tc := range []struct {
+					path, owner, runtimeName string
+					status                   int
+				}{
+					{"github", "manual", "github", http.StatusOK},
+					{"github?owner=manual", "manual", "github", http.StatusOK},
+					{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
+					{"github.github", "", "", http.StatusNotFound},
+					{"github.github?owner=extension:github", "", "", http.StatusNotFound},
+					{"github?owner=extension:other", "", "", http.StatusNotFound},
+					{"github.github?owner=manual", "", "", http.StatusNotFound},
+					{"github?owner=bad", "", "", http.StatusBadRequest},
+					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
+					{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
+					{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
+					{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
+					{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
+				} {
+					result := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/api/settings/mcp-servers/"+tc.path,
+						nil,
+					)
+					if result.Code != tc.status {
+						t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
 					}
-					fixture := newSettingsHandlerFixture(t, transport, service, nil)
-					for _, tc := range []struct {
-						path, owner, runtimeName string
-						status                   int
-					}{
-						{"github", "manual", "github", http.StatusOK},
-						{"github?owner=manual", "manual", "github", http.StatusOK},
-						{"github?owner=extension:github", "extension:github", "github.github", http.StatusOK},
-						{"github.github", "", "", http.StatusNotFound},
-						{"github.github?owner=extension:github", "", "", http.StatusNotFound},
-						{"github?owner=extension:other", "", "", http.StatusNotFound},
-						{"github.github?owner=manual", "", "", http.StatusNotFound},
-						{"github?owner=bad", "", "", http.StatusBadRequest},
-						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-a", "extension:github", "github.github.2", http.StatusOK},
-						{"github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "extension:github", "github.github", http.StatusOK},
-						{"github.github.2?scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-						{"github.github.2?owner=extension:github&scope=workspace&workspace_id=workspace-a", "", "", http.StatusNotFound},
-						{"github.github?owner=extension:github&scope=workspace&workspace_id=workspace-b", "", "", http.StatusNotFound},
-					} {
-						result := performRequest(
-							t,
-							fixture.Engine,
-							http.MethodGet,
-							"/api/settings/mcp-servers/"+tc.path,
-							nil,
-						)
-						if result.Code != tc.status {
-							t.Fatalf("detail %s status %d: %s", tc.path, result.Code, result.Body.String())
-						}
-						if tc.status != http.StatusOK {
-							continue
-						}
-						var payload contract.SettingsMCPServerResponse
-						if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
-							t.Fatal(err)
-						}
-						if payload.Server.Owner != tc.owner ||
-							payload.Server.RuntimeName != tc.runtimeName {
-							t.Fatalf("wrong detail for %s: %#v", tc.path, payload)
-						}
+					if tc.status != http.StatusOK {
+						continue
 					}
-				})
-			}
+					var payload contract.SettingsMCPServerResponse
+					if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.Server.Owner != tc.owner ||
+						payload.Server.RuntimeName != tc.runtimeName {
+						t.Fatalf("wrong detail for %s: %#v", tc.path, payload)
+					}
+				}
+			})
 		},
 	)
-	// Invariant: HTTP and UDS expose the same actionable MCP collision code and extension row identity without secret bindings.
+	// Invariant: the shared MCP decoder exposes actionable collision codes and extension identity without secret bindings.
 	// Owner: API Settings boundary; canonical suite: settings_test.go.
 	t.Run("Should co-ship extension identities and structured name conflicts across transports", func(t *testing.T) {
 		t.Parallel()
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			t.Run(transport, func(t *testing.T) {
-				t.Parallel()
+		t.Run("Should decode the shared request", func(t *testing.T) {
+			t.Parallel()
 
-				service := &stubSettingsService{
-					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-						return settingspkg.CollectionEnvelope{
-							Collection: settingspkg.CollectionMCPServers,
-							Scope:      settingspkg.ScopeUser,
-							MCPServers: []settingspkg.MCPServerItem{
-								{
-									Name:        "github",
-									Owner:       "extension:github",
-									RuntimeName: "github.github",
-									Scope:       settingspkg.ScopeUser,
-									Override: &extensionmcp.Override{
-										Env: map[string]string{"REGION": "eu"},
-									},
-									SecretEnvKeys: []string{"TOKEN"},
-									SourceMetadata: settingspkg.SourceMetadata{
-										EffectiveSource: settingspkg.SourceRef{
-											Kind:  settingspkg.SourceKindExtension,
-											Scope: settingspkg.ScopeUser,
-										},
+			service := &stubSettingsService{
+				ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+					return settingspkg.CollectionEnvelope{
+						Collection: settingspkg.CollectionMCPServers,
+						Scope:      settingspkg.ScopeUser,
+						MCPServers: []settingspkg.MCPServerItem{
+							{
+								Name:        "github",
+								Owner:       "extension:github",
+								RuntimeName: "github.github",
+								Scope:       settingspkg.ScopeUser,
+								Override: &extensionmcp.Override{
+									Env: map[string]string{"REGION": "eu"},
+								},
+								SecretEnvKeys: []string{"TOKEN"},
+								SourceMetadata: settingspkg.SourceMetadata{
+									EffectiveSource: settingspkg.SourceRef{
+										Kind:  settingspkg.SourceKindExtension,
+										Scope: settingspkg.ScopeUser,
 									},
 								},
 							},
-						}, nil
-					},
-					PutCollectionItemFn: func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
-						return settingspkg.MutationResult{}, errors.Join(
-							settingspkg.ErrUnprocessable,
-							settingspkg.ErrMCPServerNameTaken,
-						)
-					},
-				}
-				fixture := newSettingsHandlerFixture(t, transport, service, nil)
-				list := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/mcp-servers", nil)
-				var response contract.SettingsMCPServersResponse
-				if err := json.Unmarshal(list.Body.Bytes(), &response); err != nil {
-					t.Fatal(err)
-				}
-				if list.Code != http.StatusOK || len(response.MCPServers) != 1 {
-					t.Fatalf("wrong collection response: %d %s", list.Code, list.Body.String())
-				}
-				item := response.MCPServers[0]
-				if item.Owner != "extension:github" || item.RuntimeName != "github.github" || item.Override == nil ||
-					item.Override.Env["REGION"] != "eu" ||
-					item.SourceMetadata.EffectiveSource.Kind != contract.SettingsSourceExtension {
-					t.Fatalf("missing extension identity/override: %#v", item)
-				}
-				put := performRequest(
-					t, fixture.Engine,
-					http.MethodPut,
-					"/api/settings/mcp-servers/github.github",
-					[]byte(`{"server":{"name":"github.github","command":"manual-mcp"}}`),
-				)
-				var failure contract.ErrorPayload
-				if err := json.Unmarshal(put.Body.Bytes(), &failure); err != nil {
-					t.Fatal(err)
-				}
-				if put.Code != http.StatusUnprocessableEntity || failure.Code != "mcp_server_name_taken" {
-					t.Fatalf("wrong collision response: %d %#v", put.Code, failure)
-				}
-			})
-		}
+						},
+					}, nil
+				},
+				PutCollectionItemFn: func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
+					return settingspkg.MutationResult{}, errors.Join(
+						settingspkg.ErrUnprocessable,
+						settingspkg.ErrMCPServerNameTaken,
+					)
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+			list := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/mcp-servers", nil)
+			var response contract.SettingsMCPServersResponse
+			if err := json.Unmarshal(list.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if list.Code != http.StatusOK || len(response.MCPServers) != 1 {
+				t.Fatalf("wrong collection response: %d %s", list.Code, list.Body.String())
+			}
+			item := response.MCPServers[0]
+			if item.Owner != "extension:github" || item.RuntimeName != "github.github" || item.Override == nil ||
+				item.Override.Env["REGION"] != "eu" ||
+				item.SourceMetadata.EffectiveSource.Kind != contract.SettingsSourceExtension {
+				t.Fatalf("missing extension identity/override: %#v", item)
+			}
+			put := performRequest(
+				t, fixture.Engine,
+				http.MethodPut,
+				"/api/settings/mcp-servers/github.github",
+				[]byte(`{"server":{"name":"github.github","command":"manual-mcp"}}`),
+			)
+			var failure contract.ErrorPayload
+			if err := json.Unmarshal(put.Body.Bytes(), &failure); err != nil {
+				t.Fatal(err)
+			}
+			if put.Code != http.StatusUnprocessableEntity || failure.Code != "mcp_server_name_taken" {
+				t.Fatalf("wrong collision response: %d %#v", put.Code, failure)
+			}
+		})
 	})
 
 	service := &stubSettingsService{

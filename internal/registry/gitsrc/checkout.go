@@ -16,9 +16,11 @@ import (
 
 var gitCommitPattern = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 
+// Checkout owns a temporary repository tree until Close releases it.
 type Checkout struct {
 	Path       string
 	Repository string
+	// Commit is the verified full revision of the materialized tree.
 	Commit     string
 	tempRoot   string
 	executable string
@@ -28,6 +30,7 @@ type Checkout struct {
 
 var _ io.Closer = (*Checkout)(nil)
 
+// Close releases the owned tree once and retains the first cleanup result.
 func (c *Checkout) Close() error {
 	c.closeOnce.Do(func() { c.closeErr = removeCloneDirectory(c.tempRoot) })
 	return c.closeErr
@@ -118,8 +121,12 @@ func (c *Client) fetchCommit(
 	ctx context.Context, repository repositoryRef, addresses []netip.Addr, checkout *Checkout, commit string,
 ) error {
 	repositoryDir := filepath.Join(checkout.tempRoot, "repository")
+	objectFormat := "sha1"
+	if len(commit) == 64 {
+		objectFormat = "sha256"
+	}
 	commands := [][]string{
-		{"init", "--bare", "--", repositoryDir},
+		{"init", "--bare", "--object-format=" + objectFormat, "--", repositoryDir},
 		{"-C", repositoryDir, "fetch", "--depth", "1", "--no-tags", "--", repository.raw, commit},
 		{"-C", repositoryDir, "worktree", "add", "--detach", "--", checkout.Path, "FETCH_HEAD"},
 	}

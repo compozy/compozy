@@ -271,6 +271,13 @@ func ServerConfigFromMCP(
 	}
 
 	secretRef := strings.TrimSpace(server.Auth.ClientSecretRef)
+	if secretRef != "" {
+		var err error
+		secretRef, err = vault.NormalizeMCPClientSecretRef(secretRef, target.VaultTarget())
+		if err != nil {
+			return ServerConfig{}, fmt.Errorf("mcp auth: client secret ownership: %w", err)
+		}
+	}
 	secret := ""
 	if secretRef != "" && resolveSecret != nil {
 		resolved, err := resolveSecret(ctx, secretRef)

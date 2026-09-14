@@ -12,6 +12,7 @@ import {
   previewExtensionInstall,
   useExtensionInstanceScope,
   type InstalledExtensionView,
+  type ExtensionInstanceScope,
   useToggleExtension,
 } from "@/systems/extensions";
 
@@ -96,8 +97,14 @@ function updatedToast(name: string, version: string | null | undefined) {
  * preview, unverified consent, network confirmation — and rows report pending by origin or by the
  * local installed name, never by display name.
  */
-function useMarketplaceActionController(): MarketplaceActionController {
-  const destination = useExtensionInstanceScope();
+function useMarketplaceActionController(
+  scope: ExtensionInstanceScope = {}
+): MarketplaceActionController {
+  const activeScope = useExtensionInstanceScope();
+  const destination = {
+    profileName: scope.profileName ?? activeScope.profileName,
+    workspaceId: scope.workspaceId === undefined ? activeScope.workspaceId : scope.workspaceId,
+  };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const entryActions = useRef(new Set<string>());
@@ -252,7 +259,12 @@ function useMarketplaceActionController(): MarketplaceActionController {
 
   const toggleEnabled = (item: InstalledExtensionView, enabled: boolean) => {
     void withPendingItem(item, async () => {
-      await toggleExtension.mutateAsync({ enabled, name: item.extension.name });
+      await toggleExtension.mutateAsync({
+        enabled,
+        name: item.extension.name,
+        profileName: item.extension.profile,
+        workspaceId: item.extension.workspace_id ?? null,
+      });
     });
   };
 
@@ -317,7 +329,7 @@ function useMarketplaceActionController(): MarketplaceActionController {
         pending.flashEntry(selected.entry);
         viewInstalledToast(
           `${selected.entry.name} installed`,
-          extension.mcp_servers.some(server => server.status === "needs_authorization")
+          extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false
         );
       } catch (error) {
         acquisition.preview.trigger.previewDismissed();

@@ -6,7 +6,7 @@
 - **Persona Affected:** Bruno
 - **Journey Step:** Open Marketplace with an expired or first-use catalog
 - **Scenarios:** ET-web-marketplace-landing-browse
-- **Found:** 2026-09-13 · **Report:** reports/2026-09-13-marketplace-catalog.md
+- **Found:** 2026-09-13 · **Report:** docs/qa/reports/2026-09-13-marketplace-catalog.md
 
 ## Reproduction
 

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
 // InspectPluginPackage uses the install manifest and resource loaders without publishing or starting resources.
@@ -27,8 +28,13 @@ func InspectPluginPackage(ctx context.Context, root string) (marketplace.PluginI
 	if err != nil {
 		return marketplace.PluginInspection{}, err
 	}
+	diagnostics := make([]pluginsource.Diagnostic, 0, len(manifest.IngestDiagnostics))
+	for _, item := range manifest.IngestDiagnostics {
+		diagnostics = append(diagnostics, pluginsource.Diagnostic{Code: item.Code, Message: item.Message})
+	}
 	return marketplace.PluginInspection{
 		InstanceName: manifest.Name,
+		Diagnostics:  diagnostics,
 		Inputs:       manifest.Inputs,
 		Contents: marketplace.PluginContents{
 			Skills: contents.Skills, MCPServers: contents.MCPServers, Hooks: contents.Hooks,
@@ -90,12 +96,18 @@ func InspectMarketplacePackage(
 	}
 	result := contract.MarketplaceExtensionDetailPayload{
 		InstallSlug:  req.Slug,
+		Layout:       install.manifest.Layout,
+		Diagnostics:  install.manifest.IngestDiagnostics,
 		ArtifactURL:  artifactURL,
 		DigestSHA256: install.archiveDigest,
 		Repository:   repository,
 		Contents:     contents,
 		MCPServers:   servers,
 		Inputs:       []contract.MarketplaceInputPayload{},
+	}
+	if req.Plugin != nil {
+		result.ResolvedRef = req.Plugin.Record.ResolvedRef
+		result.Layout = req.Plugin.Record.Layout
 	}
 	for _, input := range install.manifest.Inputs {
 		result.Inputs = append(

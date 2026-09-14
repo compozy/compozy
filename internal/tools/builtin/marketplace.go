@@ -6,7 +6,7 @@ var marketplaceTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDMarketplaceSources, "marketplace_sources", "Marketplace Sources",
 		"List configured plugin marketplace sources, enablement, counts, and diagnostics. Stability: experimental.",
-		`{"type":"object","properties":{},"additionalProperties":false}`,
+		emptyInputSchema,
 		toolspkg.RiskRead, true, false, false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMarketplace},
 		[]string{"marketplace", "sources", "plugins"}, []string{"marketplace sources", "list plugin sources"},

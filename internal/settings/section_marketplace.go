@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -35,6 +36,9 @@ func (s *service) updateMarketplaceSection(ctx context.Context, req SectionUpdat
 		for _, field := range []struct{ key, value string }{
 			{"base_url", desired.BaseURL}, {marketplaceTTLKey, desired.TTL}, {sectionsTimeoutKey, desired.Timeout},
 		} {
+			if !slices.Contains(changed, "marketplace.catalog."+field.key) {
+				continue
+			}
 			if err := editor.SetValue([]string{"marketplace", "catalog", field.key}, field.value); err != nil {
 				return err
 			}

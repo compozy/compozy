@@ -1,3 +1,4 @@
+import type { SettingsMarketplaceSection, SettingsMutationResult } from "../../types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
@@ -114,7 +115,11 @@ describe("section reads and updates", () => {
   // Owner: settings adapter; canonical settings API suite.
   it("reads and updates marketplace catalog settings", async () => {
     const config = { base_url: "https://catalog.example", ttl: "2h", timeout: "17s" };
-    const envelope = { ...generalSectionFixture, section: "marketplace", config };
+    const envelope = {
+      ...generalSectionFixture,
+      section: "marketplace",
+      config,
+    } satisfies SettingsMarketplaceSection;
     const signal = new AbortController().signal;
     mockJsonResponse(envelope);
     expect(await getSettingsMarketplace(signal)).toEqual(envelope);
@@ -124,7 +129,7 @@ describe("section reads and updates", () => {
       section: "marketplace",
       applied: true,
       restart_required: false,
-    };
+    } satisfies SettingsMutationResult;
     mockJsonResponse(result);
     expect(await updateSettingsMarketplace({ config }, signal)).toEqual(result);
     await expectFetchRequest({

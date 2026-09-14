@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
-// HookDeclarationsForProfiles projects extension hooks through per-profile
-// placement and enablement before publishing them to the shared dispatcher.
+// HookDeclarationsForProfiles resolves placement, enablement and workspace overrides before publication.
 func (m *Manager) HookDeclarationsForProfiles(
 	ctx context.Context,
 	profiles []ProfileLens,
@@ -27,46 +27,44 @@ func (m *Manager) HookDeclarationsForProfiles(
 	}
 
 	profiles = normalizeHookProfileLenses(profiles)
-	decls, err := m.installedHooksForProfiles(ctx, profiles)
+	workspaces, err := m.hookProjectionWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	links, err := m.registry.ListDevLinks()
-	if err != nil {
-		return nil, fmt.Errorf("extension: list development links for hook projection: %w", err)
-	}
-	for _, link := range links {
-		key := (InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}).Normalize()
+	decls := make([]hookspkg.HookDecl, 0)
+	for _, name := range slices.Sorted(maps.Keys(workspaces)) {
 		for _, profile := range profiles {
-			projected, enabled, projectErr := m.ProjectForProfile(ctx, key, profile)
-			if errors.Is(projectErr, ErrExtensionNotFound) {
+			shadowed := make([]string, 0, len(workspaces[name]))
+			for _, workspaceID := range workspaces[name] {
+				projected, enabled, err := m.ProjectForProfile(ctx, InstanceKey{Name: name, WorkspaceID: workspaceID}, profile)
+				if errors.Is(err, ErrExtensionNotFound) {
+					continue
+				}
+				if err != nil {
+					return nil, fmt.Errorf("extension: project hooks for %q in workspace %q and profile %q: %w", name, workspaceID, profile.Name, err)
+				}
+				if projected.Status.WorkspaceID != workspaceID {
+					continue
+				}
+				shadowed = append(shadowed, workspaceID)
+				if enabled {
+					decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, workspaceID, nil)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(name), profile)
+			if errors.Is(err, ErrExtensionNotFound) {
 				continue
 			}
-			if projectErr != nil {
-				return nil, fmt.Errorf(
-					"extension: project development hooks for %q, workspace %q, and profile %q: %w",
-					key.Name,
-					key.WorkspaceID,
-					profile.Name,
-					projectErr,
-				)
+			if err != nil {
+				return nil, fmt.Errorf("extension: project hooks for %q and profile %q: %w", name, profile.Name, err)
 			}
 			if enabled {
-				decls, projectErr = appendProfileHookDeclarations(
-					decls,
-					projected,
-					profile.ID,
-					key.WorkspaceID,
-				)
-				if projectErr != nil {
-					return nil, fmt.Errorf(
-						"extension: bind development hooks for %q, workspace %q, and profile %q: %w",
-						key.Name,
-						key.WorkspaceID,
-						profile.Name,
-						projectErr,
-					)
+				decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, "", shadowed)
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -74,34 +72,32 @@ func (m *Manager) HookDeclarationsForProfiles(
 	return decls, nil
 }
 
-func (m *Manager) installedHooksForProfiles(ctx context.Context, profiles []ProfileLens) ([]hookspkg.HookDecl, error) {
-	decls := make([]hookspkg.HookDecl, 0)
-	infoValues := m.List()
-	for infoIndex := range infoValues {
-		for _, profile := range profiles {
-			projected, enabled, err := m.ProjectForProfile(ctx, GlobalInstanceKey(infoValues[infoIndex].Name), profile)
-			if errors.Is(err, ErrExtensionNotFound) {
-				continue
-			}
-			if err != nil {
-				return nil, fmt.Errorf(
-					"extension: project hooks for %q and profile %q: %w", infoValues[infoIndex].Name, profile.Name,
-					err,
-				)
-			}
-			if enabled {
-				decls, err = appendProfileHookDeclarations(decls, projected, profile.ID, "")
-				if err != nil {
-					return nil, fmt.Errorf(
-						"extension: bind hooks for %q and profile %q: %w", infoValues[infoIndex].Name, profile.Name,
-						err,
-					)
-				}
+func (m *Manager) hookProjectionWorkspaces(ctx context.Context) (map[string][]string, error) {
+	workspaces := make(map[string][]string)
+	for _, info := range m.List() {
+		workspaces[info.Name] = nil
+		installations, err := m.registry.activeInstallations(ctx, info.Name)
+		if err != nil {
+			return nil, err
+		}
+		for _, installation := range installations {
+			if id := installation.Scope.WorkspaceID; id != "" {
+				workspaces[info.Name] = append(workspaces[info.Name], id)
 			}
 		}
 	}
-
-	return decls, nil
+	links, err := m.registry.ListDevLinks()
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range links {
+		workspaces[link.ExtensionName] = append(workspaces[link.ExtensionName], link.WorkspaceID)
+	}
+	for name, ids := range workspaces {
+		slices.Sort(ids)
+		workspaces[name] = slices.Compact(ids)
+	}
+	return workspaces, nil
 }
 
 func normalizeHookProfileLenses(profiles []ProfileLens) []ProfileLens {
@@ -126,6 +122,7 @@ func appendProfileHookDeclarations(
 	projected *Extension,
 	profileID string,
 	workspaceID string,
+	shadowedWorkspaces []string,
 ) ([]hookspkg.HookDecl, error) {
 	if projected == nil {
 		return destination, nil
@@ -134,11 +131,12 @@ func appendProfileHookDeclarations(
 	for _, declaration := range projected.Hooks {
 		declaration = cloneHookDecl(declaration)
 		declaration.ProfileID = strings.TrimSpace(profileID)
+		declaration.ShadowedWorkspaces = slices.Clone(shadowedWorkspaces)
 		if workspaceID != "" {
 			declaredWorkspaceID := strings.TrimSpace(declaration.Matcher.WorkspaceID)
 			if declaredWorkspaceID != "" && declaredWorkspaceID != workspaceID {
 				return nil, fmt.Errorf(
-					"hook %q declares workspace %q but its development link belongs to %q",
+					"hook %q declares workspace %q but its installation belongs to %q",
 					declaration.Name,
 					declaredWorkspaceID,
 					workspaceID,

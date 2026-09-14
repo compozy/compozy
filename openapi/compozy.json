@@ -81625,6 +81625,7 @@
                               "description",
                               "digest_sha256",
                               "entry_id",
+                              "install_slug",
                               "installable",
                               "installed",
                               "name",
@@ -82094,9 +82095,6 @@
                           "digest_matched",
                           "enabled",
                           "format",
-                          "inputs",
-                          "mcp_servers",
-                          "missing_inputs",
                           "name",
                           "network_confirmation_required",
                           "profile",
@@ -82817,6 +82815,7 @@
                             "description",
                             "digest_sha256",
                             "entry_id",
+                            "install_slug",
                             "installable",
                             "installed",
                             "name",
@@ -83286,9 +83285,6 @@
                         "digest_matched",
                         "enabled",
                         "format",
-                        "inputs",
-                        "mcp_servers",
-                        "missing_inputs",
                         "name",
                         "network_confirmation_required",
                         "profile",
@@ -85007,6 +85003,7 @@
                             "description",
                             "digest_sha256",
                             "entry_id",
+                            "install_slug",
                             "installable",
                             "installed",
                             "name",
@@ -85476,9 +85473,6 @@
                         "digest_matched",
                         "enabled",
                         "format",
-                        "inputs",
-                        "mcp_servers",
-                        "missing_inputs",
                         "name",
                         "network_confirmation_required",
                         "profile",
@@ -88520,6 +88514,7 @@
                             "description",
                             "digest_sha256",
                             "entry_id",
+                            "install_slug",
                             "installable",
                             "installed",
                             "name",
@@ -88989,9 +88984,6 @@
                         "digest_matched",
                         "enabled",
                         "format",
-                        "inputs",
-                        "mcp_servers",
-                        "missing_inputs",
                         "name",
                         "network_confirmation_required",
                         "profile",
@@ -91389,6 +91381,14 @@
             }
           },
           {
+            "description": "Profile name; omit for the default profile",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Stream extension_log deltas and atomic extension_log_reset snapshots",
             "in": "query",
             "name": "follow",
@@ -91410,22 +91410,6 @@
             "name": "stream_epoch",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Read one profile's rows by name",
-            "in": "query",
-            "name": "profile",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Read the owner-labeled all-profiles aggregate",
-            "in": "query",
-            "name": "all_profiles",
-            "schema": {
-              "type": "boolean"
             }
           }
         ],
@@ -93093,6 +93077,7 @@
                             "description",
                             "digest_sha256",
                             "entry_id",
+                            "install_slug",
                             "installable",
                             "installed",
                             "name",
@@ -93562,9 +93547,6 @@
                         "digest_matched",
                         "enabled",
                         "format",
-                        "inputs",
-                        "mcp_servers",
-                        "missing_inputs",
                         "name",
                         "network_confirmation_required",
                         "profile",
@@ -102924,6 +102906,7 @@
                           "description",
                           "digest_sha256",
                           "entry_id",
+                          "install_slug",
                           "installable",
                           "installed",
                           "name",
@@ -103493,6 +103476,7 @@
                         "description",
                         "digest_sha256",
                         "entry_id",
+                        "install_slug",
                         "installable",
                         "installed",
                         "name",
@@ -103711,7 +103695,6 @@
                         }
                       },
                       "required": [
-                        "artifact_url",
                         "contents",
                         "digest_sha256",
                         "inputs",
@@ -164176,7 +164159,7 @@
             }
           },
           {
-            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted names resolve by runtime name",
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
             "in": "query",
             "name": "owner",
             "schema": {
@@ -164687,7 +164670,7 @@
             }
           },
           {
-            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted names resolve by runtime name",
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
             "in": "query",
             "name": "owner",
             "schema": {
@@ -165228,7 +165211,7 @@
             }
           },
           {
-            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted names resolve by runtime name",
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
             "in": "query",
             "name": "owner",
             "schema": {
@@ -165747,7 +165730,7 @@
             }
           },
           {
-            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted names resolve by runtime name",
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
             "in": "query",
             "name": "owner",
             "schema": {

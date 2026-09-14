@@ -125,8 +125,7 @@ func reloadMarketplaceExtensionUpdate(ctx context.Context, input *marketplaceUpd
 	return errors.Join(fmt.Errorf("extension: publish update %q: %w", input.info.Name, err), restoreErr)
 }
 
-// Restore the package before releasing candidate-only resources. A failed package restoration
-// retains its resources and never reloads a partially restored installation.
+// Failed package restoration retains candidate resources and prevents reloading a partial installation.
 func restoreMarketplaceUpdateCandidate(
 	ctx context.Context, registry LifecycleRegistry, info *ExtensionInfo, installDir string,
 	change *stagedExtensionDirChange, rollbackCandidate MarketplaceUpdateRollback,

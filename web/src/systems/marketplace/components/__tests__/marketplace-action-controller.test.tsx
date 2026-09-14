@@ -20,7 +20,11 @@ import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
-import { useExtensionInstanceScope, type InstalledExtensionView } from "@/systems/extensions";
+import {
+  useExtensionInstanceScope,
+  type InstalledExtensionView,
+  type ExtensionInstanceScope,
+} from "@/systems/extensions";
 import { setActiveWorkspaceId } from "@/systems/workspace";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 import { resetProfileViews, setProfileView } from "@/systems/profiles/stores/profile-view-store";
@@ -86,11 +90,13 @@ const blocked = marketplaceCatalogFixture.items[2]!;
 function Harness({
   entries,
   item,
+  scope,
 }: {
   entries: MarketplaceCatalogListing[];
   item?: InstalledExtensionView;
+  scope?: ExtensionInstanceScope;
 }) {
-  const actions = useMarketplaceActionController();
+  const actions = useMarketplaceActionController(scope);
   const destination = useExtensionInstanceScope();
   return (
     <>
@@ -130,7 +136,11 @@ function Harness({
     </>
   );
 }
-function setup(entries: MarketplaceCatalogListing[], item?: InstalledExtensionView) {
+function setup(
+  entries: MarketplaceCatalogListing[],
+  item?: InstalledExtensionView,
+  scope?: ExtensionInstanceScope
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -152,7 +162,7 @@ function setup(entries: MarketplaceCatalogListing[], item?: InstalledExtensionVi
   );
   return render(
     <QueryClientProvider client={client}>
-      <Harness entries={entries} item={item} />
+      <Harness entries={entries} item={item} scope={scope} />
     </QueryClientProvider>
   );
 }
@@ -698,7 +708,20 @@ describe("useMarketplaceActionController", () => {
       };
       const item = installed(entry);
       item.extension = { ...item.extension, workspace_id: workspaceId, profile: "marketing" };
-      setup([entry], item);
+      const scope = { profileName: "marketing", workspaceId: workspaceId ?? null };
+      setup([entry], item, scope);
+      server.use(
+        http.get("*/api/extensions", ({ request }) => {
+          const url = new URL(request.url);
+          return HttpResponse.json({
+            extensions:
+              url.searchParams.get("profile") === "marketing" &&
+              url.searchParams.get("workspace") === (workspaceId ?? null)
+                ? [item.extension]
+                : [],
+          });
+        })
+      );
       await userEvent.click(screen.getByRole("button", { name: "Run 0" }));
       await waitFor(() =>
         expect(io.update).toHaveBeenCalledWith("local-kit", {
@@ -768,37 +791,41 @@ describe("useMarketplaceActionController", () => {
       expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
     );
   });
-  it("Should disable installed actions while an update is pending and toggle the local name", async () => {
-    let finish!: () => void;
-    io.update.mockReturnValueOnce(
-      new Promise<void>(resolve => {
-        finish = resolve;
-      })
-    );
-    const item = installed(verified);
-    setup([], item);
-    const user = userEvent.setup();
-    const update = screen.getByRole("button", { name: `Update ${verified.name}` });
-    const toggle = screen.getByRole("switch", { name: `Enable ${verified.name}` });
-    await user.click(update);
-    await waitFor(() => expect(update).toBeDisabled());
-    expect(toggle).toHaveAttribute("aria-disabled", "true");
-    await user.click(toggle);
-    expect(io.toggle).not.toHaveBeenCalled();
-    await user.click(update);
-    expect(io.update).toHaveBeenCalledTimes(1);
-    expect(io.update).toHaveBeenCalledWith("local-kit", {
-      profile: "default",
-      scope: "global",
-      allow_unverified: false,
-      version: verified.version,
-    });
-    await act(async () => finish());
-    await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled", "true"));
-    await user.click(toggle);
-    await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("local-kit", "default", true));
-    expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
-  });
+  it.each(["default", "captured"])(
+    "Should keep pending actions and toggle on the installed profile %s",
+    async profile => {
+      let finish!: () => void;
+      io.update.mockReturnValueOnce(
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+      );
+      const item = installed(verified);
+      item.extension = { ...item.extension, profile };
+      setup([], item);
+      const user = userEvent.setup();
+      const update = screen.getByRole("button", { name: `Update ${verified.name}` });
+      const toggle = screen.getByRole("switch", { name: `Enable ${verified.name}` });
+      await user.click(update);
+      await waitFor(() => expect(update).toBeDisabled());
+      expect(toggle).toHaveAttribute("aria-disabled", "true");
+      await user.click(toggle);
+      expect(io.toggle).not.toHaveBeenCalled();
+      await user.click(update);
+      expect(io.update).toHaveBeenCalledTimes(1);
+      expect(io.update).toHaveBeenCalledWith("local-kit", {
+        profile,
+        scope: "global",
+        allow_unverified: false,
+        version: verified.version,
+      });
+      await act(async () => finish());
+      await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled", "true"));
+      await user.click(toggle);
+      await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("local-kit", profile, true));
+      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
+    }
+  );
   it("Should require fresh consent for an unverified installed-row update", async () => {
     const item = installed(unverified);
     item.extension = { ...extensionFixtures[1]!, name: "local-kit", marketplace: unverified };

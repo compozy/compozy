@@ -16,7 +16,7 @@ type MCPSecretTarget struct {
 	Owner       string
 }
 
-// NormalizeMCPOwner maps omitted owner fields from released callers to manual.
+// NormalizeMCPOwner treats an omitted owner as manual.
 func NormalizeMCPOwner(owner string) string {
 	owner = strings.TrimSpace(owner)
 	if owner == "" {

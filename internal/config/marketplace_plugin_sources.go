@@ -33,11 +33,12 @@ func ValidateMarketplacePluginSources(sources []MarketplacePluginSourceConfig) e
 			return fmt.Errorf("%s.name: marketplace_source_exists: duplicate name %q", path, source.Name)
 		}
 		names[source.Name] = struct{}{}
-		if !strings.HasPrefix(source.Source, "github:") && !strings.HasPrefix(source.Source, "git+https:") &&
-			!strings.HasPrefix(source.Source, "file:") {
+		sourceRef := strings.TrimSpace(source.Source)
+		if !strings.HasPrefix(sourceRef, "github:") && !strings.HasPrefix(sourceRef, "git+https:") &&
+			!strings.HasPrefix(sourceRef, "file:") {
 			return fmt.Errorf("%s.source: %w", path, pluginsource.ErrInvalidRef)
 		}
-		_, err := pluginsource.NormalizeRef(source.Source)
+		_, err := pluginsource.NormalizeRef(sourceRef)
 		if err != nil {
 			return fmt.Errorf("%s.source: %w", path, err)
 		}

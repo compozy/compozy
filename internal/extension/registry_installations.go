@@ -11,8 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// InstallationScope selects where a published package is installed. Empty profile
-// means all profiles; empty workspace means the global installation.
+// InstallationScope selects an attachment; empty profile means all profiles, empty workspace means global.
 type InstallationScope struct {
 	ProfileID   string
 	WorkspaceID string
@@ -28,8 +27,7 @@ type Installation struct {
 	CreatedAt time.Time
 }
 
-// WithInstallScope attaches a newly installed package only to the selected scope.
-// Replacements preserve existing attachments, just as they preserve enablement.
+// WithInstallScope limits a new installation; replacements preserve attachments and enablement.
 func WithInstallScope(scope InstallationScope) InstallOption {
 	return func(config *installConfig) { config.scope = new(scope.normalize()) }
 }

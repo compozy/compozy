@@ -3,6 +3,7 @@ package extensionmcp
 import (
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -11,7 +12,8 @@ import (
 
 // Validate rejects secret-bearing or malformed override values before mutation.
 func (o Override) Validate() error {
-	for name, value := range o.Env {
+	for _, name := range slices.Sorted(maps.Keys(o.Env)) {
+		value := o.Env[name]
 		if err := compozyconfig.ValidateMCPStdioEnvName("override.env", name, false); err != nil {
 			return err
 		}

@@ -46,6 +46,13 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 			if err := os.RemoveAll(root); err != nil {
 				t.Fatal(err)
 			}
+			preview, err := InspectMarketplacePackage(t.Context(), homePaths, req, "default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if preview.ResolvedRef != req.Plugin.Record.ResolvedRef || preview.Layout != req.Plugin.Record.Layout || preview.DigestSHA256 != req.Plugin.Record.DigestSHA256 {
+				t.Fatalf("offline inspection identity = %+v", preview)
+			}
 			info, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
 			if err != nil {
 				t.Fatal(err)
@@ -1224,15 +1231,17 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: every selected package participates in a batch; prior successes survive a later failure.
+	// Invariant: every selected package participates in a batch; committed successes survive failures in either order.
 	// Owner: managed update coordinator; canonical suite: TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure.
 	for _, selection := range []struct {
-		name  string
-		all   bool
-		names []string
+		name        string
+		all         bool
+		names       []string
+		failedFirst bool
 	}{
 		{name: "Should return committed updates in an all-package partial failure", all: true},
 		{name: "Should process every distinct named package before reporting partial failure", names: []string{"a-good", "a-good", "z-bad"}},
+		{name: "Should update later selected packages after an earlier failure", names: []string{"z-bad", "a-good", "z-bad"}, failedFirst: true},
 	} {
 		t.Run(selection.name, func(t *testing.T) {
 			t.Parallel()
@@ -1289,13 +1298,20 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 			if !errors.Is(err, ErrManifestInvalid) {
 				t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
 			}
-			if len(updates) != 2 || updates[0].Name != "a-good" ||
-				updates[0].Status != MarketplaceUpdateStatusUpdated || updates[1].Name != "z-bad" ||
-				updates[1].Status != MarketplaceUpdateStatusFailed || updates[1].Error == nil ||
-				updates[1].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
-				strings.Contains(updates[1].Error.Message, "wrong-identity") {
-				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want updated then redacted failed result", updates)
+			if len(updates) != 2 {
+				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want an outcome for each distinct target", updates)
 			}
+			goodIndex, badIndex := 0, 1
+			if selection.failedFirst {
+				goodIndex, badIndex = 1, 0
+			}
+			if updates[goodIndex].Name != "a-good" || updates[goodIndex].Status != MarketplaceUpdateStatusUpdated ||
+				updates[badIndex].Name != "z-bad" || updates[badIndex].Status != MarketplaceUpdateStatusFailed ||
+				updates[badIndex].Error == nil || updates[badIndex].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
+				strings.Contains(updates[badIndex].Error.Message, "wrong-identity") {
+				t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want ordered success and redacted failure", updates)
+			}
+
 			if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
 				!reflect.DeepEqual(batchErr.Completed, updates) {
 				t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)

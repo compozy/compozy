@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it, vi } from "vitest";
@@ -531,7 +531,35 @@ describe("marketplace rendering boundary", () => {
   it("Should show declared extension inputs with the owning install command", () => {
     const entry = findEntry("context7");
     if (!entry?.inputs?.length) throw new Error("Context7 fixture lacks its declared input");
-    render(<MarketplaceEntryDetail entry={entry} />);
+    const withDefaults = extensionEntrySchema.parse({
+      ...entry,
+      inputs: [
+        ...entry.inputs,
+        {
+          id: "region",
+          prompt: "Region",
+          type: "string",
+          required: false,
+          default: "west",
+          binding: { type: "env", name: "REGION" },
+        },
+        {
+          id: "read_only",
+          prompt: "Read only",
+          type: "boolean",
+          required: false,
+          default: false,
+          binding: { type: "env", name: "READ_ONLY" },
+        },
+      ],
+    });
+    render(<MarketplaceEntryDetail entry={withDefaults} />);
+    const table = screen.getByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Default" })).toBeDefined();
+    expect(within(table).getByRole("cell", { name: "west" })).toBeDefined();
+    expect(within(table).getByRole("cell", { name: "false" })).toBeDefined();
+    expect(within(table).getByText("Secret")).toBeDefined();
+    expect(within(table).getByText("Boolean")).toBeDefined();
     expect(screen.getByText(installCommand(entry))).toBeDefined();
     expect(screen.getByText(marketplaceSearchCommand(entry))).toBeDefined();
     expect(screen.getByText(entry.inputs[0].prompt)).toBeDefined();

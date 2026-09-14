@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/vault"
 	tomltree "github.com/pelletier/go-toml"
 )
 
@@ -89,24 +89,24 @@ func (m *Manager) countDesktopPartitions(ctx context.Context, profileID string) 
 }
 
 func countProfileCredentialRows(ctx context.Context, q queryer, profile Profile) (int, error) {
+	prefixes, err := vault.ListProfileSecretPrefixes(ctx, q, profile.Name)
+	if err != nil {
+		return 0, err
+	}
 	var count int
-	if err := q.QueryRowContext(ctx, `
-		SELECT
-			(SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?) +
-			(SELECT COUNT(*) FROM vault_secrets WHERE ref LIKE ? OR ref LIKE ?)`,
-		profile.ID,
-		profileVaultRefPrefix(profile.Name)+"%",
-		profileMCPVaultRefPrefix(profile.Name)+"%",
+	if err := q.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`, profile.ID,
 	).Scan(&count); err != nil {
-		return 0, fmt.Errorf("profile: count credential overrides: %w", err)
+		return 0, fmt.Errorf("profile: count credential requirements: %w", err)
+	}
+	for _, prefix := range prefixes {
+		var secrets int
+		if err := q.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM vault_secrets WHERE SUBSTR(ref, 1, LENGTH(?)) = ?`, prefix, prefix,
+		).Scan(&secrets); err != nil {
+			return 0, fmt.Errorf("profile: count credential overrides: %w", err)
+		}
+		count += secrets
 	}
 	return count, nil
-}
-
-func profileVaultRefPrefix(profileName string) string {
-	return "vault:profiles/" + strings.TrimSpace(profileName) + "/"
-}
-
-func profileMCPVaultRefPrefix(profileName string) string {
-	return "vault:mcp/profile/" + strings.TrimSpace(profileName) + "/"
 }

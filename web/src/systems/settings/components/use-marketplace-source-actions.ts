@@ -56,8 +56,14 @@ export function useMarketplaceSourceActions() {
       });
     },
     removing,
-    askRemove: (name: string) => setRemoving(name),
-    cancelRemove: () => setRemoving(null),
+    askRemove: (name: string) => {
+      remove.reset();
+      setRemoving(name);
+    },
+    cancelRemove: () => {
+      remove.reset();
+      setRemoving(null);
+    },
     confirmRemove: () => {
       if (removing === null) return;
       const name = removing;

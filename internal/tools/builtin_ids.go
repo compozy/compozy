@@ -444,7 +444,7 @@ const (
 	ToolsetIDAutomation ToolsetID = "compozy__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
 	ToolsetIDExtensions ToolsetID = "compozy__extensions"
-	// ToolsetIDMarketplace groups cross-kind marketplace discovery tools.
+	// ToolsetIDMarketplace groups Marketplace extension catalog and source inspection tools.
 	ToolsetIDMarketplace ToolsetID = "compozy__marketplace"
 	// ToolsetIDResources groups desired-state resource inspection tools.
 	ToolsetIDResources ToolsetID = "compozy__resources"

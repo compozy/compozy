@@ -109,6 +109,9 @@ func (s settingsMCPExtensionDefinitions) ValidateManualMCPName(
 		if req.Scope == settingspkg.ScopeProfile && record.ProfileID != profileID {
 			continue
 		}
+		if req.Scope == settingspkg.ScopeWorkspace && record.WorkspaceID == "" && record.ProfileID != store.DefaultProfileID {
+			continue
+		}
 		workspaceID := strings.TrimSpace(req.WorkspaceID)
 		if workspaceID != "" && record.WorkspaceID != "" && workspaceID != record.WorkspaceID {
 			continue

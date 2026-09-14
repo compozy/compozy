@@ -7,9 +7,7 @@ import (
 
 const unknownMarketplaceExtensionName = "unknown"
 
-// MarketplaceUpdateBatchError reports a failed target after earlier batch
-// results became externally visible. Completed is a stable snapshot of those
-// results so callers can emit lifecycle events and report partial progress.
+// MarketplaceUpdateBatchError retains every target outcome and the causes of a partially failed batch.
 type MarketplaceUpdateBatchError struct {
 	FailedName string
 	Completed  []MarketplaceUpdateResult

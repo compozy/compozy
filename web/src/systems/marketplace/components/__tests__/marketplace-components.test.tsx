@@ -1542,6 +1542,8 @@ describe("Marketplace source settings", () => {
       http.get("*/api/marketplace/sources", () => HttpResponse.json({ sources })),
       http.delete("*/api/marketplace/sources/team", () => {
         removals++;
+        if (removals === 1)
+          return HttpResponse.json({ error: "Temporary removal failure" }, { status: 503 });
         sources = [];
         return new HttpResponse(null, { status: 204 });
       })
@@ -1563,9 +1565,18 @@ describe("Marketplace source settings", () => {
     expect(removals).toBe(0);
     await userEvent.click(within(row).getByRole("button", { name: "Remove" }));
     await userEvent.click(screen.getByTestId("settings-page-marketplace-sources-remove-confirm"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Temporary removal failure");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(within(row).getByRole("button", { name: "Remove" }));
+    expect(
+      within(screen.getByTestId("settings-page-marketplace-sources-remove-dialog")).queryByRole(
+        "alert"
+      )
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("settings-page-marketplace-sources-remove-confirm"));
     await waitFor(() =>
       expect(screen.queryByTestId("settings-page-marketplace-source-team")).not.toBeInTheDocument()
     );
-    expect(removals).toBe(1);
+    expect(removals).toBe(2);
   });
 });

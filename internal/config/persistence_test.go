@@ -419,43 +419,153 @@ func TestResolveWriteTargets(t *testing.T) {
 
 func TestEditConfigOverlayValidationBlocksInvalidWrite(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject invalid configuration before persisting", func(t *testing.T) {
+		t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
-	if err != nil {
-		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
-	}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
 
-	writeFile(t, homePaths.ConfigFile, `
+		writeFile(t, homePaths.ConfigFile, `
 [permissions]
 mode = "approve-all"
 `)
 
-	before, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(before) error = %v", err)
-	}
+		before, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(before) error = %v", err)
+		}
 
-	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-		return editor.SetValue([]string{"permissions", "mode"}, "invalid-mode")
+		_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"permissions", "mode"}, "invalid-mode")
+		})
+		if err == nil {
+			t.Fatal("EditConfigOverlay() error = nil, want validation failure")
+		}
+		if !strings.Contains(err.Error(), "permissions.mode") {
+			t.Fatalf("EditConfigOverlay() error = %q, want permissions.mode context", err.Error())
+		}
+
+		after, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(after) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("config file changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
 	})
-	if err == nil {
-		t.Fatal("EditConfigOverlay() error = nil, want validation failure")
+	for _, existed := range []bool{false, true} {
+		name := "Should restore the original overlay after runtime rejection"
+		if !existed {
+			name = "Should remove a newly created overlay after runtime rejection"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := "# preserve user comments\n[skills]\nenabled = true\n"
+			if existed {
+				writeFile(t, home.ConfigFile, original)
+			}
+			rejected := errors.New("runtime rejected source")
+			_, err = EditConfigOverlayAndApply(home, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"skills", "enabled"}, false)
+			}, func(cfg Config) error {
+				if cfg.Skills.Enabled {
+					t.Fatal("runtime received old config")
+				}
+				return rejected
+			})
+			if !errors.Is(err, rejected) {
+				t.Fatalf("apply error = %v", err)
+			}
+			after, err := os.ReadFile(home.ConfigFile)
+			if existed {
+				if err != nil || string(after) != original {
+					t.Fatalf("rollback changed original bytes: %q, %v", after, err)
+				}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("new config remains after rejection: %v", err)
+			}
+		})
 	}
-	if !strings.Contains(err.Error(), "permissions.mode") {
-		t.Fatalf("EditConfigOverlay() error = %q, want permissions.mode context", err.Error())
-	}
-
-	after, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(after) error = %v", err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Fatalf("config file changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
-	}
+	t.Run("Should preserve the next serialized overlay edit after a rejected mutation", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "# keep this comment\n[skills]\nenabled = true\n")
+		started, done := make(chan struct{}), make(chan error, 1)
+		rejected := errors.New("runtime rejected source")
+		_, err = EditConfigOverlayAndApply(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"skills", "enabled"}, false)
+		}, func(Config) error {
+			go func() {
+				close(started)
+				_, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+					return editor.SetValue([]string{"permissions", "mode"}, "approve-all")
+				})
+				done <- err
+			}()
+			<-started
+			return rejected
+		})
+		secondErr := <-done
+		if !errors.Is(err, rejected) || secondErr != nil {
+			t.Fatalf("concurrent edits = %v, %v", err, secondErr)
+		}
+		content, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"# keep this comment", "enabled = true", "approve-all"} {
+			if !strings.Contains(string(content), want) {
+				t.Fatalf("serialized overlay lost %q: %s", want, content)
+			}
+		}
+	})
+	t.Run("Should preserve an external replacement instead of overwriting it during rollback", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement := "# external edit\n[skills]\nenabled = true\n"
+		rejected := errors.New("runtime rejected source")
+		_, err = EditConfigOverlayAndApply(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"skills", "enabled"}, false)
+		}, func(Config) error {
+			writeFile(t, home.ConfigFile, replacement)
+			return rejected
+		})
+		if !errors.Is(err, rejected) || !strings.Contains(err.Error(), "concurrent overlay edit") {
+			t.Fatalf("concurrent edit diagnostic = %v", err)
+		}
+		content, err := os.ReadFile(home.ConfigFile)
+		if err != nil || string(content) != replacement {
+			t.Fatalf("external edit was lost: %q, %v", content, err)
+		}
+	})
 }
 
 func TestWriteScopeValidationAndTargetScope(t *testing.T) {
@@ -1064,6 +1174,46 @@ func TestPersistenceHelperMapsAndStringDecoding(t *testing.T) {
 }
 
 func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
+	// Invariant: retirement cannot publish over a file or parent replaced during validation.
+	// Owner: persisted config migration; canonical suite: TestLoadConfigArchivesRetiredSkillAcquisition.
+	for _, replacement := range []string{"file", "parent"} {
+		t.Run("Should reject a changed "+replacement+" before retirement commits", func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			parent := filepath.Join(root, "config")
+			path := filepath.Join(parent, "config.toml")
+			const retired = "[skills.marketplace]\nregistry = 'clawhub'\n"
+			const current = "[skills]\nenabled = false\n"
+			writeFile(t, path, retired)
+			_, err := loadPersistedConfigOverlay(path, func(content []byte, source string) (configOverlay, error) {
+				overlay, decodeErr := loadConfigOverlayBytes(content, source)
+				if decodeErr != nil {
+					return overlay, decodeErr
+				}
+				if replacement == "parent" {
+					if err := os.Rename(parent, filepath.Join(root, "original")); err != nil {
+						t.Fatal(err)
+					}
+				}
+				writeFile(t, path, current)
+				return overlay, nil
+			})
+			if err == nil {
+				t.Fatal("retirement overwrote a concurrently replaced config")
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || string(got) != current {
+				t.Fatalf("replacement changed: %q, %v", got, err)
+			}
+			if replacement == "parent" {
+				got, err = os.ReadFile(filepath.Join(root, "original", "config.toml"))
+				if err != nil || string(got) != retired {
+					t.Fatalf("held original changed: %q, %v", got, err)
+				}
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		name    string
 		content string
@@ -1224,6 +1374,32 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 		}
 		if string(actual) != original {
 			t.Fatalf("rejected write changed file: %s", actual)
+		}
+	})
+	t.Run("Should validate workspace scope before archiving retired config", func(t *testing.T) {
+		t.Parallel()
+		for _, denied := range []bool{false, true} {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			content := "[skills.marketplace]\nregistry = 'clawhub'\n"
+			if denied {
+				content += "[marketplace.catalog]\nttl = '30m'\n"
+			}
+			writeFile(t, path, content)
+			cfg := Config{}
+			err := applyWorkspaceConfigOverlayFile(path, &cfg)
+			if (err != nil) != denied {
+				t.Fatalf("denied=%t error=%v", denied, err)
+			}
+			actual, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if denied && string(actual) != content {
+				t.Fatal("denied workspace was rewritten")
+			}
+			if !denied && !bytes.Contains(actual, []byte("Archived retired skill acquisition")) {
+				t.Fatal("workspace was not archived")
+			}
 		}
 	})
 	t.Run("Should archive profile config with profile restrictions intact", func(t *testing.T) {

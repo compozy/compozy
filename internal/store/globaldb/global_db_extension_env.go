@@ -282,8 +282,7 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 }
 
 func validateExtensionEnvBindingRef(binding extensionenv.Binding) error {
-	// Typed MCP refs have already passed target access validation in the input binder.
-	// Public secret setters cannot populate InputID and retain their existing namespace policy.
+	// Typed input bindings may use MCP refs; other bindings require their extension instance namespace.
 	if binding.InputID != "" && strings.HasPrefix(binding.SecretRef, "vault:mcp/") {
 		return vault.ValidateSecretRefNamespace(binding.SecretRef, "mcp")
 	}

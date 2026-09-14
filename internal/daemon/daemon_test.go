@@ -2702,7 +2702,7 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
 	manager := &fakeExtensionRuntime{}
 
-	t.Run("Should syncs hook bindings when available", func(t *testing.T) {
+	t.Run("Should sync hook bindings when available", func(t *testing.T) {
 		t.Parallel()
 
 		syncCalls := 0
@@ -2716,7 +2716,9 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 			}},
 		}
 
-		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+		if err := d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager); err != nil {
+			t.Fatal(err)
+		}
 
 		if syncCalls != 1 {
 			t.Fatalf("hook binding sync calls = %d, want 1", syncCalls)
@@ -2729,7 +2731,7 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 		}
 	})
 
-	t.Run("Should falls back to rebuild without hook bindings", func(t *testing.T) {
+	t.Run("Should fall back to rebuild without hook bindings", func(t *testing.T) {
 		t.Parallel()
 
 		rebuilds := 0
@@ -2741,7 +2743,9 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 			}},
 		}
 
-		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+		if err := d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager); err != nil {
+			t.Fatal(err)
+		}
 
 		if rebuilds != 1 {
 			t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
@@ -2751,16 +2755,34 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 		}
 	})
 
-	t.Run("Should logs sync failures without rebuilding", func(t *testing.T) {
+	t.Run("Should propagate agent skill reconciliation failures before attaching consumers", func(t *testing.T) {
+		t.Parallel()
+
+		syncFailure := errors.New("resource deletion failed")
+		state := &bootState{
+			logger:              discardLogger(),
+			agentSkillResources: agentSkillPublisherFunc(func(context.Context) error { return syncFailure }),
+			hookBindings: hookBindingPublisherFunc(func(context.Context) error {
+				t.Fatal("hook consumers ran after failed skill reconciliation")
+				return nil
+			}),
+		}
+		if err := d.attachExtensionRuntime(t.Context(), state, extRegistry, manager); !errors.Is(err, syncFailure) {
+			t.Fatalf("attachExtensionRuntime() = %v, want reconciliation failure", err)
+		}
+	})
+
+	t.Run("Should propagate sync failures without rebuilding", func(t *testing.T) {
 		t.Parallel()
 
 		syncCalls := 0
 		rebuilds := 0
+		syncFailure := errors.New("boom")
 		state := &bootState{
 			logger: discardLogger(),
 			hookBindings: hookBindingPublisherFunc(func(context.Context) error {
 				syncCalls++
-				return errors.New("boom")
+				return syncFailure
 			}),
 			hooks: &fakeHookRuntime{onRebuild: func(context.Context) error {
 				rebuilds++
@@ -2768,7 +2790,9 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 			}},
 		}
 
-		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+		if err := d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager); !errors.Is(err, syncFailure) {
+			t.Fatalf("attachExtensionRuntime() = %v, want sync failure", err)
+		}
 
 		if syncCalls != 1 {
 			t.Fatalf("hook binding sync calls = %d, want 1", syncCalls)

@@ -257,6 +257,9 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			{settingspkg.ScopeProfile, "workspace-b", "marketing", "bundle.disabled", false},
 			{settingspkg.ScopeProfile, "workspace-a", "marketing", "bundle.global", false},
 			{settingspkg.ScopeWorkspace, "workspace-b", "", "bundle.global", true},
+			{settingspkg.ScopeWorkspace, "workspace-a", "", "bundle.named", false},
+			{settingspkg.ScopeUser, "", "", "bundle.named", true},
+			{settingspkg.ScopeProfile, "", "marketing", "bundle.named", true},
 		} {
 			err := adapter.ValidateManualMCPName(
 				t.Context(),

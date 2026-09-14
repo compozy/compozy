@@ -76,6 +76,10 @@ func (m *Manager) ProjectForProfile(
 	}
 	extension.Manifest = manifest
 	extension.Hooks = loaded.hooks
+	extension.Hooks, err = appendProfileHookDeclarations(nil, extension, profile.ID, key.WorkspaceID, nil)
+	if err != nil {
+		return nil, false, err
+	}
 	extension.Agents = loaded.agents
 	extension.StaticAgents = loaded.staticAgents
 	extension.Skills = loaded.skills

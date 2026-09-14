@@ -40,7 +40,7 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 		return fmt.Errorf("compozy-catalog: create artifact validation directory: %w", err)
 	}
 	defer func() {
-		err = errors.Join(err, removeCatalogValidationDirectory(temporaryRoot))
+		err = errors.Join(err, removeCatalogTemporaryDirectory(temporaryRoot))
 	}()
 	for _, entry := range document.Entries {
 		if err := validateExtensionArtifact(
@@ -155,9 +155,9 @@ func (d *catalogFileDownloader) Download(
 	}, nil
 }
 
-func removeCatalogValidationDirectory(path string) error {
+func removeCatalogTemporaryDirectory(path string) error {
 	if err := os.RemoveAll(path); err != nil {
-		return fmt.Errorf("compozy-catalog: remove artifact validation directory: %w", err)
+		return fmt.Errorf("compozy-catalog: remove catalog temporary directory: %w", err)
 	}
 	return nil
 }

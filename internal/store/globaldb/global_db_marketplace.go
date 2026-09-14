@@ -132,7 +132,7 @@ func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	return entries, nil
 }
 
-// GetMarketplaceCatalogEntry returns one projection by immutable feed identity.
+// GetMarketplaceCatalogEntry returns one projection by source and entry identity.
 func (r *MarketplaceRepo) GetMarketplaceCatalogEntry(
 	ctx context.Context,
 	source string,

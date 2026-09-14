@@ -32,3 +32,10 @@ QA result 2026-07-29: automatic and manual S256 flows, the login alias, confirme
 bounded timeout, three-scope isolation, presence-only status, targeted logout, durable redaction, and
 cleanup passed. Workspace JSON added the CLI-only `resolution_source` field; the scenario remains
 failed while the required structural writer TechSpec is pending.
+
+PR636 review retest: use manual and extension MCPs with the same server name across user,
+profile, workspace and workspace-profile scopes. A configured secret owned by another cell, or
+an access/refresh/DCR/registration token ref, must fail before resolution or authorization begins.
+Own configured client secrets, explicit shared refs and environment refs remain usable. Verify
+released manual user client-secret refs still resolve their persisted values without exposing them.
+Focused auth and real Settings/Vault tests passed; this added public journey remains pending.

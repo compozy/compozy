@@ -9,6 +9,31 @@ import (
 
 func TestLoadManifestFatality(t *testing.T) {
 	t.Parallel()
+	t.Run("Should load the same manifest bytes that were classified", func(t *testing.T) {
+		t.Parallel()
+
+		root := newPackageRoot(t, "captured")
+		document, err := ReadManifest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, _ := document.Classify()
+		if status != SchemaSupported {
+			t.Fatalf("manifest classification = %v", status)
+		}
+		writeJSONFile(t, filepath.Join(root, "plugin.json"), map[string]any{"$schema": "unsupported", "name": "replacement"})
+		name, err := document.Name()
+		if err != nil || name != "captured" {
+			t.Fatalf("manifest name = %q, %v", name, err)
+		}
+		pkg, err := document.Load(LoadOptions{})
+		if err != nil || pkg.Name != "captured" {
+			t.Fatalf("captured manifest package = %#v, %v", pkg, err)
+		}
+		if _, err := Load(root, LoadOptions{}); err == nil {
+			t.Fatal("fresh load accepted the replacement manifest")
+		}
+	})
 
 	tests := []struct {
 		name      string

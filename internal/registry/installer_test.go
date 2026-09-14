@@ -132,6 +132,47 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		}
 	})
 
+	for _, layout := range []string{".claude-plugin", ".codex-plugin", ".cursor-plugin"} {
+		for _, tc := range []struct {
+			name    string
+			schema  string
+			wantErr bool
+		}{
+			{"Should accept an omitted client schema", "", false},
+			{"Should accept the supported client schema", fmt.Sprintf(`"$schema":%q,`, agentplugin.PluginSchemaID), false},
+			{"Should reject an unsupported client schema", `"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",`, true},
+			{"Should reject an unrelated client schema", `"$schema":"https://example.invalid/other.json",`, true},
+			{"Should reject a null client schema", `"$schema":null,`, true},
+		} {
+			t.Run(tc.name+" in "+layout, func(t *testing.T) {
+				t.Parallel()
+				manifestPath := filepath.Join(layout, "plugin.json")
+				content := "{" + tc.schema + `"name":"client-only","version":"1.0.0"}`
+				archive := mustTarGz(t, []tarEntry{{name: filepath.ToSlash(manifestPath), content: content}})
+				downloader := &stubDownloader{downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+					return &DownloadResult{ContentType: "application/gzip", Reader: io.NopCloser(bytes.NewReader(archive))}, nil
+				}}
+				target := filepath.Join(t.TempDir(), "client-only")
+				result, err := NewInstaller(downloader).Install(t.Context(), "client-only", DownloadOpts{}, target)
+				if tc.wantErr {
+					if err == nil || !strings.Contains(err.Error(), manifestPath) {
+						t.Fatalf("invalid manifest error = %v, want selected path %s", err, manifestPath)
+					}
+					if _, statErr := os.Stat(target); !errors.Is(statErr, os.ErrNotExist) {
+						t.Fatalf("invalid package was published: %v", statErr)
+					}
+					return
+				}
+				if err != nil || result.Name != "client-only" {
+					t.Fatalf("client package = %#v, error = %v", result, err)
+				}
+				installed, err := os.ReadFile(filepath.Join(target, manifestPath))
+				if err != nil || string(installed) != content {
+					t.Fatalf("authored manifest changed: content=%q error=%v", installed, err)
+				}
+			})
+		}
+	}
 	t.Run("Should preserve a client-only package root during extraction", func(t *testing.T) {
 		t.Parallel()
 		archive := mustTarGz(t, []tarEntry{

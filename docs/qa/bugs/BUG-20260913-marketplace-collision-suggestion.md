@@ -6,7 +6,7 @@
 - **Persona Affected:** Bruno
 - **Journey Step:** J-marketplace-acquisition, Add a plugin marketplace
 - **Scenarios:** ET-web-marketplace-sources-add
-- **Found:** 2026-09-13 · **Report:** reports/2026-09-13-marketplace-catalog.md
+- **Found:** 2026-09-13 · **Report:** docs/qa/reports/2026-09-13-marketplace-catalog.md
 
 ## Reproduction
 

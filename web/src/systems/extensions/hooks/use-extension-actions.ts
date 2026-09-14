@@ -18,7 +18,8 @@ import type {
 } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
 
-export interface ToggleExtensionVariables {
+export interface ToggleExtensionVariables extends Pick<ExtensionInstanceScope, "workspaceId"> {
+  profileName?: string;
   name: string;
   enabled: boolean;
 }
@@ -49,26 +50,32 @@ function toastUnlessNetworkConfirmation(error: Error) {
 export function useToggleExtension() {
   const queryClient = useQueryClient();
   const { profileName, workspaceId } = useExtensionInstanceScope();
-  const listKey = extensionKeys.list(workspaceId, profileName);
   return useMutation<
     ExtensionEnablement,
     Error,
     ToggleExtensionVariables,
-    { previous?: ExtensionEntry[] }
+    { previous?: ExtensionEntry[]; listKey: ReturnType<typeof extensionKeys.list> }
   >({
-    mutationFn: ({ name, enabled }) => setExtensionEnablement(name, profileName, enabled),
-    onMutate: async ({ name, enabled }) => {
+    mutationFn: ({ name, enabled, profileName: selectedProfile = profileName }) =>
+      setExtensionEnablement(name, selectedProfile, enabled),
+    onMutate: async ({
+      name,
+      enabled,
+      profileName: selectedProfile = profileName,
+      workspaceId: selectedWorkspace = workspaceId,
+    }) => {
+      const listKey = extensionKeys.list(selectedWorkspace, selectedProfile);
       await queryClient.cancelQueries({ queryKey: listKey });
       const previous = queryClient.getQueryData<ExtensionEntry[]>(listKey);
       queryClient.setQueryData<ExtensionEntry[]>(listKey, current =>
         current?.map(item => (item.name === name ? { ...item, enabled } : item))
       );
-      return { previous };
+      return { previous, listKey };
     },
-    onSuccess: (_data, { enabled, name }) =>
-      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${profileName}`),
+    onSuccess: (_data, { enabled, name, profileName: selectedProfile = profileName }) =>
+      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${selectedProfile}`),
     onError: (error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(listKey, context.previous);
+      if (context?.previous) queryClient.setQueryData(context.listKey, context.previous);
       toast.error(error.message);
     },
     /**

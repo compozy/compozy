@@ -198,7 +198,7 @@ func MarketplaceSourcePayloadFromState(state marketplace.SourceState) contract.M
 				ID:            "marketplace.source." + state.Source + "." + strconv.Itoa(index),
 				Code:          diagnostic.Code,
 				Category:      diagnosticcontract.CategoryExtension,
-				Title:         "Plugin could not be listed",
+				Title:         "Plugin diagnostic",
 				Message:       diagnostic.Message,
 				Severity:      diagnosticcontract.SeverityWarn,
 				DataFreshness: freshness,

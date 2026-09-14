@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,22 +56,23 @@ type snapshotFingerprint struct {
 }
 
 type resolvedHookFingerprint struct {
-	Name         string            `json:"name"`
-	ProfileID    string            `json:"profile_id"`
-	Event        HookEvent         `json:"event"`
-	Source       HookSource        `json:"source"`
-	Mode         HookMode          `json:"mode"`
-	Required     bool              `json:"required"`
-	Priority     int32             `json:"priority"`
-	Timeout      time.Duration     `json:"timeout"`
-	Matcher      HookMatcher       `json:"matcher"`
-	Metadata     map[string]string `json:"metadata"`
-	ExecutorKind HookExecutorKind  `json:"executor_kind"`
-	Command      string            `json:"command"`
-	Args         []string          `json:"args"`
-	Env          map[string]string `json:"env"`
-	SecretEnv    map[string]string `json:"secret_env"`
-	SkillSource  HookSkillSource   `json:"skill_source"`
+	ShadowedWorkspaces []string          `json:"shadowed_workspaces,omitempty"`
+	Name               string            `json:"name"`
+	ProfileID          string            `json:"profile_id"`
+	Event              HookEvent         `json:"event"`
+	Source             HookSource        `json:"source"`
+	Mode               HookMode          `json:"mode"`
+	Required           bool              `json:"required"`
+	Priority           int32             `json:"priority"`
+	Timeout            time.Duration     `json:"timeout"`
+	Matcher            HookMatcher       `json:"matcher"`
+	Metadata           map[string]string `json:"metadata"`
+	ExecutorKind       HookExecutorKind  `json:"executor_kind"`
+	Command            string            `json:"command"`
+	Args               []string          `json:"args"`
+	Env                map[string]string `json:"env"`
+	SecretEnv          map[string]string `json:"secret_env"`
+	SkillSource        HookSkillSource   `json:"skill_source"`
 }
 
 // WithLogger injects the logger used for hook diagnostics.
@@ -369,22 +371,23 @@ func fingerprintHookSnapshot(snapshot map[HookEvent][]*ResolvedHook) (string, er
 			}
 
 			entry.Hooks = append(entry.Hooks, resolvedHookFingerprint{
-				Name:         hook.Name,
-				ProfileID:    hook.ProfileID,
-				Event:        hook.Event,
-				Source:       hook.Source,
-				Mode:         hook.Mode,
-				Required:     hook.Required,
-				Priority:     hook.Priority,
-				Timeout:      hook.Timeout,
-				Matcher:      hook.Matcher,
-				Metadata:     cloneStringMap(hook.Metadata),
-				ExecutorKind: hook.Decl.ExecutorKind,
-				Command:      hook.Decl.Command,
-				Args:         append([]string(nil), hook.Decl.Args...),
-				Env:          cloneStringMap(hook.Decl.Env),
-				SecretEnv:    cloneStringMap(hook.Decl.SecretEnv),
-				SkillSource:  hook.Decl.SkillSource,
+				ShadowedWorkspaces: slices.Clone(hook.Decl.ShadowedWorkspaces),
+				Name:               hook.Name,
+				ProfileID:          hook.ProfileID,
+				Event:              hook.Event,
+				Source:             hook.Source,
+				Mode:               hook.Mode,
+				Required:           hook.Required,
+				Priority:           hook.Priority,
+				Timeout:            hook.Timeout,
+				Matcher:            hook.Matcher,
+				Metadata:           cloneStringMap(hook.Metadata),
+				ExecutorKind:       hook.Decl.ExecutorKind,
+				Command:            hook.Decl.Command,
+				Args:               append([]string(nil), hook.Decl.Args...),
+				Env:                cloneStringMap(hook.Decl.Env),
+				SecretEnv:          cloneStringMap(hook.Decl.SecretEnv),
+				SkillSource:        hook.Decl.SkillSource,
 			})
 		}
 

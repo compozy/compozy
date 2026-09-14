@@ -563,6 +563,140 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rename and delete only owned MCP profile credentials across all scopes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, home := newTestManager(t)
+		ctx := t.Context()
+		if _, err := manager.Create(ctx, CreateInput{Name: "dev"}); err != nil {
+			t.Fatal(err)
+		}
+		secrets, err := vault.NewService(database, vault.NewFileKeyProvider(home.HomeDir, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		targets := []mcpauth.Target{
+			{Scope: mcpauth.ScopeProfile, WorkspaceID: "dev", ServerName: "linear"},
+			{Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-a@pf:dev", ServerName: "linear"},
+			{Owner: "extension:linear", Scope: mcpauth.ScopeProfile, WorkspaceID: "dev", ServerName: "linear"},
+			{Owner: "extension:linear", Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-b@pf:dev", ServerName: "linear"},
+		}
+		for _, target := range targets {
+			if err := database.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: "sha256:" + strings.Repeat("a", 64),
+				ClientID: "client", Issuer: "https://issuer.example", AccessToken: "access-secret", RefreshToken: "refresh-secret",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := database.SaveMCPAuthRegistration(ctx, mcpauth.ClientRegistration{
+				Target: target, DefinitionFingerprint: "sha256:" + strings.Repeat("a", 64),
+				ResourceURL: "https://resource.example", Issuer: "https://issuer.example", ClientID: "client",
+				RedirectURL: "http://127.0.0.1/callback", RegistrationClientURI: "https://issuer.example/client",
+			}, mcpauth.RegistrationSecrets{ClientSecret: "dcr-secret", RegistrationAccessToken: "registration-secret"}); err != nil {
+				t.Fatal(err)
+			}
+			prefix, err := vault.MCPSecretOwnerPrefix(target.VaultTarget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := secrets.PutSecret(ctx, prefix+"oauth/client-secret", "client-secret", "configured-secret"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		foreignRefs := []string{"vault:mcp/shared/client-secret", "vault:mcp/user/linear/oauth/client-secret"}
+		foreignTarget := mcpauth.Target{Owner: "extension:linear", Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-b@pf:dev-other", ServerName: "linear"}
+		foreignPrefix, err := vault.MCPSecretOwnerPrefix(foreignTarget.VaultTarget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreignRefs = append(foreignRefs, foreignPrefix+"oauth/client-secret")
+		for _, ref := range foreignRefs {
+			if _, err := secrets.PutSecret(ctx, ref, "client-secret", "foreign-secret"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		plan, err := manager.PrepareRename(ctx, "dev", "engineering")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.VaultRefRewrites != 44 {
+			t.Fatalf("rename inventory = %d, want all 44 ref and target occurrences", plan.VaultRefRewrites)
+		}
+		if _, err := manager.Rename(ctx, "dev", RenameOptions{NewName: "engineering", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision}); err != nil {
+			t.Fatal(err)
+		}
+		for _, oldTarget := range targets {
+			target := oldTarget
+			target.WorkspaceID = strings.TrimSuffix(target.WorkspaceID, "dev") + "engineering"
+			token, err := database.GetMCPAuthToken(ctx, target)
+			if err != nil || token.AccessToken != "access-secret" || token.RefreshToken != "refresh-secret" {
+				t.Fatalf("renamed token = %#v, %v", token, err)
+			}
+			if _, err := database.GetMCPAuthToken(ctx, oldTarget); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+				t.Fatalf("old token = %v", err)
+			}
+			registration, err := database.GetMCPAuthRegistration(ctx, target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			newPrefix, err := vault.MCPSecretOwnerPrefix(target.VaultTarget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if registration.ClientSecretRef != newPrefix+"oauth/dcr-client-secret" || registration.RegistrationAccessTokenRef != newPrefix+"oauth/registration-access-token" {
+				t.Fatalf("registration refs not renamed: %#v", registration)
+			}
+			oldPrefix, err := vault.MCPSecretOwnerPrefix(oldTarget.VaultTarget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for suffix, want := range map[string]string{"oauth/client-secret": "configured-secret", "oauth/dcr-client-secret": "dcr-secret", "oauth/registration-access-token": "registration-secret"} {
+				value, err := secrets.ResolveRef(ctx, newPrefix+suffix)
+				if err != nil || value != want {
+					t.Fatalf("renamed secret %q = %q, %v", suffix, value, err)
+				}
+				if _, err := secrets.ResolveRef(ctx, oldPrefix+suffix); !errors.Is(err, vault.ErrSecretNotFound) {
+					t.Fatalf("old secret still exists: %v", err)
+				}
+			}
+		}
+		deletePlan, err := manager.PrepareDelete(ctx, "engineering")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if deletePlan.Removed.CredentialOverrides != 20 {
+			t.Fatalf("delete inventory = %#v, want all 20 owned secrets", deletePlan.Removed)
+		}
+		if _, err := manager.Delete(ctx, "engineering", deletePlan.Revision); err != nil {
+			t.Fatal(err)
+		}
+		for _, oldTarget := range targets {
+			target := oldTarget
+			target.WorkspaceID = strings.TrimSuffix(target.WorkspaceID, "dev") + "engineering"
+			if _, err := database.GetMCPAuthToken(ctx, target); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+				t.Fatalf("deleted token = %v", err)
+			}
+			if _, err := database.GetMCPAuthRegistration(ctx, target); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+				t.Fatalf("deleted registration = %v", err)
+			}
+			prefix, err := vault.MCPSecretOwnerPrefix(target.VaultTarget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, suffix := range []string{"oauth/access-token", "oauth/refresh-token", "oauth/client-secret", "oauth/dcr-client-secret", "oauth/registration-access-token"} {
+				if _, err := secrets.ResolveRef(ctx, prefix+suffix); !errors.Is(err, vault.ErrSecretNotFound) {
+					t.Fatalf("owned credential remains: %q, %v", prefix+suffix, err)
+				}
+			}
+		}
+		for _, ref := range foreignRefs {
+			value, err := secrets.ResolveRef(ctx, ref)
+			if err != nil || value != "foreign-secret" {
+				t.Fatalf("protected secret = %q, %v", value, err)
+			}
+		}
+	})
+
 	t.Run("Should preserve identity through update and rename", func(t *testing.T) {
 		t.Parallel()
 
@@ -754,6 +888,25 @@ func TestManagerProfileLifecycle(t *testing.T) {
 
 		// Both arrangements are part of the enumerated removal catalog and must be
 		// gone after the delete (US-006).
+		// Invariant: profile deletion removes input/override rows by profile ID without crossing other cells.
+		// Owner: profile lifecycle; canonical suite: manager_test.go.
+		sibling, err := manager.Create(ctx, CreateInput{Name: "control"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, profileID := range []string{created.ID, sibling.ID, ""} {
+			if _, err := database.DB().ExecContext(ctx, `INSERT INTO extension_inputs
+				(extension, profile, input_id, type, value_json, updated_at)
+				VALUES ('profile-kit', ?, 'region', 'string', '"west"', '2026-09-14T00:00:00Z')`, profileID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := database.DB().ExecContext(ctx, `INSERT INTO extension_mcp_overrides
+				(extension, profile, server, runtime_name, updated_at)
+				VALUES ('profile-kit', ?, 'api', 'profile-kit.api', '2026-09-14T00:00:00Z')`, profileID); err != nil {
+				t.Fatal(err)
+			}
+		}
+
 		deletePlan, err := manager.PrepareDelete(ctx, "growth")
 		if err != nil {
 			t.Fatalf("PrepareDelete() error = %v", err)
@@ -799,6 +952,22 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				t.Fatalf("%s retained %d rows after profile deletion", table, count)
 			}
 		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			for _, profileID := range []string{created.ID, sibling.ID, ""} {
+				want := 1
+				if profileID == created.ID {
+					want = 0
+				}
+				var count int
+				if err := database.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'profile-kit' AND profile = ?", profileID).Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if count != want {
+					t.Fatalf("%s rows for profile %q = %d, want %d", table, profileID, count, want)
+				}
+			}
+		}
+
 		var eventSummaries int
 		if err := database.DB().QueryRowContext(
 			ctx,

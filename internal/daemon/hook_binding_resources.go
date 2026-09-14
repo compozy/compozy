@@ -49,23 +49,25 @@ type hookBindingCodec struct {
 }
 
 type hookBindingCodecSpec struct {
-	Name         string                    `json:"name"`
-	Event        hookspkg.HookEvent        `json:"event"`
-	Source       hookspkg.HookSource       `json:"source"`
-	Mode         hookspkg.HookMode         `json:"mode,omitempty"`
-	Required     bool                      `json:"required,omitempty"`
-	Priority     int32                     `json:"priority,omitempty"`
-	PrioritySet  bool                      `json:"priority_set,omitempty"`
-	Timeout      time.Duration             `json:"timeout,omitempty"`
-	Matcher      hookspkg.HookMatcher      `json:"matcher"`
-	ExecutorKind hookspkg.HookExecutorKind `json:"executor_kind,omitempty"`
-	Command      string                    `json:"command,omitempty"`
-	Args         []string                  `json:"args,omitempty"`
-	WorkingDir   string                    `json:"working_dir,omitempty"`
-	Env          map[string]string         `json:"env,omitempty"`
-	SecretEnv    map[string]string         `json:"secret_env,omitempty"`
-	Metadata     map[string]string         `json:"metadata,omitempty"`
-	SkillSource  hookspkg.HookSkillSource  `json:"skill_source,omitempty"`
+	ProfileID          string                    `json:"profile_id,omitempty"`
+	ShadowedWorkspaces []string                  `json:"shadowed_workspaces,omitempty"`
+	Name               string                    `json:"name"`
+	Event              hookspkg.HookEvent        `json:"event"`
+	Source             hookspkg.HookSource       `json:"source"`
+	Mode               hookspkg.HookMode         `json:"mode,omitempty"`
+	Required           bool                      `json:"required,omitempty"`
+	Priority           int32                     `json:"priority,omitempty"`
+	PrioritySet        bool                      `json:"priority_set,omitempty"`
+	Timeout            time.Duration             `json:"timeout,omitempty"`
+	Matcher            hookspkg.HookMatcher      `json:"matcher"`
+	ExecutorKind       hookspkg.HookExecutorKind `json:"executor_kind,omitempty"`
+	Command            string                    `json:"command,omitempty"`
+	Args               []string                  `json:"args,omitempty"`
+	WorkingDir         string                    `json:"working_dir,omitempty"`
+	Env                map[string]string         `json:"env,omitempty"`
+	SecretEnv          map[string]string         `json:"secret_env,omitempty"`
+	Metadata           map[string]string         `json:"metadata,omitempty"`
+	SkillSource        hookspkg.HookSkillSource  `json:"skill_source,omitempty"`
 }
 
 var _ resources.TypedProjector[hookspkg.HookDecl] = (*hookBindingProjector)(nil)
@@ -151,45 +153,49 @@ func (c *hookBindingCodec) ValidateAndCanonicalizeRaw(
 func newHookBindingCodecSpec(decl hookspkg.HookDecl) hookBindingCodecSpec {
 	cloned := cloneDaemonHookDecl(decl)
 	return hookBindingCodecSpec{
-		Name:         cloned.Name,
-		Event:        cloned.Event,
-		Source:       cloned.Source,
-		Mode:         cloned.Mode,
-		Required:     cloned.Required,
-		Priority:     cloned.Priority,
-		PrioritySet:  cloned.PrioritySet,
-		Timeout:      cloned.Timeout,
-		Matcher:      cloned.Matcher,
-		ExecutorKind: cloned.ExecutorKind,
-		Command:      cloned.Command,
-		Args:         cloned.Args,
-		WorkingDir:   cloned.WorkingDir,
-		Env:          cloned.Env,
-		SecretEnv:    cloned.SecretEnv,
-		Metadata:     cloned.Metadata,
-		SkillSource:  cloned.SkillSource,
+		ProfileID:          cloned.ProfileID,
+		ShadowedWorkspaces: cloned.ShadowedWorkspaces,
+		Name:               cloned.Name,
+		Event:              cloned.Event,
+		Source:             cloned.Source,
+		Mode:               cloned.Mode,
+		Required:           cloned.Required,
+		Priority:           cloned.Priority,
+		PrioritySet:        cloned.PrioritySet,
+		Timeout:            cloned.Timeout,
+		Matcher:            cloned.Matcher,
+		ExecutorKind:       cloned.ExecutorKind,
+		Command:            cloned.Command,
+		Args:               cloned.Args,
+		WorkingDir:         cloned.WorkingDir,
+		Env:                cloned.Env,
+		SecretEnv:          cloned.SecretEnv,
+		Metadata:           cloned.Metadata,
+		SkillSource:        cloned.SkillSource,
 	}
 }
 
 func (s *hookBindingCodecSpec) hookDecl() hookspkg.HookDecl {
 	return cloneDaemonHookDecl(hookspkg.HookDecl{
-		Name:         s.Name,
-		Event:        s.Event,
-		Source:       s.Source,
-		Mode:         s.Mode,
-		Required:     s.Required,
-		Priority:     s.Priority,
-		PrioritySet:  s.PrioritySet,
-		Timeout:      s.Timeout,
-		Matcher:      s.Matcher,
-		ExecutorKind: s.ExecutorKind,
-		Command:      s.Command,
-		Args:         s.Args,
-		WorkingDir:   s.WorkingDir,
-		Env:          s.Env,
-		SecretEnv:    s.SecretEnv,
-		Metadata:     s.Metadata,
-		SkillSource:  s.SkillSource,
+		ProfileID:          s.ProfileID,
+		ShadowedWorkspaces: s.ShadowedWorkspaces,
+		Name:               s.Name,
+		Event:              s.Event,
+		Source:             s.Source,
+		Mode:               s.Mode,
+		Required:           s.Required,
+		Priority:           s.Priority,
+		PrioritySet:        s.PrioritySet,
+		Timeout:            s.Timeout,
+		Matcher:            s.Matcher,
+		ExecutorKind:       s.ExecutorKind,
+		Command:            s.Command,
+		Args:               s.Args,
+		WorkingDir:         s.WorkingDir,
+		Env:                s.Env,
+		SecretEnv:          s.SecretEnv,
+		Metadata:           s.Metadata,
+		SkillSource:        s.SkillSource,
 	})
 }
 

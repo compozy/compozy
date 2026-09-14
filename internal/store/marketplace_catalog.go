@@ -36,7 +36,7 @@ type MarketplaceSourceConfiguration struct {
 	Revision          string
 }
 
-// MarketplaceCatalogEntry is the storage-boundary projection for one curated entry.
+// MarketplaceCatalogEntry is the storage-boundary projection for one marketplace source entry.
 type MarketplaceCatalogEntry struct {
 	Source         string
 	Layout         string

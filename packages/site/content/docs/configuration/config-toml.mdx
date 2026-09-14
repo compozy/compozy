@@ -2137,8 +2137,9 @@ repeated loads leave the migrated file unchanged. Unrelated comments, settings, 
 skills and extension configuration are preserved. Settings and `compozy config set` reject
 new writes to the removed acquisition keys.
 
-The installed-skill MCP and hook allowlists above govern existing declarations; they do
-not enable remote skill acquisition.
+The installed-skill hook allowlist above governs existing hook declarations. Embedded MCP
+declarations stay blocked; the archived `skills.allowed_marketplace_mcp` setting cannot enable them
+or remote skill acquisition.
 
 ## `[extensions.trust]`
 

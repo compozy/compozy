@@ -37,11 +37,13 @@ type TarGzipStats struct {
 	FileCount        int
 }
 
+// TarLimits bounds raw TAR bytes and entries; nonpositive values disable each limit.
 type TarLimits struct {
 	MaxBytes     int64
 	MaxFileCount int
 }
 
+// TarStats reports raw TAR bytes and counted entries, including partial writes.
 type TarStats struct {
 	Bytes     int64
 	FileCount int
@@ -76,7 +78,7 @@ func WriteTarGzipDirectory(
 	return stats, errors.Join(tarErr, gzipCloseErr)
 }
 
-// WriteTarDirectory writes the canonical directory tar without a compression envelope.
+// WriteTarDirectory writes canonical raw TAR, excluding named top-level entries and their descendants.
 func WriteTarDirectory(
 	ctx context.Context,
 	destination io.Writer,

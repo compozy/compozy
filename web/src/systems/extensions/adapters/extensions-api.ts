@@ -30,14 +30,6 @@ function instanceQuery(
   };
 }
 
-/** The logs route is workspace-scoped; profile is not part of its generated contract. */
-function workspaceQuery(
-  scope: Pick<ExtensionInstanceScope, "workspaceId">
-): { workspace?: string } | undefined {
-  const workspace = scope.workspaceId?.trim() ?? "";
-  return workspace === "" ? undefined : { workspace };
-}
-
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
 export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
@@ -159,7 +151,12 @@ export async function listExtensions(
     throw responseError("Failed to list extensions", response, error);
   const fallback = "Failed to list extensions";
   const envelope = responseData(data, response, fallback);
-  return requiredArray(envelope.extensions, response, fallback, "extensions");
+  return requiredArray(envelope.extensions, response, fallback, "extensions").map(extension => ({
+    ...extension,
+    mcp_servers: extension.mcp_servers ?? [],
+    inputs: extension.inputs ?? [],
+    missing_inputs: extension.missing_inputs ?? [],
+  }));
 }
 
 export async function listExtensionLogs(
@@ -173,7 +170,7 @@ export async function listExtensionLogs(
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/logs", {
     params: {
       path: { name },
-      query: { ...workspaceQuery(options), after, stream_epoch: streamEpoch },
+      query: { ...instanceQuery(options), after, stream_epoch: streamEpoch },
     },
     signal,
   });

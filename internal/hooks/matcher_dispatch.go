@@ -15,7 +15,7 @@ func selectMatchingHooks[P any](
 		if hook.ProfileID != "" && hook.ProfileID != hookPayloadProfileID(payload) {
 			continue
 		}
-		if match != nil && !match(hook.Matcher, payload) {
+		if match != nil && (!match(hook.Matcher, payload) || hookWorkspaceShadowed(hook.Decl, payload, match)) {
 			continue
 		}
 		switch hook.Mode {
@@ -27,6 +27,15 @@ func selectMatchingHooks[P any](
 	}
 
 	return syncHooks, asyncHooks
+}
+
+func hookWorkspaceShadowed[P any](decl HookDecl, payload P, match matcherFunc[P]) bool {
+	for _, workspaceID := range decl.ShadowedWorkspaces {
+		if match(HookMatcher{WorkspaceID: workspaceID}, payload) {
+			return true
+		}
+	}
+	return false
 }
 
 type profileOwnedHookPayload interface {

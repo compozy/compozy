@@ -238,15 +238,15 @@ func (r *marketplaceRuntime) persistSourceConfig(
 	if err != nil {
 		return err
 	}
-	effective, err := compozyconfig.EditConfigOverlay(r.homePaths, "", target, mutate)
+	effective, err := compozyconfig.EditConfigOverlayAndApply(r.homePaths, "", target, mutate,
+		func(effective compozyconfig.Config) error {
+			bindings, ttl, timeout, err := r.buildBindings(effective.Marketplace, r.presets)
+			if err != nil {
+				return err
+			}
+			return r.service.Reconfigure(ctx, bindings, ttl, timeout)
+		})
 	if err != nil {
-		return err
-	}
-	bindings, ttl, timeout, err := r.buildBindings(effective.Marketplace, r.presets)
-	if err != nil {
-		return err
-	}
-	if err := r.service.Reconfigure(ctx, bindings, ttl, timeout); err != nil {
 		return err
 	}
 	r.config = effective.Marketplace

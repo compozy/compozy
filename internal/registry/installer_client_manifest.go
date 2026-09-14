@@ -1,16 +1,21 @@
 package registry
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+var installerClientPluginDirectories = []string{installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin"}
+
 func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {
-	for _, layout := range []string{installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin"} {
+	for _, layout := range installerClientPluginDirectories {
 		directory, err := root.OpenDirectory(layout)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -18,16 +23,41 @@ func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {
 		if err != nil {
 			return "", mapExtractionAccessError(err)
 		}
-		exists, statErr := manifestFileExists(directory, installerAgentPluginManifestName)
+		contents, readErr := readExtractionFile(directory, installerAgentPluginManifestName)
 		closeErr := directory.Close()
-		if err := errors.Join(statErr, closeErr); err != nil {
+		if errors.Is(readErr, os.ErrNotExist) && closeErr == nil {
+			continue
+		}
+		if err := errors.Join(readErr, closeErr); err != nil {
 			return "", err
 		}
-		if exists {
-			return filepath.Join(layout, installerAgentPluginManifestName), nil
+		name := filepath.Join(layout, installerAgentPluginManifestName)
+		if err := validateInstallerClientSchema(contents, name); err != nil {
+			return "", err
 		}
+		return name, nil
 	}
 	return "", nil
+}
+
+func validateInstallerClientSchema(contents []byte, name string) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &fields); err != nil || fields == nil {
+		return fmt.Errorf("registry: manifest %q must be a JSON object", name)
+	}
+	if _, declared := fields["$schema"]; !declared {
+		return nil
+	}
+	status, declared := agentplugin.ClassifyManifestContent(contents)
+	switch status {
+	case agentplugin.SchemaSupported:
+		return nil
+	case agentplugin.SchemaUnsupportedVersion:
+		return fmt.Errorf("registry: manifest %q has unsupported Agent Plugins schema %q; supported schema is %q",
+			name, declared, agentplugin.PluginSchemaID)
+	default:
+		return fmt.Errorf("%w: unrelated client manifest %q", errInstallMissingManifest, name)
+	}
 }
 
 func readInstalledManifest(root *fileutil.Directory, name string) (content []byte, err error) {
@@ -35,9 +65,7 @@ func readInstalledManifest(root *fileutil.Directory, name string) (content []byt
 	if parent == "." {
 		return readExtractionFile(root, name)
 	}
-	switch parent {
-	case installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin":
-	default:
+	if !slices.Contains(installerClientPluginDirectories, parent) {
 		return nil, fmt.Errorf("registry: unsupported manifest path %q", name)
 	}
 	directory, err := root.OpenDirectory(parent)

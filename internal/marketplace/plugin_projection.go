@@ -30,6 +30,7 @@ type PluginContents struct {
 
 type PluginInspection struct {
 	InstanceName string
+	Diagnostics  []pluginsource.Diagnostic
 	Inputs       []EntryInput
 	Contents     PluginContents
 }
@@ -160,11 +161,16 @@ func (p *PluginProjector) project(
 	entries := make([]Entry, 0, len(results))
 	diagnostics := append([]pluginsource.Diagnostic(nil), doc.Diagnostics...)
 	exhausted := workCtx.Err() != nil
-	for _, result := range results {
+	for index, result := range results {
 		if result.err != nil {
 			return nil, nil, result.err
 		}
 		diagnostics = append(diagnostics, result.diagnostics...)
+		if err := ValidateIcon(doc.Plugins[index].Icon); err != nil {
+			diagnostics = append(diagnostics, pluginsource.Diagnostic{
+				Plugin: doc.Plugins[index].Name, Code: "marketplace.icon.invalid", Message: err.Error(),
+			})
+		}
 		if !result.drop {
 			entries = append(entries, result.entry)
 		}
@@ -199,6 +205,10 @@ func (p *PluginProjector) projectOne(
 	result := p.projectError(plugin, name, doc.SourceRef, err)
 	if result.err != nil {
 		return result
+	}
+	for _, diagnostic := range inspection.Diagnostics {
+		diagnostic.Plugin = plugin.Name
+		result.diagnostics = append(result.diagnostics, diagnostic)
 	}
 	value := pluginPayload(plugin, name, doc.SourceRef)
 	value.Acquisition, value.Contents, value.Inputs = &record, inspection.Contents, inspection.Inputs

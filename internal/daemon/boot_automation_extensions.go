@@ -81,9 +81,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		state.bridges.startTargetDirectoryRefresh(ctx)
 	}
 	state.setExtensionRuntime(manager)
-	d.attachExtensionRuntime(ctx, state, extRegistry, manager)
-
-	return nil
+	return d.attachExtensionRuntime(ctx, state, extRegistry, manager)
 }
 
 func (d *Daemon) configureExtensionResourcePublishers(

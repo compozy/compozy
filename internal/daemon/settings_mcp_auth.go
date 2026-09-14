@@ -180,6 +180,7 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 
 func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 	return mcpauth.Status{
+		Owner:       cfg.Target.Owner,
 		ServerName:  cfg.Target.ServerName,
 		Scope:       cfg.Target.Scope,
 		WorkspaceID: cfg.Target.WorkspaceID,

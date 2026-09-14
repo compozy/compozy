@@ -25,7 +25,7 @@ type MarketplaceListingPayload struct {
 	Description      string                       `json:"description"`
 	Version          string                       `json:"version,omitempty"`
 	Author           string                       `json:"author,omitempty"`
-	InstallSlug      string                       `json:"install_slug,omitempty"`
+	InstallSlug      string                       `json:"install_slug"`
 	Source           string                       `json:"source"`
 	Tier             string                       `json:"tier,omitempty"`
 	Format           string                       `json:"format,omitempty"`
@@ -54,7 +54,7 @@ type MarketplaceExtensionDetailPayload struct {
 	Contents     ExtensionContentsPayload   `json:"contents"`
 	Diagnostics  []DiagnosticItem           `json:"diagnostics,omitempty"`
 	InstallSlug  string                     `json:"install_slug"`
-	ArtifactURL  string                     `json:"artifact_url"`
+	ArtifactURL  string                     `json:"artifact_url,omitempty"`
 	DigestSHA256 string                     `json:"digest_sha256"`
 	Repository   string                     `json:"repository,omitempty"`
 }

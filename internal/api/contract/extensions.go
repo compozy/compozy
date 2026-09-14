@@ -179,9 +179,9 @@ type ExtensionPayload struct {
 	Description                 string                            `json:"description,omitempty"`
 	InstallationProfile         string                            `json:"installation_profile,omitempty"`
 	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs"`
-	MissingInputs               []string                          `json:"missing_inputs"`
+	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
+	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
+	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
 	Contents                    ExtensionContentsPayload          `json:"contents"`
 	Origin                      *MarketplaceOriginPayload         `json:"origin,omitempty"`
 	Name                        string                            `json:"name"`

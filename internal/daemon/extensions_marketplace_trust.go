@@ -195,7 +195,7 @@ func (s *daemonExtensionService) resolveMarketplacePluginOrigin(
 	return s.marketplacePluginFromEntry(*entry)
 }
 
-// marketplacePluginFromEntry retains the exact projection selected by the caller, including its digest.
+// marketplacePluginFromEntry preserves the selected projection and pinned digest.
 func (s *daemonExtensionService) marketplacePluginFromEntry(
 	entry marketplacepkg.Entry,
 ) (*extensionpkg.MarketplacePluginAcquisition, error) {

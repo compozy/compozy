@@ -47,7 +47,7 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []compozyconfig.MCPServer {
 			continue
 		}
 		for _, server := range skill.MCPServers {
-			if !skillMCPAllowed(skill) {
+			if !SkillMCPAllowed(skill) {
 				mr.logger.Warn(
 					"blocked MCP server",
 					"skill_name", skill.Meta.Name,
@@ -114,7 +114,8 @@ func orderSkillsBySource(skills []*Skill) []*Skill {
 	return ordered
 }
 
-func skillMCPAllowed(skill *Skill) bool {
+// SkillMCPAllowed restricts embedded MCP declarations to supported local skill sources.
+func SkillMCPAllowed(skill *Skill) bool {
 	if skill == nil {
 		return false
 	}

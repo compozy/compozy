@@ -32,3 +32,10 @@ Walk:
 
 Expected evidence: structured transcripts for every verb and plan, ownership counts before/after,
 Vault rewrite records, lifecycle events, and the final name-reuse result.
+
+PR636 review retest: seed manual and extension MCP tokens, registrations and configured client
+secrets in both profile and workspace-profile cells. Rename must enumerate every ref occurrence,
+keep tokens and registered client secrets decryptable under the new profile identity, and remove
+old refs. Deletion must count and remove all exclusive credential rows while preserving shared,
+user-scoped and other-profile credentials. Compare preview and actual removal counts. The real
+Vault/SQLite lifecycle suite passed; the corresponding CLI walk remains pending.

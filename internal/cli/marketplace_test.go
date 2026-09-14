@@ -460,14 +460,16 @@ func TestMarketplaceCommands(t *testing.T) {
 func TestMarketplaceSourceErrors(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name   string
-		status int
-		body   string
+		name     string
+		status   int
+		body     string
+		wantExit int
 	}{
-		{"Should render a suggested name", http.StatusConflict, `{"error":"Name exists","code":"marketplace_source_exists","suggested_name":"team-2"}`},
-		{"Should render retained instances", http.StatusConflict, `{"error":"Name retained","code":"marketplace_source_name_retained","retained_by":["tool"]}`},
-		{"Should render checked document paths", http.StatusUnprocessableEntity, `{"error":"Not a marketplace","code":"marketplace_not_a_marketplace","checked":["marketplace.json",".claude-plugin/marketplace.json"]}`},
-		{"Should reject an invalid source name", http.StatusUnprocessableEntity, `{"error":"Invalid name","code":"marketplace_source_name_invalid"}`},
+		{"Should render a suggested name", http.StatusConflict, `{"error":"Name exists","code":"marketplace_source_exists","suggested_name":"team-2"}`, 2},
+		{"Should render retained instances", http.StatusConflict, `{"error":"Name retained","code":"marketplace_source_name_retained","retained_by":["tool"]}`, 2},
+		{"Should render checked document paths", http.StatusUnprocessableEntity, `{"error":"Not a marketplace","code":"marketplace_not_a_marketplace","checked":["marketplace.json",".claude-plugin/marketplace.json"]}`, 2},
+		{"Should reject an invalid source name", http.StatusUnprocessableEntity, `{"error":"Invalid name","code":"marketplace_source_name_invalid"}`, 2},
+		{"Should preserve unavailable source errors", http.StatusServiceUnavailable, `{"error":"Source unreachable","code":"source_unreachable"}`, 69},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -475,23 +477,25 @@ func TestMarketplaceSourceErrors(t *testing.T) {
 			if !matched || err == nil {
 				t.Fatal("source error not recognized")
 			}
-			var output bytes.Buffer
-			if code := writeExecutionError(
-				&output,
-				[]string{"marketplace", "sources", "add", "fixture", "-o", "json"},
-				err,
-			); code != 2 {
-				t.Fatalf("exit = %d, output = %s", code, &output)
-			}
-			var got, want contract.MarketplaceSourceErrorPayload
-			if err := json.Unmarshal(output.Bytes(), &got); err != nil {
-				t.Fatal(err)
-			}
-			if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("error metadata lost: %+v", got)
+			for _, format := range []string{"json", "jsonl"} {
+				var output bytes.Buffer
+				if code := writeExecutionError(
+					&output,
+					[]string{"marketplace", "sources", "add", "fixture", "-o", format},
+					err,
+				); code != tc.wantExit {
+					t.Fatalf("exit = %d, output = %s", code, &output)
+				}
+				var got, want contract.MarketplaceSourceErrorPayload
+				if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("error metadata lost: %+v", got)
+				}
 			}
 		})
 	}

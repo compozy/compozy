@@ -5,7 +5,7 @@
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
 - **Journey Step:** J-marketplace-acquisition, search and initial loading
-- **Found:** 2026-09-13 · **Report:** reports/2026-09-13-marketplace-catalog.md
+- **Found:** 2026-09-13 · **Report:** docs/qa/reports/2026-09-13-marketplace-catalog.md
 
 ## Reproduction
 

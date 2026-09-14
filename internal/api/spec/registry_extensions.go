@@ -252,6 +252,7 @@ func getExtensionLogsOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 			queryParam("workspace", "Operator workspace reference; omit for the global instance", false),
+			queryParam("profile", "Profile name; omit for the default profile", false),
 			queryParam("follow", "Stream extension_log deltas and atomic extension_log_reset snapshots", false),
 			queryParam("after", "Return entries after this sequence within stream_epoch", false),
 			queryParam("stream_epoch", "Opaque ring identity; required when after is greater than zero", false),

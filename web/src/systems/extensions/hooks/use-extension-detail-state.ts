@@ -62,6 +62,7 @@ export function useExtensionDetailState(
     eventSourceFactory: options.logEventSourceFactory,
     name,
     workspaceId: instanceWorkspaceId,
+    profileName: extension?.profile ?? detail.profileName,
   });
 
   const updateVariables = (allowUnverified: boolean): UpdateExtensionVariables | null => {
@@ -110,7 +111,12 @@ export function useExtensionDetailState(
     requestRemoval: () => setDialogState({ type: "dialog", dialog: "remove" }),
     requestToggle: async (enabled: boolean) => {
       if (!extension) return;
-      await runToggle({ enabled, name: extension.name });
+      await runToggle({
+        enabled,
+        name: extension.name,
+        profileName: extension.profile,
+        workspaceId: instanceWorkspaceId,
+      });
     },
     /**
      * An unverified installation still needs an explicit per-update decision, so the consent

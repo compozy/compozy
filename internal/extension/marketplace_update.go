@@ -28,14 +28,21 @@ func UpdateMarketplaceManaged(
 	}
 
 	items := make([]MarketplaceUpdateResult, 0, len(targets))
+	var causes []error
+	var firstFailedName string
 	for infoIndex := range targets {
 		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, &targets[infoIndex], req, reload)
 		if err != nil {
 			item = failedMarketplaceUpdateResult(&targets[infoIndex], item, err)
-			items = append(items, item)
-			return items, newMarketplaceUpdateBatchError(targets[infoIndex].Name, items, err)
+			if len(causes) == 0 {
+				firstFailedName = targets[infoIndex].Name
+			}
+			causes = append(causes, err)
 		}
 		items = append(items, item)
+	}
+	if len(causes) > 0 {
+		return items, newMarketplaceUpdateBatchError(firstFailedName, items, errors.Join(causes...))
 	}
 	return items, nil
 }

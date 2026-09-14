@@ -99,9 +99,6 @@ func (m *Manager) renameProfileWrite(
 	); err != nil {
 		return fmt.Errorf("profile: rewrite vault refs: %w", err)
 	}
-	if err := rewriteMCPAuthProfileName(ctx, exec, profile.Name, newName); err != nil {
-		return err
-	}
 	return m.insertOperation(
 		ctx, exec, opID, "rename", profile.ID, profile.Name, newName, plan.Revision,
 		[]lifecycleStep{{

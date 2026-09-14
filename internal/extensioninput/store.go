@@ -31,8 +31,7 @@ type Record struct {
 	UpdatedAt time.Time
 }
 
-// Mutation carries before-images for optimistic verification and lifecycle rollback.
-// A nil Before expects no row; a nil After removes a row created by a failed lifecycle operation.
+// Mutation carries rollback before-images; nil Before expects no row and nil After removes the row.
 type Mutation struct {
 	InputID string
 	Before  *Record

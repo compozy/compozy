@@ -2,8 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { extensionNetworkConfirmation } from "@/systems/extensions";
-import { ExtensionsApiError } from "@/systems/extensions/adapters/extensions-api";
+import { extensionNetworkConfirmation, ExtensionsApiError } from "@/systems/extensions";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { ExtensionUpdateRequest } from "../types";
 import {

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
-import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
+import { updateExtension } from "@/systems/extensions";
 import {
   updateMarketplaceExtensions,
   installMarketplaceExtension,

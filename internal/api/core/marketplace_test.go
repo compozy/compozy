@@ -1211,6 +1211,17 @@ func TestMarketplaceCatalog(t *testing.T) {
 			body.Extension.Contents.Skills != 2 {
 			t.Fatalf("installed=%d %#v", response.Code, body)
 		}
+		var wire map[string]map[string]json.RawMessage
+		if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+			t.Fatal(err)
+		}
+		if slug, exists := wire["entry"]["install_slug"]; !exists || string(slug) != `""` {
+			t.Fatalf("unknown install identity must remain an explicit empty key: %s", response.Body.String())
+		}
+		if _, exists := wire["extension"]["artifact_url"]; exists {
+			t.Fatalf("unclassified detail invented an artifact URL: %s", response.Body.String())
+		}
+
 		missing := performRequest(t, engine, http.MethodGet, "/marketplace/entries/sideload?source=foreign", nil)
 		if missing.Code != 404 || !strings.Contains(missing.Body.String(), "not found") {
 			t.Fatalf("unknown source=%d %s", missing.Code, missing.Body.String())

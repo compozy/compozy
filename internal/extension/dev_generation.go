@@ -167,7 +167,11 @@ func verifyPortableDevGeneration(
 			actualHash,
 		)
 	}
-	name, err := agentplugin.ReadManifestName(originPath)
+	document, err := agentplugin.ReadManifest(originPath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read portable generation %q manifest: %w", ErrExtensionGenerationInvalid, hash, err)
+	}
+	name, err := document.Name()
 	if err != nil {
 		return nil, fmt.Errorf("%w: read portable generation %q name: %w", ErrExtensionGenerationInvalid, hash, err)
 	}
@@ -183,7 +187,7 @@ func verifyPortableDevGeneration(
 			err,
 		)
 	}
-	manifest, err := LoadManifestWithAgentPluginDataDir(originPath, dataDir)
+	manifest, err := loadAgentPluginDocument(originPath, dataDir, document)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}

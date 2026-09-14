@@ -3389,6 +3389,55 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 			}
 		}
 
+		// Invariant: deleting a scope retires both persisted inputs and sticky MCP overrides.
+		// Owner: GlobalDB workspace lifecycle; canonical suite: this scoped deletion case.
+		for _, binding := range bindings {
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO extension_inputs
+				(extension, workspace_id, input_id, type, value_json, updated_at)
+				VALUES ('kit', ?, 'region', 'string', '"west"', '2026-09-14T00:00:00Z')`, binding.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO extension_mcp_overrides
+				(extension, workspace_id, server, runtime_name, updated_at)
+				VALUES ('kit', ?, 'api', 'kit.api', '2026-09-14T00:00:00Z')`, binding.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		transaction, err := globalDB.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := transaction.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := transaction.ExecContext(ctx, "DELETE FROM workspaces WHERE id = ?", workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := transaction.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("transaction retained %d scoped %s rows", count, table)
+			}
+		}
+		if err := transaction.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Fatalf("rollback restored %d scoped %s rows, want one", count, table)
+			}
+		}
+
 		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
@@ -3402,6 +3451,22 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 				t.Fatalf("preserved bindings for %q = %#v, %v; want one", preservedWorkspaceID, preserved, listErr)
 			}
 		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			for _, binding := range bindings {
+				want := 1
+				if binding.WorkspaceID == workspaceID {
+					want = 0
+				}
+				var count int
+				if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'kit' AND workspace_id = ?", binding.WorkspaceID).Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if count != want {
+					t.Fatalf("%s rows for workspace %q = %d, want %d", table, binding.WorkspaceID, count, want)
+				}
+			}
+		}
+
 		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
 			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
 		}
@@ -3409,6 +3474,16 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err != nil || len(reused) != 0 {
 			t.Fatalf("reused workspace bindings = %#v, %v; want no recovered secrets", reused, err)
 		}
+		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
+			var count int
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("reused workspace recovered %d stale %s rows", count, table)
+			}
+		}
+
 		if err := globalDB.PutEnvBinding(ctx, bindings[0]); err != nil {
 			t.Fatalf("PutEnvBinding(raw cascade fixture) error = %v", err)
 		}

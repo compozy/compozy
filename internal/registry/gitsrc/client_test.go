@@ -92,6 +92,61 @@ func TestClientCheckout(t *testing.T) {
 		}
 		assertEmptyDirectory(t, root)
 	})
+	for _, objectFormat := range []string{"sha1", "sha256"} {
+		t.Run("Should materialize a pinned "+objectFormat+" repository", func(t *testing.T) {
+			t.Parallel()
+			executable, err := exec.LookPath("git")
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := filepath.Join(t.TempDir(), "source")
+			runFixture := func(args ...string) string {
+				t.Helper()
+				command := exec.CommandContext(t.Context(), executable, args...)
+				command.Env = isolatedGitEnvironment()
+				output, err := command.CombinedOutput()
+				if err != nil {
+					t.Fatalf("git fixture: %v: %s", err, output)
+				}
+				return strings.TrimSpace(string(output))
+			}
+			runFixture("init", "--object-format="+objectFormat, "--", source)
+			if err := os.WriteFile(filepath.Join(source, "fixture.txt"), []byte("pinned contents"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			runFixture("-C", source, "add", "fixture.txt")
+			runFixture("-C", source, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+				"-c", "commit.gpgsign=false", "commit", "-m", "fixture")
+			commit := runFixture("-C", source, "rev-parse", "HEAD")
+			const repository = "https://example.com/acme/repo"
+			client := NewClient(
+				WithCheckoutTempDir(t.TempDir()),
+				withRepositoryResolver(&staticRepositoryResolver{addresses: publicRepositoryAddresses()}),
+				WithRunner(func(ctx context.Context, executable string, args ...string) error {
+					args = slices.Clone(args)
+					for i, arg := range args {
+						if arg == repository {
+							args[i] = source
+						}
+					}
+					return runGitCommand(ctx, executable, append([]string{"-c", "protocol.file.allow=always"}, args...)...)
+				}),
+			)
+			checkout, err := client.Checkout(t.Context(), repository, commit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := checkout.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			content, err := os.ReadFile(filepath.Join(checkout.Path, "fixture.txt"))
+			if err != nil || string(content) != "pinned contents" || checkout.Commit != commit {
+				t.Fatalf("pinned checkout: commit=%s content=%q error=%v", checkout.Commit, content, err)
+			}
+		})
+	}
 	t.Run("Should remove failed and unverifiable checkouts", func(t *testing.T) {
 		t.Parallel()
 		injected := errors.New("commit inspection failed")

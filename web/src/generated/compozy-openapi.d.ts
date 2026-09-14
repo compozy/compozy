@@ -36079,7 +36079,7 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
-              inputs: {
+              inputs?: {
                 active: boolean;
                 id: string;
                 set: boolean;
@@ -36096,7 +36096,7 @@ export interface operations {
                 format?: string;
                 icon?: string;
                 install_blocker?: string;
-                install_slug?: string;
+                install_slug: string;
                 installable: boolean;
                 installed: boolean;
                 installed_name?: string;
@@ -36139,7 +36139,7 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
-              mcp_servers: {
+              mcp_servers?: {
                 auth?: {
                   issuer_url?: string;
                   method: string;
@@ -36157,7 +36157,7 @@ export interface operations {
                 workspace_id?: string;
               }[];
               missing_env?: string[];
-              missing_inputs: string[];
+              missing_inputs?: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
@@ -36441,7 +36441,7 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
-              inputs: {
+              inputs?: {
                 active: boolean;
                 id: string;
                 set: boolean;
@@ -36458,7 +36458,7 @@ export interface operations {
                 format?: string;
                 icon?: string;
                 install_blocker?: string;
-                install_slug?: string;
+                install_slug: string;
                 installable: boolean;
                 installed: boolean;
                 installed_name?: string;
@@ -36501,7 +36501,7 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
-              mcp_servers: {
+              mcp_servers?: {
                 auth?: {
                   issuer_url?: string;
                   method: string;
@@ -36519,7 +36519,7 @@ export interface operations {
                 workspace_id?: string;
               }[];
               missing_env?: string[];
-              missing_inputs: string[];
+              missing_inputs?: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
@@ -37132,7 +37132,7 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
-              inputs: {
+              inputs?: {
                 active: boolean;
                 id: string;
                 set: boolean;
@@ -37149,7 +37149,7 @@ export interface operations {
                 format?: string;
                 icon?: string;
                 install_blocker?: string;
-                install_slug?: string;
+                install_slug: string;
                 installable: boolean;
                 installed: boolean;
                 installed_name?: string;
@@ -37192,7 +37192,7 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
-              mcp_servers: {
+              mcp_servers?: {
                 auth?: {
                   issuer_url?: string;
                   method: string;
@@ -37210,7 +37210,7 @@ export interface operations {
                 workspace_id?: string;
               }[];
               missing_env?: string[];
-              missing_inputs: string[];
+              missing_inputs?: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
@@ -38125,7 +38125,7 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
-              inputs: {
+              inputs?: {
                 active: boolean;
                 id: string;
                 set: boolean;
@@ -38142,7 +38142,7 @@ export interface operations {
                 format?: string;
                 icon?: string;
                 install_blocker?: string;
-                install_slug?: string;
+                install_slug: string;
                 installable: boolean;
                 installed: boolean;
                 installed_name?: string;
@@ -38185,7 +38185,7 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
-              mcp_servers: {
+              mcp_servers?: {
                 auth?: {
                   issuer_url?: string;
                   method: string;
@@ -38203,7 +38203,7 @@ export interface operations {
                 workspace_id?: string;
               }[];
               missing_env?: string[];
-              missing_inputs: string[];
+              missing_inputs?: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
@@ -39390,16 +39390,14 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Profile name; omit for the default profile */
+        profile?: string;
         /** @description Stream extension_log deltas and atomic extension_log_reset snapshots */
         follow?: string;
         /** @description Return entries after this sequence within stream_epoch */
         after?: string;
         /** @description Opaque ring identity; required when after is greater than zero */
         stream_epoch?: string;
-        /** @description Read one profile's rows by name */
-        profile?: string;
-        /** @description Read the owner-labeled all-profiles aggregate */
-        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -39945,7 +39943,7 @@ export interface operations {
               generation_hash?: string;
               health?: string;
               health_message?: string;
-              inputs: {
+              inputs?: {
                 active: boolean;
                 id: string;
                 set: boolean;
@@ -39962,7 +39960,7 @@ export interface operations {
                 format?: string;
                 icon?: string;
                 install_blocker?: string;
-                install_slug?: string;
+                install_slug: string;
                 installable: boolean;
                 installed: boolean;
                 installed_name?: string;
@@ -40005,7 +40003,7 @@ export interface operations {
                 updated_at?: string | null;
                 version?: string;
               } | null;
-              mcp_servers: {
+              mcp_servers?: {
                 auth?: {
                   issuer_url?: string;
                   method: string;
@@ -40023,7 +40021,7 @@ export interface operations {
                 workspace_id?: string;
               }[];
               missing_env?: string[];
-              missing_inputs: string[];
+              missing_inputs?: string[];
               name: string;
               network_confirmation_required: boolean;
               network_requirement_digest?: string;
@@ -43579,7 +43577,7 @@ export interface operations {
               format?: string;
               icon?: string;
               install_blocker?: string;
-              install_slug?: string;
+              install_slug: string;
               installable: boolean;
               installed: boolean;
               installed_name?: string;
@@ -43781,7 +43779,7 @@ export interface operations {
               format?: string;
               icon?: string;
               install_blocker?: string;
-              install_slug?: string;
+              install_slug: string;
               installable: boolean;
               installed: boolean;
               installed_name?: string;
@@ -43825,7 +43823,7 @@ export interface operations {
               version?: string;
             };
             extension?: {
-              artifact_url: string;
+              artifact_url?: string;
               contents: {
                 agents: number;
                 bridges: number;
@@ -67489,7 +67487,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
-        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
         owner?: string;
       };
       header?: never;
@@ -67688,7 +67686,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
-        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
         owner?: string;
       };
       header?: never;
@@ -67896,7 +67894,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
-        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
         owner?: string;
       };
       header?: never;
@@ -68097,7 +68095,7 @@ export interface operations {
         workspace_id?: string;
         /** @description Required when scope is profile */
         profile?: string;
-        /** @description Definition owner: manual or extension:<name>; omitted names resolve by runtime name */
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
         owner?: string;
       };
       header?: never;

@@ -76,12 +76,26 @@ describe("extensions management reads", () => {
     });
   });
 
-  it("Should send a profile-only selector when no workspace is active", async () => {
-    mockJsonResponse({ extensions: extensionFixtures });
+  it.each([false, true])(
+    "Should normalize omitted arrays and send a profile-only selector (omitted=%s)",
+    async omitted => {
+      const extensions = extensionFixtures.map(extension => ({
+        ...extension,
+        mcp_servers: [],
+        inputs: [],
+        missing_inputs: [],
+      }));
+      const wire = extensions.map(extension =>
+        omitted
+          ? { ...extension, mcp_servers: undefined, inputs: undefined, missing_inputs: undefined }
+          : extension
+      );
+      mockJsonResponse({ extensions: wire });
 
-    await expect(listExtensions({ profileName: "growth" })).resolves.toEqual(extensionFixtures);
-    await expectFetchRequest({ path: "/api/extensions?profile=growth" });
-  });
+      await expect(listExtensions({ profileName: "growth" })).resolves.toEqual(extensions);
+      await expectFetchRequest({ path: "/api/extensions?profile=growth" });
+    }
+  );
 });
 
 describe("extensions management mutations", () => {
@@ -216,11 +230,12 @@ describe("extensions management mutations", () => {
         after: 12,
         streamEpoch: "epoch-northstar",
         workspaceId: "ws_northstar",
+        profileName: "growth",
       })
     ).resolves.toEqual({ logs: [], stream_epoch: "epoch-northstar" });
     await expectFetchRequest({
       callIndex: 2,
-      path: "/api/extensions/otel-bridge/logs?workspace=ws_northstar&after=12&stream_epoch=epoch-northstar",
+      path: "/api/extensions/otel-bridge/logs?profile=growth&workspace=ws_northstar&after=12&stream_epoch=epoch-northstar",
     });
   });
 

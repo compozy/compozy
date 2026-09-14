@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/vault"
@@ -191,25 +192,26 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 
 func cloneNormalizedHookDecl(decl HookDecl) HookDecl {
 	return HookDecl{
-		Name:         strings.TrimSpace(decl.Name),
-		ProfileID:    strings.TrimSpace(decl.ProfileID),
-		Event:        decl.Event,
-		Source:       decl.Source,
-		Mode:         decl.Mode,
-		Required:     decl.Required,
-		Priority:     decl.Priority,
-		PrioritySet:  decl.PrioritySet,
-		Timeout:      decl.Timeout,
-		Enabled:      cloneBoolPtr(decl.Enabled),
-		Matcher:      normalizeHookMatcher(decl.Matcher),
-		ExecutorKind: decl.ExecutorKind,
-		Command:      strings.TrimSpace(decl.Command),
-		Args:         append([]string(nil), decl.Args...),
-		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
-		Env:          cloneStringMap(decl.Env),
-		SecretEnv:    cloneStringMap(decl.SecretEnv),
-		Metadata:     cloneStringMap(decl.Metadata),
-		SkillSource:  decl.SkillSource,
+		ShadowedWorkspaces: slices.Clone(decl.ShadowedWorkspaces),
+		Name:               strings.TrimSpace(decl.Name),
+		ProfileID:          strings.TrimSpace(decl.ProfileID),
+		Event:              decl.Event,
+		Source:             decl.Source,
+		Mode:               decl.Mode,
+		Required:           decl.Required,
+		Priority:           decl.Priority,
+		PrioritySet:        decl.PrioritySet,
+		Timeout:            decl.Timeout,
+		Enabled:            cloneBoolPtr(decl.Enabled),
+		Matcher:            normalizeHookMatcher(decl.Matcher),
+		ExecutorKind:       decl.ExecutorKind,
+		Command:            strings.TrimSpace(decl.Command),
+		Args:               append([]string(nil), decl.Args...),
+		WorkingDir:         strings.TrimSpace(decl.WorkingDir),
+		Env:                cloneStringMap(decl.Env),
+		SecretEnv:          cloneStringMap(decl.SecretEnv),
+		Metadata:           cloneStringMap(decl.Metadata),
+		SkillSource:        decl.SkillSource,
 	}
 }
 

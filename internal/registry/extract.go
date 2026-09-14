@@ -41,9 +41,13 @@ var (
 	errArchiveTooDeep      = errors.New("registry: archive entry exceeds max depth")
 )
 
+// ExtractionLimits bounds archive expansion; nonpositive fields use package defaults.
 type ExtractionLimits struct {
+	// MaxBytes counts decompressed TAR bytes, including metadata and padding.
 	MaxBytes int64
+	// MaxFiles counts files and directories, including implicit parents.
 	MaxFiles int
+	// MaxDepth counts path components relative to the extraction root.
 	MaxDepth int
 }
 

@@ -10,7 +10,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
-// InspectCatalogExtension uses the exact entry already selected by the read surface, without resolving a newer listing.
+// InspectCatalogExtension inspects the selected entry and digest without resolving a newer listing.
 func (s *daemonExtensionService) InspectCatalogExtension(
 	ctx context.Context,
 	entry marketplacepkg.Entry,

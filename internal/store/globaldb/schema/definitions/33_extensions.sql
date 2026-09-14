@@ -136,3 +136,27 @@ AFTER DELETE ON workspaces
 BEGIN
  DELETE FROM extension_installations WHERE workspace_id = OLD.id;
 END;
+
+CREATE TRIGGER extension_inputs_workspace_delete
+AFTER DELETE ON workspaces
+BEGIN
+ DELETE FROM extension_inputs WHERE workspace_id = OLD.id;
+END;
+
+CREATE TRIGGER extension_inputs_profile_delete
+AFTER DELETE ON profiles
+BEGIN
+ DELETE FROM extension_inputs WHERE profile = OLD.id;
+END;
+
+CREATE TRIGGER extension_mcp_overrides_workspace_delete
+AFTER DELETE ON workspaces
+BEGIN
+ DELETE FROM extension_mcp_overrides WHERE workspace_id = OLD.id;
+END;
+
+CREATE TRIGGER extension_mcp_overrides_profile_delete
+AFTER DELETE ON profiles
+BEGIN
+ DELETE FROM extension_mcp_overrides WHERE profile = OLD.id;
+END;

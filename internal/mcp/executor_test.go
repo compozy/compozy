@@ -2699,6 +2699,9 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			t.Fatal("status.ExpiresAt aliases auth service input pointer")
 		}
 		cfg := fakeAuth.lastServerConfig()
+		if status.Owner != cfg.Target.Owner || status.Scope != string(cfg.Target.Scope) || status.WorkspaceID != cfg.Target.WorkspaceID {
+			t.Fatalf("redacted status lost auth target identity: %#v, want %#v", status, cfg.Target)
+		}
 		if got, want := cfg.ClientSecret, "client-secret"; got != want {
 			t.Fatalf("auth cfg ClientSecret = %q, want %q", got, want)
 		}
@@ -3681,6 +3684,15 @@ func (s *fakeAuthService) Status(ctx context.Context, cfg mcpauth.ServerConfig) 
 
 	s.lastConfig = cfg
 	status := s.status
+	if status.Owner == "" {
+		status.Owner = cfg.Target.Owner
+	}
+	if status.Scope == "" {
+		status.Scope = cfg.Target.Scope
+	}
+	if status.WorkspaceID == "" {
+		status.WorkspaceID = cfg.Target.WorkspaceID
+	}
 	if status.ServerName == "" {
 		status.ServerName = cfg.Target.ServerName
 	}
@@ -3699,6 +3711,15 @@ func (s *fakeAuthService) Refresh(ctx context.Context, cfg mcpauth.ServerConfig)
 		return mcpauth.Status{}, s.refreshErr
 	}
 	status := s.refresh
+	if status.Owner == "" {
+		status.Owner = cfg.Target.Owner
+	}
+	if status.Scope == "" {
+		status.Scope = cfg.Target.Scope
+	}
+	if status.WorkspaceID == "" {
+		status.WorkspaceID = cfg.Target.WorkspaceID
+	}
 	if status.ServerName == "" {
 		status.ServerName = cfg.Target.ServerName
 	}

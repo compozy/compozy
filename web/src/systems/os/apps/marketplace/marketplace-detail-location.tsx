@@ -36,7 +36,7 @@ export function MarketplaceDetailLocation({
     },
     liveDataEnabled
   );
-  const actions = useMarketplaceActionController();
+  const actions = useMarketplaceActionController({ profileName, workspaceId });
   const entry = query.data?.entry;
   const entryName = entry?.name ?? entryId;
   const referrer = search.from === "installed" ? "Installed" : "Marketplace";

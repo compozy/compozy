@@ -19,3 +19,9 @@ overlaps: MS-web-session-simple-advanced-launch; ET-006
 QA impact 2026-08-27: default-profile agent discovery now watches and resolves the same profile-aware
 roots used by session creation. Agent-local skill loading isolates each invalid declaration instead
 of rejecting the agent's full effective catalog or blocking session creation.
+
+PR636 review retest: start with an installed ClawHub skill and a persisted MCP resource formerly
+published from that skill. On restart and hot discovery, the skill body/provenance remain available,
+but its embedded MCP must be absent from callable discovery. Local skill MCPs and manual MCPs
+must remain available. A reconciliation failure must prevent startup from serving stale resources.
+The owning daemon reconstruction test passed with real SQLite; the public discovery walk remains pending.

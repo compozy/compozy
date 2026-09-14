@@ -82,7 +82,13 @@ export {
   extensionWorkspaceKey,
 } from "./lib/query-keys";
 export { extensionsListOptions } from "./lib/query-options";
-export { previewExtensionInstall } from "./adapters/extensions-api";
+export {
+  previewExtensionInstall,
+  updateExtension,
+  ExtensionsApiError,
+  extensionOperationErrorMetadata,
+} from "./api";
+export type { ExtensionOperationErrorMetadata } from "./api";
 export { extensionFixtures } from "./mocks/fixtures";
 
 export {

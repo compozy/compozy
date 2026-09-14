@@ -2,7 +2,7 @@ import { defaultApiErrorMessage } from "@/lib/api-client";
 import {
   extensionOperationErrorMetadata,
   type ExtensionOperationErrorMetadata,
-} from "@/systems/extensions/adapters/extension-operation-error";
+} from "@/systems/extensions/api";
 
 export class MarketplaceApiError extends Error {
   public readonly installedOrigin: ExtensionOperationErrorMetadata["installedOrigin"];

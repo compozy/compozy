@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/vault"
+
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -135,11 +137,16 @@ func deleteProfileOwnedRows(
 	if err := deleteMCPAuthProfileRecords(ctx, exec, profile.Name); err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx, `DELETE FROM vault_secrets WHERE ref LIKE ? OR ref LIKE ?`,
-		profileVaultRefPrefix(profile.Name)+"%", profileMCPVaultRefPrefix(profile.Name)+"%",
-	); err != nil {
-		return fmt.Errorf("profile: remove credential overrides for %q: %w", profile.Name, err)
+	prefixes, err := vault.ListProfileSecretPrefixes(ctx, exec, profile.Name)
+	if err != nil {
+		return err
+	}
+	for _, prefix := range prefixes {
+		if _, err := exec.ExecContext(ctx,
+			`DELETE FROM vault_secrets WHERE SUBSTR(ref, 1, LENGTH(?)) = ?`, prefix, prefix,
+		); err != nil {
+			return fmt.Errorf("profile: remove credential overrides for %q: %w", profile.Name, err)
+		}
 	}
 	if _, err := exec.ExecContext(ctx, `DELETE FROM profiles WHERE id = ?`, profile.ID); err != nil {
 		return fmt.Errorf("profile: delete %q: %w", profile.Name, err)

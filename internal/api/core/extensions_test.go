@@ -113,6 +113,21 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 			if response.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
 			}
+			var wire struct {
+				Extensions []map[string]json.RawMessage `json:"extensions"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+				t.Fatal(err)
+			}
+			if len(wire.Extensions) != 1 {
+				t.Fatalf("unexpected wire inventory: %s", response.Body.String())
+			}
+			for _, field := range []string{"mcp_servers", "inputs", "missing_inputs"} {
+				if _, exists := wire.Extensions[0][field]; exists {
+					t.Fatalf("empty optional field %q retained: %s", field, response.Body.String())
+				}
+			}
+
 			var responsePayload struct {
 				Extensions []struct {
 					Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
@@ -1007,7 +1022,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 func TestExtensionOperationErrorPayloads(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: lifecycle input/source errors preserve their structured fields and 409/422 status over HTTP and UDS.
+	// Invariant: the shared lifecycle decoder preserves structured input/source errors and 409/422 status.
 	// Owner: extension HTTP boundary. Canonical suite: operation error payload tests.
 	for _, tc := range []struct {
 		name   string
@@ -1025,62 +1040,60 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 				Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "workspace"}}}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
 		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
 	} {
-		for _, transport := range []string{"http", "uds"} {
-			t.Run("Should report "+tc.name+" with structured details over "+transport, func(t *testing.T) {
-				t.Parallel()
-				service := extensionServiceStub{
-					installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-						return contract.ExtensionPayload{}, tc.cause
-					},
+		t.Run("Should report "+tc.name+" with structured details", func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{
+				installFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+					return contract.ExtensionPayload{}, tc.cause
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"curated","ref":"compozy/example"}`),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Code != tc.code {
+				t.Fatalf("code = %s want %s", payload.Code, tc.code)
+			}
+			switch tc.code {
+			case diagnosticcontract.CodeExtensionNameConflict:
+				if payload.InstalledOrigin == nil || payload.InstalledOrigin.Source != "team-catalog" ||
+					payload.InstalledOrigin.SourceRef != "https://example.com/catalog" || payload.InstalledOrigin.EntryID != "team/example" {
+					t.Fatalf("installed origin = %#v", payload.InstalledOrigin)
 				}
-				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
-				engine := gin.New()
-				engine.POST("/extensions", handlers.InstallExtension)
-				response := performRequest(
-					t,
-					engine,
-					http.MethodPost,
-					"/extensions",
-					[]byte(`{"source":"curated","ref":"compozy/example"}`),
-				)
-				if response.Code != tc.status {
-					t.Fatalf("status = %d want %d body %s", response.Code, tc.status, response.Body.String())
+			case diagnosticcontract.CodeExtensionSourceChanged:
+				if payload.ListedDigest != strings.Repeat("a", 64) ||
+					payload.FetchedDigest != strings.Repeat("b", 64) {
+					t.Fatalf("source mismatch = %#v", payload)
 				}
-				var payload contract.ExtensionOperationErrorPayload
-				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-					t.Fatal(err)
+			case diagnosticcontract.CodeExtensionInputsRequired:
+				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
+					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("required inputs = %#v", payload)
 				}
-				if payload.Code != tc.code {
-					t.Fatalf("code = %s want %s", payload.Code, tc.code)
+				if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||
+					payload.InputDefinitions[0].Prompt != "Workspace" || payload.InputDefinitions[0].Type != "identifier" ||
+					!payload.InputDefinitions[0].Required || payload.InputDefinitions[0].Binding.Name != "workspace" {
+					t.Fatalf("candidate definitions = %#v", payload.InputDefinitions)
 				}
-				switch tc.code {
-				case diagnosticcontract.CodeExtensionNameConflict:
-					if payload.InstalledOrigin == nil || payload.InstalledOrigin.Source != "team-catalog" ||
-						payload.InstalledOrigin.SourceRef != "https://example.com/catalog" || payload.InstalledOrigin.EntryID != "team/example" {
-						t.Fatalf("installed origin = %#v", payload.InstalledOrigin)
-					}
-				case diagnosticcontract.CodeExtensionSourceChanged:
-					if payload.ListedDigest != strings.Repeat("a", 64) ||
-						payload.FetchedDigest != strings.Repeat("b", 64) {
-						t.Fatalf("source mismatch = %#v", payload)
-					}
-				case diagnosticcontract.CodeExtensionInputsRequired:
-					if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
-						!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
-						t.Fatalf("required inputs = %#v", payload)
-					}
-					if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||
-						payload.InputDefinitions[0].Prompt != "Workspace" || payload.InputDefinitions[0].Type != "identifier" ||
-						!payload.InputDefinitions[0].Required || payload.InputDefinitions[0].Binding.Name != "workspace" {
-						t.Fatalf("candidate definitions = %#v", payload.InputDefinitions)
-					}
-				case diagnosticcontract.CodeExtensionInputInvalid:
-					if payload.InputID != "workspace" {
-						t.Fatalf("invalid input id = %s", payload.InputID)
-					}
+			case diagnosticcontract.CodeExtensionInputInvalid:
+				if payload.InputID != "workspace" {
+					t.Fatalf("invalid input id = %s", payload.InputID)
 				}
-			})
-		}
+			}
+		})
 	}
 
 	t.Run("Should return current digest and retry command for network confirmation", func(t *testing.T) {
@@ -1406,107 +1419,103 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 
 func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
-	// Invariant: update decoding preserves selectors and typed inputs over both transports.
+	// Invariant: the shared update decoder preserves selectors and typed inputs.
 	// Owner: shared update boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
-	for _, transport := range []string{"http", "uds"} {
-		t.Run("Should forward scoped updates over "+transport, func(t *testing.T) {
-			t.Parallel()
-			assertScope := func(scope, workspaceID, profile string) {
-				t.Helper()
-				if scope != "workspace" || workspaceID != "ws-install" || profile != "marketing" {
-					t.Fatalf("update scope = %s/%s/%s", scope, workspaceID, profile)
+	t.Run("Should forward scoped updates", func(t *testing.T) {
+		t.Parallel()
+		assertScope := func(scope, workspaceID, profile string) {
+			t.Helper()
+			if scope != "workspace" || workspaceID != "ws-install" || profile != "marketing" {
+				t.Fatalf("update scope = %s/%s/%s", scope, workspaceID, profile)
+			}
+		}
+		service := extensionServiceStub{
+			updateFn: func(_ context.Context, name string, req contract.UpdateExtensionRequest, _ taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error) {
+				assertScope(req.Scope, req.WorkspaceID, req.Profile)
+				if string(req.Inputs["team"].Value) != `"updated-team"` {
+					t.Fatal("update lost typed input")
 				}
-			}
-			service := extensionServiceStub{
-				updateFn: func(_ context.Context, name string, req contract.UpdateExtensionRequest, _ taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error) {
-					assertScope(req.Scope, req.WorkspaceID, req.Profile)
-					if string(req.Inputs["team"].Value) != `"updated-team"` {
-						t.Fatal("update lost typed input")
-					}
-					return contract.ManagedExtensionUpdatePayload{
-						Name:   name,
-						Status: extensionpkg.MarketplaceUpdateStatusUpdated,
-					}, nil
-				},
-				updateBatchFn: func(_ context.Context, req contract.UpdateExtensionsRequest, _ taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error) {
-					assertScope(req.Scope, req.WorkspaceID, req.Profile)
-					if len(req.Names) != 1 || string(req.Inputs["team"].Value) != `"updated-team"` {
-						t.Fatal("batch lost selected input")
-					}
-					return []contract.ManagedExtensionUpdatePayload{
-						{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated},
-					}, nil
-				},
-			}
-			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
-			engine := gin.New()
-			engine.POST("/extensions/update", handlers.UpdateExtensions)
-			engine.PUT("/extensions/:name", handlers.UpdateExtension)
-			for _, route := range []string{"/extensions/tool-ext", "/extensions/update"} {
-				body := []byte(
-					`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`,
-				)
-				method := http.MethodPost
-				if route == "/extensions/tool-ext" {
-					method = http.MethodPut
+				return contract.ManagedExtensionUpdatePayload{
+					Name:   name,
+					Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+				}, nil
+			},
+			updateBatchFn: func(_ context.Context, req contract.UpdateExtensionsRequest, _ taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error) {
+				assertScope(req.Scope, req.WorkspaceID, req.Profile)
+				if len(req.Names) != 1 || string(req.Inputs["team"].Value) != `"updated-team"` {
+					t.Fatal("batch lost selected input")
 				}
-				response := performRequest(t, engine, method, route, body)
-				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"updated"`) {
-					t.Fatalf("update response = %d, %s", response.Code, response.Body.String())
-				}
-			}
-		})
-	}
-
-	// Invariant: shared HTTP/UDS decoding preserves scoped install selectors and typed inputs.
-	// Owner: transport request boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
-	for _, transport := range []string{"http", "uds"} {
-		t.Run("Should forward scoped install and preview over "+transport, func(t *testing.T) {
-			t.Parallel()
-			assertRequest := func(request contract.InstallExtensionRequest) {
-				t.Helper()
-				if request.Scope != "workspace" || request.WorkspaceID != "ws-install" ||
-					request.Profile != "marketing" ||
-					string(request.Inputs["team"].Value) != `"selected-team"` {
-					t.Fatalf("scoped install request = %#v", request)
-				}
-			}
-			service := extensionServiceStub{
-				installFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-					assertRequest(req)
-					return contract.ExtensionPayload{
-						Name:        "scoped-package",
-						Profile:     req.Profile,
-						WorkspaceID: req.WorkspaceID,
-					}, nil
-				},
-				previewInstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
-					assertRequest(req)
-					return contract.ExtensionInstallPreviewPayload{Name: "scoped-package"}, nil
-				},
-			}
-			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: transport, Extensions: service})
-			engine := gin.New()
-			engine.POST("/extensions", handlers.InstallExtension)
-			engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+				return []contract.ManagedExtensionUpdatePayload{
+					{Name: req.Names[0], Status: extensionpkg.MarketplaceUpdateStatusUpdated},
+				}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/update", handlers.UpdateExtensions)
+		engine.PUT("/extensions/:name", handlers.UpdateExtension)
+		for _, route := range []string{"/extensions/tool-ext", "/extensions/update"} {
 			body := []byte(
-				`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`,
+				`{"names":["tool-ext"],"scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"updated-team"}}}`,
 			)
-			for _, route := range []string{"/extensions", "/extensions/preview-install"} {
-				response := performRequest(t, engine, http.MethodPost, route, body)
-				wantStatus := http.StatusOK
-				if route == "/extensions" {
-					wantStatus = http.StatusCreated
-				}
-				if response.Code != wantStatus {
-					t.Fatalf("status = %d, want %d: %s", response.Code, wantStatus, response.Body.String())
-				}
-				if !strings.Contains(response.Body.String(), `"name":"scoped-package"`) {
-					t.Fatalf("response = %s", response.Body.String())
-				}
+			method := http.MethodPost
+			if route == "/extensions/tool-ext" {
+				method = http.MethodPut
 			}
-		})
-	}
+			response := performRequest(t, engine, method, route, body)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"updated"`) {
+				t.Fatalf("update response = %d, %s", response.Code, response.Body.String())
+			}
+		}
+	})
+
+	// Invariant: the shared install decoder preserves scoped selectors and typed inputs.
+	// Owner: shared request boundary; canonical suite: TestExtensionHandlersHaveHTTPUDSParity.
+	t.Run("Should forward scoped install and preview", func(t *testing.T) {
+		t.Parallel()
+		assertRequest := func(request contract.InstallExtensionRequest) {
+			t.Helper()
+			if request.Scope != "workspace" || request.WorkspaceID != "ws-install" ||
+				request.Profile != "marketing" ||
+				string(request.Inputs["team"].Value) != `"selected-team"` {
+				t.Fatalf("scoped install request = %#v", request)
+			}
+		}
+		service := extensionServiceStub{
+			installFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
+				assertRequest(req)
+				return contract.ExtensionPayload{
+					Name:        "scoped-package",
+					Profile:     req.Profile,
+					WorkspaceID: req.WorkspaceID,
+				}, nil
+			},
+			previewInstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error) {
+				assertRequest(req)
+				return contract.ExtensionInstallPreviewPayload{Name: "scoped-package"}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{TransportName: "api-core", Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		body := []byte(
+			`{"source":"curated","ref":"compozy/scoped-package","scope":"workspace","workspace_id":"ws-install","profile":"marketing","inputs":{"team":{"value":"selected-team"}}}`,
+		)
+		for _, route := range []string{"/extensions", "/extensions/preview-install"} {
+			response := performRequest(t, engine, http.MethodPost, route, body)
+			wantStatus := http.StatusOK
+			if route == "/extensions" {
+				wantStatus = http.StatusCreated
+			}
+			if response.Code != wantStatus {
+				t.Fatalf("status = %d, want %d: %s", response.Code, wantStatus, response.Body.String())
+			}
+			if !strings.Contains(response.Body.String(), `"name":"scoped-package"`) {
+				t.Fatalf("response = %s", response.Body.String())
+			}
+		}
+	})
 
 	const (
 		apiWorkspaceRootCanary = "/private/API-WORKSPACE-ROOT-CANARY"

@@ -2023,7 +2023,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	})
 }
 
-func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
+func TestCreateBlocksMarketplaceSkillMCPServers(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)

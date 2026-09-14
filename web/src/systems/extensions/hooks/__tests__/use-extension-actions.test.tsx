@@ -67,34 +67,52 @@ beforeEach(() => {
 });
 
 describe("useToggleExtension", () => {
-  it("Should roll an optimistic toggle back and toast the daemon error", async () => {
-    const { queryClient, wrapper } = setup();
-    const original = extensionFixtures.map(extension => ({ ...extension }));
-    queryClient.setQueryData(extensionKeys.list(null, "default"), original);
-    let rejectToggle: ((error: Error) => void) | undefined;
-    mocks.setExtensionEnablement.mockReturnValue(
-      new Promise((_resolve, reject) => {
-        rejectToggle = reject;
-      })
-    );
-    const { result } = renderHook(() => useToggleExtension(), { wrapper });
+  it.each([{}, { profileName: "captured", workspaceId: "ws_captured" }])(
+    "Should roll an optimistic toggle back in its selected scope %j and toast the daemon error",
+    async scope => {
+      const { queryClient, wrapper } = setup();
+      const original = extensionFixtures.map(extension => ({ ...extension }));
+      queryClient.setQueryData(
+        extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default"),
+        original
+      );
+      const unrelatedKey = extensionKeys.list("ws_unrelated", "other");
+      queryClient.setQueryData(unrelatedKey, original);
+      let rejectToggle: ((error: Error) => void) | undefined;
+      mocks.setExtensionEnablement.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectToggle = reject;
+        })
+      );
+      const { result } = renderHook(() => useToggleExtension(), { wrapper });
 
-    act(() => result.current.mutate({ enabled: false, name: "otel-bridge" }));
+      act(() => result.current.mutate({ enabled: false, name: "otel-bridge", ...scope }));
 
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
-      ).toBe(false)
-    );
-    act(() => rejectToggle?.(new Error("daemon refused the toggle")));
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryData<typeof original>(
+            extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default")
+          )?.[0]?.enabled
+        ).toBe(false)
+      );
+      act(() => rejectToggle?.(new Error("daemon refused the toggle")));
 
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
-      ).toBe(true)
-    );
-    expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
-  });
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryData<typeof original>(
+            extensionKeys.list(scope.workspaceId ?? null, scope.profileName ?? "default")
+          )?.[0]?.enabled
+        ).toBe(true)
+      );
+      expect(queryClient.getQueryData(unrelatedKey)).toEqual(original);
+      expect(mocks.setExtensionEnablement).toHaveBeenCalledWith(
+        "otel-bridge",
+        scope.profileName ?? "default",
+        false
+      );
+      expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
+    }
+  );
 
   it("Should change enablement only for the active profile", async () => {
     mocks.activeProfileName = "growth";

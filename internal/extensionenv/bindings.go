@@ -17,8 +17,9 @@ type Binding struct {
 	WorkspaceID string
 	EnvName     string
 	SecretRef   string
-	// InputID is empty for requires_env bindings. Inactive rows are retained for updates.
-	InputID    string
+	// InputID is empty for requires_env bindings.
+	InputID string
+	// Inactive rows are retained for updates.
 	Inactive   bool
 	MCPServer  string
 	HeaderName string

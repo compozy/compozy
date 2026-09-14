@@ -1,4 +1,4 @@
-import { Pill } from "@compozy/ui";
+import { Pill, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@compozy/ui";
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import { bindingLabel, INPUT_TYPE_LABELS, type ExtensionInput } from "./marketplace-entry-meta";
@@ -18,32 +18,32 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
   const hasDefaults = inputs.some(input => input.default !== undefined);
   return (
     <>
-      <div className="mt-4 overflow-x-auto rounded-lg border border-line">
-        <table className="w-full text-start text-small-body">
-          <thead>
-            <tr className="border-b border-line text-start">
-              <th className="px-4 py-2.5 text-start font-medium text-muted">Input</th>
-              <th className="px-4 py-2.5 text-start font-medium text-muted">Prompt</th>
-              <th className="px-4 py-2.5 text-start font-medium text-muted">Type</th>
-              <th className="px-4 py-2.5 text-start font-medium text-muted">Required</th>
-              {hasDefaults ? (
-                <th className="px-4 py-2.5 text-start font-medium text-muted">Default</th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
+      <div className="mt-4 rounded-lg border border-line">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Input</TableHead>
+              <TableHead>Prompt</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Required</TableHead>
+              {hasDefaults ? <TableHead>Default</TableHead> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {inputs.map(input => {
               const fallback = defaultLabel(input);
               return (
-                <tr key={input.id} className="border-b border-line-soft last:border-b-0">
-                  <td className="px-4 py-2.5 align-top">
+                <TableRow key={input.id}>
+                  <TableCell className="align-top whitespace-normal">
                     <code className="font-mono text-fg">{input.id}</code>
                     <span className="mt-0.5 block font-mono text-mono-id text-faint">
                       {bindingLabel(input.binding)}
                     </span>
-                  </td>
-                  <td className="px-4 py-2.5 align-top text-muted">{input.prompt}</td>
-                  <td className="px-4 py-2.5 align-top">
+                  </TableCell>
+                  <TableCell className="align-top whitespace-normal text-muted">
+                    {input.prompt}
+                  </TableCell>
+                  <TableCell className="align-top whitespace-normal">
                     {input.type === "secret" ? (
                       <Pill size="sm">
                         <Lock aria-hidden className="size-3" />
@@ -52,24 +52,24 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
                     ) : (
                       <span className="text-muted">{INPUT_TYPE_LABELS[input.type]}</span>
                     )}
-                  </td>
-                  <td className="px-4 py-2.5 align-top text-muted">
+                  </TableCell>
+                  <TableCell className="align-top whitespace-normal text-muted">
                     {input.required ? "Required" : "Optional"}
-                  </td>
+                  </TableCell>
                   {hasDefaults ? (
-                    <td className="px-4 py-2.5 align-top">
+                    <TableCell className="align-top whitespace-normal">
                       {fallback !== null ? (
                         <code className="font-mono text-fg">{fallback}</code>
                       ) : (
                         <span className="text-faint">—</span>
                       )}
-                    </td>
+                    </TableCell>
                   ) : null}
-                </tr>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <p className="mt-3 text-small-body leading-relaxed text-subtle">
         Pass values at install time with repeatable <code>--input id=value</code> flags; the CLI

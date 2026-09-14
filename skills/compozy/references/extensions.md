@@ -18,7 +18,7 @@
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--workspace <id> --profile <name>` on the CLI or `?workspace=<id>&profile=<name>` on HTTP/UDS to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
 
@@ -199,6 +199,18 @@ runtime reload confirm removal, backup cleanup failure leaves `status` as `remov
 `extension_remove_cleanup_failed` with the residual path. Treat that path as cleanup debt; do not
 restore or operate the removed extension from it.
 
+Published reinstall uses the existing update transaction and selected attachment. Repeating the same
+acquisition and inputs preserves package and input/secret before-images without a runtime reload.
+A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
+display names do not participate in identity. Only an operator may associate an unclassified managed
+installation with a catalog entry. Publication failure restores the old package and selected input cell.
+
+For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
+selects the source index and pins the listed digest before preview and installation. Existing curated
+acquisition refs keep priority if the same spelling collides; `marketplace:team/tool` explicitly selects
+the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
+as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.
+
 ## Authoring And Dev Loop
 
 Authoring runs `init` → `build` → `validate` → `dev` → `reload` → `logs` → `publish`. Native tool IDs
@@ -314,15 +326,3 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
 Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, `network.participation.*` in `references/network.md`, and `window_manager.*` in `references/window-management.md`.
-
-Published reinstall uses the existing update transaction and selected attachment. Repeating the same
-acquisition and inputs preserves package and input/secret before-images without a runtime reload.
-A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
-display names do not participate in identity. Only an operator may associate an unclassified managed
-installation with a catalog entry. Publication failure restores the old package and selected input cell.
-
-For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
-selects the source index and pins the listed digest before preview and installation. Existing curated
-acquisition refs keep priority if the same spelling collides; `marketplace:team/tool` explicitly selects
-the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
-as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.

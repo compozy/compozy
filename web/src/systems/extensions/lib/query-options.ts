@@ -23,11 +23,16 @@ export const extensionsListOptions = (scope: ExtensionInstanceScope = {}, enable
 export const extensionLogsOptions = (name: string, scope: ExtensionInstanceScope = {}) => {
   const normalizedName = name.trim();
   const normalizedWorkspaceId = scope.workspaceId?.trim() || undefined;
+  const normalizedProfileName = scope.profileName?.trim() || undefined;
   return queryOptions({
-    queryKey: extensionKeys.logs(normalizedName, normalizedWorkspaceId),
+    queryKey: extensionKeys.logs(normalizedName, normalizedWorkspaceId, normalizedProfileName),
     queryFn: async ({ signal }) =>
       normalizeExtensionLogSnapshot(
-        await listExtensionLogs(normalizedName, { workspaceId: normalizedWorkspaceId }, signal)
+        await listExtensionLogs(
+          normalizedName,
+          { workspaceId: normalizedWorkspaceId, profileName: normalizedProfileName },
+          signal
+        )
       ),
     enabled: normalizedName.length > 0,
     staleTime: 0,

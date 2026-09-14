@@ -16,7 +16,7 @@ func settingsMCPAuthOperations() []OperationSpec {
 		queryParam("profile", "Required when scope is profile", false),
 		queryParam(
 			"owner",
-			"Definition owner: manual or extension:<name>; omitted names resolve by runtime name",
+			"Definition owner: manual or extension:<name>; omitted owner selects manual",
 			false,
 		),
 	}

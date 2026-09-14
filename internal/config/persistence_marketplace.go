@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -17,7 +18,8 @@ func loadPersistedConfigOverlay(
 	path string,
 	decode func([]byte, string) (configOverlay, error),
 ) (overlay configOverlay, err error) {
-	directory, name, err := fileutil.OpenParentDirectory(path)
+	name := filepath.Base(path)
+	directory, err := fileutil.OpenDirectory(filepath.Dir(path))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return overlay, nil
@@ -25,7 +27,7 @@ func loadPersistedConfigOverlay(
 		return overlay, FileError{Op: mergeReadKey, Path: path, Err: err}
 	}
 	defer func() { err = errors.Join(err, directory.Close()) }()
-	contents, _, err := directory.ReadRegularFile(name)
+	contents, original, err := directory.ReadRegularFile(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return overlay, nil
@@ -41,8 +43,22 @@ func loadPersistedConfigOverlay(
 		return overlay, err
 	}
 	if !bytes.Equal(rendered, contents) {
-		// The archive and active config commit together through the same open parent.
-		if err := writePersistedFileInDirectory(directory, name, path, rendered, true); err != nil {
+		writable, openErr := directory.ReopenForMutation(filepath.Dir(path))
+		if openErr != nil {
+			return configOverlay{}, FileError{Op: "migrate", Path: path, Err: openErr}
+		}
+		defer func() { err = errors.Join(err, writable.Close()) }()
+		current, info, readErr := writable.ReadRegularFile(name)
+		if readErr != nil {
+			return configOverlay{}, FileError{Op: "migrate", Path: path, Err: readErr}
+		}
+		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
+			return configOverlay{}, FileError{
+				Op: "migrate", Path: path, Err: errors.New("config changed during retirement migration"),
+			}
+		}
+		// Revalidate the held file before publishing the archive through the same parent.
+		if err := writePersistedFileInDirectory(writable, name, path, rendered, true); err != nil {
 			return configOverlay{}, err
 		}
 	}

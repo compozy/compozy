@@ -29,7 +29,7 @@ func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string
 	if err != nil {
 		return fmt.Errorf("stage catalog publication: %w", err)
 	}
-	defer func() { err = errors.Join(err, removeCatalogValidationDirectory(stage)) }()
+	defer func() { err = errors.Join(err, removeCatalogTemporaryDirectory(stage)) }()
 	if err := stageCatalogPublication(ctx, sourceDirectory, stage, sources); err != nil {
 		return err
 	}

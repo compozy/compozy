@@ -1,70 +1,48 @@
 package extensionpkg
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func loadAgentPluginManifest(root, dataDir string) (*Manifest, error) {
-	path, layout, err := agentplugin.LocateManifest(root)
+	document, err := agentplugin.ReadManifest(root)
 	if err != nil {
 		return nil, err
 	}
-	content, _, err := fileutil.ReadRegularFile(path)
-	if err != nil {
-		return nil, err
-	}
-	status, declared := agentplugin.ClassifyManifestContent(content)
-	if status == agentplugin.SchemaUnsupportedVersion {
-		return nil, &AgentPluginSchemaUnsupportedError{Root: root, Path: path, Declared: declared}
-	}
-	if layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && json.Valid(content) {
-		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{path}}
-	}
-	manifest, err := loadSupportedAgentPluginManifest(root, dataDir, path)
-	return manifest, err
+	return loadAgentPluginDocument(root, dataDir, document)
 }
 
-func loadSupportedAgentPluginManifest(root, dataDir, manifestPath string) (*Manifest, error) {
-	usesDefaultDataDir := dataDir == ""
-	if usesDefaultDataDir {
-		var err error
-		dataDir, err = defaultAgentPluginDataDir(root, filepath.Base(root))
+func loadAgentPluginDocument(root, dataDir string, document *agentplugin.ManifestDocument) (*Manifest, error) {
+	status, declared := document.Classify()
+	if status == agentplugin.SchemaUnsupportedVersion {
+		return nil, &AgentPluginSchemaUnsupportedError{Root: root, Path: document.Path, Declared: declared}
+	}
+	if document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && document.ValidJSON() {
+		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{document.Path}}
+	}
+	if dataDir == "" {
+		name, err := document.Name()
+		if err != nil {
+			return nil, agentPluginLoadError(document.Path, err)
+		}
+		dataDir, err = defaultAgentPluginDataDir(root, name)
 		if err != nil {
 			return nil, err
 		}
 	}
-	pkg, err := loadAgentPluginPackage(root, dataDir, manifestPath)
+	pkg, err := document.Load(agentplugin.LoadOptions{DataDir: dataDir})
 	if err != nil {
-		return nil, err
-	}
-	if usesDefaultDataDir {
-		resolvedDataDir, resolveErr := defaultAgentPluginDataDir(root, pkg.Name)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		if resolvedDataDir != dataDir {
-			pkg, err = loadAgentPluginPackage(root, resolvedDataDir, manifestPath)
-			if err != nil {
-				return nil, err
-			}
-		}
+		return nil, agentPluginLoadError(document.Path, err)
 	}
 	return SynthesizeAgentPluginManifest(pkg, root)
 }
 
-func loadAgentPluginPackage(root, dataDir, manifestPath string) (*agentplugin.Package, error) {
-	pkg, err := agentplugin.Load(root, agentplugin.LoadOptions{DataDir: dataDir})
-	if err == nil {
-		return pkg, nil
-	}
+func agentPluginLoadError(manifestPath string, err error) error {
 	if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](err); ok {
-		return nil, newAgentPluginManifestValidationError(manifestPath, manifestErr)
+		return newAgentPluginManifestValidationError(manifestPath, manifestErr)
 	}
-	return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", manifestPath, err)
+	return fmt.Errorf("extension: load Agent Plugins manifest %q: %w", manifestPath, err)
 }

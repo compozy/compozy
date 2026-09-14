@@ -283,7 +283,7 @@ func (c *extensionKitItemCollector) appendHookItems(
 		}
 		c.append(
 			hookBindingResourceKind,
-			extensionHookBindingID(ext.Info.Name, validated.Name),
+			extensionHookBindingID(ext.Info.Name, validated),
 			validated.Name,
 			encoded,
 		)

@@ -6,7 +6,7 @@
 - **Persona Affected:** Bruno
 - **Journey Step:** J-marketplace-acquisition, update and manage a required-input workspace installation
 - **Scenarios:** ET-web-marketplace-installed-management
-- **Found:** 2026-09-13 · **Report:** reports/2026-09-13-marketplace-catalog.md
+- **Found:** 2026-09-13 · **Report:** docs/qa/reports/2026-09-13-marketplace-catalog.md
 
 ## Reproduction
 

@@ -5,8 +5,7 @@ import (
 	"strings"
 )
 
-// ValidateExtensionSecretRefOwner checks the extension segment of a binding reference.
-// The input binder additionally enforces the exact workspace and profile instance.
+// ValidateExtensionSecretRefOwner checks the extension segment, without validating the workspace or profile instance.
 func ValidateExtensionSecretRefOwner(ref, extension string) error {
 	ref = NormalizeRef(ref)
 	if err := ValidateSecretRefNamespace(ref, "extensions"); err != nil {

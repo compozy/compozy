@@ -23,3 +23,16 @@ generic generation, last-good, logs, and workspace-isolation behavior.
 QA 2026-08-16: the dev-linked portable package published its resources without install trust, reload
 advanced only its workspace generation, retained instance data, and left the published instance and
 the second workspace unchanged.
+
+PR636 review retest: exercise standard, Claude, Codex and Cursor manifests with package names
+that differ from their directory names. Inspection and development loading must agree on the
+manifest identity, layout and diagnostics, and PLUGIN_DATA must use the authored package name.
+The same securely acquired manifest bytes feed classification and loading; unsupported versions
+and no-follow path restrictions remain enforced. Focused manifest tests passed; live reload re-walk pending.
+
+The hook re-walk also installs a hook-only package in one workspace/profile and checks that it
+executes exactly once there, never in another profile/workspace. Add a global attachment, link a
+development generation, then reload a generation without hooks: the workspace override must suppress
+the inherited hook in both cases. Restart, unlink, detach and disable the profile, checking the
+applicable hook output at each transition. The owning real SQLite/subprocess integration passed;
+this public scenario extension still requires its final live re-walk.

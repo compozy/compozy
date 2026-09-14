@@ -5,7 +5,7 @@ import {
   MetadataListValue,
   Pill,
 } from "@compozy/ui";
-import { Clock, Lock, Settings2, ShieldCheck } from "lucide-react";
+import { Clock, Lock, Settings2, ShieldCheck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import {
   installCommand,
@@ -31,13 +31,13 @@ import { MarketplaceInstallCommand } from "./marketplace-install-command";
  * or authorization readiness to show — those live in the runtime's own Marketplace window.
  */
 
-export function MarketplaceDetailSectionHead({
+function MarketplaceDetailSectionHead({
   id,
   icon: Icon,
   children,
 }: {
   id: string;
-  icon: typeof ShieldCheck;
+  icon: LucideIcon;
   children: string;
 }) {
   return (

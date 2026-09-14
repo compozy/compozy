@@ -6,7 +6,7 @@
 - **Persona Affected:** Bruno
 - **Journey Step:** J-marketplace-acquisition, preview a workspace-scoped extension
 - **Scenarios:** ET-web-marketplace-mcp-authorize-installed
-- **Found:** 2026-09-13 · **Report:** reports/2026-09-13-marketplace-catalog.md
+- **Found:** 2026-09-13 · **Report:** docs/qa/reports/2026-09-13-marketplace-catalog.md
 
 ## Reproduction
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/fileutil"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -71,16 +72,21 @@ func resolveManifestPath(dir string) (string, error) {
 	}
 
 	pluginPath := filepath.Join(dir, agentPluginManifestFileName)
-	status, declared, err := agentplugin.ClassifyManifest(dir)
+	document, err := agentplugin.ReadManifest(dir)
 	if err != nil {
-		return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
-	}
-	switch status {
-	case agentplugin.SchemaSupported:
-		path, _, err := agentplugin.LocateManifest(dir)
-		return path, err
-	case agentplugin.SchemaUnsupportedVersion:
-		return "", &AgentPluginSchemaUnsupportedError{Root: dir, Declared: declared}
+		_, missing := errors.AsType[*agentplugin.NotManifestError](err)
+		if !missing && !errors.Is(err, fileutil.ErrSymlink) && !errors.Is(err, fileutil.ErrDirectory) &&
+			!errors.Is(err, fileutil.ErrNotRegular) {
+			return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+		}
+	} else {
+		status, declared := document.Classify()
+		switch status {
+		case agentplugin.SchemaSupported:
+			return document.Path, nil
+		case agentplugin.SchemaUnsupportedVersion:
+			return "", &AgentPluginSchemaUnsupportedError{Root: dir, Declared: declared}
+		}
 	}
 
 	return "", &ManifestNotFoundError{

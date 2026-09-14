@@ -75,6 +75,11 @@ func (s *CatalogService) configureSources(
 	if err != nil {
 		return err
 	}
+	s.flightMu.Lock()
+	defer s.flightMu.Unlock()
+	if s.closed {
+		return ErrServiceClosed
+	}
 	configuration, err := s.store.ConfigureSources(ctx, definitions, identity)
 	if err != nil {
 		return err
@@ -93,11 +98,6 @@ func (s *CatalogService) configureSources(
 		}
 		nextSources = append(nextSources, source)
 		nextByName[binding.Config.Name] = source
-	}
-	s.flightMu.Lock()
-	defer s.flightMu.Unlock()
-	if s.closed {
-		return ErrServiceClosed
 	}
 	for _, source := range s.sources {
 		if nextByName[source.binding.Config.Name] != source && source.flight != nil {

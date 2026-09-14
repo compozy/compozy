@@ -15,9 +15,15 @@ func (h *BaseHandlers) GetSettingsMarketplace(c *gin.Context) {
 }
 
 func (h *BaseHandlers) UpdateSettingsMarketplace(c *gin.Context) {
-	var body contract.UpdateSettingsMarketplaceRequest
+	var body struct {
+		Config *contract.SettingsMarketplaceCatalogPayload `json:"config"`
+	}
 	if err := decodeStrictJSONBody(c, &body); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if body.Config == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("marketplace.config is required"))
 		return
 	}
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionMarketplace)

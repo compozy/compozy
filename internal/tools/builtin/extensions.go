@@ -275,9 +275,11 @@ func nativeExtensionDescriptorWithOutput(
 	return descriptor
 }
 
+const extensionOwnerPattern = `^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$`
+
 const extensionOwnerInputSchema = `{
  "type":"object","properties":{
-  "owner":{"type":"string","pattern":"^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$"}
+  "owner":{"type":"string","pattern":"` + extensionOwnerPattern + `"}
  },"additionalProperties":false
 }`
 
@@ -285,7 +287,7 @@ const extensionNameInputSchema = `{
 	"type":"object",
 	"required":["name"],
 	"properties":{
-		"owner":{"type":"string","pattern":"^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string"}
 	},
@@ -315,7 +317,7 @@ const extensionInstallInputSchema = `{
 const extensionUpdateInputSchema = `{
 	"type":"object",
 	"properties":{
-		"owner":{"type":"string","pattern":"^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string"},
 		"scope":{"type":"string","enum":["global","workspace"]},
@@ -389,7 +391,7 @@ const extensionReloadInputSchema = `{
 	"type":"object",
 	"required":["name","generation_hash"],
 	"properties":{
-		"owner":{"type":"string","pattern":"^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
 		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
@@ -402,7 +404,7 @@ const extensionLogsInputSchema = `{
 	"type":"object",
 	"required":["name"],
 	"properties":{
-		"owner":{"type":"string","pattern":"^extension:[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
 		"after":{"type":"integer","minimum":0,"description":"Return entries after this sequence within stream_epoch"},

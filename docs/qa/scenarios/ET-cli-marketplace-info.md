@@ -4,8 +4,8 @@ area: ET
 title: Resolve marketplace detail by stable entry identity
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `compozy marketplace info <entry_id> --source <name>` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
-entry_points: compozy marketplace info <entry_id> --source <name> -o json; GET /api/marketplace/entries/{entry_id} over HTTP and UDS
+expected: `compozy marketplace info <entry_id> [--source <name>]` returns the same typed detail as HTTP and UDS and reports deterministic 400 or 404 errors for invalid identity.
+entry_points: compozy marketplace info <entry_id> [--source <name>] -o json; GET /api/marketplace/entries/{entry_id} over HTTP and UDS
 qa_status: pass
 bug_ids: BUG-20260729-marketplace-json-parity
 fix_status: fixed

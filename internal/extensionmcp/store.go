@@ -38,10 +38,10 @@ type Record struct {
 }
 
 // Store serializes allocation with the persisted names in one scope cell.
-// occupied contains names from the effective registry, including manual definitions.
 type Store interface {
 	List(context.Context, string, string) ([]Record, error)
 	ListAll(context.Context) ([]Record, error)
+	// Reserve allocates a stable runtime name; occupied includes effective registry names and manual definitions.
 	Reserve(context.Context, Target, string, []string) (Record, error)
 	Update(context.Context, Target, Override) error
 	// DeleteTargets atomically releases the specified allocations.

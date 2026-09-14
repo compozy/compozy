@@ -96,6 +96,29 @@ func openDirectory(path string, intent openIntent) (*Directory, error) {
 	return &Directory{file: file}, nil
 }
 
+// ReopenForMutation acquires write rights only if the path still names this held directory.
+func (d *Directory) ReopenForMutation(path string) (*Directory, error) {
+	if d == nil || d.file == nil {
+		return nil, fmt.Errorf("%w: directory is closed", ErrInvalidPath)
+	}
+	original, err := d.file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("fileutil: stat held directory: %w", err)
+	}
+	writable, err := OpenDirectoryForMutation(path)
+	if err != nil {
+		return nil, err
+	}
+	current, err := writable.file.Stat()
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("fileutil: stat writable directory: %w", err), writable.Close())
+	}
+	if !os.SameFile(original, current) {
+		return nil, errors.Join(fmt.Errorf("%w: directory identity changed", ErrInvalidPath), writable.Close())
+	}
+	return writable, nil
+}
+
 // Close releases the directory handle.
 func (d *Directory) Close() error {
 	if d == nil || d.file == nil {

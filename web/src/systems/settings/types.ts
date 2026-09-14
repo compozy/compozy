@@ -205,6 +205,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsGeneral", 200>
   | OperationResponse<"updateSettingsMemory", 200>
   | OperationResponse<"updateSettingsSkills", 200>
+  | OperationResponse<"updateSettingsMarketplace", 200>
   | OperationResponse<"updateSettingsAutomation", 200>
   | OperationResponse<"updateSettingsNetwork", 200>
   | OperationResponse<"updateSettingsAttention", 200>
@@ -228,6 +229,7 @@ export type SettingsSectionName =
   | SettingsMemorySection["section"]
   | SettingsRolesSection["section"]
   | SettingsSkillsSection["section"]
+  | SettingsMarketplaceSection["section"]
   | SettingsAutomationSection["section"]
   | SettingsNetworkSection["section"]
   | SettingsAttentionSection["section"]

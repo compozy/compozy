@@ -29,6 +29,80 @@ import (
 
 func TestBootMarketplaceLifecycle(t *testing.T) {
 	t.Parallel()
+	for _, operation := range []string{"add", "disable", "remove"} {
+		t.Run("Should restore persisted and live sources after a rejected "+operation, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "marketplace.json"), []byte(`{"plugins":[]}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ref := (&url.URL{Scheme: "file", Path: root}).String()
+			feed := newMarketplaceFeedServer(t, "feed")
+			home := testHomePaths(t)
+			cfg := testConfig(t, home)
+			cfg.Marketplace.Catalog.BaseURL = feed.URL
+			cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{{Name: "team", Source: ref}}
+			original := fmt.Sprintf("# preserved config comment\n[marketplace.catalog]\nbase_url = %q\n[[marketplace.plugin_sources]]\nname = \"team\"\nsource = %q\nenabled = true\n", feed.URL, ref)
+			if err := os.WriteFile(home.ConfigFile, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			db := openDaemonTestGlobalDB(t)
+			catalog, err := marketplace.NewSQLiteStore(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime, err := newMarketplaceRuntime(t.Context(), catalog, nil, cfg.Marketplace, home, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := runtime.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := runtime.Refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			before, err := runtime.Browse(t.Context(), "", 0, 100)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().ExecContext(t.Context(), `CREATE TRIGGER reject_source_configuration BEFORE UPDATE ON marketplace_catalog_config
+				BEGIN SELECT RAISE(ABORT, 'injected source configuration failure'); END`); err != nil {
+				t.Fatal(err)
+			}
+			switch operation {
+			case "add":
+				otherRoot := t.TempDir()
+				if err := os.WriteFile(filepath.Join(otherRoot, "marketplace.json"), []byte(`{"plugins":[]}`), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				_, err = runtime.AddSource(t.Context(), (&url.URL{Scheme: "file", Path: otherRoot}).String(), "other", false)
+			case "disable":
+				_, err = runtime.UpdateSource(t.Context(), "team", false)
+			case "remove":
+				err = runtime.RemoveSource(t.Context(), "team")
+			}
+			if err == nil || !strings.Contains(err.Error(), "injected source configuration failure") {
+				t.Fatalf("mutation error = %v, want actual SQL failure", err)
+			}
+			content, err := os.ReadFile(home.ConfigFile)
+			if err != nil || string(content) != original {
+				t.Fatalf("failed mutation changed overlay: %q, %v", content, err)
+			}
+			after, err := runtime.Browse(t.Context(), "", 0, 100)
+			if err != nil || after.Revision != before.Revision || after.Total != before.Total {
+				t.Fatalf("failed mutation changed live projection: before=%#v after=%#v err=%v", before, after, err)
+			}
+			if len(runtime.config.PluginSources) != 1 || runtime.config.PluginSources[0].Name != "team" {
+				t.Fatalf("runtime source config changed: %#v", runtime.config.PluginSources)
+			}
+			state, err := runtime.sourceStatus(t.Context(), "team")
+			if err != nil || !state.Enabled {
+				t.Fatalf("source enabled state changed: %#v, %v", state, err)
+			}
+		})
+	}
 
 	// Invariant: feed presets are data, defaults overlay by origin, and the last valid set survives restart.
 	// Owner: daemon source composition and derived preset cache; canonical lifecycle suite.

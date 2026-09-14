@@ -5,6 +5,7 @@ import { StatusDot } from "../status-dot";
 
 describe("StatusDot", () => {
   it.each([
+    ["success", "solid"],
     ["warning", "solid"],
     ["danger", "solid"],
     ["warning", "ring"],

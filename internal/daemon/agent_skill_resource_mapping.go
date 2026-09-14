@@ -150,7 +150,7 @@ func appendSkillResources(
 			owner:     source.owner,
 			spec:      skillspkg.SkillToResourceSpec(skill),
 		})
-		if winnerIndexes[name] != index {
+		if winnerIndexes[name] != index || !skillspkg.SkillMCPAllowed(skill) {
 			continue
 		}
 		for _, server := range skill.MCPServers {

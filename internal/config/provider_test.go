@@ -2404,6 +2404,18 @@ func TestMarketplaceCatalogConfigValidatesDefaultsAndOverrides(t *testing.T) {
 
 func TestMarketplacePluginSourceValidation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should normalize surrounding whitespace in canonical source refs", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultMarketplaceRuntimeConfig()
+		cfg.PluginSources = []MarketplacePluginSourceConfig{
+			{Name: "github", Source: " github:team/plugins "},
+			{Name: "git", Source: " git+https://GitHub.com/Owner/Repo.git/ "},
+			{Name: "local", Source: " file:///tmp/plugins "},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("Should accept distinct names for the same normalized origin", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultMarketplaceRuntimeConfig()

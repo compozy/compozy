@@ -50,6 +50,38 @@ func ValidateMCPSecretRefAccess(ref string, target MCPSecretTarget) error {
 	return nil
 }
 
+// NormalizeMCPClientSecretRef enforces configured client-secret ownership before resolution.
+func NormalizeMCPClientSecretRef(ref string, target MCPSecretTarget) (string, error) {
+	ref = NormalizeRef(ref)
+	if err := ValidateRefNamespace(ref, "mcp"); err != nil {
+		return "", err
+	}
+	prefix, err := MCPSecretOwnerPrefix(target)
+	if err != nil {
+		return "", err
+	}
+	if IsEnvRef(ref) || ref == prefix+"oauth/client-secret" {
+		return ref, nil
+	}
+	if NormalizeMCPOwner(target.Owner) == MCPManualOwner && strings.TrimSpace(target.Scope) == MCPUserScope {
+		segment, err := MCPServerSegment(target.ServerName)
+		if err != nil {
+			return "", err
+		}
+		// Released global refs address rows migrated to user scope; unscoped client secrets retain their original key.
+		if ref == "vault:mcp/global/"+segment+"/oauth/client-secret" {
+			return prefix + "oauth/client-secret", nil
+		}
+		if ref == "vault:mcp/"+segment+"/oauth/client-secret" {
+			return ref, nil
+		}
+	}
+	if err := ValidateMCPSecretRefAccess(ref, target); err != nil {
+		return "", err
+	}
+	return ref, nil
+}
+
 // MCPDCRSecretRefs identifies the Vault locations for one MCP OAuth client registration.
 type MCPDCRSecretRefs struct {
 	ClientSecretRef            string

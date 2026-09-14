@@ -23,7 +23,15 @@ journey:
   value_statement: "Acquire and manage one extension with an explicit origin and truthful installed state."
   personas: [Ada]
   entry_points:
-    - url: compozy marketplace sources list -o json
+    - url: "compozy marketplace search [query] -o json; compozy marketplace info <entry_id> [--source <name>] -o json"
+      origin: direct
+    - url: "compozy marketplace sources list|add|remove|refresh -o json; compozy marketplace refresh -o json"
+      origin: direct
+    - url: "GET /api/marketplace; GET /api/marketplace/entries/{entry_id}; POST /api/marketplace/refresh over HTTP and UDS"
+      origin: direct
+    - url: "GET/POST /api/marketplace/sources; PATCH/DELETE /api/marketplace/sources/{name}; POST /api/marketplace/sources/{name}/refresh over HTTP and UDS"
+      origin: direct
+    - url: "compozy__marketplace_search; compozy__marketplace_sources"
       origin: direct
   actions:
     - step: 1

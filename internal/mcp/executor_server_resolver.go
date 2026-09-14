@@ -23,7 +23,7 @@ type ServerResolver interface {
 }
 
 // ServerResolverFunc adapts a function into a server resolver.
-type ServerResolverFunc func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error)
+type ServerResolverFunc func(ctx context.Context, source toolspkg.SourceRef, definitionOwner string) (ResolvedServer, error)
 
 // ResolveMCPServer returns the configured MCP server selected by source.
 func (f ServerResolverFunc) ResolveMCPServer(

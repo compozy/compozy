@@ -23,12 +23,10 @@ type managedRemovalSnapshot struct {
 	state RemovalState
 }
 
-// ManagedRemovalCommit retires durable instance state after unpublication and reversible filesystem staging.
-// Failure must leave that state unchanged. Success is the removal commit point: subsequent cleanup only warns.
+// ManagedRemovalCommit follows reversible unpublication/staging: failure preserves state; success commits removal and later cleanup only warns.
 type ManagedRemovalCommit func(context.Context) error
 
-// RemoveManagedExtension removes one installed extension and rolls back the
-// registry and on-disk state if the caller's reload hook fails.
+// RemoveManagedExtension rolls back registry and filesystem state when reloading after removal fails.
 func RemoveManagedExtension(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
