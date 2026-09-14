@@ -3714,7 +3714,8 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 			return false
 		}
 		for _, run := range runs.Runs {
-			if run.TriggerID == createdTrigger.ID && run.SessionID != "" {
+			if run.TriggerID == createdTrigger.ID && run.SessionID != "" &&
+				run.Status == automationpkg.RunCompleted {
 				return true
 			}
 		}
