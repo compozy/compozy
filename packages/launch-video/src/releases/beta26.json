@@ -1,0 +1,167 @@
+{
+    "version": "v0.3.0-beta.26",
+    "features": ["Session Context", "Marketplace"],
+    "introDuration": 3.2,
+    "shots": [
+        {
+            "name": "Open session context from composer",
+            "kind": "context-click",
+            "src": "releases/beta26/session-closed.png",
+            "secondarySrc": "releases/beta26/session-open.png",
+            "sourceStart": 0,
+            "duration": 7,
+            "transition": "push",
+            "overlap": 0.4,
+            "cursor": [
+                {
+                    "at": 0,
+                    "x": 465,
+                    "y": 660
+                },
+                {
+                    "at": 1.35,
+                    "x": 158,
+                    "y": 776,
+                    "duration": 0.85
+                },
+                {
+                    "at": 3.05,
+                    "x": 158,
+                    "y": 776,
+                    "duration": 0,
+                    "click": true
+                },
+                {
+                    "at": 5.05,
+                    "x": 1130,
+                    "y": 331,
+                    "duration": 0.95
+                },
+                {
+                    "at": 5.35,
+                    "x": 1130,
+                    "y": 331,
+                    "duration": 0,
+                    "click": true
+                },
+                {
+                    "at": 6.5,
+                    "x": 1260,
+                    "y": 431,
+                    "duration": 0.7
+                }
+            ],
+            "hoverSrc": "releases/beta26/session-tooltip.png",
+            "expandedSrc": "releases/beta26/session-expanded.png"
+        },
+        {
+            "name": "Context delivered to the agent",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 0.08,
+            "duration": 4.8,
+            "transition": "up",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Tokens cache and cost",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 5.08,
+            "duration": 4.8,
+            "transition": "left",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Browse Marketplace",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 10.12,
+            "duration": 3.8,
+            "transition": "push",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Open installed extensions",
+            "kind": "catalog-click",
+            "src": "releases/beta26/catalog.png",
+            "sourceStart": 0,
+            "duration": 2.2,
+            "transition": "push",
+            "overlap": 0.4,
+            "cursor": [
+                {
+                    "at": 0,
+                    "x": 490,
+                    "y": 330
+                },
+                {
+                    "at": 0.95,
+                    "x": 180,
+                    "y": 181,
+                    "duration": 0.75
+                },
+                {
+                    "at": 1.7,
+                    "x": 180,
+                    "y": 181,
+                    "duration": 0,
+                    "click": true
+                }
+            ]
+        },
+        {
+            "name": "Installed extensions",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 25.05,
+            "duration": 3.9,
+            "transition": "left",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Resources and runtime",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 30.05,
+            "duration": 4.5,
+            "transition": "up",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Connected marketplaces",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 36.05,
+            "duration": 4.0,
+            "transition": "left",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Search across marketplaces",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 15.05,
+            "duration": 3.85,
+            "transition": "push",
+            "overlap": 0.35,
+            "cursor": []
+        },
+        {
+            "name": "Configure an extension",
+            "kind": "video",
+            "src": "releases/beta26/ultramock-session-context.mp4",
+            "sourceStart": 20.05,
+            "duration": 3.95,
+            "transition": "fade",
+            "overlap": 0.35,
+            "cursor": []
+        }
+    ]
+}

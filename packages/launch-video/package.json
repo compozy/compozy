@@ -1,0 +1,32 @@
+{
+    "name": "@compozy/videos",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Remotion compositions for CompozyOS release and brand videos",
+    "scripts": {
+        "studio": "remotion studio",
+        "render": "remotion render",
+        "render:all": "remotion render ReleaseAnnounce out/release-announce-16x9.mp4 && remotion render ReleaseAnnounceSquare out/release-announce-1x1.mp4 && remotion render ReleaseAnnounceVertical out/release-announce-9x16.mp4",
+        "upgrade": "remotion upgrade",
+        "typecheck": "tsc --noEmit",
+        "render:release": "remotion render ReleaseFilm out/compozyos-beta26-release.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --muted",
+        "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src remotion.config.ts"
+    },
+    "dependencies": {
+        "@remotion/cli": "4.0.516",
+        "@remotion/google-fonts": "4.0.516",
+        "@remotion/media": "4.0.516",
+        "@remotion/transitions": "4.0.516",
+        "@remotion/zod-types": "4.0.516",
+        "culori": "4.0.2",
+        "react": "19.2.0",
+        "react-dom": "19.2.0",
+        "remotion": "4.0.516",
+        "zod": "4.4.3"
+    },
+    "devDependencies": {
+        "@types/culori": "4.0.1",
+        "@types/react": "19.2.0",
+        "typescript": "5.9.3"
+    }
+}

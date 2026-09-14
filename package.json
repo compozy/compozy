@@ -5,6 +5,7 @@
     "workspaces": [
         "packages/ui",
         "packages/site",
+        "packages/launch-video",
         "web",
         "desktop",
         "lint-plugins",

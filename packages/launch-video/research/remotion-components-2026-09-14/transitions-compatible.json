@@ -1,0 +1,270 @@
+{
+  "bugs": {
+    "url": "https://github.com/remotion-dev/remotion/issues"
+  },
+  "dist": {
+    "shasum": "fcc50b5bb8e1558895ecb36a9202130b7b8009a3",
+    "tarball": "https://registry.npmjs.org/@remotion/transitions/-/transitions-4.0.516.tgz",
+    "fileCount": 100,
+    "integrity": "sha512-X8CfIZJBw3cEZxJox8PRdTudpccoiVHPfPwNCn3ZWj0828x1eVWHoUA7pILQCp6m/jZ7cCVpAaE4QZwRJCIjgw==",
+    "signatures": [
+      {
+        "sig": "MEUCIAxZ5pFWR3PvQ13QZKerY0t66PcpdhlWcjqimzbJAT+0AiEAxWKZx+HrjAnCFvZJrq32kIoEkEnzvTS5yuDL5ytMcV8=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      }
+    ],
+    "unpackedSize": 395659
+  },
+  "main": "dist/esm/index.mjs",
+  "name": "@remotion/transitions",
+  "types": "dist/index.d.ts",
+  "author": "Jonny Burger",
+  "module": "dist/esm/index.js",
+  "shasum": "fcc50b5bb8e1558895ecb36a9202130b7b8009a3",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.mjs",
+      "module": "./dist/esm/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./fade": {
+      "types": "./dist/presentations/fade.d.ts",
+      "import": "./dist/esm/fade.mjs",
+      "module": "./dist/esm/fade.mjs",
+      "require": "./dist/presentations/fade.js"
+    },
+    "./flip": {
+      "types": "./dist/presentations/flip.d.ts",
+      "import": "./dist/esm/flip.mjs",
+      "module": "./dist/esm/flip.mjs",
+      "require": "./dist/presentations/flip.js"
+    },
+    "./iris": {
+      "types": "./dist/presentations/iris.d.ts",
+      "import": "./dist/esm/iris.mjs",
+      "module": "./dist/esm/iris.mjs",
+      "require": "./dist/presentations/iris.js"
+    },
+    "./none": {
+      "types": "./dist/presentations/none.d.ts",
+      "import": "./dist/esm/none.mjs",
+      "module": "./dist/esm/none.mjs",
+      "require": "./dist/presentations/none.js"
+    },
+    "./swap": {
+      "types": "./dist/presentations/swap.d.ts",
+      "import": "./dist/esm/swap.mjs",
+      "module": "./dist/esm/swap.mjs",
+      "require": "./dist/presentations/swap.js"
+    },
+    "./wipe": {
+      "types": "./dist/presentations/wipe.d.ts",
+      "import": "./dist/esm/wipe.mjs",
+      "module": "./dist/esm/wipe.mjs",
+      "require": "./dist/presentations/wipe.js"
+    },
+    "./slide": {
+      "types": "./dist/presentations/slide.d.ts",
+      "import": "./dist/esm/slide.mjs",
+      "module": "./dist/esm/slide.mjs",
+      "require": "./dist/presentations/slide.js"
+    },
+    "./ripple": {
+      "types": "./dist/presentations/ripple.d.ts",
+      "import": "./dist/esm/ripple.mjs",
+      "module": "./dist/esm/ripple.mjs",
+      "require": "./dist/presentations/ripple.js"
+    },
+    "./dissolve": {
+      "types": "./dist/presentations/dissolve.d.ts",
+      "import": "./dist/esm/dissolve.mjs",
+      "module": "./dist/esm/dissolve.mjs",
+      "require": "./dist/presentations/dissolve.js"
+    },
+    "./push-cut": {
+      "types": "./dist/presentations/push-cut.d.ts",
+      "import": "./dist/esm/push-cut.mjs",
+      "module": "./dist/esm/push-cut.mjs",
+      "require": "./dist/presentations/push-cut.js"
+    },
+    "./book-flip": {
+      "types": "./dist/presentations/book-flip.d.ts",
+      "import": "./dist/esm/book-flip.mjs",
+      "module": "./dist/esm/book-flip.mjs",
+      "require": "./dist/presentations/book-flip.js"
+    },
+    "./crosswarp": {
+      "types": "./dist/presentations/crosswarp.d.ts",
+      "import": "./dist/esm/crosswarp.mjs",
+      "module": "./dist/esm/crosswarp.mjs",
+      "require": "./dist/presentations/crosswarp.js"
+    },
+    "./film-burn": {
+      "types": "./dist/presentations/film-burn.d.ts",
+      "import": "./dist/esm/film-burn.mjs",
+      "module": "./dist/esm/film-burn.mjs",
+      "require": "./dist/presentations/film-burn.js"
+    },
+    "./zoom-blur": {
+      "types": "./dist/presentations/zoom-blur.d.ts",
+      "import": "./dist/esm/zoom-blur.mjs",
+      "module": "./dist/esm/zoom-blur.mjs",
+      "require": "./dist/presentations/zoom-blur.js"
+    },
+    "./clock-wipe": {
+      "types": "./dist/presentations/clock-wipe.d.ts",
+      "import": "./dist/esm/clock-wipe.mjs",
+      "module": "./dist/esm/clock-wipe.mjs",
+      "require": "./dist/presentations/clock-wipe.js"
+    },
+    "./cross-zoom": {
+      "types": "./dist/presentations/cross-zoom.d.ts",
+      "import": "./dist/esm/cross-zoom.mjs",
+      "module": "./dist/esm/cross-zoom.mjs",
+      "require": "./dist/presentations/cross-zoom.js"
+    },
+    "./dreamy-zoom": {
+      "types": "./dist/presentations/dreamy-zoom.d.ts",
+      "import": "./dist/esm/dreamy-zoom.mjs",
+      "module": "./dist/esm/dreamy-zoom.mjs",
+      "require": "./dist/presentations/dreamy-zoom.js"
+    },
+    "./linear-blur": {
+      "types": "./dist/presentations/linear-blur.d.ts",
+      "import": "./dist/esm/linear-blur.mjs",
+      "module": "./dist/esm/linear-blur.mjs",
+      "require": "./dist/presentations/linear-blur.js"
+    },
+    "./zoom-in-out": {
+      "types": "./dist/presentations/zoom-in-out.d.ts",
+      "import": "./dist/esm/zoom-in-out.mjs",
+      "module": "./dist/esm/zoom-in-out.mjs",
+      "require": "./dist/presentations/zoom-in-out.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "lint": "eslint src",
+    "make": "tsgo -d && bun --env-file=../.env.bundle bundle.ts",
+    "test": "bun test src",
+    "format": "oxfmt src",
+    "formatting": "oxfmt src --check"
+  },
+  "_npmUser": {
+    "name": "jonny",
+    "email": "jonathanburger11@gmail.com"
+  },
+  "homepage": "https://www.remotion.dev/transitions",
+  "keywords": [
+    "remotion",
+    "transitions"
+  ],
+  "_integrity": "sha512-X8CfIZJBw3cEZxJox8PRdTudpccoiVHPfPwNCn3ZWj0828x1eVWHoUA7pILQCp6m/jZ7cCVpAaE4QZwRJCIjgw==",
+  "repository": {
+    "url": "https://github.com/remotion-dev/remotion/tree/main/packages/transitions"
+  },
+  "_npmVersion": "10.8.3",
+  "description": "Library for creating transitions in Remotion",
+  "directories": {},
+  "maintainers": [
+    {
+      "name": "jonny",
+      "email": "jonathanburger11@gmail.com"
+    }
+  ],
+  "_nodeVersion": "24.3.0",
+  "contributors": [],
+  "dependencies": {
+    "remotion": "4.0.516",
+    "@remotion/paths": "4.0.516",
+    "@remotion/shapes": "4.0.516"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "typesVersions": {
+    ">=1.0": {
+      "fade": [
+        "dist/presentations/fade.d.ts"
+      ],
+      "flip": [
+        "dist/presentations/flip.d.ts"
+      ],
+      "iris": [
+        "dist/presentations/iris.d.ts"
+      ],
+      "none": [
+        "dist/presentations/none.d.ts"
+      ],
+      "swap": [
+        "dist/presentations/swap.d.ts"
+      ],
+      "wipe": [
+        "dist/presentations/wipe.d.ts"
+      ],
+      "slide": [
+        "dist/presentations/slide.d.ts"
+      ],
+      "ripple": [
+        "dist/presentations/ripple.d.ts"
+      ],
+      "dissolve": [
+        "dist/presentations/dissolve.d.ts"
+      ],
+      "push-cut": [
+        "dist/presentations/push-cut.d.ts"
+      ],
+      "book-flip": [
+        "dist/presentations/book-flip.d.ts"
+      ],
+      "crosswarp": [
+        "dist/presentations/crosswarp.d.ts"
+      ],
+      "film-burn": [
+        "dist/presentations/film-burn.d.ts"
+      ],
+      "zoom-blur": [
+        "dist/presentations/zoom-blur.d.ts"
+      ],
+      "clock-wipe": [
+        "dist/presentations/clock-wipe.d.ts"
+      ],
+      "cross-zoom": [
+        "dist/presentations/cross-zoom.d.ts"
+      ],
+      "dreamy-zoom": [
+        "dist/presentations/dreamy-zoom.d.ts"
+      ],
+      "linear-blur": [
+        "dist/presentations/linear-blur.d.ts"
+      ],
+      "zoom-in-out": [
+        "dist/presentations/zoom-in-out.d.ts"
+      ]
+    }
+  },
+  "_hasShrinkwrap": false,
+  "devDependencies": {
+    "react": "19.2.3",
+    "eslint": "9.19.0",
+    "remotion": "4.0.516",
+    "react-dom": "19.2.3",
+    "@remotion/player": "4.0.516",
+    "@remotion/test-utils": "4.0.516",
+    "@typescript/native-preview": "7.0.0-dev.20260217.1",
+    "@happy-dom/global-registrator": "14.5.1",
+    "@remotion/eslint-config-internal": "4.0.516"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "_npmOperationalInternal": {
+    "tmp": "tmp/transitions_4.0.516_1787552117899_0.22602019876181378",
+    "host": "s3://npm-registry-packages-npm-production"
+  },
+  "_id": "@remotion/transitions@4.0.516",
+  "version": "4.0.516"
+}

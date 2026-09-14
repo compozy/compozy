@@ -1,0 +1,10 @@
+node_modules/
+out/
+.remotion/
+*.tsbuildinfo
+
+# Local camera exports; preserve originals alongside the tracked PNGs.
+/public/**/*.mp4
+
+# Generated local mirrors of the bundled skills.
+.claude/

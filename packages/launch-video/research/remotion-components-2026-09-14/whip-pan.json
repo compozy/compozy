@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "whip-pan",
+  "title": "Whip Pan",
+  "description": "A whip-pan transition that flies both scenes through the frame in one move with velocity-based motion blur.",
+  "dependencies": [
+    "remotion",
+    "@remotion/transitions"
+  ],
+  "files": [
+    {
+      "path": "registry/remocn/whip-pan/index.tsx",
+      "content": "\"use client\";\n\nimport type {\n  TransitionPresentation,\n  TransitionPresentationComponentProps,\n} from \"@remotion/transitions\";\nimport type React from \"react\";\nimport { AbsoluteFill, Easing, interpolate } from \"remotion\";\n\nconst clampOpts = {\n  extrapolateLeft: \"clamp\" as const,\n  extrapolateRight: \"clamp\" as const,\n};\n\nexport type WhipPanProps = {\n  direction?: \"left\" | \"right\" | \"up\" | \"down\";\n  blur?: number;\n};\n\nconst WhipPanPresentation: React.FC<\n  TransitionPresentationComponentProps<WhipPanProps>\n> = ({\n  children,\n  presentationProgress,\n  presentationDirection,\n  passedProps,\n}) => {\n  const { direction = \"left\", blur = 24 } = passedProps;\n  const entering = presentationDirection === \"entering\";\n  const p = presentationProgress;\n\n  const travel = interpolate(p, [0, 1], [0, 1], {\n    ...clampOpts,\n    easing: Easing.bezier(0.7, 0, 0.2, 1),\n  });\n  const velocity = Math.sin(Math.PI * travel);\n\n  const axis: \"x\" | \"y\" =\n    direction === \"left\" || direction === \"right\" ? \"x\" : \"y\";\n  const sign = direction === \"left\" || direction === \"up\" ? -1 : 1;\n\n  const offset = entering ? (travel - 1) * 110 * sign : travel * 110 * sign;\n  const stretch = 1 + velocity * 0.12;\n\n  const translate = axis === \"x\" ? `${offset}%` : `0 ${offset}%`;\n  const smear = axis === \"x\" ? `${stretch} 1` : `1 ${stretch}`;\n\n  const style: React.CSSProperties = {\n    translate,\n    scale: smear,\n    filter: `blur(${velocity * blur}px)`,\n  };\n\n  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;\n};\n\nexport function whipPan(\n  props: WhipPanProps = {},\n): TransitionPresentation<WhipPanProps> {\n  return {\n    component: WhipPanPresentation,\n    props,\n  };\n}\n",
+      "type": "registry:component",
+      "target": "components/remocn/whip-pan.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

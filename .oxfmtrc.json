@@ -31,6 +31,8 @@
         "**/routeTree.gen.ts",
         "extensions/open-design/lint.gen.mjs",
         ".compozy/tasks/**",
-        "docs/**"
+        "docs/**",
+        "packages/launch-video/.agents/**",
+        "packages/launch-video/research/**"
     ]
 }

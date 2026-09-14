@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "push-through",
+  "title": "Push Through",
+  "description": "A dolly transition that blows the outgoing scene past the camera while the next one approaches from the depth.",
+  "dependencies": [
+    "remotion",
+    "@remotion/transitions"
+  ],
+  "files": [
+    {
+      "path": "registry/remocn/push-through/index.tsx",
+      "content": "\"use client\";\n\nimport type {\n  TransitionPresentation,\n  TransitionPresentationComponentProps,\n} from \"@remotion/transitions\";\nimport type React from \"react\";\nimport { AbsoluteFill, Easing, interpolate } from \"remotion\";\n\nconst clampOpts = {\n  extrapolateLeft: \"clamp\" as const,\n  extrapolateRight: \"clamp\" as const,\n};\n\nexport type PushThroughProps = {\n  zoom?: number;\n  blur?: number;\n};\n\nconst PushThroughPresentation: React.FC<\n  TransitionPresentationComponentProps<PushThroughProps>\n> = ({\n  children,\n  presentationProgress,\n  presentationDirection,\n  passedProps,\n}) => {\n  const { zoom = 2.4, blur = 14 } = passedProps;\n  const entering = presentationDirection === \"entering\";\n  const p = presentationProgress;\n\n  if (!entering) {\n    const exitStyle: React.CSSProperties = {\n      opacity: interpolate(p, [0.4, 0.62], [1, 0], {\n        ...clampOpts,\n        easing: Easing.bezier(0.42, 0, 0.58, 1),\n      }),\n      scale: `${interpolate(p, [0, 0.65], [1, zoom], {\n        ...clampOpts,\n        easing: Easing.in(Easing.cubic),\n      })}`,\n      filter: `blur(${interpolate(p, [0.15, 0.6], [0, blur], clampOpts)}px)`,\n    };\n    return <AbsoluteFill style={exitStyle}>{children}</AbsoluteFill>;\n  }\n\n  const childStyle: React.CSSProperties = {\n    opacity: interpolate(p, [0.3, 0.5], [0, 1], clampOpts),\n    scale: `${interpolate(p, [0.3, 0.88, 1], [0.68, 1.02, 1], {\n      ...clampOpts,\n      easing: Easing.out(Easing.cubic),\n    })}`,\n    filter: `blur(${interpolate(p, [0.3, 0.75], [blur * 0.7, 0], clampOpts)}px)`,\n  };\n\n  return <AbsoluteFill style={childStyle}>{children}</AbsoluteFill>;\n};\n\nexport function pushThrough(\n  props: PushThroughProps = {},\n): TransitionPresentation<PushThroughProps> {\n  return {\n    component: PushThroughPresentation,\n    props,\n  };\n}\n",
+      "type": "registry:component",
+      "target": "components/remocn/push-through.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

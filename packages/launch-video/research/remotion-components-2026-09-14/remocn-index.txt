@@ -1,0 +1,283 @@
+# remocn
+
+> shadcn registry of production-ready Remotion components — animations, transitions, backgrounds, and full scenes. Install with `npx shadcn add remocn/<component>`.
+
+Docs are also available as raw Markdown: append `.md` to any docs URL, or read [/llms-full.txt](https://remocn.dev/llms-full.txt) for the full corpus in a single file.
+
+Building a video? Start at [/llms-components.txt](https://remocn.dev/llms-components.txt) — every installable component in one table with its use / avoid signal, natural length, vibe and dependencies, linking to each component's full page.
+
+## Components
+- [Components](https://remocn.dev/docs/components.md): Every component in remocn, grouped by category
+
+## Ai
+- [ChatGPT](https://remocn.dev/docs/ai/chat-gpt.md): Animated ChatGPT composer that types a prompt and morphs the voice button into a send button
+- [Claude Chat](https://remocn.dev/docs/ai/claude-chat.md): Animated Claude chat input that types a prompt and morphs the waveform button into a send button
+- [Claude Code](https://remocn.dev/docs/ai/claude-code.md): Animated Claude Code CLI welcome screen that types a command into the terminal prompt
+- [AI](https://remocn.dev/docs/ai.md): Animated AI tool interfaces — chat composers and CLI welcome screens that type a prompt
+- [OpenCode](https://remocn.dev/docs/ai/opencode.md): Animated OpenCode TUI welcome screen that types a query into the input
+- [v0](https://remocn.dev/docs/ai/v0.md): Animated Vercel v0 composer that types a prompt and morphs the mic button into a send button
+
+## Compositions
+- [Ecosystem Constellation](https://remocn.dev/docs/compositions/ecosystem-constellation.md): A central product logo orbited by integration satellites with pulsing data lines
+- [Compositions](https://remocn.dev/docs/compositions.md): Full scenes built by composing primitives and UI blocks
+- [Infinite Bento Pan](https://remocn.dev/docs/compositions/infinite-bento-pan.md): A hypnotic diagonal camera glide over an oversized grid of bento cards
+- [Live Code Compilation](https://remocn.dev/docs/compositions/live-code-compilation.md): A split-screen where code is typed on the left and the right-side UI snaps to match in a single frame
+
+## Craft
+- [Anti-patterns](https://remocn.dev/docs/craft/anti-patterns.md): The dozen mistakes that recur when a video is generated, each with the fix beside it
+- [Design defaults](https://remocn.dev/docs/craft/design-defaults.md): Restraint rules for the text, chrome and cards you add yourself, plus the palette and fonts the library already uses
+- [Craft](https://remocn.dev/docs/craft.md): The house rules behind a remocn video — restraint in design, intent in motion, and the mistakes that give a generated video away
+- [Motion principles](https://remocn.dev/docs/craft/motion-principles.md): The classic animation principles reduced to the eight that matter when you assemble scenes from prebuilt blocks
+
+## Effects
+- [Confetti](https://remocn.dev/docs/effects/confetti.md): Deterministic confetti burst for Remotion — seeded particles with gravity, spin, and flutter
+- [Crumple Toss](https://remocn.dev/docs/effects/crumple-toss.md): Crushes an element into a ball of paper and throws it out of frame
+- [Cursor Gravity](https://remocn.dev/docs/effects/cursor-gravity.md): A rounded triangular cursor tugs a button out of the screen edge with pulsed elastic resistance
+- [Effects](https://remocn.dev/docs/effects.md): Reusable Remotion effect overlays for celebratory and atmospheric moments
+- [Ink Arrow](https://remocn.dev/docs/effects/ink-arrow.md): A hand-drawn arrow that draws itself from one point to another in stop-motion poses
+- [Paper Wobble](https://remocn.dev/docs/effects/paper-wobble.md): Per-pose reshoot jitter that makes any content feel hand-placed on a desk
+- [Radial Burst](https://remocn.dev/docs/effects/radial-burst.md): Sculptural ribbons twist into a tilted ring and sweep outward through layered contour echoes
+- [Scribble Circle](https://remocn.dev/docs/effects/scribble-circle.md): A brush circle that sweeps itself around a region of the frame, opening thin and closing thick
+- [Simulated Cursor](https://remocn.dev/docs/effects/simulated-cursor.md): A synthetic mouse cursor that travels between waypoints and fires a click ripple, for narrating a UI on screen
+- [TV Power Off](https://remocn.dev/docs/effects/tv-power-off.md): End a scene the way a tube does — the picture collapses into a glowing line, pinches to a phosphor dot, and the frame is left dead black
+
+## Getting Started
+- [Agent Skill](https://remocn.dev/docs/getting-started/agent-skill.md): Install the remocn agent skill with skills.sh so your AI generates better Remotion videos
+- [Installation](https://remocn.dev/docs/getting-started/installation.md): Add remocn to an existing Remotion project
+- [Introduction](https://remocn.dev/docs/getting-started/introduction.md): What remocn is and who it's for
+
+## Icons
+- [Gallery](https://remocn.dev/docs/icons/gallery.md): Browse every remocn icon, hover to play its motion, and copy the install command
+
+## Guides
+- [Changelog video](https://remocn.dev/docs/guides/changelog-video.md): A ~25-second release update for the weeks that ship several small things — same open, same pace, every release
+- [Directing your agent](https://remocn.dev/docs/guides/directing-your-agent.md): The first cut is a draft — how to get from there to the video you meant
+- [Exporting your video](https://remocn.dev/docs/guides/exporting-your-video.md): The preview in your browser is not a file yet — one prompt turns it into an mp4 you can post
+- [Feature announcement](https://remocn.dev/docs/guides/feature-announcement.md): A ~40-second release video that shows the feature working — the one we shipped remocn/ui with
+- [How a video is built](https://remocn.dev/docs/guides/how-a-video-is-built.md): Think in beats — the one mental model behind every video you'll make
+- [Guides](https://remocn.dev/docs/guides.md): Finished videos you can make yours — pick one, fill in your words, paste a prompt
+- [Launch video](https://remocn.dev/docs/guides/launch-video.md): The ~35-second launch video we made for remocn itself — with your product in it
+- [Music and sound](https://remocn.dev/docs/guides/music-and-sound.md): The recipes produce silent videos — a music bed is the cheapest upgrade that makes one feel finished
+- [One video, three formats](https://remocn.dev/docs/guides/one-video-three-formats.md): Every recipe builds a horizontal video — Reels, Shorts and TikTok want vertical, and you re-cut instead of rebuilding
+- [Product demo](https://remocn.dev/docs/guides/product-demo.md): A ~50-second video where your product is on camera doing its job — one flow, start to finish
+- [Setup](https://remocn.dev/docs/guides/setup.md): One-time setup for making videos with an AI agent — about ten minutes
+- [Showcase reel](https://remocn.dev/docs/guides/showcase-reel.md): A fast ~30-second reel where every item in a collection gets its own beat — the one we shipped the typography wave with
+- [Teaser](https://remocn.dev/docs/guides/teaser.md): The ~15-second pre-launch video — something is coming, here is its name, here is the date
+- [Words on screen](https://remocn.dev/docs/guides/words-on-screen.md): Video copy is not website copy — how to write lines people can read in two seconds
+- [Your brand](https://remocn.dev/docs/guides/your-brand.md): Hand your brand to the agent once — every video after that comes out looking like yours
+
+## Layout
+- [Backdrop](https://remocn.dev/docs/layout/backdrop.md): Full-frame fill with an optional rounded, shadowed content frame — accepts a color, gradient, image, or any React element as a live animated background
+- [Chat to Preview Layout](https://remocn.dev/docs/layout/chat-to-preview-layout.md): A two-column split where the chat column shrinks and the preview column expands, for showing an agent building something
+- [Drift](https://remocn.dev/docs/layout/drift.md): Wrap any scene in a slow camera push-in so no frame is ever static
+- [Layout](https://remocn.dev/docs/layout.md): Scene framing and fill components for Remotion compositions
+- [Stage](https://remocn.dev/docs/layout/stage.md): Put a screenshot, recording, or long page on a perspective studio plane and direct the camera across it with timeline keyframes
+
+## Social
+- [GitHub Sponsors](https://remocn.dev/docs/social/github-sponsors.md): Animated GitHub Sponsors lockup — a self-drawing heart that docks to a header, every sponsor avatar blur-staggering into a grid, then a thank-you headline and a CTA
+- [GitHub Stars](https://remocn.dev/docs/social/github-stars.md): Stargazer list fly-through with a synced odometer counter — renders standalone from sample data or accepts live stargazer props
+- [Social](https://remocn.dev/docs/social.md): Remotion compositions for sharing milestones and social proof
+- [Logo Enter](https://remocn.dev/docs/social/logo-enter.md): A stacked group of round brand chips that spring in one-by-one, then hold
+- [X Follow Card](https://remocn.dev/docs/social/x-follow-card.md): Animated X profile follow card with spring bounce-in, staggered blur-in, and cursor-driven Follow transition
+- [X Followers Overview](https://remocn.dev/docs/social/x-followers-overview.md): X follow notifications flip through in 3D, then the total follower count blurs in
+
+## Templates
+- [Brand Guidelines](https://remocn.dev/docs/templates/brand-guidelines.md): A complete editorial identity film with a color palette, kinetic typography, original object photography, and a geometric brand mark
+- [Order Flow](https://remocn.dev/docs/templates/fomo-limit-orders.md): An independent trading-interface demo with fictional data, amber controls, and precise camera choreography
+- [Product Showcase](https://remocn.dev/docs/templates/launch-anything.md): An editorial product film with forest-green accents, original photography, and seven editable demos
+- [Release Teaser](https://remocn.dev/docs/templates/release-teaser.md): A cinematic release announcement with quiet kinetic typography, a dimensional open-ring mark, and moving edge light
+- [Workflow Console](https://remocn.dev/docs/templates/workflow-console.md): An independent release-automation film with typed commands, environment diagrams, and pipeline metrics
+
+## Ui
+- [Concepts](https://remocn.dev/docs/ui/concepts.md): The mental model behind remocn-ui primitives — atoms, timeline hooks, theming, and core exports
+- [Introduction](https://remocn.dev/docs/ui.md): shadcn-style primitives scripted on the Remotion timeline
+- [Installation](https://remocn.dev/docs/ui/installation.md): Add remocn-ui primitives to an existing Remotion project via the shadcn CLI
+- [AI Prompt Flow](https://remocn.dev/docs/ui/blocks/ai-prompt-flow.md): A full prompt-to-answer scene — the prompt types itself, the button runs to loading, a skeleton reveals, and the answer crossfades in
+- [Chat Flow](https://remocn.dev/docs/ui/blocks/chat-flow.md): A messaging conversation that types outgoing messages, shows typing indicators, and pops in incoming replies with reactions
+- [CheckoutFlow](https://remocn.dev/docs/ui/blocks/checkout-flow.md): A cursor-driven checkout card with a pricing toggle, card input, terms checkbox, and payment confirmation
+- [iMessage Chat Flow](https://remocn.dev/docs/ui/blocks/imessage-chat-flow.md): iMessage-styled conversation with gray incoming and blue outgoing bubbles, typing indicator, Delivered label, and tapback reactions
+- [Blocks](https://remocn.dev/docs/ui/blocks.md): Full video scenes assembled from remocn-ui primitives
+- [Onboarding Stepper Flow](https://remocn.dev/docs/ui/blocks/onboarding-stepper-flow.md): A multi-step onboarding scene where a stepper advances through form panels and finishes on a success state
+- [SettingsToggleFlow](https://remocn.dev/docs/ui/blocks/settings-toggle-flow.md): Two-column settings card with a blur-in entrance and a cursor-driven switch, select, slider, and save
+- [SignupFlow](https://remocn.dev/docs/ui/blocks/signup-flow.md): A cursor-driven signup card — labeled fields fill top-to-bottom, then submit with success feedback
+- [Telegram Chat Flow](https://remocn.dev/docs/ui/blocks/telegram-chat-flow.md): Telegram-styled conversation with tailed bubbles, delivery checks, typing status, and reaction chips
+- [Accordion](https://remocn.dev/docs/ui/components/accordion.md): An accordion panel whose open/closed state is a pure function of the timeline
+- [AlertDialog](https://remocn.dev/docs/ui/components/alert-dialog.md): A modal alert dialog whose opened/closed state is a pure function of the timeline
+- [Blur In](https://remocn.dev/docs/ui/components/blur-in.md): A wrapper that reveals a single child with blur, opacity, and a directional offset
+- [Button](https://remocn.dev/docs/ui/components/button.md): A button whose visual state is a pure function of the timeline
+- [Caret](https://remocn.dev/docs/ui/components/caret.md): A blinking text caret — a pure motion atom or a fully controlled bar
+- [Checkbox](https://remocn.dev/docs/ui/components/checkbox.md): A checkbox whose checked/unchecked state is a pure function of the timeline
+- [Combobox](https://remocn.dev/docs/ui/components/combobox.md): A searchable select with a typed-query input, filtered panel, and row selection
+- [Command Menu](https://remocn.dev/docs/ui/components/command-menu.md): A keyboard-driven command palette with backdrop, typing animation, and row selection
+- [Context Menu](https://remocn.dev/docs/ui/components/context-menu.md): A right-click menu panel that opens at the cursor point with no built-in trigger
+- [Cursor](https://remocn.dev/docs/ui/components/cursor.md): An animated cursor that follows a scripted path with click ripple and press effects
+- [Dialog](https://remocn.dev/docs/ui/components/dialog.md): A modal dialog whose opened/closed state is a pure function of the timeline
+- [Drawer](https://remocn.dev/docs/ui/components/drawer.md): A bottom panel whose opened/closed state is a pure function of the timeline
+- [DropdownMenu](https://remocn.dev/docs/ui/components/dropdown-menu.md): A dropdown menu container with opened/closed states and action rows
+- [Field](https://remocn.dev/docs/ui/components/field.md): A static layout family for composing labeled form controls with consistent vertical spacing
+- [Input](https://remocn.dev/docs/ui/components/input.md): An input field whose visual state is a pure function of the timeline
+- [Message Bubble](https://remocn.dev/docs/ui/components/message-bubble.md): A state-driven speech bubble with incoming and outgoing variants and an optional reaction badge
+- [Popover](https://remocn.dev/docs/ui/components/popover.md): A floating card that appears beside an anchor with arbitrary content
+- [Progress](https://remocn.dev/docs/ui/components/progress.md): A progress bar that fills along a scripted numeric value timeline
+- [Radio](https://remocn.dev/docs/ui/components/radio.md): A radio whose checked/unchecked state is a pure function of the timeline
+- [Resizable](https://remocn.dev/docs/ui/components/resizable.md): A two-panel split container whose divider ratio and handle state are driven by a scripted dual-channel timeline
+- [Select Menu](https://remocn.dev/docs/ui/components/select-menu.md): A vertical option list whose highlight slides between selections on the timeline
+- [Select](https://remocn.dev/docs/ui/components/select.md): A dropdown select container with opened/closed states and item panel
+- [Sheet](https://remocn.dev/docs/ui/components/sheet.md): A side panel whose opened/closed state is a pure function of the timeline
+- [Skeleton Block](https://remocn.dev/docs/ui/components/skeleton-block.md): A single shimmer placeholder rectangle whose highlight sweep is a pure function of the frame
+- [Skeleton](https://remocn.dev/docs/ui/components/skeleton.md): A shimmer placeholder that crossfades to real content when loaded
+- [Slider](https://remocn.dev/docs/ui/components/slider.md): A range slider with a draggable thumb driven by a scripted value and thumb-state timeline
+- [Spinner](https://remocn.dev/docs/ui/components/spinner.md): A deterministic spinning arc — pure function of the Remotion frame
+- [Stepper](https://remocn.dev/docs/ui/components/stepper.md): A multi-step progress indicator that advances along a scripted numeric position timeline
+- [Switch](https://remocn.dev/docs/ui/components/switch.md): A switch whose checked/unchecked state is a pure function of the timeline
+- [Tabs](https://remocn.dev/docs/ui/components/tabs.md): A tabs widget whose active-tab state is a pure function of the timeline
+- [Toast](https://remocn.dev/docs/ui/components/toast.md): A notification that slides in from below, holds, then auto-dismisses
+- [Toggle Group](https://remocn.dev/docs/ui/components/toggle-group.md): A segmented control whose active value slides a thumb indicator between segments
+- [Tooltip](https://remocn.dev/docs/ui/components/tooltip.md): A small floating label that appears above an anchor on hover
+- [Typing Indicator](https://remocn.dev/docs/ui/components/typing-indicator.md): A motion atom that renders N bouncing dots driven directly by useCurrentFrame
+
+## Ui Blocks
+- [Animated Bar Chart](https://remocn.dev/docs/ui-blocks/animated-bar-chart.md): Bars spring up from the baseline with a staggered cascade
+- [Animated Line Chart](https://remocn.dev/docs/ui-blocks/animated-line-chart.md): A line chart whose path draws on from left to right
+- [Check List](https://remocn.dev/docs/ui-blocks/check-list.md): A handwritten checklist that writes itself out, then ticks and strikes through every done item
+- [Glass Code Block](https://remocn.dev/docs/ui-blocks/glass-code-block.md): A premium frosted-glass code editor window with a regex tokenizer and line-by-line stagger reveal
+- [Glass Code Walk](https://remocn.dev/docs/ui-blocks/glass-code-walk.md): A camera that scans a glass code block top to bottom as it types, then pulls back to a centered hold
+- [UI Blocks](https://remocn.dev/docs/ui-blocks.md): Pre-assembled interface elements like code editors, layouts, charts, and workflow visualizations
+- [Paper Sticker](https://remocn.dev/docs/ui-blocks/paper-sticker.md): A taped paper chip that slaps onto the scene over two stop-motion poses
+- [Polaroid](https://remocn.dev/docs/ui-blocks/polaroid.md): An instant-photo frame with a handwritten caption for video, images, or live compositions
+- [Reel](https://remocn.dev/docs/ui-blocks/reel.md): A fixed centered card where images stack on the z-axis and each blooms open over the last
+- [Search Reveal](https://remocn.dev/docs/ui-blocks/search-reveal.md): Construction circles expand into a search field, type your product name, and reveal an abstract graphic panel
+- [Terminal Cursor Zoom](https://remocn.dev/docs/ui-blocks/terminal-cursor-zoom.md): Camera locked to the typing cursor, dollying across a terminal as a command types at high zoom
+- [Terminal Simulator](https://remocn.dev/docs/ui-blocks/terminal-simulator.md): A console window that types out commands and rolls older lines off the top
+
+## Transitions
+- [ASCII Dissolve](https://remocn.dev/docs/transitions/ascii-dissolve.md): Dissolve one scene into the next through a drifting field of ASCII glyphs
+- [Caret Wipe](https://remocn.dev/docs/transitions/caret-wipe.md): Sweep a typing caret across the frame, wiping the outgoing scene into the next
+- [Displacement](https://remocn.dev/docs/transitions/displacement.md): Shear the frame into a grid of offset colour-fringed tiles under film grain and let them settle back on the next scene
+- [Dither Dissolve](https://remocn.dev/docs/transitions/dither-dissolve.md): Dissolve one scene into the next through a drifting field of dither pixels
+- [Ember Burn](https://remocn.dev/docs/transitions/ember-burn.md): Set the outgoing frame on fire so it boils, chars, and blows away as sparks that carry its own colour
+- [Focus Pull](https://remocn.dev/docs/transitions/focus-pull.md): Rack focus from one scene to the next through a soft defocus breath
+- [Glitch Cut](https://remocn.dev/docs/transitions/glitch-cut.md): Tear a hard cut into displaced slices with channel split and corrupted blocks
+- [Grain Dissolve](https://remocn.dev/docs/transitions/grain-dissolve.md): Disintegrate the outgoing scene into soft grainy shapes and condense the next scene out of the noise
+- [Grid Wave](https://remocn.dev/docs/transitions/grid-wave.md): Send a wave across the frame that raises the picture into a grid of solid blocks and sets them back down carrying the next scene
+- [Icon Scatter](https://remocn.dev/docs/transitions/icon-scatter.md): Scatter a field of icons over the cut, hiding the scene swap at the field's peak
+- [Transitions](https://remocn.dev/docs/transitions.md): Scene transitions built as presentations for TransitionSeries
+- [Lens Zoom](https://remocn.dev/docs/transitions/lens-zoom.md): A hard cut disguised as a lens punch-in — barrel distortion, zoom blur, chromatic split and camera shake around the splice
+- [Page Turn](https://remocn.dev/docs/transitions/page-turn.md): The exiting scene swings up and away like a notebook page in stop-motion poses
+- [Particle Dissolve](https://remocn.dev/docs/transitions/particle-dissolve.md): Grind the frame into drifting grey dust and let the next scene coalesce back out of it
+- [Perlin Dissolve](https://remocn.dev/docs/transitions/perlin-dissolve.md): Sweep a perlin-noise threshold across the frame to dissolve into the next scene
+- [Push Through](https://remocn.dev/docs/transitions/push-through.md): Dolly through the outgoing scene while the next one approaches from the depth
+- [Ripple Zoom](https://remocn.dev/docs/transitions/ripple-zoom.md): Fly the camera through the center of grainy ripple rings while the next scene approaches from the depth
+- [Shader Seam](https://remocn.dev/docs/transitions/shader-seam.md): Reveal an OpenShaders material, then dissolve it in place to uncover the next scene
+- [Shader Spiral Pass](https://remocn.dev/docs/transitions/shader-spiral-pass.md): Fly into the hero spiral and emerge through its soft center into the next scene
+- [Slide Swap](https://remocn.dev/docs/transitions/slide-swap.md): Shove one scene off the canvas and spring the next in from the opposite edge
+- [Smoke Dissolve](https://remocn.dev/docs/transitions/smoke-dissolve.md): Expand a smoke ring outward across the frame to reveal the next scene
+- [Spring Settle](https://remocn.dev/docs/transitions/spring-settle.md): Shrink a scene away as one group, hold the stage empty for a beat, then land the next one from above
+- [Swirl Dissolve](https://remocn.dev/docs/transitions/swirl-dissolve.md): Unwind a swirl shader open and wind it shut to reveal the next scene
+- [Warp Dissolve](https://remocn.dev/docs/transitions/warp-dissolve.md): Melt the outgoing scene into a folding domain-warp field that straightens back out into the next scene
+- [Wave Wipe](https://remocn.dev/docs/transitions/wave-wipe.md): Sweep a grainy wave up across the frame, covering the outgoing scene and revealing the next one from below
+- [Whip Pan](https://remocn.dev/docs/transitions/whip-pan.md): Whip the camera sideways with motion blur so both scenes fly through the frame in one move
+- [Zoom Blur](https://remocn.dev/docs/transitions/zoom-blur.md): Push the outgoing scene through the viewer while the incoming one resolves out of blur
+
+## Typography
+- [Blur Out Up](https://remocn.dev/docs/typography/blur-out-up.md): Words arrive clean and depart upward with increasing blur for airy exits
+- [Bottom-Up Letters](https://remocn.dev/docs/typography/bottom-up-letters.md): Letters rise from below in a pronounced staircase, one symbol at a time
+- [Caret Swap](https://remocn.dev/docs/typography/caret-swap.md): A gradient caret expands into a block that consumes the first text, then types the second
+- [Centered Word Build](https://remocn.dev/docs/typography/centered-word-build.md): Words appear sharply from below while the centered phrase pushes closer on every beat
+- [Chromatic Wave](https://remocn.dev/docs/typography/chromatic-wave.md): A soft wave travels down through the type; where it crosses, the letters ripple and split into RGB fringes, then settle back to white
+- [Extrude Pop](https://remocn.dev/docs/typography/extrude-pop.md): A flat word pops up out of the plane on a solid colored 3D body, no camera involved
+- [Fade Through](https://remocn.dev/docs/typography/fade-through.md): Old text fades out as new fades in with a soft delay, Material-style
+- [Focus Blur Resolve](https://remocn.dev/docs/typography/focus-blur-resolve.md): A premium focus pull from heavy blur to crisp text, then a soft blur-out exit
+- [Fog Rise](https://remocn.dev/docs/typography/fog-rise.md): Display text resolves out of fog center-out, sharpening from heavy blur with vertical streaks
+- [Gooey Morph](https://remocn.dev/docs/typography/gooey-morph.md): Bars fly in Tetris-style, land as a row, and melt into a word through a gooey blur-and-threshold morph
+- [Gradient Scale Cut Text](https://remocn.dev/docs/typography/gradient-scale-cut-text.md): An oversized gradient reveal snaps to a compact blurred line that settles into focus
+- [Hand Count](https://remocn.dev/docs/typography/hand-count.md): A number that counts up in stop-motion poses, rewritten by hand at every pose
+- [Handwrite](https://remocn.dev/docs/typography/handwrite.md): Handwritten text laid down letter by letter on a quantized stop-motion clock
+- [Typography](https://remocn.dev/docs/typography.md): Text effects, reveals, and kinetic type for Remotion
+- [Infinite Marquee](https://remocn.dev/docs/typography/infinite-marquee.md): A continuously scrolling horizontal text strip that loops seamlessly
+- [Ink Underline](https://remocn.dev/docs/typography/ink-underline.md): A hand-dragged ink stroke that draws itself across in a few stop-motion poses
+- [Inline Highlight](https://remocn.dev/docs/typography/inline-highlight.md): Animate one word inside a sentence from a base color to a brand color
+- [Inline Pill Takeover](https://remocn.dev/docs/typography/inline-pill-takeover.md): A clipped pill expands inside a sentence, pushes the words apart, and takes over the frame
+- [Inline Word Roll](https://remocn.dev/docs/typography/inline-word-roll.md): Switch words beside a fixed prefix with an accelerating vertical roll
+- [Kinetic Center Build](https://remocn.dev/docs/typography/kinetic-center-build.md): Words enter from the right and push the line until the full phrase locks centered
+- [Kinetic Morph Text](https://remocn.dev/docs/typography/kinetic-morph-text.md): Letters lift, rotate, and reshape into the next phrase with delicate outline trails
+- [Kinetic Warp](https://remocn.dev/docs/typography/kinetic-warp.md): A coarse mesh warp bends a whole word in staccato beats, one axis moving per keyframe
+- [Line-by-Line Slide](https://remocn.dev/docs/typography/line-by-line-slide.md): Each line slides in from the left with a staggered flow then exits to the right
+- [Marker Highlight](https://remocn.dev/docs/typography/marker-highlight.md): A colored marker block draws behind a phrase while the text color shifts
+- [Mask Reveal Up](https://remocn.dev/docs/typography/mask-reveal-up.md): Lines reveal upward with a soft masked feel and compact stagger
+- [Matrix Decode](https://remocn.dev/docs/typography/matrix-decode.md): Random scramble resolves left-to-right into target text
+- [Micro Scale Fade](https://remocn.dev/docs/typography/micro-scale-fade.md): A calm, tiny scale pop for subtle premium polish on labels and headings
+- [Number Wheel](https://remocn.dev/docs/typography/number-wheel.md): Odometer that rolls a number from one value to another with direction inferred from the values
+- [Outline Fill Track Text](https://remocn.dev/docs/typography/outline-fill-track-text.md): A rising lead word gives way to an outlined value that fills as one continuous track moves left
+- [Per Character Rise](https://remocn.dev/docs/typography/per-character-rise.md): Letters slide up from below with no blur - crisp and kinetic
+- [Per-Word Crossfade](https://remocn.dev/docs/typography/per-word-crossfade.md): One phrase fades out as the next fades in, word by word
+- [Perspective Marquee](https://remocn.dev/docs/typography/perspective-marquee.md): A 3D-tilted infinite marquee with depth-of-field blur on items rolling toward the horizon
+- [Perspective Squeeze](https://remocn.dev/docs/typography/perspective-squeeze.md): Two lines of heavy type endlessly trade height while corner-pinned perspective bends the flat stack into receding planes
+- [RGB Glitch Text](https://remocn.dev/docs/typography/rgb-glitch-text.md): Three RGB-offset text copies jitter for a few frames to create a chromatic aberration glitch
+- [Rolling Number](https://remocn.dev/docs/typography/rolling-number.md): Odometer where every place rolls at its own speed, new places rising into view, settling exactly on the target value
+- [Rolodex Flip](https://remocn.dev/docs/typography/rolodex-flip.md): Cycle a word through a list of values with a 3D rolodex card flip
+- [Rush Type](https://remocn.dev/docs/typography/rush-type.md): White words blast into vertical RGB shutter trails generated entirely by motion
+- [Scale Down Fade](https://remocn.dev/docs/typography/scale-down-fade.md): Subtle premium settle-in with a restrained scale-down fade on exit
+- [Shader Text Reveal](https://remocn.dev/docs/typography/shader-text-reveal.md): Reveal words through the original OpenShaders hero material, then settle into white type
+- [Shadow Sweep Text](https://remocn.dev/docs/typography/shadow-sweep-text.md): A rising line is uncovered and removed by two dense dark shadow sweeps
+- [Shared Axis Y](https://remocn.dev/docs/typography/shared-axis-y.md): Per-word hard-cut staircase transition for sharp editorial phrase swaps
+- [Shared Axis Z](https://remocn.dev/docs/typography/shared-axis-z.md): Scale-based shared-axis transition for focus shifts and context depth
+- [Sheen Slide In](https://remocn.dev/docs/typography/sheen-slide-in.md): A title glides in from the right with a long settle while a gradient sheen sweeps through the glyphs
+- [Shimmer Sweep](https://remocn.dev/docs/typography/shimmer-sweep.md): A bright shine travels across muted text to draw attention
+- [Short Slide Down](https://remocn.dev/docs/typography/short-slide-down.md): Words drop in from above and stack into a centered multi-line composition
+- [Short Slide Right](https://remocn.dev/docs/typography/short-slide-right.md): The whole phrase glides in from the left while words reveal in sequence through opacity
+- [Slot Machine Roll](https://remocn.dev/docs/typography/slot-machine-roll.md): Vertical reel scrolls each character from an old value to a new value
+- [Soft Blur In](https://remocn.dev/docs/typography/soft-blur-in.md): Per-character fade-in with a gentle blur and upward motion
+- [Spring Scale In](https://remocn.dev/docs/typography/spring-scale-in.md): Words pop in with a soft overshoot scale, like a spring settling into place
+- [Squeeze In](https://remocn.dev/docs/typography/squeeze-in.md): Characters appear one by one, then the whole word squeezes as the last one lands
+- [Staggered Fade Up](https://remocn.dev/docs/typography/staggered-fade-up.md): Words slide up and fade in sequentially with a wave-like cascade
+- [Stretch In](https://remocn.dev/docs/typography/stretch-in.md): Letters fly in from off-canvas and smear horizontally on the way — a vertex-lag deformation, not a scale
+- [Strikethrough Replace](https://remocn.dev/docs/typography/strikethrough-replace.md): Draws a strike line through the old text, then fades the new text in beneath it for an editorial correction
+- [Top-Down Letters](https://remocn.dev/docs/typography/top-down-letters.md): Letters descend from above in a pronounced staircase, one symbol at a time
+- [Tracking In](https://remocn.dev/docs/typography/tracking-in.md): Letter-spacing collapses and blur clears with a springy entrance
+- [Type Fossil](https://remocn.dev/docs/typography/type-fossil.md): A readable word carries layers of fine contours, revises itself, then compresses into a clean typographic imprint
+- [Typed Split Wipe](https://remocn.dev/docs/typography/typed-split-wipe.md): A centered cursorless type build exits through opposing fixed-layout glyph wipes
+- [Typewriter](https://remocn.dev/docs/typography/typewriter.md): Character-by-character text reveal with a deterministic blinking cursor
+- [Value Swap](https://remocn.dev/docs/typography/value-swap.md): Swap a value in place with a vertical slide so the layout never shifts
+- [Word Push](https://remocn.dev/docs/typography/word-push.md): Words drive in from the right and push the line left into its new center
+- [Word Stream](https://remocn.dev/docs/typography/word-stream.md): Voiceover-paced phrases building word by word while the line drifts left
+- [Zoom Words](https://remocn.dev/docs/typography/zoom-words.md): Huge words fade into a long line while the camera rides the write head
+
+## Filters
+- [ASCII Render](https://remocn.dev/docs/filters/components/ascii-render.md): Redraw a live scene as ASCII, one character per cell, tracking the picture as it moves
+- [Camera Lens](https://remocn.dev/docs/filters/components/camera-lens.md): Put a scene behind real glass — resolution falling toward the corners, blooming highlights, edge fringing
+- [CRT Screen](https://remocn.dev/docs/filters/components/crt-screen.md): Put a scene behind curved glass — barrel distortion, phosphor mask, scanlines and a falling-away rim
+- [Halftone Print](https://remocn.dev/docs/filters/components/halftone-print.md): Print a scene onto paper — rotated dot screens per colour, slightly out of register
+- [Hologram](https://remocn.dev/docs/filters/components/hologram.md): Play a scene as a projection — ghost double, emission lines, only the bright parts carrying
+- [Pixelate Region](https://remocn.dev/docs/filters/components/pixelate-region.md): Cover rectangles of a scene with an opaque mosaic and leave the rest untouched
+- [Security Cam](https://remocn.dev/docs/filters/components/security-cam.md): Run a scene through a cheap recorder — macroblocks, collapsed colour, crushed blacks, crawling noise
+- [Sustained Glitch](https://remocn.dev/docs/filters/components/sustained-glitch.md): Hold a scene under scheduled bursts of broadcast corruption, resting clean in between
+- [Underwater Ripple](https://remocn.dev/docs/filters/components/underwater-ripple.md): Hold a scene under moving water — layered refraction that closes on a whole number of cycles
+- [VHS Filter](https://remocn.dev/docs/filters/components/vhs-filter.md): Hold a scene under analog tape — chroma bleed, tape wobble, a head-switch tear and luma noise
+- [Introduction](https://remocn.dev/docs/filters/getting-started/introduction.md): Pixel-level treatments you hold over a whole scene, built on the experimental html-in-canvas browser API
+
+## Shaders
+- [Introduction](https://remocn.dev/docs/shaders/getting-started/introduction.md): WebGL shader backdrops wrapped for Remotion and driven per-frame for deterministic renders
+- [Caustics](https://remocn.dev/docs/shaders/components/shader-caustics.md): A field of refracted light — the bright filaments light makes through a rippling surface
+- [Color Panels](https://remocn.dev/docs/shaders/components/shader-color-panels.md): Overlapping translucent color panels sliding past each other
+- [Dithering](https://remocn.dev/docs/shaders/components/shader-dithering.md): Ordered-dither shading over an animated gradient field
+- [Dot Orbit](https://remocn.dev/docs/shaders/components/shader-dot-orbit.md): Dots orbiting on concentric paths across the frame
+- [Gem Smoke](https://remocn.dev/docs/shaders/components/shader-gem-smoke.md): Animated color fields flowing behind and inside a glassy logo silhouette
+- [God Rays](https://remocn.dev/docs/shaders/components/shader-god-rays.md): Volumetric light rays radiating from an off-screen source
+- [Grain Gradient](https://remocn.dev/docs/shaders/components/shader-grain-gradient.md): Grainy multi-stop gradient that drifts slowly with film-grain texture over the blend
+- [Light Tunnel](https://remocn.dev/docs/shaders/components/shader-light-tunnel.md): Fly straight through the original OpenShaders hero field mapped into a light tunnel
+- [Liquid Metal](https://remocn.dev/docs/shaders/components/shader-liquid-metal.md): Molten metallic surface with flowing specular highlights
+- [Mesh Gradient](https://remocn.dev/docs/shaders/components/shader-mesh-gradient.md): WebGL mesh gradient backdrop driven per-frame for deterministic Remotion renders
+- [Metaballs](https://remocn.dev/docs/shaders/components/shader-metaballs.md): Organic blobs merging and splitting like lava
+- [Neuro Noise](https://remocn.dev/docs/shaders/components/shader-neuro-noise.md): Organic neural-web noise field that slowly morphs
+- [Perlin Noise](https://remocn.dev/docs/shaders/components/shader-perlin-noise.md): Classic Perlin noise clouds drifting across the frame
+- [Pulsing Border](https://remocn.dev/docs/shaders/components/shader-pulsing-border.md): Glowing border frame that pulses around the edges
+- [Simplex Noise](https://remocn.dev/docs/shaders/components/shader-simplex-noise.md): Simplex noise flow field, smoother than Perlin
+- [Smoke Ring](https://remocn.dev/docs/shaders/components/shader-smoke-ring.md): Soft smoke ring curling and dissipating in place
+- [Spiral](https://remocn.dev/docs/shaders/components/shader-spiral.md): Rotating spiral arms radiating from the center
+- [Strata](https://remocn.dev/docs/shaders/components/shader-strata.md): Fine horizontal sediment layers displaced by fbm noise, each drifting at its own depth
+- [Swirl](https://remocn.dev/docs/shaders/components/shader-swirl.md): Concentric bands swirling around a center point
+- [Voronoi](https://remocn.dev/docs/shaders/components/shader-voronoi.md): Animated Voronoi cells shifting and re-tessellating
+- [Warp](https://remocn.dev/docs/shaders/components/shader-warp.md): Domain-warped color field that folds and stretches like liquid
+- [Water](https://remocn.dev/docs/shaders/components/shader-water.md): Caustic water-surface ripples with subtle refraction
+- [Weave](https://remocn.dev/docs/shaders/components/shader-weave.md): A woven substrate of warp and weft threads crossing on a domain-warped grid

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "focus-pull",
+  "title": "Focus Pull",
+  "description": "A rack-focus transition that defocuses the outgoing scene into a bright blur and resolves the next one into focus.",
+  "dependencies": [
+    "remotion",
+    "@remotion/transitions"
+  ],
+  "files": [
+    {
+      "path": "registry/remocn/focus-pull/index.tsx",
+      "content": "\"use client\";\n\nimport type {\n  TransitionPresentation,\n  TransitionPresentationComponentProps,\n} from \"@remotion/transitions\";\nimport type React from \"react\";\nimport { AbsoluteFill, Easing, interpolate } from \"remotion\";\n\nconst clampOpts = {\n  extrapolateLeft: \"clamp\" as const,\n  extrapolateRight: \"clamp\" as const,\n};\n\nexport type FocusPullProps = {\n  blur?: number;\n};\n\nconst FocusPullPresentation: React.FC<\n  TransitionPresentationComponentProps<FocusPullProps>\n> = ({\n  children,\n  presentationProgress,\n  presentationDirection,\n  passedProps,\n}) => {\n  const { blur = 16 } = passedProps;\n  const entering = presentationDirection === \"entering\";\n  const p = presentationProgress;\n\n  if (!entering) {\n    const exitStyle: React.CSSProperties = {\n      opacity: interpolate(p, [0.42, 0.68], [1, 0], {\n        ...clampOpts,\n        easing: Easing.bezier(0.42, 0, 0.58, 1),\n      }),\n      scale: `${interpolate(p, [0, 0.6], [1, 1.05], {\n        ...clampOpts,\n        easing: Easing.bezier(0.42, 0, 0.58, 1),\n      })}`,\n      filter: `blur(${interpolate(p, [0.05, 0.55], [0, blur], {\n        ...clampOpts,\n        easing: Easing.in(Easing.quad),\n      })}px) brightness(${interpolate(p, [0.1, 0.55], [1, 1.3], clampOpts)})`,\n    };\n    return <AbsoluteFill style={exitStyle}>{children}</AbsoluteFill>;\n  }\n\n  const childStyle: React.CSSProperties = {\n    opacity: interpolate(p, [0.32, 0.52], [0, 1], clampOpts),\n    scale: `${interpolate(p, [0.35, 1], [0.97, 1], {\n      ...clampOpts,\n      easing: Easing.out(Easing.cubic),\n    })}`,\n    filter: `blur(${interpolate(p, [0.35, 0.9], [blur, 0], {\n      ...clampOpts,\n      easing: Easing.out(Easing.quad),\n    })}px) brightness(${interpolate(p, [0.4, 0.85], [1.25, 1], clampOpts)})`,\n  };\n\n  return <AbsoluteFill style={childStyle}>{children}</AbsoluteFill>;\n};\n\nexport function focusPull(\n  props: FocusPullProps = {},\n): TransitionPresentation<FocusPullProps> {\n  return {\n    component: FocusPullPresentation,\n    props,\n  };\n}\n",
+      "type": "registry:component",
+      "target": "components/remocn/focus-pull.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

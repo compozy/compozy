@@ -157,6 +157,22 @@
         "test": {
             "dependsOn": ["//#codegen-check", "transit"],
             "outputs": []
+        },
+        "@compozy/videos#typecheck": {
+            "dependsOn": [],
+            "outputs": []
+        },
+        "@compozy/videos#studio": {
+            "cache": false,
+            "persistent": true
+        },
+        "@compozy/videos#render:release": {
+            "cache": false,
+            "outputs": ["out/**"]
+        },
+        "@compozy/videos#render:all": {
+            "cache": false,
+            "outputs": ["out/**"]
         }
     }
 }

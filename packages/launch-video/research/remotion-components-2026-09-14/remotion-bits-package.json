@@ -1,0 +1,122 @@
+{
+  "bin": {
+    "remotion-bits": "dist/bin/remotion-bits.js"
+  },
+  "dist": {
+    "shasum": "9e97f343d171d280dacb2bc015236f318bf30316",
+    "tarball": "https://registry.npmjs.org/remotion-bits/-/remotion-bits-0.2.0.tgz",
+    "fileCount": 290,
+    "integrity": "sha512-PZeKuI08Omr8KDSjJulmh+yKBF+2Ps2Q8dhlsxlrCRzkjlcEqNfIffQYopxG8qBJ0nTYAvp52M9W9gJrGZaf1A==",
+    "signatures": [
+      {
+        "sig": "MEUCIQCZMOCQVHTekrlOhuPDJd9M919xK+pnPfK4ixLGP3f9ywIgVYxtv0bTdNWEGT/x1x5y/qT/peMQNKWrBh3B9uiEIQ8=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      }
+    ],
+    "unpackedSize": 1209476
+  },
+  "main": "./dist/index.js",
+  "name": "remotion-bits",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "gitHead": "cc896faa2bae92c97f26e0b2984107462fd03db1",
+  "license": "MIT",
+  "scripts": {
+    "demo": "cd demo && npm start",
+    "lint": "oxlint .",
+    "test": "npm run inventory:generate && vitest run",
+    "build": "npm run clean && npm run inventory:generate && tsc -p tsconfig.json && tsx scripts/add-extensions.ts",
+    "clean": "rm -rf dist",
+    "format": "oxfmt .",
+    "prepack": "npm run build && npm run registry:build",
+    "docs:dev": "cd docs && npm run dev",
+    "lint:fix": "oxlint . --fix",
+    "mcp:bits": "npm run inventory:generate && tsx scripts/remotion-bits-mcp.ts",
+    "bits:find": "npm run inventory:generate && tsx scripts/remotion-bits-lookup.ts find",
+    "typecheck": "npm run inventory:generate && tsc -p tsconfig.json --noEmit",
+    "bits:fetch": "npm run inventory:generate && tsx scripts/remotion-bits-lookup.ts fetch",
+    "docs:build": "cd docs && npm run build",
+    "test:watch": "vitest",
+    "bits:lookup": "npm run inventory:generate && tsx scripts/remotion-bits-lookup.ts",
+    "demo:install": "cd demo && npm install",
+    "docs:install": "cd docs && npm install",
+    "docs:preview": "cd docs && npm run preview",
+    "format:check": "oxfmt . --check",
+    "prepublishOnly": "npm run build && npm run registry:build",
+    "registry:build": "npm run inventory:generate && jsrepo build",
+    "registry:extract": "tsx scripts/extract-bit-registry.ts",
+    "inventory:generate": "tsx scripts/generate-shared-bit-inventory.ts",
+    "test:cli-integration": "vitest run scripts/__tests__/published-package.test.ts"
+  },
+  "_npmUser": {
+    "name": "avcodes",
+    "email": "av@av.codes"
+  },
+  "keywords": [
+    "remotion",
+    "react",
+    "video",
+    "components",
+    "cli"
+  ],
+  "_npmVersion": "10.9.4",
+  "description": "Remotion component bits with a shadcn-like installer",
+  "directories": {},
+  "maintainers": [
+    {
+      "name": "avcodes",
+      "email": "av@av.codes"
+    }
+  ],
+  "_nodeVersion": "22.21.0",
+  "dependencies": {
+    "three": "^0.182.0",
+    "@types/three": "^0.182.0",
+    "prism-react-renderer": "^2.4.1",
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "_hasShrinkwrap": false,
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "zod": "^4.3.6",
+    "vite": "^5.4.11",
+    "jsdom": "^24.0.0",
+    "oxfmt": "^0.9.0",
+    "react": "^18.3.1",
+    "culori": "^4.0.2",
+    "jsrepo": "^3.0.0",
+    "oxlint": "^0.15.0",
+    "vitest": "^2.1.9",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "@types/node": "^25.1.0",
+    "@types/react": "^18.3.12",
+    "@types/culori": "^4.0.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.4.1",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/jest-dom": "^6.6.3"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "remotion": ">=4",
+    "react-dom": ">=18"
+  },
+  "_npmOperationalInternal": {
+    "tmp": "tmp/remotion-bits_0.2.0_1773175064267_0.5084212669317341",
+    "host": "s3://npm-registry-packages-npm-production"
+  },
+  "_id": "remotion-bits@0.2.0",
+  "version": "0.2.0"
+}
