@@ -3704,6 +3704,22 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	if !found {
 		t.Fatalf("allRuns = %#v, want one run for trigger %q", allRuns, createdTrigger.ID)
 	}
+	waitForCondition(t, 10*time.Second, func() bool {
+		stdout, _, err := executeRootCommand(t, h.deps, "automation", "runs", "-o", "json")
+		if err != nil {
+			return false
+		}
+		var runs contract.RunsResponse
+		if err := json.Unmarshal([]byte(stdout), &runs); err != nil {
+			return false
+		}
+		for _, run := range runs.Runs {
+			if run.TriggerID == createdTrigger.ID && run.SessionID != "" {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func TestBridgeCreateAndGetIntegration(t *testing.T) {

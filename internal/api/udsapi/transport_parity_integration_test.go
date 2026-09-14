@@ -2108,7 +2108,7 @@ func newTransportMarketplaceCatalogServer(t testing.TB) *httptest.Server {
 name = "bridge-github"
 version = "1.0.0"
 description = "Connect GitHub events to Compozy"
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.25"
 
 [capabilities]
 provides = []

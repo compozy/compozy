@@ -46,8 +46,10 @@ func (m *Manager) discoverExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseDiscover, err)
 	}
 
+	m.mu.Lock()
 	ext.rootDir = rootDir
 	ext.phase = ExtensionPhaseDiscover
+	m.mu.Unlock()
 	return nil
 }
 
@@ -58,8 +60,10 @@ func (m *Manager) parseExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseParse, err)
 	}
 
+	m.mu.Lock()
 	ext.manifest = manifest
 	ext.phase = ExtensionPhaseParse
+	m.mu.Unlock()
 	return nil
 }
 
@@ -98,8 +102,10 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		m.setFailure(ext, ExtensionPhaseValidate, err)
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
+	m.mu.Lock()
 	ext.pendingGrant = grant
 	ext.phase = ExtensionPhaseValidate
+	m.mu.Unlock()
 	return nil
 }
 
