@@ -34,6 +34,21 @@ func (r daemonSessionWorktreeResolver) ResolveSessionWorktree(
 	workspaceID string,
 	ref string,
 ) (string, string, error) {
+	return r.resolveSessionWorktree(ctx, workspaceID, ref, "")
+}
+
+func (r daemonSessionWorktreeResolver) ResolveSessionWorktreeForProfile(
+	ctx context.Context, workspaceID, profileID, ref string,
+) (string, string, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return "", "", worktree.ErrNotFound
+	}
+	return r.resolveSessionWorktree(ctx, workspaceID, ref, profileID)
+}
+
+func (r daemonSessionWorktreeResolver) resolveSessionWorktree(
+	ctx context.Context, workspaceID, ref, profileID string,
+) (string, string, error) {
 	service := r.service()
 	if service == nil {
 		return "", "", errors.New("daemon: worktree service is unavailable")
@@ -41,6 +56,9 @@ func (r daemonSessionWorktreeResolver) ResolveSessionWorktree(
 	item, err := service.Get(ctx, strings.TrimSpace(workspaceID), strings.TrimSpace(ref))
 	if err != nil {
 		return "", "", err
+	}
+	if item == nil || (profileID != "" && item.ProfileID != profileID) {
+		return "", "", worktree.ErrNotFound
 	}
 	switch item.State {
 	case worktree.StateReady:

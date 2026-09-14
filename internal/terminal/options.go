@@ -22,8 +22,8 @@ type WorkspaceResolver interface {
 // workspace-bound sessions. Errors deny launch before process creation.
 type ExecutionRootResolver func(context.Context, string, Actor) (string, error)
 
-// WithExecutionRootResolver applies session worktree bindings to agent Open/Exec.
-// Protocol pipe consumers retain their independently resolved execution roots.
+// WithExecutionRootResolver applies session worktree bindings to agent launches.
+// System-owned pipe consumers retain their independently resolved execution roots.
 func WithExecutionRootResolver(resolver ExecutionRootResolver) Option {
 	return func(service *Service) error {
 		if resolver == nil {

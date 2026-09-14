@@ -40,7 +40,8 @@ terminal or terminal journal row.
 ## Session Worktree Directory
 
 When your session is bound to a managed worktree, terminal `open` and `exec` default to that
-worktree. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
+worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned pipes retain
+their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
 ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
 `add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
 session and run; callers cannot supply another execution root. Sessions without a worktree and
