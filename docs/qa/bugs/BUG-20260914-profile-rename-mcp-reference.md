@@ -1,6 +1,6 @@
 # BUG-20260914-profile-rename-mcp-reference: Renaming a profile disconnects its configured MCP credentials
 
-- **Status:** fixed
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High
 - **Persona Affected:** Bruno
@@ -22,4 +22,6 @@ Profile rename re-encrypts Vault rows and updates database ref occurrences, but 
 
 The existing rename-folder finalizer rewrites owned ref values in profile config.toml/mcp.json and can replay without changing already-rewritten bytes. JSON keys, TOML comments and surrounding bytes are retained. The rename preview includes personal-profile file occurrences. Selected repository profile folders use the same rewrite and return any repair error through their existing per-folder outcome.
 
-Regression: `TestManagerProfileLifecycle/Should_keep_configured_MCP_credentials_usable_after_profile_rename_and_finalizer_replay` loads TOML and JSON after rename, resolves personal and workspace-profile credentials through real Vault, and verifies idempotent finalization and an unchanged shared secret. Public re-walk remains pending.
+Regression: `TestManagerProfileLifecycle/Should_keep_configured_MCP_credentials_usable_after_profile_rename_and_finalizer_replay` loads TOML and JSON after rename, resolves personal and workspace-profile credentials through real Vault, and verifies idempotent finalization and an unchanged shared secret. The successful public re-walk is recorded below.
+
+Public replay: c131f5764, steps 111–118: renamed configured ref loads through HTTP and CLI; Vault metadata has the new owner. Real SQLite tests also cover selected workspace-profile files and decryption.

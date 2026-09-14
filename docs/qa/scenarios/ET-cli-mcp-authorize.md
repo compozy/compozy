@@ -7,7 +7,7 @@ journey: J-mcp-authorize-repair
 expected: `compozy mcp auth login <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
 entry_points: compozy mcp auth login <name>; compozy mcp auth login <name> --scope workspace --workspace <id>
 qa_status: fail
-bug_ids: BUG-20260729-mcp-cli-json-parity; BUG-20260914-mcp-secret-replacement-owner
+bug_ids: BUG-20260729-mcp-cli-json-parity; BUG-20260914-mcp-secret-replacement-owner; BUG-20260914-mcp-invalid-definition-repair
 fix_status: pending
 retest_status: blocked-decision
 fix_commits:
@@ -38,4 +38,8 @@ profile, workspace and workspace-profile scopes. A configured secret owned by an
 an access/refresh/DCR/registration token ref, must fail before resolution or authorization begins.
 Own configured client secrets, explicit shared refs and environment refs remain usable. Verify
 released manual user client-secret refs still resolve their persisted values without exposing them.
-Focused auth and real Settings/Vault tests passed; this added public journey remains pending.
+Focused auth and real Settings/Vault tests passed; the targeted public retest is recorded below.
+
+PR636 recovery follow-up: BUG-20260914-mcp-invalid-definition-repair is verified on 71fb14665. Steps 145–153 replace the previously invalid credential, read Settings and CLI auth status, restart and read again. Steps 155–161 accept shared/environment refs without deleting shared metadata. These are configuration/ownership observations, not completed external OAuth.
+
+PR636 targeted owner-reference retest passed: rejected foreign/managed replacements preserve the existing secret; invalid definitions remain repairable; own/shared/environment references are accepted. Both 2026-09-14 bugs are verified. The historical qa_status and JSON-parity blocker remain unchanged because the full authorization journey was not rerun.

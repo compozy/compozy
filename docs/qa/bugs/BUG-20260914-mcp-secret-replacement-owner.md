@@ -1,6 +1,6 @@
 # BUG-20260914-mcp-secret-replacement-owner: An invalid MCP credential replacement removes the working secret
 
-- **Status:** fixed
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** Critical
 - **Persona Affected:** Bruno
@@ -16,4 +16,6 @@ CH-marketplace-public-ownership, Data Tour: configure an owned MCP client secret
 
 Settings now normalizes and validates the configured OAuth client-secret owner after preparing any supplied new value but before taking cleanup snapshots, storing secrets, or replacing the definition. It reuses the same Vault owner policy as auth resolution, retaining support for own, shared, environment and released user references.
 
-Owning invariant: an invalid configured client-secret owner cannot replace a working MCP definition or remove its credential. Extended the existing `TestMCPSecretValuesStoreVaultSecrets/Should_store_OAuth_client_secret_values_without_writing_plaintext_config` case with foreign-profile and daemon-owned access/refresh/DCR/registration refs. It checks validation identity, exact unchanged config bytes and preserved credential value after every rejection. Focused race suite passed in 1.250s. Existing test-shape heuristic findings are byte-identical to the committed file; none originates in the changed subtest. Public replay and final-head CI remain pending.
+Owning invariant: an invalid configured client-secret owner cannot replace a working MCP definition or remove its credential. Extended the existing `TestMCPSecretValuesStoreVaultSecrets/Should_store_OAuth_client_secret_values_without_writing_plaintext_config` case with foreign-profile and daemon-owned access/refresh/DCR/registration refs. It checks validation identity, exact unchanged config bytes and preserved credential value after every rejection. Focused race suite passed in 1.250s. Existing test-shape heuristic findings are byte-identical to the committed file; none originates in the changed subtest. Public replay is recorded below; final-head CI remains pending.
+
+Public replay: 2422a5793, steps 126–141: five invalid replacements reject with unchanged config and retained secret; restart, auth status, and exact preview/apply deletion counts pass.

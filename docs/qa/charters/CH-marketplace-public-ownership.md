@@ -22,7 +22,7 @@ charter:
       - "Rename a profile holding synthetic manual and extension MCP secret references in profile and workspace-profile scopes, then compare deletion preview with the applied result while shared/user references survive."
       - "Attempt MCP authorization with foreign or daemon-managed credential references and verify rejection before authorization begins; compare own/shared/environment reference handling without disclosing values."
     must_avoid:
-      - "Do not inspect or mutate SQLite during the walk, call internal APIs, relax assertions, or use operator credentials."
+      - "Do not inspect or mutate SQLite during the walk, call internal APIs, relax assertions, or mutate/expose operator credentials. A native_cli provider may read its existing login only to initialize an empty QA session; no model prompt is sent."
       - "Do not claim full provider OAuth completion from configuration or presence checks; keep injected persistence failures and ciphertext checks attributed to their owning CI integration suites."
   evidence_expectations:
     - "Exact CLI/HTTP transcripts, independent public reads, restart persistence, synthetic-secret values redacted, and a debrief distinguishing live observations from reused CI evidence."

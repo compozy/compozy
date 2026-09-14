@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-dev-lifecycle
 expected: A portable package dev-links without install trust, publishes its mapped skills and MCP servers, reloads changed package content through the existing workspace-scoped generation loop, retains its instance data, and leaves other workspaces and any published instance unchanged.
 entry_points: compozy extension dev <path>|reload <name>|status <name> --workspace|remove <name>; POST /api/extensions/dev and POST /api/extensions/:name/reload over HTTP and UDS; compozy__extensions_dev|reload|info|remove
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260914-agent-plugin-dev-rejected
-fix_status: pending
-retest_status: pending
-fix_commits:
-evidence: docs/qa/reports/2026-08-16-agent-plugins.md#session-debriefs
-last_report: docs/qa/reports/2026-08-16-agent-plugins.md
+fix_status: fixed
+retest_status: pass
+fix_commits: 685af5f3c
+evidence: docs/qa/reports/2026-09-14-marketplace-review-public.md
+last_report: docs/qa/reports/2026-09-14-marketplace-review-public.md
 overlaps: ET-extension-dev-reload-loop; ET-agent-plugin-data-removal
 ---
 
@@ -35,4 +35,6 @@ executes exactly once there, never in another profile/workspace. Add a global at
 development generation, then reload a generation without hooks: the workspace override must suppress
 the inherited hook in both cases. Restart, unlink, detach and disable the profile, checking the
 applicable hook output at each transition. The owning real SQLite/subprocess integration passed;
-this public scenario extension still requires its final live re-walk.
+the targeted public re-walk is recorded below.
+
+PR636 targeted result 2026-09-14: Claude layout dev/reload/restart/unlink and public SDK hook placement/override/disable passed; the other three manifest layouts and simultaneous attachment permutations are separately covered by the owning integration suites. See docs/qa/reports/2026-09-14-marketplace-review-public.md. Broader historical scenario steps were not rerun in this targeted pass.
