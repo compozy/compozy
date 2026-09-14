@@ -6,8 +6,8 @@ persona: Ada
 journey: J-mcp-authorize-repair
 expected: `compozy mcp auth login <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
 entry_points: compozy mcp auth login <name>; compozy mcp auth login <name> --scope workspace --workspace <id>
-qa_status: blocked-verify
-bug_ids: BUG-20260729-mcp-cli-json-parity
+qa_status: fail
+bug_ids: BUG-20260729-mcp-cli-json-parity; BUG-20260914-mcp-secret-replacement-owner
 fix_status: pending
 retest_status: blocked-decision
 fix_commits:

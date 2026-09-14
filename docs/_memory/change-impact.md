@@ -784,3 +784,9 @@ No credential value enters the journal, no schema/DTO/tool/config key changes, a
 the shared profile lifecycle owner. Site profile lifecycle documentation owns the operator explanation;
 official skill commands remain valid. Real lifecycle coverage loads both moved config formats,
 resolves the resulting secret through Vault and repeats finalization without changing bytes.
+
+PR636 Settings credential-replacement follow-up: reject foreign or daemon-managed OAuth client-secret
+refs before definition commit and exclusive-secret cleanup. Reuse the existing Vault target policy;
+HTTP/UDS/CLI now receive the existing validation error for the invalid mutation. Own/shared/env and
+released user refs retain their established rules. No config/schema/DTO/tool IDs change. The canonical
+Settings secret-write suite and public MCP authorization scenario own preservation evidence.

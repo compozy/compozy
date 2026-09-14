@@ -120,6 +120,10 @@ name in `preserve_env`. Use `preserve_secrets.secret_env` and
 requires a new value or an explicit Vault binding because preservation never crosses keys, scopes,
 or source files.
 
+Configured OAuth client-secret references must belong to the selected MCP target or the shared
+namespace. Settings rejects foreign-owner and daemon-managed token references before replacing
+the definition or removing its existing credential.
+
 ## Remote OAuth Auth Object
 
 Remote MCP servers can use OAuth 2.1 authorization code with PKCE. The config contains only

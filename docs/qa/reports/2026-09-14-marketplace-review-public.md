@@ -22,7 +22,7 @@ The bounded retests extend existing charters for Marketplace source management, 
 | 2 | CH-marketplace-public-ownership | ET-agent-plugin-dev-reload | Bruno | Data | Pending | BUG-20260914-agent-plugin-dev-rejected | |
 | 3 | CH-marketplace-public-ownership | RT-agent-hot-discovery-skill-isolation | Bruno | Data | Pending | | |
 | 4 | CH-marketplace-public-ownership | ET-profile-cli-lifecycle | Bruno | Data | Pending | BUG-20260914-profile-rename-mcp-reference | |
-| 5 | CH-marketplace-public-ownership | ET-cli-mcp-authorize | Bruno | Data | Pending | | |
+| 5 | CH-marketplace-public-ownership | ET-cli-mcp-authorize | Bruno | Data | Pending | BUG-20260914-mcp-secret-replacement-owner | |
 
 ## Session Debriefs
 
@@ -44,6 +44,14 @@ After 685af5f3c, CLI dev linked the Claude package from inside the design worksp
 ### Profile credentials — Bruno — 08:31–08:32 UTC
 
 Settings wrote synthetic manual MCP client secrets independently in user, profile and workspace scopes. A shared Vault ref remained independently owned. The CLI profile rename moved the owned Vault row and left shared/user/workspace rows intact, but MCP config retained the old profile ref and public reads failed. Filed BUG-20260914-profile-rename-mcp-reference; the leg ended before delete. The workspace scope selector writes the base workspace sidecar even with a profile query; it does not author workspace-profile files. Extension Settings overrides reject auth changes, so extension OAuth setup must use its documented auth acquisition path rather than treating overrides as an authoring surface.
+
+### Profile rename recovery — Bruno — 08:43 UTC
+
+Fresh profile writing contained an owned MCP client secret. The preview counted both its Vault row and configured reference. Rename to editorial succeeded; HTTP Settings returned 200, CLI auth status returned needs_login without an ownership error, and Vault metadata exposed only the new owner ref. Steps 111–118 prove the configured-reference repair. No OAuth token was acquired, so token_present=false is expected and is not an authentication-completion claim.
+
+### Credential replacement — Bruno — 08:44 UTC
+
+An attempted foreign-profile reference replacement returned 200 instead of rejecting the invalid owner at write time. Auth begin then failed, and the former owned secret was absent. Filed BUG-20260914-mcp-secret-replacement-owner and ended the leg; public replay follows the repair. The earlier expectation of immediate write rejection was validated by the observed destructive replacement, rather than treating a metadata-only check as proof of authorization safety.
 
 ## What Was Fixed
 

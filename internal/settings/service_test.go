@@ -3790,6 +3790,37 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got := secretStore.plaintext["vault:mcp/user/linear/oauth/client-secret"]; got != clientSecret {
 			t.Fatalf("preserved MCP OAuth plaintext = %q, want original value", got)
 		}
+		preservedConfig := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
+		for _, ref := range []string{
+			"vault:mcp/profile/another/linear/oauth/client-secret",
+			"vault:mcp/user/linear/oauth/access-token",
+			"vault:mcp/user/linear/oauth/refresh-token",
+			"vault:mcp/user/linear/oauth/dcr-client-secret",
+			"vault:mcp/user/linear/oauth/registration-access-token",
+		} {
+			_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+				Name:              "linear", Target: TargetAuto,
+				MCPServer: &compozyconfig.MCPServer{
+					Transport: compozyconfig.MCPServerTransportHTTP,
+					URL:       "https://mcp.linear.app/replacement",
+					Auth: compozyconfig.MCPAuthConfig{
+						Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+						IssuerURL:    "https://linear.app", ClientID: "replacement-client", ClientSecretRef: ref,
+					},
+				},
+			})
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("foreign or managed client secret error = %v, want validation rejection", err)
+			}
+			if readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)) != preservedConfig {
+				t.Fatal("rejected client secret changed the MCP definition")
+			}
+			if secretStore.plaintext["vault:mcp/user/linear/oauth/client-secret"] != clientSecret {
+				t.Fatal("rejected client secret removed the existing credential")
+			}
+		}
+
 	})
 
 	t.Run("Should reject preservation when the exact target has no existing binding", func(t *testing.T) {

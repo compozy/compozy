@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (s *service) putMCPServer(
@@ -42,6 +43,15 @@ func (s *service) putMCPServer(
 	)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if strings.TrimSpace(normalized.Auth.ClientSecretRef) != "" {
+		ref, err := vault.NormalizeMCPClientSecretRef(normalized.Auth.ClientSecretRef, vault.MCPSecretTarget{
+			Scope: string(scope), WorkspaceID: scopeID, ServerName: name,
+		})
+		if err != nil {
+			return MutationResult{}, validationError(fmt.Errorf("settings: OAuth client secret reference: %w", err))
+		}
+		normalized.Auth.ClientSecretRef = ref
 	}
 	secretCleanup, err := s.prepareMCPSecretCleanupPlan(
 		ctx, scope, scopeID, name, target.Kind(), sources, normalized,
