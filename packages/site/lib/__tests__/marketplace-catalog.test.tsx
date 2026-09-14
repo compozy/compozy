@@ -71,9 +71,9 @@ describe("marketplace catalog", () => {
     entries: extensionEntries,
   });
 
-  it("Should load all twenty current packages without standalone skill entries", () => {
+  it("Should load all nineteen current packages without standalone skill entries", () => {
     expect(parseMarketplaceCatalog(feed())).toEqual(extensionEntries);
-    expect(extensionEntries).toHaveLength(20);
+    expect(extensionEntries).toHaveLength(19);
     expect(findEntry("context7")?.inputs).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "context7_api_key", type: "secret" })])
     );
@@ -492,7 +492,7 @@ describe("marketplace rendering boundary", () => {
   it("Should filter the current catalog and restore all entries when search is cleared", () => {
     render(<MarketplaceCatalogBrowser entries={extensionEntries} />);
     const search = screen.getByRole("searchbox", { name: "Search extensions" });
-    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(20);
+    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(19);
     fireEvent.change(search, { target: { value: "  CONTEXT7  " } });
     expect(screen.getByRole("link", { name: "View details" }).getAttribute("href")).toBe(
       "/marketplace/context7"
@@ -501,7 +501,7 @@ describe("marketplace rendering boundary", () => {
     expect(screen.queryByRole("link", { name: "View details" })).toBeNull();
     expect(screen.getByText(/No extensions match/)).toBeTruthy();
     fireEvent.change(search, { target: { value: "" } });
-    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(20);
+    expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(19);
   });
 
   it("Should render truthful dates and current detail links without invented trust signals", () => {

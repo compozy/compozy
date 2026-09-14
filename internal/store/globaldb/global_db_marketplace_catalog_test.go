@@ -856,7 +856,7 @@ func refreshMarketplaceUpgradeCatalog(t *testing.T, db *GlobalDB) {
 		t.Fatal(err)
 	}
 	page, err := catalog.BrowseSource(ctx, marketplace.CompozyCatalogSource, "", 0, 100)
-	if err != nil || page.Total != 20 || len(page.Entries) != 20 {
+	if err != nil || page.Total != 19 || len(page.Entries) != 19 {
 		t.Fatalf("v3 refresh after upgrade = %d/%d entries: %v", page.Total, len(page.Entries), err)
 	}
 	if after := captureMarketplaceUpgradeState(t, db.db, []string{provenanceQuery}); !reflect.DeepEqual(before, after) {

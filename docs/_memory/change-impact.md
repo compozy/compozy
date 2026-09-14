@@ -724,3 +724,9 @@ Session-context implementation closure (2026-09-12): the turn query hook shares 
 Marketplace integration with main64b36b4cf: main's cache-token migration00110 is retained byte-for-byte. The unpublished Marketplace SQL payloads move unchanged from110–117 to111–118; projection/input/auth/attachment/discriminator ownership does not change. Prior receipts retain their historical numbering. Canonical v109 upgrade and main token-cache preservation tests both run against the combined stream; the generator owns the combined Atlas checksum and SQLC/OpenAPI outputs. No runtime fallback, data reset or edited migration from main is introduced.
 
 Marketplace final repair addendum: installed-name detail uses optional exact-origin catalog enrichment for current trust/installability/update metadata while preserving installed contents and offline access. MCP override commit/rollback invalidates volatile observed readiness. Shared HTTP/UDS handlers and Settings publication own these behaviors; no new config, migration, native tool ID, or credential-retention rule is introduced. QA owners are passive update discovery and the existing real MCP publisher integration.
+
+Catalog curation follow-up: the maintainer retired Repository Orientation from the official feed.
+The canonical sources and generated v3 feed now contain19entries. Web, site, CLI, HTTP/UDS and
+native Marketplace discovery consume that feed; their contracts, config, hooks, official skill and
+workspace state are unchanged. Previously published package bytes and installed copies are retained.
+The existing publisher/runtime-source suite verifies absence and preservation of the remaining entries.

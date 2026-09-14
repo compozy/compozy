@@ -19,15 +19,18 @@ retry. Unrelated files in the destination are preserved.
 
 Generated output:
 
-- `v3/extensions.json`: the twenty extensions, including seventeen packaged MCP servers.
+- `v3/extensions.json`: the nineteen extensions, including seventeen packaged MCP servers.
 - `v3/marketplaces.json`: ordered plugin marketplace presets.
 - `artifacts/*.tar.gz`: deterministic package archives referenced by the extension feed.
 
 Do not edit generated feeds or artifacts. Only the v3 family is published; root MCP/skill
 feeds, semantic v2 adapters and the standalone Documentation Writer listing are retired.
-The three existing extension packages keep their authored identities, acquisition references,
+The two listed pre-existing extension packages keep their authored identities, acquisition references,
 versions and artifact bytes. The 17 MCP packages are validated against fixed pre-feature
 curation evidence under `internal/extension/testdata/mcp_to_extension/`.
+
+Repository Orientation is no longer listed in the official feed. Its previously published package
+and artifact remain available for existing references; removing the listing does not uninstall it.
 
 The daemon reads `<base_url>/v3/extensions.json` and `<base_url>/v3/marketplaces.json`.
 Missing or invalid v3 documents report a source failure without reading root feeds.

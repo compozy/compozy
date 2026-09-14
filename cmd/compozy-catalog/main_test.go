@@ -63,7 +63,7 @@ func TestPublishCatalog(t *testing.T) {
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("Should emit only the current catalog family with twenty extensions [UT-054]", func(t *testing.T) {
+	t.Run("Should emit only the current catalog family with nineteen extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
 		files, err := os.ReadDir(output)
 		if err != nil {
@@ -82,12 +82,12 @@ func TestPublishCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if document.ManifestVersion != 3 || len(document.Entries) != 20 {
+		if document.ManifestVersion != 3 || len(document.Entries) != 19 {
 			t.Fatalf("v3 version/count = %d/%d", document.ManifestVersion, len(document.Entries))
 		}
 		for _, entry := range document.Entries {
-			if entry.EntryID == "documentation-writer" {
-				t.Fatal("retired skill remains in v3")
+			if entry.EntryID == "documentation-writer" || entry.EntryID == "repository-orientation" {
+				t.Fatalf("retired listing %q remains in v3", entry.EntryID)
 			}
 		}
 		presets, err := os.ReadFile(filepath.Join(output, "v3", "marketplaces.json"))
@@ -107,7 +107,7 @@ func TestPublishCatalog(t *testing.T) {
 		t.Parallel()
 		original := readPublishedExtensions(t, source)
 		published := readPublishedExtensions(t, output)
-		for _, name := range []string{"repository-orientation", "batuta", "herdr-bridge"} {
+		for _, name := range []string{"batuta", "herdr-bridge"} {
 			before, existed := original[name]
 			after, exists := published[name]
 			if !existed || !exists || !reflect.DeepEqual(before, after) {

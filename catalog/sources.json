@@ -3,17 +3,6 @@
     "artifact_base_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts",
     "entries": [
         {
-            "entry_id": "repository-orientation",
-            "name": "Repository Orientation",
-            "description": "Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths",
-            "published_at": "2026-07-17T00:40:00Z",
-            "install_slug": "compozy/repository-orientation",
-            "tier": "official",
-            "format": "compozy",
-            "author": "CompozyOS",
-            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/repository-orientation"
-        },
-        {
             "entry_id": "batuta",
             "name": "Batuta",
             "description": "Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates",
