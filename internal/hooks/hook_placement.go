@@ -15,14 +15,14 @@ func (d HookDecl) PlacementProfileID() string {
 	if d.HookPlacement == nil {
 		return ""
 	}
-	return d.HookPlacement.ProfileID
+	return d.ProfileID
 }
 
 func (d HookDecl) PlacementWorkspaces() []string {
 	if d.HookPlacement == nil {
 		return nil
 	}
-	return d.HookPlacement.ShadowedWorkspaces
+	return d.ShadowedWorkspaces
 }
 
 func (d HookDecl) WithPlacement(profileID string, workspaces []string) HookDecl {

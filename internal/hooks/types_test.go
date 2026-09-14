@@ -18,8 +18,7 @@ func TestHookDeclWirePlacement(t *testing.T) {
 		unmarshal func([]byte, any) error
 	}{
 		{"Should preserve the top-level profile in JSON", json.Marshal, json.Unmarshal},
-		{"Should preserve the top-level profile in YAML", func(value any) ([]byte, error) { return yaml.Marshal(value) },
-			func(data []byte, value any) error { return yaml.Unmarshal(data, value) }},
+		{"Should preserve the top-level profile in YAML", yaml.Marshal, yaml.Unmarshal},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()

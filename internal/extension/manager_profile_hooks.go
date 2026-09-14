@@ -84,15 +84,17 @@ func (m *Manager) HookDeclarationsForProfiles(
 
 func (m *Manager) hookProjectionWorkspaces(ctx context.Context) (map[string][]string, error) {
 	workspaces := make(map[string][]string)
-	for _, info := range m.List() {
-		workspaces[info.Name] = nil
-		installations, err := m.registry.activeInstallations(ctx, info.Name)
+	infos := m.List()
+	for i := range infos {
+		name := infos[i].Name
+		workspaces[name] = nil
+		installations, err := m.registry.activeInstallations(ctx, name)
 		if err != nil {
 			return nil, err
 		}
 		for _, installation := range installations {
 			if id := installation.Scope.WorkspaceID; id != "" {
-				workspaces[info.Name] = append(workspaces[info.Name], id)
+				workspaces[name] = append(workspaces[name], id)
 			}
 		}
 	}

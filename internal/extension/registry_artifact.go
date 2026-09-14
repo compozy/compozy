@@ -75,7 +75,7 @@ func resolveManifestPath(dir string) (string, error) {
 	document, err := agentplugin.ReadManifest(dir)
 	if err != nil {
 		missing, isMissing := errors.AsType[*agentplugin.NotManifestError](err)
-		if !(isMissing && missing != nil) && !errors.Is(err, fileutil.ErrSymlink) &&
+		if (!isMissing || missing == nil) && !errors.Is(err, fileutil.ErrSymlink) &&
 			!errors.Is(err, fileutil.ErrDirectory) &&
 			!errors.Is(err, fileutil.ErrNotRegular) {
 			return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)

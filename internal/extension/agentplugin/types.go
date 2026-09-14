@@ -58,7 +58,7 @@ type SchemaUnsupportedError struct {
 	Declared string
 }
 
-var _ error = (*SchemaUnsupportedError)(nil)
+var _ error = &SchemaUnsupportedError{}
 
 func (e *SchemaUnsupportedError) Error() string {
 	return fmt.Sprintf(
