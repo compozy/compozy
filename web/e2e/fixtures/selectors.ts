@@ -774,8 +774,6 @@ interface SettingsProvidersSelectors {
 }
 
 interface SettingsMCPServersSelectors {
-  actionResult: Locator;
-  actionResultDismiss: Locator;
   create: Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
