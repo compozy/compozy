@@ -579,12 +579,21 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			{Scope: mcpauth.ScopeProfile, WorkspaceID: "dev", ServerName: "linear"},
 			{Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-a@pf:dev", ServerName: "linear"},
 			{Owner: "extension:linear", Scope: mcpauth.ScopeProfile, WorkspaceID: "dev", ServerName: "linear"},
-			{Owner: "extension:linear", Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-b@pf:dev", ServerName: "linear"},
+			{
+				Owner:       "extension:linear",
+				Scope:       mcpauth.ScopeWorkspaceProfile,
+				WorkspaceID: "ws-b@pf:dev",
+				ServerName:  "linear",
+			},
 		}
 		for _, target := range targets {
 			if err := database.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
-				Target: target, DefinitionFingerprint: "sha256:" + strings.Repeat("a", 64),
-				ClientID: "client", Issuer: "https://issuer.example", AccessToken: "access-secret", RefreshToken: "refresh-secret",
+				Target:                target,
+				DefinitionFingerprint: "sha256:" + strings.Repeat("a", 64),
+				ClientID:              "client",
+				Issuer:                "https://issuer.example",
+				AccessToken:           "access-secret",
+				RefreshToken:          "refresh-secret",
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -599,12 +608,22 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := secrets.PutSecret(ctx, prefix+"oauth/client-secret", "client-secret", "configured-secret"); err != nil {
+			if _, err := secrets.PutSecret(
+				ctx,
+				prefix+"oauth/client-secret",
+				"client-secret",
+				"configured-secret",
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
 		foreignRefs := []string{"vault:mcp/shared/client-secret", "vault:mcp/user/linear/oauth/client-secret"}
-		foreignTarget := mcpauth.Target{Owner: "extension:linear", Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "ws-b@pf:dev-other", ServerName: "linear"}
+		foreignTarget := mcpauth.Target{
+			Owner:       "extension:linear",
+			Scope:       mcpauth.ScopeWorkspaceProfile,
+			WorkspaceID: "ws-b@pf:dev-other",
+			ServerName:  "linear",
+		}
 		foreignPrefix, err := vault.MCPSecretOwnerPrefix(foreignTarget.VaultTarget())
 		if err != nil {
 			t.Fatal(err)
@@ -622,7 +641,11 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if plan.VaultRefRewrites != 44 {
 			t.Fatalf("rename inventory = %d, want all 44 ref and target occurrences", plan.VaultRefRewrites)
 		}
-		if _, err := manager.Rename(ctx, "dev", RenameOptions{NewName: "engineering", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision}); err != nil {
+		if _, err := manager.Rename(
+			ctx,
+			"dev",
+			RenameOptions{NewName: "engineering", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision},
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, oldTarget := range targets {
@@ -643,7 +666,8 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if registration.ClientSecretRef != newPrefix+"oauth/dcr-client-secret" || registration.RegistrationAccessTokenRef != newPrefix+"oauth/registration-access-token" {
+			if registration.ClientSecretRef != newPrefix+"oauth/dcr-client-secret" ||
+				registration.RegistrationAccessTokenRef != newPrefix+"oauth/registration-access-token" {
 				t.Fatalf("registration refs not renamed: %#v", registration)
 			}
 			oldPrefix, err := vault.MCPSecretOwnerPrefix(oldTarget.VaultTarget())
@@ -676,7 +700,13 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if _, err := database.GetMCPAuthToken(ctx, target); !errors.Is(err, mcpauth.ErrTokenNotFound) {
 				t.Fatalf("deleted token = %v", err)
 			}
-			if _, err := database.GetMCPAuthRegistration(ctx, target); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+			if _, err := database.GetMCPAuthRegistration(
+				ctx,
+				target,
+			); !errors.Is(
+				err,
+				mcpauth.ErrRegistrationNotFound,
+			) {
 				t.Fatalf("deleted registration = %v", err)
 			}
 			prefix, err := vault.MCPSecretOwnerPrefix(target.VaultTarget())
@@ -959,7 +989,9 @@ func TestManagerProfileLifecycle(t *testing.T) {
 					want = 0
 				}
 				var count int
-				if err := database.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'profile-kit' AND profile = ?", profileID).Scan(&count); err != nil {
+				if err := database.DB().
+					QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'profile-kit' AND profile = ?", profileID).
+					Scan(&count); err != nil {
 					t.Fatal(err)
 				}
 				if count != want {

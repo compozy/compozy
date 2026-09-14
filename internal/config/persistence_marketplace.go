@@ -14,6 +14,8 @@ import (
 
 const retiredSkillRegistryKey = "registry"
 
+const configMigrationOperation = "migrate"
+
 func loadPersistedConfigOverlay(
 	path string,
 	decode func([]byte, string) (configOverlay, error),
@@ -36,7 +38,7 @@ func loadPersistedConfigOverlay(
 	}
 	rendered, err := archiveRetiredSkillMarketplace(contents, path)
 	if err != nil {
-		return overlay, FileError{Op: "migrate", Path: path, Err: err}
+		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
 	overlay, err = decode(rendered, path)
 	if err != nil {
@@ -45,16 +47,16 @@ func loadPersistedConfigOverlay(
 	if !bytes.Equal(rendered, contents) {
 		writable, openErr := directory.ReopenForMutation(filepath.Dir(path))
 		if openErr != nil {
-			return configOverlay{}, FileError{Op: "migrate", Path: path, Err: openErr}
+			return configOverlay{}, FileError{Op: configMigrationOperation, Path: path, Err: openErr}
 		}
 		defer func() { err = errors.Join(err, writable.Close()) }()
 		current, info, readErr := writable.ReadRegularFile(name)
 		if readErr != nil {
-			return configOverlay{}, FileError{Op: "migrate", Path: path, Err: readErr}
+			return configOverlay{}, FileError{Op: configMigrationOperation, Path: path, Err: readErr}
 		}
 		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
 			return configOverlay{}, FileError{
-				Op: "migrate", Path: path, Err: errors.New("config changed during retirement migration"),
+				Op: configMigrationOperation, Path: path, Err: errors.New("config changed during retirement migration"),
 			}
 		}
 		// Revalidate the held file before publishing the archive through the same parent.

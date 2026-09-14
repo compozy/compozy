@@ -60,7 +60,6 @@
             "bridges": 0
         },
         "install_slug": "team/tool",
-        "artifact_url": "",
         "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "repository": "https://github.com/acme/plugins"
     }

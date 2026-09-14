@@ -18,7 +18,7 @@ func loadAgentPluginManifest(root, dataDir string) (*Manifest, error) {
 func loadAgentPluginDocument(root, dataDir string, document *agentplugin.ManifestDocument) (*Manifest, error) {
 	status, declared := document.Classify()
 	if status == agentplugin.SchemaUnsupportedVersion {
-		return nil, &AgentPluginSchemaUnsupportedError{Root: root, Path: document.Path, Declared: declared}
+		return nil, &agentplugin.SchemaUnsupportedError{Root: root, Path: document.Path, Declared: declared}
 	}
 	if document.Layout == agentplugin.LayoutStandard && status == agentplugin.SchemaUnrelated && document.ValidJSON() {
 		return nil, &AgentPluginNotManifestError{Root: root, Checked: []string{document.Path}}

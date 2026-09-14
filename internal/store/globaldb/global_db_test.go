@@ -3418,7 +3418,8 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}
 		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
 			var count int
-			if err := transaction.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+			if err := transaction.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if count != 0 {
@@ -3430,7 +3431,8 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}
 		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
 			var count int
-			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if count != 1 {
@@ -3458,7 +3460,8 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 					want = 0
 				}
 				var count int
-				if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'kit' AND workspace_id = ?", binding.WorkspaceID).Scan(&count); err != nil {
+				if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE extension = 'kit' AND workspace_id = ?", binding.WorkspaceID).
+					Scan(&count); err != nil {
 					t.Fatal(err)
 				}
 				if count != want {
@@ -3476,7 +3479,8 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}
 		for _, table := range []string{"extension_inputs", "extension_mcp_overrides"} {
 			var count int
-			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).Scan(&count); err != nil {
+			if err := globalDB.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE workspace_id = ?", workspaceID).
+				Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if count != 0 {

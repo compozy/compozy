@@ -102,12 +102,17 @@ func TestServerConfigValidate(t *testing.T) {
 					prefix + "oauth/client-secret", prefix + "configured-secret",
 					"vault:mcp/shared/client-secret", "env:MCP_CLIENT_SECRET",
 				} {
-					cfg, err := ServerConfigFromMCP(t.Context(), target, clientSecretConfig(t, ref), func(_ context.Context, got string) (string, error) {
-						if got != ref {
-							t.Fatalf("resolved ref = %q, want %q", got, ref)
-						}
-						return "resolved-secret", nil
-					})
+					cfg, err := ServerConfigFromMCP(
+						t.Context(),
+						target,
+						clientSecretConfig(t, ref),
+						func(_ context.Context, got string) (string, error) {
+							if got != ref {
+								t.Fatalf("resolved ref = %q, want %q", got, ref)
+							}
+							return "resolved-secret", nil
+						},
+					)
 					if err != nil || cfg.ClientSecret != "resolved-secret" || cfg.ClientSecretRef != ref {
 						t.Fatalf("allowed target %#v ref %q = %#v, %v", target, ref, cfg, err)
 					}
@@ -134,7 +139,12 @@ func TestServerConfigValidate(t *testing.T) {
 						t.Fatal("unauthorized secret reached resolver")
 						return "", nil
 					}} {
-						if _, err := ServerConfigFromMCP(t.Context(), target, clientSecretConfig(t, ref), resolver); err == nil {
+						if _, err := ServerConfigFromMCP(
+							t.Context(),
+							target,
+							clientSecretConfig(t, ref),
+							resolver,
+						); err == nil {
 							t.Fatalf("target %#v accepted foreign or managed secret %q", target, ref)
 						}
 					}
@@ -153,15 +163,20 @@ func TestServerConfigValidate(t *testing.T) {
 				{Owner: "extension:linear", Scope: ScopeUser, ServerName: "linear"},
 				{Scope: ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear"},
 			} {
-				cfg, err := ServerConfigFromMCP(t.Context(), target, clientSecretConfig(t, tc.ref), func(_ context.Context, ref string) (string, error) {
-					if target.Owner != "" || target.Scope != ScopeUser {
-						t.Fatal("legacy secret escaped its manual user owner")
-					}
-					if ref != tc.resolved {
-						t.Fatalf("resolved = %q, want %q", ref, tc.resolved)
-					}
-					return "preserved-secret", nil
-				})
+				cfg, err := ServerConfigFromMCP(
+					t.Context(),
+					target,
+					clientSecretConfig(t, tc.ref),
+					func(_ context.Context, ref string) (string, error) {
+						if target.Owner != "" || target.Scope != ScopeUser {
+							t.Fatal("legacy secret escaped its manual user owner")
+						}
+						if ref != tc.resolved {
+							t.Fatalf("resolved = %q, want %q", ref, tc.resolved)
+						}
+						return "preserved-secret", nil
+					},
+				)
 				if target.Owner == "" && target.Scope == ScopeUser {
 					if err != nil || cfg.ClientSecret != "preserved-secret" {
 						t.Fatalf("manual config = %#v, %v", cfg, err)
@@ -187,7 +202,14 @@ func TestServerConfigValidate(t *testing.T) {
 func clientSecretConfig(t *testing.T, ref string) compozyconfig.MCPServer {
 	t.Helper()
 	return compozyconfig.MCPServer{
-		Name: "linear", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.test/mcp",
-		Auth: compozyconfig.MCPAuthConfig{IssuerURL: "https://issuer.example.test", Registration: "pre_registered", ClientID: "client", ClientSecretRef: ref},
+		Name:      "linear",
+		Transport: compozyconfig.MCPServerTransportHTTP,
+		URL:       "https://mcp.example.test/mcp",
+		Auth: compozyconfig.MCPAuthConfig{
+			IssuerURL:       "https://issuer.example.test",
+			Registration:    "pre_registered",
+			ClientID:        "client",
+			ClientSecretRef: ref,
+		},
 	}
 }

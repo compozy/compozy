@@ -502,7 +502,8 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 				status.Scope != target.Scope || status.WorkspaceID != target.WorkspaceID {
 				t.Fatalf("unavailable status lost target identity: %#v, want %#v", status, target.Normalize())
 			}
-			if status.Status != mcpauth.StatusNeedsLogin || status.Diagnostic != "token store unavailable" || status.TokenPresent {
+			if status.Status != mcpauth.StatusNeedsLogin || status.Diagnostic != "token store unavailable" ||
+				status.TokenPresent {
 				t.Fatalf("unexpected unavailable status: %#v", status)
 			}
 		})

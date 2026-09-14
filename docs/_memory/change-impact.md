@@ -757,3 +757,12 @@ profile/workspace identity as published bindings. Existing CLI/HTTP/UDS/native o
 controls consume these fixes; no new public route, config key or SQLite schema change is needed.
 Focused real SQLite/reconciliation/subprocess suites passed. The existing source-management and
 plugin-development QA scenarios include the affected public re-walks; current-head CI remains pending.
+
+Marketplace review CI follow-up: acquisition and loading now share Agent Plugins unsupported-schema
+error identity, preserving the existing HTTP/UDS 422 diagnostic and retained installed package on
+rejection. Hook projection scope is cloned as one optional placement value; JSON/YAML keep the
+top-level profile_id contract and the daemon codec retains private workspace shadowing. Owning
+normalization, serialization, real SQLite publication and archive lifecycle suites verify these
+boundaries. Empty optional Marketplace fixture fields follow the generated wire contract. Windows
+config privacy is verified by the ACL suite; Unix alone asserts POSIX permission bits. No additional
+public surface, config key, credential rule, migration, official skill or Web/docs contract changes.

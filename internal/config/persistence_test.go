@@ -1285,7 +1285,8 @@ func TestLoadConfigArchivesRetiredSkillAcquisition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if info.Mode().Perm() != 0o600 {
+			// Windows exposes writable/read-only mode bits; access control is verified by the ACL suite.
+			if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 				t.Fatalf("permissions = %o", info.Mode().Perm())
 			}
 		})

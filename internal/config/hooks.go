@@ -442,6 +442,7 @@ func cloneHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
 
 func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
+	cloned.HookPlacement = src.ClonePlacement()
 	cloned.Args = cloneStrings(src.Args)
 	cloned.Env = mergeStringMaps(nil, src.Env)
 	cloned.SecretEnv = mergeStringMaps(nil, src.SecretEnv)

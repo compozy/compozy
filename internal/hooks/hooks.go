@@ -371,7 +371,7 @@ func fingerprintHookSnapshot(snapshot map[HookEvent][]*ResolvedHook) (string, er
 			}
 
 			entry.Hooks = append(entry.Hooks, resolvedHookFingerprint{
-				ShadowedWorkspaces: slices.Clone(hook.Decl.ShadowedWorkspaces),
+				ShadowedWorkspaces: slices.Clone(hook.Decl.PlacementWorkspaces()),
 				Name:               hook.Name,
 				ProfileID:          hook.ProfileID,
 				Event:              hook.Event,

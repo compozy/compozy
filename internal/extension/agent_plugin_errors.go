@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -13,8 +12,6 @@ import (
 var (
 	// ErrAgentPluginNotManifest reports a root plugin.json owned by another ecosystem.
 	ErrAgentPluginNotManifest = errors.New("extension: plugin.json is not an Agent Plugins manifest")
-	// ErrAgentPluginSchemaUnsupported reports a portable schema newer than this daemon supports.
-	ErrAgentPluginSchemaUnsupported = errors.New("extension: Agent Plugins schema is unsupported")
 	// ErrAgentPluginManifestInvalid reports fatal portable root-manifest issues.
 	ErrAgentPluginManifestInvalid = errors.New("extension: agent plugin manifest invalid")
 )
@@ -42,23 +39,6 @@ func (e *AgentPluginNotManifestError) Error() string {
 }
 
 func (e *AgentPluginNotManifestError) Unwrap() error { return ErrAgentPluginNotManifest }
-
-// AgentPluginSchemaUnsupportedError identifies the declared and supported portable schema versions.
-type AgentPluginSchemaUnsupportedError struct {
-	Path     string
-	Root     string
-	Declared string
-}
-
-func (e *AgentPluginSchemaUnsupportedError) Error() string {
-	return fmt.Sprintf(
-		"extension: %s declares Agent Plugins schema %q; this daemon supports 1.0.0",
-		cmp.Or(strings.TrimSpace(e.Path), strings.TrimSpace(e.Root)),
-		strings.TrimSpace(e.Declared),
-	)
-}
-
-func (e *AgentPluginSchemaUnsupportedError) Unwrap() error { return ErrAgentPluginSchemaUnsupported }
 
 // AgentPluginManifestValidationError preserves every fatal portable manifest issue.
 type AgentPluginManifestValidationError struct {

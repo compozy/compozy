@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
@@ -83,7 +84,7 @@ func classifyExtensionError(err error) extensionErrorKind {
 	switch {
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
 		return extensionErrorAgentPluginNotManifest
-	case errors.Is(err, extensionpkg.ErrAgentPluginSchemaUnsupported):
+	case errors.Is(err, agentplugin.ErrSchemaUnsupported):
 		return extensionErrorAgentPluginSchemaUnsupported
 	case errors.Is(err, extensionpkg.ErrAgentPluginManifestInvalid):
 		return extensionErrorAgentPluginManifestInvalid

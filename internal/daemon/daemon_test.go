@@ -2790,7 +2790,15 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 			}},
 		}
 
-		if err := d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager); !errors.Is(err, syncFailure) {
+		if err := d.attachExtensionRuntime(
+			testutil.Context(t),
+			state,
+			extRegistry,
+			manager,
+		); !errors.Is(
+			err,
+			syncFailure,
+		) {
 			t.Fatalf("attachExtensionRuntime() = %v, want sync failure", err)
 		}
 
@@ -11883,7 +11891,7 @@ func (f *fakeExtensionRuntime) HookDeclarationsForProfiles(
 	for _, profile := range profiles {
 		for _, declaration := range f.hookDecls {
 			cloned := declaration
-			cloned.ProfileID = profile.ID
+			cloned = cloned.WithPlacement(profile.ID, nil)
 			cloned.Args = append([]string(nil), declaration.Args...)
 			decls = append(decls, cloned)
 		}

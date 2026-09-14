@@ -44,7 +44,7 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 		name := testCase.hook.String()
 		seen[testCase.hook] = make(chan delivered, 1)
 		decls = append(decls, hookspkg.HookDecl{
-			Name: name, ProfileID: "profile-a", Event: testCase.hook,
+			Name: name, HookPlacement: &hookspkg.HookPlacement{ProfileID: "profile-a"}, Event: testCase.hook,
 			Mode: hookspkg.HookModeAsync, ExecutorKind: hookspkg.HookExecutorNative,
 		})
 		executors[name] = hookspkg.NewNativeExecutor(func(

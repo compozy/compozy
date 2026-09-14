@@ -2699,7 +2699,8 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			t.Fatal("status.ExpiresAt aliases auth service input pointer")
 		}
 		cfg := fakeAuth.lastServerConfig()
-		if status.Owner != cfg.Target.Owner || status.Scope != string(cfg.Target.Scope) || status.WorkspaceID != cfg.Target.WorkspaceID {
+		if status.Owner != cfg.Target.Owner || status.Scope != string(cfg.Target.Scope) ||
+			status.WorkspaceID != cfg.Target.WorkspaceID {
 			t.Fatalf("redacted status lost auth target identity: %#v, want %#v", status, cfg.Target)
 		}
 		if got, want := cfg.ClientSecret, "client-secret"; got != want {

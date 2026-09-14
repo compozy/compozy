@@ -377,7 +377,10 @@ Keep this installed skill body.
 		}
 		if mcpCatalogHas(rebuiltMCPCatalog, "retired-marketplace-mcp") ||
 			!mcpCatalogHas(rebuiltMCPCatalog, "manual-mcp") {
-			t.Fatalf("rebuilt MCP catalog = %#v, want retired MCP absent and manual MCP preserved", rebuiltMCPCatalog.Snapshot())
+			t.Fatalf(
+				"rebuilt MCP catalog = %#v, want retired MCP absent and manual MCP preserved",
+				rebuiltMCPCatalog.Snapshot(),
+			)
 		}
 		after, err := skillspkg.ReadSidecar(marketplaceDir)
 		if err != nil || after == nil || *after != provenance {

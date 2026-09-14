@@ -840,12 +840,6 @@ func (m *faultingSourceSessionManager) ResetSource(
 	return m.delegate.ResetSource(ctx, actor, source)
 }
 
-func (m *faultingSourceSessionManager) failNextActivation(err error) {
-	m.mu.Lock()
-	m.activationErr = err
-	m.mu.Unlock()
-}
-
 func (m *faultingSourceSessionManager) setResetError(err error) {
 	m.mu.Lock()
 	m.resetErr = err

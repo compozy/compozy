@@ -250,27 +250,25 @@ type AutonomyMatcher struct {
 
 // HookDecl is the declarative record supplied by config, agent definitions, or skills.
 type HookDecl struct {
-	// Workspace overrides replace the inherited package, including hooks absent from the override.
-	ShadowedWorkspaces []string          `json:"-" yaml:"-"`
-	Name               string            `json:"name"                    yaml:"name"`
-	ProfileID          string            `json:"profile_id,omitempty"    yaml:"profile_id,omitempty"`
-	Event              HookEvent         `json:"event"                   yaml:"event"`
-	Mode               HookMode          `json:"mode,omitempty"          yaml:"mode,omitempty"`
-	Matcher            HookMatcher       `json:"matcher"                 yaml:"matcher,omitempty"`
-	ExecutorKind       HookExecutorKind  `json:"executor_kind,omitempty" yaml:"executor_kind,omitempty"`
-	Command            string            `json:"command,omitempty"       yaml:"command,omitempty"`
-	Args               []string          `json:"args,omitempty"          yaml:"args,omitempty"`
-	WorkingDir         string            `json:"-"                       yaml:"-"`
-	Env                map[string]string `json:"env,omitempty"           yaml:"env,omitempty"`
-	SecretEnv          map[string]string `json:"secret_env,omitempty"    yaml:"secret_env,omitempty"`
-	Metadata           map[string]string `json:"metadata,omitempty"      yaml:"metadata,omitempty"`
-	Timeout            time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
-	Enabled            *bool             `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
-	Priority           int32             `json:"priority,omitempty"      yaml:"priority,omitempty"`
-	SkillSource        HookSkillSource   `json:"-"                       yaml:"-"`
-	Source             HookSource        `json:"source"                  yaml:"source"`
-	Required           bool              `json:"required,omitempty"      yaml:"required,omitempty"`
-	PrioritySet        bool              `json:"-"                       yaml:"-"`
+	Name           string `json:"name"                    yaml:"name"`
+	*HookPlacement ` yaml:",inline"`
+	Event          HookEvent         `json:"event"                   yaml:"event"`
+	Mode           HookMode          `json:"mode,omitempty"          yaml:"mode,omitempty"`
+	Matcher        HookMatcher       `json:"matcher"                 yaml:"matcher,omitempty"`
+	ExecutorKind   HookExecutorKind  `json:"executor_kind,omitempty" yaml:"executor_kind,omitempty"`
+	Command        string            `json:"command,omitempty"       yaml:"command,omitempty"`
+	Args           []string          `json:"args,omitempty"          yaml:"args,omitempty"`
+	WorkingDir     string            `json:"-"                       yaml:"-"`
+	Env            map[string]string `json:"env,omitempty"           yaml:"env,omitempty"`
+	SecretEnv      map[string]string `json:"secret_env,omitempty"    yaml:"secret_env,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"      yaml:"metadata,omitempty"`
+	Timeout        time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
+	Enabled        *bool             `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
+	Priority       int32             `json:"priority,omitempty"      yaml:"priority,omitempty"`
+	SkillSource    HookSkillSource   `json:"-"                       yaml:"-"`
+	Source         HookSource        `json:"source"                  yaml:"source"`
+	Required       bool              `json:"required,omitempty"      yaml:"required,omitempty"`
+	PrioritySet    bool              `json:"-"                       yaml:"-"`
 }
 
 // PriorityFromInt converts external numeric priority inputs into the compact

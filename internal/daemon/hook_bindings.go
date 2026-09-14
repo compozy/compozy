@@ -249,9 +249,15 @@ func (s *hookBindingSourceSyncer) sameBinding(
 }
 
 func extensionHookBindingID(extensionName string, hook hookspkg.HookDecl) string {
-	identity := strings.TrimSpace(hook.ProfileID) + "\x00" + strings.TrimSpace(hook.Matcher.WorkspaceID)
+	identity := strings.TrimSpace(hook.PlacementProfileID()) + "\x00" + strings.TrimSpace(hook.Matcher.WorkspaceID)
 	sum := sha256.Sum256([]byte(identity))
-	return "extension/" + strings.TrimSpace(extensionName) + "/hook.binding/" + strings.TrimSpace(hook.Name) + "/" + hex.EncodeToString(sum[:12])
+	return "extension/" + strings.TrimSpace(
+		extensionName,
+	) + "/hook.binding/" + strings.TrimSpace(
+		hook.Name,
+	) + "/" + hex.EncodeToString(
+		sum[:12],
+	)
 }
 
 func extensionHookOwner(spec hookspkg.HookDecl) *resources.ResourceOwner {

@@ -224,46 +224,59 @@ func TestValidateHookDeclRejectsIllegalAutonomyMatcherField(t *testing.T) {
 
 func TestNormalizeHookDeclClonesMutableFields(t *testing.T) {
 	t.Parallel()
+	t.Run("Should isolate mutable declaration and placement fields", func(t *testing.T) {
+		t.Parallel()
+		env := map[string]string{"A": "1"}
+		metadata := map[string]string{"team": "hooks"}
+		args := []string{"--demo"}
+		readOnly := true
+		placement := &HookPlacement{ProfileID: "profile-a", ShadowedWorkspaces: []string{"workspace-a"}}
 
-	env := map[string]string{"A": "1"}
-	metadata := map[string]string{"team": "hooks"}
-	args := []string{"--demo"}
-	readOnly := true
+		hook, err := NormalizeHookDecl(HookDecl{
+			HookPlacement: placement,
+			Name:          "clone-fields",
+			Event:         HookToolPreCall,
+			Source:        HookSourceConfig,
+			Command:       "./hook.sh",
+			Args:          args,
+			Env:           env,
+			Metadata:      metadata,
+			Matcher: HookMatcher{
+				ToolReadOnly: &readOnly,
+			},
+			Timeout: 5 * time.Second,
+		}, expectExecutorKind(t, HookExecutorSubprocess))
+		if err != nil {
+			t.Fatalf("NormalizeHookDecl() error = %v", err)
+		}
 
-	hook, err := NormalizeHookDecl(HookDecl{
-		Name:     "clone-fields",
-		Event:    HookToolPreCall,
-		Source:   HookSourceConfig,
-		Command:  "./hook.sh",
-		Args:     args,
-		Env:      env,
-		Metadata: metadata,
-		Matcher: HookMatcher{
-			ToolReadOnly: &readOnly,
-		},
-		Timeout: 5 * time.Second,
-	}, expectExecutorKind(t, HookExecutorSubprocess))
-	if err != nil {
-		t.Fatalf("NormalizeHookDecl() error = %v", err)
-	}
+		args[0] = "--changed"
+		env["A"] = "2"
+		metadata["team"] = "changed"
+		readOnly = false
+		placement.ProfileID = "profile-b"
+		placement.ShadowedWorkspaces[0] = "workspace-b"
+		if hook.ProfileID != "profile-a" || hook.Decl.PlacementProfileID() != "profile-a" ||
+			hook.Decl.PlacementWorkspaces()[0] != "workspace-a" {
+			t.Fatalf(
+				"NormalizeHookDecl() placement = %#v, want isolated profile and workspace ownership",
+				hook.Decl.HookPlacement,
+			)
+		}
 
-	args[0] = "--changed"
-	env["A"] = "2"
-	metadata["team"] = "changed"
-	readOnly = false
-
-	if hook.Decl.Args[0] != "--demo" {
-		t.Fatalf("NormalizeHookDecl() args = %#v, want cloned args", hook.Decl.Args)
-	}
-	if hook.Decl.Env["A"] != "1" {
-		t.Fatalf("NormalizeHookDecl() env = %#v, want cloned env", hook.Decl.Env)
-	}
-	if hook.Decl.Metadata["team"] != "hooks" {
-		t.Fatalf("NormalizeHookDecl() metadata = %#v, want cloned metadata", hook.Decl.Metadata)
-	}
-	if hook.Matcher.ToolReadOnly == nil || !*hook.Matcher.ToolReadOnly {
-		t.Fatalf("NormalizeHookDecl() matcher read_only = %#v, want true clone", hook.Matcher.ToolReadOnly)
-	}
+		if hook.Decl.Args[0] != "--demo" {
+			t.Fatalf("NormalizeHookDecl() args = %#v, want cloned args", hook.Decl.Args)
+		}
+		if hook.Decl.Env["A"] != "1" {
+			t.Fatalf("NormalizeHookDecl() env = %#v, want cloned env", hook.Decl.Env)
+		}
+		if hook.Decl.Metadata["team"] != "hooks" {
+			t.Fatalf("NormalizeHookDecl() metadata = %#v, want cloned metadata", hook.Decl.Metadata)
+		}
+		if hook.Matcher.ToolReadOnly == nil || !*hook.Matcher.ToolReadOnly {
+			t.Fatalf("NormalizeHookDecl() matcher read_only = %#v, want true clone", hook.Matcher.ToolReadOnly)
+		}
+	})
 }
 
 func TestValidateAndNormalizeHookDecls(t *testing.T) {

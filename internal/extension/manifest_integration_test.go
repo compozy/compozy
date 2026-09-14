@@ -103,14 +103,20 @@ func TestPluginCatalogInstallability(t *testing.T) {
 					t.Fatal(err)
 				}
 				preview, err := InspectMarketplacePackage(t.Context(), paths, MarketplaceInstallRequest{
-					Slug: entries[0].InstallSlug, ExpectedDigest: entries[0].DigestSHA256,
-					Plugin: &MarketplacePluginAcquisition{SourceName: "team", Record: *detail.Extension.Acquisition, Acquirer: resolver},
+					Slug:           entries[0].InstallSlug,
+					ExpectedDigest: entries[0].DigestSHA256,
+					Plugin: &MarketplacePluginAcquisition{
+						SourceName: "team",
+						Record:     *detail.Extension.Acquisition,
+						Acquirer:   resolver,
+					},
 				}, "default")
 				if err != nil {
 					t.Fatal(err)
 				}
 				if preview.ResolvedRef != detail.Extension.Acquisition.ResolvedRef || preview.Layout != "claude-plugin" ||
-					len(preview.Diagnostics) != 1 || preview.Diagnostics[0].Code != "client_component_ignored" {
+					len(preview.Diagnostics) != 1 ||
+					preview.Diagnostics[0].Code != "client_component_ignored" {
 					t.Fatalf("dry inspection metadata = %+v", preview)
 				}
 				db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "catalog.db"))

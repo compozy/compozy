@@ -2614,7 +2614,7 @@ func TestClientPluginManifestPackages(t *testing.T) {
 		}
 		writeFile(t, file, `{"name":"future","$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json"}`)
 		_, err := LoadManifest(root)
-		if !errors.Is(err, ErrAgentPluginSchemaUnsupported) || !strings.Contains(err.Error(), file) {
+		if !errors.Is(err, agentplugin.ErrSchemaUnsupported) || !strings.Contains(err.Error(), file) {
 			t.Fatalf("schema error = %v", err)
 		}
 	})

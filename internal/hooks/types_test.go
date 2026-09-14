@@ -6,7 +6,46 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-yaml"
 )
+
+func TestHookDeclWirePlacement(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name      string
+		marshal   func(any) ([]byte, error)
+		unmarshal func([]byte, any) error
+	}{
+		{"Should preserve the top-level profile in JSON", json.Marshal, json.Unmarshal},
+		{"Should preserve the top-level profile in YAML", func(value any) ([]byte, error) { return yaml.Marshal(value) },
+			func(data []byte, value any) error { return yaml.Unmarshal(data, value) }},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			decl := (HookDecl{Name: "profile-hook", Event: HookToolPreCall, Source: HookSourceExtension}).
+				WithPlacement("profile-a", []string{"workspace-private"})
+			data, err := testCase.marshal(decl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wire map[string]any
+			if err := testCase.unmarshal(data, &wire); err != nil {
+				t.Fatal(err)
+			}
+			if wire["profile_id"] != "profile-a" {
+				t.Fatalf("wire profile_id = %#v, want profile-a", wire["profile_id"])
+			}
+			var decoded HookDecl
+			if err := testCase.unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded.PlacementProfileID() != "profile-a" || len(decoded.PlacementWorkspaces()) != 0 {
+				t.Fatalf("decoded placement = %#v, want only public profile ownership", decoded.HookPlacement)
+			}
+		})
+	}
+}
 
 type stubExecutor struct {
 	kind HookExecutorKind

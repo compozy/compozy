@@ -53,8 +53,7 @@ func validateInstallerClientSchema(contents []byte, name string) error {
 	case agentplugin.SchemaSupported:
 		return nil
 	case agentplugin.SchemaUnsupportedVersion:
-		return fmt.Errorf("registry: manifest %q has unsupported Agent Plugins schema %q; supported schema is %q",
-			name, declared, agentplugin.PluginSchemaID)
+		return &agentplugin.SchemaUnsupportedError{Path: name, Declared: declared}
 	default:
 		return fmt.Errorf("%w: unrelated client manifest %q", errInstallMissingManifest, name)
 	}

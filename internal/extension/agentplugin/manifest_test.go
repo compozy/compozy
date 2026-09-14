@@ -21,7 +21,11 @@ func TestLoadManifestFatality(t *testing.T) {
 		if status != SchemaSupported {
 			t.Fatalf("manifest classification = %v", status)
 		}
-		writeJSONFile(t, filepath.Join(root, "plugin.json"), map[string]any{"$schema": "unsupported", "name": "replacement"})
+		writeJSONFile(
+			t,
+			filepath.Join(root, "plugin.json"),
+			map[string]any{"$schema": "unsupported", "name": "replacement"},
+		)
 		name, err := document.Name()
 		if err != nil || name != "captured" {
 			t.Fatalf("manifest name = %q, %v", name, err)

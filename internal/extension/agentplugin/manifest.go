@@ -27,7 +27,7 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	}
 	manifest, err := ReadManifest(root)
 	if err != nil {
-		if _, ok := errors.AsType[*NotManifestError](err); ok {
+		if missing, ok := errors.AsType[*NotManifestError](err); ok && missing != nil {
 			return nil, err
 		}
 		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}

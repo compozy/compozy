@@ -24,7 +24,7 @@ func sortedKeys[T any](items map[string]T) []string {
 
 func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
-	cloned.ShadowedWorkspaces = slices.Clone(src.ShadowedWorkspaces)
+	cloned.HookPlacement = src.ClonePlacement()
 	cloned.Args = slices.Clone(src.Args)
 	cloned.Env = cloneStringMap(src.Env)
 	cloned.SecretEnv = cloneStringMap(src.SecretEnv)

@@ -359,7 +359,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			},
 			{
 				name: "Should classify an unsupported portable schema",
-				err: &extensionpkg.AgentPluginSchemaUnsupportedError{
+				err: &agentplugin.SchemaUnsupportedError{
 					Root: "/srv/future", Declared: "https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",
 				},
 				code: diagnosticcontract.CodeExtensionAgentPluginSchemaUnsupported,
@@ -840,7 +840,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map missing local paths to bad request", err: os.ErrNotExist, want: http.StatusBadRequest},
 
 		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
-		{name: "Should map an unsupported plugin schema to unprocessable", err: extensionpkg.ErrAgentPluginSchemaUnsupported, want: http.StatusUnprocessableEntity},
+		{name: "Should map an unsupported plugin schema to unprocessable", err: agentplugin.ErrSchemaUnsupported, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {

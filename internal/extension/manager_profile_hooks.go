@@ -36,12 +36,22 @@ func (m *Manager) HookDeclarationsForProfiles(
 		for _, profile := range profiles {
 			shadowed := make([]string, 0, len(workspaces[name]))
 			for _, workspaceID := range workspaces[name] {
-				projected, enabled, err := m.ProjectForProfile(ctx, InstanceKey{Name: name, WorkspaceID: workspaceID}, profile)
+				projected, enabled, err := m.ProjectForProfile(
+					ctx,
+					InstanceKey{Name: name, WorkspaceID: workspaceID},
+					profile,
+				)
 				if errors.Is(err, ErrExtensionNotFound) {
 					continue
 				}
 				if err != nil {
-					return nil, fmt.Errorf("extension: project hooks for %q in workspace %q and profile %q: %w", name, workspaceID, profile.Name, err)
+					return nil, fmt.Errorf(
+						"extension: project hooks for %q in workspace %q and profile %q: %w",
+						name,
+						workspaceID,
+						profile.Name,
+						err,
+					)
 				}
 				if projected.Status.WorkspaceID != workspaceID {
 					continue
@@ -130,8 +140,7 @@ func appendProfileHookDeclarations(
 	workspaceID = strings.TrimSpace(workspaceID)
 	for _, declaration := range projected.Hooks {
 		declaration = cloneHookDecl(declaration)
-		declaration.ProfileID = strings.TrimSpace(profileID)
-		declaration.ShadowedWorkspaces = slices.Clone(shadowedWorkspaces)
+		declaration = declaration.WithPlacement(profileID, shadowedWorkspaces)
 		if workspaceID != "" {
 			declaredWorkspaceID := strings.TrimSpace(declaration.Matcher.WorkspaceID)
 			if declaredWorkspaceID != "" && declaredWorkspaceID != workspaceID {

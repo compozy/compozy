@@ -199,11 +199,7 @@ func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 		case agentplugin.SchemaSupported:
 			return installerAgentPluginManifestName, nil
 		case agentplugin.SchemaUnsupportedVersion:
-			return "", fmt.Errorf(
-				"registry: unsupported Agent Plugins schema %q; supported schema is %q",
-				declared,
-				agentplugin.PluginSchemaID,
-			)
+			return "", &agentplugin.SchemaUnsupportedError{Path: installerAgentPluginManifestName, Declared: declared}
 		default:
 			return "", fmt.Errorf("%w: unrelated plugin.json", errInstallMissingManifest)
 		}

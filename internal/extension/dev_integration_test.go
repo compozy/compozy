@@ -1913,3 +1913,9 @@ func assertDevRuntimeMatchesLink(
 		t.Fatalf("runtime status = %#v, persisted generation = %q", current.Status, link.BundleGeneration)
 	}
 }
+
+func (m *faultingSourceSessionManager) failNextActivation(err error) {
+	m.mu.Lock()
+	m.activationErr = err
+	m.mu.Unlock()
+}

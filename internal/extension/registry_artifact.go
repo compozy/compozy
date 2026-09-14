@@ -74,8 +74,9 @@ func resolveManifestPath(dir string) (string, error) {
 	pluginPath := filepath.Join(dir, agentPluginManifestFileName)
 	document, err := agentplugin.ReadManifest(dir)
 	if err != nil {
-		_, missing := errors.AsType[*agentplugin.NotManifestError](err)
-		if !missing && !errors.Is(err, fileutil.ErrSymlink) && !errors.Is(err, fileutil.ErrDirectory) &&
+		missing, isMissing := errors.AsType[*agentplugin.NotManifestError](err)
+		if !(isMissing && missing != nil) && !errors.Is(err, fileutil.ErrSymlink) &&
+			!errors.Is(err, fileutil.ErrDirectory) &&
 			!errors.Is(err, fileutil.ErrNotRegular) {
 			return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
 		}
@@ -85,7 +86,7 @@ func resolveManifestPath(dir string) (string, error) {
 		case agentplugin.SchemaSupported:
 			return document.Path, nil
 		case agentplugin.SchemaUnsupportedVersion:
-			return "", &AgentPluginSchemaUnsupportedError{Root: dir, Declared: declared}
+			return "", &agentplugin.SchemaUnsupportedError{Root: dir, Declared: declared}
 		}
 	}
 

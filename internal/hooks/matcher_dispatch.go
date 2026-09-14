@@ -30,7 +30,7 @@ func selectMatchingHooks[P any](
 }
 
 func hookWorkspaceShadowed[P any](decl HookDecl, payload P, match matcherFunc[P]) bool {
-	for _, workspaceID := range decl.ShadowedWorkspaces {
+	for _, workspaceID := range decl.PlacementWorkspaces() {
 		if match(HookMatcher{WorkspaceID: workspaceID}, payload) {
 			return true
 		}

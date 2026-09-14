@@ -33,7 +33,11 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		t.Run("Should restore persisted and live sources after a rejected "+operation, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			if err := os.WriteFile(filepath.Join(root, "marketplace.json"), []byte(`{"plugins":[]}`), 0o600); err != nil {
+			if err := os.WriteFile(
+				filepath.Join(root, "marketplace.json"),
+				[]byte(`{"plugins":[]}`),
+				0o600,
+			); err != nil {
 				t.Fatal(err)
 			}
 			ref := (&url.URL{Scheme: "file", Path: root}).String()
@@ -42,7 +46,11 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			cfg := testConfig(t, home)
 			cfg.Marketplace.Catalog.BaseURL = feed.URL
 			cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{{Name: "team", Source: ref}}
-			original := fmt.Sprintf("# preserved config comment\n[marketplace.catalog]\nbase_url = %q\n[[marketplace.plugin_sources]]\nname = \"team\"\nsource = %q\nenabled = true\n", feed.URL, ref)
+			original := fmt.Sprintf(
+				"# preserved config comment\n[marketplace.catalog]\nbase_url = %q\n[[marketplace.plugin_sources]]\nname = \"team\"\nsource = %q\nenabled = true\n",
+				feed.URL,
+				ref,
+			)
 			if err := os.WriteFile(home.ConfigFile, []byte(original), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -67,17 +75,27 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.DB().ExecContext(t.Context(), `CREATE TRIGGER reject_source_configuration BEFORE UPDATE ON marketplace_catalog_config
+			if _, err := db.DB().
+				ExecContext(t.Context(), `CREATE TRIGGER reject_source_configuration BEFORE UPDATE ON marketplace_catalog_config
 				BEGIN SELECT RAISE(ABORT, 'injected source configuration failure'); END`); err != nil {
 				t.Fatal(err)
 			}
 			switch operation {
 			case "add":
 				otherRoot := t.TempDir()
-				if err := os.WriteFile(filepath.Join(otherRoot, "marketplace.json"), []byte(`{"plugins":[]}`), 0o600); err != nil {
+				if err := os.WriteFile(
+					filepath.Join(otherRoot, "marketplace.json"),
+					[]byte(`{"plugins":[]}`),
+					0o600,
+				); err != nil {
 					t.Fatal(err)
 				}
-				_, err = runtime.AddSource(t.Context(), (&url.URL{Scheme: "file", Path: otherRoot}).String(), "other", false)
+				_, err = runtime.AddSource(
+					t.Context(),
+					(&url.URL{Scheme: "file", Path: otherRoot}).String(),
+					"other",
+					false,
+				)
 			case "disable":
 				_, err = runtime.UpdateSource(t.Context(), "team", false)
 			case "remove":

@@ -50,7 +50,8 @@ func TestPluginMarketplaceAcquisitionLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if preview.ResolvedRef != req.Plugin.Record.ResolvedRef || preview.Layout != req.Plugin.Record.Layout || preview.DigestSHA256 != req.Plugin.Record.DigestSHA256 {
+			if preview.ResolvedRef != req.Plugin.Record.ResolvedRef || preview.Layout != req.Plugin.Record.Layout ||
+				preview.DigestSHA256 != req.Plugin.Record.DigestSHA256 {
 				t.Fatalf("offline inspection identity = %+v", preview)
 			}
 			info, err := InstallMarketplaceManaged(t.Context(), homePaths, env.registry, nil, req)
@@ -866,9 +867,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				},
 				nil,
 			)
-			if !errors.Is(updateErr, ErrAgentPluginSchemaUnsupported) {
+			if !errors.Is(updateErr, agentplugin.ErrSchemaUnsupported) {
 				t.Fatalf(
-					"UpdateMarketplaceManaged(unsupported schema) error = %v, want ErrAgentPluginSchemaUnsupported",
+					"UpdateMarketplaceManaged(unsupported schema) error = %v, want agentplugin.ErrSchemaUnsupported",
 					updateErr,
 				)
 			}

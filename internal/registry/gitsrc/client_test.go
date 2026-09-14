@@ -129,7 +129,10 @@ func TestClientCheckout(t *testing.T) {
 							args[i] = source
 						}
 					}
-					return runGitCommand(ctx, executable, append([]string{"-c", "protocol.file.allow=always"}, args...)...)
+					return runGitCommand(
+						ctx,
+						executable,
+						append([]string{"-c", "protocol.file.allow=always"}, args...)...)
 				}),
 			)
 			checkout, err := client.Checkout(t.Context(), repository, commit)

@@ -149,9 +149,14 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 				manifestPath := filepath.Join(layout, "plugin.json")
 				content := "{" + tc.schema + `"name":"client-only","version":"1.0.0"}`
 				archive := mustTarGz(t, []tarEntry{{name: filepath.ToSlash(manifestPath), content: content}})
-				downloader := &stubDownloader{downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
-					return &DownloadResult{ContentType: "application/gzip", Reader: io.NopCloser(bytes.NewReader(archive))}, nil
-				}}
+				downloader := &stubDownloader{
+					downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+						return &DownloadResult{
+							ContentType: "application/gzip",
+							Reader:      io.NopCloser(bytes.NewReader(archive)),
+						}, nil
+					},
+				}
 				target := filepath.Join(t.TempDir(), "client-only")
 				result, err := NewInstaller(downloader).Install(t.Context(), "client-only", DownloadOpts{}, target)
 				if tc.wantErr {

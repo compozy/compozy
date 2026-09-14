@@ -817,7 +817,11 @@ func TestUpdateSectionMarketplaceRuntimeSource(t *testing.T) {
 			}
 			if stored.Marketplace.Catalog.BaseURL != wantURL || stored.Marketplace.Catalog.TTL != desired.TTL ||
 				stored.Marketplace.Catalog.Timeout != desired.Timeout {
-				t.Fatalf("persisted catalog = %#v, want source %q with updated TTL and timeout", stored.Marketplace.Catalog, wantURL)
+				t.Fatalf(
+					"persisted catalog = %#v, want source %q with updated TTL and timeout",
+					stored.Marketplace.Catalog,
+					wantURL,
+				)
 			}
 		})
 	}

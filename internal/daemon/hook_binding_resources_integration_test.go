@@ -33,36 +33,42 @@ type hookBindingIntegrationHarness struct {
 }
 
 func TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier(t *testing.T) {
-	t.Run("Should dispatch workspace installations and development overrides exactly once in their profile", func(t *testing.T) {
-		t.Parallel()
-		h := newHookBindingIntegrationHarness(t, nil)
-		ctx := t.Context()
-		home := testHomePaths(t)
-		profiles, err := profilepkg.NewManager(profilepkg.WithStore(h.db), profilepkg.WithHomePaths(home))
-		if err != nil {
-			t.Fatal(err)
-		}
-		alpha, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "alpha"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		beta, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "beta"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		workspaceRoot := t.TempDir()
-		if _, err := h.db.DB().ExecContext(ctx, `INSERT INTO workspaces (id,root_dir,name,created_at,updated_at)
+	t.Run(
+		"Should dispatch workspace installations and development overrides exactly once in their profile",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHookBindingIntegrationHarness(t, nil)
+			ctx := t.Context()
+			home := testHomePaths(t)
+			profiles, err := profilepkg.NewManager(profilepkg.WithStore(h.db), profilepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			alpha, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "alpha"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			beta, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "beta"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspaceRoot := t.TempDir()
+			if _, err := h.db.DB().ExecContext(ctx, `INSERT INTO workspaces (id,root_dir,name,created_at,updated_at)
 			VALUES ('ws-hooks',?,'Hook workspace','2026-09-14T00:00:00Z','2026-09-14T00:00:00Z')`, workspaceRoot); err != nil {
-			t.Fatal(err)
-		}
-		resolver, err := workspacepkg.NewResolver(h.db, workspacepkg.WithHomePaths(home), workspacepkg.WithLogger(discardLogger()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		capture := filepath.Join(t.TempDir(), "hook-executions")
-		writePackage := func(root, label string) string {
-			t.Helper()
-			manifest := fmt.Sprintf(`[extension]
+				t.Fatal(err)
+			}
+			resolver, err := workspacepkg.NewResolver(
+				h.db,
+				workspacepkg.WithHomePaths(home),
+				workspacepkg.WithLogger(discardLogger()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			capture := filepath.Join(t.TempDir(), "hook-executions")
+			writePackage := func(root, label string) string {
+				t.Helper()
+				manifest := fmt.Sprintf(`[extension]
 name = "scoped-hook-kit"
 version = "1.0.0"
 min_compozy_version = "0.5.0"
@@ -73,147 +79,179 @@ mode = "sync"
 command = "/bin/sh"
 args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook", %q, %q]
 `, label, capture)
-			if label == "" {
-				manifest, _, _ = strings.Cut(manifest, "[[resources.hooks]]")
+				if label == "" {
+					manifest, _, _ = strings.Cut(manifest, "[[resources.hooks]]")
+				}
+				writeAgentSkillIntegrationFile(t, filepath.Join(root, "extension.toml"), manifest)
+				digest, err := extensionpkg.ComputeDirectoryChecksum(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return digest
 			}
-			writeAgentSkillIntegrationFile(t, filepath.Join(root, "extension.toml"), manifest)
-			digest, err := extensionpkg.ComputeDirectoryChecksum(root)
+			packageRoot := t.TempDir()
+			digest := writePackage(packageRoot, "installed")
+			manifest, err := extensionpkg.LoadManifest(packageRoot)
 			if err != nil {
 				t.Fatal(err)
 			}
-			return digest
-		}
-		packageRoot := t.TempDir()
-		digest := writePackage(packageRoot, "installed")
-		manifest, err := extensionpkg.LoadManifest(packageRoot)
-		if err != nil {
-			t.Fatal(err)
-		}
-		registry := extensionpkg.NewRegistry(h.db.DB())
-		workspaceScope := extensionpkg.InstallationScope{ProfileID: alpha.ID, WorkspaceID: "ws-hooks"}
-		if err := registry.Install(manifest, packageRoot, digest, extensionpkg.WithInstallScope(workspaceScope)); err != nil {
-			t.Fatal(err)
-		}
-		manager := extensionpkg.NewManager(registry, extensionpkg.WithHomePaths(home), extensionpkg.WithWorkspaceResolver(resolver))
-		if err := manager.Start(ctx); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := manager.Stop(context.WithoutCancel(ctx)); err != nil {
-				t.Error(err)
-			}
-		})
-		codec, err := newHookBindingCodec()
-		if err != nil {
-			t.Fatal(err)
-		}
-		syncer := newHookBindingSourceSyncer(h.store, codec, h.actor, discardLogger(), func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			ticket, err := h.driver.Trigger(ctx, kind, reason)
-			if err != nil {
-				return err
-			}
-			return h.driver.WaitForIdle(ctx, ticket)
-		}, extensionDeclarationProvider(func() extensionRuntime { return manager }, profiles))
-		syncHooks := func(wantRecords int) {
-			t.Helper()
-			if err := syncer.Sync(ctx); err != nil {
+			registry := extensionpkg.NewRegistry(h.db.DB())
+			workspaceScope := extensionpkg.InstallationScope{ProfileID: alpha.ID, WorkspaceID: "ws-hooks"}
+			if err := registry.Install(
+				manifest,
+				packageRoot,
+				digest,
+				extensionpkg.WithInstallScope(workspaceScope),
+			); err != nil {
 				t.Fatal(err)
 			}
-			rows, err := h.store.List(ctx, h.actor, resources.ResourceFilter{})
-			if err != nil || len(rows) != wantRecords {
-				t.Fatalf("persisted hook bindings = %d, want %d: %v", len(rows), wantRecords, err)
+			manager := extensionpkg.NewManager(
+				registry,
+				extensionpkg.WithHomePaths(home),
+				extensionpkg.WithWorkspaceResolver(resolver),
+			)
+			if err := manager.Start(ctx); err != nil {
+				t.Fatal(err)
 			}
-			for _, row := range rows {
-				if row.Spec.ProfileID == "" {
-					t.Fatal("hook binding lost its profile during persistence")
+			t.Cleanup(func() {
+				if err := manager.Stop(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			codec, err := newHookBindingCodec()
+			if err != nil {
+				t.Fatal(err)
+			}
+			syncer := newHookBindingSourceSyncer(
+				h.store,
+				codec,
+				h.actor,
+				discardLogger(),
+				func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+					ticket, err := h.driver.Trigger(ctx, kind, reason)
+					if err != nil {
+						return err
+					}
+					return h.driver.WaitForIdle(ctx, ticket)
+				},
+				extensionDeclarationProvider(func() extensionRuntime { return manager }, profiles),
+			)
+			syncHooks := func(wantRecords int) {
+				t.Helper()
+				if err := syncer.Sync(ctx); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := h.store.List(ctx, h.actor, resources.ResourceFilter{})
+				if err != nil || len(rows) != wantRecords {
+					t.Fatalf("persisted hook bindings = %d, want %d: %v", len(rows), wantRecords, err)
+				}
+				for _, row := range rows {
+					if row.Spec.PlacementProfileID() == "" {
+						t.Fatal("hook binding lost its profile during persistence")
+					}
 				}
 			}
-		}
-		dispatch := func(runtime *hookspkg.Hooks, profileID, workspaceID, want string) {
-			t.Helper()
-			if err := os.WriteFile(capture, nil, 0o600); err != nil {
+			dispatch := func(runtime *hookspkg.Hooks, profileID, workspaceID, want string) {
+				t.Helper()
+				if err := os.WriteFile(capture, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				_, err := runtime.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookToolPreCall,
+						Timestamp: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+					},
+					SessionContext: hookspkg.SessionContext{
+						SessionID:   "session-hooks",
+						ProfileID:   profileID,
+						WorkspaceID: workspaceID,
+						AgentName:   "default",
+					},
+					ToolCallRef: hookspkg.ToolCallRef{ToolCallID: "call-hooks", ToolID: "Read"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				content, err := os.ReadFile(capture)
+				if err != nil || string(content) != want {
+					t.Fatalf("hook executions for %s/%s = %q, want %q: %v", profileID, workspaceID, content, want, err)
+				}
+			}
+			syncHooks(1)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
+			dispatch(h.hooks, beta.ID, "ws-hooks", "")
+			dispatch(h.hooks, alpha.ID, "ws-foreign", "")
+			if err := registry.AttachInstallation(ctx, manifest.Name, extensionpkg.InstallationScope{}); err != nil {
 				t.Fatal(err)
 			}
-			_, err := runtime.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
-				PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookToolPreCall, Timestamp: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)},
-				SessionContext: hookspkg.SessionContext{SessionID: "session-hooks", ProfileID: profileID, WorkspaceID: workspaceID, AgentName: "default"},
-				ToolCallRef:    hookspkg.ToolCallRef{ToolCallID: "call-hooks", ToolID: "Read"},
-			})
-			if err != nil {
+			if err := manager.Reload(ctx); err != nil {
 				t.Fatal(err)
 			}
-			content, err := os.ReadFile(capture)
-			if err != nil || string(content) != want {
-				t.Fatalf("hook executions for %s/%s = %q, want %q: %v", profileID, workspaceID, content, want, err)
+			syncHooks(4)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
+			dispatch(h.hooks, beta.ID, "ws-hooks", "installed\n")
+			dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
+			origin := filepath.Join(workspaceRoot, "hook-development")
+			staging := filepath.Join(origin, "dist", "staging")
+			generation := writePackage(staging, "development")
+			if err := os.Rename(staging, filepath.Join(origin, "dist", "gen-"+generation)); err != nil {
+				t.Fatal(err)
 			}
-		}
-		syncHooks(1)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
-		dispatch(h.hooks, beta.ID, "ws-hooks", "")
-		dispatch(h.hooks, alpha.ID, "ws-foreign", "")
-		if err := registry.AttachInstallation(ctx, manifest.Name, extensionpkg.InstallationScope{}); err != nil {
-			t.Fatal(err)
-		}
-		if err := manager.Reload(ctx); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(4)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
-		dispatch(h.hooks, beta.ID, "ws-hooks", "installed\n")
-		dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
-		origin := filepath.Join(workspaceRoot, "hook-development")
-		staging := filepath.Join(origin, "dist", "staging")
-		generation := writePackage(staging, "development")
-		if err := os.Rename(staging, filepath.Join(origin, "dist", "gen-"+generation)); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := manager.LinkDevelopmentFromOrigin(ctx, "ws-hooks", origin, generation); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(6)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "development\n")
-		dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
-		if err := registry.SetEnabledForProfile(manifest.Name, beta.ID, false); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(4)
-		dispatch(h.hooks, beta.ID, "ws-hooks", "")
-		rebuilt := newHookBindingIntegrationHarness(t, nil, h.db)
-		if err := rebuilt.driver.RunBoot(ctx); err != nil {
-			t.Fatal(err)
-		}
-		dispatch(rebuilt.hooks, alpha.ID, "ws-hooks", "development\n")
-		dispatch(rebuilt.hooks, beta.ID, "ws-hooks", "")
-		// A development package without hooks still replaces the inherited package.
-		emptyGeneration := writePackage(staging, "")
-		if err := os.Rename(staging, filepath.Join(origin, "dist", "gen-"+emptyGeneration)); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := manager.ReloadExtension(ctx, extensionpkg.InstanceKey{Name: manifest.Name, WorkspaceID: "ws-hooks"}, emptyGeneration); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(2)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "")
-		dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
-		if err := manager.UnlinkDevelopment(ctx, extensionpkg.InstanceKey{Name: manifest.Name, WorkspaceID: "ws-hooks"}); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(3)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
-		if err := registry.DetachInstallation(ctx, manifest.Name, workspaceScope); err != nil {
-			t.Fatal(err)
-		}
-		if err := manager.Reload(ctx); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(2)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
-		if err := registry.SetEnabledForProfile(manifest.Name, alpha.ID, false); err != nil {
-			t.Fatal(err)
-		}
-		syncHooks(1)
-		dispatch(h.hooks, alpha.ID, "ws-hooks", "")
-	})
+			if _, err := manager.LinkDevelopmentFromOrigin(ctx, "ws-hooks", origin, generation); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(6)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "development\n")
+			dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
+			if err := registry.SetEnabledForProfile(manifest.Name, beta.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(4)
+			dispatch(h.hooks, beta.ID, "ws-hooks", "")
+			rebuilt := newHookBindingIntegrationHarness(t, nil, h.db)
+			if err := rebuilt.driver.RunBoot(ctx); err != nil {
+				t.Fatal(err)
+			}
+			dispatch(rebuilt.hooks, alpha.ID, "ws-hooks", "development\n")
+			dispatch(rebuilt.hooks, beta.ID, "ws-hooks", "")
+			// A development package without hooks still replaces the inherited package.
+			emptyGeneration := writePackage(staging, "")
+			if err := os.Rename(staging, filepath.Join(origin, "dist", "gen-"+emptyGeneration)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.ReloadExtension(
+				ctx,
+				extensionpkg.InstanceKey{Name: manifest.Name, WorkspaceID: "ws-hooks"},
+				emptyGeneration,
+			); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(2)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "")
+			dispatch(h.hooks, alpha.ID, "ws-foreign", "installed\n")
+			if err := manager.UnlinkDevelopment(
+				ctx,
+				extensionpkg.InstanceKey{Name: manifest.Name, WorkspaceID: "ws-hooks"},
+			); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(3)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
+			if err := registry.DetachInstallation(ctx, manifest.Name, workspaceScope); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Reload(ctx); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(2)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "installed\n")
+			if err := registry.SetEnabledForProfile(manifest.Name, alpha.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			syncHooks(1)
+			dispatch(h.hooks, alpha.ID, "ws-hooks", "")
+		},
+	)
 	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 1)
 	h := newHookBindingIntegrationHarness(t, map[string]hookspkg.Executor{
 		"tool-hook": hookspkg.NewTypedNativeExecutor(

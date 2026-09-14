@@ -193,7 +193,7 @@ func TestHooksRebuildBumpsVersionOnSwap(t *testing.T) {
 	}
 
 	profiled := testSubprocessDecl("v2-input", HookInputPreSubmit)
-	profiled.ProfileID = "profile-marketing"
+	profiled = profiled.WithPlacement("profile-marketing", nil)
 	configDecls = []HookDecl{profiled}
 	if err := hooks.Rebuild(t.Context()); err != nil {
 		t.Fatalf("profile-owner Rebuild() error = %v, want nil", err)
@@ -774,20 +774,32 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 			t,
 			WithNativeDeclarations([]HookDecl{
 				{
-					Name: "default-profile", ProfileID: "profile-default", Event: HookInputPreSubmit,
-					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+					Name:          "default-profile",
+					HookPlacement: &HookPlacement{ProfileID: "profile-default"},
+					Event:         HookInputPreSubmit,
+					Mode:          HookModeSync,
+					ExecutorKind:  HookExecutorNative,
 				},
 				{
-					Name: "marketing-profile", ProfileID: "profile-marketing", Event: HookInputPreSubmit,
-					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+					Name:          "marketing-profile",
+					HookPlacement: &HookPlacement{ProfileID: "profile-marketing"},
+					Event:         HookInputPreSubmit,
+					Mode:          HookModeSync,
+					ExecutorKind:  HookExecutorNative,
 				},
 				{
-					Name: "default-coordinator", ProfileID: "profile-default", Event: HookCoordinatorPreSpawn,
-					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+					Name:          "default-coordinator",
+					HookPlacement: &HookPlacement{ProfileID: "profile-default"},
+					Event:         HookCoordinatorPreSpawn,
+					Mode:          HookModeSync,
+					ExecutorKind:  HookExecutorNative,
 				},
 				{
-					Name: "marketing-coordinator", ProfileID: "profile-marketing", Event: HookCoordinatorPreSpawn,
-					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+					Name:          "marketing-coordinator",
+					HookPlacement: &HookPlacement{ProfileID: "profile-marketing"},
+					Event:         HookCoordinatorPreSpawn,
+					Mode:          HookModeSync,
+					ExecutorKind:  HookExecutorNative,
 				},
 			}),
 			WithExecutorResolver(testExecutorResolver(map[string]Executor{

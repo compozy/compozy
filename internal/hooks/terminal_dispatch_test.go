@@ -29,13 +29,13 @@ func TestDispatchTerminalHooksUseAsyncProfileOwnedPayloads(t *testing.T) {
 	for _, event := range events {
 		name := event.String()
 		decls = append(decls, HookDecl{
-			Name: name, ProfileID: "profile-a", Event: event, Mode: HookModeAsync,
+			Name: name, HookPlacement: &HookPlacement{ProfileID: "profile-a"}, Event: event, Mode: HookModeAsync,
 			Matcher: HookMatcher{WorkspaceID: "workspace-a"}, ExecutorKind: HookExecutorNative,
 		})
 		executors[name] = terminalCaptureExecutor(t, seen)
 	}
 	decls = append(decls, HookDecl{
-		Name: "other-profile", ProfileID: "profile-b", Event: HookTerminalOpened,
+		Name: "other-profile", HookPlacement: &HookPlacement{ProfileID: "profile-b"}, Event: HookTerminalOpened,
 		Mode: HookModeAsync, ExecutorKind: HookExecutorNative,
 	})
 	executors["other-profile"] = terminalCaptureExecutor(t, seen)

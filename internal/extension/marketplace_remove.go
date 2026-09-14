@@ -23,7 +23,7 @@ type managedRemovalSnapshot struct {
 	state RemovalState
 }
 
-// ManagedRemovalCommit follows reversible unpublication/staging: failure preserves state; success commits removal and later cleanup only warns.
+// ManagedRemovalCommit preserves state on failure; post-commit cleanup failures only warn.
 type ManagedRemovalCommit func(context.Context) error
 
 // RemoveManagedExtension rolls back registry and filesystem state when reloading after removal fails.

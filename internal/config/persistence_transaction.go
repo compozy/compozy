@@ -83,7 +83,12 @@ func requireOverlayContents(directory *fileutil.Directory, name, path string, ex
 	return nil
 }
 
-func restoreConfigOverlay(directory *fileutil.Directory, name, path string, original, rendered []byte, existed bool) error {
+func restoreConfigOverlay(
+	directory *fileutil.Directory,
+	name, path string,
+	original, rendered []byte,
+	existed bool,
+) error {
 	current, exists, err := readOptionalRegularFileFromDirectory(directory, name, path, "config overlay")
 	if err != nil {
 		return fmt.Errorf("config: inspect rejected overlay: %w", err)

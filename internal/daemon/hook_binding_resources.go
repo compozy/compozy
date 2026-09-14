@@ -153,8 +153,8 @@ func (c *hookBindingCodec) ValidateAndCanonicalizeRaw(
 func newHookBindingCodecSpec(decl hookspkg.HookDecl) hookBindingCodecSpec {
 	cloned := cloneDaemonHookDecl(decl)
 	return hookBindingCodecSpec{
-		ProfileID:          cloned.ProfileID,
-		ShadowedWorkspaces: cloned.ShadowedWorkspaces,
+		ProfileID:          cloned.PlacementProfileID(),
+		ShadowedWorkspaces: cloned.PlacementWorkspaces(),
 		Name:               cloned.Name,
 		Event:              cloned.Event,
 		Source:             cloned.Source,
@@ -177,25 +177,24 @@ func newHookBindingCodecSpec(decl hookspkg.HookDecl) hookBindingCodecSpec {
 
 func (s *hookBindingCodecSpec) hookDecl() hookspkg.HookDecl {
 	return cloneDaemonHookDecl(hookspkg.HookDecl{
-		ProfileID:          s.ProfileID,
-		ShadowedWorkspaces: s.ShadowedWorkspaces,
-		Name:               s.Name,
-		Event:              s.Event,
-		Source:             s.Source,
-		Mode:               s.Mode,
-		Required:           s.Required,
-		Priority:           s.Priority,
-		PrioritySet:        s.PrioritySet,
-		Timeout:            s.Timeout,
-		Matcher:            s.Matcher,
-		ExecutorKind:       s.ExecutorKind,
-		Command:            s.Command,
-		Args:               s.Args,
-		WorkingDir:         s.WorkingDir,
-		Env:                s.Env,
-		SecretEnv:          s.SecretEnv,
-		Metadata:           s.Metadata,
-		SkillSource:        s.SkillSource,
+		HookPlacement: &hookspkg.HookPlacement{ProfileID: s.ProfileID, ShadowedWorkspaces: s.ShadowedWorkspaces},
+		Name:          s.Name,
+		Event:         s.Event,
+		Source:        s.Source,
+		Mode:          s.Mode,
+		Required:      s.Required,
+		Priority:      s.Priority,
+		PrioritySet:   s.PrioritySet,
+		Timeout:       s.Timeout,
+		Matcher:       s.Matcher,
+		ExecutorKind:  s.ExecutorKind,
+		Command:       s.Command,
+		Args:          s.Args,
+		WorkingDir:    s.WorkingDir,
+		Env:           s.Env,
+		SecretEnv:     s.SecretEnv,
+		Metadata:      s.Metadata,
+		SkillSource:   s.SkillSource,
 	})
 }
 

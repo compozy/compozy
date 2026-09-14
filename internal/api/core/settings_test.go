@@ -2107,8 +2107,15 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/marketplace", []byte(body))
 			var payload contract.ErrorPayload
 			decodeJSON(t, response.Body.Bytes(), &payload)
-			if response.Code != http.StatusBadRequest || !strings.Contains(payload.Error, "marketplace.config is required") || service.ApplySectionCalls != 0 {
-				t.Fatalf("absent config response=%d %#v; mutations=%d", response.Code, payload, service.ApplySectionCalls)
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(payload.Error, "marketplace.config is required") ||
+				service.ApplySectionCalls != 0 {
+				t.Fatalf(
+					"absent config response=%d %#v; mutations=%d",
+					response.Code,
+					payload,
+					service.ApplySectionCalls,
+				)
 			}
 		})
 	}
@@ -2700,7 +2707,13 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/marketplace", []byte(`{"config":{}}`))
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/marketplace",
+			[]byte(`{"config":{}}`),
+		)
 		var payload contract.SettingsApplyResponse
 		decodeJSON(t, response.Body.Bytes(), &payload)
 		if response.Code != http.StatusOK || !payload.Applied || service.ApplySectionCalls != 1 {

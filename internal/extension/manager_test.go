@@ -885,7 +885,7 @@ profile = "y"
 	}
 	ownersByHook := make(map[string][]string)
 	for _, declaration := range profileHooks {
-		ownersByHook[declaration.Name] = append(ownersByHook[declaration.Name], declaration.ProfileID)
+		ownersByHook[declaration.Name] = append(ownersByHook[declaration.Name], declaration.PlacementProfileID())
 	}
 	if !slices.Equal(ownersByHook["shared-hook"], []string{xProfileID, yProfileID}) ||
 		!slices.Equal(ownersByHook["x-hook"], []string{xProfileID}) ||
