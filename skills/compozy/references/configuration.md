@@ -49,12 +49,21 @@ Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`,
 `observability`, `network`, `sandboxes`, and `window_manager.global_shortcuts` with
 `profile_config_key_denied`; write machine-only keys with `--scope user`.
 
-Write profile credentials with `compozy --profile <name> secret set
-providers/<provider>/<slot> --value-stdin` or the equivalent `extensions/<extension>/<key>` path.
+Write provider credentials with `compozy --profile <name> secret set
+providers/<provider>/<slot> --value-stdin`.
 Non-default profiles use `vault:profiles/<name>/...`; `--from-env` fails with
 `profile_secret_env_forbidden` because the process environment is shared. Verify only redacted source
 metadata with `provider inspect`. For a non-default profile, `secret rm` falls back to the user
 credential and requires `--yes` for non-interactive removal when the profile owns work.
+
+For a declared extension environment name, use `compozy --profile <name> extension secrets set
+<extension> --env <ENV_NAME> --value-stdin`. This stores the value and creates the instance/profile-owned
+binding; verify redacted presence with `extension secrets list <extension>` and remove it with
+`extension secrets unset <extension> --env <ENV_NAME>`, using the same profile and workspace selection.
+Generic `secret set extensions/<extension>/<key>` only stores a Vault value: its
+`vault:profiles/<name>/extensions/...` ref is not an extension environment binding and cannot be passed
+to `extension secrets bind`. Managed bindings use `vault:extensions/...` with instance and profile
+ownership. Prefer `extension secrets set` instead of constructing those refs manually.
 
 ## Host update cadence
 
