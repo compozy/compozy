@@ -25,3 +25,18 @@ another checkout.
 QA 2026-09-10: The existing daemon worktree integration passed real local commands after terminal authorization received the resolved worktree roots. The owning containment assertions remain enabled. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
 QA 2026-09-10 follow-up: Caller cancellation now takes precedence when ready completion and cancellation are both observable. The existing 200-repeat race regression and real worktree lifecycle integration passed. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+Issue #640 regression: During an active worktree-bound session, use native terminal exec to start
+an owned disposable lifecycle command, read bounded output and verify its reported cwd/owner,
+then stop it and confirm exit. Also verify terminal open/exec with omitted and relative cwd use
+that worktree. Parent/sibling cwd, workspace add_dirs, symlink escapes, foreign profiles and stale
+runs must fail before process creation. Native tools and authenticated HTTP/UDS agent calls share
+the same resolver; agent ACP pipe launches enforce that binding too; human terminals and system-owned pipe roots retain their existing rules.
+
+Issue #640 verification: PASS for the isolated native terminal lifecycle: parent cwd rejected,
+omitted cwd started the bound-worktree process, exact owner/root and before/after health matched,
+and owner-checked stop exited with code 0 and closed the port. Public evidence is recorded in
+[PR #641](https://github.com/compozy/compozy/pull/641). `TestManagerAdmissionAndScope` owns default,
+relative, parent/sibling, symlink and agent-pipe allowed-root containment coverage;
+`TestDaemonTerminalExecutionRoot` owns worktree-profile and native/HTTP error projection coverage.
+Review follow-up results and current-head delivery gates are recorded on the same PR.

@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/core"
+
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -282,4 +286,146 @@ func (r *daemonWorktreeResolverStub) ResolveOrRegister(
 
 func (r *daemonWorktreeResolverStub) List(context.Context) ([]workspacepkg.Workspace, error) {
 	return append([]workspacepkg.Workspace(nil), r.listed...), nil
+}
+
+// Terminal root authority belongs to the daemon's active session/worktree binding.
+func TestDaemonTerminalExecutionRoot(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"bound", "unbound", "foreign workspace", "foreign profile", "foreign run", "stale generation", "missing worktree", "mismatched worktree", "foreign worktree profile", "inactive run", "missing session", "pending worktree", "backend unavailable"} {
+		t.Run("Should resolve or reject "+name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			info := &session.Info{
+				ID:                "sess-a",
+				WorkspaceID:       "ws-a",
+				ProfileID:         "profile-a",
+				WorktreeID:        "wt-a",
+				RuntimeGeneration: 2,
+			}
+			active := session.PromptRunIdentity{
+				SessionID:   info.ID,
+				WorkspaceID: info.WorkspaceID,
+				ProfileID:   info.ProfileID,
+				RunID:       "run-a",
+				Generation:  2,
+			}
+			actor := terminalpkg.Actor{
+				Kind:       terminalpkg.ActorKindAgent,
+				ID:         "agent-a",
+				SessionID:  info.ID,
+				ProfileID:  info.ProfileID,
+				RunID:      active.RunID,
+				Generation: 2,
+			}
+			switch name {
+			case "unbound":
+				info.WorktreeID = ""
+			case "foreign workspace":
+				active.WorkspaceID = "ws-b"
+			case "foreign profile":
+				actor.ProfileID = "profile-b"
+			case "foreign run":
+				actor.RunID = "run-b"
+			case "stale generation":
+				actor.Generation = 1
+			}
+			sessions := &fakeSessionManager{
+				infos: []*session.Info{info},
+				activePromptRunHook: func(context.Context, string) (session.PromptRunIdentity, error) {
+					if name == "inactive run" {
+						return session.PromptRunIdentity{}, session.ErrPromptNotActive
+					}
+					return active, nil
+				},
+			}
+			if name == "missing session" {
+				sessions.infos = nil
+			}
+			resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
+				return sessionWorktreeLookupFunc(func(_ context.Context, ws, ref string) (*worktree.Worktree, error) {
+					if ws != "ws-a" || ref != "wt-a" {
+						t.Fatalf("lookup = %q, %q", ws, ref)
+					}
+					if name == "missing worktree" {
+						return nil, worktree.ErrMissing
+					}
+					id := ref
+					if name == "mismatched worktree" {
+						id = "wt-b"
+					}
+					profileID, state := "profile-a", worktree.StateReady
+					if name == "foreign worktree profile" {
+						profileID = "profile-b"
+					}
+					if name == "pending worktree" {
+						state = worktree.StatePending
+					}
+					if name == "backend unavailable" {
+						return nil, errors.New("private backend detail")
+					}
+					return &worktree.Worktree{
+						ID:          id,
+						WorkspaceID: ws,
+						ProfileID:   profileID,
+						Path:        root,
+						State:       state,
+					}, nil
+				})
+			}}
+			got, err := resolveTerminalExecutionRoot(t.Context(), sessions, resolver, "ws-a", actor)
+			switch name {
+			case "bound":
+				if err != nil || got != root {
+					t.Fatalf("bound root = %q, %v", got, err)
+				}
+			case "unbound":
+				if err != nil || got != "" {
+					t.Fatalf("unbound root = %q, %v", got, err)
+				}
+			default:
+				wantErr, wantCode := terminalpkg.ErrNotFound, terminalpkg.ErrorCodeNotFound
+				switch name {
+				case "stale generation", "inactive run":
+					wantErr, wantCode = terminalpkg.ErrGenerationFenced, terminalpkg.ErrorCodeGenerationFenced
+				case "missing worktree":
+					wantErr, wantCode = worktree.ErrMissing, terminalpkg.ErrorCodeInvalidCwd
+				case "pending worktree":
+					wantErr, wantCode = worktree.ErrNotReady, terminalpkg.ErrorCodeInvalidCwd
+				case "backend unavailable":
+					wantErr, wantCode = terminalpkg.ErrServiceUnavailable, ""
+				}
+				if !errors.Is(err, wantErr) || got != "" {
+					t.Fatalf("invalid binding root=%q error=%v, want %v", got, err, wantErr)
+				}
+				wantStatus := http.StatusNotFound
+				switch wantCode {
+				case terminalpkg.ErrorCodeGenerationFenced:
+					wantStatus = http.StatusConflict
+				case terminalpkg.ErrorCodeInvalidCwd:
+					wantStatus = http.StatusUnprocessableEntity
+				case "":
+					wantStatus = http.StatusServiceUnavailable
+				}
+				status, _, _ := core.TerminalErrorStatus(err)
+				if status != wantStatus {
+					t.Fatalf("HTTP status = %d, want %d", status, wantStatus)
+				}
+				nativeErr := terminalToolError(toolspkg.ToolIDTerminalExec, err)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](nativeErr)
+				wantNativeCode := toolspkg.ErrorCode(wantCode)
+				if wantCode == "" {
+					wantNativeCode = toolspkg.ErrorCodeUnavailable
+				}
+				if !ok || toolErr.Code != wantNativeCode {
+					t.Fatalf("native error = %v, want %s", nativeErr, wantNativeCode)
+				}
+				if wantCode != "" {
+					typed, ok := errors.AsType[*terminalpkg.Error](err)
+					if !ok || typed.Code != wantCode {
+						t.Fatalf("error=%v, want code %s", err, wantCode)
+					}
+				}
+			}
+		})
+	}
 }

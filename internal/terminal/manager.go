@@ -43,6 +43,7 @@ type tombstone struct {
 type Service struct {
 	pty             terminalpty.PTY
 	workspaces      WorkspaceResolver
+	executionRoot   ExecutionRootResolver
 	profileNames    ProfileNameResolver
 	settings        SettingsProvider
 	profiles        ProfileGuard

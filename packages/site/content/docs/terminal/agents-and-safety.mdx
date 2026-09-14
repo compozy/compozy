@@ -42,6 +42,17 @@ Resolve `compozy__tool_info` for the exact descriptor and schema before the firs
 operations are observational. Opening, executing, typing, signaling, and closing follow their
 declared mutation and approval policy.
 
+## Session worktree directory
+
+When your session is bound to a managed worktree, terminal `open` and `exec` default to that
+worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned pipes retain
+their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
+ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
+`add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
+session and run; callers cannot supply another execution root. Sessions without a worktree and
+human terminal launches keep the workspace directory rules. This validates the launch directory;
+it does not add filesystem sandboxing or change shared terminal access.
+
 ## Approval and shared-input rules
 
 Agent command execution asks for operator approval by default. A configured parsed-command allowlist

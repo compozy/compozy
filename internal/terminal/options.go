@@ -18,6 +18,22 @@ type WorkspaceResolver interface {
 	Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error)
 }
 
+// ExecutionRootResolver returns a trusted bound-session root, or an empty root for
+// workspace-bound sessions. Errors deny launch before process creation.
+type ExecutionRootResolver func(context.Context, string, Actor) (string, error)
+
+// WithExecutionRootResolver applies session worktree bindings to agent launches.
+// System-owned pipe consumers retain their independently resolved execution roots.
+func WithExecutionRootResolver(resolver ExecutionRootResolver) Option {
+	return func(service *Service) error {
+		if resolver == nil {
+			return errors.New("terminal: execution root resolver is required")
+		}
+		service.executionRoot = resolver
+		return nil
+	}
+}
+
 // ProfileWorkspaceResolver resolves a workspace using profile-owned aliases.
 type ProfileWorkspaceResolver interface {
 	ResolveForProfile(ctx context.Context, idOrPath string, profileName string) (workspacepkg.ResolvedWorkspace, error)

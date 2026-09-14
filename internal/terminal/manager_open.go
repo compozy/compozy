@@ -25,7 +25,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if ctx == nil {
 		return nil, errors.New("terminal: open context is required")
 	}
-	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	cwd, workspaceID, err := m.resolveActorWorkspace(ctx, request.WS, request.Cwd, request.Actor)
 	if err != nil {
 		return nil, err
 	}
@@ -263,11 +263,16 @@ func limitError(current, maximum int, ids []string) error {
 	}
 }
 
+func (m *Service) resolveActorWorkspace(ctx context.Context, ws, cwd string, actor Actor) (string, string, error) {
+	return m.resolveOpenWorkspace(ctx, ws, cwd, actor.ProfileID, &actor)
+}
+
 func (m *Service) resolveOpenWorkspace(
 	ctx context.Context,
 	workspaceID string,
 	cwd string,
 	profileID string,
+	actor *Actor,
 	additionalRoots ...string,
 ) (string, string, error) {
 	if strings.TrimSpace(workspaceID) == "" {
@@ -298,6 +303,16 @@ func (m *Service) resolveOpenWorkspace(
 		)
 	}
 	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
+	if actor != nil && actor.Kind == ActorKindAgent && m.executionRoot != nil {
+		root, resolveErr := m.executionRoot(ctx, canonicalID, *actor)
+		if resolveErr != nil {
+			return "", "", resolveErr
+		}
+		if strings.TrimSpace(root) != "" {
+			resolved.RootDir = root
+			resolved.AdditionalDirs = nil
+		}
+	}
 	validCwd, err := resolveWorkspaceCwd(&resolved, cwd)
 	if err != nil {
 		return "", "", err

@@ -37,6 +37,17 @@ For routine internal commands, keep using the provider's normal command tool. Pr
 commands render in session activity as plain command output; they do not create a CompozyOS
 terminal or terminal journal row.
 
+## Session Worktree Directory
+
+When your session is bound to a managed worktree, terminal `open` and `exec` default to that
+worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned pipes retain
+their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
+ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
+`add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
+session and run; callers cannot supply another execution root. Sessions without a worktree and
+human terminal launches keep the workspace directory rules. This validates the launch directory;
+it does not add filesystem sandboxing or change shared terminal access.
+
 ## Native Toolset
 
 Toolset `compozy__terminal` contains exactly these stable IDs:

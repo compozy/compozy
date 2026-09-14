@@ -93,6 +93,7 @@ func terminalManagerOptions(
 		options,
 		terminalpkg.WithExecAuthorizer(state.terminalPermissions),
 		terminalpkg.WithWorkspaceResolver(state.workspaceResolver),
+		terminalpkg.WithExecutionRootResolver(terminalExecutionRootResolver(state)),
 	)
 	if state.profiles != nil {
 		options = append(
