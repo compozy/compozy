@@ -5,7 +5,7 @@ import {
   extensionProvenanceOptions,
   extensionsListOptions,
 } from "../lib/query-options";
-import type { InstalledExtensionView } from "../types";
+import type { InstalledExtensionView, ExtensionInstanceScope } from "../types";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -51,7 +51,11 @@ export function useExtensionProvenance(name: string, enabled = true) {
   return useQuery(extensionProvenanceOptions(name, enabled));
 }
 
-/** Shipped-vs-live kit resources for the global published extension instance. */
-export function useExtensionKitInventory(name: string, enabled = true) {
-  return useQuery(extensionInventoryOptions(name, enabled));
+/** Shipped and live resources retain the selected instance scope. */
+export function useExtensionKitInventory(
+  name: string,
+  scope: ExtensionInstanceScope = {},
+  enabled = true
+) {
+  return useQuery(extensionInventoryOptions(name, scope, enabled));
 }

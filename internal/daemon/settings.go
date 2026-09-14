@@ -15,6 +15,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
@@ -35,6 +36,8 @@ type settingsRuntimeSurface struct {
 	mcpAuthManager    *mcpauth.Manager
 	mcpAuthGeneration *mcpauth.MutationGeneration
 	mcpStatusTimeout  time.Duration
+	mcpHealthRegistry *mcppkg.RuntimeHealthRegistry
+	mcpHealthKey      func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error)
 	secretResolver    mcpauth.SecretRefResolver
 	secretRefs        interface {
 		ResolveRef(context.Context, string) (string, error)
@@ -97,6 +100,10 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		roles:             roleResolverForState(state),
 		automation:        state.automation,
 		network:           state.network,
+		mcpHealthRegistry: state.mcpRuntimeHealth,
+		mcpHealthKey: func(ctx context.Context, target mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
+			return extensionMCPHealthKeyForTarget(ctx, state, target)
+		},
 		mcpAuthStore:      mcpAuthStore,
 		mcpAuthManager:    mcpAuthManager,
 		mcpAuthGeneration: state.mcpAuthGeneration,

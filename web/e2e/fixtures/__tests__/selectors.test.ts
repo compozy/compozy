@@ -432,13 +432,13 @@ describe("settings operator selectors", () => {
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
     expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
     expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
-      "locator:marketplace-installed-card-browser-global-mcp"
+      "locator:settings-page-mcp-servers-row-browser-global-mcp"
     );
     expect(selectors.mcpServers.rowSource("browser-global-mcp")).toBe(
-      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] [data-slot="pill"]'
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-source"
     );
     expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
-      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] button[aria-label^="More for"]'
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
     );
     expect(selectors.mcpServers.editorRemove).toBe("locator:settings-mcp-servers-editor-remove");
 

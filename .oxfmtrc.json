@@ -23,6 +23,8 @@
         ".claude/skills/**",
         ".agents/skills/**",
         "internal/bridges/testdata/slack-manifest-schema-v0.5.0/manifest.schema.1.0.0.json",
+        "internal/extension/testdata/client-plugins/open-design/**",
+        "internal/extension/testdata/client-plugins/loop-engineering/**",
         "internal/tools/builtin/testdata/native-tool-catalog.json",
         "catalog/v3/*.json",
         "openapi/compozy.json",

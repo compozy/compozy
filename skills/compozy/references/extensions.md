@@ -18,7 +18,7 @@
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Inventory currently accepts only the extension name, so these surfaces report the unscoped instance projection; profile-specific enablement and placement are exposed by the profile detail and enablement surfaces. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--workspace <id> --profile <name>` on the CLI or `?workspace=<id>&profile=<name>` on HTTP/UDS to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
 
@@ -320,7 +320,6 @@ acquisition and inputs preserves package and input/secret before-images without 
 A different classified `(source_ref, entry_id)` returns `extension_name_conflict` with `installed_origin`;
 display names do not participate in identity. Only an operator may associate an unclassified managed
 installation with a catalog entry. Publication failure restores the old package and selected input cell.
-
 
 For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
 selects the source index and pins the listed digest before preview and installation. Existing curated

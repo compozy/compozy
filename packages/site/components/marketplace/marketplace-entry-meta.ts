@@ -16,7 +16,7 @@ export const TIER_HINTS: Record<ExtensionTier, string> = {
 };
 
 export const FORMAT_LABELS: Record<NonNullable<ExtensionEntry["format"]>, string> = {
-  compozy: "Compozy package",
+  compozy: "CompozyOS package",
   "agent-plugin": "Agent plugin",
 };
 

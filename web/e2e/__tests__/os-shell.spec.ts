@@ -2944,7 +2944,7 @@ test("E2E-044 (logical E2E-015): daemon restart preserves frame membership, pin,
   );
 });
 
-test("E2E-045 (logical E2E-018): Tasks and Marketplace publish views in their window strips", async ({
+test("E2E-045 (logical E2E-018): Tasks views and Marketplace search stay in their window strips", async ({
   appPage,
   runtime,
 }, testInfo) => {
@@ -2970,18 +2970,20 @@ test("E2E-045 (logical E2E-018): Tasks and Marketplace publish views in their wi
   const tasksWindow = shell.window(tasksID);
   const marketplaceWindow = shell.window(marketplaceID);
   const tasksViews = tasksWindow.getByRole("navigation", { name: "Tasks views" });
-  const marketplaceViews = marketplaceWindow.getByTestId("marketplace-kind-navigation");
+  const marketplaceSearch = marketplaceWindow.getByRole("searchbox", { name: "Search extensions" });
 
   await expect(tasksViews).toBeVisible();
-  await expect(marketplaceViews).toBeVisible();
+  await expect(marketplaceSearch).toBeVisible();
   await expect(tasksWindow.locator('[data-slot="os-window-toolbar"]')).toContainText("List");
-  await expect(marketplaceWindow.locator('[data-slot="os-window-toolbar"]')).toContainText(
-    "Skills"
-  );
+  await expect(
+    marketplaceWindow
+      .locator('[data-slot="os-window-toolbar"]')
+      .getByRole("searchbox", { name: "Search extensions" })
+  ).toBeVisible();
   await expect(tasksWindow.locator('[data-slot="os-window-head"]')).not.toContainText("Kanban");
   await expect(marketplaceWindow.locator('[data-slot="os-window-head"]')).not.toContainText("MCPs");
   await expect(tasksWindow.getByTestId("topbar-title-text")).toHaveText("Tasks");
-  await expect(marketplaceWindow.getByTestId("topbar-title-text")).toHaveText("Skills");
+  await expect(marketplaceWindow.getByTestId("topbar-title-text")).toHaveText("Marketplace");
   await expect(
     tasksWindow.locator('[data-slot="os-window-head"] [data-slot="topbar-crumbs"]')
   ).toHaveCount(0);

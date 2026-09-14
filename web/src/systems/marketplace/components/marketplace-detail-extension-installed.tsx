@@ -112,7 +112,7 @@ function MarketplaceDetailExtensionInstalled({
                 <ExtensionDeclaredProfiles extension={extension} />
               </MarketplaceDetailSection>
             ) : null}
-            {state.workspaceId === null ? <MarketplaceExtensionKitSection state={state} /> : null}
+            <MarketplaceExtensionKitSection state={state} />
             <MarketplaceExtensionAccessSection extension={extension} />
             <MarketplaceExtensionEnvironmentSection extension={extension} />
             <MarketplaceExtensionDiagnosticsSection extension={extension} />

@@ -39276,10 +39276,10 @@ export interface operations {
   getExtensionInventory: {
     parameters: {
       query?: {
-        /** @description Read one profile's rows by name */
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Profile whose effective extension state is returned */
         profile?: string;
-        /** @description Read the owner-labeled all-profiles aggregate */
-        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -43746,7 +43746,7 @@ export interface operations {
   getMarketplaceCatalogEntry: {
     parameters: {
       query?: {
-        /** @description Catalog source name; omitted searches the Compozy catalog, then registration order */
+        /** @description Catalog source name; omitted searches the CompozyOS catalog, then registration order */
         source?: string;
         /** @description Exact installed extension identity */
         installed_name?: string;

@@ -58,7 +58,7 @@ export function marketplaceSourceDegradedSentence(
   const noun = origin.kind === "feed" ? "feed" : origin.kind;
   return source.error_class === "source_unreachable"
     ? `The ${noun} is not reachable right now.`
-    : `Compozy could not refresh this ${noun}.`;
+    : `CompozyOS could not refresh this ${noun}.`;
 }
 
 export function marketplaceSourceReason(source: MarketplaceSource): string | null {

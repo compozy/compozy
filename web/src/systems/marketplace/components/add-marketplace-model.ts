@@ -89,7 +89,7 @@ export function describeMarketplaceFailure(
         field: "ref",
         checked,
         title: "This repository has no plugin list.",
-        description: `Compozy looked for ${joinPaths(checked)}. If it is a single plugin, install it from Add ▾ › Install extension from GitHub.`,
+        description: `CompozyOS looked for ${joinPaths(checked)}. If it is a single plugin, install it from Add ▾ › Install extension from GitHub.`,
       };
     }
     case "marketplace_document_too_large":
@@ -105,7 +105,7 @@ export function describeMarketplaceFailure(
         ...base,
         code,
         field: "ref",
-        title: "Compozy cannot read this reference.",
+        title: "CompozyOS cannot read this reference.",
         description: error.message,
       };
     case "marketplace_source_exists":
@@ -139,7 +139,7 @@ export function describeMarketplaceFailure(
         ...base,
         code,
         field: "name",
-        title: `${name || "This name"} is reserved for the Compozy catalog.`,
+        title: `${name || "This name"} is reserved for the CompozyOS catalog.`,
         description: "Pick another name.",
       };
     case "marketplace_source_preset_readonly":

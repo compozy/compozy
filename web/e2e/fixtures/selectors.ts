@@ -657,11 +657,9 @@ export const settingsProvidersTestIds = {
 } as const;
 
 export const settingsMCPServersTestIds = {
-  page: "marketplace-kind-mcp",
-  list: "marketplace-installed-grid",
-  create: "marketplace-mcp-add",
-  actionResult: "marketplace-mcp-save-toast",
-  actionResultDismiss: "settings-page-mcp-servers-action-result-dismiss",
+  page: "settings-page-mcp",
+  list: "settings-page-mcp-servers-list",
+  create: "settings-page-mcp-create",
   editor: "settings-mcp-servers-editor",
   editorNameInput: "settings-mcp-servers-editor-name-input",
   editorCommandInput: "settings-mcp-servers-editor-command-input",
@@ -1614,8 +1612,6 @@ export function settingsOperatorSelectors(
       page: page.getByTestId(settingsMCPServersTestIds.page),
       list: page.getByTestId(settingsMCPServersTestIds.list),
       create: page.getByTestId(settingsMCPServersTestIds.create),
-      actionResult: page.locator("[data-sonner-toast]:last-of-type"),
-      actionResultDismiss: page.getByTestId(settingsMCPServersTestIds.actionResultDismiss),
       editor: page.getByTestId(settingsMCPServersTestIds.editor),
       editorNameInput: page.getByTestId(settingsMCPServersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsMCPServersTestIds.editorCommandInput),
@@ -1624,13 +1620,9 @@ export function settingsOperatorSelectors(
       editorRemove: page.getByTestId(settingsMCPServersTestIds.editorRemove),
       deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsMCPServersTestIds.deleteConfirm),
-      row: (name: string) => page.getByTestId(`marketplace-installed-card-${name}`),
-      rowSource: (name: string) =>
-        page.locator(`[data-testid="marketplace-installed-card-${name}"] [data-slot="pill"]`),
-      editRow: (name: string) =>
-        page.locator(
-          `[data-testid="marketplace-installed-card-${name}"] button[aria-label^="More for"]`
-        ),
+      row: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}`),
+      rowSource: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-source`),
+      editRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-edit`),
     },
     hooks: {
       page: page.getByTestId(settingsHooksTestIds.page),

@@ -58,7 +58,7 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
           <DialogHeader variant="ruled">
             <DialogTitle>Add a plugin marketplace</DialogTitle>
             <DialogDescription>
-              Compozy reads its plugin list and shows the plugins in the Marketplace. Nothing
+              CompozyOS reads its plugin list and shows the plugins in the Marketplace. Nothing
               installs until you choose to.
             </DialogDescription>
           </DialogHeader>

@@ -153,7 +153,7 @@ export const storyMarketplacePlugins = {
     version: "0.3.0",
   }),
   legacyTool: pluginListing("team-plugins", {
-    description: "An older package whose manifest Compozy could not locate.",
+    description: "An older package whose manifest CompozyOS could not locate.",
     entry_id: "legacy-tool",
     install_blocker:
       "no manifest found (checked plugin.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json)",

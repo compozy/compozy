@@ -2,7 +2,7 @@ export interface MarketplaceDetailSearch {
   installed_name?: string;
   scope?: "user" | "profile" | "workspace";
   profile?: string;
-  /** Catalog source name (`compozy-catalog`); the daemon defaults to the Compozy catalog. */
+  /** Catalog source name (`compozy-catalog`); the daemon defaults to the CompozyOS catalog. */
   source?: string;
   workspace_id?: string;
   /** Where Back returns: Browse by default, Installed when the row came from there. */

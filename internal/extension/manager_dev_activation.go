@@ -80,6 +80,11 @@ func managedDevExtension(
 			Permissions:              manifest.Permissions,
 			Checksum:                 verified.GenerationHash,
 			NetworkRequirementDigest: verified.NetworkRequirementDigest,
+			Provenance: ExtensionProvenance{
+				InstalledFrom: ExtensionInstalledFromLocalPath,
+				SourceURL:     verified.OriginPath,
+				Layout:        manifest.Layout,
+			},
 		},
 		rootDir:          verified.GenerationDir,
 		manifest:         manifest,

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,13 +26,14 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: server payloads use the exact published owner/scope, real probe state, and retained names while disabled.
+	// Invariant: server payloads use the exact published owner/scope, observed readiness without probing, and retained names while disabled.
 	// Owner: daemon extension inventory/status projection; canonical suite: TestExtensionInventoryAndEnablePreview.
 	t.Run("Should project owned published server readiness and preserve disabled allocations", func(t *testing.T) {
 		t.Parallel()
@@ -42,9 +44,10 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		ext.Manifest.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{
 			"remote": {Transport: "http", URL: "https://declared.example.com/private?token=secret"},
 		}
+		var requests atomic.Int64
 		server := httptest.NewServer(
 			mcp.NewStreamableHTTPHandler(
-				func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+				func(*http.Request) *mcp.Server { requests.Add(1); return newSettingsMCPTestServer() },
 				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
 			),
 		)
@@ -79,18 +82,59 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: extensionpkg.NewRegistry(db.DB()), Runtime: &inventoryExtensionRuntime{ext: ext}, HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now},
-			withDaemonExtensionMCPAllocations(db.ExtensionMCP), withDaemonExtensionMCPDetails(&extensionMCPDetails{state: &bootState{mcpServerCatalog: catalog}, runtime: &settingsRuntimeSurface{}}),
+		ext.Info.Checksum = "generation-a"
+		runtime := &inventoryExtensionRuntime{ext: ext}
+		state := &bootState{
+			mcpServerCatalog: catalog, extensions: runtime,
+			mcpRuntimeHealth: mcppkg.NewRuntimeHealthRegistry(),
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: extensionpkg.NewRegistry(db.DB()), Runtime: runtime, HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now},
+			withDaemonExtensionMCPAllocations(db.ExtensionMCP),
+			withDaemonExtensionMCPDetails(&extensionMCPDetails{state: state, auth: &settingsRuntimeSurface{}}),
 		).(*daemonExtensionService)
+		before, err := service.Status(ctx, "kit")
+		if err != nil || len(before.MCPServers) != 1 || before.MCPServers[0].Status != "stopped" ||
+			requests.Load() != 0 {
+			t.Fatalf("status launched an unobserved MCP: %#v, %v, requests=%d", before.MCPServers, err, requests.Load())
+		}
+		executor, err := mcppkg.NewMCPCallExecutor(
+			newDaemonMCPServerResolver(state), mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := executor.ListTools(ctx, toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "kit.remote",
+			RawServerName: "kit.remote",
+			RawToolName:   "*",
+			ResourceID:    "owned",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		observedRequests := requests.Load()
+		if observedRequests == 0 {
+			t.Fatal("explicit discovery did not reach the MCP server")
+		}
 		payload, err := service.Status(ctx, "kit")
 		if err != nil || len(payload.MCPServers) != 1 {
 			t.Fatalf("server payload: %#v %v", payload, err)
 		}
 		item := payload.MCPServers[0]
-		if item.Status != "running" || item.RuntimeName != "kit.remote" || item.Owner != "extension:kit" ||
+		if requests.Load() != observedRequests || item.Status != "running" || item.RuntimeName != "kit.remote" ||
+			item.Owner != "extension:kit" ||
 			item.Launch != server.URL ||
 			item.Profile != "default" {
 			t.Fatalf("wrong published identity or status: %#v", item)
+		}
+		state.mcpRuntimeHealth.EvictInstance("kit", "")
+		foreignKey := extensionMCPHealthKey(ctx, state, owned)
+		foreignKey.ResourceID = "foreign"
+		state.mcpRuntimeHealth.RecordSuccess(state.mcpRuntimeHealth.Begin(foreignKey))
+		unobserved, err := service.Status(ctx, "kit")
+		if err != nil || len(unobserved.MCPServers) != 1 || unobserved.MCPServers[0].Status != "stopped" ||
+			requests.Load() != observedRequests {
+			t.Fatalf("status reused another resource or probed: %#v, %v", unobserved.MCPServers, err)
 		}
 		owned.Spec.Auth = compozyconfig.MCPAuthConfig{
 			Registration: compozyconfig.MCPAuthRegistrationAuto,

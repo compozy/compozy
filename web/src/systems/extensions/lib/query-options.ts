@@ -42,10 +42,14 @@ export const extensionProvenanceOptions = (name: string, enabled = true) =>
     staleTime: INVENTORY_STALE_TIME,
   });
 
-export const extensionInventoryOptions = (name: string, enabled = true) =>
+export const extensionInventoryOptions = (
+  name: string,
+  scope: ExtensionInstanceScope = {},
+  enabled = true
+) =>
   queryOptions({
-    queryKey: extensionKeys.inventory(name),
-    queryFn: ({ signal }) => getExtensionInventory(name, signal),
+    queryKey: extensionKeys.inventory(name, scope.workspaceId, scope.profileName),
+    queryFn: ({ signal }) => getExtensionInventory(name, scope, signal),
     enabled: enabled && name.length > 0,
     staleTime: INVENTORY_STALE_TIME,
   });

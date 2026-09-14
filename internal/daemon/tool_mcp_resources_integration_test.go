@@ -294,6 +294,18 @@ binding = { type = "url_query", name = "workspace" }
 				t.Fatalf("invalid override bypassed actual HTTP/auth policy: %v", err)
 			}
 		}
+		// Invariant: override commits fence readiness observations from the previous configuration.
+		// Owner: daemon override transaction; canonical real publisher integration suite.
+		health := mcppkg.NewRuntimeHealthRegistry()
+		settingsAdapter.state.mcpRuntimeHealth = health
+		healthKey := mcppkg.RuntimeHealthKey{
+			InstanceName: manifest.Name, BundleGeneration: "installed", ServerName: "remote",
+		}
+		health.RecordSuccess(health.Begin(healthKey))
+		pendingHealth := health.Begin(healthKey)
+		if !health.Ready(healthKey) {
+			t.Fatal("successful connection did not establish readiness")
+		}
 		edited, err := settingsAdapter.UpdateMCPExtensionOverride(
 			testutil.Context(t),
 			overrideRequest,
@@ -302,6 +314,10 @@ binding = { type = "url_query", name = "workspace" }
 		if err != nil || edited.Server.URL != "https://mcp.example.com/changed" ||
 			edited.Server.RuntimeName != "remote" {
 			t.Fatalf("override not applied: %#v %v", edited, err)
+		}
+		health.RecordSuccess(pendingHealth)
+		if health.Ready(healthKey) {
+			t.Fatal("override retained readiness from the previous configuration")
 		}
 		_, published, found, err := settingsAdapter.ResolveMCPExtensionDefinition(testutil.Context(t), overrideRequest)
 		if err != nil || !found || published.URL != edited.Server.URL {

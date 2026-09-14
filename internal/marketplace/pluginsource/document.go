@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/registry/gitsrc"
 )
 
@@ -81,7 +82,7 @@ func DecodeDocument(raw []byte) (Document, error) {
 		if diagnostic == nil && seen[plugin.Name] {
 			diagnostic = &Diagnostic{
 				Plugin:  plugin.Name,
-				Code:    "duplicate_plugin",
+				Code:    diagnosticcontract.CodeMarketplacePluginDuplicate,
 				Message: "plugin name is duplicated",
 			}
 		}
@@ -99,15 +100,25 @@ func DecodeDocument(raw []byte) (Document, error) {
 func decodePlugin(raw json.RawMessage) (Plugin, *Diagnostic) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return Plugin{}, &Diagnostic{Code: "invalid_plugin", Message: "plugin must be an object"}
+		return Plugin{}, &Diagnostic{
+			Code:    diagnosticcontract.CodeMarketplacePluginInvalid,
+			Message: "plugin must be an object",
+		}
 	}
 	name := optionalString(fields["name"])
 	if !pluginNamePattern.MatchString(name) {
-		return Plugin{}, &Diagnostic{Code: "invalid_plugin", Message: "plugin name is invalid"}
+		return Plugin{}, &Diagnostic{
+			Code:    diagnosticcontract.CodeMarketplacePluginInvalid,
+			Message: "plugin name is invalid",
+		}
 	}
 	source, err := decodePluginSource(fields["source"])
 	if err != nil {
-		return Plugin{}, &Diagnostic{Plugin: name, Code: "unsupported_source", Message: err.Error()}
+		return Plugin{}, &Diagnostic{
+			Plugin:  name,
+			Code:    diagnosticcontract.CodeMarketplacePluginSourceUnsupported,
+			Message: err.Error(),
+		}
 	}
 	return Plugin{
 		Name: name, Source: source,

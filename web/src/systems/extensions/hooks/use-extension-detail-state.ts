@@ -54,7 +54,8 @@ export function useExtensionDetailState(
   const instanceWorkspaceId = extension?.workspace_id?.trim() || null;
   const inventory = useExtensionKitInventory(
     name,
-    extension !== null && instanceWorkspaceId === null
+    { workspaceId: instanceWorkspaceId, profileName: extension?.profile ?? detail.profileName },
+    extension !== null
   );
   const logs = useExtensionLogs({
     enabled: extension !== null,

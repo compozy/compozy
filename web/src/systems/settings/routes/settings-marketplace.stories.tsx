@@ -21,7 +21,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Settings › Marketplace: the catalog keys behind the save bar and the plugin marketplaces as collapsible rows — Compozy catalog always on, presets with a switch, custom rows with Remove in the fold, a degraded row with its reason and diagnostics.",
+          "Settings › Marketplace: the catalog keys behind the save bar and the plugin marketplaces as collapsible rows — CompozyOS catalog always on, presets with a switch, custom rows with Remove in the fold, a degraded row with its reason and diagnostics.",
       },
     },
   },

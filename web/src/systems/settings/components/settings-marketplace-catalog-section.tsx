@@ -12,7 +12,7 @@ export interface SettingsMarketplaceCatalogSectionProps {
 const TEST_ID = "settings-page-marketplace-catalog";
 
 /**
- * The Compozy catalog feed: where it is read from, how often, and how long a read may take. These
+ * The CompozyOS catalog feed: where it is read from, how often, and how long a read may take. These
  * are the `marketplace.catalog.*` keys, surfaced on the page that owns the catalog.
  */
 export function SettingsMarketplaceCatalogSection({
@@ -20,7 +20,7 @@ export function SettingsMarketplaceCatalogSection({
   onChange,
 }: SettingsMarketplaceCatalogSectionProps) {
   return (
-    <SettingsGroup data-testid={TEST_ID} title="Compozy catalog">
+    <SettingsGroup data-testid={TEST_ID} title="CompozyOS catalog">
       <SettingRow
         data-testid={`${TEST_ID}-base-url`}
         description="Set the base URL of the feed; the daemon reads its v3 extensions listing from there."

@@ -58,7 +58,7 @@ func marketplaceCatalogEntryOperation() OperationSpec {
 		Parameters: []ParameterSpec{
 			queryParam(
 				"source",
-				"Catalog source name; omitted searches the Compozy catalog, then registration order",
+				"Catalog source name; omitted searches the CompozyOS catalog, then registration order",
 				false,
 			),
 			pathParam("entry_id", "Stable URL-safe marketplace entry id"),

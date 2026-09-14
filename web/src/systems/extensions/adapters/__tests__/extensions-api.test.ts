@@ -63,13 +63,17 @@ describe("extensions management reads", () => {
     await expectFetchRequest({ callIndex: 1, path: "/api/extensions/otel-bridge/provenance" });
   });
 
-  it("Should read the kit inventory for one extension without a workspace selector", async () => {
+  it("Should read kit inventory for the selected workspace and profile", async () => {
     const items = extensionInventoryFixtures["dep-kit-ops"]!;
     const payload = { enabled: false, extension: "dep-kit-ops", items };
     mockJsonResponse(payload);
 
-    await expect(getExtensionInventory("dep-kit-ops")).resolves.toEqual(payload);
-    await expectFetchRequest({ path: "/api/extensions/dep-kit-ops/inventory" });
+    await expect(
+      getExtensionInventory("dep-kit-ops", { workspaceId: "ws-a", profileName: "research" })
+    ).resolves.toEqual(payload);
+    await expectFetchRequest({
+      path: "/api/extensions/dep-kit-ops/inventory?profile=research&workspace=ws-a",
+    });
   });
 
   it("Should send a profile-only selector when no workspace is active", async () => {

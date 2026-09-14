@@ -13,6 +13,14 @@ binding = { type = "env", name = "GITHUB_PERSONAL_ACCESS_TOKEN" }
 [resources.mcp_servers.github]
 transport = "stdio"
 command = "docker"
-args = ["run", "-i", "--rm", "--env", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server@sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520", "--read-only"]
+args = [
+  "run",
+  "-i",
+  "--rm",
+  "--env",
+  "GITHUB_PERSONAL_ACCESS_TOKEN",
+  "ghcr.io/github/github-mcp-server@sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+  "--read-only",
+]
 secret_env = { GITHUB_PERSONAL_ACCESS_TOKEN = "github_personal_access_token" }
 default_scope = "workspace"

@@ -2,18 +2,20 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 type extensionMCPDetails struct {
-	state   *bootState
-	runtime settingspkg.MCPRuntimeProvider
+	state *bootState
+	auth  interface {
+		MCPAuthStatus(context.Context, mcpauth.Target, compozyconfig.MCPServer) (mcpauth.Status, error)
+	}
 }
 
 func withDaemonExtensionMCPDetails(details *extensionMCPDetails) daemonExtensionServiceOption {
@@ -84,19 +86,23 @@ func (d *extensionMCPDetails) populate(
 			item.Transport = string(server.Transport)
 			item.Launch = extensionpkg.MCPServerLaunchSummary(server.Command, server.URL)
 			item.Auth = publishedMCPAuthSummary(server.Auth)
-			if d.runtime == nil {
-				item.Status = "unknown"
-				break
+			if server.Auth.Enabled() && d.auth != nil {
+				target, err := mcpAuthTargetForResource(ctx, d.state, record.Scope, server.Name, owner)
+				if err != nil {
+					return err
+				}
+				status, err := d.auth.MCPAuthStatus(ctx, target, server)
+				if err != nil {
+					return err
+				}
+				if authState, required := runtimeStateFromMCPAuthStatus(status); required {
+					item.Status = marketplaceMCPRuntimeStatus(authState)
+					break
+				}
 			}
-			target, err := mcpAuthTargetForResource(ctx, d.state, record.Scope, server.Name, owner)
-			if err != nil {
-				return err
+			if d.state.mcpRuntimeHealth.Ready(extensionMCPHealthKey(ctx, d.state, record)) {
+				item.Status = "running"
 			}
-			status, err := d.runtime.MCPServerRuntimeStatus(ctx, target, server)
-			if err != nil {
-				return fmt.Errorf("daemon: read extension MCP status: %w", err)
-			}
-			item.Status = marketplaceMCPRuntimeStatus(status.State)
 			break
 		}
 	}

@@ -359,11 +359,11 @@ staging directory or backup, the result is still `status: "updated"` with an
 
 ## Inspect the kit
 
-Use inventory to compare every resource shipped by the installed extension with the unscoped live
+Use inventory to compare every resource shipped by the installed extension with the selected live
 instance projection:
 
 ```bash
-compozy extension inventory hello -o json
+compozy extension inventory hello --workspace <workspace-id> --profile default -o json
 ```
 
 Portable inventory preserves the detected `format` and ingest diagnostics even when every MCP

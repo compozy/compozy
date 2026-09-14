@@ -253,16 +253,14 @@ export async function updateExtension(
     throw responseError(`Failed to update ${name}`, response, error);
 }
 
-/**
- * Shipped-vs-live kit resources for one extension. The route carries no instance selector: the
- * daemon answers for the global published instance.
- */
+/** Shipped and live resources for the selected extension workspace and profile. */
 export async function getExtensionInventory(
   name: string,
+  scope: ExtensionInstanceScope = {},
   signal?: AbortSignal
 ): Promise<ExtensionKitInventory> {
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/inventory", {
-    params: { path: { name } },
+    params: { path: { name }, query: instanceQuery(scope) },
     signal,
   });
   const fallback = `Failed to load kit inventory for ${name}`;

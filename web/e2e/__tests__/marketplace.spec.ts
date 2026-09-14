@@ -304,6 +304,9 @@ test.describe("MCP Settings authorization", () => {
         waitUntil: "domcontentloaded",
       });
 
+      await appPage.getByTestId("settings-page-mcp-scope-workspace").click();
+      await appPage.getByTestId("settings-page-mcp-workspace").selectOption(workspace.id);
+
       const serverRow = appWindow(appPage, "settings").getByTestId(
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
@@ -389,6 +392,9 @@ test.describe("MCP Settings authorization", () => {
       await appPage.goto(runtime.url("/settings/mcp"), {
         waitUntil: "domcontentloaded",
       });
+      await appPage.getByTestId("settings-page-mcp-scope-workspace").click();
+      await appPage.getByTestId("settings-page-mcp-workspace").selectOption(workspace.id);
+
       const serverRow = appWindow(appPage, "settings").getByTestId(
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
@@ -1448,16 +1454,16 @@ test.describe("Extension update affordance", () => {
         marketplaceCatalog: {
           extensions: [
             {
-              artifact_url: `https://github.com/${repository}/releases/download/v0.2.0/${extensionName}.tar.gz`,
+              artifact_url: `https://github.com/${repository}/releases/download/v0.1.0/${extensionName}.tar.gz`,
               author: "acme",
               description: "Browser lane extension with a newer catalog release.",
-              digest_release_tag: "v0.2.0",
+              digest_release_tag: "v0.1.0",
               entry_id: catalogEntryID,
               install_slug: repository,
               name: extensionName,
               repository: `https://github.com/${repository}`,
               tier: "unverified",
-              version: "0.2.0",
+              version: "0.1.0",
             },
           ],
         },
@@ -1473,20 +1479,33 @@ test.describe("Extension update affordance", () => {
       throw new Error("extension update affordance requires launch-mode runtime paths");
     }
 
+    await runtime.requestJSON("/api/marketplace/refresh", { method: "POST", body: "{}" });
     const installed = await runBrowserRuntimeCLIJSON<{
       name: string;
       version: string;
       provenance?: { slug?: string; digest_matched?: boolean };
-    }>(runtime, [
-      "extension",
-      "install",
-      `github:${repository}@v0.1.0`,
-      "--allow-unverified",
-      "--yes",
-    ]);
+    }>(runtime, ["extension", "install", repository, "--allow-unverified", "--yes"]);
     expect(installed.name).toBe(extensionName);
     expect(installed.version).toBe("0.1.0");
     expect(installed.provenance?.slug).toBe(repository);
+
+    runtime.replaceMarketplaceCatalog({
+      extensions: [
+        {
+          artifact_url: `https://github.com/${repository}/releases/download/v0.2.0/${extensionName}.tar.gz`,
+          author: "acme",
+          description: "Browser lane extension with a newer catalog release.",
+          digest_release_tag: "v0.2.0",
+          entry_id: catalogEntryID,
+          install_slug: repository,
+          name: extensionName,
+          repository: `https://github.com/${repository}`,
+          tier: "unverified",
+          version: "0.2.0",
+        },
+      ],
+    });
+    await runtime.requestJSON("/api/marketplace/refresh", { method: "POST", body: "{}" });
 
     await completeOnboardingIfPrompted(appPage);
     await appPage.goto(runtime.url("/marketplace"), {
@@ -1543,12 +1562,16 @@ test.describe("Extension update affordance", () => {
     await appPage.goto(runtime.url("/marketplace/installed"), {
       waitUntil: "domcontentloaded",
     });
-    const installedCard = appPage
-      .getByTestId(`marketplace-installed-card-${extensionName}`)
-      .or(appPage.getByTestId(`marketplace-installed-card-${catalogEntryID}`))
-      .first();
-    await expect(installedCard).toContainText("v0.2.0");
-    await expect(installedCard.getByRole("button", { exact: true, name: "Update" })).toHaveCount(0);
+    const installedCard = appPage.getByTestId(`marketplace-installed-card-${extensionName}`);
+    await expect(installedCard).toBeVisible();
+    await expect(
+      installedCard.getByRole("button", { name: `Update ${extensionName}` })
+    ).toHaveCount(0);
+    await installedCard.getByRole("link", { name: `View ${extensionName} details` }).click();
+    await expect(marketplace.detail).toContainText("v0.2.0");
+    await expect(
+      marketplaceWin.getByRole("button", { name: `Update ${extensionName}` })
+    ).toHaveCount(0);
   });
 });
 
@@ -1629,12 +1652,17 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await appPage.getByTestId("extension-install-summary-confirm").click();
       const install = await installResponse;
       expect(install.status()).toBe(201);
+      const installedInstance = await install.json();
+      const installedScope = new URLSearchParams({
+        workspace: installedInstance.extension.workspace_id,
+        profile: installedInstance.extension.profile,
+      });
 
       await expect
         .poll(
           async () => {
             const payload = await runtime.requestJSON<{ extension: { format: string } }>(
-              `/api/extensions/${extensionName}`
+              `/api/extensions/${extensionName}?${installedScope}`
             );
             return payload.extension.format;
           },
@@ -1667,13 +1695,13 @@ test.describe("Agent Plugins marketplace journeys", () => {
     });
   });
 
-  test.describe("Drifted catalog entry", () => {
+  test.describe("Client-layout catalog entry", () => {
     test.use({
       runtimeOptions: {
         extensionsAllowUnverified: true,
         seed: {
           extensionRegistry: {
-            description: "Upstream drifted to a Claude Code plugin layout.",
+            description: "Upstream uses the supported Claude Code plugin layout.",
             extensionName: driftedName,
             layout: "client-layout",
             releases: [{ tag: "v1.0.0", version: "1.0.0" }],
@@ -1684,7 +1712,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
               {
                 artifact_url: `https://github.com/${driftedRepository}/releases/download/v1.0.0/${driftedName}.tar.gz`,
                 author: "acme",
-                description: "A curated entry whose upstream no longer ships the standard layout.",
+                description: "A curated entry with a supported client manifest.",
                 digest_release_tag: "v1.0.0",
                 entry_id: driftedEntryID,
                 format: "agent-plugin",
@@ -1700,7 +1728,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       },
     });
 
-    test("operator reads the layout diagnostic in the dialog when a curated entry has drifted", async ({
+    test("operator installs a curated client-layout package with its layout provenance", async ({
       appPage,
       runtime,
     }) => {
@@ -1724,16 +1752,28 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await marketplace.extensionTrustConfirm.click();
 
-      const failure = trustDialog.getByRole("alert");
-      await expect(failure).toBeVisible({ timeout: 20_000 });
-      await expect(failure).toContainText(".claude-plugin/plugin.json");
-      await expect(failure).toContainText("Agent Plugins");
-      await expect(trustDialog).toBeVisible();
-
-      const installed = await runtime.requestJSON<{ extensions: Array<{ name: string }> }>(
-        "/api/extensions"
+      const installResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/extensions"
       );
-      expect(installed.extensions.some(entry => entry.name === driftedName)).toBe(false);
+      await appPage.getByTestId("extension-install-summary-confirm").click();
+      const response = await installResponse;
+      expect(response.status()).toBe(201);
+      const installed = await response.json();
+      expect(installed.extension).toMatchObject({
+        name: driftedName,
+        format: "agent-plugin",
+        layout: "claude-plugin",
+      });
+      const scope = new URLSearchParams({
+        workspace: installed.extension.workspace_id,
+        profile: installed.extension.profile,
+      });
+      const persisted = await runtime.requestJSON<{ extension: { name: string; layout: string } }>(
+        `/api/extensions/${driftedName}?${scope}`
+      );
+      expect(persisted.extension).toMatchObject({ name: driftedName, layout: "claude-plugin" });
     });
   });
 });

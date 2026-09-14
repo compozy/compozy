@@ -12,6 +12,7 @@ const DEFAULT_GENERATED_AT = "2026-07-14T00:00:00Z";
 export interface MarketplaceCatalogTestServer {
   baseURL: string;
   server: Server;
+  replace(seed: BrowserMarketplaceCatalogSeed): void;
 }
 
 export async function startMarketplaceCatalogServer(
@@ -40,7 +41,7 @@ export async function startMarketplaceCatalogServer(
     response.end(
       JSON.stringify({
         manifest_version: 3,
-        generated_at: seed.generatedAt ?? DEFAULT_GENERATED_AT,
+        generated_at: seed?.generatedAt ?? DEFAULT_GENERATED_AT,
         entries,
       })
     );
@@ -69,7 +70,15 @@ export async function startMarketplaceCatalogServer(
     await closeMarketplaceCatalogServer(server);
     throw new Error("failed to resolve browser marketplace catalog server address");
   }
-  return { baseURL: `http://${DEFAULT_HOST}:${address.port}`, server };
+  return {
+    baseURL: `http://${DEFAULT_HOST}:${address.port}`,
+    server,
+    replace(next) {
+      seed = next;
+      documents.set("/v3/extensions.json", next.extensions ?? []);
+      documents.set("/v3/marketplaces.json", next.presets ?? []);
+    },
+  };
 }
 
 export async function closeMarketplaceCatalogServer(server: Server | undefined): Promise<void> {

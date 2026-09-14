@@ -29,6 +29,9 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 		if name != entryID {
 			continue
 		}
+		if err := h.joinInstalledExtensionMarketplace(ctx, items[index:index+1]); err != nil {
+			h.Logger.Warn("api: installed extension marketplace enrichment failed", "error", err)
+		}
 		source := strings.TrimSpace(item.Source)
 		if item.Provenance != nil && strings.TrimSpace(item.Provenance.InstalledFrom) != "" {
 			source = strings.TrimSpace(item.Provenance.InstalledFrom)
@@ -66,6 +69,9 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 			detail.ResolvedRef = item.Provenance.ResolvedRef
 			detail.Layout = item.Provenance.Layout
 			detail.InstallSlug = item.Provenance.Slug
+		}
+		if item.Marketplace != nil {
+			listing = *item.Marketplace
 		}
 		return contract.MarketplaceEntryResponse{Entry: listing, Extension: detail}, nil
 	}

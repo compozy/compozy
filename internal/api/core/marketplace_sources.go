@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/gin-gonic/gin"
@@ -185,10 +187,22 @@ func MarketplaceSourcePayloadFromState(state marketplace.SourceState) contract.M
 	if !state.FetchedAt.IsZero() {
 		payload.LastReadAt = &state.FetchedAt
 	}
-	for _, diagnostic := range state.Diagnostics {
+	freshness := diagnosticcontract.FreshnessLive
+	if state.Stale {
+		freshness = diagnosticcontract.FreshnessStale
+	}
+	for index, diagnostic := range state.Diagnostics {
 		payload.Diagnostics = append(
 			payload.Diagnostics,
-			contract.DiagnosticItem{Code: diagnostic.Code, Message: diagnostic.Message},
+			diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:            "marketplace.source." + state.Source + "." + strconv.Itoa(index),
+				Code:          diagnostic.Code,
+				Category:      diagnosticcontract.CategoryExtension,
+				Title:         "Plugin could not be listed",
+				Message:       diagnostic.Message,
+				Severity:      diagnosticcontract.SeverityWarn,
+				DataFreshness: freshness,
+			}, diagnostics.WithEvidence(map[string]any{"source": state.Source, "plugin": diagnostic.Plugin})),
 		)
 	}
 	return payload

@@ -517,7 +517,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	if !installed.Enabled {
 		t.Fatalf("installed extension = %#v, want default-on enablement", installed)
 	}
-	setExtensionKitE2ESecret(t, ctx, consumer, "hello")
+	setExtensionKitE2ESecret(t, ctx, consumer, "hello", "")
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "daily", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
 	assertDistributionHostedExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
@@ -795,7 +795,7 @@ func assertDistributionNativeKitJourney(
 			"confirm_network_digest": networkDigest,
 		},
 	))
-	setExtensionKitE2ESecret(t, ctx, harness, "hello")
+	setExtensionKitE2ESecret(t, ctx, harness, "hello", harness.WorkspaceID)
 	transcript = append(transcript, invokeDistributionNativeTool(
 		t,
 		ctx,

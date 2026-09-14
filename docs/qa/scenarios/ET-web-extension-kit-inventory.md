@@ -21,3 +21,5 @@ the confirmation affordance, and a workspace dev overlay where global inventory 
 
 QA impact 2026-08-02: the inventory panel now consumes the canonical change payload and refreshed
 kind grouping; re-walk the installed extension detail and capture the rendered panel.
+
+CI repair impact 2026-09-13: a workspace-installed kit keeps its inventory section and skipped-component diagnostics visible. Inventory HTTP/UDS selectors are workspace and profile, and Web cache identity includes both. Install a standard plugin in a workspace, inspect shipped/live resources and skips, then switch profile/workspace and verify no inventory leaks from the prior selection.

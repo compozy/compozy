@@ -13,7 +13,7 @@ import {
 import { Button, Spinner } from "@compozy/ui";
 
 /**
- * Settings › Marketplace: the Compozy catalog keys behind the save bar, then the plugin
+ * Settings › Marketplace: the CompozyOS catalog keys behind the save bar, then the plugin
  * marketplaces, each row applying immediately through the sources routes. User scope only.
  */
 export function MarketplaceSettingsPage() {

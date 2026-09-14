@@ -186,13 +186,17 @@ describe("extension management queries", () => {
     expect(mocks.getExtensionProvenance).not.toHaveBeenCalled();
   });
 
-  it("Should load the kit inventory under its own name-scoped key", async () => {
+  it("Should isolate kit inventory by extension workspace and profile", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const inventoryWrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
-    const inventory = renderHook(() => useExtensionKitInventory("dep-kit-ops"), {
-      wrapper: inventoryWrapper,
-    });
+    const inventory = renderHook(
+      () =>
+        useExtensionKitInventory("dep-kit-ops", { workspaceId: "ws-a", profileName: "research" }),
+      {
+        wrapper: inventoryWrapper,
+      }
+    );
 
     await waitFor(() => expect(inventory.result.current.isSuccess).toBe(true));
     const expectedInventory = {
@@ -201,16 +205,27 @@ describe("extension management queries", () => {
       items: extensionInventoryFixtures["dep-kit-ops"],
     };
     expect(inventory.result.current.data).toEqual(expectedInventory);
-    expect(client.getQueryData(extensionKeys.inventory("dep-kit-ops"))).toEqual(expectedInventory);
-    expect(client.getQueryData(extensionKeys.inventory("otel-bridge"))).toBeUndefined();
+    expect(client.getQueryData(extensionKeys.inventory("dep-kit-ops", "ws-a", "research"))).toEqual(
+      expectedInventory
+    );
+    expect(
+      client.getQueryData(extensionKeys.inventory("dep-kit-ops", "ws-b", "research"))
+    ).toBeUndefined();
+    expect(
+      client.getQueryData(extensionKeys.inventory("dep-kit-ops", "ws-a", "default"))
+    ).toBeUndefined();
+    expect(
+      client.getQueryData(extensionKeys.inventory("otel-bridge", "ws-a", "research"))
+    ).toBeUndefined();
     expect(mocks.getExtensionInventory).toHaveBeenCalledWith(
       "dep-kit-ops",
+      { workspaceId: "ws-a", profileName: "research" },
       expect.any(AbortSignal)
     );
   });
 
   it("Should keep the kit inventory disabled until the extension resolves", () => {
-    const { result } = renderHook(() => useExtensionKitInventory("dep-kit-ops", false), {
+    const { result } = renderHook(() => useExtensionKitInventory("dep-kit-ops", {}, false), {
       wrapper,
     });
 

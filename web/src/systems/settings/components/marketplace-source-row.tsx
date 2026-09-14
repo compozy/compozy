@@ -139,7 +139,7 @@ export function MarketplaceSourceRow({
           ) : null}
           {!source.enabled && !wasRead ? (
             <p className="text-small-body text-muted" data-testid={`${testId}-sentence`}>
-              Turn it on to read its plugin list. Compozy will not contact this{" "}
+              Turn it on to read its plugin list. CompozyOS will not contact this{" "}
               {origin.kind === "feed" ? "feed" : origin.kind} until then.
             </p>
           ) : null}

@@ -102,11 +102,20 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 ) (*mcppkg.CallExecutor, error) {
 	return mcppkg.NewMCPCallExecutor(
 		mcppkg.ServerResolverFunc(func(
-			context.Context,
-			toolspkg.SourceRef, string,
+			ctx context.Context,
+			_ toolspkg.SourceRef, _ string,
 		) (mcppkg.ResolvedServer, error) {
-			return mcppkg.ResolvedServer{Server: server, Target: target}, nil
+			resolved := mcppkg.ResolvedServer{Server: server, Target: target}
+			if s.mcpHealthKey != nil {
+				key, err := s.mcpHealthKey(ctx, target)
+				if err != nil {
+					return mcppkg.ResolvedServer{}, err
+				}
+				resolved.HealthKey = key
+			}
+			return resolved, nil
 		}),
+		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),

@@ -53,3 +53,5 @@ source_unreachable. Restore equal bytes and retry. Register the same source unde
 verify both rows join the one instance; another origin claiming its name must conflict. Update changed
 bytes with an unchanged version and verify new provenance plus preserved inputs/attachments/rollback.
 Focused daemon integration and controller tests are receipts, not completion of this live browser row.
+
+CI repair impact 2026-09-13: the browser suite installs both standard and .claude-plugin packages through trust and install-summary confirmation. Read the resulting instance using its returned workspace/profile; an unscoped 404 must not be treated as installation failure. The current layout value is claude-plugin. Unsupported component diagnostics remain visible on the standard package.

@@ -16,7 +16,7 @@ export interface SettingsMarketplaceSourcesSectionProps {
 }
 
 /**
- * Plugin marketplaces in the daemon's authoritative order: the Compozy catalog first and always
+ * Plugin marketplaces in the daemon's authoritative order: the CompozyOS catalog first and always
  * on, presets with a switch, custom sources with a `custom` pill and Remove inside the fold. The
  * group title carries the surface's stability label for this release.
  */

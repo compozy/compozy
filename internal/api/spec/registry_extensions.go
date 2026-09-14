@@ -156,7 +156,11 @@ func getExtensionInventoryOperationSpec() OperationSpec {
 		Summary:     "List shipped and live resources for one extension",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+			queryParam("profile", "Profile whose effective extension state is returned", false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionInventoryPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},

@@ -90,6 +90,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__layout_validate":                nativeEntry("Validating", " ", false, "🪟", "auto"),
 	"compozy__logs":                           nativeEntry("Reading", " ", false, "📜", previewHintQuery),
 	"compozy__marketplace_search":             nativeEntry("Searching", " for ", false, "🧩", previewHintQuery),
+	"compozy__marketplace_sources":            nativeEntry("Reading", " ", false, "🧩", "auto"),
 	"compozy__loop_approve":                   nativeEntry("Approving", " ", false, "🔁", "auto"),
 	"compozy__loop_configure":                 nativeEntry("Updating", " ", false, "🔁", "auto"),
 	"compozy__loop_create":                    nativeEntry("Creating", " ", false, "🔁", "auto"),

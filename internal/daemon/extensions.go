@@ -345,6 +345,9 @@ func (s *daemonExtensionService) populateExtensionNetworkStatus(
 	payload *contract.ExtensionPayload,
 ) error {
 	if strings.TrimSpace(payload.NetworkRequirementDigest) != "" {
+		if !payload.Dev {
+			key = extensionpkg.GlobalInstanceKey(key.Name)
+		}
 		confirmation, err := s.registry.NetworkConfirmation(key)
 		if err != nil {
 			return fmt.Errorf(

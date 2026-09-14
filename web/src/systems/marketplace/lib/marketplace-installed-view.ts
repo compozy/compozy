@@ -37,7 +37,7 @@ export function installedDisplayName(item: InstalledExtensionView): string {
   return item.listing?.name ?? item.extension.name;
 }
 
-/** Marketplace origin word for rows that came from a source other than the Compozy catalog. */
+/** Marketplace origin word for rows that came from a source other than the CompozyOS catalog. */
 export function installedOriginWord(item: InstalledExtensionView): string | null {
   const source = item.extension.origin?.source?.trim();
   return source && source !== COMPOZY_CATALOG_SOURCE ? source : null;

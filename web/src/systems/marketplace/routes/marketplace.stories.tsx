@@ -12,46 +12,33 @@ import {
 import {
   installedExtension,
   installedListing,
-  localExtension,
   marketplaceStoryHandlers,
   storyCatalog,
-  storyContext7Server,
   storyGithubServer,
   storyMarketplacePlugins,
   storyPostgresInputs,
-  storyPostgresServer,
   storySources,
 } from "./marketplace-story-data";
 
-const herdrInstalled = installedListing(storyCatalog.herdrBridge, {
-  installedVersion: "0.3.2",
-  updateAvailable: true,
-});
-const context7Installed = installedListing(storyCatalog.context7);
-const githubInstalled = installedListing(storyCatalog.github);
-const repositoryInstalled = installedListing(storyCatalog.repositoryOrientation);
-
-/** Today's catalog with two installed rows, one of them updatable. */
-const defaultCatalog = [
-  storyCatalog.repositoryOrientation,
-  storyCatalog.batuta,
-  herdrInstalled,
+import {
+  conflictingCatalog,
   context7Installed,
-  storyCatalog.github,
-  storyCatalog.postgres,
-  storyCatalog.slackNotify,
-  storyCatalog.policyBlocked,
-  storyCatalog.acmeTools,
-];
-
-const defaultExtensions = [
-  installedExtension(herdrInstalled, {
-    contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
-  }),
-  installedExtension(context7Installed, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-  }),
-];
+  defaultCatalog,
+  defaultExtensions,
+  githubInstalled,
+  herdrInstalled,
+  installedAuthorizeExtensions,
+  installedExtensions,
+  installedLocalExtensions,
+  installedPartialUpdateExtensions,
+  installedServerExtensions,
+  installedUpdateExtensions,
+  logoLadderCatalog,
+  trailStatesCatalog,
+  multiSourceCatalog,
+  multiSourceSources,
+  zeroPluginSources,
+} from "./marketplace-route-story-fixtures";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/marketplace/routes/Marketplace",
@@ -181,22 +168,6 @@ export const AddMenuOpen: Story = {
   },
 };
 
-/** The feed plus two plugin marketplaces: one section per source, in the daemon's order. */
-const multiSourceCatalog = [
-  ...defaultCatalog,
-  storyMarketplacePlugins.featureDev,
-  storyMarketplacePlugins.codeReview,
-  storyMarketplacePlugins.releaseNotes,
-  storyMarketplacePlugins.legacyTool,
-];
-
-const multiSourceSources = [
-  storySources.feed,
-  storySources.presetOn,
-  storySources.presetOff,
-  { ...storySources.customDegraded, error: undefined, error_class: undefined, state: "ok" },
-];
-
 /** Three sources listing something → three collapsible sections with authoritative counts. */
 export const MultiSource: Story = {
   parameters: {
@@ -263,18 +234,7 @@ export const ZeroPluginSource: Story = {
     ...marketplaceStoryHandlers({
       catalog: [...defaultCatalog, storyMarketplacePlugins.featureDev],
       extensions: defaultExtensions,
-      sources: [
-        storySources.feed,
-        storySources.presetOn,
-        {
-          ...storySources.customDegraded,
-          error: undefined,
-          error_class: undefined,
-          installable: 0,
-          plugins: 0,
-          state: "ok",
-        },
-      ],
+      sources: zeroPluginSources,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -295,12 +255,7 @@ export const LogoLadder: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [
-        storyCatalog.context7,
-        storyCatalog.github,
-        storyCatalog.batuta,
-        storyCatalog.postgres,
-      ],
+      catalog: logoLadderCatalog,
       extensions: [],
     }),
   },
@@ -325,13 +280,7 @@ export const TrailStates: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [
-        storyCatalog.batuta,
-        herdrInstalled,
-        context7Installed,
-        storyCatalog.slackNotify,
-        storyCatalog.policyBlocked,
-      ],
+      catalog: trailStatesCatalog,
       extensions: [installedExtension(herdrInstalled), installedExtension(context7Installed)],
     }),
   },
@@ -343,16 +292,7 @@ export const NameInUse: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [
-        {
-          ...storyCatalog.batuta,
-          name_conflict: {
-            source: "team-plugins",
-            source_ref: "github:acme/team-plugins",
-            entry_id: "batuta",
-          },
-        },
-      ],
+      catalog: conflictingCatalog,
       extensions: [],
     }),
   },
@@ -384,16 +324,7 @@ export const Installed: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
-      extensions: [
-        ...defaultExtensions,
-        installedExtension(githubInstalled, {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-          enabled: false,
-        }),
-        installedExtension(repositoryInstalled, {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 1 },
-        }),
-      ],
+      extensions: installedExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -409,28 +340,7 @@ export const InstalledServerStatus: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
-      extensions: [
-        installedExtension(githubInstalled, {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-          mcp_servers: [
-            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
-          ],
-        }),
-        installedExtension(context7Installed, {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-          mcp_servers: [storyContext7Server({ runtime_name: "context7", status: "running" })],
-        }),
-        installedExtension(installedListing(storyCatalog.postgres), {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-          inputs: [{ active: false, id: "database_url", set: false, type: "secret" }],
-          mcp_servers: [storyPostgresServer({ status: "stopped" })],
-          missing_inputs: ["database_url"],
-          workspace_id: "ws_story_fintech",
-        }),
-        installedExtension(herdrInstalled, {
-          contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
-        }),
-      ],
+      extensions: installedServerExtensions,
       details: { postgres: { inputs: storyPostgresInputs } },
     }),
   },
@@ -444,14 +354,7 @@ export const InstalledAuthorize: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
-      extensions: [
-        installedExtension(githubInstalled, {
-          contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
-          mcp_servers: [
-            storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
-          ],
-        }),
-      ],
+      extensions: installedAuthorizeExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -472,19 +375,7 @@ export const InstalledUpdates: Story = {
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
       updateDelay: "infinite",
-      extensions: [
-        installedExtension(herdrInstalled, {
-          contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
-        }),
-        installedExtension(
-          installedListing(storyCatalog.batuta, {
-            installedVersion: "0.4.0",
-            updateAvailable: true,
-          }),
-          { contents: { agents: 0, bridges: 0, hooks: 0, loops: 2, mcp_servers: 0, skills: 1 } }
-        ),
-        installedExtension(context7Installed),
-      ],
+      extensions: installedUpdateExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -508,15 +399,7 @@ export const InstalledLocalEntry: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
-      extensions: [
-        installedExtension(context7Installed),
-        localExtension("ops-notes", {
-          description: "Local incident notes and handoff tools",
-          profile: "engineering",
-          installation_profile: "engineering",
-        }),
-        localExtension("acme-runbooks", { workspace_id: "ws_story_fintech" }),
-      ],
+      extensions: installedLocalExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -597,16 +480,7 @@ export const InstalledUpdatesPartialProgress: Story = {
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
       pendingUpdates: ["batuta"],
-      extensions: [
-        installedExtension(herdrInstalled),
-        installedExtension(
-          installedListing(storyCatalog.batuta, {
-            installedVersion: "0.4.0",
-            updateAvailable: true,
-          }),
-          { workspace_id: "ws_story_fintech" }
-        ),
-      ],
+      extensions: installedPartialUpdateExtensions,
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

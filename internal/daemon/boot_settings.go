@@ -74,7 +74,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 
 	if extensions, ok := state.deps.Extensions.(*daemonExtensionService); ok && extensions.mcpDetails != nil {
-		extensions.mcpDetails.runtime = surface
+		extensions.mcpDetails.auth = surface
 	}
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}

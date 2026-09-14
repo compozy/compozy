@@ -35,7 +35,10 @@ const agentPluginE2ETimeout = 180 * time.Second
 // E2E-002 and E2E-003 exercise the frozen human CLI transcripts against a real daemon.
 func TestDaemonE2EAgentPluginCLIJourneys(t *testing.T) {
 	t.Run("Should match the portable golden-path transcript", testDaemonE2EAgentPluginCLIGoldenPath)
-	t.Run("Should match the portable failure-path transcripts", testDaemonE2EAgentPluginCLIFailurePaths)
+	t.Run(
+		"Should accept client layouts and reject malformed portable packages",
+		testDaemonE2EAgentPluginCLIFailurePaths,
+	)
 }
 
 func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
@@ -188,17 +191,10 @@ func testDaemonE2EAgentPluginCLIFailurePaths(t *testing.T) {
 	}
 	writeAgentPluginE2EManifest(t, filepath.Join(clientLayout, ".claude-plugin", "plugin.json"), "portable-client")
 	clientLayoutOut := runAgentPluginHumanCLI(
-		t,
-		ctx,
-		harness,
-		false,
+		t, ctx, harness, true,
 		"extension", "install", clientLayout, "--allow-unverified", "--yes",
 	)
-	for _, want := range []string{
-		"error: extension: " + clientLayout + " is a Claude Code plugin (.claude-plugin/plugin.json)",
-		"not an Agent Plugins package",
-		"plugin.json at the package root",
-	} {
+	for _, want := range []string{"install portable-client", "agent plugin"} {
 		if !strings.Contains(clientLayoutOut, want) {
 			t.Fatalf("client-layout output = %q, want %q", clientLayoutOut, want)
 		}
@@ -234,10 +230,10 @@ func testDaemonE2EAgentPluginCLIFailurePaths(t *testing.T) {
 	}
 
 	validateLayoutOut := runAgentPluginHumanCLI(
-		t, ctx, harness, false, "extension", "validate", clientLayout,
+		t, ctx, harness, true, "extension", "validate", clientLayout,
 	)
-	if !strings.Contains(validateLayoutOut, "error: extension: "+clientLayout+" is a Claude Code plugin") {
-		t.Fatalf("client-layout validation output = %q, want the install detection error", validateLayoutOut)
+	if !strings.Contains(validateLayoutOut, "valid") || !strings.Contains(validateLayoutOut, "agent plugin") {
+		t.Fatalf("client-layout validation output = %q, want a valid agent plugin", validateLayoutOut)
 	}
 }
 

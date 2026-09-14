@@ -8,6 +8,7 @@ import (
 
 // RuntimeHealthKey identifies one extension-owned MCP server generation.
 type RuntimeHealthKey struct {
+	ResourceID       string
 	InstanceName     string
 	WorkspaceID      string
 	BundleGeneration string
@@ -16,6 +17,7 @@ type RuntimeHealthKey struct {
 
 func (k RuntimeHealthKey) normalize() RuntimeHealthKey {
 	return RuntimeHealthKey{
+		ResourceID:       strings.TrimSpace(k.ResourceID),
 		InstanceName:     strings.TrimSpace(k.InstanceName),
 		WorkspaceID:      strings.TrimSpace(k.WorkspaceID),
 		BundleGeneration: strings.TrimSpace(k.BundleGeneration),
@@ -127,6 +129,17 @@ func (r *RuntimeHealthRegistry) apply(observation RuntimeHealthObservation, mess
 	r.states[observation.key] = state
 }
 
+// Ready reports the latest completed exchange without launching or probing a server.
+func (r *RuntimeHealthRegistry) Ready(key RuntimeHealthKey) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	state := r.states[key.normalize()]
+	return state.appliedSequence != 0 && state.unhealthyMessage == ""
+}
+
 // Entries returns deterministic live failures for one instance generation.
 func (r *RuntimeHealthRegistry) Entries(
 	instanceName string,
@@ -152,7 +165,10 @@ func (r *RuntimeHealthRegistry) Entries(
 	}
 	r.mu.RUnlock()
 	slices.SortFunc(entries, func(left, right RuntimeHealthEntry) int {
-		return strings.Compare(left.Key.ServerName, right.Key.ServerName)
+		if order := strings.Compare(left.Key.ServerName, right.Key.ServerName); order != 0 {
+			return order
+		}
+		return strings.Compare(left.Key.ResourceID, right.Key.ResourceID)
 	})
 	return entries
 }

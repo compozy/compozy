@@ -185,14 +185,19 @@ func setExtensionKitE2ESecret(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	extensionName string,
+	workspaceID string,
 ) {
 	t.Helper()
+	args := []string{"extension", "secrets", "set", extensionName,
+		"--env", extensionKitE2EEnvName, "--value-stdin", "-o", "json"}
+	if workspaceID != "" {
+		args = append(args, "--workspace", workspaceID)
+	}
 	stdout, stderr, err := harness.CLI.RunInDirWithInput(
 		ctx,
 		harness.WorkspaceRoot,
 		strings.NewReader(extensionKitE2ESecret+"\n"),
-		"extension", "secrets", "set", extensionName,
-		"--env", extensionKitE2EEnvName, "--value-stdin", "-o", "json",
+		args...,
 	)
 	if err != nil {
 		t.Fatalf("extension secrets set error = %v; stdout=%s stderr=%s", err, stdout, stderr)

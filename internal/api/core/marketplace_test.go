@@ -13,8 +13,10 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -247,6 +249,42 @@ func marketplaceEntryForTest() marketplacepkg.Entry {
 // Owner: API core catalog projection; canonical suite: marketplace_test.go (UT-004, UT-011, UT-068).
 func TestMarketplaceCatalog(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve valid source diagnostics with plugin identity and stale freshness", func(t *testing.T) {
+		t.Parallel()
+
+		codes := []string{"duplicate_plugin", "invalid_plugin", "unsupported_source"}
+		state := marketplacepkg.SourceState{Source: "team-plugins", Enabled: true, Stale: true}
+		for _, code := range codes {
+			state.Diagnostics = append(state.Diagnostics, pluginsource.Diagnostic{
+				Plugin: "review", Code: code, Message: "The plugin entry could not be listed.",
+			})
+		}
+		payload := core.MarketplaceSourcePayloadFromState(state)
+		if len(payload.Diagnostics) != len(codes) {
+			t.Fatalf("diagnostics count = %d, want %d", len(payload.Diagnostics), len(codes))
+		}
+		ids := make(map[string]bool)
+		for index, item := range payload.Diagnostics {
+			if err := diagnosticcontract.ValidateDiagnosticItem(item); err != nil {
+				t.Fatalf("invalid diagnostic: %v", err)
+			}
+			if item.Code != codes[index] || item.Message != state.Diagnostics[index].Message {
+				t.Fatalf("diagnostic cause lost: %+v", item)
+			}
+			if ids[item.ID] || item.ID == "diagnostics.malformed" {
+				t.Fatalf("diagnostic identity lost: %q", item.ID)
+			}
+			ids[item.ID] = true
+			if item.Severity != diagnosticcontract.SeverityWarn ||
+				item.DataFreshness != diagnosticcontract.FreshnessStale {
+				t.Fatalf("diagnostic status = %s/%s, want warn/stale", item.Severity, item.DataFreshness)
+			}
+			if item.Evidence["source"] != state.Source || item.Evidence["plugin"] != "review" {
+				t.Fatalf("diagnostic owner lost: %+v", item.Evidence)
+			}
+		}
+	})
 
 	t.Run("Should mask persisted stale diagnostics when internal error masking is enabled", func(t *testing.T) {
 		t.Parallel()
@@ -1093,6 +1131,58 @@ func TestMarketplaceCatalog(t *testing.T) {
 			t.Fatalf("degraded=%d %#v", response.Code, body)
 		}
 	})
+	// Invariant: installed-name details enrich by persisted origin without depending on catalog availability.
+	// Owner: shared marketplace API; canonical suite: TestMarketplaceCatalog.
+	for _, unavailable := range []bool{false, true} {
+		name := "Should expose exact-origin updates on installed details"
+		if unavailable {
+			name = "Should retain installed details when their catalog is unavailable"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			entry := marketplaceEntryForTest()
+			handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+			handlers.MarketplaceCatalog = marketplaceCatalogStub{
+				entryFn: func(_ context.Context, origin marketplacepkg.Origin) (*marketplacepkg.Entry, error) {
+					if origin.SourceRef != marketplacepkg.CompozyCatalogRef || origin.EntryID != entry.EntryID {
+						t.Fatalf("unexpected origin: %#v", origin)
+					}
+					if unavailable {
+						return nil, errors.New("catalog unavailable")
+					}
+					return &entry, nil
+				},
+			}
+			handlers.Extensions = extensionServiceStub{
+				listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					return []contract.ExtensionPayload{{
+						Name: "custom-instance", Version: "1.0.0", Format: "native",
+						Origin: &contract.MarketplaceOriginPayload{
+							SourceRef: marketplacepkg.CompozyCatalogRef, EntryID: entry.EntryID,
+						},
+						Contents: contract.ExtensionContentsPayload{Skills: 2},
+					}}, nil
+				},
+			}
+			engine := gin.New()
+			engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+			response := performRequest(t, engine, http.MethodGet,
+				"/marketplace/entries/custom-instance?installed_name=custom-instance", nil)
+			var body contract.MarketplaceEntryResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || !body.Entry.Installed ||
+				body.Entry.InstalledName != "custom-instance" || body.Entry.InstalledVersion != "1.0.0" ||
+				body.Extension == nil || body.Extension.Contents.Skills != 2 {
+				t.Fatalf("installed detail=%d %#v", response.Code, body)
+			}
+			if !unavailable &&
+				(!body.Entry.Installable || !body.Entry.UpdateAvailable || body.Entry.Version != entry.Version) {
+				t.Fatalf("catalog update missing: %#v", body.Entry)
+			}
+		})
+	}
 	t.Run("Should retain an unclassified installed detail without inventing catalog identity", func(t *testing.T) {
 		t.Parallel()
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})

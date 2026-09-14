@@ -22,7 +22,7 @@ compozy marketplace sources remove team -o json
 ```
 
 An absolute folder or a GitHub repository URL works with `sources add` too. Removing a source keeps
-its installed extensions. Presets can be disabled, but cannot be removed. The Compozy feed stays on.
+its installed extensions. Presets can be disabled, but cannot be removed. The CompozyOS feed stays on.
 If a plugin slug also names an existing curated acquisition ref, that curated ref keeps priority;
 `compozy extension install marketplace:team/tool` explicitly selects the plugin source.
 
@@ -60,7 +60,7 @@ enabled = true
 ```
 
 Sources also accept `git+https://example.com/team/plugins.git` and an absolute file URL such as
-`file:///Users/me/team-plugins`. The Compozy feed supplies presets. An explicit config row for the same
+`file:///Users/me/team-plugins`. The CompozyOS feed supplies presets. An explicit config row for the same
 source overrides its enabled state, even if the preset is renamed. Disabled sources are not fetched.
 Refresh with `compozy marketplace refresh -o json`, then inspect the returned source states.
 
@@ -111,7 +111,7 @@ Inspect the recorded source, resolved revision, layout, and digest with
 
 ## Catalog settings
 
-Settings → Marketplace also edits the Compozy catalog base URL, refresh TTL and request timeout. These settings apply live and preserve your plugin sources. The same fields are available through `GET` and `PATCH /api/settings/marketplace` as `config.base_url`, `config.ttl` and `config.timeout`.
+Settings → Marketplace also edits the CompozyOS catalog base URL, refresh TTL and request timeout. These settings apply live and preserve your plugin sources. The same fields are available through `GET` and `PATCH /api/settings/marketplace` as `config.base_url`, `config.ttl` and `config.timeout`.
 
 To disable a named source from the CLI:
 

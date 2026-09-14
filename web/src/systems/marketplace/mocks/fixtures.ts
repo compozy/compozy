@@ -216,7 +216,7 @@ export const marketplaceSourceFixtures = {
     kind: "custom",
     last_read_at: DEGRADED_READ_AT,
     name: "team-plugins",
-    owner: "Compozy team",
+    owner: "CompozyOS team",
     plugins: 4,
     source: "file:///Users/pedro/Dev/team-plugins",
     stability: "experimental",

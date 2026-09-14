@@ -91086,19 +91086,19 @@
             }
           },
           {
-            "description": "Read one profile's rows by name",
+            "description": "Operator workspace reference; omit for the global instance",
             "in": "query",
-            "name": "profile",
+            "name": "workspace",
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Read the owner-labeled all-profiles aggregate",
+            "description": "Profile whose effective extension state is returned",
             "in": "query",
-            "name": "all_profiles",
+            "name": "profile",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           }
         ],
@@ -103264,7 +103264,7 @@
         "operationId": "getMarketplaceCatalogEntry",
         "parameters": [
           {
-            "description": "Catalog source name; omitted searches the Compozy catalog, then registration order",
+            "description": "Catalog source name; omitted searches the CompozyOS catalog, then registration order",
             "in": "query",
             "name": "source",
             "schema": {

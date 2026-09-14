@@ -141,6 +141,7 @@ func (s settingsMCPExtensionDefinitions) commitMCPExtensionOverride(
 	if err := s.state.extensionMCP.Update(ctx, previous.Target, override); err != nil {
 		return err
 	}
+	s.state.mcpRuntimeHealth.EvictInstance(previous.Extension, previous.WorkspaceID)
 	if err := s.state.toolMCPResources.Sync(ctx); err != nil {
 		return s.rollbackMCPExtensionOverride(ctx, target, previous, err)
 	}
@@ -159,6 +160,7 @@ func (s settingsMCPExtensionDefinitions) rollbackMCPExtensionOverride(
 	defer cancel()
 	restoreErr := s.state.extensionMCP.Update(rollbackCtx, previous.Target, previous.Override)
 	if restoreErr == nil {
+		s.state.mcpRuntimeHealth.EvictInstance(previous.Extension, previous.WorkspaceID)
 		restoreErr = s.state.toolMCPResources.Sync(rollbackCtx)
 	}
 	var invalidateErr error
