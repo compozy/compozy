@@ -14,44 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-func (m *Manager) startupPrompt(
-	ctx context.Context,
-	sessionCtx hookspkg.SessionContext,
-	startupCtx StartupPromptContext,
-	agent compozyconfig.AgentDef,
-	workspace *workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	prompt := strings.TrimSpace(agent.Prompt)
-	if m.assembler == nil {
-		return m.dispatchPromptPostAssemble(ctx, sessionCtx, prompt)
-	}
-
-	assembledPrompt, err := assembleStartupPrompt(ctx, m.assembler, startupCtx, agent, workspace)
-	if err != nil {
-		return "", fmt.Errorf("session: assemble prompt for %q: %w", agent.Name, err)
-	}
-	if strings.TrimSpace(assembledPrompt) == "" {
-		assembledPrompt = prompt
-	}
-
-	return m.dispatchPromptPostAssemble(ctx, sessionCtx, strings.TrimSpace(assembledPrompt))
-}
-
-func assembleStartupPrompt(
-	ctx context.Context,
-	assembler PromptAssembler,
-	startupCtx StartupPromptContext,
-	agent compozyconfig.AgentDef,
-	workspace *workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	if startupAssembler, ok := assembler.(StartupPromptAssembler); ok {
-		return startupAssembler.AssembleStartup(ctx, startupCtx, agent, workspace)
-	}
-	return assembler.Assemble(ctx, agent, workspace)
-}
 
 func (m *Manager) startPermissions(sessionType Type, configured string) compozyconfig.PermissionMode {
 	if normalizeSessionType(sessionType) == SessionTypeDream {

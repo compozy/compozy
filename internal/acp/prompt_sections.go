@@ -44,25 +44,54 @@ func RegisterPromptSection(ctx context.Context, section PromptSection) {
 	collector.sections = append(collector.sections, section)
 }
 
-func (p *AgentProcess) compactPromptSections(message string, sections []PromptSection) string {
+type promptSectionReplacement struct {
+	start, end int
+	text       string
+	span       DeliveredSpan
+}
+
+func (p *AgentProcess) compactPromptSections(message string, sections []PromptSection) (string, []DeliveredSpan) {
 	p.systemPromptMu.Lock()
 	defer p.systemPromptMu.Unlock()
+	replacements := make([]promptSectionReplacement, 0, len(sections))
 	for _, section := range sections {
-		if section.Key == "" || section.Content == "" || section.UnchangedContent == "" {
+		if section.Key == "" || section.Content == "" || strings.Count(message, section.Content) != 1 {
 			continue
 		}
-		if strings.Count(message, section.Content) != 1 {
+		start := strings.Index(message, section.Content)
+		end := start + len(section.Content)
+		if slices.ContainsFunc(
+			replacements,
+			func(r promptSectionReplacement) bool { return start < r.end && end > r.start },
+		) {
 			continue
 		}
 		signature, delivered := p.deliveredSections[section.Key]
 		unchanged := delivered && signature == sha256.Sum256([]byte(section.Content))
 		startup := !p.systemPromptSent && section.StartupContent != "" &&
 			strings.Contains(p.systemPrompt, section.StartupContent)
-		if unchanged || startup {
-			message = strings.Replace(message, section.Content, section.UnchangedContent, 1)
+		text := section.Content
+		stub := section.UnchangedContent != "" && (unchanged || startup)
+		if stub {
+			text = section.UnchangedContent
 		}
+		span := TextSpan(section.Key, text)
+		span.Unchanged = stub
+		span.StartupDedup = stub && startup
+		replacements = append(replacements, promptSectionReplacement{start: start, end: end, text: text, span: span})
 	}
-	return message
+	slices.SortFunc(replacements, func(a, b promptSectionReplacement) int { return a.start - b.start })
+	var builder strings.Builder
+	spans := make([]DeliveredSpan, 0, len(replacements))
+	cursor := 0
+	for _, replacement := range replacements {
+		builder.WriteString(message[cursor:replacement.start])
+		builder.WriteString(replacement.text)
+		spans = append(spans, replacement.span)
+		cursor = replacement.end
+	}
+	builder.WriteString(message[cursor:])
+	return builder.String(), spans
 }
 
 func (p *AgentProcess) markPromptSectionsDelivered(req PromptRequest) {

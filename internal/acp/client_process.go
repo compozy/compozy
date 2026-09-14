@@ -113,7 +113,11 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	if err != nil {
 		return StartOpts{}, fmt.Errorf("acp: normalize start ACP options: %w", err)
 	}
+	normalized.StartupManifest = CloneStartupManifest(opts.StartupManifest)
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
+	if len(normalized.StartupManifest.Spans) == 0 {
+		normalized.StartupManifest = OpaqueStartupManifest(normalized.SystemPrompt, false)
+	}
 	if strings.TrimSpace(normalized.SystemPrompt) == "" {
 		normalized.SystemPromptDelivery = ""
 	} else if normalized.SystemPromptDelivery == "" {

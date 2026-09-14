@@ -21,6 +21,7 @@ type sessionClientAPI interface {
 	GetSessionHealth(context.Context, string) (SessionHealthRecord, error)
 	GetSessionStatus(context.Context, string) (SessionStatusRecord, error)
 	GetSessionUsage(context.Context, string) (SessionUsageRecord, error)
+	GetSessionUsageTurns(context.Context, string) (contract.SessionUsageTurnsResponse, error)
 	InspectSession(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	RefreshSessionSoul(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(context.Context, string, bool) (SessionStopRecord, error)

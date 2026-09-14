@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +47,24 @@ def write_json(path: Path, payload) -> None:
     path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+
+
+def atomic_write_json(path: Path, payload) -> None:
+    """Publish a complete artifact, leaving the previous file intact on failure."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=f".{path.name}.", delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(payload, stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def rel(path: Path, repo: Path) -> str:
@@ -166,127 +186,6 @@ def manifest_selected(manifest: dict) -> dict[str, dict]:
     return {f["path"]: f for f in manifest["files"] if f["disposition"] == "selected"}
 
 
-# ---------- job outputs ----------
-
-def load_jobs(path: Path) -> list[dict]:
-    jobs = read_json(path)["jobs"]
-    labels = [job["label"] for job in jobs]
-    if len(labels) != len(set(labels)):
-        raise RuntimeError(f"{path}: duplicate job labels")
-    for job in jobs:
-        if job.get("kind") not in KNOWN_KINDS:
-            raise RuntimeError(f"{path}: {job.get('label')}: unknown kind {job.get('kind')!r}")
-    return jobs
-
-
-def validate_job_output(repo: Path, out: Path, job: dict) -> None:
-    """Raises ValueError when the job's output file is missing or breaks the
-    findings contract. Passing silently means the output is valid."""
-    path = repo / job["output"]
-    if not path.is_file():
-        raise ValueError(f"{job['label']}: missing output {job['output']}")
-    try:
-        payload = read_json(path)
-    except RuntimeError as error:
-        raise ValueError(f"{job['label']}: {error}") from error
-    errors = findings_contract_errors(payload)
-    if not errors:
-        errors.extend(job_contract_errors(payload, job))
-    if errors:
-        head = "; ".join(errors[:6])
-        tail = f" (+{len(errors) - 6} more)" if len(errors) > 6 else ""
-        raise ValueError(f"{job['label']}: {head}{tail}")
-
-
-CERTIFICATE_RE = re.compile(
-    r"^Premise:\s+.+\s+→\s+Path:\s+.+\s+→\s+Verdict:\s+.+$"
-)
-ADVISORY_CERTIFICATE_RE = re.compile(
-    r"^Premise:\s+.+\s+→\s+Improvement:\s+.+\s+→\s+Fix:\s+.+$"
-)
-
-
-def findings_contract_errors(payload: dict) -> list[str]:
-    """Validate the review-output schema plus class-specific certificates."""
-    errors = schema_errors(payload, load_schema("findings"))
-    if errors:
-        return errors
-    for index, finding in enumerate(payload["defects"]):
-        certificate = finding["evidence"][0].strip()
-        if not CERTIFICATE_RE.fullmatch(certificate):
-            errors.append(
-                f"$.defects[{index}].evidence[0]: expected "
-                "'Premise: ... → Path: ... → Verdict: ...' certificate"
-            )
-    for index, advisory in enumerate(payload["advisories"]):
-        certificate = advisory["evidence"][0].strip()
-        if not ADVISORY_CERTIFICATE_RE.fullmatch(certificate):
-            errors.append(
-                f"$.advisories[{index}].evidence[0]: expected "
-                "'Premise: ... → Improvement: ... → Fix: ...' certificate"
-            )
-    return errors
-
-
-def job_contract_errors(payload: dict, job: dict) -> list[str]:
-    """Validate lane ownership, hunk coverage, and rule accountability."""
-    errors: list[str] = []
-    lane = str(job.get("lane", ""))
-    expected_hunks = {
-        (str(row["file"]), str(row["hunk"])) for row in job.get("required_hunks", [])
-    }
-    rows = payload.get("coverage", {}).get("hunks", [])
-    actual_hunks = [(str(row.get("file")), str(row.get("hunk"))) for row in rows]
-    if len(actual_hunks) != len(set(actual_hunks)):
-        errors.append("$.coverage.hunks: duplicate file/hunk rows")
-    actual_set = set(actual_hunks)
-    if actual_set != expected_hunks:
-        errors.append(
-            "$.coverage.hunks: ownership mismatch "
-            f"missing={sorted(expected_hunks - actual_set)[:6]} "
-            f"extra={sorted(actual_set - expected_hunks)[:6]}"
-        )
-    coverage_check = str(job.get("coverage_check", lane))
-    for index, row in enumerate(rows):
-        if coverage_check and coverage_check not in row.get("checks", []):
-            errors.append(
-                f"$.coverage.hunks[{index}].checks: missing required check {coverage_check!r}"
-            )
-
-    expected_rules = set(job.get("rule_ids", []))
-    rule_rows = payload.get("coverage", {}).get("rules", [])
-    actual_rules = [str(row.get("rule_id")) for row in rule_rows]
-    if len(actual_rules) != len(set(actual_rules)):
-        errors.append("$.coverage.rules: duplicate rule_id rows")
-    if set(actual_rules) != expected_rules:
-        errors.append(
-            "$.coverage.rules: assignment mismatch "
-            f"missing={sorted(expected_rules - set(actual_rules))[:6]} "
-            f"extra={sorted(set(actual_rules) - expected_rules)[:6]}"
-        )
-
-    if lane == "defect" and payload.get("advisories"):
-        errors.append("$.advisories: defect jobs must leave advisory discovery to the polish lane")
-    if lane == "polish" and payload.get("defects"):
-        errors.append("$.defects: polish jobs must leave defect discovery to the defect lane")
-    if lane in {"defect", "polish"}:
-        for result_kind in ("defects", "advisories"):
-            for index, item in enumerate(payload.get(result_kind, [])):
-                if item.get("in_diff") and (item.get("file"), item.get("hunk")) not in expected_hunks:
-                    errors.append(
-                        f"$.{result_kind}[{index}]: in-diff anchor is outside job ownership"
-                    )
-    assigned_rules = expected_rules
-    for result_kind in ("defects", "advisories", "suppressions"):
-        for index, item in enumerate(payload.get(result_kind, [])):
-            unknown = set(item.get("rule_ids", [])) - assigned_rules
-            if unknown:
-                errors.append(
-                    f"$.{result_kind}[{index}].rule_ids: unassigned ids {sorted(unknown)}"
-                )
-    return errors
-
-
 # ---------- source freeze ----------
 
 def freeze_snapshot(repo: Path, out: Path) -> str:
@@ -312,8 +211,8 @@ def freeze_snapshot(repo: Path, out: Path) -> str:
     return digest.hexdigest()
 
 
-def check_freeze(repo: Path, out: Path, stage: str) -> list[str]:
-    """Compare the checkout against manifest.worktree_snapshot; returns error lines."""
+def check_freeze(repo: Path, out: Path, stage: str, *, evidence: bool = True) -> list[str]:
+    """Check checkout and evidence; prepare may skip evidence it is rebuilding."""
     manifest = read_json(out / "manifest.json")
     expected = manifest.get("worktree_snapshot")
     if not expected:
@@ -324,7 +223,43 @@ def check_freeze(repo: Path, out: Path, stage: str) -> list[str]:
             f"{stage}: source drifted — snapshot {actual[:12]} != manifest {expected[:12]}; "
             "findings would anchor to stale lines. Commit/stash the drift or restart the round."
         ]
-    return []
+    if not evidence:
+        return []
+    errors = []
+    evidence_paths = out / "knowledge.json", out / "rules.json"
+    if all(path.is_file() for path in evidence_paths):
+        knowledge, registry = map(read_json, evidence_paths)
+        if knowledge.get("version") == registry.get("version") == 2:
+            from build_knowledge import verify_evidence
+            errors.extend(f"{stage}: {error}" for error in verify_evidence(repo, manifest, knowledge, registry))
+    context_path = out / "review-context.json"
+    if context_path.is_file():
+        for artifact in read_json(context_path).get("spec_artifacts", []):
+            if "sha256" not in artifact:  # Older rounds did not capture external spec hashes.
+                continue
+            path = repo / artifact["path"]
+            try:
+                actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError as error:
+                errors.append(f"{stage}: spec artifact missing or unreadable: {path} ({error})")
+                continue
+            if actual_hash != artifact["sha256"]:
+                errors.append(f"{stage}: spec artifact changed: {path}; rebuild context and reassess spec parity")
+    jobs_path = out / "jobs.json"
+    if jobs_path.is_file():
+        for name, expected_hash in read_json(jobs_path).get("input_hashes", {}).items():
+            path = (out / name).resolve()
+            if not path.is_relative_to(out.resolve()):
+                errors.append(f"{stage}: job input path escapes review directory: {name}")
+                continue
+            try:
+                actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError as error:
+                errors.append(f"{stage}: job input missing or unreadable: {name} ({error})")
+                continue
+            if actual_hash != expected_hash:
+                errors.append(f"{stage}: job input changed: {name}; rebuild jobs before reusing outputs")
+    return errors
 
 
 def _git_text(repo: Path, *args: str) -> str:
@@ -341,3 +276,11 @@ def _git_bytes(repo: Path, *args: str) -> bytes:
             f"git {' '.join(args)} failed: {proc.stderr.decode(errors='replace').strip()}"
         )
     return proc.stdout
+
+
+# Preserve the shared helper API while keeping job validation in its own module.
+from _job_output import (
+    ADVISORY_CERTIFICATE_RE, CERTIFICATE_RE, findings_contract_errors,
+    job_contract_digest, job_contract_errors, job_output_errors, load_jobs,
+    normalize_job_output, validate_job_output,
+)

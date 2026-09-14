@@ -12,6 +12,10 @@ import (
 )
 
 type StubSessionManager struct {
+	UsageEventsFn                func(context.Context, string) ([]session.UsageEventEnvelope, error)
+	DeliveriesFn                 func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
+	CompactionsFn                func(context.Context, string) ([]session.CompactionEnvelope, error)
+	LatestSettledTurnFn          func(context.Context, string) (session.SettledTurn, error)
 	Attention                    StubSessionAttention
 	CreateFn                     func(context.Context, session.CreateOpts) (*session.Session, error)
 	CreateAcceptedFn             func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
@@ -388,3 +392,31 @@ var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
+
+func (s StubSessionManager) UsageEvents(ctx context.Context, id string) ([]session.UsageEventEnvelope, error) {
+	if s.UsageEventsFn != nil {
+		return s.UsageEventsFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s StubSessionManager) Deliveries(ctx context.Context, id string) ([]session.DeliveryEventEnvelope, error) {
+	if s.DeliveriesFn != nil {
+		return s.DeliveriesFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s StubSessionManager) Compactions(ctx context.Context, id string) ([]session.CompactionEnvelope, error) {
+	if s.CompactionsFn != nil {
+		return s.CompactionsFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
+	if s.LatestSettledTurnFn != nil {
+		return s.LatestSettledTurnFn(ctx, id)
+	}
+	return session.SettledTurn{}, nil
+}

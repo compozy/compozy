@@ -10,33 +10,37 @@ import (
 
 // TokenStats is the aggregated usage record for a session in the global database.
 type TokenStats struct {
-	ID           string
-	SessionID    string
-	AgentName    string
-	InputTokens  *int64
-	OutputTokens *int64
-	TotalTokens  *int64
-	TotalCost    *float64
-	CostCurrency *string
-	CostStatus   string
-	CostSource   string
-	TurnCount    int64
-	UpdatedAt    time.Time
+	ID               string
+	SessionID        string
+	AgentName        string
+	CacheReadTokens  *int64
+	CacheWriteTokens *int64
+	InputTokens      *int64
+	OutputTokens     *int64
+	TotalTokens      *int64
+	TotalCost        *float64
+	CostCurrency     *string
+	CostStatus       string
+	CostSource       string
+	TurnCount        int64
+	UpdatedAt        time.Time
 }
 
 // TokenStatsUpdate adds one or more turns of usage into a session aggregate.
 type TokenStatsUpdate struct {
-	SessionID    string
-	AgentName    string
-	InputTokens  *int64
-	OutputTokens *int64
-	TotalTokens  *int64
-	CostAmount   *float64
-	CostCurrency *string
-	CostStatus   string
-	CostSource   string
-	Turns        int64
-	UpdatedAt    time.Time
+	SessionID        string
+	AgentName        string
+	CacheReadTokens  *int64
+	CacheWriteTokens *int64
+	InputTokens      *int64
+	OutputTokens     *int64
+	TotalTokens      *int64
+	CostAmount       *float64
+	CostCurrency     *string
+	CostStatus       string
+	CostSource       string
+	Turns            int64
+	UpdatedAt        time.Time
 }
 
 // Validate ensures the aggregate update contains the required identifying fields.

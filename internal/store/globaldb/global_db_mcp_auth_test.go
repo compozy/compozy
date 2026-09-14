@@ -744,7 +744,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			if err := applyGlobalMigrationPrefix(
 				t,
 				previous,
-				globalMigrationPrefixBefore(t, "00112_schema.sql"),
+				globalMigrationPrefixBefore(t, "00113_schema.sql"),
 			); err != nil {
 				t.Fatal(err)
 			}

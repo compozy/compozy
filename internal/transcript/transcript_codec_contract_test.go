@@ -170,6 +170,91 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 }
 
 func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
+	t.Run("Should round-trip a delivery receipt and redact display names without mutating input", func(t *testing.T) {
+		t.Parallel()
+		original := acp.AgentEvent{
+			Type:   acp.EventTypePromptDelivery,
+			TurnID: "turn",
+		}.WithDelivery(&acp.DeliveryManifest{
+			TurnID:   "turn",
+			SentAt:   time.Date(2026, 9, 12, 1, 2, 3, 0, time.UTC),
+			Estimate: acp.TextEstimateMethod,
+			Spans: []acp.DeliveredSpan{
+				{Key: "skills", Kind: "text", Bytes: 4, Tokens: new(int64(1)), Unchanged: true, StartupDedup: true},
+				{Key: "attachment", Kind: "binary", Bytes: 9, Name: "compozy_claim_secret"},
+			},
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(content), &raw); err != nil {
+			t.Fatal(err)
+		}
+		if len(raw["delivery"]) == 0 || strings.Contains(content, "compozy_claim_secret") ||
+			!strings.Contains(content, `"unchanged":false`) ||
+			!strings.Contains(content, `"startup_dedup":true`) ||
+			strings.Contains(content, `"hook_modified"`) {
+			t.Fatalf("canonical delivery = %s", content)
+		}
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := RedactAgentEvent(original)
+		if !reflect.DeepEqual(decoded.DeliveryManifest(), expected.DeliveryManifest()) {
+			t.Fatalf("decoded = %#v, want %#v", decoded.DeliveryManifest(), expected.DeliveryManifest())
+		}
+		ui := UIAgentEventPayloadFromEvent(original)
+		if !reflect.DeepEqual(ui.Delivery, expected.DeliveryManifest()) ||
+			original.DeliveryManifest().Spans[1].Name != "compozy_claim_secret" {
+			t.Fatal("UI lost receipt or redaction mutated source")
+		}
+	})
+	t.Run("Should sanitize and round-trip usage metadata with the carrying ledger sequence", func(t *testing.T) {
+		t.Parallel()
+		usage := &acp.TokenUsage{TurnID: "turn-usage", CacheReadTokens: new(int64(4)), Meta: map[string]any{
+			"_claude/origin": "result",
+			"nested": map[string]any{
+				"deeper": map[string]any{"claim_token": "secret", "note": "compozy_claim_secret"},
+			},
+		}}
+		original := acp.AgentEvent{Type: acp.EventTypeUsage, SessionID: "session", TurnID: usage.TurnID, Usage: usage}
+		redacted := RedactAgentEvent(original)
+		if redacted.Usage == usage || *redacted.Usage.CacheReadTokens != 4 {
+			t.Fatal("usage counters or source ownership changed")
+		}
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(content, "claim_token") || strings.Contains(content, "compozy_claim_secret") {
+			t.Fatalf("unsafe content = %s", content)
+		}
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.Usage.Meta, redacted.Usage.Meta) {
+			t.Fatalf("metadata = %#v, want %#v", decoded.Usage.Meta, redacted.Usage.Meta)
+		}
+		nested := decoded.Usage.Meta["nested"].(map[string]any)["deeper"].(map[string]any)
+		if nested["note"] != "compozy_claim_[REDACTED]" {
+			t.Fatalf("nested metadata = %#v", nested)
+		}
+		if usage.Meta["nested"].(map[string]any)["deeper"].(map[string]any)["claim_token"] != "secret" {
+			t.Fatal("redaction mutated original metadata")
+		}
+		stored := decodeStoredEvent(
+			store.SessionEvent{Content: content, SessionID: "session", TurnID: usage.TurnID, Sequence: 17},
+		)
+		payload := uiTokenUsagePayloadFromUsage(stored.agent.Usage)
+		if payload.Sequence == nil || *payload.Sequence != 17 || !reflect.DeepEqual(payload.Meta, decoded.Usage.Meta) {
+			t.Fatalf("UI usage = %#v", payload)
+		}
+	})
+
 	t.Run("Should preserve actionable provider occurrences in stored and streamed errors", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)

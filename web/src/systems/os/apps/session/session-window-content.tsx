@@ -1,3 +1,9 @@
+import {
+  SessionContextControl,
+  useSessionContextActivity,
+  type SessionContextActivitySource,
+  type SessionInspectorProps,
+} from "@/systems/session";
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
@@ -41,6 +47,22 @@ const SessionInspector = lazy(() =>
     default: module.SessionInspector,
   }))
 );
+
+function SessionWindowInspector({
+  activitySource: source,
+  ...props
+}: SessionInspectorProps & {
+  activitySource: SessionContextActivitySource;
+}) {
+  const activity = useSessionContextActivity(
+    source.session,
+    source.running,
+    source.live,
+    source.queued,
+    source.goal
+  );
+  return <SessionInspector {...props} activity={activity} />;
+}
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
 
@@ -172,9 +194,10 @@ export function SessionWindowContent({
     controls,
     inspector,
     sidebar,
-    inspectorMemory,
+    sessionContext,
+    sessionUsageTurns,
+    activityGoal,
     inspectorUsage,
-    sessionVault,
     deleteDialog,
     renameDialog,
     clearDialog,
@@ -270,6 +293,13 @@ export function SessionWindowContent({
           unconfirmedSends={controls.unconfirmedSends}
           onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
           onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+          contextControl={
+            <SessionContextControl
+              context={sessionContext.context}
+              open={inspector.open}
+              onOpen={() => inspector.setOpen(true)}
+            />
+          }
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
           environmentControl={
             <SessionEnvironmentControl
@@ -295,14 +325,18 @@ export function SessionWindowContent({
       </div>
       {inspector.open ? (
         <Suspense fallback={null}>
-          <SessionInspector
-            messages={controls.messages}
-            sessionId={sessionId}
+          <SessionWindowInspector
+            activitySource={{
+              session,
+              running: controls.isSessionRunning,
+              live: liveDataEnabled,
+              queued: controls.queuedPrompts.length,
+              goal: activityGoal,
+            }}
+            context={sessionContext.context}
+            turns={sessionUsageTurns.data}
+            turnsUnavailable={sessionUsageTurns.isError}
             usage={inspectorUsage}
-            memory={inspectorMemory}
-            vaultSecrets={sessionVault.data ?? []}
-            vaultIsLoading={sessionVault.isLoading}
-            vaultError={sessionVault.error}
             drawerOpen
             onDrawerOpenChange={open => {
               if (!open) {

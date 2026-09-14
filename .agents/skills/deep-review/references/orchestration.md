@@ -1,84 +1,65 @@
 # Orchestration
 
-The pipeline stage map, cohort planning rules, sweep triggers, and the execution engines. Prompt wording is single-sourced in `assets/PROMPT.md` (rendered by `build_jobs.py`); output shape in `assets/findings.schema.json` — this file explains how the stages compose and how jobs get executed.
+The orchestrator prepares semantic decisions, dispatches rendered prompts, runs the final gate and reports. It does not review inline or construct reviewer JSON by hand.
 
-## Pipeline — stages, gates, artifacts
+## Pipeline
 
-Every stage materializes jobs with lane ownership (`{label, kind, lane, prompt, output, required_hunks, rule_ids}`), executes them on any engine, and passes a script gate. Valid outputs are preserved, so re-running touches only missing or invalid work.
+| Stage | Operation | Observable completion |
+| --- | --- | --- |
+| Prepare | `prepare_review.py --out ...` | Manifest, compact knowledge queue and decision template |
+| Apply decisions | Same command with `--decisions ...` | Exit 2 for newly pending references; exit 0 with materialized jobs when complete |
+| Review | Native/Workflow or external runner | Each worker submits its assigned draft locally |
+| Global gate | `run_jobs.py --validate-only` | Every output valid; source and rule evidence frozen |
+| Merge/report | `merge_findings.py`, `render_review.py`, `render_html.py` | Complete two-lane coverage, canonical verdict and reports |
 
-| Stage | Produce | Execute | Gate (exit 0) |
-| --- | --- | --- | --- |
-| Knowledge | `build_knowledge.py` → knowledge.json + rules.template.json | — | source discovery |
-| Plan | `build_jobs.py` → prompts + jobs.json | — | source accounting + ownership |
-| Review | — | jobs.json (defect + polish + sweeps) | `run_jobs.py --validate-only` |
-| Merge | `merge_findings.py` → findings.json + review-stats.json | — | complete two-lane coverage |
-| Report | `render_review.py` → review.md + state.json; `render_html.py` → review.html | — | `render_review.py` |
+Direct `build_manifest.py`, `build_knowledge.py` and `build_jobs.py` remain useful for focused diagnostics. Normal runs use the preparation helper rather than inventing scripts.
 
-All job kinds (`cohort`, `polish`, `sweep`) return the same schema: defects, advisories, objective suppressions, hunk coverage, and rule coverage. `hunk` is the assigned canonical range (`<side>:<start>-<end>`), null outside the diff. Defects use the causal certificate; advisories use the improvement certificate.
+## Cohorts
 
-## Cohort rules (Step 2)
+Both lanes default to 200 files / 15,000 changed lines per job, with no total PR cap. These are configurable batching thresholds: `--max-cohort-files N` / `--max-cohort-lines N` for defects, `--max-polish-files N` / `--max-polish-lines N` for polish. Any positive integer is accepted, including values above the defaults. Preparation retains chosen settings across decision stages, resume and refresh; explicit flags override individual settings. Direct `build_jobs.py` inherits the plan's limits unless overridden.
 
-1. Build broad dependency neighborhoods: keep each source file with its tests and types, then pack adjacent packages/domains together until the next unit would exceed a cap. For selections above 400 files, target 4–8 defect cohorts unless a cap or oversized-file split requires more.
-2. Size: ≤ `--max-cohort-files` files (default `200`) **and** ≤ ~15,000 changed lines per cohort, whichever binds first. Pass the same value to `build_jobs.py`; a single oversized file becomes its own cohort.
-3. **Oversized-file split** — when one file alone exceeds ~15,000 changed lines, divide the search across sibling reviewers: same file, disjoint slices of its manifest hunks (`hunk_scope`), one cohort per slice. Every slice reviewer reads the whole file for context but judges only its slice; build_jobs.py proves the merged slices cover every hunk line exactly once.
-4. Tag each cohort `risk: high|normal|low` — high when it touches storage/migrations, security/auth, public contracts, or concurrency; low for docs/config-only. Risk feeds reviewer emphasis, not selection.
-5. Every selected file in exactly one cohort (or, when sliced, every hunk line in exactly one slice) — build_jobs.py rejects any other shape. `plan.json`:
+The automatic planner groups packages/directories, places source/test siblings adjacent and partitions hunks deterministically. Review every selected file; do not sample or omit for size. An oversized file's slices cover each selected hunk line exactly once in each lane, with whole-file context available to every owner.
+
+The optional preparation `--max-context-lines` budget partitions groups by total file size as well as changed lines. A single oversized file remains reviewable. Context-size estimates guide tuning; do not silently lower scope or model effort.
+
+Override `decisions.plan` only when actual source/test/type relationships cross the default grouping. Its `cohorts` contain `id`, `name`, `risk` (`high|normal|low`), `files`, and optional `hunk_scope`: `{path:[{start,lines,side}]}`. The gate rejects unknown paths, unsafe/duplicate IDs, omitted or duplicated ownership and excess limits. A risk tag changes emphasis, never selection.
+
+## Sweeps
+
+Default to none. Each extra sweep needs a concrete cross-cohort hypothesis in `decisions.sweeps`; one agent investigates it across the selected surface. Example:
 
 ```json
-{ "cohorts": [
-    { "id": "c01", "name": "store: task queue", "risk": "high",
-      "files": ["internal/store/queue.go", "internal/store/queue_test.go"] },
-    { "id": "c02a", "name": "loop/action.go — hunks 1-14", "risk": "high",
-      "files": ["internal/loop/action.go"],
-      "hunk_scope": { "internal/loop/action.go": [{"start": 12, "lines": 40, "side": "new"}] } }
-  ],
-  "sweeps": ["contracts", {"key": "layering", "lens": "custom lens text"}] }
+{"key":"contracts","hypothesis":"The changed producer response crosses API, SDK and UI cohorts; verify all consumers accept the new optional field."}
 ```
 
-Sweeps are bare keys from the table below (built-in lens text) or `{key, lens}` objects for a custom lens.
+| Key | Boundary that justifies it |
+| --- | --- |
+| `contracts` | Changed exported/wire/API contract across owners |
+| `security` | Input/authz flow crosses cohorts and has a reachable attack hypothesis |
+| `migrations` | Schema/code/deployment ordering spans owners |
+| `tests` | A failing-capable invariant spans cohorts with no complete local owner; behavior change alone is insufficient |
+| `consistency` | A rename or shared invariant has consumers outside its local cohort |
+| `config` | Declaration/defaulting/consumption crosses owners |
+| `spec-parity` | Always generated when a spec contract is supplied |
 
-`build_jobs.py` derives a second broad polish partition automatically: ≤200 files and ≤15,000 changed lines, splitting oversized hunks when needed. Every selected hunk line therefore has one defect owner and one polish owner without complicating plan.json.
-
-## Sweep triggers
-
-Sweeps are **opt-in and rare** — default to none. Each sweep is one extra agent that sees the manifest, not one cohort; include it only when its trigger clearly fires, and prefer at most one or two per round:
-
-| Key | Trigger | Looks for |
-| --- | --- | --- |
-| `contracts` | exported/wire/API symbol changed contract | breaking changes, drift between spec/impl/clients, missing codegen co-ship |
-| `security` | new endpoint/input path/authz surface/secret handling | injection, missing authn/authz, secret leakage, cross-tenant access |
-| `migrations` | schema/migration files in diff | destructive ops, missing migration for model change, ordering/identity hazards |
-| `tests` | any behavior change | new behavior without a failing-capable test, tests asserting mocks, weakened assertions |
-| `consistency` | renames or repeated patterns in diff | incomplete renames, sibling paths not mirroring a fix, duplicated logic |
-| `config` | config keys/flags/env vars changed | unwired or undocumented keys, dead flags, default mismatches |
-| `spec-parity` | `--spec` provided (always included then) | field-by-field conformance with every artifact in the context pack's Spec contract section |
+Built-in lens text supplies the investigation focus; a custom key requires `lens`. Rules enter a sweep only when their `sweeps` binding names it. Local lanes already own their rule assessments. Keep every cross-cohort survivor and its evidence; no numerical findings quota.
 
 ## Engines
 
-The jobs contract makes engines interchangeable — pick one per run, record it in walkthrough.md's Review details (`Mode: workflow | agent-fallback | subagent:<runtime>`), and always close the loop with `run_jobs.py --validate-only`. Validation rejects missing coverage rows, unaccounted rules, wrong-lane results, and silent suppressions.
+Native agents are the default fallback; use up to six concurrently, or the harness's smaller available limit. Read only the compact dispatch index/status, then send each pending row's prompt path. Use `fork_turns=none` when supported and preserve the selected model/effort. Avoid reloading the parent conversation and skill catalog as explicit task context. Each prompt contains the review contract and local submit command.
 
-**Workflow (default).** One generic script executes any stage's pending jobs — pass the pending list from the validate-only status file as `args.jobs`:
+For Workflow, feed only pending rows from the global status to the existing engine:
 
 ```js
-export const meta = {
-  name: 'deep-review-jobs',
-  description: 'Execute pending deep-review jobs; each agent reads a prompt file and writes one output file',
-  phases: [{ title: 'Execute' }],
-}
-// args: { jobs: [{label, prompt, output}] } — PENDING jobs only
-phase('Execute')
-const acks = await parallel(args.jobs.map(j => () =>
-  agent(`Read ${j.prompt} and follow it exactly. It defines the review task, the JSON ` +
-        `schema, and the single file you write (${j.output}). Repo files are read-only. ` +
-        `Reply with one sentence once the artifact is written.`,
-    { label: j.label, phase: 'Execute' })))
-return { dispatched: args.jobs.length, returned: acks.filter(Boolean).length }
+export const meta = {name: 'deep-review-jobs', phases: [{title: 'Review'}]}
+phase('Review')
+return await parallel(args.jobs.map(j => () => agent(
+  `Read ${j.prompt}; complete that assignment and its local submit command. Product source is read-only.`,
+  {label: j.label, phase: 'Review'})))
 ```
 
-After the workflow returns, run the validate-only gate; re-invoke with the still-pending jobs (interrupted runs can also resume via `resumeFromRunId`). Two re-dispatches without progress → inspect a failing output by hand before continuing.
+Workers write their draft and call `run_jobs.py --job LABEL --submit`; local diagnostics and canonical output belong only to that job. They do not run global validation, reload jobs.json or react to other workers' pending outputs. Native reuse is allowed when related jobs benefit from context; do not accumulate unrelated jobs indefinitely. A materialized contract supports a clean worker without reconstructing prior context.
 
-**Agent fallback (`--no-workflow` or no Workflow tool).** Same contract through the Agent tool: dispatch each pending job's prompt file to a subagent ("Read `<prompt>` and follow it exactly…"), at most 6 concurrent, then the validate-only gate.
+After a batch, the orchestrator runs `run_jobs.py --validate-only`. Valid jobs are reused. An invalid status row's `prompt` points to an automatically generated repair request containing all errors and the existing artifact. Dispatch that row; avoid starting the original review again merely for JSON repairs. Two repair attempts without progress require inspecting the diagnostic and missing evidence, not another blind retry.
 
-**External runtimes (`--subagent` ≠ `native`).** `run_jobs.py --command` drives `compozy exec` per subagent-runtimes.md — the runner owns concurrency, retries, output validation, provider-block detection, and the freeze check.
-
-The orchestrator never reviews inline, regardless of PR size: reviewers spend their own context on their cohort; the orchestrator plans, dispatches, gates, and reports.
+For non-native `--subagent`, use [subagent-runtimes.md](subagent-runtimes.md). The same contracts work across engines. Timings/statuses live in prepare-status.json, per-job status and external attempt records; these are diagnostics, not proof of finding quality.

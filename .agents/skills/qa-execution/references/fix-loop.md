@@ -65,7 +65,7 @@ After any fix:
 
 ## The exit gate
 
-Before Final Status, satisfy the project's required local gate once or cite current evidence for the same inputs. Run affected checks after fixes; do not repeat unchanged successful checks. When delivery includes a PR, report required CI at its current head. A red required gate keeps the corresponding readiness claim open.
+After fixes, run affected checks and the project gates required for that work, or cite current evidence for the same inputs. Do not repeat unchanged successful checks. A QA-only run closes with observed outcomes and explicit limitations; it does not require publishing a PR or establishing release readiness. When delivery includes a PR or release decision, report the required delivery evidence, including current-head PR CI where applicable. Missing or failed required evidence keeps that readiness claim open while the QA findings remain reportable.
 
 ## Anti-patterns
 

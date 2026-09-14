@@ -12,19 +12,19 @@ How Step 3 review agents (defect cohorts, polish cohorts, sweeps) execute. `nati
 
 ## Invocation shape (per stage)
 
-The stage scripts already materialized every prompt (schema + output contract embedded — external runtimes have no schema-enforcement layer, so the output-file contract replaces it). Execute a stage's jobs with the bundled runner from the repo root:
+Preparation materializes each prompt, direct job contract and draft template. External reviewers use the same compact draft and local submit command as native reviewers. Execute pending jobs from the repo root:
 
 ```bash
 python3 <skill-dir>/scripts/run_jobs.py --out <out> [--jobs-file <out>/<stage>-jobs.json] \
   --command "compozy exec <runtime flags from the map> --format json --timeout 30m --prompt-file {prompt}"
 ```
 
-The runner owns bounded concurrency (`--workers`, default 4 — each invocation is a full ACP session, not a thread), per-attempt event/err logs under `<out>/runs/`, output validation with one built-in retry, provider-block detection, the source-freeze check, and resume (valid outputs are never re-run). Each job's output file is the agent's only product; the JSONL/stderr logs are operational evidence — never parse them as review output.
+The runner owns bounded concurrency (`--workers`, default 4, maximum 6), unique per-attempt logs/backups under `<out>/runs/`, targeted repair, provider-block detection, source/rule/spec evidence freeze and resume. Valid outputs are preserved. Invalid results receive a repair prompt with their existing artifact and every diagnostic. A completed valid draft/output is accepted even after process timeout or a nonzero exit; the process event is still recorded. A missing result retries the assigned investigation. JSONL/stderr are operational evidence, never review output.
 
 ## Failure handling
 
 - **Runner exit 2 (blocked)** — a stream matched a block pattern (default `usageLimitExceeded`); `<out>/run-blocker.json` lists the pending jobs. Re-run the same command when the limit clears; add `--block-on <pattern>` for providers that phrase limits differently.
-- **Runner exit 1 with FAIL jobs** — the agent kept producing missing/invalid output through its attempts. Read `<out>/runs/<label>.attempt-*.err`, then run that one agent on the `native` path (orchestration.md engines) and record the substitution in review.md — the no-skip invariant outranks runtime purity.
+- **Runner exit 1 with FAIL jobs** — inspect the per-job status and `<out>/runs/<label>.*.attempt-*.err`. Dispatch its repair prompt on the native engine if the selected external engine cannot complete it, and record the substitution. Keep valid findings and evidence; never restart all jobs for a serialization error.
 - **`model "X" is not available`** — the error lists the runtime's advertised options. Surface them and stop; never substitute a model silently (L-010).
 - **`did not advertise an ACP model option`**, or `compozy` missing from PATH — stop and name the gap; external review has no alternate transport.
 

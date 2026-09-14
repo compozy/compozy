@@ -25,6 +25,7 @@ type runtimeBindingSnapshot struct {
 	speedResolution *speedpkg.Resolution
 	liveness        *store.SessionLivenessMeta
 	agentDef        compozyconfig.AgentDef
+	startupManifest acp.StartupManifest
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -53,6 +54,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
 		liveness:        store.CloneSessionLivenessMeta(s.Liveness),
 		agentDef:        compozyconfig.CloneAgentDef(s.agentDef),
+		startupManifest: acp.CloneStartupManifest(s.startupManifest),
 	}
 }
 
@@ -221,6 +223,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)
 	s.Liveness = store.CloneSessionLivenessMeta(snapshot.liveness)
 	s.agentDef = compozyconfig.CloneAgentDef(snapshot.agentDef)
+	s.startupManifest = acp.CloneStartupManifest(snapshot.startupManifest)
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}

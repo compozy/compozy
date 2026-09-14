@@ -711,12 +711,8 @@ async function openUsageCostForProvider(
     )
     .toBe(opts.status);
 
-  // The page-level usage query stops refetching once the session goes idle, so
-  // reload to mount the inspector against the now-populated usage summary.
-  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(sessionWin).toBeVisible();
   await sessionWin.getByTestId("session-inspector-toggle").click();
-  await sessionWin.getByTestId("session-inspector-tab-usage").click();
   return sessionWin.getByTestId("session-inspector-usage-cost");
 }
 
@@ -1251,3 +1247,70 @@ async function assertNoSensitiveLeak(
     expect(await readFile(runtime.paths.daemonLog, "utf8")).not.toMatch(sensitivePattern);
   }
 }
+
+test.describe("session context E2E-001", () => {
+  test.use({
+    runtimeOptions: {
+      modelsDevEnabled: false,
+      seed: {
+        mockAgents: [
+          {
+            fixturePath: path.join(fixtureRoot, "session_context_fixture.json"),
+            fixtureAgent: "session-context-agent",
+          },
+        ],
+      },
+    },
+  });
+
+  test("composer reports context and opens the same tab-less sidebar as the topbar", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) throw new Error("session context E2E requires launch-mode runtime paths");
+    await appPage.setViewportSize({ width: 1440, height: 900 });
+    const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+    const session = await createSession(runtime, "session-context-agent", workspace.id);
+    const ref = `vault:sessions/${session.id}/context-fixture`;
+    await runtime.requestJSON("/api/vault/secrets", {
+      method: "PUT",
+      body: JSON.stringify({ ref, kind: "api_key", secret_value: "session-context-fixture-value" }),
+    });
+    await appPage.goto(runtime.url(sessionPath(session.agent_name, session.id)), {
+      waitUntil: "domcontentloaded",
+    });
+    await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+    const sessionWin = sessionWindow(appPage, session.id);
+    const ui = sessionWindowSelectors(sessionWin, appPage);
+    await expect(sessionWin).toBeVisible();
+    await ui.composerTextarea.fill("reported");
+    await ui.composerTextarea.press("Enter");
+    const contextButton = sessionWin.getByTestId("composer-context-button");
+    await expect(contextButton).toHaveAccessibleName("Context 35% used");
+    await contextButton.hover();
+    await expect(appPage.getByRole("tooltip")).toContainText("35% · 89.7K / 256K");
+    await contextButton.click();
+    const sidebar = appPage.getByRole("complementary", { name: "Context" });
+    await expect(sidebar).toBeVisible();
+    await expect(sessionWin.getByTestId("session-inspector-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(sidebar.locator('[data-testid^="session-inspector-tab-"]')).toHaveCount(0);
+    await expect(sidebar.getByTestId("session-inspector").locator(":scope > section")).toHaveCount(
+      5
+    );
+    await sessionWin.getByTestId("session-inspector-toggle").click();
+    await ui.composerTextarea.fill("warning");
+    await ui.composerTextarea.press("Enter");
+    await expect(contextButton).toHaveAccessibleName("Context 88% used");
+    await contextButton.hover();
+    await expect(appPage.getByRole("tooltip")).toContainText("Compaction runs at 85%");
+    await expect(contextButton.locator("circle").last()).toHaveAttribute(
+      "stroke",
+      "var(--color-warning)"
+    );
+    await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).toBeVisible();
+  });
+});

@@ -1,0 +1,93 @@
+{
+  "scope": "session-context feature QA; deterministic and live provider evidence are separate",
+  "recorded_at": "2026-09-12T07:05:04.898697+00:00",
+  "lab_manifest": "/Users/pedronauck/dev/qa-labs/compozy-session-context-20260912-061018-100880-lab/qa-artifacts/qa/bootstrap-manifest.json",
+  "cli_http_uds_parity": {
+    "active": true,
+    "stopped": true,
+    "normalization": "HTTP usage envelope compared with CLI aggregate"
+  },
+  "reported_fixture": {
+    "context": {
+      "state": "reported",
+      "used": 89690,
+      "size": 256000,
+      "sequence": 7
+    },
+    "cache_read_tokens": 800,
+    "cache_write_tokens": 120,
+    "startup_owners": [
+      "runtime_identity",
+      "situation",
+      "agent_prompt",
+      "skills",
+      "tools"
+    ]
+  },
+  "live_provider": {
+    "provider": "opencode",
+    "model": "google/gemini-2.5-flash",
+    "session_id": "sess-e2fdda82e4f2f665",
+    "successful_turns": 3,
+    "total_cost": 0.0372092,
+    "currency": "USD",
+    "cost_status": "actual",
+    "cost_source": "agent_reported",
+    "cache_counters": "unreported",
+    "binary_attachments": [
+      {
+        "key": "attachment",
+        "label": "Attachments",
+        "kind": "binary",
+        "owner_kind": "full",
+        "bytes": 206471,
+        "delivered_turn_id": "turn-a87833403d4d9beb",
+        "delivery_sequence": 20,
+        "sent_at": "2026-09-12T06:37:14.088539Z",
+        "unchanged": false,
+        "stale": false,
+        "name": "reference.png"
+      }
+    ]
+  },
+  "unknown_with_delivery_rows": {
+    "state": "unknown",
+    "row_count": 5
+  },
+  "disabled_threshold_omitted": true,
+  "compaction": {
+    "before": [
+      {
+        "turn_id": "turn-9b8a97a4f116df7d",
+        "sequence": 15,
+        "at": "2026-09-12T06:38:03.87228Z",
+        "span_archived": false,
+        "from_sequence": 1,
+        "to_sequence": 11,
+        "context_used": 225280,
+        "context_size": 256000,
+        "pressure": 0.88,
+        "strategy": "summary_archive"
+      }
+    ],
+    "settled": [
+      {
+        "turn_id": "turn-9b8a97a4f116df7d",
+        "sequence": 15,
+        "at": "2026-09-12T06:38:03.87228Z",
+        "span_archived": true,
+        "from_sequence": 1,
+        "to_sequence": 11,
+        "context_used": 225280,
+        "context_size": 256000,
+        "pressure": 0.88,
+        "strategy": "summary_archive"
+      }
+    ]
+  },
+  "stream": {
+    "named_updates": 3,
+    "sse_ids_absent": true
+  },
+  "evidence_root": "/Users/pedronauck/dev/qa-labs/compozy-session-context-20260912-061018-100880-lab/qa-artifacts/qa"
+}

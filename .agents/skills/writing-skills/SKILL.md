@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: "Create, refactor, shorten, or debug skills, descriptions, and reference loading. Use writing-agents-md for AGENTS.md/CLAUDE.md; excludes general documentation and READMEs."
+description: "Create, refactor, or debug agent skills and their loading. Use writing-agents-md for AGENTS.md/CLAUDE.md; excludes general docs and READMEs."
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
@@ -16,7 +16,7 @@ A skill supplies task-specific knowledge or a reliable operation the model would
 
 - Follow the user's requested outcome and existing authorization. A skill does not add approval steps or override repository policy.
 - Keep a rule only when it changes a relevant decision or prevents an evidenced failure. Delete generic advice, duplicated rules, obsolete model assumptions, and rhetorical pressure.
-- Name concrete triggers and exclusions in the description. Avoid firing on every code edit, every test, or every completion when the procedure is only needed for a narrower problem.
+- Keep descriptions short: put the concrete task, trigger, and main scope boundary in the first sentence so truncation preserves when to use the skill. Add exclusions only to resolve likely overlap. Avoid firing on every code edit, every test, or every completion when the procedure is only needed for a narrower problem.
 - Distinguish shared guidance from repository-specific policy. Edit shared sources first; preserve local variants when synchronizing. Check whole-directory differences before an installer overwrites a skill.
 
 ## Create or Revise

@@ -21,7 +21,7 @@ import {
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
-import { toTimelineParts } from "./timeline-message-parts";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 
 // Single source of truth for the virtualizer's fallback row estimate.
 export const VIRTUAL_MESSAGE_ESTIMATE = 144;

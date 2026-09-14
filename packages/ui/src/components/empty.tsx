@@ -33,6 +33,12 @@ export interface EmptyProps extends Omit<React.ComponentProps<"div">, "title"> {
    */
   framed?: boolean;
   fill?: boolean;
+  /**
+   * `compact` — the rail rendition for 320px inspectors and dense panels:
+   * 32px well with a 15px glyph, form-size title, micro description, 8px gaps.
+   * `default` — the routed empty state at the canonical empty-h1 scale.
+   */
+  size?: "default" | "compact";
 }
 
 function isComponentType(value: unknown): value is IconComponent {
@@ -47,6 +53,42 @@ function resolveTitleTag(title: React.ReactNode): EmptyTitleTag {
   return typeof title === "string" || typeof title === "number" ? "h3" : "div";
 }
 
+type EmptySize = NonNullable<EmptyProps["size"]>;
+
+interface EmptyScale {
+  gap: string;
+  well: string;
+  glyph: string;
+  title: string;
+  description: string;
+}
+
+const EMPTY_SCALES: Record<EmptySize, EmptyScale> = {
+  default: {
+    gap: "gap-3",
+    well: "size-empty-icon rounded-lg bg-canvas-soft",
+    glyph: "size-5",
+    title: "text-empty-h1 tracking-empty-h1",
+    description: "text-small-body leading-relaxed",
+  },
+  compact: {
+    gap: "gap-2",
+    well: "size-8 rounded-md bg-canvas-tint",
+    glyph: "size-3.75",
+    title: "text-form-label",
+    description: "text-micro leading-4",
+  },
+};
+
+function resolveIconContent(icon: EmptyProps["icon"], glyphClass: string): React.ReactNode {
+  if (icon === undefined) return <BoxIcon className={glyphClass} />;
+  if (isComponentType(icon)) {
+    const IconComp = icon;
+    return <IconComp className={glyphClass} />;
+  }
+  return icon;
+}
+
 function Empty({
   illustration,
   icon,
@@ -59,19 +101,13 @@ function Empty({
   nextSteps,
   framed = false,
   fill,
+  size = "default",
   className,
   ...props
 }: EmptyProps) {
   const isFill = fill ?? !framed;
-  let iconContent: React.ReactNode;
-  if (icon === undefined) {
-    iconContent = <BoxIcon className="size-5" />;
-  } else if (isComponentType(icon)) {
-    const IconComp = icon;
-    iconContent = <IconComp className="size-5" />;
-  } else {
-    iconContent = icon;
-  }
+  const scale = EMPTY_SCALES[size];
+  const iconContent = resolveIconContent(icon, scale.glyph);
 
   const titleTag = titleAs ?? resolveTitleTag(title);
 
@@ -80,8 +116,10 @@ function Empty({
       data-slot="empty"
       data-fill={isFill ? "true" : "false"}
       data-framed={framed ? "true" : undefined}
+      data-size={size === "compact" ? "compact" : undefined}
       className={cn(
-        "flex w-full flex-col items-center justify-center gap-3 rounded-lg text-center",
+        "flex w-full flex-col items-center justify-center rounded-lg text-center",
+        scale.gap,
         framed && "min-h-40 border border-line px-6 py-8",
         isFill && "h-full min-h-0 flex-1",
         className
@@ -96,7 +134,7 @@ function Empty({
       <span
         aria-hidden="true"
         data-slot="empty-icon"
-        className="inline-flex size-empty-icon items-center justify-center rounded-lg bg-canvas-soft text-subtle"
+        className={cn("inline-flex items-center justify-center text-subtle", scale.well)}
       >
         {iconContent}
       </span>
@@ -104,15 +142,12 @@ function Empty({
         titleTag,
         {
           "data-slot": "empty-title",
-          className: "text-empty-h1 font-medium leading-snug tracking-empty-h1 text-fg-strong",
+          className: cn("font-medium leading-snug text-fg-strong", scale.title),
         },
         title
       )}
       {description ? (
-        <p
-          data-slot="empty-description"
-          className="max-w-md text-small-body leading-relaxed text-muted"
-        >
+        <p data-slot="empty-description" className={cn("max-w-md text-muted", scale.description)}>
           {description}
         </p>
       ) : null}

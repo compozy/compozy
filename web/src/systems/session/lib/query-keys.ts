@@ -91,6 +91,10 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "ledger"] as const,
   usage: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "usage"] as const,
+  usageTurns: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "usage-turns"] as const,
+  contextReset: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>
     [...sessionKeys.workspace(workspace), "tool-artifact", artifactURI] as const,
 };

@@ -1,12 +1,10 @@
 # AI-Slop Patterns
 
-Read this when auditing AI-generated UI or when a detection-table hit needs full detail. Each pattern below is a recurring failure mode in LLM-produced or LLM-pasted UI work. Hits are blockers, not nits.
+Use the matching pattern when reviewing an observed UI problem. Treat detection prompts and example fixes as hypotheses to inspect against the actual content, behavior, and design system. A familiar visual choice alone is not a defect.
 
-The 14 patterns are numbered to match the detection table in `SKILL.md`. Severity tiers — **Critical / Serious / Moderate** — control how the hit blocks the pipeline (Critical = blocks merge, Serious = blocks review approval, Moderate = nit unless ≥ 3 stack on one surface).
+Classify confirmed findings by user impact and the project's severity policy. Pattern names and counts do not establish release blockers. Consult `anti-defaults.md` for concrete design alternatives when a choice needs reconsideration; preserve accepted user and product decisions.
 
-This file catalogues *modes of failure*. For the companion list of *literal artifacts* to refuse on sight (emoji-as-icon, "Inter" by reflex, centred hero, "John Doe" placeholders, gradient text, glassmorphism padrão, modal-as-first-thought, neon glow, etc.), read `anti-defaults.md`.
-
-## 1. VisualSameness — Moderate
+## 1. VisualSameness
 
 **Symptom:** Every block on the page looks like every other block. Same card, same radius, same border, same shadow, same gray. The eye has nothing to grab onto. Hierarchy is communicated only by reading order.
 
@@ -46,7 +44,7 @@ Internal Dashboard                        Last run 5d ago    >
 ```
 Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 
-## 2. WeakHierarchy — Serious
+## 2. WeakHierarchy
 
 **Symptom:** The eye lands on the wrong element first. Decoration (icon, illustration, color block) outranks the primary action or content. Multiple actions look equally important.
 
@@ -63,7 +61,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Tertiary: text links or icon-only with tooltip
 - Demote decoration: neutral color, smaller scale, off the visual centerline
 
-## 3. TextOverflow — Serious
+## 3. TextOverflow
 
 **Symptom:** Long strings clip, wrap into 4-line cells, push siblings off-grid, or break responsive layouts. Long URLs and resource names are the common offenders.
 
@@ -81,7 +79,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Use `min-width: 0` on flex children that should truncate (CSS gotcha)
 - Reserve space — don't let one field push others
 
-## 4. FakeInteractivity — Critical
+## 4. FakeInteractivity
 
 **Symptom:** Something looks clickable but isn't (or the opposite). No hover/focus/active states on actual buttons. Cursor stays `default` over an interactive surface. Card looks pressable but only the title is a link.
 
@@ -99,7 +97,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Remove decorative affordances on non-interactive elements (the underline that suggests a link)
 - Card-as-link: entire card clickable, with focus ring on Tab, single primary action inside
 
-## 5. EmojiSpam — Moderate
+## 5. EmojiSpam
 
 **Symptom:** Emojis as decoration. Mascots in headings. Emojis replacing the design system's icon set. 🎉 on success. 🚀 on a launch. ⚡ on speed.
 
@@ -116,7 +114,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Personality comes from copy, layout, and color — not from 🎉
 - Marketing surfaces have more latitude, but the same emoji should appear consistently or not at all
 
-## 6. GradientCrutch — Serious
+## 6. GradientCrutch
 
 **Symptom:** Gradient backgrounds carrying the entire visual identity. Hero with a purple-to-pink gradient. Buttons with gradients. Card backgrounds with gradients. Every primary action gradiated.
 
@@ -133,7 +131,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - One gradient per surface, never two competing
 - A solid color often serves better than a gradient that distracts
 
-## 7. GlassmorphismAbuse — Moderate
+## 7. GlassmorphismAbuse
 
 **Symptom:** `backdrop-filter: blur(...)` on every elevated surface. Sidebars are translucent. Modals are translucent. Headers are translucent. Text legibility damaged on busy backgrounds.
 
@@ -150,7 +148,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - If blur is required, ensure the underlying tint provides ≥ 4.5:1 contrast for text
 - Default to opaque elevated surfaces; reach for blur only with intent
 
-## 8. GenericIllustration — Serious
+## 8. GenericIllustration
 
 **Symptom:** The same isometric 3D illustration in every empty state. People-pointing-at-laptops stock art. Generic clipart "vibes" disconnected from the product. Mascot characters with no relationship to the brand.
 
@@ -167,7 +165,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Custom illustrations only when commissioned for the brand
 - Empty state copy should do the explanatory work, not the illustration
 
-## 9. DesignSystemDrift — Serious
+## 9. DesignSystemDrift
 
 **Symptom:** Raw hex codes in component code. One-off `border-radius: 7px`. `margin-top: 11px` that matches no token. New colors invented inline. New shadows defined per-component.
 
@@ -185,7 +183,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Never inline-invent a hex or numeric value to skip the proposal step
 - Lint or pre-commit hook can catch this — `stylelint` with `color-no-hex` and `declaration-property-value-disallowed-list`
 
-## 10. StateMatrixHoles — Critical
+## 10. StateMatrixHoles
 
 **Symptom:** Loading state is missing or shows the same as default. Empty state is missing. Error state is a console.log. Disabled state is just `opacity: 0.5`. Selected state is invisible to keyboard users.
 
@@ -204,7 +202,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Disabled: ≥ 3:1 contrast + a way to know why it's disabled
 - Selected: non-color signal (icon, weight, position) plus color
 
-## 11. CenteredEverything — Moderate
+## 11. CenteredEverything
 
 **Symptom:** All headings centered. All body text centered. Long paragraphs centered (ragged on both sides — painful to read). Center-aligned card grids on wide viewports with vast empty margins.
 
@@ -224,7 +222,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
   - Marketing CTAs
 - Right-align only for numbers in tables, optional metadata in lists
 
-## 12. RandomRadii — Moderate
+## 12. RandomRadii
 
 **Symptom:** `rounded-xl` on one card, `rounded-2xl` on a sibling, `rounded-md` on a third. Buttons with one radius, inputs with a different radius, chips with a third. Or worse: each surface has its own `border-radius: <weird px>`.
 
@@ -241,7 +239,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Apply consistently across the product
 - Pills (`radius-full`) for tags, avatars, switches — never for buttons unless brand demands
 
-## 13. GhostFocus — Critical
+## 13. GhostFocus
 
 **Symptom:** `outline: none` with no replacement. Focus ring styled identical to hover. Focus ring contrast ≤ 1.5:1 against the background. Focus ring removed on buttons "because it looked ugly."
 
@@ -264,7 +262,7 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 - Verify ≥ 3:1 against the element and against the page background
 - Never remove the focus indicator without a replacement
 
-## 14. MagicNumbers — Moderate
+## 14. MagicNumbers
 
 **Symptom:** `width: 327px`. `margin-top: 11px`. `gap: 13px`. `padding: 9px 17px`. Values that match no scale and have no rationale.
 
@@ -278,27 +276,14 @@ Plain rows with type hierarchy carrying the weight. The eye knows where to go.
 **Fix:**
 - Snap to the spacing scale (typically 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64)
 - For sizes, prefer fluid (`flex-grow`, `min-width`) or scale-based (`width: 240px` from a size token)
-- For gaps, always use scale tokens
+- For gaps, use the project's scale tokens where that contract applies
 - Lint with `stylelint` rules: `declaration-property-value-allowed-list` for spacing-related properties
 
-## Cross-Cutting Detection: The 60-Second Audit
+## Focused visual inspection
 
-When time-boxed, run any surface through this in 60 seconds:
+Choose the probes that can expose the changed behavior's failure: locate the primary action, navigate by keyboard, exercise supported loading/error states, try representative long content, resize to affected breakpoints, or inspect supported themes and reduced motion. Reuse observations already collected.
 
-1. **Squint test** (5s) — Can the primary action be located by silhouette?
-2. **Tab test** (10s) — Tab through. Visible focus at every stop? Logical order?
-3. **State test** (10s) — Force loading/empty/error in DevTools. Does each state read as designed?
-4. **Long-string test** (10s) — Replace a label with 60 characters. Layout survives?
-5. **Mobile test** (10s) — Resize to 360px. Layout reflows? No horizontal scroll?
-6. **Dark mode test** (10s) — Toggle scheme. All contrast holds? Borders, focus, badges?
-7. **Reduced motion test** (5s) — Toggle prefers-reduced-motion. Vestibular-safe?
-
-If all 7 pass, the surface is shippable.
-If any fail, it's slop until fixed.
-
-## Strong Opinion
-
-> Slop is not a style problem — it's a respect problem. Every one of these patterns is a tax the model is asking the user to pay so the model can ship faster.
+An inspection supplies evidence for those states only. Fix confirmed defects within authorization and disclose gaps; a short visual sweep does not establish complete release readiness. Do not add a fixed timer, state quota, or another approval stage.
 
 ## Sources
 

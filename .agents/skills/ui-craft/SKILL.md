@@ -30,13 +30,13 @@ Use the matching section and its necessary dependencies. The table is a lookup, 
 | Buttons/inputs/dialogs/nav/tables/cards/dropdowns/tabs/toasts   | `references/component-patterns.md`      | States, keyboard contract, a11y, and slop per component            |
 | Writing or reviewing user-visible text                          | `references/microcopy-quality.md`       | Banned vocabulary, per-surface tone, error/empty/CTA templates     |
 | Auditing AI-generated UI                                        | `references/ai-slop-patterns.md`        | Before/after + remediation for the 14 patterns, detection prompts  |
-| A choice feels like a category-average default                  | `references/anti-defaults.md`           | 17 literal artifacts to refuse on sight                            |
+| A design choice needs reconsideration                          | `references/anti-defaults.md`           | Contextual alternatives for hierarchy, legibility, and interaction |
 | Building an AI/agent surface                                    | `references/human-ai-ux.md`             | Microsoft 18 + IBM 4 pillars, streaming/citation/confidence UI     |
 | Reading/extending DESIGN.md, tokens, shadcn/Radix, codegen rules| `references/design-system-integration.md`| DESIGN.md sections, token discipline, Figma/Code Connect          |
 | No token system, or extending a scale                           | `references/visual-craft.md`            | Type/color/spacing/radius/elevation/motion defaults                |
 | Adding or reviewing animation                                   | `references/motion-patterns.md`         | Duration bands, easing, CSS/Framer/`@starting-style`, reduced-motion|
 | Implementing or reviewing dark mode                             | `references/dark-mode.md`               | Surface-lightness elevation, accent desaturation, dangerous pairs  |
-| Unprofiled ship, CWV regress, heavy dep on a hot route          | `references/performance.md`             | CWV floors, 80ms threshold, font zero-CLS, pre-ship gate           |
+| Observed slowdown, performance-sensitive change, or requested audit | `references/performance.md`          | Measurement, loading feedback, relevant optimizations, project budgets |
 | "We need a [Linear/Notion]-like X"                              | `references/archetypes.md`              | 7 archetypes, each a six-slot signature contract                   |
 
 ## Helpers

@@ -93,6 +93,7 @@ func startHelperProcess(
 	if overrides.ReasoningEffort != "" {
 		opts.ReasoningEffort = overrides.ReasoningEffort
 	}
+	opts.StartupManifest = overrides.StartupManifest
 	opts.Speed = overrides.Speed
 	opts.ACPOptions = CloneSessionConfigOptionSelections(overrides.ACPOptions)
 	opts.RuntimeStrategy = overrides.RuntimeStrategy

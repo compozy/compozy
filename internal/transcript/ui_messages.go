@@ -61,18 +61,20 @@ type UIMessagePart struct {
 
 // UITokenUsagePayload mirrors the prompt-stream token usage payload.
 type UITokenUsagePayload struct {
-	TurnID           string   `json:"turn_id,omitempty"`
-	InputTokens      *int64   `json:"input_tokens,omitempty"`
-	OutputTokens     *int64   `json:"output_tokens,omitempty"`
-	TotalTokens      *int64   `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64   `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64   `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64   `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64   `json:"context_used,omitempty"`
-	ContextSize      *int64   `json:"context_size,omitempty"`
-	CostAmount       *float64 `json:"cost_amount,omitempty"`
-	CostCurrency     *string  `json:"cost_currency,omitempty"`
-	Timestamp        string   `json:"timestamp,omitempty"`
+	Meta             map[string]any `json:"meta,omitempty"`
+	Sequence         *int64         `json:"sequence,omitempty"`
+	TurnID           string         `json:"turn_id,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitempty"`
+	OutputTokens     *int64         `json:"output_tokens,omitempty"`
+	TotalTokens      *int64         `json:"total_tokens,omitempty"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
+	ContextUsed      *int64         `json:"context_used,omitempty"`
+	ContextSize      *int64         `json:"context_size,omitempty"`
+	CostAmount       *float64       `json:"cost_amount,omitempty"`
+	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	Timestamp        string         `json:"timestamp,omitempty"`
 }
 
 type decodedStoredEvent struct {
@@ -105,6 +107,8 @@ func uiTokenUsagePayloadFromUsage(usage *acp.TokenUsage) *UITokenUsagePayload {
 	}
 
 	payload := &UITokenUsagePayload{
+		Meta: usage.Meta,
+
 		TurnID:           usage.TurnID,
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
@@ -116,6 +120,9 @@ func uiTokenUsagePayloadFromUsage(usage *acp.TokenUsage) *UITokenUsagePayload {
 		ContextSize:      usage.ContextSize,
 		CostAmount:       usage.CostAmount,
 		CostCurrency:     usage.CostCurrency,
+	}
+	if usage.Sequence > 0 {
+		payload.Sequence = new(usage.Sequence)
 	}
 	if !usage.Timestamp.IsZero() {
 		payload.Timestamp = usage.Timestamp.UTC().Format(time.RFC3339Nano)

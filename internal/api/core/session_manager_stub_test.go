@@ -10,6 +10,10 @@ import (
 )
 
 type sessionManagerStub struct {
+	UsageEventsFn       func(context.Context, string) ([]session.UsageEventEnvelope, error)
+	DeliveriesFn        func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
+	CompactionsFn       func(context.Context, string) ([]session.CompactionEnvelope, error)
+	LatestSettledTurnFn func(context.Context, string) (session.SettledTurn, error)
 	create              func(context.Context, session.CreateOpts) (*session.Session, error)
 	list                func() []*session.Info
 	listAll             func(context.Context) ([]*session.Info, error)
@@ -358,4 +362,32 @@ func (s sessionManagerStub) ApprovePermission(
 		return s.approvePermission(ctx, id, req)
 	}
 	return session.ApprovalResult{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) UsageEvents(ctx context.Context, id string) ([]session.UsageEventEnvelope, error) {
+	if s.UsageEventsFn != nil {
+		return s.UsageEventsFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s sessionManagerStub) Deliveries(ctx context.Context, id string) ([]session.DeliveryEventEnvelope, error) {
+	if s.DeliveriesFn != nil {
+		return s.DeliveriesFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s sessionManagerStub) Compactions(ctx context.Context, id string) ([]session.CompactionEnvelope, error) {
+	if s.CompactionsFn != nil {
+		return s.CompactionsFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (s sessionManagerStub) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
+	if s.LatestSettledTurnFn != nil {
+		return s.LatestSettledTurnFn(ctx, id)
+	}
+	return session.SettledTurn{}, nil
 }

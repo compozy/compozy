@@ -1,5 +1,5 @@
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
-import { toTimelineParts } from "./timeline-message-parts";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 
 interface QueueTraceMessage {
   id: string;

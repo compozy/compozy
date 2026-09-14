@@ -57,6 +57,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 
 type stubClient struct {
 	listMarketplaceSourcesFn           func(context.Context) (contract.MarketplaceSourcesResponse, error)
+	getSessionUsageTurnsFn             func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
 	searchSessionTranscriptFn          func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
 	getSessionOutlineFn                func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
 	statusFn                           func(context.Context) (StatusRecord, error)
@@ -4556,4 +4557,11 @@ func (s *stubClient) ListMarketplaceSources(ctx context.Context) (contract.Marke
 	return contract.MarketplaceSourcesResponse{Sources: []contract.MarketplaceSourcePayload{{
 		Name: "compozy-catalog", Source: "catalog:compozy", Kind: "feed", Enabled: true,
 	}}}, nil
+}
+
+func (s *stubClient) GetSessionUsageTurns(ctx context.Context, id string) (contract.SessionUsageTurnsResponse, error) {
+	if s.getSessionUsageTurnsFn != nil {
+		return s.getSessionUsageTurnsFn(ctx, id)
+	}
+	return contract.SessionUsageTurnsResponse{}, errors.New("unexpected GetSessionUsageTurns call")
 }

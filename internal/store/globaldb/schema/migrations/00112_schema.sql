@@ -1,32 +1,46 @@
 -- +goose Up
 -- disable the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = off;
--- create "new_mcp_auth_tokens" table
-CREATE TABLE `new_mcp_auth_tokens` (`scope` text NOT NULL, `workspace_id` text NOT NULL DEFAULT '', `owner` text NOT NULL DEFAULT 'manual', `server_name` text NOT NULL, `definition_fingerprint` text NOT NULL DEFAULT '', `issuer` text NOT NULL DEFAULT '', `client_id` text NOT NULL, `scopes_json` text NOT NULL DEFAULT '[]', `access_token_ref` text NOT NULL, `refresh_token_ref` text NOT NULL DEFAULT '', `token_type` text NOT NULL DEFAULT 'Bearer', `expires_at` text NULL, `obtained_at` text NOT NULL, `updated_at` text NOT NULL, PRIMARY KEY (`scope`, `workspace_id`, `owner`, `server_name`), CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')), CHECK (owner = 'manual' OR (owner LIKE 'extension:%' AND length(owner) > 10)), CHECK (trim(server_name) <> ''), CHECK (
-				(scope = 'user' AND workspace_id = '') OR
-				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')
-			));
--- copy rows from old table "mcp_auth_tokens" to new temporary table "new_mcp_auth_tokens"
-INSERT INTO `new_mcp_auth_tokens` (`scope`, `workspace_id`, `server_name`, `definition_fingerprint`, `issuer`, `client_id`, `scopes_json`, `access_token_ref`, `refresh_token_ref`, `token_type`, `expires_at`, `obtained_at`, `updated_at`) SELECT `scope`, `workspace_id`, `server_name`, `definition_fingerprint`, `issuer`, `client_id`, `scopes_json`, `access_token_ref`, `refresh_token_ref`, `token_type`, `expires_at`, `obtained_at`, `updated_at` FROM `mcp_auth_tokens`;
--- drop "mcp_auth_tokens" table after copying rows
-DROP TABLE `mcp_auth_tokens`;
--- rename temporary table "new_mcp_auth_tokens" to "mcp_auth_tokens"
-ALTER TABLE `new_mcp_auth_tokens` RENAME TO `mcp_auth_tokens`;
--- create index "idx_mcp_auth_tokens_updated_at" to table: "mcp_auth_tokens"
-CREATE INDEX `idx_mcp_auth_tokens_updated_at` ON `mcp_auth_tokens` (`updated_at`);
--- create "new_mcp_oauth_registrations" table
-CREATE TABLE `new_mcp_oauth_registrations` (`scope` text NOT NULL, `workspace_id` text NOT NULL DEFAULT '', `owner` text NOT NULL DEFAULT 'manual', `server_name` text NOT NULL, `definition_fingerprint` text NOT NULL, `resource_url` text NOT NULL, `issuer` text NOT NULL, `client_id` text NOT NULL, `token_endpoint_auth_method` text NOT NULL DEFAULT '', `client_secret_ref` text NOT NULL DEFAULT '', `registration_access_token_ref` text NOT NULL DEFAULT '', `registration_client_uri` text NOT NULL DEFAULT '', `client_id_issued_at` text NULL, `client_secret_expires_at` text NULL, `redirect_uri` text NOT NULL, `scopes_json` text NOT NULL DEFAULT '[]', `updated_at` text NOT NULL, PRIMARY KEY (`scope`, `workspace_id`, `owner`, `server_name`), CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')), CHECK (owner = 'manual' OR (owner LIKE 'extension:%' AND length(owner) > 10)), CHECK (trim(server_name) <> ''), CHECK (trim(definition_fingerprint) <> ''), CHECK (trim(resource_url) <> ''), CHECK (trim(issuer) <> ''), CHECK (trim(client_id) <> ''), CHECK (trim(redirect_uri) <> ''), CHECK (json_valid(scopes_json)), CHECK (trim(updated_at) <> ''), CHECK (
-				(scope = 'user' AND workspace_id = '') OR
-				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')
-			), CHECK (
-				(registration_access_token_ref = '' AND registration_client_uri = '') OR
-				(trim(registration_access_token_ref) <> '' AND trim(registration_client_uri) <> '')
-			));
--- copy rows from old table "mcp_oauth_registrations" to new temporary table "new_mcp_oauth_registrations"
-INSERT INTO `new_mcp_oauth_registrations` (`scope`, `workspace_id`, `server_name`, `definition_fingerprint`, `resource_url`, `issuer`, `client_id`, `token_endpoint_auth_method`, `client_secret_ref`, `registration_access_token_ref`, `registration_client_uri`, `client_id_issued_at`, `client_secret_expires_at`, `redirect_uri`, `scopes_json`, `updated_at`) SELECT `scope`, `workspace_id`, `server_name`, `definition_fingerprint`, `resource_url`, `issuer`, `client_id`, `token_endpoint_auth_method`, `client_secret_ref`, `registration_access_token_ref`, `registration_client_uri`, `client_id_issued_at`, `client_secret_expires_at`, `redirect_uri`, `scopes_json`, `updated_at` FROM `mcp_oauth_registrations`;
--- drop "mcp_oauth_registrations" table after copying rows
-DROP TABLE `mcp_oauth_registrations`;
--- rename temporary table "new_mcp_oauth_registrations" to "mcp_oauth_registrations"
-ALTER TABLE `new_mcp_oauth_registrations` RENAME TO `mcp_oauth_registrations`;
+-- create "new_extension_env_bindings" table
+CREATE TABLE `new_extension_env_bindings` (`extension_name` text NOT NULL, `profile_id` text NOT NULL DEFAULT '', `workspace_id` text NOT NULL DEFAULT '', `env_name` text NOT NULL, `secret_ref` text NOT NULL, `input_id` text NOT NULL DEFAULT '', `active` integer NOT NULL DEFAULT 1, `mcp_server` text NOT NULL DEFAULT '', `header_name` text NOT NULL DEFAULT '', `kind` text NOT NULL, `created_at` text NOT NULL, `updated_at` text NOT NULL, PRIMARY KEY (`extension_name`, `profile_id`, `workspace_id`, `env_name`), CHECK (active IN (0, 1)), CHECK (kind = 'extension_env'), CHECK ((mcp_server = '' AND header_name = '') OR (mcp_server <> '' AND header_name <> '')));
+-- copy rows from old table "extension_env_bindings" to new temporary table "new_extension_env_bindings"
+INSERT INTO `new_extension_env_bindings` (`extension_name`, `profile_id`, `workspace_id`, `env_name`, `secret_ref`, `mcp_server`, `header_name`, `kind`, `created_at`, `updated_at`) SELECT `extension_name`, `profile_id`, `workspace_id`, `env_name`, `secret_ref`, `mcp_server`, `header_name`, `kind`, `created_at`, `updated_at` FROM `extension_env_bindings`;
+-- drop trigger "extension_env_bindings_profile_delete" before applying its declarative change
+DROP TRIGGER IF EXISTS `extension_env_bindings_profile_delete`;
+-- drop trigger "extension_env_bindings_profile_insert" before applying its declarative change
+DROP TRIGGER IF EXISTS `extension_env_bindings_profile_insert`;
+-- drop trigger "extension_env_bindings_workspace_delete" before applying its declarative change
+DROP TRIGGER IF EXISTS `extension_env_bindings_workspace_delete`;
+-- drop "extension_env_bindings" table after copying rows
+DROP TABLE `extension_env_bindings`;
+-- rename temporary table "new_extension_env_bindings" to "extension_env_bindings"
+ALTER TABLE `new_extension_env_bindings` RENAME TO `extension_env_bindings`;
+-- create index "idx_extension_env_bindings_secret_ref" to table: "extension_env_bindings"
+CREATE INDEX `idx_extension_env_bindings_secret_ref` ON `extension_env_bindings` (`secret_ref`);
 -- enable back the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = on;
+-- apply declarative trigger "extension_env_bindings_profile_delete" on table "profiles"
+-- +goose StatementBegin
+CREATE TRIGGER extension_env_bindings_profile_delete
+AFTER DELETE ON profiles
+BEGIN
+	DELETE FROM extension_env_bindings WHERE profile_id = OLD.id;
+END;
+-- +goose StatementEnd
+-- apply declarative trigger "extension_env_bindings_profile_insert" on table "extension_env_bindings"
+-- +goose StatementBegin
+CREATE TRIGGER extension_env_bindings_profile_insert
+BEFORE INSERT ON extension_env_bindings
+WHEN NEW.profile_id <> '' AND NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id)
+BEGIN
+	SELECT RAISE(ABORT, 'profile_not_found');
+END;
+-- +goose StatementEnd
+-- apply declarative trigger "extension_env_bindings_workspace_delete" on table "workspaces"
+-- +goose StatementBegin
+CREATE TRIGGER extension_env_bindings_workspace_delete
+AFTER DELETE ON workspaces
+BEGIN
+	DELETE FROM extension_env_bindings WHERE workspace_id = OLD.id;
+END;
+-- +goose StatementEnd

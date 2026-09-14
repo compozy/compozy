@@ -799,6 +799,47 @@ func (s *blockingRetentionStore) SweepObservability(
 
 func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {
 	t.Parallel()
+	t.Run("Should aggregate cache counts only on done and retain metadata outside counters", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := newSession("sess-cache", session.StateActive, h.workspace, h.now)
+		h.observeSessionCreated(t, sess)
+		usage := &acp.TokenUsage{
+			TurnID:           "turn-cache",
+			InputTokens:      new(int64(10)),
+			CacheReadTokens:  new(int64(4)),
+			CacheWriteTokens: new(int64(5)),
+			Meta:             map[string]any{"origin": "result"},
+			Timestamp:        h.now,
+		}
+		h.observer.OnAgentEvent(
+			testutil.Context(t),
+			sess.ID,
+			acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: usage.TurnID, Usage: usage, Timestamp: h.now},
+		)
+		rows, err := h.observer.QueryTokenStats(testutil.Context(t), store.TokenStatsQuery{SessionID: sess.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 0 {
+			t.Fatalf("nonterminal usage was accumulated: %#v", rows)
+		}
+		h.recordUsage(t, sess.ID, usage)
+		usage = &acp.TokenUsage{TurnID: "turn-cache-next", CacheReadTokens: new(int64(7)), Timestamp: h.now}
+		h.recordUsage(t, sess.ID, usage)
+		rows, err = h.observer.QueryTokenStats(testutil.Context(t), store.TokenStatsQuery{SessionID: sess.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].CacheReadTokens == nil || *rows[0].CacheReadTokens != 11 ||
+			rows[0].CacheWriteTokens == nil ||
+			*rows[0].CacheWriteTokens != 5 ||
+			rows[0].InputTokens == nil ||
+			*rows[0].InputTokens != 10 ||
+			rows[0].TurnCount != 2 {
+			t.Fatalf("cache aggregate = %#v", rows)
+		}
+	})
 
 	h := newHarness(t)
 	sess := newSession("sess-usage", session.StateActive, h.workspace, h.now)

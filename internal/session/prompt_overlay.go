@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
@@ -46,4 +47,14 @@ type StartupPromptAssembler interface {
 // base assembler has produced the startup prompt.
 type StartupPromptOverlay interface {
 	Apply(ctx context.Context, startup StartupPromptContext, prompt string) (string, error)
+}
+
+// StartupManifestAssembler retains the section boundaries of an assembled prompt.
+type StartupManifestAssembler interface {
+	AssembleStartupWithManifest(
+		context.Context,
+		StartupPromptContext,
+		compozyconfig.AgentDef,
+		*workspacepkg.ResolvedWorkspace,
+	) (string, acp.StartupManifest, error)
 }

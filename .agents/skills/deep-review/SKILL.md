@@ -1,108 +1,67 @@
 ---
 name: deep-review
-description: "Review branch diffs, working trees, or PRs in depth, including incremental, CodeRabbit-grade, cross-LLM, and spec-conformance reviews or requested publication of findings. Excludes fixes, spec-document reviews, and quick single-file feedback."
+description: "Review branch diffs, working trees, or PRs in depth with defect, polish and cross-contract coverage. Includes incremental and spec-conformance reviews; excludes fixes, spec-document reviews and quick single-file feedback."
 disable-model-invocation: true
-argument-hint: "[--pr N | --base <ref> | --staged | --worktree] [--files p1,p2] [--spec <path>] [--subagent native|claude-opus|grok|codex] [--max-cohort-files N] [--publish] [--full] [--out <dir>] [--no-workflow]"
+argument-hint: "[--pr N | --base REF | --staged | --worktree] [--files p1,p2] [--spec PATH] [--subagent native|claude-opus|grok|codex] [--max-cohort-files N] [--max-cohort-lines N] [--max-polish-files N] [--max-polish-lines N] [--publish] [--full] [--out DIR]"
 ---
 
 # Deep Review
 
-Review at CodeRabbit grade with no file cap and one assertive posture: funnel the diff, discover root/nested project instructions and relevant local skills, shard defects and polish into independent cohorts, fan out reviewers, then merge with complete hunk/rule accounting. Defects require causal evidence and control the verdict; advisories require a concrete improvement and always remain visible.
+Find actionable defects and improvements with complete selected-hunk and project-rule accounting. Scripts handle discovery, partitions, artifact assembly and validation; the model supplies applicability decisions and evidence-based review. Keep source read-only; write review artifacts under `<out>` (default `.deep-review/<target>/`). Resolve `<skill-dir>` from this file and run bundled commands from the reviewed repository root.
 
-Steps 1–4 drive an idempotent artifact pipeline under `<out>`: every stage gate is a bundled-script exit 0, valid agent outputs are never re-run, and an interrupted round resumes by re-running the same commands.
+## Contract
 
-`<skill-dir>` below means the directory containing this SKILL.md; run every bundled command from the repo root.
+- No total file or line cap on the PR. Every selected hunk has exactly one defect owner and one polish owner. Both default to broad cohorts of **200 files / 15,000 changed lines per job**, adjustable with `--max-cohort-files`, `--max-cohort-lines`, `--max-polish-files` and `--max-polish-lines`. Oversized files are sliced without losing hunks. An optional `--max-context-lines N` preparation budget accounts for whole-file reading while preserving selection.
+- Every defect has causal evidence; every advisory has an observed premise, concrete improvement and bounded fix. Investigated rejections stay in the suppression ledger. No quota; advisories never block SHIP.
+- Every applied rule comes from material actually read, with verbatim text, source, scope and explicit assessment. Root/nested instructions retain scope and precedence. Metadata is a triage queue, not an instruction to load every skill.
+- Relevant linters run first or reuse evidence for the same frozen inputs. Record unavailable lanes; suppress overlapping findings. Never install tools to fill a lane.
+- The checkout, rule evidence and job contracts are pinned. Valid outputs are reused only for their unchanged contracts. Missing coverage, stale evidence and malformed results prevent completion.
+- Publish only with `--publish` or explicit session authorization. Product fixes are outside this skill.
 
-## Inputs (all optional)
+## 1. Prepare
 
-| Flag | Meaning | Default |
-| --- | --- | --- |
-| `--pr <n>` | Review a GitHub PR (requires authenticated `gh`; head fetched locally) | — |
-| `--base <ref>` / `--staged` | Local diff scope | merge-base with the origin default branch |
-| `--worktree` | Review uncommitted + untracked work against the base ref (always a full round) | — |
-| `--files <p1,p2>` | Restrict review to these paths | full diff |
-| `--spec <path>` | Spec file or directory; its contract-bearing artifacts become the conformance baseline (spec-parity sweep + verdict gate) | — |
-| `--subagent <runtime>` | Step 3 reviewer runtime: `native` \| `claude-opus` \| `grok` \| `codex` — non-native runs cross-LLM via `compozy exec` | `native` |
-| `--max-cohort-files <n>` | Maximum files assigned to one cohort; the ~15,000 changed-line cap still applies | `200` |
-| `--publish` | Post walkthrough + review to the PR | off — local report only |
-| `--full` | Ignore prior state; review the whole diff again | incremental when state exists |
-| `--out <dir>` | Artifact directory | `.deep-review/<target>/` |
-| `--no-workflow` | Skip the Workflow tool; use Agent fan-out | Workflow when available |
+```bash
+python3 <skill-dir>/scripts/prepare_review.py --out <out> \
+  [--pr N | --base REF | --staged | --worktree] [--files p1,p2] \
+  [--spec PATH] [--full] [--max-cohort-files N] [--max-cohort-lines N] \
+  [--max-polish-files N] [--max-polish-lines N]
+```
 
-## Repo config — `.deep-review.yaml`
+The helper creates the manifest, `knowledge.md` and `decisions.template.json`. Inspect the manifest summary for correct base/head and file selection, especially after a rebase. Empty selection ends as “nothing reviewable.” For PRs, fetch the missing head/base/history using the manifest's diagnostic and retry.
 
-Optional repo-root file, the skill-native config standard. Any key absent there falls back to its `.coderabbit.yaml` counterpart (`reviews.*`), so repos migrating from CodeRabbit work unconfigured. Top-level keys, all optional:
+Read `knowledge.md`, not the raw registry. Use its metadata to classify routers; read applicable instructions and selected skill sections. Copy the template with `cp <out>/decisions.template.json <out>/decisions.json`, then edit only the semantic decisions, preserving fingerprints. Use compact source IDs or grouped exclusions; supply actual reasons, exact rule spans, change intent and linter evidence. Read [context-pack.md — Decision file](references/context-pack.md#decision-file) for this input contract, including rule lane/lens binding.
 
-| Key | Meaning |
-| --- | --- |
-| `path_filters` | Globs over repo-relative paths: `!pat` excludes; bare patterns, when present, restrict review to their matches and beat any exclude; built-in excludes (locks, vendor, generated, testdata, snapshots) always append |
-| `path_instructions` | `path` glob + verbatim `instructions` entries — the highest-precedence rubric source (Step 2) |
-| `request_changes_workflow` | publish-mode review-event gate |
+```bash
+python3 <skill-dir>/scripts/prepare_review.py --out <out> --decisions <out>/decisions.json
+```
 
-The manifest builder resolves `path_filters` into manifest.json; the knowledge stage ingests `path_instructions` together with project instructions and skills.
+Exit 2 means decisions remain: applied skill parents reveal their reference routes on the next compile. The refreshed `decisions.template.json` already preserves prior decisions and additional fields; copy it over `decisions.json` and edit the pending entries. Assess references from their routing conditions. Excluding a parent accounts for its dependent references; shared references remain pending while an applicable parent needs them. Missing required references block preparation.
 
-## Hard rules
+Complete decisions compile `rules.json`, `context-pack.md`, a package-oriented `plan.json`, per-job contracts and `jobs.json`. Do not write preparation scripts, manually enumerate partitions, or author a walkthrough before dispatch. Adjust generated groups only for real semantic boundaries. Sweeps default to none; use [orchestration.md — Sweeps](references/orchestration.md#sweeps) only for a concrete cross-cohort hypothesis. `--spec` adds the conformance sweep automatically.
 
-- Source is read-only and **frozen**: the manifest pins `worktree_snapshot`, and run_jobs.py / render_review.py refuse a drifted checkout. Writes go only to `<out>`, `.deep-review/` state, and — with `--publish` — the target PR.
-- No file-count cap: a large selection means more cohorts, never a skipped or silently truncated review. Every selected file lands in exactly one cohort.
-- Every defect starts with `Premise → Path → Verdict`; every advisory starts with `Premise → Improvement → Fix`. Investigated rejections remain visible in the suppression ledger.
-- Every selected hunk line receives both defect and polish coverage. Every bound rule receives an explicit compliant/violated/not-applicable assessment.
-- Run the repo's linters first and record every overlapping candidate as `linter-overlap` rather than reporting it again.
-- Cite rubric rules verbatim with their source path; severity comes from the taxonomy, never inflated.
-- Publishing needs `--publish` or the user's explicit go-ahead in this session; otherwise the review stays local.
-- Every review ends with a **SHIP / FIX_BEFORE_SHIP / REWORK** verdict derived by render_review.py and stated only after that script exits 0.
-- External `--subagent` runtimes spend `compozy exec` credit.
+## 2. Review
 
-## Procedure
+Use native agents by default, at most six concurrent. A worker receives only its rendered prompt: “Read `<prompt>` and complete its assigned review; submit its draft with the local command in that prompt.” Start without inherited conversation where supported (`fork_turns=none`). The worker does not load this skill, global jobs/manifest files or orchestrator references. Its contract includes the necessary context, rules, hunk IDs, evidence grammar and output shape.
 
-**Step 1: Funnel — build the manifest**
+Workers fill the provided draft template with explicit assessments, then run:
 
-1. Run the bundled manifest builder (bootstrap helper; reads the repo and `gh`, writes only under `--out`):
+```bash
+python3 <skill-dir>/scripts/run_jobs.py --out <out> --job <label> --submit
+```
 
-   ```bash
-   python3 <skill-dir>/scripts/build_manifest.py --out <out> \
-     [--pr N | --base REF | --staged | --worktree] [--files p1,p2] [--full]
-   ```
+This validates only that job and expands IDs into canonical output. Missing or invalid fields produce complete local diagnostics; repair the existing draft. No blanket `clear`/`compliant`, global validation in workers, or new investigation merely to reconstruct JSON.
 
-   It resolves repo path filters, detects generated / trivial / renamed files, scopes to the incremental delta when prior state exists, and pins the source-freeze snapshot.
-2. Read the printed summary. For `--pr`, the manifest base is the merge-base of the fetched PR base/head, so base-only changes stay outside the review. If the head is missing, run the printed fetch command and retry; if the base/history is missing, fetch it before retrying.
-
-*Done when:* `<out>/manifest.json` exists, every changed file is accounted for as selected, ignored(reason), or skipped(reason), and every selected file carries its hunk list (the units of judgment and the publish anchors).
-
-**Step 2: Knowledge + plan — project rules, cohorts, walkthrough**
-
-1. STOP. Read `<skill-dir>/references/context-pack.md` and `<skill-dir>/references/taxonomy.md` in full before extracting rules or defining reviewer lanes. Run the bootstrap helper (reads the repo, writes only under `<out>`):
-
-   ```bash
-   python3 <skill-dir>/scripts/build_knowledge.py --out <out>
-   ```
-
-   Read every source left pending in `<out>/rules.template.json` in full, including direct references of selected project skills. Write `<out>/rules.json` with every source marked applied or not-applicable (reason required), then extract verdict-bearing rules verbatim with scope globs. Assemble `<out>/context-pack.md` and run/fold the detected linter lanes.
-2. Read `<skill-dir>/references/orchestration.md` (cohort rules, sweep triggers) and `<skill-dir>/references/output-contracts.md` (walkthrough anatomy, effort scale) in full. Write `<out>/plan.json` — broad cohorts of up to `<max-cohort-files>` files (default 200) / ~15,000 changed lines plus any sweep whose trigger fires — and `<out>/walkthrough.md`.
-3. Run the bootstrap plan gate (reads repo artifacts, writes only under `<out>`):
-
-   ```bash
-   python3 <skill-dir>/scripts/build_jobs.py --out <out> \
-     [--max-cohort-files N]
-   ```
-
-   It rejects incomplete source accounting, proves defect ownership, derives broad polish cohorts (≤200 files / 15,000 changed lines), injects bound rules into every lane and sweep, and materializes `<out>/jobs.json`.
-
-*Done when:* build_jobs.py exits 0, every discovered source has an audited decision in rules.json, context-pack.md lists applied source/rule and linter outcomes without copying the full registry, and walkthrough.md satisfies its contract.
-
-**Step 3: Fan-out — parallel review**
-
-Execute `<out>/jobs.json` with the mutating runner and engine contract loaded in Step 2. When `--subagent` is not `native`, read `<skill-dir>/references/subagent-runtimes.md` in full before execution. Completion is engine-independent — re-dispatch whatever is listed as pending/invalid until exit 0:
+The orchestrator alone runs the global gate after a batch, or to resume an interrupted round:
 
 ```bash
 python3 <skill-dir>/scripts/run_jobs.py --out <out> --validate-only
 ```
 
-*Done when:* run_jobs.py `--validate-only` exits 0 — every defect, polish, and sweep output matches the schema and completely accounts for assigned hunks and rules.
+Dispatch only pending/invalid status rows using their `prompt` field: invalid rows already point to a targeted repair prompt. Reuse valid outputs. Repeated failure without progress requires inspecting the actual diagnostic, not looping the same review request. For Workflow execution, read [orchestration.md — Engines](references/orchestration.md#engines); for non-native `--subagent`, read [subagent-runtimes.md](references/subagent-runtimes.md). External calls spend `compozy exec` credit; preserve the user-selected model/effort.
 
-**Step 4: Merge + report**
+## 3. Report
 
-Run the bootstrap merger, mutating state/report renderer, and bootstrap HTML hydrator:
+After global validation exits 0:
 
 ```bash
 python3 <skill-dir>/scripts/merge_findings.py --out <out>
@@ -110,40 +69,16 @@ python3 <skill-dir>/scripts/render_review.py --out <out> [--rework "<structural 
 python3 <skill-dir>/scripts/render_html.py --out <out>
 ```
 
-merge_findings.py emits `<out>/findings.json` plus `<out>/review-stats.json`, deduplicates both result classes, reconciles rounds, and fails unless every selected hunk line has defect and polish coverage. render_review.py derives the verdict from defects only. render_html.py shows defects, advisories, suppressions, and coverage separately in `<out>/review.html`.
+The renderer builds the walkthrough from the plan, intent and reviewer summaries at report time. It derives **SHIP / FIX_BEFORE_SHIP / REWORK** from defects, preserves advisories/suppressions and writes state. State the verdict only after render succeeds; include counts, every Critical/Major defect, coverage and the `review.html` path. Use ReportFindings when available, defects first and advisories afterward. Read [output-contracts.md](references/output-contracts.md) only when changing presentation or resolving a report diagnostic.
 
-When ReportFindings is available, report defects first and every advisory afterward. The user-facing summary states the verdict, defect/advisory counts, every Critical/Major defect, coverage status, and artifact paths.
+## Scope, configuration and recovery
 
-*Done when:* render_review.py and render_html.py exit 0 and the final message states the verdict, every Critical and Major defect, and the review.html path.
+`--base`, `--staged`, `--worktree`, `--files`, `--pr`, `--full` retain the manifest builder's scope semantics. Worktree review includes uncommitted/untracked files and is always full. Prior state scopes normal rounds incrementally; `--full` requests a complete round. `--spec` accepts a file/directory and additional canonical artifacts can be named in decisions.
 
-**Step 5: Publish (only with `--publish`)**
+Batch limits accept any positive integer and never truncate the PR. Preparation preserves selected limits across decision stages, resume and refresh in `prepare-request.json`; passing a limit again overrides only that setting. Direct `build_jobs.py` inherits plan limits and accepts the same four batch flags.
 
-1. Read `<skill-dir>/references/publish-github.md` in full and execute its recipes: upsert the walkthrough, publish every anchorable in-diff defect and advisory inline, keep only unanchorable/outside-diff results in the body, and edit resolved prior-round comments.
+Repo `.deep-review.yaml` keys `path_filters`, `path_instructions`, `request_changes_workflow` fall back individually to `.coderabbit.yaml` (`reviews.*`). Built-in generated/vendor/lock/snapshot exclusions remain. Path instructions have highest rubric precedence, followed by deepest applicable project instructions, root instructions, routed skills and learnings.
 
-*Done when:* the PR shows the updated walkthrough and the new review, and both URLs are cited in the final message.
+Re-run preparation without `--refresh` to resume pinned inputs. A changed scope/source needs `--refresh` and fresh applicability evidence; never bless the old snapshot manually. Provider block is runner exit 2 with `run-blocker.json`; resume the same command when available. Runner/global freeze exit 3 means stale inputs. Invalid input exit 1 needs artifact repair, never bypassed coverage. `prepare-status.json`, per-job statuses and external attempt logs expose timing without additional model work.
 
-**Step 6: Learnings**
-
-1. state.json was already written at Step 4. When the user — or a PR reply — rebuts or dismisses a result, read `<skill-dir>/references/state-and-learnings.md` in full, distill the correction into `.deep-review/learnings.md`, and mark that fingerprint `dismissed` in the state ledger.
-
-*Done when:* every user correction from the session is captured as a learning or explicitly declined.
-
-## Incremental rounds
-
-With prior state (or fingerprints recovered from the PR thread), Step 1 scopes to commits since the last reviewed head and archives the prior round's artifacts under `<out>/rounds/`. Unresolved prior results re-surface once under Duplicates; dismissed fingerprints stay suppressed; resolved ones receive the ✅ edit in publish mode. `--full` reviews the whole diff again. Each round's Step 4 regenerates `<out>/review.html`, so a browser tab left open on it tracks the rounds by itself.
-
-## Error handling
-
-- `--pr` or `--publish` without a passing `gh auth status` → stop and name the gap; publishing by any other transport is out of scope.
-- Workflow tool unavailable → automatic Agent fallback; record the mode in walkthrough.md's Review details.
-- External `--subagent` failure (model not available, missing/invalid output file, non-zero exit) → apply the failure handling loaded in Step 3.
-- Empty selection after the funnel → report "nothing reviewable" with the manifest counts; write no findings.
-- A linter lane unavailable → proceed and state in review.md that overlap suppression did not run for that lane.
-- A bootstrap gate failing (build_manifest.py, build_knowledge.py, build_jobs.py, merge_findings.py) → stop and surface stderr. Missing knowledge accounting or incomplete defect/polish coverage is a review failure, not a warning.
-- run_jobs.py exit 2 (blocked) → a provider limit interrupted the fan-out; valid outputs are preserved and `<out>/run-blocker.json` lists the pending jobs — resume by re-running the same command once the limit clears. Providers that signal limits differently need extra `--block-on` patterns.
-- run_jobs.py exit 3 or a render_review freeze failure → the checkout drifted mid-round; findings would anchor to stale lines. Restart from Step 1 — the round increments and prior artifacts are archived.
-- More than 75 publishable results → use the Step 5 batching contract.
-
-## Bundled implementation
-
-`assets/PROMPT.md`, `assets/findings.schema.json`, and `assets/REVIEW_UI.html` are author-tooling sources consumed by the bundled scripts; agents use their rendered prompt/schema/report artifacts rather than loading these assets directly. `<skill-dir>/scripts/_common.py` is a read-only library imported by the CLIs and is never invoked directly.
+With `--publish`, read [publish-github.md](references/publish-github.md) and execute its GitHub recipes after local rendering. When a user rebuts a finding, read [state-and-learnings.md](references/state-and-learnings.md) for the correction workflow. Read [taxonomy.md](references/taxonomy.md) only when an evidence/severity decision is unclear; the normal reviewer prompt already contains its required grammar.

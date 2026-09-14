@@ -186,6 +186,9 @@ func (m *Manager) deliverPersistedPromptEvent(
 		m.deliverPromptProjectionFailure(ctx, turnID, out)
 		return true, true
 	}
+	if event.Usage != nil {
+		event.Usage.Sequence = persisted.Sequence
+	}
 	// The persisted user input anchors replay and history, but Prompt returns
 	// only runtime output. A catch-up delivery must preserve that public contract.
 	if !isPromptOutputEventType(event.Type) {
@@ -214,6 +217,7 @@ func isPromptOutputEventType(eventType string) bool {
 		acp.EventTypePermission,
 		acp.EventTypeClarify,
 		acp.EventTypeUsage,
+		acp.EventTypePromptDelivery,
 		acp.EventTypeSystem,
 		acp.EventTypeRuntimeProgress,
 		acp.EventTypeRuntimeWarning,

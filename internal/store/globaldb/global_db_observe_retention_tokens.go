@@ -102,12 +102,22 @@ func (g *ObserveRepo) tokenStatsParams(update store.TokenStatsUpdate) (sqlcgen.U
 		return sqlcgen.UpsertTokenStatsParams{}, fmt.Errorf("store: generate token stats id: %w", err)
 	}
 	return sqlcgen.UpsertTokenStatsParams{
-		ID: tokenStatsID, SessionID: update.SessionID, AgentName: update.AgentName,
-		InputTokens: nullableObserveInt64(update.InputTokens), OutputTokens: nullableObserveInt64(update.OutputTokens),
-		TotalTokens: nullableObserveInt64(update.TotalTokens), TotalCost: nullableObserveFloat64(update.CostAmount),
-		CostCurrency: nullableObserveStringPointer(update.CostCurrency), CostStatus: update.CostStatus,
-		CostSource: update.CostSource, TurnCount: update.Turns,
-		UpdatedAt: store.FormatTimestamp(update.UpdatedAt),
+		CacheReadTokens: nullableObserveInt64(update.CacheReadTokens),
+		CacheWriteTokens: nullableObserveInt64(
+			update.CacheWriteTokens,
+		),
+		ID:           tokenStatsID,
+		SessionID:    update.SessionID,
+		AgentName:    update.AgentName,
+		InputTokens:  nullableObserveInt64(update.InputTokens),
+		OutputTokens: nullableObserveInt64(update.OutputTokens),
+		TotalTokens:  nullableObserveInt64(update.TotalTokens),
+		TotalCost:    nullableObserveFloat64(update.CostAmount),
+		CostCurrency: nullableObserveStringPointer(update.CostCurrency),
+		CostStatus:   update.CostStatus,
+		CostSource:   update.CostSource,
+		TurnCount:    update.Turns,
+		UpdatedAt:    store.FormatTimestamp(update.UpdatedAt),
 	}, nil
 }
 
@@ -124,7 +134,9 @@ func (g *ObserveRepo) ListTokenStats(
 	}
 
 	// dynamic-sql: optional session/agent filters and the caller limit change the statement shape.
-	sqlQuery := `SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at FROM token_stats`
+	sqlQuery := `SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens,
+ cache_read_tokens, cache_write_tokens, total_cost, cost_currency, cost_status, cost_source,
+ turn_count, updated_at FROM token_stats`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
@@ -254,13 +266,15 @@ func nullableObserveFloat64(value *float64) sql.NullFloat64 {
 
 func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {
 	var (
-		stats        store.TokenStats
-		inputTokens  sql.NullInt64
-		outputTokens sql.NullInt64
-		totalTokens  sql.NullInt64
-		totalCost    sql.NullFloat64
-		costCurrency sql.NullString
-		updatedAtRaw string
+		stats            store.TokenStats
+		cacheReadTokens  sql.NullInt64
+		cacheWriteTokens sql.NullInt64
+		inputTokens      sql.NullInt64
+		outputTokens     sql.NullInt64
+		totalTokens      sql.NullInt64
+		totalCost        sql.NullFloat64
+		costCurrency     sql.NullString
+		updatedAtRaw     string
 	)
 	if err := scanner.Scan(
 		&stats.ID,
@@ -269,6 +283,8 @@ func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {
 		&inputTokens,
 		&outputTokens,
 		&totalTokens,
+		&cacheReadTokens,
+		&cacheWriteTokens,
 		&totalCost,
 		&costCurrency,
 		&stats.CostStatus,
@@ -279,6 +295,8 @@ func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {
 		return store.TokenStats{}, fmt.Errorf("store: scan token stats: %w", err)
 	}
 
+	stats.CacheReadTokens = store.NullInt64(cacheReadTokens)
+	stats.CacheWriteTokens = store.NullInt64(cacheWriteTokens)
 	stats.InputTokens = store.NullInt64(inputTokens)
 	stats.OutputTokens = store.NullInt64(outputTokens)
 	stats.TotalTokens = store.NullInt64(totalTokens)

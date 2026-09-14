@@ -240,12 +240,12 @@ func TestMarketplaceCatalogSourceMigration(t *testing.T) {
 
 	// Invariant: source-state upgrades preserve rows and replace error prefixes with durable fields once.
 	// Owner: global database upgrade; canonical suite: TestMarketplaceCatalogSourceMigration.
-	t.Run("Should preserve v114 sources and separate error metadata across restart", func(t *testing.T) {
+	t.Run("Should preserve v115 sources and separate error metadata across restart", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		previous, err := openGlobalMigrationPrefixDatabase(t, path,
-			globalMigrationPrefixBefore(t, "00115_schema.sql"))
+			globalMigrationPrefixBefore(t, "00116_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -310,12 +310,12 @@ VALUES ('compozy-catalog',3,'2026-09-13T12:00:00Z',1,'[network] unavailable','fe
 
 	// Invariant: removing the fixed discriminator preserves every variable catalog and source-state value.
 	// Owner: global database upgrade; canonical suite: TestMarketplaceCatalogSourceMigration.
-	t.Run("Should preserve complete v113 projections while removing the fixed discriminator", func(t *testing.T) {
+	t.Run("Should preserve complete v114 projections while removing the fixed discriminator", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		databasePath := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		previous, err := openGlobalMigrationPrefixDatabase(t, databasePath,
-			globalMigrationPrefixBefore(t, "00114_marketplace_source_identity.sql"))
+			globalMigrationPrefixBefore(t, "00115_marketplace_source_identity.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

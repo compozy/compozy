@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -108,7 +109,7 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 		startupCtx.Provider = strings.TrimSpace(runtime.agent.Provider)
 	}
 	startupCtx.ProviderHomePolicy = runtime.agent.HomePolicy
-	startupPrompt, err := m.startupPrompt(
+	startupPrompt, manifest, err := m.startupPrompt(
 		ctx,
 		spec.startupSessionContext(updatedAt),
 		startupCtx,
@@ -118,13 +119,14 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 	if err != nil {
 		return fmt.Errorf("session: assemble startup prompt for %q: %w", spec.sessionID, err)
 	}
+	assembledPrompt := startupPrompt
 	if m.startupOverlay != nil {
 		startupPrompt, err = m.startupOverlay.Apply(ctx, startupCtx, startupPrompt)
 		if err != nil {
 			return fmt.Errorf("session: apply startup prompt overlay: %w", err)
 		}
 	}
-	agentDef.Prompt = startupPrompt
+	agentDef.Prompt = strings.TrimSpace(startupPrompt)
 	if overlay := strings.TrimSpace(spec.promptOverlay); overlay != "" {
 		if strings.TrimSpace(agentDef.Prompt) == "" {
 			agentDef.Prompt = overlay
@@ -132,6 +134,10 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 			agentDef.Prompt = strings.TrimSpace(agentDef.Prompt) + "\n\n" + overlay
 		}
 	}
+	if agentDef.Prompt != assembledPrompt {
+		manifest = acp.OpaqueStartupManifest(agentDef.Prompt, manifest.HookModified)
+	}
+	runtime.startupManifest = manifest
 	runtime.agentDef = compozyconfig.CloneAgentDef(agentDef)
 	runtime.agent.Prompt = agentDef.Prompt
 	return nil

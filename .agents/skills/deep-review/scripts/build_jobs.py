@@ -18,19 +18,24 @@ Exit codes: 0 ok, 1 validation failure or missing artifact.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import shlex
 import sys
-from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep the tracked skill tree free of __pycache__
+
+from _planning import (
+    DEFAULT_MAX_COHORT_FILES, DEFAULT_MAX_POLISH_FILES, MAX_COHORT_CHANGED_LINES,
+    MAX_POLISH_CHANGED_LINES, automatic_plan, polish_cohorts, validate_cohorts,
+)
 
 from _common import (
     ASSETS_DIR,
     glob_to_regex,
     hunk_text,
-    load_schema,
     manifest_selected,
     read_json,
     rel,
@@ -39,21 +44,8 @@ from _common import (
     write_json,
 )
 
-DEFAULT_MAX_COHORT_FILES = 200
-MAX_COHORT_CHANGED_LINES = 15000
-DEFAULT_MAX_POLISH_FILES = 200
-MAX_POLISH_CHANGED_LINES = 15000
-
-REVIEWER_PLACEHOLDERS = {
-    "cohort_name", "risk", "target", "file_list", "scope_instruction", "context",
-    "taxonomy", "rules_block", "diff_command", "base", "output", "schema",
-    "lane_instruction", "coverage_contract",
-}
-SWEEP_PLACEHOLDERS = {
-    "sweep_key", "lens", "target", "context", "manifest", "taxonomy",
-    "diff_command", "spec_extra", "output", "schema", "rules_block",
-    "coverage_contract",
-}
+REVIEWER_PLACEHOLDERS = {"label", "contract", "draft", "submit_command", "lane_instruction", "result_contract"}
+SWEEP_PLACEHOLDERS = REVIEWER_PLACEHOLDERS
 
 DEFAULT_LENSES = {
     "contracts": (
@@ -140,10 +132,6 @@ def render_template(name: str, template: str, required: set[str], values: dict[s
     return rendered
 
 
-def canonical_hunk(hunk: dict) -> tuple[int, int, str]:
-    return int(hunk["start"]), int(hunk["lines"]), str(hunk.get("side", "new"))
-
-
 def validate_registry(registry: dict, knowledge: dict, selected: dict[str, dict]) -> list[str]:
     errors = []
     rules = registry.get("rules", [])
@@ -195,95 +183,23 @@ def validate_registry(registry: dict, knowledge: dict, selected: dict[str, dict]
     return errors
 
 
-def validate_cohorts(
-    cohorts: list[dict], selected: dict[str, dict], max_cohort_files: int
-) -> list[str]:
-    errors: list[str] = []
-    seen_ids: set[str] = set()
-    full_owners: dict[str, list[str]] = defaultdict(list)
-    scoped_owners: dict[str, list[tuple[str, tuple[int, int, str]]]] = defaultdict(list)
-    for cohort in cohorts:
-        cohort_id = cohort.get("id")
-        if not cohort_id or cohort_id in seen_ids:
-            errors.append(f"duplicate or missing cohort id {cohort_id!r}")
-        seen_ids.add(cohort_id)
-        if cohort.get("risk") not in {"high", "normal", "low"}:
-            errors.append(f"{cohort_id}: risk must be high|normal|low")
-        files = cohort.get("files", [])
-        if not files or len(files) > max_cohort_files:
-            errors.append(
-                f"{cohort_id}: invalid file count {len(files)} (1..{max_cohort_files})"
-            )
-        scope = cohort.get("hunk_scope") or {}
-        extra_scope = set(scope) - set(files)
-        if extra_scope:
-            errors.append(f"{cohort_id}: hunk_scope paths absent from files: {sorted(extra_scope)}")
-        for path in files:
-            if path not in selected:
-                errors.append(f"{cohort_id}: non-selected or unknown path {path}")
-                continue
-            if path in scope:
-                for hunk in scope[path]:
-                    scoped_owners[path].append((cohort_id, canonical_hunk(hunk)))
-            else:
-                full_owners[path].append(cohort_id)
-        if scope:
-            scoped_lines = sum(int(h["lines"]) for hunks in scope.values() for h in hunks)
-            if scoped_lines > MAX_COHORT_CHANGED_LINES:
-                errors.append(f"{cohort_id}: scoped changed lines {scoped_lines} > {MAX_COHORT_CHANGED_LINES}")
-        else:
-            changed = sum(
-                int(selected[path].get("adds") or 0) + int(selected[path].get("dels") or 0)
-                for path in files
-                if path in selected
-            )
-            if changed > MAX_COHORT_CHANGED_LINES:
-                errors.append(
-                    f"{cohort_id}: changed lines {changed} > {MAX_COHORT_CHANGED_LINES} without hunk_scope"
-                )
-
-    for path, item in selected.items():
-        full, scoped = full_owners.get(path, []), scoped_owners.get(path, [])
-        if full and scoped:
-            errors.append(f"{path}: mixed full and scoped ownership")
-        elif full:
-            if len(full) != 1:
-                errors.append(f"{path}: owned by {len(full)} cohorts ({full})")
-        elif scoped:
-            want = Counter(
-                (side, line)
-                for start, lines, side in (canonical_hunk(h) for h in item["hunks"])
-                for line in range(start, start + lines)
-            )
-            got = Counter(
-                (side, line)
-                for _, (start, lines, side) in scoped
-                for line in range(start, start + lines)
-            )
-            if got != want:
-                errors.append(
-                    f"{path}: hunk slice mismatch missing_lines={sum((want - got).values())} "
-                    f"duplicated_or_extra_lines={sum((got - want).values())}"
-                )
-        else:
-            errors.append(f"{path}: missing cohort ownership")
-    return errors
-
-
 def normalize_sweeps(plan: dict, context_pack: str) -> list[dict]:
     sweeps, errors = [], []
     for entry in plan.get("sweeps", []):
         if isinstance(entry, str):
-            key, lens = entry, DEFAULT_LENSES.get(entry)
-            if lens is None:
-                errors.append(f"sweep {entry!r} has no built-in lens; use {{key, lens}}")
-                continue
-        else:
-            key, lens = entry.get("key"), entry.get("lens")
-            if not key or not lens:
-                errors.append(f"sweep entry {entry!r} needs key and lens")
-                continue
-        sweeps.append({"key": key, "lens": lens})
+            entry = {"key": entry}
+        if not isinstance(entry, dict):
+            errors.append("sweeps must contain keys or objects")
+            continue
+        key = entry.get("key")
+        lens = entry.get("lens") or DEFAULT_LENSES.get(key)
+        if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", key) or not lens:
+            errors.append(f"sweep {entry!r} needs a safe key and a built-in or explicit lens")
+            continue
+        if key != "spec-parity" and not str(entry.get("hypothesis", "")).strip():
+            errors.append(f"sweep {key!r}: name the cross-cohort hypothesis; local behavior/tests already have owners")
+            continue
+        sweeps.append({**entry, "key": key, "lens": lens})
     keys = [sweep["key"] for sweep in sweeps]
     if len(keys) != len(set(keys)):
         errors.append("duplicate sweep keys")
@@ -294,12 +210,14 @@ def normalize_sweeps(plan: dict, context_pack: str) -> list[dict]:
     return sweeps
 
 
-def cohort_rules(rules: list[dict], files: list[str]) -> list[dict]:
+def cohort_rules(rules: list[dict], files: list[str], lane: str | None = None, sweep: str | None = None) -> list[dict]:
     compiled = [(rule, [glob_to_regex(str(glob)) for glob in rule["scope"]]) for rule in rules]
     return [
         rule
         for rule, regexes in compiled
         if any(rx.match(path) for rx in regexes for path in files)
+        and (lane is None or lane in rule.get("lanes", ["defect", "polish"]))
+        and (sweep is None or sweep in rule.get("sweeps", []))
     ]
 
 
@@ -317,267 +235,166 @@ def rules_block(rules: list[dict], files: list[str]) -> tuple[str, int]:
     return "\n".join(lines), len(bound)
 
 
-def file_list_block(cohort: dict, selected: dict[str, dict]) -> str:
-    return "\n".join(
-        f"- `{path}` status={selected[path]['status']} hunks="
-        + ", ".join(
-            hunk_text(h)
-            for h in (cohort.get("hunk_scope", {}).get(path) or selected[path]["hunks"])
-        )
-        for path in cohort["files"]
-    )
-
-
-def scope_instruction(cohort: dict) -> str:
-    scope = cohort.get("hunk_scope")
-    if scope:
-        return (
-            "Judge ONLY these hunks — sibling reviewers own the rest of the file; read beyond them "
-            f"freely, report inside them: `{json.dumps(scope, separators=(',', ':'))}`."
-        )
-    return "Judge every manifest hunk of every listed file."
-
-
 def owned_hunks(cohort: dict, selected: dict[str, dict]) -> list[dict]:
     scope = cohort.get("hunk_scope") or {}
-    return [
-        {"file": path, "hunk": hunk_text(hunk)}
-        for path in cohort["files"]
-        for hunk in (scope.get(path) or selected[path]["hunks"])
-    ]
-
-
-def split_hunk(hunk: dict, limit: int) -> list[dict]:
-    start, remaining = int(hunk["start"]), int(hunk["lines"])
-    side, chunks = str(hunk.get("side", "new")), []
-    while remaining:
-        size = min(limit, remaining)
-        chunks.append({"start": start, "lines": size, "side": side})
-        start += size
-        remaining -= size
-    return chunks
-
-
-def polish_cohorts(
-    cohorts: list[dict], selected: dict[str, dict], max_files: int, max_lines: int
-) -> list[dict]:
-    """Create a second broad ownership partition for the polish lane."""
-    result: list[dict] = []
-    for cohort in cohorts:
-        units: list[tuple[str, list[dict]]] = []
-        source_scope = cohort.get("hunk_scope") or {}
-        for path in cohort["files"]:
-            hunks = source_scope.get(path) or selected[path]["hunks"]
-            expanded = [piece for hunk in hunks for piece in split_hunk(hunk, max_lines)]
-            current: list[dict] = []
-            current_lines = 0
-            for hunk in expanded:
-                lines = int(hunk["lines"])
-                if current and current_lines + lines > max_lines:
-                    units.append((path, current))
-                    current, current_lines = [], 0
-                current.append(hunk)
-                current_lines += lines
-            if current or not expanded:
-                units.append((path, current))
-
-        batch: dict[str, list[dict]] = {}
-        batch_lines = 0
-
-        def flush() -> None:
-            nonlocal batch, batch_lines
-            if not batch:
-                return
-            index = len([item for item in result if item["parent_id"] == cohort["id"]]) + 1
-            result.append({
-                "id": f"{cohort['id']}-p{index:02d}",
-                "parent_id": cohort["id"],
-                "name": f"{cohort['name']} — polish {index}",
-                "risk": cohort["risk"],
-                "files": list(batch),
-                "hunk_scope": {path: hunks for path, hunks in batch.items()},
-            })
-            batch, batch_lines = {}, 0
-
-        for path, hunks in units:
-            unit_lines = sum(int(hunk["lines"]) for hunk in hunks)
-            adds_file = path not in batch
-            if batch and (
-                batch_lines + unit_lines > max_lines
-                or (adds_file and len(batch) >= max_files)
-                or path in batch
-            ):
-                flush()
-            batch[path] = hunks
-            batch_lines += unit_lines
-        flush()
+    result = []
+    for path in cohort["files"]:
+        for hunk in scope.get(path, selected[path]["hunks"]):
+            anchor = hunk_text(hunk)
+            identity = hashlib.sha256(f"{path}\0{anchor}".encode()).hexdigest()[:12]
+            result.append({"id": f"H{identity}", "file": path, "hunk": anchor})
     return result
 
 
-def coverage_contract(required_hunks: list[dict], rule_ids: list[str], check: str) -> str:
+def result_contract(lane: str) -> str:
+    classes = "defects" if lane == "defect" else "advisories" if lane == "polish" else "defects or advisories"
     return (
-        "HUNK COVERAGE (one exact row per assignment; include check "
-        f"`{check}`): `{json.dumps(required_hunks, separators=(',', ':'))}`\n"
-        "RULE COVERAGE (one exact row per id, even when compliant or not applicable): "
-        f"`{json.dumps(rule_ids, separators=(',', ':'))}`"
+        'Draft shape: {"job_digest":"copy from contract", "summary":"what changed in this assignment", '
+        '"defects":[], "advisories":[], "suppressions":[], '
+        '"coverage":{"hunks":[["H-id","clear or reported"]], '
+        '"rules":[["R-id","compliant or violated or not-applicable","evidence note"]]}}. '
+        'Every assigned hunk/rule needs an explicit assessment; do not infer success from absence. '
+        'When required_assessment is true, also fill assessment with status "complete" and a nonblank note '
+        'describing the investigation and its evidence; an untouched template cannot complete a sweep or a job without hunks. '
+        f'Findings go in {classes}. Each finding has file, line (integer), in_diff (boolean), '
+        'hunk (assigned H-id, or null outside diff), category, severity, quick_win (boolean), title (<=100 chars), '
+        'body, rule_ids (array), evidence (nonempty array). Optional: end_line, also_applies, guideline, suggestion. '
+        'Defects: category potential-issue, severity critical/major/minor. '
+        'Advisories: category refactor/nitpick, severity minor/trivial. '
+        'Suppressions: {file,line,hunk,candidate,reason,rule_ids,note}; line/hunk may be null outside diff. '
+        'Only use assigned rule IDs and quote their guideline verbatim. '
+        'Do not generate Python, parse prompt Markdown, or enumerate paths again to create coverage; '
+        'the contract JSON supplies the IDs and the submit command expands metadata.'
     )
+
+
+def filtered_context(out: Path, files: list[str], sweep: bool = False) -> dict:
+    path = out / "review-context.json"
+    if not path.exists():
+        return {"text": (out / "context-pack.md").read_text(encoding="utf-8")}
+    context = read_json(path)
+    lanes = []
+    for lane in context.get("linters", []):
+        patterns = lane.get("scope", ["**/*"])
+        if any(glob_to_regex(p).match(file) for p in patterns for file in files):
+            lanes.append(lane)
+    return {"intent": context.get("intent", ""), "linters": lanes,
+            "spec_artifacts": context.get("spec_artifacts", []) if sweep else []}
+
+
+def materialize_jobs(repo: Path, out: Path, max_files: int | None = None, max_lines: int | None = None,
+                     max_polish_files: int | None = None, max_polish_lines: int | None = None) -> dict:
+    manifest, plan = read_json(out / "manifest.json"), read_json(out / "plan.json")
+    limits = dict(plan.get("limits", {}))
+    for name, value, default in (
+        ("cohort_files", max_files, DEFAULT_MAX_COHORT_FILES),
+        ("cohort_changed_lines", max_lines, MAX_COHORT_CHANGED_LINES),
+        ("polish_files", max_polish_files, DEFAULT_MAX_POLISH_FILES),
+        ("polish_changed_lines", max_polish_lines, MAX_POLISH_CHANGED_LINES),
+    ):
+        resolved = value if value is not None else limits.get(name, default)
+        if type(resolved) is not int or resolved < 1:
+            raise ValueError(f"{name} must be a positive integer")
+        limits[name] = resolved
+    registry, knowledge = read_json(out / "rules.json"), read_json(out / "knowledge.json")
+    rules = registry.get("rules")
+    if not isinstance(rules, list):
+        raise RuntimeError("rules.json: rules must be an array")
+    context_pack = (out / "context-pack.md").read_text(encoding="utf-8")
+    if "diff_command" not in manifest:
+        raise RuntimeError("manifest.json lacks diff_command — rebuild the manifest")
+    selected = manifest_selected(manifest)
+    errors = validate_registry(registry, knowledge, selected) + validate_cohorts(
+        plan["cohorts"], selected, limits["cohort_files"], limits["cohort_changed_lines"])
+    if knowledge.get("version") == 2:
+        from build_knowledge import verify_evidence
+        errors.extend(verify_evidence(repo, manifest, knowledge, registry))
+    for rule in rules:
+        lanes = rule.get("lanes", ["defect", "polish"])
+        if not isinstance(lanes, list) or not lanes or set(lanes) - {"defect", "polish"}:
+            errors.append(f"rule {rule.get('id')}: lanes must assign defect and/or polish")
+        if not isinstance(rule.get("sweeps", []), list):
+            errors.append(f"rule {rule.get('id')}: sweeps must be a list")
+    if errors:
+        raise RuntimeError("plan validation failed:\n- " + "\n- ".join(errors))
+    sweeps = normalize_sweeps(plan, context_pack)
+    if re.search(r"^#{1,2} Spec contract\b", context_pack, re.M) and not any(s["key"] == "spec-parity" for s in sweeps):
+        sweeps.append({"key": "spec-parity", "lens": DEFAULT_LENSES["spec-parity"]})
+    for folder in ("prompts", "agents", "runs", "contracts"):
+        (out / folder).mkdir(parents=True, exist_ok=True)
+    polish = polish_cohorts(plan["cohorts"], selected, limits["polish_files"], limits["polish_changed_lines"])
+    specs = [(f"cohort-{c['id'].lower()}", "cohort", "defect", c) for c in plan["cohorts"]]
+    specs += [(f"polish-{c['id'].lower()}", "polish", "polish", c) for c in polish]
+    specs += [(f"sweep-{s['key']}", "sweep", "sweep", s) for s in sweeps]
+    jobs = []
+    skill_digest = hashlib.sha256()
+    for file in sorted([*Path(__file__).parent.glob("*.py"), *ASSETS_DIR.glob("*.md"), *ASSETS_DIR.glob("*.json")]):
+        skill_digest.update(file.name.encode() + file.read_bytes())
+    for label, kind, lane, item in specs:
+        files = list(selected) if lane == "sweep" else item["files"]
+        key = item.get("key") if lane == "sweep" else None
+        bound = cohort_rules(rules, files, lane if lane != "sweep" else None, key)
+        required = [] if lane == "sweep" else owned_hunks(item, selected)
+        context = filtered_context(out, files, lane == "sweep")
+        job = {"label": label, "kind": kind, "lane": lane, "protocol": "compact-v1", "skill_digest": skill_digest.hexdigest(),
+               "coverage_check": f"sweep:{key}" if key else lane, "required_hunks": required,
+               "required_assessment": lane == "sweep" or not required,
+               "rule_ids": [r["id"] for r in bound], "rules": bound, "context": context,
+               "files": [{"path": p, "status": selected[p]["status"]} for p in files],
+               "diff_command": manifest["diff_command"], "base": manifest["base"],
+               "snapshot": manifest.get("worktree_snapshot"), "target": manifest["target"],
+               "risk": item.get("risk", "high"), "name": item.get("name", key),
+               "lens": item.get("lens", ""), "hypothesis": item.get("hypothesis", ""),
+               "prompt": rel(out / "prompts" / f"{label}.md", repo),
+               "contract": rel(out / "contracts" / f"{label}.json", repo),
+               "draft": rel(out / "agents" / f"{label}.draft.json", repo),
+               "output": rel(out / "agents" / f"{label}.json", repo)}
+        if lane == "sweep":
+            job["anchor_hunks"] = owned_hunks({"files": files}, selected)
+        job["job_digest"] = hashlib.sha256(json.dumps(job, sort_keys=True).encode()).hexdigest()
+        write_json(repo / job["contract"], job)
+        template = {"job_digest": job["job_digest"], "summary": "", "defects": [], "advisories": [], "suppressions": [],
+                    "coverage": {"hunks": [[h["id"], None] for h in required], "rules": [[r["id"], None, ""] for r in bound]}}
+        if job["required_assessment"]:
+            template["assessment"] = {"status": None, "note": ""}
+        write_json(out / "agents" / f"{label}.draft.template.json", template)
+        command = " ".join(shlex.quote(v) for v in ["python3", f"{skill_rel(repo)}/scripts/run_jobs.py", "--out", rel(out, repo), "--job", label, "--submit"])
+        instructions = "Investigate correctness, security, data, contracts, reliability and failing-capable test defects; leave advisories empty." if lane == "defect" else "Investigate every actionable maintainability, simplification, naming, documentation, idiom and project-rule improvement; leave defects empty." if lane == "polish" else item["lens"] + (SPEC_EXTRA if key == "spec-parity" else "")
+        values = {"label": label, "contract": job["contract"], "draft": job["draft"], "submit_command": command,
+                  "lane_instruction": instructions, "result_contract": result_contract(lane)}
+        prompt = render_template("sweep" if lane == "sweep" else "reviewer", load_template("sweep" if lane == "sweep" else "reviewer"), REVIEWER_PLACEHOLDERS, values)
+        (repo / job["prompt"]).write_text(prompt, encoding="utf-8")
+        jobs.append(job)
+    # The dispatch index stays small: complete contracts live once in per-job files.
+    # Canonical consumers still receive ownership/rules, without context and source text duplication.
+    index = [{k: v for k, v in j.items() if k not in {"rules", "context", "files", "lens", "hypothesis"}} for j in jobs]
+    payload = {"protocol": "compact-v1", "skill_digest": skill_digest.hexdigest(), "limits": limits, "jobs": index}
+    payload["input_hashes"] = {name: hashlib.sha256((out / name).read_bytes()).hexdigest()
+                             for name in ("manifest.json", "knowledge.json", "rules.json", "plan.json", "context-pack.md", "review-context.json")
+                             if (out / name).is_file()}
+    write_json(out / "jobs.json", payload)
+    return {"defect": len(plan["cohorts"]), "polish": len(polish), "sweeps": len(sweeps), "jobs": len(jobs)}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True)
-    parser.add_argument(
-        "--max-cohort-files",
-        type=positive_int,
-        default=DEFAULT_MAX_COHORT_FILES,
-        help=f"maximum files per cohort (default: {DEFAULT_MAX_COHORT_FILES})",
-    )
+    parser.add_argument("--max-cohort-files", type=positive_int, help="defect files per job; inherit plan or default 200")
+    parser.add_argument("--max-cohort-lines", type=positive_int, help="defect changed lines per job; inherit plan or default 15000")
+    parser.add_argument("--max-polish-files", type=positive_int, help="polish files per job; inherit plan or default 200")
+    parser.add_argument("--max-polish-lines", type=positive_int, help="polish changed lines per job; inherit plan or default 15000")
     args = parser.parse_args()
-
-    repo = repo_root()
-    out = Path(args.out).resolve()
     try:
-        manifest = read_json(out / "manifest.json")
-        plan = read_json(out / "plan.json")
-        registry = read_json(out / "rules.json")
-        knowledge = read_json(out / "knowledge.json")
-        rules = registry.get("rules")
-        if not isinstance(rules, list):
-            raise RuntimeError("rules.json: rules must be an array")
-        context_pack = (out / "context-pack.md").read_text(encoding="utf-8")
-        if "diff_command" not in manifest:
-            raise RuntimeError("manifest.json lacks diff_command — rebuild it with the current build_manifest.py")
-
-        selected = manifest_selected(manifest)
-        errors = validate_registry(registry, knowledge, selected) + validate_cohorts(
-            plan["cohorts"], selected, args.max_cohort_files
-        )
-        if errors:
-            raise RuntimeError("plan validation failed:\n- " + "\n- ".join(errors))
-        sweeps = normalize_sweeps(plan, context_pack)
-
-        reviewer_template = load_template("reviewer")
-        sweep_template = load_template("sweep")
-        schema = json.dumps(load_schema("findings"), separators=(",", ":"))
-        shared = {
-            "target": manifest["target"],
-            "context": rel(out / "context-pack.md", repo),
-            "taxonomy": f"{skill_rel(repo)}/references/taxonomy.md",
-            "diff_command": manifest["diff_command"],
-            "schema": schema,
-        }
-        prompts_dir = out / "prompts"
-        prompts_dir.mkdir(parents=True, exist_ok=True)
-        (out / "agents").mkdir(exist_ok=True)
-        (out / "runs").mkdir(exist_ok=True)
-
-        jobs, bound_counts = [], []
-        for cohort in plan["cohorts"]:
-            label = f"cohort-{cohort['id'].lower()}"
-            output = out / "agents" / f"{label}.json"
-            bound_rules = cohort_rules(rules, cohort["files"])
-            block, bound = rules_block(rules, cohort["files"])
-            rule_ids = [rule["id"] for rule in bound_rules]
-            required_hunks = owned_hunks(cohort, selected)
-            bound_counts.append(bound)
-            prompt = render_template("reviewer", reviewer_template, REVIEWER_PLACEHOLDERS, {
-                **shared,
-                "cohort_name": cohort["name"],
-                "risk": cohort["risk"],
-                "file_list": file_list_block(cohort, selected),
-                "scope_instruction": scope_instruction(cohort),
-                "rules_block": block,
-                "base": manifest["base"],
-                "output": rel(output, repo),
-                "lane_instruction": (
-                    "DEFECT LANE: report only concrete correctness, security, data, contract, "
-                    "reliability, or failing-capable test defects. Put survivors in `defects`; "
-                    "leave `advisories` empty."
-                ),
-                "coverage_contract": coverage_contract(required_hunks, rule_ids, "defect"),
-            })
-            (prompts_dir / f"{label}.md").write_text(prompt, encoding="utf-8")
-            jobs.append({
-                "label": label, "kind": "cohort", "lane": "defect",
-                "coverage_check": "defect", "required_hunks": required_hunks,
-                "rule_ids": rule_ids,
-                "prompt": rel(prompts_dir / f"{label}.md", repo),
-                "output": rel(output, repo),
-            })
-
-        polish = polish_cohorts(
-            plan["cohorts"], selected, DEFAULT_MAX_POLISH_FILES, MAX_POLISH_CHANGED_LINES
-        )
-        for cohort in polish:
-            label = f"polish-{cohort['id'].lower()}"
-            output = out / "agents" / f"{label}.json"
-            bound_rules = cohort_rules(rules, cohort["files"])
-            block, bound = rules_block(rules, cohort["files"])
-            rule_ids = [rule["id"] for rule in bound_rules]
-            required_hunks = owned_hunks(cohort, selected)
-            bound_counts.append(bound)
-            prompt = render_template("reviewer", reviewer_template, REVIEWER_PLACEHOLDERS, {
-                **shared,
-                "cohort_name": cohort["name"],
-                "risk": cohort["risk"],
-                "file_list": file_list_block(cohort, selected),
-                "scope_instruction": scope_instruction(cohort),
-                "rules_block": block,
-                "base": manifest["base"],
-                "output": rel(output, repo),
-                "lane_instruction": (
-                    "POLISH LANE: report every specific, actionable maintainability, simplification, "
-                    "clarity, naming, documentation, idiom, and project-rule improvement. A runtime "
-                    "failure is not required. Put survivors in `advisories`; leave `defects` empty."
-                ),
-                "coverage_contract": coverage_contract(required_hunks, rule_ids, "polish"),
-            })
-            (prompts_dir / f"{label}.md").write_text(prompt, encoding="utf-8")
-            jobs.append({
-                "label": label, "kind": "polish", "lane": "polish",
-                "coverage_check": "polish", "required_hunks": required_hunks,
-                "rule_ids": rule_ids,
-                "prompt": rel(prompts_dir / f"{label}.md", repo),
-                "output": rel(output, repo),
-            })
-        for sweep in sweeps:
-            label = f"sweep-{sweep['key']}"
-            output = out / "agents" / f"{label}.json"
-            bound_rules = cohort_rules(rules, list(selected))
-            block, _ = rules_block(rules, list(selected))
-            rule_ids = [rule["id"] for rule in bound_rules]
-            prompt = render_template("sweep", sweep_template, SWEEP_PLACEHOLDERS, {
-                **shared,
-                "sweep_key": sweep["key"],
-                "lens": sweep["lens"],
-                "manifest": rel(out / "manifest.json", repo),
-                "spec_extra": SPEC_EXTRA if sweep["key"] == "spec-parity" else "",
-                "output": rel(output, repo),
-                "rules_block": block,
-                "coverage_contract": coverage_contract([], rule_ids, f"sweep:{sweep['key']}"),
-            })
-            (prompts_dir / f"{label}.md").write_text(prompt, encoding="utf-8")
-            jobs.append({
-                "label": label, "kind": "sweep", "lane": "sweep",
-                "coverage_check": f"sweep:{sweep['key']}", "required_hunks": [],
-                "rule_ids": rule_ids,
-                "prompt": rel(prompts_dir / f"{label}.md", repo),
-                "output": rel(output, repo),
-            })
-        write_json(out / "jobs.json", {"jobs": jobs})
-    except RuntimeError as error:
+        out = Path(args.out).resolve()
+        summary = materialize_jobs(repo_root(), out, args.max_cohort_files, args.max_cohort_lines,
+                                   args.max_polish_files, args.max_polish_lines)
+        limits = read_json(out / "jobs.json")["limits"]
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError) as error:
         sys.stderr.write(f"{error}\n")
         return 1
-
-    with_rules = sum(1 for count in bound_counts if count)
-    print(
-        f"jobs: {len(plan['cohorts'])} defect cohorts + {len(polish)} polish cohorts + "
-        f"{len(sweeps)} sweeps -> {out / 'jobs.json'}\n"
-        f"cohort limit: {args.max_cohort_files} files / {MAX_COHORT_CHANGED_LINES} changed lines\n"
-        f"polish limit: {DEFAULT_MAX_POLISH_FILES} files / {MAX_POLISH_CHANGED_LINES} changed lines\n"
-        f"rules: {len(rules)} registered; {with_rules}/{len(bound_counts)} review lanes carry bound rules\n"
-        f"every selected hunk has defect + polish ownership; prompts under {out / 'prompts'}"
-    )
+    print(f"jobs: {summary['defect']} defect + {summary['polish']} polish + {summary['sweeps']} sweeps; "
+          f"limits {limits['cohort_files']}/{limits['cohort_changed_lines']} defect, "
+          f"{limits['polish_files']}/{limits['polish_changed_lines']} polish")
     return 0
 
 

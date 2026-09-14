@@ -28,6 +28,7 @@ type UIAgentEventPayload struct {
 	Failure          *store.SessionFailure        `json:"failure,omitempty"`
 	ProviderError    *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
 	Goal             *acp.GoalPromptMeta          `json:"goal,omitempty"`
+	Delivery         *acp.DeliveryManifest        `json:"delivery,omitempty"`
 	Usage            *UITokenUsagePayload         `json:"usage,omitempty"`
 	Runtime          *acp.RuntimeActivity         `json:"runtime,omitempty"`
 	Raw              json.RawMessage              `json:"raw,omitempty"`
@@ -45,6 +46,7 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
 		ProviderError: acp.CloneProviderErrorDiagnostic(event.ProviderError),
 		Goal:          acp.CloneGoalPromptMeta(event.Goal),
+		Delivery:      event.DeliveryManifest(),
 		Usage:         uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),
 		Raw: payloadJSONBytes(event.Raw),
 	}

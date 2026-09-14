@@ -21,6 +21,7 @@ export type SessionStreamEventSourceFactory = (url: string) => SessionStreamEven
 
 export interface SessionStreamListeners {
   commandsChanged: EventListener;
+  usageChanged: EventListener;
   degraded: EventListener;
   delta: EventListener;
   goalSnapshot: EventListener;
@@ -43,6 +44,7 @@ export function attachSessionStreamSource(
   source.addEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
   source.addEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
   source.addEventListener(SESSION_COMMANDS_CHANGED_EVENT, listeners.commandsChanged);
+  source.addEventListener("session_usage_changed", listeners.usageChanged);
   source.addEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
   source.addEventListener(SESSION_DONE_EVENT, listeners.terminal);
   source.addEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);
@@ -52,6 +54,7 @@ export function attachSessionStreamSource(
     source.removeEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
     source.removeEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
     source.removeEventListener(SESSION_COMMANDS_CHANGED_EVENT, listeners.commandsChanged);
+    source.removeEventListener("session_usage_changed", listeners.usageChanged);
     source.removeEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
     source.removeEventListener(SESSION_DONE_EVENT, listeners.terminal);
     source.removeEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);

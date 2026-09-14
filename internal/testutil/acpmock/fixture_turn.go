@@ -34,6 +34,14 @@ func (t TurnFixture) Validate(path string) error {
 
 // Validate rejects impossible aggregate token counts.
 func (u TurnUsage) Validate(path string) error {
+	for _, field := range []struct {
+		name  string
+		value *int
+	}{{"cache_read_tokens", u.CacheReadTokens}, {"cache_write_tokens", u.CacheWriteTokens}} {
+		if field.value != nil && *field.value < 0 {
+			return fmt.Errorf("acpmock: %s.%s must be >= 0", path, field.name)
+		}
+	}
 	if u.InputTokens < 0 {
 		return fmt.Errorf("acpmock: %s.input_tokens must be >= 0", path)
 	}

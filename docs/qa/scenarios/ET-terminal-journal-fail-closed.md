@@ -37,3 +37,14 @@ Walk:
    the record distinguishes them on both the browser and the command-line read.
 7. Confirm every row names the actor who ran it, the approval that authorised it, and the profile it
    ran under.
+8. Submit input while an authenticated shell marker is being admitted to the journal. Admission must
+   finish before the input checks the audit state; a failed marker admission refuses that input with
+   `journal_unavailable` before any bytes reach the PTY.
+
+PR #635 CI follow-up: `TestOSCSecurityFilterShouldBlockInputWhenAuthenticatedFactsCannotBeJournaled`
+owns the concurrent marker-failure/input invariant in the existing terminal suite. The repair
+synchronizes marker admission with both the input audit check and journal reservation. A concurrent
+marker failure during input preparation must be observed before reservation, with no PTY bytes sent.
+The original assertion is preserved and the same suite now deterministically covers this interleaving.
+The terminal race suites and real HTTP/WebSocket and UDS lifecycle integration checks passed;
+the existing store-failure/recovery walkthrough above retains its original evidence.

@@ -152,6 +152,25 @@ func TestNormalizePromptInputAugmenterBudgetBehaviorDefaultsToTrim(t *testing.T)
 }
 
 func TestPromptInputCompositeAppliesAggregateBudgetPolicies(t *testing.T) {
+	t.Run("Should register only the accepted budgeted owned prefix", func(t *testing.T) {
+		t.Parallel()
+		ctx, collect := acp.CollectPromptSections(t.Context())
+		accepted, _ := applyPromptInputAugmenterBudget(
+			"request",
+			"memory text\n\nrequest",
+			true,
+			6,
+			promptInputAugmenterBudgetBehaviorTrim,
+		)
+		registerDeliveredAugmentation(ctx, HarnessAugmenterDurableMemory, "request", accepted)
+		registerDeliveredAugmentation(ctx, HarnessAugmenterSituation, accepted, accepted)
+		registerDeliveredAugmentation(ctx, HarnessAugmenterSkills, accepted, "catalog\n"+accepted)
+		got := collect()
+		if len(got) != 1 || got[0].Key != "memory" || got[0].Content != "memory" ||
+			!strings.Contains(accepted, got[0].Content) {
+			t.Fatalf("accepted %q, sections %#v", accepted, got)
+		}
+	})
 	t.Parallel()
 
 	tests := []struct {

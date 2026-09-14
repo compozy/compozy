@@ -1,11 +1,11 @@
 ---
 title: "compozy session usage"
-description: "Show aggregated session token usage and cost provenance"
+description: "Show session tokens, context, and cost provenance"
 ---
 
 ## compozy session usage
 
-Show aggregated session token usage and cost provenance
+Show session tokens, context, and cost provenance
 
 ```
 compozy session usage <session-id> [flags]
@@ -19,12 +19,16 @@ compozy session usage <session-id> [flags]
 
   # Read the usage contract as JSON for scripts
   compozy session usage sess_1234 -o json
+
+  # Inspect each turn and replay compaction span
+  compozy session usage sess_1234 --turns
 ```
 
 ### Options
 
 ```
-  -h, --help   help for usage
+  -h, --help    help for usage
+      --turns   Show per-turn usage, deliveries, and replay compaction spans
 ```
 
 ### Options inherited from parent commands

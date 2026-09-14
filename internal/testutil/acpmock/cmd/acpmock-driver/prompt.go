@@ -78,6 +78,9 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	if err := a.writeDiagnostics(record); err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
+	if err := a.sendUsageUpdates(ctx, sessionID, turn.UsageUpdates); err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
 	return acpsdk.PromptResponse{StopReason: stopReason(turn.StopReason), Usage: promptResponseUsage(turn)}, nil
 }
 
@@ -346,4 +349,26 @@ func (a *mockAgent) requestPermission(
 		ToolCallID: strings.TrimSpace(step.ToolCallID),
 		Decision:   decision,
 	}, nil
+}
+
+func (a *mockAgent) sendUsageUpdates(ctx context.Context, sessionID string, updates []acpmock.UsageUpdate) error {
+	for _, update := range updates {
+		if err := a.conn.SessionUpdate(
+			ctx,
+			acpsdk.SessionNotification{
+				SessionId: acpsdk.SessionId(sessionID),
+				Update: acpsdk.SessionUpdate{
+					UsageUpdate: &acpsdk.SessionUsageUpdate{
+						SessionUpdate: "usage_update",
+						Used:          update.Used,
+						Size:          update.Size,
+						Meta:          update.Meta,
+					},
+				},
+			},
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }

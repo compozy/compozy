@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -222,6 +223,50 @@ func TestOSCSecurityFilterShouldDeliverTypedFactsBeforeDisplayFanout(t *testing.
 }
 
 func TestOSCSecurityFilterShouldBlockInputWhenAuthenticatedFactsCannotBeJournaled(t *testing.T) {
+	t.Run("Should reject input when marker delivery fails before journal admission", func(t *testing.T) {
+		t.Parallel()
+		consumer := &failingMarkerConsumer{called: make(chan struct{}, 1)}
+		journal := &markerTestJournal{fakeRecordingJournal: &fakeRecordingJournal{}, consumer: consumer}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		seen, release := make(chan struct{}), make(chan struct{})
+		releaseVisibility := sync.OnceFunc(func() { close(release) })
+		proc.mu.Lock()
+		proc.visibilitySeen, proc.visibilityWait = seen, release
+		proc.mu.Unlock()
+		var workers sync.WaitGroup
+		t.Cleanup(func() { releaseVisibility(); workers.Wait() })
+		result := make(chan error, 1)
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		workers.Go(func() { result <- handle.Write(t.Context(), actor, []byte("blocked")) })
+		select {
+		case <-seen:
+		case <-time.After(time.Second):
+			t.Fatal("input preparation did not start")
+		}
+		marker := "\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=pwd;cwd=%2Ftmp\x1b\\"
+		if err := proc.emit([]byte(marker)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-consumer.called:
+		case <-time.After(time.Second):
+			t.Fatal("marker consumer did not run before admission")
+		}
+		releaseVisibility()
+		select {
+		case err := <-result:
+			if !errors.Is(err, ErrJournalUnavailable) {
+				t.Fatalf("Write() = %v, want ErrJournalUnavailable", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("input admission did not finish")
+		}
+		if got := proc.inputString(); got != "" {
+			t.Fatalf("unadmitted input reached PTY: %q", got)
+		}
+	})
 	t.Run("Should block input after authenticated facts miss the journal lane", func(t *testing.T) {
 		t.Parallel()
 		consumer := &failingMarkerConsumer{called: make(chan struct{}, 1)}

@@ -117,7 +117,9 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 		return nil
 	}
 
-	return &contract.TokenUsagePayload{
+	payload := &contract.TokenUsagePayload{
+		Meta: usage.Meta,
+
 		TurnID:           usage.TurnID,
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
@@ -131,6 +133,10 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 		CostCurrency:     usage.CostCurrency,
 		Timestamp:        usage.Timestamp,
 	}
+	if usage.Sequence > 0 {
+		payload.Sequence = new(usage.Sequence)
+	}
+	return payload
 }
 
 // LogEventPayloadFromSummary converts an event summary into the shared logs payload.

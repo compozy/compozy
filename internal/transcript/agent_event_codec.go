@@ -82,6 +82,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
 		Attachments:       event.Attachments(),
+		Delivery:          event.DeliveryManifest(),
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:     event.PromptRuntimeSnapshot(),
@@ -94,7 +95,8 @@ func applyLegacyRawPayload(
 	rawPayload map[string]any,
 	typedToolPayload bool,
 ) {
-	if event.Type == acp.EventTypePermission ||
+	if event.Type == acp.EventTypeUsage ||
+		event.Type == acp.EventTypePermission ||
 		event.Type == acp.EventTypeClarify ||
 		event.Type == events.SessionCompactionFired ||
 		event.Type == events.SessionSupervisionWarning ||
@@ -165,7 +167,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy)
+	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy).WithDelivery(decoded.Delivery)
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)

@@ -51,12 +51,13 @@ vi.mock("../use-session-window-controller", () => ({
     controls: mocks.controls,
     deleteDialog: { open: false },
     inspector: { open: false },
-    inspectorMemory: {},
+    sessionContext: { context: { state: "unknown" } },
+    sessionUsageTurns: {},
+    activityGoal: null,
     inspectorUsage: null,
     refreshCommandCatalog: vi.fn(),
     promptRuntimeSnapshot: null,
     renameDialog: { open: false },
-    sessionVault: { data: [], error: null, isLoading: false },
     sidebar: {
       collapsedThreadIds: [],
       disconnected: false,
@@ -82,6 +83,7 @@ vi.mock("@/systems/session", async () => ({
   hasUnrecoverableRuntime: (session: SessionPayload) =>
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
   SessionEnvironmentControl: () => null,
+  SessionContextControl: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
     <button type="button" onClick={onRetry}>

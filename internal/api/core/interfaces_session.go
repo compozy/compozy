@@ -13,6 +13,10 @@ import (
 // List returns the current in-memory session snapshot without performing I/O.
 // ListAll may perform I/O to return the authoritative session set, so it accepts a context.
 type SessionManager interface {
+	UsageEvents(context.Context, string) ([]session.UsageEventEnvelope, error)
+	Deliveries(context.Context, string) ([]session.DeliveryEventEnvelope, error)
+	Compactions(context.Context, string) ([]session.CompactionEnvelope, error)
+	LatestSettledTurn(context.Context, string) (session.SettledTurn, error)
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	List() []*session.Info
 	ListAll(ctx context.Context) ([]*session.Info, error)
@@ -110,4 +114,8 @@ type SessionRuntimeSelectionManager interface {
 // create a second live session authority.
 type SessionCatalog interface {
 	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
+}
+
+type ContextWindowResolver interface {
+	ContextWindow(context.Context, string, string) (*int64, error)
 }

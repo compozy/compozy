@@ -21,6 +21,8 @@ const compozyEventDataSchema = z.looseObject({
   error: z.string().optional(),
   usage: z
     .object({
+      meta: z.record(z.string(), z.unknown()).optional(),
+      sequence: z.number().optional(),
       turn_id: z.string().optional(),
       input_tokens: z.number().optional(),
       output_tokens: z.number().optional(),
@@ -33,6 +35,26 @@ const compozyEventDataSchema = z.looseObject({
       cost_amount: z.number().optional(),
       cost_currency: z.string().optional(),
       timestamp: z.string().optional(),
+    })
+    .optional(),
+  delivery: z
+    .object({
+      turn_id: z.string(),
+      sent_at: z.string(),
+      estimate: z.string(),
+      spans: z.array(
+        z.object({
+          key: z.string(),
+          kind: z.string(),
+          bytes: z.number(),
+          tokens: z.number().nullable().optional(),
+          delivery: z.string().optional(),
+          name: z.string().optional(),
+          unchanged: z.boolean().optional(),
+          startup_dedup: z.boolean().optional(),
+          hook_modified: z.boolean().optional(),
+        })
+      ),
     })
     .optional(),
   runtime: z

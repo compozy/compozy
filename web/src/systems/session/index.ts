@@ -121,6 +121,7 @@ export {
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
+  fetchSessionUsageTurns,
   fetchSessionTranscript,
   fetchSessions,
   promoteSessionInputToSteer,
@@ -468,12 +469,9 @@ export {
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
 export {
   SessionInspector,
-  type InspectorMemoryState,
-  type InspectorSessionLedger,
   type InspectorUsage,
   type SessionInspectorProps,
 } from "./components/session-inspector";
-export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
 // Environment surface — worktree binding, fork, target selection (./environment).
 export * from "./environment";
@@ -481,3 +479,13 @@ export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-p
 export * from "./quote";
 export type { SessionSendAction } from "./lib/session-busy-input";
 export * from "./hooks";
+
+export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-context";
+export { SessionContextControl } from "./components/session-context-control";
+export type { SessionContextView } from "./lib/session-context";
+export type { SessionActivityView } from "./components/session-activity-section";
+
+export {
+  useSessionContextActivity,
+  type SessionContextActivitySource,
+} from "./hooks/use-session-context-activity";

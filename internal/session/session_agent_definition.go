@@ -1,6 +1,9 @@
 package session
 
-import compozyconfig "github.com/compozy/compozy/internal/config"
+import (
+	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+)
 
 // AgentDefinition returns the concrete definition snapshot that owns this
 // session. The snapshot is immutable from callers' perspective.
@@ -17,12 +20,13 @@ func (s *Session) AgentDefinition() compozyconfig.AgentDef {
 	return agent
 }
 
-func (s *Session) setAgentDefinition(agent compozyconfig.AgentDef) {
+func (s *Session) setAgentDefinition(agent compozyconfig.AgentDef, manifest acp.StartupManifest) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	s.agentDef = compozyconfig.CloneAgentDef(agent)
+	s.startupManifest = acp.CloneStartupManifest(manifest)
 	s.mu.Unlock()
 }
 
@@ -37,4 +41,10 @@ func (m *Manager) SessionAgentDefinition(id string) (compozyconfig.AgentDef, boo
 	}
 	agent := session.AgentDefinition()
 	return agent, agent.Name != ""
+}
+
+func (s *Session) startupDefinition() (compozyconfig.AgentDef, acp.StartupManifest) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return compozyconfig.CloneAgentDef(s.agentDef), acp.CloneStartupManifest(s.startupManifest)
 }

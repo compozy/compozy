@@ -1430,6 +1430,52 @@ func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
+	t.Run("Should discard invalid observations and emit sanitized Claude metadata", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-usage", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for _, update := range []string{
+			`{"sessionUpdate":"usage_update","used":-5,"size":0}`,
+			`{"sessionUpdate":"usage_update","used":80,"size":100,"_meta":{"_claude/origin":"result","nested":{"claim_token":"secret","note":"compozy_claim_secret"}}}`,
+		} {
+			payload, err := json.Marshal(
+				wireSessionNotification{SessionID: "sess-direct", Update: json.RawMessage(update)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := proc.handleSessionUpdate(payload); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := collectEventsUntilCount(t, active.events, 1)
+		got := events[0]
+		if got.Usage == nil || got.Usage.ContextUsed == nil || *got.Usage.ContextUsed != 80 ||
+			got.Usage.Meta["_claude/origin"] != "result" {
+			t.Fatalf("event = %#v", got)
+		}
+		nested, ok := got.Usage.Meta["nested"].(map[string]any)
+		if !ok || nested["note"] != "compozy_claim_[REDACTED]" {
+			t.Fatalf("meta = %#v", got.Usage.Meta)
+		}
+		if _, ok := nested["claim_token"]; ok {
+			t.Fatal("raw claim key survived")
+		}
+		if strings.Contains(string(got.Raw), "claim_token") ||
+			strings.Contains(string(got.Raw), "compozy_claim_secret") {
+			t.Fatalf("unsafe raw = %s", got.Raw)
+		}
+		select {
+		case extra := <-active.events:
+			t.Fatalf("unexpected invalid observation: %#v", extra)
+		default:
+		}
+	})
+
 	t.Run("Should translate updates and retain the current ACP mode", func(t *testing.T) {
 		t.Parallel()
 

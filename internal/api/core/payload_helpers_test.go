@@ -327,6 +327,34 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 
 func TestCoreConversionHelpers(t *testing.T) {
 	t.Parallel()
+	t.Run("Should carry usage metadata and ledger sequence across response payloads", func(t *testing.T) {
+		t.Parallel()
+		usage := &acp.TokenUsage{TurnID: "turn", Sequence: 19, Meta: map[string]any{"origin": "result"}}
+		shared := TokenUsagePayloadFromUsage(usage)
+		prompt := promptTokenUsagePayloadFromUsage(usage)
+		if shared.Sequence == nil || *shared.Sequence != 19 || shared.Meta["origin"] != "result" ||
+			prompt.Sequence == nil ||
+			*prompt.Sequence != 19 ||
+			prompt.Meta["origin"] != "result" {
+			t.Fatalf("usage payloads = %#v / %#v", shared, prompt)
+		}
+		for _, value := range []any{TokenUsagePayloadFromUsage(&acp.TokenUsage{}), promptTokenUsagePayloadFromUsage(&acp.TokenUsage{})} {
+			raw, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]any
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := fields["meta"]; ok {
+				t.Fatal("unreported metadata must be omitted")
+			}
+			if _, ok := fields["sequence"]; ok {
+				t.Fatal("unknown sequence must be omitted")
+			}
+		}
+	})
 
 	t.Run("Should convert core payload helpers", func(t *testing.T) {
 		t.Parallel()

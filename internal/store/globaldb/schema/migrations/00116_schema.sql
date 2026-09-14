@@ -1,15 +1,22 @@
 -- +goose Up
 -- disable the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = off;
--- create "new_marketplace_catalog_entries" table
-CREATE TABLE `new_marketplace_catalog_entries` (`source` text NOT NULL, `entry_id` text NOT NULL, `name` text NOT NULL, `description` text NOT NULL, `version` text NOT NULL DEFAULT '', `published_at` text NULL, `updated_at` text NULL, `digest_sha256` text NULL, `tier` text NULL, `install_slug` text NULL, `payload_json` text NOT NULL, `fetched_at` text NOT NULL, `layout` text NOT NULL DEFAULT '', `icon` text NOT NULL DEFAULT '', `installable` integer NOT NULL DEFAULT 1, `install_blocker` text NOT NULL DEFAULT '', `resolved_ref` text NOT NULL DEFAULT '', PRIMARY KEY (`source`, `entry_id`), CHECK (trim(source) <> ''), CHECK (trim(entry_id) <> ''), CHECK (trim(name) <> ''), CHECK (json_valid(payload_json)), CHECK (trim(fetched_at) <> ''), CHECK (installable IN (0, 1)));
--- copy rows from old table "marketplace_catalog_entries" to new temporary table "new_marketplace_catalog_entries"
-INSERT INTO `new_marketplace_catalog_entries` (`source`, `entry_id`, `name`, `description`, `version`, `published_at`, `updated_at`, `digest_sha256`, `tier`, `install_slug`, `payload_json`, `fetched_at`, `layout`, `icon`, `installable`, `install_blocker`, `resolved_ref`) SELECT `source`, `entry_id`, `name`, `description`, `version`, `published_at`, `updated_at`, `digest_sha256`, `tier`, `install_slug`, `payload_json`, `fetched_at`, `layout`, `icon`, `installable`, `install_blocker`, `resolved_ref` FROM `marketplace_catalog_entries`;
--- drop "marketplace_catalog_entries" table after copying rows
-DROP TABLE `marketplace_catalog_entries`;
--- rename temporary table "new_marketplace_catalog_entries" to "marketplace_catalog_entries"
-ALTER TABLE `new_marketplace_catalog_entries` RENAME TO `marketplace_catalog_entries`;
--- create index "idx_marketplace_catalog_entries_source_name" to table: "marketplace_catalog_entries"
-CREATE INDEX `idx_marketplace_catalog_entries_source_name` ON `marketplace_catalog_entries` (`source`, `name`, `entry_id`);
+-- create "new_marketplace_catalog_state" table
+CREATE TABLE `new_marketplace_catalog_state` (`source` text NOT NULL, `source_ref` text NOT NULL DEFAULT '', `document_digest` text NOT NULL DEFAULT '', `diagnostics_json` text NOT NULL DEFAULT '[]', `manifest_version` integer NOT NULL, `generated_at` text NULL, `fetched_at` text NOT NULL DEFAULT '', `stale` integer NOT NULL DEFAULT 0, `last_error` text NOT NULL DEFAULT '', `kind_of_source` text NOT NULL DEFAULT 'feed', `enabled` integer NOT NULL DEFAULT 1, `plugins` integer NOT NULL DEFAULT 0, `installable` integer NOT NULL DEFAULT 0, `error_class` text NOT NULL DEFAULT '', `document_path` text NOT NULL DEFAULT '', `owner` text NOT NULL DEFAULT '', `revision` text NOT NULL DEFAULT '', `generation` integer NOT NULL DEFAULT 0, PRIMARY KEY (`source`), CHECK (trim(source) <> ''), CHECK (json_valid(diagnostics_json) AND json_type(diagnostics_json) = 'array'), CHECK (manifest_version >= 0), CHECK (stale IN (0, 1)), CHECK (kind_of_source IN ('feed', 'preset', 'custom')), CHECK (enabled IN (0, 1)), CHECK (plugins >= 0), CHECK (installable >= 0), CHECK (generation >= 0));
+-- copy rows from old table "marketplace_catalog_state" to new temporary table "new_marketplace_catalog_state"
+INSERT INTO `new_marketplace_catalog_state` (`source`, `manifest_version`, `generated_at`, `fetched_at`, `stale`, `last_error`, `kind_of_source`, `enabled`, `plugins`, `installable`, `error_class`, `document_path`, `owner`, `revision`, `generation`) SELECT `source`, `manifest_version`, `generated_at`, `fetched_at`, `stale`, `last_error`, `kind_of_source`, `enabled`, `plugins`, `installable`, `error_class`, `document_path`, `owner`, `revision`, `generation` FROM `marketplace_catalog_state`;
+-- drop "marketplace_catalog_state" table after copying rows
+DROP TABLE `marketplace_catalog_state`;
+-- rename temporary table "new_marketplace_catalog_state" to "marketplace_catalog_state"
+ALTER TABLE `new_marketplace_catalog_state` RENAME TO `marketplace_catalog_state`;
 -- enable back the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = on;
+
+UPDATE marketplace_catalog_state SET source_ref = 'catalog:compozy'
+WHERE source = 'compozy-catalog' AND source_ref = '';
+
+-- Retire the former error-class prefix at the migration boundary.
+UPDATE marketplace_catalog_state
+SET error_class = trim(substr(last_error, 2, instr(last_error, ']') - 2)),
+    last_error = trim(substr(last_error, instr(last_error, ']') + 1))
+WHERE error_class = '' AND substr(last_error, 1, 1) = '[' AND instr(last_error, ']') > 1;

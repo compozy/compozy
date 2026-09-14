@@ -12616,3 +12616,19 @@ func markerLineCount(path string) int {
 	}
 	return count
 }
+
+func (f *fakeSessionManager) UsageEvents(context.Context, string) ([]session.UsageEventEnvelope, error) {
+	return nil, nil
+}
+
+func (f *fakeSessionManager) Deliveries(context.Context, string) ([]session.DeliveryEventEnvelope, error) {
+	return nil, nil
+}
+
+func (f *fakeSessionManager) Compactions(context.Context, string) ([]session.CompactionEnvelope, error) {
+	return nil, nil
+}
+
+func (f *fakeSessionManager) LatestSettledTurn(context.Context, string) (session.SettledTurn, error) {
+	return session.SettledTurn{}, nil
+}

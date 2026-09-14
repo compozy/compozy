@@ -35,6 +35,9 @@
         "text": "allow-always"
     },
     {
+        "type": "prompt_delivery"
+    },
+    {
         "type": "done",
         "stop_reason": "end_turn"
     }

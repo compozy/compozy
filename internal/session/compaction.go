@@ -30,7 +30,7 @@ type sessionCompactionState struct {
 	cooldownUntil time.Time
 }
 
-type compactionFiredPayload struct {
+type CompactionFiredPayload struct {
 	WorkspaceID  string  `json:"workspace_id"`
 	SessionID    string  `json:"session_id"`
 	TurnID       string  `json:"turn_id"`
@@ -160,7 +160,7 @@ func (m *Manager) compactPersistedReplaySpan(ctx context.Context, work compactio
 	}
 	fromSequence, toSequence := span[0].Sequence, span[len(span)-1].Sequence
 	pressure := float64(*work.usage.ContextUsed) / float64(*work.usage.ContextSize)
-	if err := m.recordCompactionFired(ctx, work.session, compactionFiredPayload{
+	if err := m.recordCompactionFired(ctx, work.session, CompactionFiredPayload{
 		WorkspaceID:  info.WorkspaceID,
 		SessionID:    info.ID,
 		TurnID:       strings.TrimSpace(work.usage.TurnID),
@@ -314,7 +314,7 @@ func archiveCompactionSpan(
 func (m *Manager) recordCompactionFired(
 	ctx context.Context,
 	session *Session,
-	payload compactionFiredPayload,
+	payload CompactionFiredPayload,
 ) error {
 	raw, err := json.Marshal(payload)
 	if err != nil {

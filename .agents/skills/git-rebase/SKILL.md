@@ -20,5 +20,3 @@ Carry out the requested rebase while preserving both sides' intended behavior an
 7. Publish only when already authorized. Use `--force-with-lease` for a rewritten remote branch, and follow the project's current-head CI policy. If the lease fails, inspect the new remote commits; do not replace it with unconditional force.
 
 Use `references/resolution-patterns.md` for semantic conflicts and `references/troubleshooting.md` for diagnosed operational failures. Helpers live under this skill's actual `scripts/` path; `analyze-conflicts.sh`/`validate-merge.sh` are optional aids after checking their repository assumptions. They do not replace the owning tests or gate. Recovery that discards work still needs the repository's explicit permission; a backup ref is evidence, not permission to reset.
-
-For CompozyOS, use `make gate` before an authorized push and require green CI for the PR's current head before declaring delivery.

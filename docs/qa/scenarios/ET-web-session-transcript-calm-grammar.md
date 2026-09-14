@@ -92,3 +92,11 @@ constraints. Full message bodies and intentionally expanded content remain reada
 Verification record: [issue #598 report](../reports/2026-09-10-session-summary-truncation.md).
 Post-merge action naming, clipboard coverage, and final CI evidence:
 [main remediation](../reports/2026-09-10-merged-pr-ci-review-remediation.md).
+
+
+PR #635 review follow-up: an `error` event carrying only nonblank `text` must render the session
+failure alert and preserve that original detail. An empty error stays hidden; an explicitly attributed
+timeout/cancel stop stays non-failing unless it carries an independent failure/provider diagnostic.
+The session library suite owns classification; the component suite owns alert/detail rendering.
+Both cases failed before the production fix and passed afterwards. The existing daemon-served
+session E2E owns the surrounding transcript integration; this is not a new live-provider failure trial.

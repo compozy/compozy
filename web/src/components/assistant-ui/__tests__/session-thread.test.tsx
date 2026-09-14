@@ -417,6 +417,7 @@ interface ThreadStateOptions {
   readOnly?: boolean;
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
+  contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
 }
 
 function threadStateElement(
@@ -438,6 +439,7 @@ function threadStateElement(
     readOnly = false,
     transport,
     liveDataEnabled = true,
+    contextControl,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -496,6 +498,7 @@ function threadStateElement(
             failure={failure}
             readOnly={readOnly}
             liveDataEnabled={liveDataEnabled}
+            contextControl={contextControl}
           />
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
@@ -515,6 +518,20 @@ function renderThreadState(options: ThreadStateOptions) {
 }
 
 describe("SessionThread transcript states", () => {
+  // Invariant: a supplied context action reaches the composer in its host thread; owner: thread/composer composition.
+  it("Should keep the context action in the composer for an inactive session", () => {
+    renderThreadState({
+      status: "success",
+      sessionState: "stopped",
+      contextControl: <button type="button">Inspect context</button>,
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Inspect context" })
+        .closest('[data-testid="composer-shell"]')
+    ).not.toBeNull();
+  });
+
   it("Should preview non-JSON values without returning undefined", () => {
     const value = () => "result";
     expect(formatDataPreview(value)).toBe(String(value));

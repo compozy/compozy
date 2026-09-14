@@ -157,7 +157,14 @@ def main() -> int:
         manifest = read_json(out / "manifest.json")
         ledger = read_json(out / "findings.json")
         rules_by_id = {rule["id"]: rule for rule in read_json(out / "rules.json")["rules"]}
-        walkthrough = (out / "walkthrough.md").read_text(encoding="utf-8")
+        walkthrough_path = out / "walkthrough.md"
+        if (out / "review-context.json").exists() and (
+            not walkthrough_path.exists()
+            or "<!-- deep-review:generated -->" in walkthrough_path.read_text(encoding="utf-8")
+        ):
+            from prepare_review import render_walkthrough
+            render_walkthrough(repo, out)
+        walkthrough = walkthrough_path.read_text(encoding="utf-8")
         missing = [s for s in WALKTHROUGH_SECTIONS if s not in walkthrough]
         if missing:
             raise RuntimeError(f"walkthrough.md lacks contract sections: {missing}")

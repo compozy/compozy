@@ -167,7 +167,7 @@ func (m *Manager) replacePromptRuntime(
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
-	session.setAgentDefinition(runtime.agentDef)
+	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
@@ -289,7 +289,8 @@ func (m *Manager) preparePromptRuntimePlan(
 	if err != nil {
 		return nil, err
 	}
-	existingDefinition := session.AgentDefinition()
+	existingDefinition, manifest := session.startupDefinition()
+	runtime.startupManifest = manifest
 	runtime.agentDef.Prompt = existingDefinition.Prompt
 	runtime.agent.Prompt = existingDefinition.Prompt
 

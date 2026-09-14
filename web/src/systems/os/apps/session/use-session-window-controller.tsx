@@ -8,7 +8,6 @@ import { useSelector } from "@xstate/store-react";
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
   getSessionPromptRuntimeSnapshot,
-  type InspectorMemoryState,
   type InspectorUsage,
   isSessionTransportDisconnected,
   SessionGoalHeadAction,
@@ -17,22 +16,23 @@ import {
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
-  useSessionLedger,
   useSessionPromptRuntimeContext,
   useSessionTopbarSlot,
   useSessionTransportState,
   useSessionWorktreeBinding,
-  useSessionUsage,
+  useSessionContext,
+  useSessionUsageTurns,
 } from "@/systems/session";
-import { useSessionVaultSecrets } from "@/systems/vault";
 import type { WorktreePayload } from "@/systems/workspace";
 
 function toInspectorUsage(
-  usage: ReturnType<typeof useSessionUsage>["data"]
+  usage: ReturnType<typeof useSessionContext>["usage"]
 ): InspectorUsage | null {
   return usage
     ? {
         tokensIn: usage.input_tokens ?? undefined,
+        cacheReadTokens: usage.cache_read_tokens ?? undefined,
+        cacheWriteTokens: usage.cache_write_tokens ?? undefined,
         tokensOut: usage.output_tokens ?? undefined,
         totalTokens: usage.total_tokens ?? undefined,
         costUsd: usage.total_cost ?? undefined,
@@ -77,22 +77,15 @@ export function useSessionWindowController(input: {
     workspaceId: session.workspace_id,
   });
   const inspector = useSessionInspectorState(sessionId);
-  const inspectorEnabled = inspector.open && liveDataEnabled;
-  const sessionVault = useSessionVaultSecrets(sessionId, { enabled: inspectorEnabled });
-  const sessionLedger = useSessionLedger(sessionId, session.workspace_id, {
-    enabled: inspectorEnabled && session.state === "stopped",
+  const usageEnabled = liveDataEnabled || inspector.open;
+  const sessionContext = useSessionContext(sessionId, workspaceId, session.state, {
+    enabled: usageEnabled,
   });
-  const inspectorMemory: InspectorMemoryState = {
-    ledger: sessionLedger.data ?? null,
-    isLoading: sessionLedger.isLoading,
-    availability: sessionLedger.availability,
-    error: sessionLedger.availability ? null : sessionLedger.error,
-  };
-  const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state, {
-    enabled: inspectorEnabled,
+  const sessionUsageTurns = useSessionUsageTurns(sessionId, workspaceId, session.state, {
+    enabled: usageEnabled,
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
-  const inspectorUsage = toInspectorUsage(sessionUsage.data);
+  const inspectorUsage = toInspectorUsage(sessionContext.usage);
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const renameDialog = useSessionRenameDialog(controls.handleRename);
   const clearDialog = useSessionClearDialog(controls.handleClear);
@@ -169,9 +162,9 @@ export function useSessionWindowController(input: {
     controls,
     inspector,
     sidebar,
-    inspectorMemory,
+    sessionContext,
+    sessionUsageTurns,
     inspectorUsage,
-    sessionVault,
     deleteDialog,
     renameDialog,
     clearDialog,
@@ -182,5 +175,6 @@ export function useSessionWindowController(input: {
     },
     worktreeBinding,
     promptRuntimeSnapshot,
+    activityGoal: goal.snapshot,
   };
 }

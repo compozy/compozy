@@ -471,7 +471,8 @@ func TestDriverReturnsScriptedPromptUsage(t *testing.T) {
 		fixture := []byte(
 			`{"version":2,"agents":[{"name":"usage-agent","provider":"claude","turns":[{` +
 				`"match":{"turn_source":"user","user_text":"measure"},` +
-				`"usage":{"input_tokens":13,"output_tokens":5},` +
+				`"usage":{"input_tokens":13,"output_tokens":5,"cache_read_tokens":4,"cache_write_tokens":5},` +
+				`"usage_updates":[{"used":-5,"size":0},{"used":80,"size":100,"meta":{"_claude/origin":"result","nested":{"claim_token":"secret","note":"compozy_claim_secret"}}}],` +
 				`"steps":[{"kind":"assistant","text":"measured"}]}]}]}`,
 		)
 		if err := os.WriteFile(fixturePath, fixture, 0o600); err != nil {
@@ -497,6 +498,15 @@ func TestDriverReturnsScriptedPromptUsage(t *testing.T) {
 			t.Fatalf("driver.Prompt() error = %v", err)
 		}
 		collected := collectPromptEvents(t, events, nil)
+		observations := 0
+		for _, event := range collected {
+			if event.Type == acp.EventTypeUsage {
+				observations++
+			}
+		}
+		if observations != 1 {
+			t.Fatalf("usage observations = %d, want only the valid report", observations)
+		}
 		for _, event := range collected {
 			if event.Type != acp.EventTypeDone {
 				continue
@@ -505,6 +515,21 @@ func TestDriverReturnsScriptedPromptUsage(t *testing.T) {
 				event.Usage.TotalTokens == nil || *event.Usage.InputTokens != 13 ||
 				*event.Usage.OutputTokens != 5 || *event.Usage.TotalTokens != 18 {
 				t.Fatalf("done usage = %#v, want input=13 output=5 total=18", event.Usage)
+			}
+			usage := event.Usage
+			if usage.CacheReadTokens == nil || *usage.CacheReadTokens != 4 || usage.CacheWriteTokens == nil ||
+				*usage.CacheWriteTokens != 5 ||
+				usage.ContextUsed == nil ||
+				*usage.ContextUsed != 80 ||
+				usage.Meta["_claude/origin"] != "result" {
+				t.Fatalf("adapter usage = %#v", usage)
+			}
+			nested := usage.Meta["nested"].(map[string]any)
+			if _, ok := nested["claim_token"]; ok {
+				t.Fatal("claim key reached the prompt stream")
+			}
+			if nested["note"] != "compozy_claim_[REDACTED]" {
+				t.Fatalf("metadata = %#v", nested)
 			}
 			return
 		}

@@ -98,7 +98,7 @@ describe("useSessionTopbarSlot", () => {
       );
 
       expect(screen.getByRole("button", { name: "Open sessions sidebar" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Open session inspector" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
     }
@@ -113,7 +113,7 @@ describe("useSessionTopbarSlot", () => {
     const toggle = screen.getByTestId("session-inspector-toggle");
     const overflow = screen.getByTestId("session-topbar-overflow");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(toggle).toHaveAttribute("aria-label", "Close session inspector");
+    expect(toggle).toHaveAttribute("aria-label", "Close context sidebar");
     expect(
       toggle.compareDocumentPosition(overflow) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
@@ -173,7 +173,7 @@ describe("useSessionTopbarSlot", () => {
 
     expect(screen.getByRole("button", { name: "Attach session" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open session inspector" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "More actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);

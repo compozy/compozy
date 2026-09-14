@@ -2,26 +2,26 @@
 
 ### Breaking & migrations
 
-The Marketplace catalog moves to one extension catalog. Global migration `00110`
+The Marketplace catalog moves to one extension catalog. Global migration `00111`
 preserves existing extension catalog rows under `compozy-catalog` and removes
 only the cached MCP and skill listings (ADR-001). Installed extensions, manual
 MCP server configuration, and installed skill files remain intact. Provenance
 receives `catalog:compozy` origin only when an existing marketplace installation
 records a non-empty catalog entry ID; other installations stay unclassified.
 The migration also creates storage for scoped extension inputs and MCP overrides.
-Migration `00111` adds input identity and activity to extension secret bindings.
+Migration `00112` adds input identity and activity to extension secret bindings.
 Existing bindings remain active with their references, scopes, timestamps, and
 header mappings preserved. Removing an input from a manifest deactivates its
 stored value; reintroducing the input can reactivate that value.
-Migration `00112` includes the credential owner in both MCP OAuth token and
+Migration `00113` includes the credential owner in both MCP OAuth token and
 client-registration keys. Existing rows become `manual`; their token references,
 registration metadata, and encrypted vault values remain unchanged. Extension
 credentials use a separate `vault:mcp/ext/<extension>/` namespace.
-Migration `00113` separates stored extension packages from their profile/workspace
+Migration `00114` separates stored extension packages from their profile/workspace
 installation attachments. Existing packages receive one global, all-profiles
 attachment with their original installation timestamp; enablement exceptions,
 package files, provenance, and credentials are preserved.
-Migration `00114` removes the fixed extension discriminator from catalog rows;
+Migration `00115` removes the fixed extension discriminator from catalog rows;
 source/entry identity and all catalog content and installed extension state are preserved.
 
 The Marketplace switches directly to the extension catalog contract. Retired kind routes,

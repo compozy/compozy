@@ -58,18 +58,27 @@ type SessionConfigOptionValueFixture struct {
 
 // TurnFixture describes one deterministic prompt turn for an agent.
 type TurnFixture struct {
-	Name       string     `json:"name,omitempty"`
-	Match      TurnMatch  `json:"match"`
-	Steps      []Step     `json:"steps"`
-	StopReason string     `json:"stop_reason,omitempty"`
-	Usage      *TurnUsage `json:"usage,omitempty"`
+	UsageUpdates []UsageUpdate `json:"usage_updates,omitempty"`
+	Name         string        `json:"name,omitempty"`
+	Match        TurnMatch     `json:"match"`
+	Steps        []Step        `json:"steps"`
+	StopReason   string        `json:"stop_reason,omitempty"`
+	Usage        *TurnUsage    `json:"usage,omitempty"`
 }
 
 // TurnUsage scripts deterministic aggregate token usage for one ACP prompt response.
+type UsageUpdate struct {
+	Used int            `json:"used"`
+	Size int            `json:"size"`
+	Meta map[string]any `json:"meta,omitempty"`
+}
+
 type TurnUsage struct {
-	InputTokens  int  `json:"input_tokens"`
-	OutputTokens int  `json:"output_tokens"`
-	TotalTokens  *int `json:"total_tokens,omitempty"`
+	CacheReadTokens  *int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int `json:"cache_write_tokens,omitempty"`
+	InputTokens      int  `json:"input_tokens"`
+	OutputTokens     int  `json:"output_tokens"`
+	TotalTokens      *int `json:"total_tokens,omitempty"`
 }
 
 // TurnMatch routes a prompt to a turn fixture using stable prompt fields.

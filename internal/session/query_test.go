@@ -1595,6 +1595,123 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should read complete usage deliveries and compaction spans on active and stopped sessions",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			ctx := testutil.Context(t)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+			input := []acp.AgentEvent{
+				acp.AgentEvent{
+					Type:      acp.EventTypePromptDelivery,
+					TurnID:    "A",
+					Timestamp: at,
+				}.WithDelivery(&acp.DeliveryManifest{
+					TurnID:   "A",
+					SentAt:   at.Add(-time.Second),
+					Estimate: acp.TextEstimateMethod,
+					Spans:    []acp.DeliveredSpan{{Key: "skills", Kind: "text", Bytes: 80, Tokens: new(int64(20))}},
+				}),
+				{
+					Type:      acp.EventTypeUsage,
+					TurnID:    "A",
+					Timestamp: at,
+					Usage: &acp.TokenUsage{
+						TurnID:      "A",
+						ContextUsed: new(int64(80)),
+						ContextSize: new(int64(100)),
+						Timestamp:   at,
+					},
+				},
+				{
+					Type:      acp.EventTypeDone,
+					TurnID:    "A",
+					Timestamp: at.Add(-time.Hour),
+					Usage:     &acp.TokenUsage{TurnID: "A", InputTokens: new(int64(10)), Timestamp: at},
+				},
+			}
+			for _, event := range input {
+				if err := h.manager.recordEvent(ctx, sess, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rows, err := h.manager.Events(ctx, sess.ID, store.EventQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			from, to := rows[0].Sequence, rows[len(rows)-1].Sequence
+			if err := h.manager.recordCompactionFired(
+				ctx,
+				sess,
+				CompactionFiredPayload{
+					TurnID:       "B",
+					FromSequence: from,
+					ToSequence:   to,
+					ContextUsed:  85,
+					ContextSize:  100,
+					Pressure:     0.85,
+					Strategy:     "summary_archive",
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			markers, err := h.manager.Compactions(ctx, sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(markers) != 1 || markers[0].SpanArchived {
+				t.Fatalf("unarchived marker=%#v", markers)
+			}
+			if err := archiveCompactionSpan(ctx, sess, from, to, len(rows)); err != nil {
+				t.Fatal(err)
+			}
+			assertRead := func() {
+				t.Helper()
+				usage, err := h.manager.UsageEvents(ctx, sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(usage) != 2 || usage[0].Sequence >= usage[1].Sequence || usage[0].Usage.ContextUsed == nil ||
+					usage[1].Usage.InputTokens == nil {
+					t.Fatalf("usage ledger=%#v", usage)
+				}
+				deliveries, err := h.manager.Deliveries(ctx, sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(deliveries) != 1 || deliveries[0].Manifest.Estimate != acp.TextEstimateMethod ||
+					deliveries[0].Manifest.Spans[0].Tokens == nil ||
+					*deliveries[0].Manifest.Spans[0].Tokens != 20 {
+					t.Fatalf("deliveries=%#v", deliveries)
+				}
+				settled, err := h.manager.LatestSettledTurn(ctx, sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if settled.TurnID != "A" || settled.Sequence != usage[1].Sequence {
+					t.Fatalf("settled=%#v", settled)
+				}
+				markers, err := h.manager.Compactions(ctx, sess.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(markers) != 1 || !markers[0].SpanArchived {
+					t.Fatalf("archived marker=%#v", markers)
+				}
+			}
+			assertRead()
+			if err := h.manager.Stop(ctx, sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertRead()
+			if _, err := h.manager.UsageEvents(ctx, "missing-session"); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("unknown session error=%v", err)
+			}
+		},
+	)
 
 	h := newHarness(t)
 	session := createSession(t, h)

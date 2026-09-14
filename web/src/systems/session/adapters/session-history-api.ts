@@ -6,6 +6,7 @@ import type {
   SessionLedgerResponse,
   SessionRecapPayload,
   SessionUsagePayload,
+  SessionUsageTurnsResponse,
   TurnHistoryPayload,
 } from "../types";
 import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
@@ -131,4 +132,21 @@ export async function fetchSessionLedger(
     throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session ledger "${id}"`);
+}
+
+export async function fetchSessionUsageTurns(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionUsageTurnsResponse> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error))
+    throwSessionRequestError(response, error, `Failed to fetch session usage turns "${id}"`, id);
+  return requireResponseData(data, response, `Failed to fetch session usage turns "${id}"`);
 }

@@ -66,6 +66,7 @@ type SessionCommandsChangedPayload struct {
 
 // SessionStreamPayload documents the possible SSE frame payloads.
 type SessionStreamPayload struct {
+	UsageChanged        *SessionUsageChangedPayload     `json:"session_usage_changed,omitempty"`
 	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitempty"`
 	Raw                 *SessionEventPayload            `json:"raw,omitempty"`
 	TranscriptSnapshot  *TranscriptSnapshotPayload      `json:"transcript_snapshot,omitempty"`

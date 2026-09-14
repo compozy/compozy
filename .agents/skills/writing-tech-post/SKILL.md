@@ -1,6 +1,6 @@
 ---
 name: writing-tech-post
-description: Writes and edits engineering posts, including launches, incidents, migrations, performance, tutorials, AI systems, and security. Use when drafting, restructuring, choosing evidence, or reviewing an engineering post for publication. Do not use for API references, marketing pages, release notes, or internal specifications.
+description: "Write or edit engineering posts with supported claims. Use for drafts, rewrites, and publication reviews; excludes marketing pages, API references, release notes, and internal specs."
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck

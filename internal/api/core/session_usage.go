@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/compozy/compozy/internal/session/contextusage"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -17,7 +19,7 @@ import (
 // metric surface. A session that never reported usage yields an empty summary
 // (turn_count 0, absent token/cost fields) rather than a fabricated zero grid.
 func (h *BaseHandlers) SessionUsage(c *gin.Context) {
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
@@ -33,7 +35,14 @@ func (h *BaseHandlers) SessionUsage(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SessionUsageResponse{Usage: aggregateSessionUsage(stats)})
+	payload := aggregateSessionUsage(stats)
+	input, err := h.sessionContextInput(c.Request.Context(), sessionID, info)
+	if err != nil {
+		h.sessionStreamLogger().
+			WarnContext(c.Request.Context(), "api: session context unavailable", "session_id", sessionID, "error", err)
+	}
+	payload.Context = contextUsagePayload(contextusage.Derive(input))
+	c.JSON(http.StatusOK, contract.SessionUsageResponse{Usage: payload})
 }
 
 // aggregateSessionUsage folds every per-agent token-stats row for one session into
@@ -41,9 +50,13 @@ func (h *BaseHandlers) SessionUsage(c *gin.Context) {
 // stats table is keyed by (session_id, agent_name), so multiple rows are summed
 // defensively. Token/cost fields stay absent unless at least one row reported them.
 func aggregateSessionUsage(stats []store.TokenStats) contract.SessionUsagePayload {
-	payload := contract.SessionUsagePayload{}
+	payload := contract.SessionUsagePayload{
+		Context: contract.SessionContextPayload{State: contract.SessionContextStateUnknown},
+	}
 	for i := range stats {
 		stat := stats[i]
+		payload.CacheReadTokens = addOptionalInt64(payload.CacheReadTokens, stat.CacheReadTokens)
+		payload.CacheWriteTokens = addOptionalInt64(payload.CacheWriteTokens, stat.CacheWriteTokens)
 		payload.InputTokens = addOptionalInt64(payload.InputTokens, stat.InputTokens)
 		payload.OutputTokens = addOptionalInt64(payload.OutputTokens, stat.OutputTokens)
 		payload.TotalTokens = addOptionalInt64(payload.TotalTokens, stat.TotalTokens)

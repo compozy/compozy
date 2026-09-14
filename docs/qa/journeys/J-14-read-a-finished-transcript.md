@@ -1,6 +1,6 @@
 # J-14 — Read a finished transcript
 
-Audit exactly what the agent did, tool call by tool call (`_qa.md` §3 J-D). A reviewer opens a finished session and works the transcript UI language rewrite (tasks 25–33, 36–37): grouped tool rows, inline structured Input/Output for any tool kind, turn folds, hover copy, a truthful usage surface, and gap-free paging on long sessions. The bugs live in the old 44px card bulk, hidden output, missing grouping, and a fake-empty Usage tab.
+Audit exactly what the agent did, tool call by tool call (`_qa.md` §3 J-D). A reviewer opens a finished session and works the transcript UI language rewrite (tasks 25–33, 36–37): grouped tool rows, inline structured Input/Output for any tool kind, turn folds, hover copy, a truthful usage surface, and gap-free paging on long sessions. The bugs live in the old 44px card bulk, hidden output, missing grouping, and misleading context or usage.
 
 ```mermaid
 flowchart TD
@@ -9,9 +9,15 @@ flowchart TD
     G --> IO[Expand a tool row: Input JSON + per-tool Output, text selectable]
     T --> FLD[Expand turn folds: full chronological work]
     T --> CP[Hover copy on messages — markdown source]
-    T --> US{Usage tab}
-    US -->|wired| USD[Real token / cost data]
-    US -->|removed| USN[No Usage tab at all]
+    T --> US[Open Context from composer or topbar]
+    US --> CT{Context report available?}
+    CT -->|reported or catalog| USD[Read context, source, freshness and eligible threshold]
+    CT -->|unknown| UNK[Keep unknown distinct from zero; inspect confirmed injected rows]
+    CT -->|unavailable| UNA[Retain last values and name unavailable state]
+    USD --> REC[Compare tokens, costs and per-turn receipts with CLI/API]
+    UNK --> REC
+    UNA --> REC
+    REC --> TE
     T -->|empty session| EMP[True ThreadEmpty — only success + 0 messages]
     T -->|very long| PG[Older pages load on scroll, gap-free via before_sequence]
     T --> FIND[Find text across all persisted history]
@@ -48,7 +54,7 @@ journey:
       expected_observable: "The cluster expands to the full chronological work; a tool row expands inline to structured Input JSON + per-tool Output (selectable text) for any tool kind; settled turns fold behind 'Worked for Xs'"
     - step: 3
       verb: "Copy a message and check the Usage surface"
-      expected_observable: "Hover reveals only the relevant copy+timestamp toolbar, with no Goal shortcut; copy uses the markdown source. The inspector Usage tab shows real token/cost data — or does not exist at all (no permanently-empty metric surface)"
+      expected_observable: "Hover reveals only the relevant copy+timestamp toolbar, with no Goal shortcut; copy uses the markdown source. The tab-less Context sidebar shows reported/unknown/unavailable context, confirmed Compozy estimates, token/cache/cost totals and per-turn receipts with their provenance"
     - step: 4
       verb: "Scroll up in a very long session (and clear it)"
       expected_observable: "Older pages load gap-free on scroll via `before_sequence`; clearing removes the messages AND keeps them removed after reload; a truly-empty session shows a true ThreadEmpty (success + 0)"
@@ -58,7 +64,7 @@ journey:
   goal:
     observable: "The full audit trail is readable; every tool call is inspectable inline; usage is truthful; status glyphs match reality (no false success/danger)"
     side_effects: [transcript-paged, clear-persisted]
-  true_end_state: "Reload the finished session: the same grouped view renders warm; expanded inspection round-trips; the Usage tab is either real or absent; a cleared session stays empty after reload."
+  true_end_state: "Reload the finished session: the same grouped view renders warm; expanded inspection round-trips; the Context sidebar agrees with fresh usage/turns reads; a cleared session stays empty after reload."
   exit:
     natural: "Reviewer has audited the transcript and leaves, or copies evidence out."
   abandonment:
@@ -83,7 +89,7 @@ design_reference:
     - "Tool call = one ~24–28px line, never a 44px filled card; consecutive calls fold with '+N previous tool calls' (tasks 25/26)."
     - "Any tool kind's Input + Output is inspectable inline (structured, not a lossy blob) (task 27)."
     - "`ThreadEmpty` renders only for a truly-empty session (success + 0), never during load/error (task 03)."
-    - "Usage tab shows real data or is removed — no fake/permanently-empty metric surface (task 37)."
+    - "Context separates agent reports from Compozy estimates, preserves unavailable values, and never fabricates unknown counts."
     - "Status glyphs match reality; no premature/false success or danger; changed-files roll-up display-only (tasks 33/36)."
 
 e2e_backbone:

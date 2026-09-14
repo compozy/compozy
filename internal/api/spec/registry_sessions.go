@@ -30,6 +30,7 @@ func registrySessionOperations() []OperationSpec {
 		cancelQueuedSessionPromptOperationSpec(),
 		getSessionRecapOperationSpec(),
 		getSessionUsageOperationSpec(),
+		getSessionUsageTurnsOperationSpec(),
 		repairSessionOperationSpec(),
 		listSessionEventsOperationSpec(),
 		getSessionHistoryOperationSpec(),
@@ -379,6 +380,25 @@ func getSessionUsageOperationSpec() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionUsageResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+func getSessionUsageTurnsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+		OperationID: "getSessionUsageTurns",
+		Summary:     "Get per-turn session usage and replay compaction spans",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionUsageTurnsResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

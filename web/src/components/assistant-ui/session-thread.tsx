@@ -129,6 +129,7 @@ export function SessionThread({
   liveDataEnabled = true,
   runtimeControl,
   environmentControl,
+  contextControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
@@ -240,6 +241,7 @@ export function SessionThread({
                       inactivePlaceholder={inactivePlaceholder(sessionState, thread.startupFailed)}
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
+                      contextControl={contextControl}
                       commandCatalog={commandCatalog}
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}

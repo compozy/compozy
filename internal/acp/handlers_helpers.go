@@ -23,8 +23,8 @@ func tokenUsageFromPromptResponse(turnID string, usage *wireUsage) TokenUsage {
 		OutputTokens:     usage.OutputTokens,
 		TotalTokens:      usage.TotalTokens,
 		ThoughtTokens:    usage.ThoughtTokens,
-		CacheReadTokens:  usage.CacheReadTokens,
-		CacheWriteTokens: usage.CacheWriteTokens,
+		CacheReadTokens:  chooseInt64(usage.CachedReadTokens, usage.LegacyCacheReadTokens),
+		CacheWriteTokens: chooseInt64(usage.CachedWriteTokens, usage.LegacyCacheWriteTokens),
 		Timestamp:        timeNowUTC(),
 	}
 }
@@ -38,6 +38,7 @@ func tokenUsageFromUsageUpdate(turnID string, update wireUsageUpdate) TokenUsage
 	}
 	return TokenUsage{
 		TurnID:       turnID,
+		Meta:         decodeUsageMeta(update.Meta),
 		ContextUsed:  update.Used,
 		ContextSize:  update.Size,
 		CostAmount:   amount,

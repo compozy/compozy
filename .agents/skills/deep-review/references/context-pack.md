@@ -1,88 +1,57 @@
-# Context Pack
+# Context and decisions
 
-How to assemble `<out>/context-pack.md` — the shared context every reviewer and sweep receives. **Keep it lean: target ≤ ~10 KB.** Every agent in the fan-out reads it in full, so each extra kilobyte is paid once per agent; reviewers dig into the code themselves (rg, git, file reads), so the pack carries only what they cannot cheaply rediscover — intent, review law, and what the linters already caught.
+Normal preparation reads the generated `knowledge.md` queue. This reference defines the small semantic input to `prepare_review.py`; scripts own the expanded registry, context and plan.
 
-## 1. Repository knowledge — discover before extracting
+## Discovery
 
-Run the read-only discovery/bootstrap helper after the manifest:
+Instruction discovery checks root and ancestors of selected paths, including AGENTS.md and CLAUDE.md aliases. One canonical source retains its lexical aliases, scope and precedence. Local skill roots are catalogued by metadata, including linked installations; arbitrary words in lockfiles do not make a skill applicable.
 
-```bash
-python3 <skill-dir>/scripts/build_knowledge.py --out <out>
-```
+`knowledge.json` stores canonical source IDs, content/scope fingerprints and shared path sets. `knowledge.md` presents metadata and pending decisions. References are discovered only after the parent router is applied. Shared reference bindings survive exclusion of one parent; all parents must be explicitly excluded before automatic not-applicable accounting. A missing referenced file named by an applied router is a diagnostic, never silently dropped.
 
-It discovers every repository-local root/nested `AGENTS.md` and `CLAUDE.md`, repo review config/learnings, project `SKILL.md` under conventional local skill roots, and direct markdown references of candidate skills. Nested instructions apply to selected paths in their directory subtree; all ancestors remain applicable and deeper sources have higher precedence.
+## Decision file
 
-`knowledge.json` records why every source is or is not a candidate. `rules.template.json` starts every candidate as `pending`. Read each pending source **in full**; for a selected skill, read each pending direct reference in full too. Copy the template to `rules.json` and change every pending row to:
+Copy `decisions.template.json` to `decisions.json`, edit semantic fields and pass it to preparation. Preserve `scope_fingerprint`, `source_fingerprints` and row fingerprints: these bind decisions to the current selection and source bytes. Refreshed templates carry newly discovered reference fingerprints, prior decisions and additional fields. Copy the updated template for the next stage and edit pending entries; do not rewrite boilerplate or invent fingerprints.
 
-- `applied` — the source was read and governs at least one selected path; or
-- `not-applicable` — include a concrete reason why it does not govern this change.
+Each source has `source` (canonical path or compact source ID), `status` (`pending`, `applied`, `not-applicable`) and `reason`. Applied means the relevant material was read; name the sections if only part applies. An exclusion needs a concrete scope/routing reason and does not require reading an irrelevant body.
 
-`build_jobs.py` rejects missing sources, pending statuses, empty reasons, rule sources not marked applied, and rule scopes that match no selected path.
+For batch exclusions, `groups` accepts `{ "sources": ["s...", "s..."], "status": "not-applicable", "reason": "..." }`. This resolves those pending template rows. Complete conflicting decisions are rejected. The compiled template expands groups so subsequent stages need no repeated group editing.
 
-## 2. Rubric — extract the review law
+Additional fields:
 
-Extract verdict-bearing rules in precedence order (higher wins on conflict):
+| Field | Contract |
+| --- | --- |
+| `intent` | Stated change intent: user request, PR description or commit digest; concise prose |
+| `rules` | Exact source-backed rules, described below |
+| `linters` | Detected/relevant lane results: `name`, `command`, `status` (`ran`, `reused`, `unavailable`), `result`, optional `scope` globs; ran/reused require matching `input_snapshot` |
+| `sweeps` | Default empty; objects with `key`, concrete cross-cohort `hypothesis`, optional custom `lens` |
+| `spec_artifacts` | Additional canonical `{path, role}` entries, including dependencies named by the requested spec |
+| `mode` | Recorded engine, e.g. `agent-fallback`, `workflow`, `subagent:codex` |
+| `plan` | Optional complete semantic override of generated cohorts; ordinary runs omit it |
 
-1. Path instructions from repo review config.
-2. Nested `AGENTS.md` / `CLAUDE.md`, deepest applicable directory first.
-3. Root `AGENTS.md` / `CLAUDE.md`.
-4. Explicitly dispatched or change-relevant project skills and their required references.
-5. `.deep-review/learnings.md` entries whose scope matches selected files.
+Preparation suggests repository-owned Makefile/package linter lanes. Also record relevant lanes identified from project instructions or other tool configurations. Respect repository policy; reuse only evidence for the same inputs. Failed/missing tools may be `unavailable` with a reason; never install them merely to populate a lane.
 
-Extract only rules that can bind a review result (error handling, testing shape, layering, security, naming, documentation, design tokens, framework patterns). Operational commands can leave an applied source with zero rules when the accounting reason says it was read but contains no review law. Register each rule once and keep its text verbatim:
+## Rules
+
+Extract only verdict-bearing rules. Operational directions can leave an applied source with zero rules when its reason explains why. Rule precedence: path instructions in review config; deepest applicable instructions; root instructions; relevant skills; scoped learnings.
+
+A rule uses `id`, `source`, `scope` globs and either exact `guideline` text or one-based inclusive `start_line`/`end_line`. The compiler copies spans verbatim and rejects text not found in the applied source, invalid spans, unbound scopes and stale evidence.
 
 ```json
-{ "sources": [
-    { "source": "AGENTS.md", "kind": "instruction", "status": "applied",
-      "reason": "root rules govern every selected path" }
-  ],
-  "rules": [
-    { "id": "R07", "scope": ["**/*_test.go"], "source": "AGENTS.md",
-      "guideline": "MUST use t.Run(\"Should...\") pattern for ALL test cases" }
-  ]
+{
+  "id": "R01",
+  "source": "s<id from template>",
+  "scope": ["internal/store/**"],
+  "start_line": 12,
+  "end_line": 14,
+  "lanes": ["defect"],
+  "sweeps": ["migrations"]
 }
 ```
 
-`scope` is the path-instruction glob, the instruction file's directory subtree, the selected skill's routed paths, or the learning's scope. To preserve the fan-out budget, the pack lists applied sources/rule counts plus one aggregate not-applicable count; complete per-source decisions stay in rules.json. `build_jobs.py` injects bound rules into defect cohorts, polish cohorts, and sweeps.
+`lanes` binds defect and/or polish assessments; omitted means both for existing registries. Every rule keeps at least one local lane owner. Use defect for correctness/security/contracts/test efficacy, polish for maintainability/naming/idioms, both when the obligation spans both. `sweeps` names the lenses needing that rule; omitted means no extra global compliance repetition. Sweep investigation still judges general correctness through its lens.
 
-## 3. Linter lanes — run first, suppress overlaps
+## Generated artifacts
 
-Detect what the repo already enforces and run it scoped to selected files; findings a lane reports are suppressed from the review (taxonomy rule 1).
+`prepare_review.py` assembles `rules.json`, `review-context.json`, `context-pack.md` and a default package-oriented plan. Reviewers receive only their applicable rules and linter context in their per-job contract. Complete source accounting stays on disk. The global gate rechecks source fingerprints, including externally symlinked skill files.
 
-| Signal in repo | Lane command (scope to changed files where supported) |
-| --- | --- |
-| `Makefile` with `lint`/`check` target | `make lint` (authoritative when present — prefer it over raw tools) |
-| `golangci-lint` config / Go modules | `golangci-lint run <changed dirs>` |
-| `package.json` scripts `lint`/`typecheck` | the repo's own script via its package manager |
-| eslint/biome/oxlint config | corresponding tool on changed files |
-| `tsconfig.json` | `tsc --noEmit` (project-wide; cheap signal) |
-| `ruff.toml` / pyproject | `ruff check <files>` |
-| `Cargo.toml` | `cargo clippy` |
-
-Record per lane: `ran` (attach findings on selected files, trimmed) or `unavailable` (tool missing/failed — overlap suppression is off for that lane and review.md must say so). Never install tools to fill a lane.
-
-## 4. PR intent
-
-With `--pr`: title, description, linked issues (`gh pr view N --json title,body,closingIssuesReferences`), and base/head. Locally: `git log --oneline <base>..<head>` plus the user's stated intent. Reviewers judge the diff against *stated intent* — a change that does more than its description says is itself a finding.
-
-## 5. Spec contract (`--spec`)
-
-Resolve the conformance baseline: a file path is itself the artifact; a directory contributes its contract-bearing documents — `_spec.md`, `_dx.md`, `_uiux.md`, `_tests.md`, `_examples.md`, `_qa.md`, `_user_stories.md`, parity maps, requirement/UX docs, plus any document the spec's own files name as canonical. List every resolved artifact as `path → one-line role`. These are the baseline the `spec-parity` sweep judges against — do NOT extract rubric rules from them: §1 sources are review law, the spec is the contract under test.
-
-## 6. context-pack.md layout
-
-```markdown
-# Context Pack — <target>
-
-## Intent
-<title/description/commits digest>
-
-## Rubric
-<applied source: path → rule count; N other sources classified not-applicable in rules.json; canonical forms: knowledge.json + rules.json>
-
-## Linters
-<lane → ran(findings digest) | unavailable(reason)>
-
-## Spec contract
-<only with --spec: one `- `path`` line per artifact — render_review.py parses these lines for the conformance table>
-```
+`--spec PATH` resolves a file or recursively inventories Markdown documents in a directory; append other canonical dependencies via `spec_artifacts`. Spec artifacts are the contract under test, not rubric law. The compiler includes the spec-parity sweep and the report's conformance section. The walkthrough is rendered after review from intent, cohorts, summaries and optional flow diagrams.

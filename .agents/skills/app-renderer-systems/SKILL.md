@@ -2,6 +2,10 @@
 name: app-renderer-systems
 description: "Create, extend, or debug frontend domain modules organized under systems/. Covers adapters, Query hooks, local state, and public exports; excludes generic components and backend implementation."
 allowed-tools: Read, Grep, Glob
+metadata:
+  author: Pedro Nauck
+  github: https://github.com/pedronauck
+  repository: https://github.com/pedronauck/skills
 ---
 # Feature Systems
 
@@ -17,5 +21,3 @@ Read `references/directory-layout.md` for placement or a new system, and `refere
 - Add context only for state that must be shared through a subtree. A nullable required-provider pattern fits some contexts; split providers only for demonstrated ownership or update-frequency needs.
 - Keep server state in Query. Use XState Store for event-driven local data; explicit lifecycle modes/guards may need a state machine instead. Do not introduce a store merely because the system has async calls.
 - Export supported operations explicitly from the barrel. Reuse the existing suite that owns each changed invariant instead of mirroring the directory tree with tests.
-
-For Compozy data-boundary changes, apply `eng-data-boundaries` and `web/CLAUDE.md`; preserve workspace scope and canonical cache ownership.

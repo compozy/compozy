@@ -28,7 +28,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	stopReporter := startPromptActivityReporter(ctx, req)
 	defer stopReporter()
 
-	promptRequest, err := buildWirePromptRequest(proc, req)
+	promptRequest, manifest, err := buildWirePromptRequest(proc, req)
 	if err != nil {
 		emitPromptBuildError(proc, req, err)
 		return
@@ -61,7 +61,8 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		sectionsDelivered = true
 	}
 
-	usage := proc.mergePromptUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage))
+	proc.warnUsageAlias(response.Usage)
+	usage := proc.mergePromptUsage(proc.validatedUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage)))
 	doneEvent := AgentEvent{
 		Type:       EventTypeDone,
 		SessionID:  proc.SessionID,
@@ -73,15 +74,18 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		doneEvent.Usage = &usage
 	}
 	d.waitForPromptQuiescence(active)
+	proc.emitPromptEvent(AgentEvent{Type: EventTypePromptDelivery, SessionID: proc.SessionID,
+		TurnID: req.TurnID, Timestamp: timeNowUTC()}.WithDelivery(&manifest))
+
 	proc.emitPromptEvent(doneEvent)
 }
 
-func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
+func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, DeliveryManifest, error) {
 	attachmentBlocks, err := attachmentContentBlocks(req.Attachments, proc.CapsSnapshot())
 	if err != nil {
-		return acpsdk.PromptRequest{}, err
+		return acpsdk.PromptRequest{}, DeliveryManifest{}, err
 	}
-	message := proc.compactPromptSections(req.Message, req.Sections)
+	message, spans := proc.compactPromptSections(req.Message, req.Sections)
 	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
 	if promptText != "" {
@@ -103,15 +107,16 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	}
 	if !meta.IsZero() {
 		if err := meta.Validate(); err != nil {
-			return acpsdk.PromptRequest{}, err
+			return acpsdk.PromptRequest{}, DeliveryManifest{}, err
 		}
 		metaMap, err := meta.ToMap()
 		if err != nil {
-			return acpsdk.PromptRequest{}, err
+			return acpsdk.PromptRequest{}, DeliveryManifest{}, err
 		}
 		promptRequest.Meta = metaMap
 	}
-	return promptRequest, nil
+	manifest := proc.promptDeliveryManifest(req, spans, attachmentBlocks, includedSystemPrompt, promptDelivery)
+	return promptRequest, manifest, nil
 }
 
 func emitPromptBuildError(proc *AgentProcess, req PromptRequest, err error) {

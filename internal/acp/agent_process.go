@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"time"
@@ -64,8 +65,11 @@ type AgentProcess struct {
 	providerFailureMu sync.Mutex
 	providerFailures  map[string]ProviderErrorDiagnostic
 
-	promptMu     sync.RWMutex
-	activePrompt *activePromptState
+	logger            *slog.Logger
+	usageAliasWarning sync.Once
+	usageRangeWarning sync.Once
+	promptMu          sync.RWMutex
+	activePrompt      *activePromptState
 
 	pendingPermissionMu  sync.Mutex
 	pendingPermissions   map[string]*pendingPermission
@@ -77,6 +81,7 @@ type AgentProcess struct {
 	systemPromptSent     bool
 	deliveredSections    map[string][sha256.Size]byte
 	systemPromptDelivery SystemPromptDeliveryMode
+	startupManifest      StartupManifest
 	promptCacheControl   *promptCacheControl
 
 	turnSourceProviderMu sync.RWMutex
