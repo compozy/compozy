@@ -1,61 +1,4 @@
-## Unreleased
-
-### Breaking & migrations
-
-The Marketplace catalog moves to one extension catalog. Global migration `00111`
-preserves existing extension catalog rows under `compozy-catalog` and removes
-only the cached MCP and skill listings (ADR-001). Installed extensions, manual
-MCP server configuration, and installed skill files remain intact. Provenance
-receives `catalog:compozy` origin only when an existing marketplace installation
-records a non-empty catalog entry ID; other installations stay unclassified.
-The migration also creates storage for scoped extension inputs and MCP overrides.
-Migration `00112` adds input identity and activity to extension secret bindings.
-Existing bindings remain active with their references, scopes, timestamps, and
-header mappings preserved. Removing an input from a manifest deactivates its
-stored value; reintroducing the input can reactivate that value.
-Migration `00113` includes the credential owner in both MCP OAuth token and
-client-registration keys. Existing rows become `manual`; their token references,
-registration metadata, and encrypted vault values remain unchanged. Extension
-credentials use a separate `vault:mcp/ext/<extension>/` namespace.
-Migration `00114` separates stored extension packages from their profile/workspace
-installation attachments. Existing packages receive one global, all-profiles
-attachment with their original installation timestamp; enablement exceptions,
-package files, provenance, and credentials are preserved.
-Migration `00115` removes the fixed extension discriminator from catalog rows;
-source/entry identity and all catalog content and installed extension state are preserved.
-
-The Marketplace switches directly to the extension catalog contract. Retired kind routes,
-remote skill acquisition and MCP catalog installation are removed without aliases.
-Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
-Refresh accepts no `kind` selector and reports `sources[]` outcomes.
-Existing extension packages, acquisition references, installed skills and manual MCPs remain.
-CLI callers remove `--kind` and the first kind argument to `marketplace info`.
-`compozy mcp install` and remote `compozy skill search|install|update|remove` are removed;
-local skill inspection and management remain. Native `compozy__marketplace_search`
-rejects the removed `kind` argument. See [migration steps](MIGRATION_GUIDE.md#marketplace-acquisition-hard-cut).
-MCP declarations embedded in previously installed ClawHub/Marketplace skills are now disabled.
-The skill files and provenance, manual MCP configuration and credentials, and extension-provided
-MCP servers remain intact. Existing extension removal still retires its instance bindings and
-exclusive secrets while preserving shared or foreign secrets and compensating failed removals.
-Retired `skills.marketplace.registry`, `skills.marketplace.base_url` and `skills.allowed_marketplace_mcp` settings
-are archived as inactive comments in the same config file on load. The archive
-and active configuration are written atomically, once; unrelated settings and
-extension configuration are preserved. Settings and `config set` reject new
-writes of these acquisition fields.
-
-### Features
-
-- Client plugins with manifests under `.claude-plugin/`, `.codex-plugin/` or
-  `.cursor-plugin/` load through the extension lifecycle. Supported skills and
-  MCPs are adapted without rewriting packages; ignored client commands, agents
-  and hooks produce diagnostics. Installed provenance records the actual layout.
-
-- Extension MCP runtime names are allocated automatically and remain stable.
-  Install requests no longer accept `--runtime-name` or `runtime_name`; failed
-  installs restore prior allocations. Extension inputs accept secrets owned by
-  the same extension instance, without importing manual MCP vault references.
-
-## 0.3.0 - 2026-09-11
+## 0.3.0 - 2026-09-14
 
 ### ♻️ Refactoring
 
@@ -127,6 +70,11 @@ writes of these acquisition fields.
 - Live steer and truthful stop for sessions (#555)
 - Manageable session queue, truthful live view, and legible transcripts (#557)
 - Add herdr bridge to community catalog (#560)
+- Bulk actions for the sessions list (#619)
+- Add built-in open-design extension (#625)
+- Show session context and confirmed prompt deliveries (#635)
+- Unify marketplace catalog and plugin sources (#636)
+- Add release video workspace and production skill
 
 ### 🐛 Bug Fixes
 
@@ -289,6 +237,20 @@ writes of these acquisition fields.
 - Preserve escalation acknowledgement across neutral events
 - Restore finished notifications and timeline disclosure behavior
 - Synchronize attention delivery and durable loop state
+- Recover stopped session deletion and queue polling (#614)
+- Hide internal Goal prompts from the operator queue (#618)
+- Recover owned task work after supervised silence stops (#621)
+- Repair agent runtime and Goal workflows found in QA (#624)
+- Recognize structured Claude authentication status (#632)
+- Discover and bind models in provider overlays (#633)
+- Preserve zsh startup directory semantics (#630)
+- Preserve nested raw terminal input visibility (#631)
+- Preserve unicode terminal prompt redraws (#634)
+- Complete overlay admission and integration checks
+- Render cursor edits in terminal quote lines
+- Resolve terminal cwd from the bound session worktree (#641)
+- Repair release integration and catalog compatibility
+- Stabilize release integration under concurrent startup
 
 ### 🔧 Miscellaneous Tasks
 
@@ -314,6 +276,7 @@ writes of these acquisition fields.
 - Create escalation fixtures through their lifecycle
 - Project escalation events in acknowledgement fixtures
 - Persist canonical escalation status in overview fixtures
+- Await completed automation run before daemon cleanup
 
 ### Release Notes
 
@@ -1321,6 +1284,63 @@ Persisted database state and layouts upgrade through their owning migrations. Re
 - `compozy__session_prompt` defaults to `wait: false`. Request `wait: true` explicitly when you need a synchronous native-tool call.
 
 PRs: [#525](https://github.com/compozy/compozy/pull/525), [#555](https://github.com/compozy/compozy/pull/555), [#557](https://github.com/compozy/compozy/pull/557).
+
+## Unreleased
+
+### Breaking & migrations
+
+The Marketplace catalog moves to one extension catalog. Global migration `00111`
+preserves existing extension catalog rows under `compozy-catalog` and removes
+only the cached MCP and skill listings (ADR-001). Installed extensions, manual
+MCP server configuration, and installed skill files remain intact. Provenance
+receives `catalog:compozy` origin only when an existing marketplace installation
+records a non-empty catalog entry ID; other installations stay unclassified.
+The migration also creates storage for scoped extension inputs and MCP overrides.
+Migration `00112` adds input identity and activity to extension secret bindings.
+Existing bindings remain active with their references, scopes, timestamps, and
+header mappings preserved. Removing an input from a manifest deactivates its
+stored value; reintroducing the input can reactivate that value.
+Migration `00113` includes the credential owner in both MCP OAuth token and
+client-registration keys. Existing rows become `manual`; their token references,
+registration metadata, and encrypted vault values remain unchanged. Extension
+credentials use a separate `vault:mcp/ext/<extension>/` namespace.
+Migration `00114` separates stored extension packages from their profile/workspace
+installation attachments. Existing packages receive one global, all-profiles
+attachment with their original installation timestamp; enablement exceptions,
+package files, provenance, and credentials are preserved.
+Migration `00115` removes the fixed extension discriminator from catalog rows;
+source/entry identity and all catalog content and installed extension state are preserved.
+
+The Marketplace switches directly to the extension catalog contract. Retired kind routes,
+remote skill acquisition and MCP catalog installation are removed without aliases.
+Browse uses `GET /api/marketplace`; detail uses `/api/marketplace/entries/{entry_id}`.
+Refresh accepts no `kind` selector and reports `sources[]` outcomes.
+Existing extension packages, acquisition references, installed skills and manual MCPs remain.
+CLI callers remove `--kind` and the first kind argument to `marketplace info`.
+`compozy mcp install` and remote `compozy skill search|install|update|remove` are removed;
+local skill inspection and management remain. Native `compozy__marketplace_search`
+rejects the removed `kind` argument. See [migration steps](MIGRATION_GUIDE.md#marketplace-acquisition-hard-cut).
+MCP declarations embedded in previously installed ClawHub/Marketplace skills are now disabled.
+The skill files and provenance, manual MCP configuration and credentials, and extension-provided
+MCP servers remain intact. Existing extension removal still retires its instance bindings and
+exclusive secrets while preserving shared or foreign secrets and compensating failed removals.
+Retired `skills.marketplace.registry`, `skills.marketplace.base_url` and `skills.allowed_marketplace_mcp` settings
+are archived as inactive comments in the same config file on load. The archive
+and active configuration are written atomically, once; unrelated settings and
+extension configuration are preserved. Settings and `config set` reject new
+writes of these acquisition fields.
+
+### Features
+
+- Client plugins with manifests under `.claude-plugin/`, `.codex-plugin/` or
+  `.cursor-plugin/` load through the extension lifecycle. Supported skills and
+  MCPs are adapted without rewriting packages; ignored client commands, agents
+  and hooks produce diagnostics. Installed provenance records the actual layout.
+
+- Extension MCP runtime names are allocated automatically and remain stable.
+  Install requests no longer accept `--runtime-name` or `runtime_name`; failed
+  installs restore prior allocations. Extension inputs accept secrets owned by
+  the same extension instance, without importing manual MCP vault references.
 
 ## 0.0.9 - 2026-07-04
 

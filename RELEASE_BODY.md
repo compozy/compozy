@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-11
+## 0.3.0 - 2026-09-14
 
 ### ♻️ Refactoring
 
@@ -70,6 +70,11 @@
 - Live steer and truthful stop for sessions (#555)
 - Manageable session queue, truthful live view, and legible transcripts (#557)
 - Add herdr bridge to community catalog (#560)
+- Bulk actions for the sessions list (#619)
+- Add built-in open-design extension (#625)
+- Show session context and confirmed prompt deliveries (#635)
+- Unify marketplace catalog and plugin sources (#636)
+- Add release video workspace and production skill
 
 ### 🐛 Bug Fixes
 
@@ -232,6 +237,20 @@
 - Preserve escalation acknowledgement across neutral events
 - Restore finished notifications and timeline disclosure behavior
 - Synchronize attention delivery and durable loop state
+- Recover stopped session deletion and queue polling (#614)
+- Hide internal Goal prompts from the operator queue (#618)
+- Recover owned task work after supervised silence stops (#621)
+- Repair agent runtime and Goal workflows found in QA (#624)
+- Recognize structured Claude authentication status (#632)
+- Discover and bind models in provider overlays (#633)
+- Preserve zsh startup directory semantics (#630)
+- Preserve nested raw terminal input visibility (#631)
+- Preserve unicode terminal prompt redraws (#634)
+- Complete overlay admission and integration checks
+- Render cursor edits in terminal quote lines
+- Resolve terminal cwd from the bound session worktree (#641)
+- Repair release integration and catalog compatibility
+- Stabilize release integration under concurrent startup
 
 ### 🔧 Miscellaneous Tasks
 
@@ -257,6 +276,7 @@
 - Create escalation fixtures through their lifecycle
 - Project escalation events in acknowledgement fixtures
 - Persist canonical escalation status in overview fixtures
+- Await completed automation run before daemon cleanup
 
 ### Release Notes
 
