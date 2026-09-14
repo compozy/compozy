@@ -1,6 +1,6 @@
 # BUG-20260914-agent-plugin-dev-rejected: Valid Agent Plugins cannot enter the CLI development loop
 
-- **Status:** fixed
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High
 - **Persona Affected:** Bruno
@@ -21,3 +21,5 @@ The CLI always invokes the native bundle builder before linking or reloading. In
 Owning invariant: all supported layouts use the authored identity through development preparation, activation and reload, preserving the last good generation after an invalid change. Owning suite: `TestManagerDevelopmentLifecycle` in `internal/extension/dev_integration_test.go`.
 
 Focused race-enabled real SQLite lifecycle cases passed for all four layouts (2.532s); public re-walk and current-head CI remain pending.
+
+Fix commit: `685af5f3c`. Fresh public dev/reload/status/restart/unlink walk passed, steps 069–085.

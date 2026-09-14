@@ -22,6 +22,24 @@ func ListProfileSecretPrefixes(ctx context.Context, q profileRefSQLQueryer, name
 	return prefixes, nil
 }
 
+// RenameProfileSecretRef translates only references owned by the renamed profile.
+func RenameProfileSecretRef(ref, oldName, newName string) string {
+	oldPrefix, newPrefix, err := profileRenamePrefixes(oldName, newName)
+	if err != nil {
+		return ref
+	}
+	if strings.HasPrefix(ref, oldPrefix) {
+		return newPrefix + strings.TrimPrefix(ref, oldPrefix)
+	}
+	if !strings.HasPrefix(ref, "vault:mcp/") {
+		return ref
+	}
+	if prefix, ok := mcpProfileRefPrefix(ref, oldName, newName); ok {
+		return prefix.new + strings.TrimPrefix(ref, prefix.old)
+	}
+	return ref
+}
+
 func profileRenameRefPrefixes(
 	ctx context.Context,
 	q profileRefSQLQueryer,

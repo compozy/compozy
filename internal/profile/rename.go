@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -138,7 +139,11 @@ func (m *Manager) applyRepoRenames(
 			})
 			continue
 		}
-		results = append(results, RepoRenameOutcome{WorkspaceID: candidate.WorkspaceID, Renamed: true})
+		outcome := RepoRenameOutcome{WorkspaceID: candidate.WorkspaceID, Renamed: true}
+		if err := compozyconfig.RewriteProfileSecretRefs(newPath, oldName, newName); err != nil {
+			outcome.Reason = fmt.Sprintf("profile folder renamed; configured credential references require repair: %v", err)
+		}
+		results = append(results, outcome)
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i].WorkspaceID < results[j].WorkspaceID })
 	return results

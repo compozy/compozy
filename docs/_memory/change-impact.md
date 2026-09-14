@@ -774,3 +774,13 @@ authored identity and workspace containment. Native build behavior, tool IDs, DT
 credentials and storage shapes stay unchanged. Official skill commands remain valid without edits;
 the site documents portable development preparation. The owning real SQLite lifecycle suite now
 covers all four layouts through preparation and activation, including last-good reload behavior.
+
+PR636 profile credential public re-walk follow-up: profile rename now updates exact owned Vault
+references inside personal-profile config.toml and mcp.json files through the existing recoverable
+folder finalizer. Preview counts include those configured occurrences; parser ranges preserve
+comments, formatting, JSON keys, shared refs and other owners. Selected repository-folder renames
+apply the same ref rewrite and report any remaining file repair in their existing per-folder result.
+No credential value enters the journal, no schema/DTO/tool/config key changes, and Web/CLI/UDS keep
+the shared profile lifecycle owner. Site profile lifecycle documentation owns the operator explanation;
+official skill commands remain valid. Real lifecycle coverage loads both moved config formats,
+resolves the resulting secret through Vault and repeats finalization without changing bytes.

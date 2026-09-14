@@ -27,7 +27,9 @@ compozy profile unarchive finance
 compozy profile delete scratch --yes
 ```
 
-Rename moves daemon-owned profile state and rewrites matching `vault:profiles/<name>/...` references.
+Rename moves daemon-owned profile state and rewrites matching profile-owned Vault references,
+including configured MCP credentials in `config.toml` and `mcp.json`. The personal-folder update is
+recoverable through the lifecycle operation journal.
 Repository `.compozy/profiles/<name>/` folders are renamed only when selected with `--repos`; otherwise
 they remain dormant and can become active if that old profile name is created again.
 

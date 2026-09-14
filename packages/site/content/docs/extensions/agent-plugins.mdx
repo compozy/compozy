@@ -89,13 +89,15 @@ compozy extension secrets bind acme-tools \
 The binding is scoped to that extension instance. Reads show mapping presence and names only, never
 the Vault reference or value.
 
-## Data and removal
+## Development
 
 `compozy extension dev <directory> --workspace <workspace>` and `extension reload` validate
 Agent Plugins directly from their source directory, including the Claude, Codex and Cursor layouts.
 Keep that directory inside the selected workspace. The manifest name owns the instance identity,
 even when the directory has a different name; the source checksum identifies its development generation.
 Native CompozyOS extensions continue to build immutable bundles before linking.
+
+## Data and removal
 
 `PLUGIN_DATA` survives updates and is deleted on `compozy extension remove acme-tools`. A failed
 deletion is quarantined before removal completes; if quarantine also fails, the operation aborts and

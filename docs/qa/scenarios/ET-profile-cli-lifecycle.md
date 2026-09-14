@@ -6,9 +6,9 @@ persona: Ada
 journey: J-operate-profiles
 expected: Create, update, rename, archive, unarchive, and delete use daemon-owned profile state; every planned mutation applies exactly the previewed revision, preserves or removes the documented ownership rows, and returns matching human and structured results.
 entry_points: compozy profile list|current|create|update|rename|archive|unarchive|delete; local HTTP/UDS /api/profiles routes
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20260914-profile-rename-mcp-reference
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:

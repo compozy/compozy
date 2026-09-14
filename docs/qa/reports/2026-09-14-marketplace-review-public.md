@@ -21,7 +21,7 @@ The bounded retests extend existing charters for Marketplace source management, 
 | 1 | CH-marketplace-public-ownership | ET-api-marketplace-sources | Bruno | Data | Pass | | |
 | 2 | CH-marketplace-public-ownership | ET-agent-plugin-dev-reload | Bruno | Data | Pending | BUG-20260914-agent-plugin-dev-rejected | |
 | 3 | CH-marketplace-public-ownership | RT-agent-hot-discovery-skill-isolation | Bruno | Data | Pending | | |
-| 4 | CH-marketplace-public-ownership | ET-profile-cli-lifecycle | Bruno | Data | Pending | | |
+| 4 | CH-marketplace-public-ownership | ET-profile-cli-lifecycle | Bruno | Data | Pending | BUG-20260914-profile-rename-mcp-reference | |
 | 5 | CH-marketplace-public-ownership | ET-cli-mcp-authorize | Bruno | Data | Pending | | |
 
 ## Session Debriefs
@@ -36,6 +36,14 @@ The public walk covers operator-reachable rejection paths. Injected database tra
 ### Plugin development — Bruno — 08:25 UTC
 
 Validation accepted the Claude package, but CLI development rejected it before linking (steps 055–056). The leg ended and BUG-20260914-agent-plugin-dev-rejected was filed. Repair and a fresh public re-walk remain pending.
+
+### Development recovery — Bruno — 08:29–08:30 UTC
+
+After 685af5f3c, CLI dev linked the Claude package from inside the design workspace, reload changed only that instance from 1.0.0 to 1.1.0, and HTTP confirmed the same version. Restart retained both the dev generation and the other workspace's published 1.0.0 installation. Removing the dev link restored the published installation in design. Steps 069–085 verify BUG-20260914-agent-plugin-dev-rejected; the additional hook-placement leg remains pending.
+
+### Profile credentials — Bruno — 08:31–08:32 UTC
+
+Settings wrote synthetic manual MCP client secrets independently in user, profile and workspace scopes. A shared Vault ref remained independently owned. The CLI profile rename moved the owned Vault row and left shared/user/workspace rows intact, but MCP config retained the old profile ref and public reads failed. Filed BUG-20260914-profile-rename-mcp-reference; the leg ended before delete. The workspace scope selector writes the base workspace sidecar even with a profile query; it does not author workspace-profile files. Extension Settings overrides reject auth changes, so extension OAuth setup must use its documented auth acquisition path rather than treating overrides as an authoring surface.
 
 ## What Was Fixed
 
