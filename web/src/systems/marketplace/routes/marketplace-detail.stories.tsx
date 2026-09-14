@@ -154,6 +154,7 @@ export const DetailExtensionDevOverlay: Story = {
               description: "Workspace dev build linked from a local generation.",
               digest_sha256: "a".repeat(64),
               entry_id: "ops-dev-extension",
+              install_slug: "",
               installable: true,
               installed: true,
               installed_name: "ops-dev-extension",
