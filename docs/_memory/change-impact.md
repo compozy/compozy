@@ -766,3 +766,11 @@ normalization, serialization, real SQLite publication and archive lifecycle suit
 boundaries. Empty optional Marketplace fixture fields follow the generated wire contract. Windows
 config privacy is verified by the ACL suite; Unix alone asserts POSIX permission bits. No additional
 public surface, config key, credential rule, migration, official skill or Web/docs contract changes.
+
+PR636 public development re-walk follow-up: CLI dev/reload/watch now prepares supported Agent Plugins
+source generations before calling the existing shared HTTP/UDS development handlers. The daemon
+uses the same secure manifest selector for standard, Claude, Codex and Cursor layouts, retaining
+authored identity and workspace containment. Native build behavior, tool IDs, DTOs, config,
+credentials and storage shapes stay unchanged. Official skill commands remain valid without edits;
+the site documents portable development preparation. The owning real SQLite lifecycle suite now
+covers all four layouts through preparation and activation, including last-good reload behavior.

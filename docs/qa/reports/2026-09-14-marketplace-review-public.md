@@ -1,0 +1,62 @@
+# QA Run Report — 2026-09-14 — Marketplace review public journeys
+
+- **Scope:** public CLI/HTTP follow-up for the accepted PR636 review corrections; one review round remains the only review round.
+- **Cadence tier:** targeted.
+- **Build:** `0f77945a70e3f081296ccd772b93189357b6d45e`; isolated daemon compiled for these journeys. Delivery gates run in GitHub CI.
+- **Environment:** fresh bootstrap lab; local authored packages and synthetic credentials. No operator workspace or credentials are mutated.
+- **Started:** 2026-09-14T08:08:45.342453+00:00; **Status:** in-progress.
+
+## Personas
+
+Bruno is an operator maintaining separate workspaces and profiles through CLI and documented HTTP endpoints. His intent is to keep installed tools available while changing sources, development packages and profile names.
+
+## Flows in Scope
+
+The bounded retests extend existing charters for Marketplace source management, plugin development, skill discovery, MCP authorization and profile lifecycle. Existing screenshots remain historical visual evidence. Current-head CI owns full Web/Desktop E2E and the injected database-failure, encrypted-storage and subprocess integration checks.
+
+## Session Matrix & Results
+
+| # | Charter | Scenario | Persona | Tour | Status | Issue | Fix commit |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | CH-marketplace-public-ownership | ET-api-marketplace-sources | Bruno | Data | Pass | | |
+| 2 | CH-marketplace-public-ownership | ET-agent-plugin-dev-reload | Bruno | Data | Pending | BUG-20260914-agent-plugin-dev-rejected | |
+| 3 | CH-marketplace-public-ownership | RT-agent-hot-discovery-skill-isolation | Bruno | Data | Pending | | |
+| 4 | CH-marketplace-public-ownership | ET-profile-cli-lifecycle | Bruno | Data | Pending | | |
+| 5 | CH-marketplace-public-ownership | ET-cli-mcp-authorize | Bruno | Data | Pending | | |
+
+## Session Debriefs
+
+### Source maintenance — Bruno — 08:13–08:17 UTC
+
+Created the local `studio` source through CLI and read the same row over HTTP. Duplicate registration, an invalid toggle payload, protected-source removal and an unsupported source scheme returned their structured rejections (CLI duplicate exit 2; HTTP 400/403/422). The documented config.toml retained exact bytes and its comment; the separately saved 11-minute refresh TTL survived. Disabled, re-enabled and removed `studio`; the installed `desk-notes` package retained its version, enabled state and exact provenance. Fresh CLI/HTTP reads after daemon restart confirmed both retained installation and removed source. Evidence: steps 012–044.
+
+The public walk covers operator-reachable rejection paths. Injected database transaction failures remain verified by the real SQLite CI suite, not attributed to this walk. The initial `/api/v1` probe was a runner URL assumption corrected against the documented `/api` route before the source walk. CLI `config set marketplace.ttl` is unsupported; the documented Settings HTTP endpoint performed the edit. No product defect was filed for either setup detour.
+
+
+### Plugin development — Bruno — 08:25 UTC
+
+Validation accepted the Claude package, but CLI development rejected it before linking (steps 055–056). The leg ended and BUG-20260914-agent-plugin-dev-rejected was filed. Repair and a fresh public re-walk remain pending.
+
+## What Was Fixed
+
+Review corrections are already implemented through `0f77945a7`; this run verifies their public effects. No new product fix has been made in this QA session.
+
+## Paper Cuts
+
+Not assessed yet.
+
+## Runtime Errors Observed
+
+Not assessed yet.
+
+## Verification and Evidence
+
+The bootstrap manifest and live session state are tracked in `.deep-review/pr-636-luna-round-1/public-qa-state.json`. Durable public transcripts will be stored under `docs/qa/evidence/2026-09-14-marketplace-review-public/`. Database-failure injection and direct ciphertext checks remain integration evidence, not public-walk evidence.
+
+## Decisions for a Human
+
+None identified during preparation.
+
+## Final Status
+
+Pending the five public journeys, strict lab audit, teardown, and current-head CI.

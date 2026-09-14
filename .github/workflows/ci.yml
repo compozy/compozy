@@ -384,7 +384,7 @@ jobs:
         run: >-
           go test -race -tags=integration -count=1 -timeout=5m
           ./internal/daemon ./internal/extension
-          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle)$'
+          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
 
       - name: Upload gotestsum timing data
         uses: actions/upload-artifact@v7

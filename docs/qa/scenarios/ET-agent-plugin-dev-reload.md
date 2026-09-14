@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-extension-dev-lifecycle
 expected: A portable package dev-links without install trust, publishes its mapped skills and MCP servers, reloads changed package content through the existing workspace-scoped generation loop, retains its instance data, and leaves other workspaces and any published instance unchanged.
 entry_points: compozy extension dev <path>|reload <name>|status <name> --workspace|remove <name>; POST /api/extensions/dev and POST /api/extensions/:name/reload over HTTP and UDS; compozy__extensions_dev|reload|info|remove
-qa_status: pass
-bug_ids:
-fix_status:
-retest_status: pass
+qa_status: fail
+bug_ids: BUG-20260914-agent-plugin-dev-rejected
+fix_status: pending
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-agent-plugins.md#session-debriefs
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md

@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/parity-http.json
-last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
+evidence: docs/qa/evidence/2026-09-14-marketplace-review-public/step-025.json
+last_report: docs/qa/reports/2026-09-14-marketplace-review-public.md
 overlaps:
 ---
 
@@ -30,3 +30,5 @@ currently browsable catalog unchanged. Preserve unrelated settings and original 
 a subsequent successful settings edit must survive the rejected mutation. The canonical config and
 daemon suites passed with real SQLite failure triggers. Public HTTP/UDS scenario execution remains
 assigned to final CI/QA; no heavy local gate was run for this correction.
+
+QA 2026-09-14: CLI/HTTP source maintenance and rejection preservation passed in the isolated review lab, including exact config/comment retention, independent reads, source removal with installed provenance retained, and daemon restart. The dated public report distinguishes reachable rejection paths from the injected SQLite failure suite in CI.
