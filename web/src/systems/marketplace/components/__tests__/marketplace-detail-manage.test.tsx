@@ -286,16 +286,26 @@ describe("Marketplace installed-detail management", () => {
     );
   });
 
-  it("Should not present global kit inventory for a workspace dev overlay", async () => {
+  it("Should present only the workspace kit inventory for a dev overlay", async () => {
     mocks.extensionWorkspaceId = "workspace-a";
     mocks.extensionDev = true;
-    mocks.extensionInventory = [
-      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
-    ];
+    server.use(
+      http.get("*/api/extensions/:name/inventory", ({ request }) => {
+        const workspace = new URL(request.url).searchParams.get("workspace");
+        const name = workspace === "workspace-a" ? "workspace-reviewer" : "global-reviewer";
+        return HttpResponse.json({
+          enabled: true,
+          extension: "ops-extension",
+          items: [{ id: `agent:${name}`, kind: "agent", live: true, name }],
+        });
+      })
+    );
 
     await renderDetail(extensionDetailData());
 
-    expect(screen.queryByTestId("extension-kit-inventory")).not.toBeInTheDocument();
+    const inventory = await screen.findByTestId("extension-kit-inventory");
+    expect(within(inventory).getByText("workspace-reviewer")).toBeInTheDocument();
+    expect(within(inventory).queryByText("global-reviewer")).not.toBeInTheDocument();
   });
 
   // IT-015: the installed detail is where format and degradation have to agree — the badge comes
