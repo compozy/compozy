@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 )
 

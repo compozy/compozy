@@ -153,7 +153,9 @@ func profileTOMLValueEdits(node *tomlast.Node, rename func(string) string, edits
 		if err != nil {
 			return err
 		}
-		*edits = append(*edits, profileRefEdit{start: rangeStart(node.Raw), end: rangeEnd(node.Raw), content: []byte(content)})
+		*edits = append(*edits, profileRefEdit{
+			start: rangeStart(node.Raw), end: rangeEnd(node.Raw), content: []byte(content),
+		})
 		return nil
 	}
 	if node.Kind == tomlast.KeyValue {

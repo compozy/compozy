@@ -141,7 +141,9 @@ func (m *Manager) applyRepoRenames(
 		}
 		outcome := RepoRenameOutcome{WorkspaceID: candidate.WorkspaceID, Renamed: true}
 		if err := compozyconfig.RewriteProfileSecretRefs(newPath, oldName, newName); err != nil {
-			outcome.Reason = fmt.Sprintf("profile folder renamed; configured credential references require repair: %v", err)
+			outcome.Reason = fmt.Sprintf(
+				"profile folder renamed; configured credential references require repair: %v", err,
+			)
 		}
 		results = append(results, outcome)
 	}

@@ -28,8 +28,8 @@ func RenameProfileSecretRef(ref, oldName, newName string) string {
 	if err != nil {
 		return ref
 	}
-	if strings.HasPrefix(ref, oldPrefix) {
-		return newPrefix + strings.TrimPrefix(ref, oldPrefix)
+	if suffix, ok := strings.CutPrefix(ref, oldPrefix); ok {
+		return newPrefix + suffix
 	}
 	if !strings.HasPrefix(ref, "vault:mcp/") {
 		return ref

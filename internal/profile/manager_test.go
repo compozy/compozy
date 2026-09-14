@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -728,132 +729,171 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep configured MCP credentials usable after profile rename and finalizer replay", func(t *testing.T) {
-		t.Parallel()
-		manager, database, home := newTestManager(t)
-		ctx := t.Context()
-		if _, err := manager.Create(ctx, CreateInput{Name: "dev"}); err != nil {
-			t.Fatal(err)
-		}
-		service, err := vault.NewService(database, vault.NewFileKeyProvider(home.HomeDir, nil))
-		if err != nil {
-			t.Fatal(err)
-		}
-		oldRef := "vault:mcp/profile/dev/remote/oauth/client-secret"
-		sharedRef := "vault:mcp/shared/client"
-		for _, ref := range []string{oldRef, sharedRef} {
-			if _, err := service.PutSecret(ctx, ref, "mcp_oauth_client_secret", "stored-client"); err != nil {
+	t.Run(
+		"Should keep configured MCP credentials usable after profile rename and finalizer replay",
+		func(t *testing.T) {
+			t.Parallel()
+			manager, database, home := newTestManager(t)
+			ctx := t.Context()
+			if _, err := manager.Create(ctx, CreateInput{Name: "dev"}); err != nil {
 				t.Fatal(err)
 			}
-		}
-		oldDir := filepath.Join(home.ProfilesDir, "dev")
-		jsonConfig := fmt.Sprintf(`{
+			service, err := vault.NewService(database, vault.NewFileKeyProvider(home.HomeDir, nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldRef := "vault:mcp/profile/dev/remote/oauth/client-secret"
+			sharedRef := "vault:mcp/shared/client"
+			for _, ref := range []string{oldRef, sharedRef} {
+				if _, err := service.PutSecret(ctx, ref, "mcp_oauth_client_secret", "stored-client"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			oldDir := filepath.Join(home.ProfilesDir, "dev")
+			jsonConfig := fmt.Sprintf(`{
   "note": "preserve spacing",
   %q: "keep this key",
   "mcpServers": {"remote": {"transport":"http","url":"https://example.com/mcp",
     "auth":{"registration":"pre_registered","issuer_url":"https://example.com","client_id":"app","client_secret_ref":%q}}}
 }
 `, oldRef, oldRef)
-		tomlConfig := fmt.Sprintf(`# Preserve this comment: %s
+			tomlConfig := fmt.Sprintf(`# Preserve this comment: %s
 [[mcp_servers]]
 name = "remote"
 transport = "http"
 url = "https://example.com/mcp"
 auth = { registration = "pre_registered", issuer_url = "https://example.com", client_id = "app", client_secret_ref = '%s' }
 `, oldRef, oldRef)
-		for name, content := range map[string]string{compozyconfig.MCPJSONName: jsonConfig, compozyconfig.ConfigName: tomlConfig} {
-			if err := os.WriteFile(filepath.Join(oldDir, name), []byte(content), 0o600); err != nil {
+			for name, content := range map[string]string{compozyconfig.MCPJSONName: jsonConfig, compozyconfig.ConfigName: tomlConfig} {
+				if err := os.WriteFile(filepath.Join(oldDir, name), []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			workspaceRoot := t.TempDir()
+			if err := database.InsertWorkspace(
+				ctx,
+				workspacepkg.Workspace{ID: "ws-ref", Name: "Refs", RootDir: workspaceRoot},
+			); err != nil {
 				t.Fatal(err)
 			}
-		}
-		workspaceRoot := t.TempDir()
-		if err := database.InsertWorkspace(ctx, workspacepkg.Workspace{ID: "ws-ref", Name: "Refs", RootDir: workspaceRoot}); err != nil {
-			t.Fatal(err)
-		}
-		workspacePrefix, err := vault.MCPSecretOwnerPrefix(vault.MCPSecretTarget{Scope: vault.MCPWorkspaceProfileScope, WorkspaceID: "ws-ref@pf:dev", ServerName: "remote"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		workspaceRef := workspacePrefix + "oauth/client-secret"
-		if _, err := service.PutSecret(ctx, workspaceRef, "mcp_oauth_client_secret", "stored-client"); err != nil {
-			t.Fatal(err)
-		}
-		workspaceProfileDir := filepath.Join(workspaceRoot, ".compozy", "profiles", "dev")
-		if err := os.MkdirAll(workspaceProfileDir, 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(workspaceProfileDir, compozyconfig.MCPJSONName), []byte(strings.ReplaceAll(jsonConfig, oldRef, workspaceRef)), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		plan, err := manager.PrepareRename(ctx, "dev", "creative")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if plan.VaultRefRewrites != 4 {
-			t.Fatalf("preview references = %d, want two Vault rows and two personal config values", plan.VaultRefRewrites)
-		}
-		result, err := manager.Rename(ctx, "dev", RenameOptions{NewName: "creative", Repos: RepoChoice{All: true}, PlanRevision: plan.Revision})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(result.RepoResults) != 1 || !result.RepoResults[0].Renamed || result.RepoResults[0].Reason != "" {
-			t.Fatalf("repository rename = %#v", result.RepoResults)
-		}
-		workspaceServers, err := compozyconfig.LoadMCPServersJSONFile(filepath.Join(workspaceRoot, ".compozy", "profiles", "creative", compozyconfig.MCPJSONName))
-		if err != nil || len(workspaceServers) != 1 {
-			t.Fatalf("load renamed workspace profile: %v", err)
-		}
-		workspaceNewRef := workspaceServers[0].Auth.ClientSecretRef
-		if _, err := vault.NormalizeMCPClientSecretRef(workspaceNewRef, vault.MCPSecretTarget{Scope: vault.MCPWorkspaceProfileScope, WorkspaceID: "ws-ref@pf:creative", ServerName: "remote"}); err != nil {
-			t.Fatal(err)
-		}
-		if value, err := service.ResolveRef(ctx, workspaceNewRef); err != nil || value != "stored-client" {
-			t.Fatalf("workspace credential resolution: %v", err)
-		}
-		newDir := filepath.Join(home.ProfilesDir, "creative")
-		servers, err := compozyconfig.LoadMCPServersJSONFile(filepath.Join(newDir, compozyconfig.MCPJSONName))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var cfg compozyconfig.Config
-		if err := compozyconfig.ApplyConfigOverlayFile(filepath.Join(newDir, compozyconfig.ConfigName), &cfg); err != nil {
-			t.Fatal(err)
-		}
-		if len(servers) != 1 || len(cfg.MCPServers) != 1 {
-			t.Fatal("renamed server missing from configured sources")
-		}
-		for _, server := range []compozyconfig.MCPServer{servers[0], cfg.MCPServers[0]} {
-			if server.Auth.ClientSecretRef != "vault:mcp/profile/creative/remote/oauth/client-secret" {
-				t.Fatalf("renamed auth = %#v", server.Auth)
-			}
-			value, err := service.ResolveRef(ctx, server.Auth.ClientSecretRef)
-			if err != nil || value != "stored-client" {
-				t.Fatalf("renamed credential resolution error = %v", err)
-			}
-		}
-		for name, marker := range map[string]string{compozyconfig.MCPJSONName: fmt.Sprintf("%q: \"keep this key\"", oldRef), compozyconfig.ConfigName: "# Preserve this comment: " + oldRef} {
-			before, err := os.ReadFile(filepath.Join(newDir, name))
+			workspacePrefix, err := vault.MCPSecretOwnerPrefix(
+				vault.MCPSecretTarget{
+					Scope:       vault.MCPWorkspaceProfileScope,
+					WorkspaceID: "ws-ref@pf:dev",
+					ServerName:  "remote",
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(before), marker) {
-				t.Fatalf("unrelated content changed in %s", name)
-			}
-			if err := manager.executeStep(ctx, "", lifecycleStep{Action: stepRenameProfile, PathOld: oldDir, PathNew: newDir}); err != nil {
+			workspaceRef := workspacePrefix + "oauth/client-secret"
+			if _, err := service.PutSecret(ctx, workspaceRef, "mcp_oauth_client_secret", "stored-client"); err != nil {
 				t.Fatal(err)
 			}
-			after, err := os.ReadFile(filepath.Join(newDir, name))
+			workspaceProfileDir := filepath.Join(workspaceRoot, ".compozy", "profiles", "dev")
+			if err := os.MkdirAll(workspaceProfileDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(workspaceProfileDir, compozyconfig.MCPJSONName),
+				[]byte(strings.ReplaceAll(jsonConfig, oldRef, workspaceRef)),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			plan, err := manager.PrepareRename(ctx, "dev", "creative")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if string(after) != string(before) {
-				t.Fatalf("finalizer replay changed %s", name)
+			if plan.VaultRefRewrites != 4 {
+				t.Fatalf(
+					"preview references = %d, want two Vault rows and two personal config values",
+					plan.VaultRefRewrites,
+				)
 			}
-		}
-		if value, err := service.ResolveRef(ctx, sharedRef); err != nil || value != "stored-client" {
-			t.Fatalf("shared credential changed: %v", err)
-		}
-	})
+			result, err := manager.Rename(
+				ctx,
+				"dev",
+				RenameOptions{NewName: "creative", Repos: RepoChoice{All: true}, PlanRevision: plan.Revision},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(result.RepoResults) != 1 || !result.RepoResults[0].Renamed || result.RepoResults[0].Reason != "" {
+				t.Fatalf("repository rename = %#v", result.RepoResults)
+			}
+			workspaceServers, err := compozyconfig.LoadMCPServersJSONFile(
+				filepath.Join(workspaceRoot, ".compozy", "profiles", "creative", compozyconfig.MCPJSONName),
+			)
+			if err != nil || len(workspaceServers) != 1 {
+				t.Fatalf("load renamed workspace profile: %v", err)
+			}
+			workspaceNewRef := workspaceServers[0].Auth.ClientSecretRef
+			if _, err := vault.NormalizeMCPClientSecretRef(
+				workspaceNewRef,
+				vault.MCPSecretTarget{
+					Scope:       vault.MCPWorkspaceProfileScope,
+					WorkspaceID: "ws-ref@pf:creative",
+					ServerName:  "remote",
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if value, err := service.ResolveRef(ctx, workspaceNewRef); err != nil || value != "stored-client" {
+				t.Fatalf("workspace credential resolution: %v", err)
+			}
+			newDir := filepath.Join(home.ProfilesDir, "creative")
+			servers, err := compozyconfig.LoadMCPServersJSONFile(filepath.Join(newDir, compozyconfig.MCPJSONName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cfg compozyconfig.Config
+			if err := compozyconfig.ApplyConfigOverlayFile(
+				filepath.Join(newDir, compozyconfig.ConfigName),
+				&cfg,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(servers) != 1 || len(cfg.MCPServers) != 1 {
+				t.Fatal("renamed server missing from configured sources")
+			}
+			for _, server := range []compozyconfig.MCPServer{servers[0], cfg.MCPServers[0]} {
+				if server.Auth.ClientSecretRef != "vault:mcp/profile/creative/remote/oauth/client-secret" {
+					t.Fatalf("renamed auth = %#v", server.Auth)
+				}
+				value, err := service.ResolveRef(ctx, server.Auth.ClientSecretRef)
+				if err != nil || value != "stored-client" {
+					t.Fatalf("renamed credential resolution error = %v", err)
+				}
+			}
+			for name, marker := range map[string]string{compozyconfig.MCPJSONName: fmt.Sprintf("%q: \"keep this key\"", oldRef), compozyconfig.ConfigName: "# Preserve this comment: " + oldRef} {
+				before, err := os.ReadFile(filepath.Join(newDir, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(before), marker) {
+					t.Fatalf("unrelated content changed in %s", name)
+				}
+				if err := manager.executeStep(
+					ctx,
+					"",
+					lifecycleStep{Action: stepRenameProfile, PathOld: oldDir, PathNew: newDir},
+				); err != nil {
+					t.Fatal(err)
+				}
+				after, err := os.ReadFile(filepath.Join(newDir, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(after, before) {
+					t.Fatalf("finalizer replay changed %s", name)
+				}
+			}
+			if value, err := service.ResolveRef(ctx, sharedRef); err != nil || value != "stored-client" {
+				t.Fatalf("shared credential changed: %v", err)
+			}
+		},
+	)
 
 	t.Run("Should preserve identity through update and rename", func(t *testing.T) {
 		t.Parallel()
