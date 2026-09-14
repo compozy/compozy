@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -282,4 +283,83 @@ func (r *daemonWorktreeResolverStub) ResolveOrRegister(
 
 func (r *daemonWorktreeResolverStub) List(context.Context) ([]workspacepkg.Workspace, error) {
 	return append([]workspacepkg.Workspace(nil), r.listed...), nil
+}
+
+// Terminal root authority belongs to the daemon's active session/worktree binding.
+func TestDaemonTerminalExecutionRoot(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"bound", "unbound", "foreign workspace", "foreign profile", "foreign run", "stale generation", "missing worktree", "mismatched worktree"} {
+		t.Run("Should resolve or reject "+name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			info := &session.Info{
+				ID:                "sess-a",
+				WorkspaceID:       "ws-a",
+				ProfileID:         "profile-a",
+				WorktreeID:        "wt-a",
+				RuntimeGeneration: 2,
+			}
+			active := session.PromptRunIdentity{
+				SessionID:   info.ID,
+				WorkspaceID: info.WorkspaceID,
+				ProfileID:   info.ProfileID,
+				RunID:       "run-a",
+				Generation:  2,
+			}
+			actor := terminalpkg.Actor{
+				Kind:       terminalpkg.ActorKindAgent,
+				ID:         "agent-a",
+				SessionID:  info.ID,
+				ProfileID:  info.ProfileID,
+				RunID:      active.RunID,
+				Generation: 2,
+			}
+			switch name {
+			case "unbound":
+				info.WorktreeID = ""
+			case "foreign workspace":
+				active.WorkspaceID = "ws-b"
+			case "foreign profile":
+				actor.ProfileID = "profile-b"
+			case "foreign run":
+				actor.RunID = "run-b"
+			case "stale generation":
+				actor.Generation = 1
+			}
+			sessions := &fakeSessionManager{
+				infos:               []*session.Info{info},
+				activePromptRunHook: func(context.Context, string) (session.PromptRunIdentity, error) { return active, nil },
+			}
+			resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
+				return sessionWorktreeLookupFunc(func(_ context.Context, ws, ref string) (*worktree.Worktree, error) {
+					if ws != "ws-a" || ref != "wt-a" {
+						t.Fatalf("lookup = %q, %q", ws, ref)
+					}
+					if name == "missing worktree" {
+						return nil, worktree.ErrMissing
+					}
+					id := ref
+					if name == "mismatched worktree" {
+						id = "wt-b"
+					}
+					return &worktree.Worktree{ID: id, WorkspaceID: ws, Path: root, State: worktree.StateReady}, nil
+				})
+			}}
+			got, err := resolveTerminalExecutionRoot(t.Context(), sessions, resolver, "ws-a", actor)
+			switch name {
+			case "bound":
+				if err != nil || got != root {
+					t.Fatalf("bound root = %q, %v", got, err)
+				}
+			case "unbound":
+				if err != nil || got != "" {
+					t.Fatalf("unbound root = %q, %v", got, err)
+				}
+			default:
+				if err == nil || got != "" {
+					t.Fatalf("invalid binding granted root = %q, %v", got, err)
+				}
+			}
+		})
+	}
 }

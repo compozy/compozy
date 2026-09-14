@@ -25,3 +25,10 @@ another checkout.
 QA 2026-09-10: The existing daemon worktree integration passed real local commands after terminal authorization received the resolved worktree roots. The owning containment assertions remain enabled. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
 QA 2026-09-10 follow-up: Caller cancellation now takes precedence when ready completion and cancellation are both observable. The existing 200-repeat race regression and real worktree lifecycle integration passed. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+Issue #640 regression: During an active worktree-bound session, use native terminal exec to start
+an owned disposable lifecycle command, read bounded output and verify its reported cwd/owner,
+then stop it and confirm exit. Also verify terminal open/exec with omitted and relative cwd use
+that worktree. Parent/sibling cwd, workspace add_dirs, symlink escapes, foreign profiles and stale
+runs must fail before process creation. Native tools and authenticated HTTP/UDS agent calls share
+the same resolver; human terminals and protocol-owned pipe roots retain their existing rules.

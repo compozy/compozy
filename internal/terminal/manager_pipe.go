@@ -32,7 +32,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	}
 	request.Title = SanitizeTitle(request.Title)
 	cwd, workspaceID, err := m.resolveOpenWorkspace(
-		ctx, request.WS, request.Cwd, request.Actor.ProfileID, request.AllowedRoots...,
+		ctx, request.WS, request.Cwd, request.Actor.ProfileID, nil, request.AllowedRoots...,
 	)
 	if err != nil {
 		return nil, err

@@ -48,7 +48,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
-	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	cwd, workspaceID, err := m.resolveActorWorkspace(ctx, request.WS, request.Cwd, request.Actor)
 	if err != nil {
 		return nil, err
 	}

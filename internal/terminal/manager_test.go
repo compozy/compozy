@@ -34,6 +34,95 @@ import (
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
 
+	for _, shape := range []string{"open", "exec"} {
+		t.Run("Should confine bound session "+shape+" to its execution root", func(t *testing.T) {
+			t.Parallel()
+			bound := t.TempDir()
+			subdir := filepath.Join(bound, "child")
+			if err := os.Mkdir(subdir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			actor := Actor{
+				Kind:       ActorKindAgent,
+				ID:         "agent-a",
+				ProfileID:  "profile-a",
+				SessionID:  "session-a",
+				RunID:      "run-a",
+				Generation: 1,
+			}
+			manager, starter, parent := newTestManager(t, DefaultSettings(), WithExecutionRootResolver(
+				func(_ context.Context, ws string, got Actor) (string, error) {
+					if ws != "workspace-a" || got != actor {
+						return "", ErrNotFound
+					}
+					return bound, nil
+				},
+			))
+			launch := func(cwd string) error {
+				if shape == "open" {
+					_, err := manager.Open(
+						t.Context(),
+						OpenRequest{WS: "workspace-a", Cwd: cwd, Shell: "sh", Actor: actor},
+					)
+					return err
+				}
+				_, err := manager.Exec(
+					t.Context(),
+					ExecRequest{
+						WS:       "workspace-a",
+						Cwd:      cwd,
+						Command:  "printf",
+						Args:     []string{"ok"},
+						Approval: "allowlisted",
+						Actor:    actor,
+					},
+				)
+				return err
+			}
+			for _, requested := range []string{"", bound, "child"} {
+				completed := make(chan error, 1)
+				go func() { completed <- launch(requested) }()
+				proc := receiveStartedProc(t, starter)
+				want := bound
+				if requested == "child" {
+					want = subdir
+				}
+				want, err := filepath.EvalSymlinks(want)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if proc.spec.Cwd != want {
+					t.Errorf("cwd = %q, want %q", proc.spec.Cwd, want)
+				}
+				code := 0
+				proc.complete(terminalExit("exited", &code, nil))
+				if err := <-completed; err != nil {
+					t.Fatal(err)
+				}
+			}
+			sibling := t.TempDir()
+			for _, requested := range []string{parent, sibling, ".."} {
+				if err := launch(requested); !errors.Is(err, ErrInvalidCwd) {
+					t.Fatalf("launch %q = %v, want invalid cwd", requested, err)
+				}
+			}
+			if runtime.GOOS != "windows" {
+				link := filepath.Join(bound, "escape")
+				if err := os.Symlink(sibling, link); err != nil {
+					t.Fatal(err)
+				}
+				if err := launch(link); !errors.Is(err, ErrInvalidCwd) {
+					t.Fatalf("symlink escape = %v", err)
+				}
+			}
+			select {
+			case <-starter.started:
+				t.Fatal("rejected cwd started a process")
+			default:
+			}
+		})
+	}
+
 	t.Run("Should carry the originating agent identity into every process shape", func(t *testing.T) {
 		t.Parallel()
 		for _, shape := range []string{"exec", "open", "pipe"} {
