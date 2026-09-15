@@ -87,18 +87,24 @@ func TestRoleStatusProjection(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name                        string
-		memoryEnabled, rolesEnabled bool
+		name                                           string
+		memoryEnabled, compactionEnabled, rolesEnabled bool
 	}{
 		{name: "Should project memory master suppression", rolesEnabled: true},
 		{name: "Should project deliberate memory opt-in", memoryEnabled: true, rolesEnabled: true},
 		{name: "Should retain explicit role opt-out", memoryEnabled: true},
+		{name: "Should disable roles when every switch is off"},
+		{name: "Should enable checkpoints for compaction without memory", compactionEnabled: true, rolesEnabled: true},
+		{name: "Should enable checkpoints with both consumers", memoryEnabled: true, compactionEnabled: true, rolesEnabled: true},
+		{name: "Should honor role opt-out with compaction", compactionEnabled: true},
+		{name: "Should honor role opt-out with both consumers", memoryEnabled: true, compactionEnabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := roleResolverConfig()
 			cfg.Roles.Coordinator.Enabled = true
 			cfg.Memory.Enabled = tc.memoryEnabled
+			cfg.Session.Compaction.Enabled = tc.compactionEnabled
 			cfg.Roles.Dream.Enabled = tc.rolesEnabled
 			cfg.Roles.MemoryExtractor.Enabled = tc.rolesEnabled
 			cfg.Roles.MemoryController.Enabled = tc.rolesEnabled
@@ -112,8 +118,10 @@ func TestRoleStatusProjection(t *testing.T) {
 				want := true
 				switch compozyconfig.RoleName(status.Role) {
 				case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor,
-					compozyconfig.RoleMemoryController, compozyconfig.RoleCheckpointSummary:
+					compozyconfig.RoleMemoryController:
 					want = tc.memoryEnabled && tc.rolesEnabled
+				case compozyconfig.RoleCheckpointSummary:
+					want = tc.rolesEnabled && (tc.memoryEnabled || tc.compactionEnabled)
 				}
 				if status.Enabled != want {
 					t.Fatalf("role %s enabled=%t, want %t", status.Role, status.Enabled, want)
@@ -121,6 +129,17 @@ func TestRoleStatusProjection(t *testing.T) {
 				single, err := resolver.RoleStatus(t.Context(), "", status.Role)
 				if err != nil || single.Enabled != status.Enabled {
 					t.Fatalf("single role=%#v error=%v", single, err)
+				}
+			}
+			for _, compaction := range []bool{false, true} {
+				ctx := withRoleInvocationCorrelation(
+					t.Context(),
+					roleInvocationCorrelation{SessionCompaction: compaction},
+				)
+				resolved, err := resolver.Resolve(ctx, "", compozyconfig.RoleCheckpointSummary)
+				want := tc.rolesEnabled && (tc.memoryEnabled || compaction)
+				if err != nil || resolved.Enabled != want {
+					t.Fatalf("compaction=%t invocation=%#v error=%v, want enabled=%t", compaction, resolved, err, want)
 				}
 			}
 		})
@@ -144,6 +163,74 @@ func TestRoleStatusProjection(t *testing.T) {
 			t.Fatalf("workspace invocation=%#v error=%v", resolved, err)
 		}
 	})
+
+	for _, tc := range []struct {
+		name              string
+		compactionEnabled bool
+	}{
+		{name: "Should retain daemon compaction availability across workspace overlays", compactionEnabled: true},
+		{name: "Should not enable daemon compaction through a workspace overlay"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			global := roleResolverConfig()
+			global.Memory.Enabled = false
+			global.Session.Compaction.Enabled = tc.compactionEnabled
+			global.Roles.CheckpointSummary.Enabled = true
+			workspace := global
+			workspace.Session.Compaction.Enabled = !tc.compactionEnabled
+			workspace.Memory.Enabled = true
+			disabled := workspace
+			disabled.Roles.CheckpointSummary.Enabled = false
+			disabled.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
+			disabled.RoleSources[compozyconfig.RoleCheckpointSummary][compozyconfig.RoleFieldEnabled] = compozyconfig.RoleFieldSourceWorkspace
+			resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
+				"ws-disabled": disabled,
+				"ws-overlay":  workspace,
+			}}, nil)
+			for _, target := range []string{"ws-disabled", "ws-overlay", ""} {
+				status, err := resolver.RoleStatus(t.Context(), target, string(compozyconfig.RoleCheckpointSummary))
+				want := tc.compactionEnabled && target != "ws-disabled"
+				if err != nil || status.Enabled != want {
+					t.Fatalf("workspace=%q status=%#v error=%v, want enabled=%t", target, status, err, want)
+				}
+				if target == "ws-disabled" &&
+					status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
+					t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
+				}
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{
+		{name: "Should honor profile checkpoint opt-in under daemon compaction", enabled: true},
+		{name: "Should honor profile checkpoint opt-out under daemon compaction"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			global := roleResolverConfig()
+			global.Memory.Enabled = false
+			global.Session.Compaction.Enabled = true
+			scoped := loopActionBinderWorkspace(t, nil)
+			scoped.ProfileID = "profile-engineering"
+			scoped.Config.Memory.Enabled = false
+			scoped.Config.Session.Compaction.Enabled = false
+			scoped.Config.Roles.CheckpointSummary.Enabled = tc.enabled
+			resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
+			resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
+			ctx := withRoleInvocationCorrelation(
+				t.Context(),
+				roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true},
+			)
+			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
+			if err != nil || status.Enabled != tc.enabled {
+				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, tc.enabled)
+			}
+		})
+	}
 
 	t.Run("Should report a missing catalog agent without failing projection", func(t *testing.T) {
 		t.Parallel()

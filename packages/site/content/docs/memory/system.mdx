@@ -298,6 +298,15 @@ enter another workspace's prompt.
 
 ### Pressure compaction coverage
 
+`compozy roles list` and `compozy roles show checkpoint_summary` report the role as enabled when
+`roles.checkpoint_summary.enabled` is true in the selected workspace/profile and either effective
+memory or daemon-level `session.compaction.enabled` is enabled. Workspace memory still requires the
+daemon's memory switch. Pressure compaction uses the daemon-wide session manager configuration;
+a workspace/profile compaction override does not start or stop that manager.
+With memory disabled and compaction enabled, the role remains available for pressure summaries;
+ordinary session-end memory summaries remain disabled. An enabled status describes configuration
+availability, not evidence that a summary has run. The role's explicit disable switch takes precedence.
+
 When an ACP usage update reaches `[session.compaction].pressure_threshold`, CompozyOS selects only the
 complete persisted turns before the triggering turn. The active memory provider summarizes that
 sequence span into the workspace checkpoint and records hidden `(workspace, session, from, to)`

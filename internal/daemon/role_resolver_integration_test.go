@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -240,9 +242,19 @@ func TestRoleResolverIntegration(t *testing.T) {
 		t.Parallel()
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Memory.Enabled = false
+				cfg.Session.Compaction.Enabled = true
+				cfg.Roles.CheckpointSummary.Enabled = true
+				cfg.Roles.CheckpointSummary.Provider = "claude"
+				cfg.Roles.CheckpointSummary.Model = "checkpoint-model"
+			}},
 			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
 				".compozy/config.toml": `[roles.dream]
 agent = "missing-curator"
+
+[session.compaction]
+enabled = false
 `,
 			}},
 		})
@@ -302,6 +314,59 @@ agent = "missing-curator"
 		if !reflect.DeepEqual(cliDream, dream) {
 			t.Fatalf("CLI dream = %#v, want HTTP/UDS parity %#v", cliDream, dream)
 		}
+		var cliRoles []compozycontract.RoleStatus
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliRoles,
+			"roles",
+			"list",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI roles list error = %v", err)
+		}
+		if !reflect.DeepEqual(cliRoles, httpRoles.Roles) {
+			t.Fatalf("CLI roles=%#v, want HTTP/UDS parity %#v", cliRoles, httpRoles)
+		}
+		var checkpoint compozycontract.RoleStatus
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&checkpoint,
+			"roles",
+			"show",
+			"checkpoint_summary",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI checkpoint role error = %v", err)
+		}
+		if !checkpoint.Enabled || checkpoint.Provider == nil || *checkpoint.Provider != "claude" ||
+			checkpoint.Model == nil || *checkpoint.Model != "checkpoint-model" || len(checkpoint.Diagnostics) != 0 ||
+			checkpoint.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceGlobal {
+			t.Fatalf("checkpoint role=%#v, want configured compaction availability", checkpoint)
+		}
+		checkpointIndex := slices.IndexFunc(cliRoles, func(role compozycontract.RoleStatus) bool {
+			return role.Role == checkpoint.Role
+		})
+		if checkpointIndex < 0 {
+			t.Fatalf("checkpoint_summary missing from CLI/HTTP/UDS roster: %#v", cliRoles)
+		}
+		if !reflect.DeepEqual(cliRoles[checkpointIndex], checkpoint) {
+			t.Fatalf("checkpoint list=%#v, show=%#v", cliRoles[checkpointIndex], checkpoint)
+		}
+		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "roles", "show", "checkpoint_summary")
+		if err != nil || !strings.Contains(strings.Join(strings.Fields(stdout), " "), "Enabled: true") {
+			t.Fatalf("human checkpoint status stdout=%q stderr=%q error=%v", stdout, stderr, err)
+		}
+		t.Logf(
+			"checkpoint_summary: enabled=%t provider=%s model=%s provenance=%s; CLI/HTTP/UDS agree",
+			checkpoint.Enabled,
+			*checkpoint.Provider,
+			*checkpoint.Model,
+			checkpoint.Provenance[compozyconfig.RoleFieldEnabled],
+		)
 
 		workspace := url.QueryEscape(harness.WorkspaceRoot)
 		var agents compozycontract.AgentsResponse
