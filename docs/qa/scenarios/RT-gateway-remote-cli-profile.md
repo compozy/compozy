@@ -49,4 +49,4 @@ The existing credential and transaction suites also verify lock contention, repe
 acquisition, journal enumeration, corrupt-record refusal, and failed-recovery retention.
 The fileutil Windows suite verifies owner/ACL privacy and refusal of public read/write
 access. Unix retains exact `0600` rejection. Existing remote-provider limitations above
-still apply to the broader pairing journey. Windows evidence is pending current-head CI.
+still apply to the broader pairing journey. Windows execution evidence is recorded in the owning PR’s current-head CI job.

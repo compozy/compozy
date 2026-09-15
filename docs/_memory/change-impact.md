@@ -824,3 +824,8 @@ Windows CI preparation: pin SQL and Atlas checksum files to LF in `.gitattribute
 Git cannot convert embedded migration bytes on checkout. No released migration or checksum
 bytes change, and runtime integrity validation remains enabled. The first native Windows
 fileutil ACL suite passed; the CLI seed refused converted migration bytes before test execution.
+
+Windows CI also exposed missing `FILE_READ_ATTRIBUTES` on the existing removal handle.
+Gateway credential deletion and journal recovery now request that right for their existing
+handle-based type/reparse checks. The canonical atomic-removal suite runs in the Windows
+job alongside Gateway recovery; no safety check or test assertion was removed.
