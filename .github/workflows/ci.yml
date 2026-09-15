@@ -499,6 +499,25 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+      - name: Verify Windows private files and Gateway recovery
+        run: >-
+          go test ./internal/fileutil ./internal/cli
+          -run '^(TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
+      - name: Build native Windows CLI
+        run: go build -o "${{ runner.temp }}/compozy-gateway-test.exe" ./cmd/compozy
+        env:
+          CGO_ENABLED: 0
+
+      - name: Exercise repeated native Windows CLI and OS keyring recovery
+        run: go test -tags integration ./internal/cli -run '^TestWindowsGatewayCLI$' -count=1 -v
+        env:
+          CGO_ENABLED: 0
+          COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
+
   desktop:
     name: Desktop (format, lint, test, build)
     runs-on: ubuntu-latest

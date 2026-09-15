@@ -4,9 +4,11 @@ package fileutil
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -285,4 +287,85 @@ func createWindowsJunction(t *testing.T, link string, target string) {
 	if err != nil {
 		t.Fatalf("mklink /J %q %q error = %v, output = %s", link, target, err, output)
 	}
+}
+
+// Invariant: private I/O uses the held object's owner and ACL, never synthetic POSIX bits.
+func TestWindowsPrivateFiles(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, sddl string
+		allowed    bool
+	}{
+		{name: "Should accept owner-only access", sddl: "D:P(A;;FA;;;%s)", allowed: true},
+		{name: "Should accept trusted system administrators", sddl: "D:P(A;;FA;;;%s)(A;;FA;;;SY)(A;;FA;;;BA)", allowed: true},
+		{name: "Should reject public read access", sddl: "D:P(A;;FA;;;%s)(A;;FR;;;WD)"},
+		{name: "Should reject public write access", sddl: "D:P(A;;FA;;;%s)(A;;FW;;;WD)"},
+		{name: "Should reject a null DACL", sddl: "D:NO_ACCESS_CONTROL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "secret")
+			if err := os.WriteFile(path, []byte("private"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			operator, err := windows.GetCurrentProcessToken().GetTokenUser()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sddl := tc.sddl
+			if strings.Contains(sddl, "%s") {
+				sddl = fmt.Sprintf(sddl, operator.User.Sid.String())
+			}
+			security, err := windows.SecurityDescriptorFromString(sddl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dacl, _, err := security.DACL()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+				windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+				nil, nil, dacl, nil); err != nil {
+				t.Fatal(err)
+			}
+			got, err := ReadPrivateFile(path)
+			if tc.allowed {
+				if err != nil || string(got) != "private" {
+					t.Fatalf("read = %q, %v", got, err)
+				}
+				if err := os.Chmod(path, 0o400); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := os.Chmod(path, 0o600); err != nil {
+						t.Error(err)
+					}
+				})
+				if _, err := ReadPrivateFile(path); err != nil {
+					t.Fatalf("read-only attribute changes no ACL: %v", err)
+				}
+			} else if err == nil || got != nil {
+				t.Fatalf("unsafe read = %q, %v", got, err)
+			}
+		})
+	}
+	t.Run("Should refuse publication into a public directory without changing existing bytes", func(t *testing.T) {
+		t.Parallel()
+		directory := t.TempDir()
+		path := filepath.Join(directory, "secret")
+		if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if output, err := exec.Command("icacls", directory, "/grant", "*S-1-1-0:(OI)(CI)F").CombinedOutput(); err != nil {
+			t.Fatalf("grant: %v: %s", err, output)
+		}
+		if err := AtomicWritePrivateFile(path, []byte("replacement")); err == nil {
+			t.Fatal("accepted public directory")
+		}
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != "original" {
+			t.Fatalf("preserved = %q, %v", got, err)
+		}
+	})
 }

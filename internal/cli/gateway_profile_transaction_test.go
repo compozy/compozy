@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -78,6 +79,46 @@ func TestGatewayProfileTransactionLock(t *testing.T) {
 		}
 		if err := second.lock.Release(); err != nil {
 			t.Fatalf("release second lock error = %v", err)
+		}
+	})
+
+	t.Run("Should reuse an existing lock across repeated commands", func(t *testing.T) {
+		t.Parallel()
+		directory := t.TempDir()
+		for range 3 {
+			lock, err := tryAcquireGatewayProfileTransactionLock(directory, "laptop")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := lock.Release(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	t.Run("Should refuse nonprivate Unix locks and journals", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows ACL rejection has its own platform suite")
+		}
+		directory := t.TempDir()
+		for _, suffix := range []string{gatewayProfileTransactionLockSuffix, gatewayProfileTransactionJournalSuffix} {
+			path := filepath.Join(directory, "laptop"+suffix)
+			if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := tryAcquireGatewayProfileTransactionLock(directory, "laptop"); err == nil {
+			t.Fatal("accepted public lock")
+		}
+		if _, err := readGatewayProfileTransactionJournal(directory, "laptop"); err == nil {
+			t.Fatal("accepted public journal")
+		}
+		if _, err := listGatewayProfileTransactionJournals(directory); err == nil {
+			t.Fatal("enumerated public journal")
 		}
 	})
 
@@ -157,7 +198,7 @@ func TestGatewayProfileTransactionJournal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Stat(journal) error = %v", err)
 		}
-		if got := info.Mode().Perm(); got != 0o600 {
+		if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o600 {
 			t.Fatalf("journal permissions = %o, want 600", got)
 		}
 

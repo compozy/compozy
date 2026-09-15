@@ -106,3 +106,17 @@ Before enabling public operator access (`--consent`):
 - [Remote CLI, SSH, and public access](/docs/gateway/remote-access) — the consent switch itself.
 - [`[gateway]` configuration reference](/docs/configuration/config-toml#gateway) — the bounded
   tunables named on this page.
+
+## Local CLI credential files
+
+Encrypted credentials and profile recovery journals use private files. Linux and macOS
+require mode `0600`. Windows checks the file owner and access control list (ACL), because
+Windows read-only attributes do not represent Unix permission bits. Access must be limited
+to the current user, SYSTEM, and Administrators; the credentials directory must also be
+private. Symlinks, reparse points, and nonregular files are refused.
+
+Existing private Windows files can be reused across CLI commands without deleting lock
+files. An interrupted profile change resumes through its existing journal. File formats,
+encryption keys, and profile locations do not change. If the CLI reports an unsafe ACL,
+restore private access on the named credentials directory or file before retrying; the
+CLI does not silently change an existing Windows ACL or discard recovery data.
