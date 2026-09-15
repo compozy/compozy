@@ -65,6 +65,29 @@
   uses the real CLI and isolated daemon over HTTP/UDS; the PR race shard explicitly runs this suite.
   All tests, lint, builds and QA execute in GitHub CI, with no local validation claimed.
 
+## Issue 643 — Cancel unbound Goals before session deletion
+
+- **Native tools / CLI / HTTP / UDS:** existing session stop/removal and Goal cancellation
+  keep their IDs, routes and schemas. The canonical cancellation transaction projects the persisted
+  session origin when its checkpoint has no session binding; a moved binding still wins.
+- **Extensibility / hooks / config:** no new hooks, configuration, permission or SDK surface.
+  The existing transactional outbox and relay remain the publication owners; clear still emits
+  an unbound tombstone, and catalog-origin cancellation emits no session projection.
+- **Workspace / profile isolation:** origin lookup and outbox validation keep the existing Run,
+  workspace and session checks. The daemon retains its profile-scoped owned-Goal dispatch.
+  The fallback does not create a binding, change a checkpoint's session or erase Goal audit history.
+- **Compatibility / recovery:** no stored shape change or migration. After upgrading, retry the
+  failed deletion through the existing UI/API. Other selected sessions already deleted stay deleted.
+  Historical-generation selection is separate work; this change does not alter that query.
+- **Official skill / Web / Docs:** `skills/compozy/references/loops.md` already documents cancellation
+  before removal and retained Run history. No command change is needed. The existing bulk controller
+  preserves individual errors and retries only failed IDs. Session deletion and bulk-action QA
+  scenarios include the stopped/unbound case and distinguish automated evidence from a full manual walk.
+- **Validation owner:** the store lifecycle suite covers cancellation projection and idempotency;
+  the real Manager/SQLite integration covers stopped-session deletion; the existing bulk hook suite
+  owns partial failure/retry and the browser suite covers active/stopped selection and preservation.
+  All executable checks and rendered evidence run in GitHub CI under this issue's delivery contract.
+
 ## Issue 627 — Overlay model discovery and binding
 
 - **Native tools:** existing provider model list/status/refresh/curate and session-create tools keep

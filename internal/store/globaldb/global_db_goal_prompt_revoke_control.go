@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -79,14 +80,20 @@ func enqueueRevokedGoalProjection(
 	checkpoint goal.Checkpoint,
 	request goal.RevokePromptRequest,
 ) error {
+	originSessionID, sessionOrigin, err := loadGoalSessionOrigin(
+		ctx, exec, request.Key.WorkspaceID, request.Key.LoopRunID,
+	)
+	if err != nil || !sessionOrigin {
+		return err
+	}
 	var boundSessionID *string
 	if request.ProjectionCause != goal.SessionOutboxCauseClear {
-		value := checkpoint.SessionID
-		boundSessionID = &value
+		boundSessionID = new(cmp.Or(strings.TrimSpace(checkpoint.SessionID), originSessionID))
 	}
-	return enqueueGoalProjectionOutboxIfSessionOrigin(
+	return enqueueGoalProjectionOutboxForSessionOrigin(
 		ctx,
 		exec,
+		originSessionID,
 		request.Key.WorkspaceID,
 		request.Key.LoopRunID,
 		boundSessionID,

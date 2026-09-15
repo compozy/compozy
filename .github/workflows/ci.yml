@@ -395,6 +395,15 @@ jobs:
           ./internal/daemon ./internal/extension
           -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
 
+      - name: Verify Goal cancellation and stopped-session deletion with real SQLite
+        if: matrix.shard_index == '1'
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=integration -count=1 -timeout=5m
+          ./internal/store/globaldb ./internal/daemon
+          -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
+
       - name: Upload gotestsum timing data
         uses: actions/upload-artifact@v7
         with:
@@ -757,6 +766,15 @@ jobs:
         with:
           name: terminal-unicode-evidence-shard-${{ matrix.shard }}
           path: .tmp/playwright/test-results/*E2E-020*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload bulk session deletion QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: session-bulk-delete-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*session-bulk-actions*/compozy-artifacts
           if-no-files-found: ignore
           retention-days: 7
 

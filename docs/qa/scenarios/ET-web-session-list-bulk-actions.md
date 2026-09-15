@@ -68,3 +68,16 @@ progress, partial-failure, and retry invariants. Storybook `SelectionMode`,
 provide the controller's visual-review entry points. This new manual scenario
 remains `untested` until that complete walk is recorded; automated evidence is
 reported separately in the delivery report.
+
+## Goal cancellation regression
+
+Include a stopped session that previously owned a Goal in the selected set. Deletion must settle
+its owned Run without an internal outbox validation error, then remove the row. Preserve an
+unselected neighboring session. For a genuine partial failure, retain its error and retry only the
+remaining IDs; previously successful deletions must not be replayed. After upgrading the daemon,
+retry a previously failed deletion through the same control without resetting any user state.
+
+The browser suite now exercises mixed active/stopped selection and an unselected neighbor, with
+before/confirmation/after screenshots. The exact unbound Goal state belongs to the real SQLite
+store/Manager integration suites; the existing bulk lifecycle hook suite owns partial-error and
+retry behavior. New automated evidence is pending GitHub CI; this is not a full manual-scenario pass.
