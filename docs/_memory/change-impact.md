@@ -813,3 +813,9 @@ MCP repair follow-up: Settings determines pre-mutation existence from owner-qual
   slice, verified by native CLI processes and real OS keyring use in GitHub CI. Existing
   owning transaction/credential suites and Windows fileutil ACL tests cover rejection and
   recovery. All gates/builds/tests/QA are assigned to current-head GitHub CI by user override.
+
+First-review remediation preserves an unsafe existing destination's bytes and ACL instead of
+replacing it. The same no-follow directory handle validates the destination before publication;
+Windows ACL tests assert both the specific rejection and unchanged security descriptor. Unix
+lock/journal tests assert the precise private-permission error. Newly created files retain their
+explicit mode initialization under restrictive Unix umasks; existing files are never chmod-repaired.

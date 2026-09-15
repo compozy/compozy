@@ -68,5 +68,20 @@ func AtomicWritePrivateFile(path string, contents []byte) (err error) {
 	if err := directory.CheckPrivatePermissions(); err != nil {
 		return err
 	}
+	if err := directory.checkPrivateReplacement(name); err != nil {
+		return err
+	}
 	return directory.atomicWriteFile(name, contents, 0o600, true, true)
+}
+
+func (d *Directory) checkPrivateReplacement(name string) (err error) {
+	file, err := d.OpenRegularFile(name)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, file.Close()) }()
+	return CheckPrivateFile(file)
 }

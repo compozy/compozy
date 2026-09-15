@@ -184,6 +184,9 @@ func (d *Directory) atomicWriteFile(name string, contents []byte, perm os.FileMo
 	}()
 
 	if private {
+		if err := temporary.Chmod(perm); err != nil {
+			return fmt.Errorf("fileutil: set private temporary file mode: %w", err)
+		}
 		if err := CheckPrivateFile(temporary); err != nil {
 			return err
 		}

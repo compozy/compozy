@@ -212,8 +212,10 @@ func ensureGatewayProfileTransactionLockFile(path string) (err error) {
 		return fmt.Errorf("cli: secure gateway profile transaction lock directory: %w", err)
 	}
 	file, err := directory.OpenRegularFile(name)
+	created := false
 	if errors.Is(err, os.ErrNotExist) {
 		file, err = directory.CreateRegularFile(name, 0o600)
+		created = err == nil
 		if errors.Is(err, os.ErrExist) {
 			file, err = directory.OpenRegularFile(name)
 		}
@@ -226,6 +228,11 @@ func ensureGatewayProfileTransactionLockFile(path string) (err error) {
 			err = errors.Join(err, fmt.Errorf("cli: close gateway profile transaction lock: %w", closeErr))
 		}
 	}()
+	if created {
+		if err := file.Chmod(0o600); err != nil {
+			return fmt.Errorf("cli: secure new gateway profile transaction lock: %w", err)
+		}
+	}
 	if err := fileutil.CheckPrivateFile(file); err != nil {
 		return fmt.Errorf("cli: secure gateway profile transaction lock: %w", err)
 	}

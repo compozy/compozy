@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,14 +112,25 @@ func TestGatewayProfileTransactionLock(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := tryAcquireGatewayProfileTransactionLock(directory, "laptop"); err == nil {
-			t.Fatal("accepted public lock")
+		if _, err := tryAcquireGatewayProfileTransactionLock(
+			directory,
+			"laptop",
+		); err == nil ||
+			!strings.Contains(err.Error(), "private file permissions must be 0600") {
+			t.Fatalf("expected private lock permission rejection, got %v", err)
 		}
-		if _, err := readGatewayProfileTransactionJournal(directory, "laptop"); err == nil {
-			t.Fatal("accepted public journal")
+		if _, err := readGatewayProfileTransactionJournal(
+			directory,
+			"laptop",
+		); err == nil ||
+			!strings.Contains(err.Error(), "private file permissions must be 0600") {
+			t.Fatalf("expected private journal permission rejection, got %v", err)
 		}
-		if _, err := listGatewayProfileTransactionJournals(directory); err == nil {
-			t.Fatal("enumerated public journal")
+		if _, err := listGatewayProfileTransactionJournals(
+			directory,
+		); err == nil ||
+			!strings.Contains(err.Error(), "private file permissions must be 0600") {
+			t.Fatalf("expected private journal enumeration rejection, got %v", err)
 		}
 	})
 

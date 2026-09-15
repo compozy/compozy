@@ -293,14 +293,14 @@ func createWindowsJunction(t *testing.T, link string, target string) {
 func TestWindowsPrivateFiles(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, sddl string
-		allowed    bool
+		name, sddl, wantError string
+		allowed               bool
 	}{
 		{name: "Should accept owner-only access", sddl: "D:P(A;;FA;;;%s)", allowed: true},
 		{name: "Should accept trusted system administrators", sddl: "D:P(A;;FA;;;%s)(A;;FA;;;SY)(A;;FA;;;BA)", allowed: true},
-		{name: "Should reject public read access", sddl: "D:P(A;;FA;;;%s)(A;;FR;;;WD)"},
-		{name: "Should reject public write access", sddl: "D:P(A;;FA;;;%s)(A;;FW;;;WD)"},
-		{name: "Should reject a null DACL", sddl: "D:NO_ACCESS_CONTROL"},
+		{name: "Should reject public read access", sddl: "D:P(A;;FA;;;%s)(A;;FR;;;WD)", wantError: "private file ACL must restrict access"},
+		{name: "Should reject public write access", sddl: "D:P(A;;FA;;;%s)(A;;FW;;;WD)", wantError: "private file ACL must restrict access"},
+		{name: "Should reject a null DACL", sddl: "D:NO_ACCESS_CONTROL", wantError: "private file requires a non-null DACL"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -345,8 +345,34 @@ func TestWindowsPrivateFiles(t *testing.T) {
 				if _, err := ReadPrivateFile(path); err != nil {
 					t.Fatalf("read-only attribute changes no ACL: %v", err)
 				}
-			} else if err == nil || got != nil {
-				t.Fatalf("unsafe read = %q, %v", got, err)
+			} else {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) || got != nil {
+					t.Fatalf("unsafe read = %q, %v; want %q", got, err, tc.wantError)
+				}
+				before, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+					windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := AtomicWritePrivateFile(
+					path,
+					[]byte("replacement"),
+				); err == nil ||
+					!strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("unsafe replacement = %v; want %q", err, tc.wantError)
+				}
+				preserved, err := os.ReadFile(path)
+				if err != nil || string(preserved) != "private" {
+					t.Fatalf("preserved = %q, %v", preserved, err)
+				}
+				after, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+					windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if before.String() != after.String() {
+					t.Fatal("replacement changed existing security descriptor")
+				}
 			}
 		})
 	}
@@ -357,11 +383,16 @@ func TestWindowsPrivateFiles(t *testing.T) {
 		if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if output, err := exec.Command("icacls", directory, "/grant", "*S-1-1-0:(OI)(CI)F").CombinedOutput(); err != nil {
+		if output, err := exec.Command("icacls", directory, "/grant", "*S-1-1-0:(OI)(CI)F").
+			CombinedOutput(); err != nil {
 			t.Fatalf("grant: %v: %s", err, output)
 		}
-		if err := AtomicWritePrivateFile(path, []byte("replacement")); err == nil {
-			t.Fatal("accepted public directory")
+		if err := AtomicWritePrivateFile(
+			path,
+			[]byte("replacement"),
+		); err == nil ||
+			!strings.Contains(err.Error(), "private file ACL must restrict access") {
+			t.Fatalf("expected private directory ACL rejection, got %v", err)
 		}
 		got, err := os.ReadFile(path)
 		if err != nil || string(got) != "original" {
