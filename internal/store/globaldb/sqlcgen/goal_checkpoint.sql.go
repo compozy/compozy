@@ -645,6 +645,7 @@ const listStoppableGoalCheckpointKeys = `-- name: ListStoppableGoalCheckpointKey
 SELECT generation, node_id, item_index
 FROM loop_goal_checkpoints
 WHERE loop_run_id = ?1 AND phase != 'terminal'
+  AND generation = (SELECT generation FROM loop_runs WHERE id = ?1)
 ORDER BY generation ASC, node_id ASC, item_index ASC
 `
 
