@@ -22,6 +22,21 @@
   is an opt-in CI integration probe; first CI reproduction fetched 52 plugins and then failed at the
   archive endpoint with HTTP 415. All corrected-head gates and real browser evidence run in CI.
 
+## Pending stop recovery after a Goal generation change
+
+- **Native tools / CLI / HTTP / UDS:** existing Goal cancel/clear/replace and session-stop recovery
+  select checkpoints from the Run's current generation. Historical checkpoints remain retained;
+  an already-fenced prompt in an older generation cannot block daemon readiness.
+- **Extensibility/hooks/config:** no contract, hook, permission, SDK, or config changes.
+- **Workspace data isolation:** the existing scoped Run authorization and transactional ownership
+  checks remain authoritative. No schema migration or data deletion is needed.
+- **Web / Docs / official skill:** desktop startup and existing Goal controls inherit the fix.
+  No UI or skill syntax changes. The affected QA scenario records the restart regression.
+- **Verification:** `TestGoalTurnRuntimeLifecycleIntegration` covers current-generation cancellation
+  and retained history with real SQLite. Time-travel and inline Goal replace/clear suites also pass
+  with the race detector. Recovery passed on a database copy and through two real daemon boots.
+  The full integration-tagged lint scan reports six pre-existing findings outside the changed lines.
+
 ## Issue 627 — Overlay model discovery and binding
 
 - **Native tools:** existing provider model list/status/refresh/curate and session-create tools keep

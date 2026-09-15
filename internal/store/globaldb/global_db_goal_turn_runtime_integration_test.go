@@ -1214,6 +1214,56 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should cancel the current Goal generation without revoking retained history", func(t *testing.T) {
+		t.Parallel()
+		globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-cancel-retained")
+		ctx := t.Context()
+		ticket := prepareGoalRuntimePrompt(t, globalDB, key, taskRunID, "historical-prompt", now)
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE session_input_queue
+			SET status = 'canceled', terminal_kind = 'control-fenced',
+			terminal_reason_code = 'goal_control_revoked_in_flight', terminal_at = ?, canceled_at = ?
+			WHERE id = ?`, store.FormatTimestamp(now), store.FormatTimestamp(now), ticket.QueueEntryID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx,
+			`UPDATE loop_runs SET generation = 2 WHERE id = ?`, string(key.LoopRunID)); err != nil {
+			t.Fatal(err)
+		}
+		currentKey := key
+		currentKey.Generation = 2
+		if _, err := globalDB.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+			Key: currentKey, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
+			TaskRunID: taskRunID, SessionID: "session-goal-runtime", BindingHandle: "goal:runtime",
+			BindingEpoch: 1, ContextState: "unknown", ContextNudgeRatio: 0.8, UpdatedAt: now,
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		actor := operatorActorContextForTest("operator:cancel-retained")
+		result, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: key.WorkspaceID, RunID: key.LoopRunID, Reason: "session stopped",
+			Actor: actor, RequestedAt: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+		if len(result.RevokedPromptLeases) != 0 {
+			t.Fatalf("historical prompt leases revoked = %#v", result.RevokedPromptLeases)
+		}
+		run, err := globalDB.GetLoopRun(ctx, key.WorkspaceID, key.LoopRunID)
+		if err != nil || run.Status != looppkg.StatusCanceled {
+			t.Fatalf("canceled run = %#v, error = %v", run, err)
+		}
+		current, err := globalDB.LoadCheckpoint(ctx, currentKey)
+		if err != nil || current.Phase != "terminal" || current.Status != "paused" {
+			t.Fatalf("current checkpoint = %#v, error = %v", current, err)
+		}
+		historical, err := globalDB.LoadCheckpoint(ctx, key)
+		if err != nil || historical.Phase != "queued" || historical.ControlEpoch != 1 ||
+			historical.QueueEntryID != ticket.QueueEntryID {
+			t.Fatalf("retained checkpoint = %#v, error = %v", historical, err)
+		}
+	})
+
 	t.Run("Should let control revoke a prepared prompt before claim without a turn", func(t *testing.T) {
 		t.Parallel()
 
@@ -3087,6 +3137,10 @@ func seedGoalTurnRuntime(
 		},
 	)
 	insertGoalSchemaLoopRun(t, globalDB, runID, "ws-goal-runtime", "catalog", nil)
+	if _, err := globalDB.db.ExecContext(t.Context(),
+		`UPDATE loop_runs SET generation = 1 WHERE id = ?`, runID); err != nil {
+		t.Fatalf("set initial Goal generation error = %v", err)
+	}
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO loop_session_bindings (

@@ -146,6 +146,7 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
 SELECT generation, node_id, item_index
 FROM loop_goal_checkpoints
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND phase != 'terminal'
+  AND generation = (SELECT generation FROM loop_runs WHERE id = sqlc.arg(loop_run_id))
 ORDER BY generation ASC, node_id ASC, item_index ASC;
 
 -- name: TerminalizeStoppedGoalCheckpoint :execrows
