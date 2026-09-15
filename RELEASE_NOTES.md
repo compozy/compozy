@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-14
+## 0.3.0 - 2026-09-15
 
 ### ♻️ Refactoring
 
@@ -9,6 +9,7 @@
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
+- Quiet the Context rail and sessions row for everyday use (#649)
 
 ### ⚡ Performance Improvements
 
@@ -251,6 +252,12 @@
 - Resolve terminal cwd from the bound session worktree (#641)
 - Repair release integration and catalog compatibility
 - Stabilize release integration under concurrent startup
+- Goal delete session
+- Reopen private Gateway files safely on Windows (#646)
+- Report checkpoint role availability from compaction configuration (#645)
+- Recover marketplace sources and render catalog logos under CSP (#648)
+- Repair marketplace CI fixtures and evidence capture
+- Cancel unbound goals before deleting sessions (#647)
 
 ### 🔧 Miscellaneous Tasks
 

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-09-14
+## 0.3.0 - 2026-09-15
 
 ### ♻️ Refactoring
 
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
+- Quiet the Context rail and sessions row for everyday use (#649)
 
 ### ⚡ Performance Improvements
 
@@ -258,6 +259,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolve terminal cwd from the bound session worktree (#641)
 - Repair release integration and catalog compatibility
 - Stabilize release integration under concurrent startup
+- Goal delete session
+- Reopen private Gateway files safely on Windows (#646)
+- Report checkpoint role availability from compaction configuration (#645)
+- Recover marketplace sources and render catalog logos under CSP (#648)
+- Repair marketplace CI fixtures and evidence capture
+- Cancel unbound goals before deleting sessions (#647)
 
 ### 🔧 Miscellaneous Tasks
 
