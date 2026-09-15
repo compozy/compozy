@@ -819,3 +819,8 @@ replacing it. The same no-follow directory handle validates the destination befo
 Windows ACL tests assert both the specific rejection and unchanged security descriptor. Unix
 lock/journal tests assert the precise private-permission error. Newly created files retain their
 explicit mode initialization under restrictive Unix umasks; existing files are never chmod-repaired.
+
+Windows CI preparation: pin SQL and Atlas checksum files to LF in `.gitattributes` so
+Git cannot convert embedded migration bytes on checkout. No released migration or checksum
+bytes change, and runtime integrity validation remains enabled. The first native Windows
+fileutil ACL suite passed; the CLI seed refused converted migration bytes before test execution.

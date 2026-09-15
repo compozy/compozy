@@ -4,3 +4,7 @@ skeeper.lock merge=skeeper-lock
 
 # Built from the maintained sources in extensions/open-design/linter.
 extensions/open-design/lint.gen.mjs linguist-generated=true
+
+# Embedded migration checksums require identical SQL bytes on Windows and Unix.
+*.sql text eol=lf
+atlas.sum text eol=lf
