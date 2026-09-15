@@ -1511,6 +1511,96 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		},
 	)
 
+	// Invariant: cancellation projects a durable session origin without inventing a checkpoint binding.
+	// Owner: Goal cancellation transaction; canonical turn runtime lifecycle integration suite.
+	for _, tc := range []struct {
+		name      string
+		origin    string
+		sessionID string
+	}{
+		{name: "Should cancel an unbound session Goal", origin: "session"},
+		{name: "Should retain a moved Goal binding on cancellation", origin: "session", sessionID: "session-bound"},
+		{name: "Should cancel an unbound catalog Goal without a session projection", origin: "catalog"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openLoopTestGlobalDB(t, "ws-cancel")
+			now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+			for _, sessionID := range []string{"session-origin", "session-bound"} {
+				registerGoalSessionIdentityForTest(t, db, goalSessionInfoForTest(sessionID, "ws-cancel", now),
+					store.SessionCreationIdentity{CreationProfileRef: "profile-" + sessionID,
+						PolicySpecDigest: "policy-" + sessionID, CreationDigest: "creation-" + sessionID})
+			}
+			var originSessionID *string
+			if tc.origin == "session" {
+				originSessionID = new("session-origin")
+			}
+			insertGoalSchemaLoopRun(t, db, "run-cancel", "ws-cancel", tc.origin, originSessionID)
+			if tc.origin == "session" {
+				if _, err := db.db.ExecContext(ctx, `UPDATE loop_runs SET
+					origin_creation_profile_ref = 'profile-session-origin',
+					origin_policy_spec_digest = 'policy-session-origin',
+					origin_creation_digest = 'creation-session-origin' WHERE id = ?`, "run-cancel"); err != nil {
+					t.Fatalf("set cancellation origin identity: %v", err)
+				}
+			}
+			if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET generation = 1 WHERE id = ?", "run-cancel"); err != nil {
+				t.Fatalf("set active cancellation generation: %v", err)
+			}
+			key := goal.TurnKey{WorkspaceID: "ws-cancel", LoopRunID: "run-cancel", Generation: 1, NodeID: "goal"}
+			checkpoint, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+				Key: key, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
+				SessionID: tc.sessionID, ContextState: "unknown", ContextNudgeRatio: 0.8, UpdatedAt: now,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "cli")
+			if err != nil {
+				t.Fatal(err)
+			}
+			mutation := looppkg.CancellationMutation{
+				WorkspaceID: key.WorkspaceID, RunID: key.LoopRunID, Actor: actor,
+				Reason: "session deleted", RequestedAt: now.Add(time.Second),
+			}
+			for range 2 {
+				if _, err := db.RequestRunCancellation(ctx, mutation); err != nil {
+					t.Fatalf("RequestRunCancellation() error = %v", err)
+				}
+			}
+			run, err := db.GetLoopRun(ctx, key.WorkspaceID, key.LoopRunID)
+			if err != nil || run.Status != looppkg.StatusCanceled {
+				t.Fatalf("canceled Run = %#v, %v", run, err)
+			}
+			retained, err := db.LoadCheckpoint(ctx, key)
+			if err != nil || retained.Phase != "terminal" || retained.Status != "paused" ||
+				retained.ControlEpoch != 2 || retained.SessionID != checkpoint.SessionID ||
+				retained.BindingEpoch != checkpoint.BindingEpoch || retained.TurnsUsed != checkpoint.TurnsUsed {
+				t.Fatalf("retained checkpoint = %#v, %v", retained, err)
+			}
+			pending, err := db.ClaimGoalSessionOutbox(ctx, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.origin == "catalog" {
+				if len(pending) != 0 {
+					t.Fatalf("catalog cancellation emitted session projections: %#v", pending)
+				}
+				return
+			}
+			wantSession := tc.sessionID
+			if wantSession == "" {
+				wantSession = "session-origin"
+			}
+			if len(pending) != 1 || pending[0].Cause != goal.SessionOutboxCauseStatus ||
+				pending[0].OriginSessionID != "session-origin" || pending[0].BoundSessionID == nil ||
+				*pending[0].BoundSessionID != wantSession {
+				t.Fatalf("cancellation projection = %#v, want one status for %q", pending, wantSession)
+			}
+		})
+	}
+
 	t.Run("Should co-commit a clear tombstone and an unbound session projection", func(t *testing.T) {
 		t.Parallel()
 

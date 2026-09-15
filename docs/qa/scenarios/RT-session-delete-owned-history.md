@@ -25,3 +25,20 @@ Exercise a real provider session with tool permission and token history; an empt
 QA impact 2026-07-14: the API fallback was removed and daemon boot now requires the atomic workspace-removal preparer. Reset pending final-worktree deletion and foreign-session preservation evidence.
 
 2026-07-14 final-worktree control: public detail, history, transcript, usage, event, and catalog reads stopped exposing the deleted session, while the neighboring session retained its history and usage. Retest promoted to pass.
+
+## Stopped Goal owner with an unbound checkpoint
+
+In an isolated fixture, retain a session-origin Goal Run with a supported idle checkpoint whose
+session binding has not been established, and a stopped origin session. Delete that origin through
+the session lifecycle surface. Expect successful deletion, absence from session reads, a canceled
+Run with retained checkpoint/audit history, and an unchanged neighboring session. The cancellation
+projection uses the persisted origin identity; the checkpoint remains unbound. Repeat cancellation
+without creating duplicate projection events. Never alter an operator's live database to seed this case.
+
+The store turn-runtime suite owns the exact empty-binding regression. The managed runtime suite
+owns deletion through the real Manager and SQLite. GitHub CI runs both with race detection; the
+existing Goal command E2E covers public stop/remove/clear/replace with ACP subprocesses.
+The issue-specific automated verdict, exact commit and CI job receipts are recorded in
+[PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
+That record covers this stopped/unbound deletion slice; the historical evidence above is separate
+and is not promoted to a new full manual-scenario pass.

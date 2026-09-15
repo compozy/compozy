@@ -68,3 +68,20 @@ progress, partial-failure, and retry invariants. Storybook `SelectionMode`,
 provide the controller's visual-review entry points. This new manual scenario
 remains `untested` until that complete walk is recorded; automated evidence is
 reported separately in the delivery report.
+
+## Goal cancellation regression
+
+Include a stopped session that previously owned a Goal in the selected set. Deletion must settle
+its owned Run without an internal outbox validation error, then remove the row. Preserve an
+unselected neighboring session. For a genuine partial failure, retain its error and retry only the
+remaining IDs; previously successful deletions must not be replayed. After upgrading the daemon,
+retry a previously failed deletion through the same control without resetting any user state.
+
+The browser suite now exercises mixed active/stopped selection and an unselected neighbor, with
+before/confirmation/after screenshots. The exact unbound Goal state belongs to the real SQLite
+store/Manager integration suites; the existing bulk lifecycle hook suite owns partial-error and
+retry behavior. The issue-specific automated verdict, exact commit, CI jobs and selection/confirmation/completion
+screenshots are recorded in [PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
+The bulk lifecycle suite verifies per-ID error reporting, no premature success toast, retry of only
+failed IDs, and the final cumulative count. This scoped automated record does not claim a complete
+manual keyboard/range/archive walk.

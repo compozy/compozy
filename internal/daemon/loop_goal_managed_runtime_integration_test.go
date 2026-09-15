@@ -27,6 +27,65 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	// Invariant: deleting a stopped Goal owner settles unbound work and preserves unrelated sessions and Run history.
+	// Owner: Manager/daemon lifecycle seam; canonical managed runtime integration suite.
+	t.Run("Should delete a stopped session with an unbound Goal checkpoint", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "delete-unbound", nil, withoutInitialGoalBinding())
+		ctx := t.Context()
+		originID, originIdentity := fixture.createOriginSession(t, "delete-unbound", participation.LocalSpec())
+		neighborID, _ := fixture.createOriginSession(t, "delete-neighbor", participation.LocalSpec())
+		if err := fixture.manager.Stop(ctx, originID); err != nil {
+			t.Fatal(err)
+		}
+		stopped, err := fixture.manager.Status(ctx, originID)
+		if err != nil || stopped.State != session.StateStopped {
+			t.Fatalf("session before deletion = %#v, %v", stopped, err)
+		}
+		connection, ok := fixture.goalStore.(interface {
+			loopAPIPersistence
+			loopGoalAPIPersistence
+			DB() *sql.DB
+		})
+		if !ok {
+			t.Fatal("Goal store lacks the lifecycle persistence fixture")
+		}
+		if _, err := connection.DB().ExecContext(ctx,
+			`UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ?,
+			 origin_creation_profile_ref = ?, origin_policy_spec_digest = ?, origin_creation_digest = ? WHERE id = ?`,
+			originID, originIdentity.CreationProfileRef, originIdentity.PolicySpecDigest,
+			originIdentity.CreationDigest, string(fixture.run.ID)); err != nil {
+			t.Fatal(err)
+		}
+		aggregate, err := looppkg.NewService(fixture.goalStore,
+			looppkg.DefinitionResolverFunc(func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+				return nil, looppkg.ErrDefinitionNotFound
+			}), managedTestGoalRunPolicyResolver(),
+			looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.manager.SetGoalCommandHandler(&daemonLoopAPIService{
+			aggregate: aggregate, persistence: connection, goalPersistence: connection,
+		})
+		if err := fixture.manager.Delete(ctx, originID); err != nil {
+			t.Fatalf("Delete(stopped Goal owner) error = %v", err)
+		}
+		if _, err := fixture.manager.Status(ctx, originID); !errors.Is(err, session.ErrSessionNotFound) {
+			t.Fatalf("deleted session status error = %v, want ErrSessionNotFound", err)
+		}
+		if _, err := fixture.manager.Status(ctx, neighborID); err != nil {
+			t.Fatalf("neighbor changed during deletion: %v", err)
+		}
+		run, err := fixture.goalStore.GetLoopRun(ctx, fixture.run.WorkspaceID, fixture.run.ID)
+		if err != nil || run.Status != looppkg.StatusCanceled {
+			t.Fatalf("retained Goal Run = %#v, %v", run, err)
+		}
+		checkpoint, err := fixture.goalStore.LoadCheckpoint(ctx, fixture.key)
+		if err != nil || checkpoint.Phase != "terminal" {
+			t.Fatalf("retained Goal checkpoint = %#v, %v", checkpoint, err)
+		}
+	})
+
 	// Invariant: a known context snapshot reads exactly its persisted usage event, even after newer activity.
 	// Owner: daemon context-event adapter; canonical managed runtime integration suite.
 	t.Run("Should read a pinned context observation from the real session event store", func(t *testing.T) {
