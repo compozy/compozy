@@ -22,6 +22,7 @@ type tarEntry struct {
 	mode     int64
 	typeflag byte
 	linkname string
+	pax      map[string]string
 	format   tar.Format
 }
 
@@ -86,6 +87,26 @@ func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 		}
 	})
 
+	t.Run("Should consume Git archive metadata without materializing it or charging file count", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		archive := mustTarGz(t, []tarEntry{
+			{name: "pax_global_header", typeflag: tar.TypeXGlobalHeader, pax: map[string]string{"comment": "commit identity"}},
+			{name: "plugin.json", content: "{}"},
+		})
+		if err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, root), ExtractionLimits{MaxFiles: 1}); err != nil {
+			t.Fatal(err)
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil || len(entries) != 1 || entries[0].Name() != "plugin.json" {
+			t.Fatalf("extracted entries = %v, error = %v", entries, err)
+		}
+		content, err := os.ReadFile(filepath.Join(root, "plugin.json"))
+		if err != nil || string(content) != "{}" {
+			t.Fatalf("plugin content = %q, error = %v", content, err)
+		}
+	})
+
 	t.Run("Should preserve distinct leading-space entry names during extraction", func(t *testing.T) {
 		t.Parallel()
 
@@ -120,6 +141,22 @@ func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 
 func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should include global metadata in the decompressed byte limit", func(t *testing.T) {
+		t.Parallel()
+		archive := mustTarGz(t, []tarEntry{
+			{name: "pax_global_header", typeflag: tar.TypeXGlobalHeader, pax: map[string]string{"comment": strings.Repeat("x", 4096)}},
+			{name: "plugin.json", content: "{}"},
+		})
+		root := t.TempDir()
+		err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, root), ExtractionLimits{MaxBytes: 2048})
+		if !errors.Is(err, errArchiveTooLarge) {
+			t.Fatalf("metadata size limit error = %v, want %v", err, errArchiveTooLarge)
+		}
+		if _, err := os.Stat(filepath.Join(root, "plugin.json")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("file after oversized metadata: %v", err)
+		}
+	})
 
 	t.Run("Should reject archives that exceed the decompressed size limit", func(t *testing.T) {
 		t.Parallel()
@@ -1016,11 +1053,12 @@ func mustTarGz(t *testing.T, entries []tarEntry) []byte {
 		}
 
 		header := &tar.Header{
-			Name:     entry.name,
-			Mode:     0o644,
-			Typeflag: typeflag,
-			Linkname: entry.linkname,
-			Format:   entry.format,
+			Name:       entry.name,
+			Mode:       0o644,
+			Typeflag:   typeflag,
+			Linkname:   entry.linkname,
+			Format:     entry.format,
+			PAXRecords: entry.pax,
 		}
 		if entry.mode != 0 {
 			header.Mode = entry.mode

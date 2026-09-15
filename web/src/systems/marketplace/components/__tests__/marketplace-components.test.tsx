@@ -367,8 +367,36 @@ describe("Marketplace page and cards", () => {
     };
     setup();
     expect(await screen.findByTestId("marketplace-stale")).toHaveTextContent(
-      "Showing the catalog from"
+      "Could not refresh compozy-catalog. Showing cached entries from"
     );
+    expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
+  });
+  it("Should name only the failed source and clear its warning after Retry recovers", async () => {
+    catalog = {
+      ...catalog,
+      stale: true,
+      sources: [
+        { ...catalog.sources[0]!, state: "ok" },
+        { ...catalog.sources[0]!, name: "claude-plugins-official", state: "degraded", count: 0 },
+      ],
+    };
+    server.use(
+      http.post("*/api/marketplace/refresh", () => {
+        catalog = {
+          ...catalog,
+          stale: false,
+          sources: catalog.sources.map(source => ({ ...source, state: "ok" })),
+        };
+        return HttpResponse.json({ sources: [] });
+      })
+    );
+    setup();
+    const warning = await screen.findByTestId("marketplace-stale");
+    expect(warning).toHaveTextContent("Could not refresh claude-plugins-official.");
+    expect(warning).not.toHaveTextContent("compozy-catalog");
+    expect(warning).not.toHaveTextContent("cached entries");
+    await userEvent.click(within(warning).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByTestId("marketplace-stale")).toBeNull());
     expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();
   });
   // Invariant: repeated failed retries preserve the cached catalog and emit one failure toast per five seconds.
@@ -583,7 +611,7 @@ describe("Marketplace page and cards", () => {
   it("Should fall through a failed feed image to a brand mark", async () => {
     const view = setup(
       <MarketplaceEntryLogo
-        entry={{ entry_id: "github", name: "GitHub", icon: "https://example.test/logo.svg" }}
+        entry={{ entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" }}
       />
     );
     await waitFor(() => expect(view.container.querySelector("img")).not.toBeNull());
@@ -608,17 +636,28 @@ describe("Marketplace page and cards", () => {
     expect(view.container.querySelector('[data-rung="marble"]')).toBeNull();
   });
   it("Should retry a new icon URL after the previous image failed", () => {
-    const item = { entry_id: "github", name: "GitHub", icon: "https://example.test/old.svg" };
+    const item = { entry_id: "github", name: "GitHub", icon: "data:image/png;base64,AAAA" };
     const view = render(<MarketplaceEntryLogo entry={item} />);
     fireEvent.error(view.container.querySelector("img")!);
     expect(view.container.querySelector("img")).toBeNull();
-    view.rerender(
-      <MarketplaceEntryLogo entry={{ ...item, icon: "https://example.test/new.svg" }} />
-    );
+    view.rerender(<MarketplaceEntryLogo entry={{ ...item, icon: "data:image/png;base64,BBBB" }} />);
     expect(view.container.querySelector("img")).toHaveAttribute(
       "src",
-      "https://example.test/new.svg"
+      "data:image/png;base64,BBBB"
     );
+  });
+  it.each([
+    "https://example.test/logo.svg",
+    "http://127.0.0.1/private.png",
+    "//example.test/logo.svg",
+    "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/missing.svg",
+    "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/github.svg?redirect=elsewhere",
+  ])("Should fall back without requesting an unsupported image %s", icon => {
+    const view = render(
+      <MarketplaceEntryLogo entry={{ entry_id: "github", name: "GitHub", icon }} />
+    );
+    expect(view.container.querySelector("img")).toBeNull();
+    expect(view.container.querySelector('[data-rung="brand"]')).not.toBeNull();
   });
   it("Should render unknown-entry marbles with separate SVG ids for duplicate seeds", async () => {
     const tile = { entry_id: "unknown-package", name: "Unknown" };

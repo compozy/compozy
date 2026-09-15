@@ -67,6 +67,7 @@ func (c *Client) doRequest(
 	return response, nil
 }
 
+// openDownloadResponse negotiates the API media type for source archives and binary media for release assets.
 func (c *Client) openDownloadResponse(
 	ctx context.Context,
 	repo repoSlug,
@@ -89,7 +90,7 @@ func (c *Client) openDownloadResponse(
 		}
 		return response, strings.TrimSpace(selection.asset.Digest), size, nil
 	case selection.useTarball:
-		response, err := c.doRequest(ctx, strings.TrimSpace(release.TarballURL), acceptBinary)
+		response, err := c.doRequest(ctx, strings.TrimSpace(release.TarballURL), acceptJSON)
 		if err != nil {
 			return nil, "", -1, fmt.Errorf("github: download source archive for %q: %w", repo.full, err)
 		}

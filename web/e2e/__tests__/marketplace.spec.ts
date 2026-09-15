@@ -62,6 +62,110 @@ test.describe("Marketplace source catalog", () => {
     },
   });
 
+  // Invariant: production CSP images and per-source Retry/Refresh recovery share the real daemon UI.
+  test("E2E-005: Retry recovers one failed source and shipped logos load under production CSP", async ({
+    appPage,
+    runtime,
+    browserArtifacts,
+  }) => {
+    const fixture = await createPluginMarketplaceFixture();
+    const externalRequests: string[] = [];
+    const cspErrors: string[] = [];
+    appPage.on("request", request => {
+      if (request.resourceType() === "image" && new URL(request.url()).protocol === "https:") {
+        externalRequests.push(request.url());
+      }
+    });
+    appPage.on("console", message => {
+      if (/content security policy/i.test(message.text())) cspErrors.push(message.text());
+    });
+    try {
+      runtime.replaceMarketplaceCatalog({
+        extensions: ["github.svg", "context7.png", "unsupported.svg"].map((icon, index) => ({
+          entry_id: `logo-${index}`,
+          name: `Logo ${index}`,
+          description: "Production CSP image coverage",
+          version: "1.0.0",
+          install_slug: `compozy/logo-${index}`,
+          artifact_url: "https://example.test/extension.tar.gz",
+          digest_sha256: "a".repeat(64),
+          tier: "unverified",
+          icon:
+            index === 2
+              ? "https://example.test/unsupported.svg"
+              : `https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/${icon}`,
+        })),
+      });
+      await runtime.requestJSON("/api/marketplace/sources", {
+        method: "POST",
+        body: JSON.stringify({ name: "team", ref: fixture.source }),
+      });
+      await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(appPage);
+      const response = await appPage.goto(runtime.url("/marketplace"));
+      expect(response?.headers()["content-security-policy"]).toContain(
+        "img-src 'self' data: blob:"
+      );
+      const win = appWindow(appPage, "marketplace");
+      const assertImages = async () => {
+        for (const id of ["logo-0", "logo-1"]) {
+          const image = win.getByTestId(`marketplace-card-${id}`).locator("img");
+          await expect(image).toBeVisible();
+          await expect
+            .poll(() =>
+              image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)
+            )
+            .toBe(true);
+        }
+        await expect(win.getByTestId("marketplace-card-logo-2").locator("img")).toHaveCount(0);
+      };
+      await assertImages();
+      const documentPath = path.join(fixture.source, "marketplace.json");
+      const document = await readFile(documentPath, "utf8");
+      await writeFile(documentPath, "invalid document");
+      await win.getByRole("button", { name: "Refresh", exact: true }).click();
+      const stale = win.getByTestId("marketplace-stale");
+      await expect(stale).toContainText("Could not refresh team.");
+      await expect(stale).not.toContainText("compozy-catalog");
+      await expect(win.getByTestId("marketplace-card-tool")).toBeVisible();
+      await captureViewportEvidence({
+        page: appPage,
+        browserArtifacts,
+        moduleName: "marketplace-partial-failure",
+        assertVisible: async () => {
+          await expect(stale).toBeVisible();
+          await assertImages();
+        },
+      });
+      await writeFile(documentPath, document);
+      await stale.getByRole("button", { name: "Retry" }).click();
+      await expect(stale).not.toBeVisible();
+      await expect(win.getByTestId("marketplace-card-tool")).toBeVisible();
+      await win.getByRole("button", { name: "Refresh", exact: true }).click();
+      await expect(win.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
+      await expect(stale).not.toBeVisible();
+      const sources = await runtime.requestJSON<{
+        sources: Array<{ name: string; state: string }>;
+      }>("/api/marketplace/sources");
+      expect(
+        sources.sources
+          .filter(source => ["team", "compozy-catalog"].includes(source.name))
+          .map(source => source.state)
+      ).toEqual(["ok", "ok"]);
+      await captureViewportEvidence({
+        page: appPage,
+        browserArtifacts,
+        moduleName: "marketplace-recovered",
+        assertVisible: assertImages,
+      });
+      expect(externalRequests).toEqual([]);
+      expect(cspErrors).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   test("E2E-001: operator browses three source sections and resolves duplicate entry IDs by source", async ({
     appPage,
     runtime,

@@ -2,6 +2,7 @@ import Avatar from "boring-avatars";
 import { Component, useState, type ReactNode } from "react";
 
 import { cn, KindIcon } from "@compozy/ui";
+import { marketplaceIconURL } from "../lib/marketplace-icon";
 
 import {
   marketplaceBrandKeyFor,
@@ -85,9 +86,10 @@ class MarketplaceLogoBoundary extends Component<
  * tile seeded by the entry id → monogram only when the tile fails to render. The marble tile is
  * the one authorized identity color on a resting row (DESIGN-NOTES Q3).
  */
+/** Render a CSP-compatible image, then the existing brand or generated fallback on failure. */
 function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntryLogoProps) {
   const [failedIcon, setFailedIcon] = useState<string>();
-  const icon = entry.icon?.trim();
+  const icon = marketplaceIconURL(entry.icon);
   const brandKey = marketplaceBrandKeyFor(entry);
   const wellClass = cn(
     "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg-strong",

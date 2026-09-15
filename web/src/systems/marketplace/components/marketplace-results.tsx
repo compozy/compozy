@@ -223,10 +223,11 @@ function MarketplaceSectionGist({
 }
 
 /** The last projection the daemon could load, under one 12px line that says so — never a banner. */
+/** Attribute failed refreshes and cached timestamps to the degraded sources reported by the daemon. */
 function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
-  const failed =
-    page.sources.some(source => source.state === "degraded") || Boolean(page.diagnostic);
-  const lastRead = page.sources
+  const degraded = page.sources.filter(source => source.state === "degraded");
+  const failed = degraded.length > 0 || Boolean(page.diagnostic);
+  const lastRead = (failed ? degraded : page.sources)
     .map(source => source.last_read_at)
     .filter((value): value is string => typeof value === "string" && value !== "")
     .sort()
@@ -243,9 +244,30 @@ function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
         <Spinner aria-hidden="true" className="size-3 shrink-0" />
       )}
       <span>
-        {failed ? "Showing the catalog from " : "Refreshing the catalog from "}
-        {lastRead ? <Time iso={lastRead} /> : "the last refresh"}
-        {failed ? " — the sources did not answer." : "…"}
+        {failed ? (
+          <>
+            {degraded.length > 0
+              ? `Could not refresh ${degraded.map(source => source.name).join(", ")}.`
+              : "Could not refresh the catalog."}
+            {degraded.some(source => source.count > 0) ? (
+              <>
+                {" "}
+                Showing cached entries
+                {lastRead ? (
+                  <>
+                    {" "}
+                    from <Time iso={lastRead} />
+                  </>
+                ) : null}
+                .
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            Refreshing the catalog from {lastRead ? <Time iso={lastRead} /> : "the last refresh"}…
+          </>
+        )}
       </span>
       {failed ? (
         <Button

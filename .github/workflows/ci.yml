@@ -125,7 +125,7 @@ jobs:
               esac
 
               case "$file" in
-                web/*|packages/*|scripts/*|sdk/*|lint-plugins/*)
+                web/*|packages/*|scripts/*|sdk/*|lint-plugins/*|catalog/icons/*)
                   web=true
                   ;;
               esac
@@ -739,6 +739,15 @@ jobs:
         with:
           name: session-lifecycle-evidence-shard-${{ matrix.shard }}
           path: .tmp/playwright/test-results/*session-harden*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Marketplace recovery and production CSP evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: marketplace-recovery-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*E2E-005*/compozy-artifacts
           if-no-files-found: ignore
           retention-days: 7
 

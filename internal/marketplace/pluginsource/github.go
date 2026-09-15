@@ -2,13 +2,16 @@ package pluginsource
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/registry/github"
 )
@@ -115,10 +118,19 @@ func (e *SourceError) Unwrap() []error {
 	return []error{ErrSourceUnreachable, e.Cause}
 }
 
+// remoteSourceError exposes a safe failure class while retaining the private cause for error inspection.
 func remoteSourceError(err error) error {
 	reason := "fetch_failed"
 	if errors.Is(err, github.ErrRateLimited) {
 		reason = "rate_limited"
+	} else if response, ok := errors.AsType[*github.ResponseError](err); ok {
+		reason = fmt.Sprintf("http_%d", response.StatusCode)
+	} else if errors.Is(err, outboundpolicy.ErrBlockedDestination) || errors.Is(err, outboundpolicy.ErrInsecureTransport) {
+		reason = "network_blocked"
+	} else if _, ok := errors.AsType[*net.DNSError](err); ok {
+		reason = "dns_failed"
+	} else if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
+		reason = "tls_failed"
 	}
 	return &SourceError{Reason: reason, Cause: err}
 }

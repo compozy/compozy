@@ -132,6 +132,7 @@ classify() {
     return
   fi
   case "$path" in
+    catalog/icons/*) CATALOG_CHECK=1; JS_FILTERS="${JS_FILTERS}./web"$'\n' ;;
     catalog/*) CATALOG_CHECK=1 ;;
     internal/*/*)
       pkg="${path#internal/}"

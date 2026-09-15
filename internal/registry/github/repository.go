@@ -106,7 +106,7 @@ func (c *Client) DownloadRevision(
 	if !commitPattern.MatchString(commit) {
 		return nil, errors.New("github: archive download requires a pinned commit")
 	}
-	response, err := c.doRequest(ctx, c.repositoryEndpoint(repo)+"/tarball/"+commit, acceptBinary)
+	response, err := c.doRequest(ctx, c.repositoryEndpoint(repo)+"/tarball/"+commit, acceptJSON)
 	if err != nil {
 		return nil, err
 	}

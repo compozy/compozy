@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+## Issue 644 — Marketplace acquisition recovery and production images
+
+- **Native tools / CLI / HTTP / UDS:** existing Marketplace operations retain their IDs, routes and
+  schemas. GitHub repository tarballs use the API JSON Accept type before following the archive
+  redirect; binary release assets keep their binary media type. Source diagnostics retain safe HTTP,
+  DNS, TLS and outbound-policy classifications without exposing upstream bodies or credentials.
+  Git archive global PAX metadata is consumed without creating filesystem nodes; the decompressed
+  byte limit still includes metadata and all actual entries retain path/type/count safeguards.
+- **Extensibility / hooks / config:** no new keys, permissions, hooks or SDK shapes. Public plugin
+  acquisition remains unauthenticated, commit-pinned, bounded and governed by outboundpolicy.
+- **Workspace / profile isolation and compatibility:** existing source generations, cached entries,
+  installation ownership and user data remain intact. No migrations or compatibility removals.
+- **Web:** only degraded sources are named in refresh failures. Retry invalidates and rereads the
+  canonical catalog as before. Shipped catalog icons reuse the repository assets in the web bundle;
+  supported data images remain available and unsupported remote icons fall back before a request.
+  CSP stays unchanged. No arbitrary image proxy or browser network allowance is introduced.
+- **Official skill:** `compozy` tools-and-skills guidance remains correct: inspect source diagnostics,
+  preserve cached entries and retry through the existing refresh operation; no command change.
+- **Docs / QA:** Marketplace index and source docs explain recovery, diagnostics and image support.
+  The existing landing scenario and Marketplace E2E suite cover partial failure, cached entries,
+  Retry/Refresh recovery, production CSP image loading and viewport screenshots. Public acquisition
+  is an opt-in CI integration probe; first CI reproduction fetched 52 plugins and then failed at the
+  archive endpoint with HTTP 415. The next probe exposed rejection of Git global PAX metadata;
+  canonical extraction tests now cover metadata acceptance and byte limits. All corrected-head
+  gates and real browser evidence run in CI.
+
 ## Pending stop recovery after a Goal generation change
 
 - **Native tools / CLI / HTTP / UDS:** existing Goal cancel/clear/replace and session-stop recovery

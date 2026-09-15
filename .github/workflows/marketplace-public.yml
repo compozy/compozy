@@ -1,0 +1,28 @@
+name: Marketplace public acquisition
+
+on:
+  pull_request:
+    paths:
+      - internal/marketplace/**
+      - internal/registry/**
+      - internal/outboundpolicy/**
+      - .github/workflows/marketplace-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.26.4"
+      - name: Read public marketplace with the production acquisition client
+        env:
+          CGO_ENABLED: "1"
+          COMPOZY_TEST_PUBLIC_MARKETPLACE: "1"
+        run: go test -race -tags=integration -count=1 -timeout=2m -v ./internal/marketplace/pluginsource -run '^TestPublicGitHubMarketplace$'
