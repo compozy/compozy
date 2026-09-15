@@ -365,6 +365,15 @@ jobs:
           CGO_ENABLED: "1"
         run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
 
+      - name: Verify background role configuration through CLI HTTP and UDS
+        if: matrix.shard_index == '0'
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
+          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
+
       - name: Run Go runtime verification
         run: make test
 
@@ -385,15 +394,6 @@ jobs:
           go test -race -tags=integration -count=1 -timeout=5m
           ./internal/daemon ./internal/extension
           -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
-
-      - name: Verify background role configuration through CLI HTTP and UDS
-        if: matrix.shard_index == '0'
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
 
       - name: Upload gotestsum timing data
         uses: actions/upload-artifact@v7

@@ -194,7 +194,8 @@ func TestRoleStatusProjection(t *testing.T) {
 				if err != nil || status.Enabled != want {
 					t.Fatalf("workspace=%q status=%#v error=%v, want enabled=%t", target, status, err, want)
 				}
-				if target == "ws-disabled" && status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
+				if target == "ws-disabled" &&
+					status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
 					t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
 				}
 			}
@@ -214,7 +215,10 @@ func TestRoleStatusProjection(t *testing.T) {
 			scoped.Config.Roles.CheckpointSummary.Enabled = enabled
 			resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
 			resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
-			ctx := withRoleInvocationCorrelation(t.Context(), roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true})
+			ctx := withRoleInvocationCorrelation(
+				t.Context(),
+				roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true},
+			)
 			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
 			if err != nil || status.Enabled != enabled {
 				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, enabled)
