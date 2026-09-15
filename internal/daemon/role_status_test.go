@@ -164,51 +164,61 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 	})
 
-	t.Run("Should isolate checkpoint configuration by workspace", func(t *testing.T) {
-		t.Parallel()
-		global := roleResolverConfig()
-		global.Memory.Enabled = false
-		global.Session.Compaction.Enabled = true
-		global.Roles.CheckpointSummary.Enabled = true
-		workspace := global
-		workspace.Session.Compaction.Enabled = false
-		workspace.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
-		workspace.RoleSources[compozyconfig.RoleCheckpointSummary][compozyconfig.RoleFieldEnabled] = compozyconfig.RoleFieldSourceWorkspace
-		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
-			"ws-disabled": workspace,
-			"ws-enabled":  global,
-		}}, nil)
-		for _, target := range []string{"ws-disabled", "ws-enabled", ""} {
-			status, err := resolver.RoleStatus(t.Context(), target, string(compozyconfig.RoleCheckpointSummary))
-			if err != nil || status.Enabled != (target != "ws-disabled") {
-				t.Fatalf("workspace=%q status=%#v error=%v", target, status, err)
+	for _, tc := range []struct {
+		name              string
+		compactionEnabled bool
+	}{
+		{name: "Should retain daemon compaction availability across workspace overlays", compactionEnabled: true},
+		{name: "Should not enable daemon compaction through a workspace overlay"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			global := roleResolverConfig()
+			global.Memory.Enabled = false
+			global.Session.Compaction.Enabled = tc.compactionEnabled
+			global.Roles.CheckpointSummary.Enabled = true
+			workspace := global
+			workspace.Session.Compaction.Enabled = !tc.compactionEnabled
+			workspace.Memory.Enabled = true
+			disabled := workspace
+			disabled.Roles.CheckpointSummary.Enabled = false
+			disabled.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
+			disabled.RoleSources[compozyconfig.RoleCheckpointSummary][compozyconfig.RoleFieldEnabled] = compozyconfig.RoleFieldSourceWorkspace
+			resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
+				"ws-disabled": disabled,
+				"ws-overlay":  workspace,
+			}}, nil)
+			for _, target := range []string{"ws-disabled", "ws-overlay", ""} {
+				status, err := resolver.RoleStatus(t.Context(), target, string(compozyconfig.RoleCheckpointSummary))
+				want := tc.compactionEnabled && target != "ws-disabled"
+				if err != nil || status.Enabled != want {
+					t.Fatalf("workspace=%q status=%#v error=%v, want enabled=%t", target, status, err, want)
+				}
+				if target == "ws-disabled" && status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
+					t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
+				}
 			}
-			if target == "ws-disabled" &&
-				status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
-				t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
-			}
-		}
-	})
+		})
+	}
 
-	t.Run("Should project checkpoint availability from the selected profile", func(t *testing.T) {
+	t.Run("Should preserve the profile checkpoint switch under daemon compaction", func(t *testing.T) {
 		t.Parallel()
 		global := roleResolverConfig()
 		global.Memory.Enabled = false
 		global.Session.Compaction.Enabled = true
-		scoped := loopActionBinderWorkspace(t, nil)
-		scoped.ProfileID = "profile-engineering"
-		scoped.Config.Memory.Enabled = false
-		scoped.Config.Session.Compaction.Enabled = false
-		scoped.Config.Roles.CheckpointSummary.Enabled = true
-		resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
-		resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
-		ctx := withRoleInvocationCorrelation(
-			t.Context(),
-			roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true},
-		)
-		status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
-		if err != nil || status.Enabled {
-			t.Fatalf("profile status=%#v error=%v", status, err)
+		for _, enabled := range []bool{true, false} {
+			scoped := loopActionBinderWorkspace(t, nil)
+			scoped.ProfileID = "profile-engineering"
+			scoped.Config.Memory.Enabled = false
+			scoped.Config.Session.Compaction.Enabled = false
+			scoped.Config.Roles.CheckpointSummary.Enabled = enabled
+			resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
+			resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
+			ctx := withRoleInvocationCorrelation(t.Context(), roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true})
+			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
+			if err != nil || status.Enabled != enabled {
+				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, enabled)
+			}
 		}
 	})
 

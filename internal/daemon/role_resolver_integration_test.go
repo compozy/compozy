@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -251,6 +252,9 @@ func TestRoleResolverIntegration(t *testing.T) {
 			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
 				".compozy/config.toml": `[roles.dream]
 agent = "missing-curator"
+
+[session.compaction]
+enabled = false
 `,
 			}},
 		})
@@ -343,10 +347,14 @@ agent = "missing-curator"
 			checkpoint.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceGlobal {
 			t.Fatalf("checkpoint role=%#v, want configured compaction availability", checkpoint)
 		}
-		for _, role := range cliRoles {
-			if role.Role == checkpoint.Role && !reflect.DeepEqual(role, checkpoint) {
-				t.Fatalf("checkpoint list=%#v, show=%#v", role, checkpoint)
-			}
+		checkpointIndex := slices.IndexFunc(cliRoles, func(role compozycontract.RoleStatus) bool {
+			return role.Role == checkpoint.Role
+		})
+		if checkpointIndex < 0 {
+			t.Fatalf("checkpoint_summary missing from CLI/HTTP/UDS roster: %#v", cliRoles)
+		}
+		if !reflect.DeepEqual(cliRoles[checkpointIndex], checkpoint) {
+			t.Fatalf("checkpoint list=%#v, show=%#v", cliRoles[checkpointIndex], checkpoint)
 		}
 		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "roles", "show", "checkpoint_summary")
 		if err != nil || !strings.Contains(strings.Join(strings.Fields(stdout), " "), "Enabled: true") {

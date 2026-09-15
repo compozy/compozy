@@ -22,7 +22,7 @@ Planning 2026-07-24 (Task 05): entry points widened to include the single-role r
 
 QA 2026-07-24: normalized list/show payloads matched across CLI, HTTP, and UDS; equal-value workspace provenance remained `workspace`; inherited fields stayed null; a ghost route returned a 200 projection with `role_agent_not_found`; and unknown roles returned the exact nonzero/404 `role_unknown` contract.
 
-Regression walk for issue #639 (CI validation pending):
+Regression walk for issue #639 (automated in PR CI; execution results are recorded in the PR):
 
 1. Start an isolated daemon with `memory.enabled=false`, `session.compaction.enabled=true` and
    `roles.checkpoint_summary.enabled=true`, plus an explicit checkpoint provider/model.
@@ -32,7 +32,8 @@ Regression walk for issue #639 (CI validation pending):
 3. Cover every combination of memory, compaction and the role switch in the canonical projection
    suite: either consumer permits availability; an explicit role disable always wins. Dream,
    extractor and controller remain gated only by memory.
-4. Verify scoped workspace/profile compaction opt-outs do not change sibling/global projections.
+4. Verify workspace/profile role opt-outs remain isolated. Scoped compaction overrides must not
+   replace daemon-level compaction availability in either direction; the session manager owns it.
    Invocation context must not turn an administratively disabled status on. With memory off,
    ordinary checkpoint invocations remain disabled even while configured compaction is available.
 

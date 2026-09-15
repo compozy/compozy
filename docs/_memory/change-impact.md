@@ -18,7 +18,7 @@
 ## Issue 639 — Checkpoint role configuration status
 
 - **CLI / HTTP / UDS / Web:** the shared role projection reports checkpoint availability from the
-  effective session-compaction configuration or the existing memory gate, subject to the explicit
+  daemon-level session-compaction configuration or the existing memory gate, subject to the effective
   role switch. List and detail keep their schemas, provenance, diagnostics and configured runtime.
   Web consumes that same projection; no component, layout or interaction changes are needed.
 - **Invocation:** the resolver continues to require an actual compaction invocation when memory is
@@ -26,7 +26,9 @@
 - **Native tools / extensibility / hooks / config:** no role-inspection native tool exists; existing
   CLI/API management surfaces remain authoritative. No tool ID, hook, SDK, key or default changes.
 - **Workspace / profile isolation:** use the existing effective configuration resolver; workspace
-  and profile overrides remain scoped. The daemon memory master still suppresses workspace memory.
+  and profile role/memory overrides remain scoped. Both compaction availability and the pressure
+  scheduler use the daemon-level compaction setting; scoped compaction overrides do not reconfigure
+  that scheduler. The daemon memory master still suppresses workspace memory.
 - **Compatibility / recovery:** no persistent shape or public schema changes; no migration or data
   repair is necessary. The corrected status becomes available with the upgraded daemon.
 - **Official skill:** existing role inspection guidance in `skills/compozy/references/agent-definitions.md`

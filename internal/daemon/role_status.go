@@ -63,7 +63,8 @@ func (r *roleResolver) projectRoleStatus(
 		return contract.RoleStatus{}, err
 	}
 	memoryEnabled := r.config.Memory.Enabled && effective.Memory.Enabled
-	compactionEnabled := effective.Session.Compaction.Enabled
+	// Pressure compaction is owned by the daemon-wide session manager.
+	compactionEnabled := r.config.Session.Compaction.Enabled
 	status := contract.RoleStatus{
 		Role:            string(role),
 		Enabled:         effectiveRoleEnabled(role, common.Enabled, memoryEnabled, compactionEnabled),
