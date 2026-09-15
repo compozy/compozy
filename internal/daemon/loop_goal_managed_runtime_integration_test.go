@@ -32,7 +32,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	t.Run("Should delete a stopped session with an unbound Goal checkpoint", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "delete-unbound", nil, withoutInitialGoalBinding())
 		ctx := t.Context()
-		originID, _ := fixture.createOriginSession(t, "delete-unbound", participation.LocalSpec())
+		originID, originIdentity := fixture.createOriginSession(t, "delete-unbound", participation.LocalSpec())
 		neighborID, _ := fixture.createOriginSession(t, "delete-neighbor", participation.LocalSpec())
 		if err := fixture.manager.Stop(ctx, originID); err != nil {
 			t.Fatal(err)
@@ -50,8 +50,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatal("Goal store lacks the lifecycle persistence fixture")
 		}
 		if _, err := connection.DB().ExecContext(ctx,
-			"UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ? WHERE id = ?",
-			originID, string(fixture.run.ID)); err != nil {
+			`UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ?,
+			 origin_creation_profile_ref = ?, origin_policy_spec_digest = ?, origin_creation_digest = ? WHERE id = ?`,
+			originID, originIdentity.CreationProfileRef, originIdentity.PolicySpecDigest,
+			originIdentity.CreationDigest, string(fixture.run.ID)); err != nil {
 			t.Fatal(err)
 		}
 		aggregate, err := looppkg.NewService(fixture.goalStore,

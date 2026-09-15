@@ -40,7 +40,8 @@ test("operator deletes selected active and stopped sessions and preserves their 
   const neighborID = ids.pop()!;
   for (const id of ids.slice(0, 2)) {
     const base = `/api/workspaces/${workspace.id}/sessions/${id}`;
-    await runtime.requestJSON(`${base}/stop`, { method: "POST" });
+    const stopResponse = await appPage.request.post(runtime.url(`${base}/stop`));
+    expect(stopResponse.status(), await stopResponse.text()).toBe(204);
     await expect
       .poll(async () => {
         const payload = await runtime.requestJSON<{ session: { state: string } }>(base);

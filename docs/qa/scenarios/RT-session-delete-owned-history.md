@@ -38,4 +38,7 @@ without creating duplicate projection events. Never alter an operator's live dat
 The store turn-runtime suite owns the exact empty-binding regression. The managed runtime suite
 owns deletion through the real Manager and SQLite. GitHub CI runs both with race detection; the
 existing Goal command E2E covers public stop/remove/clear/replace with ACP subprocesses.
-This addition is pending CI verification; the historical evidence above does not cover it.
+The issue-specific automated verdict, exact commit and CI job receipts are recorded in
+[PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
+That record covers this stopped/unbound deletion slice; the historical evidence above is separate
+and is not promoted to a new full manual-scenario pass.

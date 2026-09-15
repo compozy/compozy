@@ -87,6 +87,8 @@
   the real Manager/SQLite integration covers stopped-session deletion; the existing bulk hook suite
   owns partial failure/retry and the browser suite covers active/stopped selection and preservation.
   All executable checks and rendered evidence run in GitHub CI under this issue's delivery contract.
+  [PR #647](https://github.com/compozy/compozy/pull/647) owns the exact-head verification receipts,
+  screenshots and dispositions of the first CodeRabbit/Greptile review findings.
 
 ## Issue 627 — Overlay model discovery and binding
 

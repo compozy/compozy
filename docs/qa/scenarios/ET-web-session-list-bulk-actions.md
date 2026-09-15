@@ -80,4 +80,8 @@ retry a previously failed deletion through the same control without resetting an
 The browser suite now exercises mixed active/stopped selection and an unselected neighbor, with
 before/confirmation/after screenshots. The exact unbound Goal state belongs to the real SQLite
 store/Manager integration suites; the existing bulk lifecycle hook suite owns partial-error and
-retry behavior. New automated evidence is pending GitHub CI; this is not a full manual-scenario pass.
+retry behavior. The issue-specific automated verdict, exact commit, CI jobs and selection/confirmation/completion
+screenshots are recorded in [PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
+The bulk lifecycle suite verifies per-ID error reporting, no premature success toast, retry of only
+failed IDs, and the final cumulative count. This scoped automated record does not claim a complete
+manual keyboard/range/archive walk.

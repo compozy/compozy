@@ -1532,7 +1532,19 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 					store.SessionCreationIdentity{CreationProfileRef: "profile-" + sessionID,
 						PolicySpecDigest: "policy-" + sessionID, CreationDigest: "creation-" + sessionID})
 			}
-			insertGoalSchemaLoopRun(t, db, "run-cancel", "ws-cancel", tc.origin, new("session-origin"))
+			var originSessionID *string
+			if tc.origin == "session" {
+				originSessionID = new("session-origin")
+			}
+			insertGoalSchemaLoopRun(t, db, "run-cancel", "ws-cancel", tc.origin, originSessionID)
+			if tc.origin == "session" {
+				if _, err := db.db.ExecContext(ctx, `UPDATE loop_runs SET
+					origin_creation_profile_ref = 'profile-session-origin',
+					origin_policy_spec_digest = 'policy-session-origin',
+					origin_creation_digest = 'creation-session-origin' WHERE id = ?`, "run-cancel"); err != nil {
+					t.Fatalf("set cancellation origin identity: %v", err)
+				}
+			}
 			if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET generation = 1 WHERE id = ?", "run-cancel"); err != nil {
 				t.Fatalf("set active cancellation generation: %v", err)
 			}
