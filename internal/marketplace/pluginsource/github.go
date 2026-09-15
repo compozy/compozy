@@ -127,9 +127,9 @@ func remoteSourceError(err error) error {
 		reason = fmt.Sprintf("http_%d", response.StatusCode)
 	} else if errors.Is(err, outboundpolicy.ErrBlockedDestination) || errors.Is(err, outboundpolicy.ErrInsecureTransport) {
 		reason = "network_blocked"
-	} else if _, ok := errors.AsType[*net.DNSError](err); ok {
+	} else if failure, ok := errors.AsType[*net.DNSError](err); ok && failure != nil {
 		reason = "dns_failed"
-	} else if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
+	} else if failure, ok := errors.AsType[*tls.CertificateVerificationError](err); ok && failure != nil {
 		reason = "tls_failed"
 	}
 	return &SourceError{Reason: reason, Cause: err}

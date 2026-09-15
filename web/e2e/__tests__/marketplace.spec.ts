@@ -63,7 +63,7 @@ test.describe("Marketplace source catalog", () => {
   });
 
   // Invariant: production CSP images and per-source Retry/Refresh recovery share the real daemon UI.
-  test("E2E-005: Retry recovers one failed source and shipped logos load under production CSP", async ({
+  test("E2E-006: Retry recovers one failed source and shipped logos load under production CSP", async ({
     appPage,
     runtime,
     browserArtifacts,

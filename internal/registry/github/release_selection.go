@@ -179,7 +179,7 @@ type ResponseError struct {
 	message    string
 }
 
-var _ error = (*ResponseError)(nil)
+var _ error = &ResponseError{}
 
 // Error preserves the existing GitHub diagnostic message; public source errors expose only StatusCode.
 func (e *ResponseError) Error() string { return e.message }

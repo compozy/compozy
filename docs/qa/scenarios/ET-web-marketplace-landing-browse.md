@@ -18,14 +18,19 @@ overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 
 QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
 
-Issue #644 regression walk (CI evidence pending): the canonical Marketplace `E2E-005` opens the
+Issue #644 regression walk: execution results and captured viewports are tracked in
+[PR #648](https://github.com/compozy/compozy/pull/648). The canonical Marketplace `E2E-006` opens the
 production daemon-served bundle with a healthy feed and a second source. Corrupt that source,
 click Refresh, and verify only its name appears in the warning while both cached and healthy
 entries remain. Repair it, click Retry, and verify the warning clears; repeat with Refresh.
 Verify shipped SVG/PNG images finish decoding under the real production CSP, unsupported remote
 icons make no request, and no CSP errors occur. Capture degraded and recovered viewport states.
 The separate public GitHub acquisition CI probe verifies the official document and pinned archive
-without credentials. Earlier scenario evidence does not verify this new regression walk.
+without credentials. The recovery/CSP journey first passed in
+[CI run 34924580842](https://github.com/compozy/compozy/actions/runs/34924580842/job/104239985378)
+(as E2E-005, before its identifier was made unique). That run did not retain the correct screenshot
+artifact; PR #648 owns the corrected capture evidence and final-head checks. Earlier scenario
+evidence does not verify this regression walk.
 
 
 Marketplace catalog task 01 (2026-09-12): Browse the default catalog, narrow search, refresh a cached unavailable source, open the shelf, and check the one-column layout. Verify retired kind links show not-found with Back to Marketplace. Reopen a saved retired location and verify its location, geometry, desktop and unrelated windows remain intact until deliberate navigation.

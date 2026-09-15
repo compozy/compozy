@@ -91,10 +91,17 @@ func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		archive := mustTarGz(t, []tarEntry{
-			{name: "pax_global_header", typeflag: tar.TypeXGlobalHeader, pax: map[string]string{"comment": "commit identity"}},
+			{
+				name: "pax_global_header", typeflag: tar.TypeXGlobalHeader,
+				pax: map[string]string{"comment": "commit identity"},
+			},
 			{name: "plugin.json", content: "{}"},
 		})
-		if err := extractArchive(bytes.NewReader(archive), openArchiveTestRoot(t, root), ExtractionLimits{MaxFiles: 1}); err != nil {
+		if err := extractArchive(
+			bytes.NewReader(archive),
+			openArchiveTestRoot(t, root),
+			ExtractionLimits{MaxFiles: 1},
+		); err != nil {
 			t.Fatal(err)
 		}
 		entries, err := os.ReadDir(root)
@@ -145,7 +152,10 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 	t.Run("Should include global metadata in the decompressed byte limit", func(t *testing.T) {
 		t.Parallel()
 		archive := mustTarGz(t, []tarEntry{
-			{name: "pax_global_header", typeflag: tar.TypeXGlobalHeader, pax: map[string]string{"comment": strings.Repeat("x", 4096)}},
+			{
+				name: "pax_global_header", typeflag: tar.TypeXGlobalHeader,
+				pax: map[string]string{"comment": strings.Repeat("x", 4096)},
+			},
 			{name: "plugin.json", content: "{}"},
 		})
 		root := t.TempDir()
@@ -1064,6 +1074,8 @@ func mustTarGz(t *testing.T, entries []tarEntry) []byte {
 			header.Mode = entry.mode
 		}
 		switch typeflag {
+		case tar.TypeXGlobalHeader:
+			header.Mode = 0
 		case tar.TypeDir:
 			if entry.mode == 0 {
 				header.Mode = 0o755

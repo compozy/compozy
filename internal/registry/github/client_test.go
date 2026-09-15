@@ -422,7 +422,9 @@ func TestClientDownloadFallsBackToSourceArchive(t *testing.T) {
 	t.Run("Should download a repository archive with the API media type", func(t *testing.T) {
 		t.Parallel()
 
-		archive := mustTarGz(t, map[string]string{"demo-v1.2.3/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n"})
+		archive := mustTarGz(t, map[string]string{
+			"demo-v1.2.3/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n",
+		})
 		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
 			switch request.URL.Path {
 			case "/repos/acme/demo/releases/latest":
