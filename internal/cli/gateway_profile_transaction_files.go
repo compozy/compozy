@@ -117,7 +117,7 @@ func writeGatewayProfileTransactionJournal(
 	if len(encoded) > gatewayProfileTransactionJournalMaxSize {
 		return errors.New("cli: gateway profile transaction journal exceeds maximum size")
 	}
-	if err := fileutil.AtomicWriteFile(path, append(encoded, '\n'), 0o600); err != nil {
+	if err := fileutil.AtomicWritePrivateFile(path, append(encoded, '\n')); err != nil {
 		return fmt.Errorf("cli: write gateway profile transaction journal: %w", err)
 	}
 	return nil
@@ -131,14 +131,9 @@ func readGatewayProfileTransactionJournal(
 	if err != nil {
 		return gatewayProfileTransactionJournal{}, err
 	}
-	contents, info, err := fileutil.ReadRegularFile(path)
+	contents, err := fileutil.ReadPrivateFile(path)
 	if err != nil {
 		return gatewayProfileTransactionJournal{}, fmt.Errorf("cli: read gateway profile transaction journal: %w", err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		return gatewayProfileTransactionJournal{}, errors.New(
-			"cli: gateway profile transaction journal permissions must be 0600",
-		)
 	}
 	return decodeGatewayProfileTransactionJournalForProfile(contents, profile)
 }
@@ -207,48 +202,53 @@ func ensureGatewayProfileTransactionDirectory(credentialsDir string) error {
 	return nil
 }
 
-func ensureGatewayProfileTransactionLockFile(path string) error {
-	info, err := os.Lstat(path)
-	if err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("cli: gateway profile transaction lock: %w", fileutil.ErrSymlink)
-		}
-		if !info.Mode().IsRegular() {
-			return errors.New("cli: gateway profile transaction lock is not a regular file")
-		}
-		if info.Mode().Perm() != 0o600 {
-			return errors.New("cli: gateway profile transaction lock permissions must be 0600")
-		}
-		return nil
+func ensureGatewayProfileTransactionLockFile(path string) (err error) {
+	directory, name, err := fileutil.OpenParentDirectory(path)
+	if err != nil {
+		return fmt.Errorf("cli: open gateway profile transaction lock directory: %w", err)
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("cli: inspect gateway profile transaction lock: %w", err)
+	defer func() { err = errors.Join(err, directory.Close()) }()
+	if err := directory.CheckPrivatePermissions(); err != nil {
+		return fmt.Errorf("cli: secure gateway profile transaction lock directory: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		return ensureGatewayProfileTransactionLockFile(path)
+	file, err := directory.OpenRegularFile(name)
+	created := false
+	if errors.Is(err, os.ErrNotExist) {
+		file, err = directory.CreateRegularFile(name, 0o600)
+		created = err == nil
+		if errors.Is(err, os.ErrExist) {
+			file, err = directory.OpenRegularFile(name)
+		}
 	}
 	if err != nil {
-		return fmt.Errorf("cli: create gateway profile transaction lock: %w", err)
+		return fmt.Errorf("cli: open gateway profile transaction lock: %w", err)
 	}
-	if chmodErr := file.Chmod(0o600); chmodErr != nil {
-		closeErr := file.Close()
-		return errors.Join(
-			fmt.Errorf("cli: secure gateway profile transaction lock: %w", chmodErr),
-			closeGatewayProfileTransactionLockFile(closeErr),
-		)
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: close gateway profile transaction lock: %w", closeErr))
+		}
+	}()
+	if created {
+		if err := file.Chmod(0o600); err != nil {
+			return fmt.Errorf("cli: secure new gateway profile transaction lock: %w", err)
+		}
 	}
-	if closeErr := file.Close(); closeErr != nil {
-		return closeGatewayProfileTransactionLockFile(closeErr)
+	if err := fileutil.CheckPrivateFile(file); err != nil {
+		return fmt.Errorf("cli: secure gateway profile transaction lock: %w", err)
 	}
 	return nil
 }
 
-func closeGatewayProfileTransactionLockFile(err error) error {
-	if err == nil {
-		return nil
+func secureGatewayCredentialDirectory(path string) (err error) {
+	directory, err := fileutil.OpenDirectoryForMutation(path)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("cli: close gateway profile transaction lock: %w", err)
+	defer func() { err = errors.Join(err, directory.Close()) }()
+	if err := directory.CheckPrivatePermissions(); err != nil {
+		return err
+	}
+	return directory.Chmod(0o700)
 }
 
 func gatewayProfileTransactionJournalPath(credentialsDir, profile string) (string, error) {
@@ -283,14 +283,9 @@ func readGatewayProfileTransactionJournalFromDirectory(
 	if !validGatewayProfileName(profile) {
 		return gatewayProfileTransactionJournal{}, errors.New("cli: gateway profile transaction profile is invalid")
 	}
-	contents, info, err := directory.ReadRegularFile(profile + gatewayProfileTransactionJournalSuffix)
+	contents, err := directory.ReadPrivateFile(profile + gatewayProfileTransactionJournalSuffix)
 	if err != nil {
 		return gatewayProfileTransactionJournal{}, fmt.Errorf("cli: read gateway profile transaction journal: %w", err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		return gatewayProfileTransactionJournal{}, errors.New(
-			"cli: gateway profile transaction journal permissions must be 0600",
-		)
 	}
 	return decodeGatewayProfileTransactionJournalForProfile(contents, profile)
 }

@@ -35,3 +35,18 @@ QA walk 2026-08-08: the current CLI minted distinct private handoff files in hum
 JSONL, and TOON modes. Every file used mode `0600`, every structured payload exposed only
 `artifact_ref` plus `expires_at`, and no raw pairing bytes appeared in stdout or stderr. The
 full remote-profile journey remains blocked until an authorized remote provider is available.
+
+## Windows private-file regression
+
+Run in the GitHub CI Windows job with an isolated Compozy home. The owning executable
+scenario is `TestWindowsGatewayCLI` (`windows && integration`): write, read, and replace
+an encrypted credential through the real Windows keyring; persist a removal journal;
+run the native `connect list -o json` process three times against that home; confirm
+recovery removed the journal and credential without exposing the credential. No daemon
+or remote Gateway is required for this local persistence slice.
+
+The existing credential and transaction suites also verify lock contention, repeat
+acquisition, journal enumeration, corrupt-record refusal, and failed-recovery retention.
+The fileutil Windows suite verifies owner/ACL privacy and refusal of public read/write
+access. Unix retains exact `0600` rejection. Existing remote-provider limitations above
+still apply to the broader pairing journey. Windows execution evidence is recorded in the owning PR’s current-head CI job.

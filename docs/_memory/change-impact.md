@@ -807,3 +807,40 @@ released user refs retain their established rules. No config/schema/DTO/tool IDs
 Settings secret-write suite and public MCP authorization scenario own preservation evidence.
 
 MCP repair follow-up: Settings determines pre-mutation existence from owner-qualified definitions without requiring successful auth/runtime probes. CLI/HTTP/UDS configuration application retains its existing validation, ownership and lifecycle contracts. Web can repair an invalid configured credential through the same Settings PUT; no schema, native tool ID, hook, official skill or workspace isolation change. The existing config-apply suite owns repair/addition classification and persisted definition evidence.
+
+## Windows Gateway CLI private files — issue 532
+
+- **Native tools and public surfaces:** existing CLI startup, `connect` commands and local
+  Gateway credentials reuse platform-validated private files. No native tool ID, HTTP/UDS
+  route, flag or wire schema changes. The fileutil opt-in private-file boundary retains
+  exact Unix `0600`; Windows reads owner/DACL from the held no-follow handle. Other
+  fileutil callers retain their existing permission policy.
+- **Extensibility, hooks and config:** no extension, hook, bridge, provider or config-key
+  changes. The existing OS keyring and encrypted credential format remain authoritative.
+- **Workspace data isolation and compatibility:** no SQLite or persisted shape changes.
+  Existing private files reopen; journals recover using existing commit/rollback logic.
+  Scope-derived keyring identity stays unchanged. Unsafe Windows ACLs fail explicitly
+  before reading/writing private bytes; no automatic ACL rewrite or state deletion.
+- **Official skill:** `skills/compozy/` commands and runtime contracts remain valid; no new
+  agent operation or skill procedure is introduced.
+- **Web/Docs and QA:** no Web component or behavior changes. Gateway security documentation
+  explains the platform policy. `RT-gateway-remote-cli-profile` owns the Windows persistence
+  slice, verified by native CLI processes and real OS keyring use in GitHub CI. Existing
+  owning transaction/credential suites and Windows fileutil ACL tests cover rejection and
+  recovery. All gates/builds/tests/QA are assigned to current-head GitHub CI by user override.
+
+First-review remediation preserves an unsafe existing destination's bytes and ACL instead of
+replacing it. The same no-follow directory handle validates the destination before publication;
+Windows ACL tests assert both the specific rejection and unchanged security descriptor. Unix
+lock/journal tests assert the precise private-permission error. Newly created files retain their
+explicit mode initialization under restrictive Unix umasks; existing files are never chmod-repaired.
+
+Windows CI preparation: pin SQL and Atlas checksum files to LF in `.gitattributes` so
+Git cannot convert embedded migration bytes on checkout. No released migration or checksum
+bytes change, and runtime integrity validation remains enabled. The first native Windows
+fileutil ACL suite passed; the CLI seed refused converted migration bytes before test execution.
+
+Windows CI also exposed missing `FILE_READ_ATTRIBUTES` on the existing removal handle.
+Gateway credential deletion and journal recovery now request that right for their existing
+handle-based type/reparse checks. The canonical atomic-removal suite runs in the Windows
+job alongside Gateway recovery; no safety check or test assertion was removed.

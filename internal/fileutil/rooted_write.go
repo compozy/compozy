@@ -156,6 +156,10 @@ func (d *Directory) Chmod(mode os.FileMode) error {
 // AtomicWriteFile writes a direct child through a temporary file and publishes it atomically.
 // When replace is false, publication fails if a child with name already exists.
 func (d *Directory) AtomicWriteFile(name string, contents []byte, perm os.FileMode, replace bool) (err error) {
+	return d.atomicWriteFile(name, contents, perm, replace, false)
+}
+
+func (d *Directory) atomicWriteFile(name string, contents []byte, perm os.FileMode, replace, private bool) (err error) {
 	if d == nil || d.file == nil {
 		return fmt.Errorf("%w: directory is closed", ErrInvalidPath)
 	}
@@ -179,6 +183,14 @@ func (d *Directory) AtomicWriteFile(name string, contents []byte, perm os.FileMo
 		}
 	}()
 
+	if private {
+		if err := temporary.Chmod(perm); err != nil {
+			return fmt.Errorf("fileutil: set private temporary file mode: %w", err)
+		}
+		if err := CheckPrivateFile(temporary); err != nil {
+			return err
+		}
+	}
 	if err := writeAndSyncFile(temporary, contents, perm); err != nil {
 		return fmt.Errorf("fileutil: prepare temporary file %q: %w", temporaryName, err)
 	}

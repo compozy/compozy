@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -86,14 +87,14 @@ func TestGatewayCredentialStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Stat(file) error = %v", err)
 		}
-		if got := fileInfo.Mode().Perm(); got != 0o600 {
+		if got := fileInfo.Mode().Perm(); runtime.GOOS != "windows" && got != 0o600 {
 			t.Fatalf("file permissions = %o, want 600", got)
 		}
 		dirInfo, err := os.Stat(directory)
 		if err != nil {
 			t.Fatalf("Stat(directory) error = %v", err)
 		}
-		if got := dirInfo.Mode().Perm(); got != 0o700 {
+		if got := dirInfo.Mode().Perm(); runtime.GOOS != "windows" && got != 0o700 {
 			t.Fatalf("directory permissions = %o, want 700", got)
 		}
 
@@ -222,6 +223,9 @@ func TestGatewayCredentialStore(t *testing.T) {
 
 	t.Run("Should reject credential files whose permissions are not exactly 0600", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("POSIX mode contract; Windows ACL rejection is covered by TestWindowsPrivateFiles")
+		}
 
 		directory := t.TempDir() + "/credentials"
 		store := gatewayCredentialStore{

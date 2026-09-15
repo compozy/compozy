@@ -178,7 +178,7 @@ func openWindowsChildForRemoval(parent windows.Handle, child string, directory b
 		attributes,
 		expectation,
 		windows.FILE_OPEN,
-		windows.DELETE|windows.SYNCHRONIZE,
+		windows.DELETE|windows.FILE_READ_ATTRIBUTES|windows.SYNCHRONIZE,
 		0,
 	)
 	if err != nil {

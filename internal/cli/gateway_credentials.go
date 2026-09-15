@@ -56,7 +56,7 @@ type gatewayCredentialStore struct {
 	removeFile func(string) error
 }
 
-// WriteGatewayCredential encrypts a remote profile credential and stores its file with mode 0600.
+// WriteGatewayCredential encrypts and privately stores a remote profile credential.
 func WriteGatewayCredential(credentialsDir, profile, credential string) (string, error) {
 	store := gatewayCredentialStore{dir: credentialsDir, keys: osCredentialKeyring{}, entropy: rand.Reader}
 	return store.write(profile, credential)
@@ -106,14 +106,14 @@ func (s gatewayCredentialStore) write(profile, credential string) (string, error
 			fmt.Errorf("cli: create gateway credential directory: %w", err),
 		)
 	}
-	if err := os.Chmod(s.dir, 0o700); err != nil {
+	if err := secureGatewayCredentialDirectory(s.dir); err != nil {
 		return "", s.cleanupCreatedKey(
 			keyUser,
 			keyCreated,
 			fmt.Errorf("cli: secure gateway credential directory: %w", err),
 		)
 	}
-	if err := fileutil.AtomicWriteFile(path, []byte(ciphertext+"\n"), 0o600); err != nil {
+	if err := fileutil.AtomicWritePrivateFile(path, []byte(ciphertext+"\n")); err != nil {
 		return "", s.cleanupCreatedKey(
 			keyUser,
 			keyCreated,
@@ -141,12 +141,9 @@ func (s gatewayCredentialStore) read(profile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ciphertext, info, err := fileutil.ReadRegularFile(path)
+	ciphertext, err := fileutil.ReadPrivateFile(path)
 	if err != nil {
 		return "", fmt.Errorf("cli: read gateway credential file: %w", err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		return "", errors.New("cli: gateway credential file permissions must be 0600")
 	}
 	keyUser, err := s.keyringUser(profile)
 	if err != nil {

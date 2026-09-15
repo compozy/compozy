@@ -478,6 +478,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Inspect changed Go test conventions
+        shell: pwsh
+        run: |
+          $testFiles = @(
+            'internal/cli/gateway_credentials_test.go',
+            'internal/cli/gateway_profile_transaction_test.go',
+            'internal/cli/gateway_permissions_windows_integration_test.go',
+            'internal/fileutil/nofollow_windows_test.go'
+          )
+          foreach ($testFile in $testFiles) {
+            python .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py $testFile
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
@@ -498,6 +512,25 @@ jobs:
           -count=1
         env:
           CGO_ENABLED: 0
+
+      - name: Verify Windows private files and Gateway recovery
+        run: >-
+          go test ./internal/fileutil ./internal/cli
+          -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
+      - name: Build native Windows CLI
+        run: go build -o "${{ runner.temp }}/compozy-gateway-test.exe" ./cmd/compozy
+        env:
+          CGO_ENABLED: 0
+
+      - name: Exercise repeated native Windows CLI and OS keyring recovery
+        run: go test -tags integration ./internal/cli -run '^TestWindowsGatewayCLI$' -count=1 -v
+        env:
+          CGO_ENABLED: 0
+          COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
 
   desktop:
     name: Desktop (format, lint, test, build)
