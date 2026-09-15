@@ -478,6 +478,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Inspect changed Go test conventions
+        shell: pwsh
+        run: |
+          $testFiles = @(
+            'internal/cli/gateway_credentials_test.go',
+            'internal/cli/gateway_profile_transaction_test.go',
+            'internal/cli/gateway_permissions_windows_integration_test.go',
+            'internal/fileutil/nofollow_windows_test.go'
+          )
+          foreach ($testFile in $testFiles) {
+            python .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py $testFile
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
