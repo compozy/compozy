@@ -610,6 +610,14 @@ func githubSnapshotSource(t *testing.T, manifest, archive []byte, requests *int)
 			return marketplaceHTTPResponse(t, request, http.StatusOK, commit), nil
 		case strings.Contains(request.URL.Path, "/tarball/"):
 			*requests++
+			if request.Header.Get("Accept") != "application/vnd.github+json" {
+				return marketplaceHTTPResponse(
+					t,
+					request,
+					http.StatusUnsupportedMediaType,
+					"unsupported archive API media type",
+				), nil
+			}
 			if !strings.HasSuffix(request.URL.Path, "/"+commit) {
 				t.Error("snapshot download did not use the fetched document commit")
 			}

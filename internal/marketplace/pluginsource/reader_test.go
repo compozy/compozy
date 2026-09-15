@@ -2,8 +2,10 @@ package pluginsource
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -12,6 +14,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/outboundpolicy"
 )
 
 func TestFetchGitHubMarketplace(t *testing.T) {
@@ -113,6 +117,44 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			t.Fatalf("canceled request = %v, requests %d", err, calls)
 		}
 	})
+	// Invariant: source diagnostics expose status without forwarding upstream text or credentials.
+	t.Run("Should retain a safe upstream HTTP failure classification", func(t *testing.T) {
+		t.Parallel()
+		source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
+			return marketplaceHTTPResponse(t, request, http.StatusUnsupportedMediaType,
+				`{"message":"private upstream details token=secret-value"}`), nil
+		})
+		_, err := source.Fetch(t.Context())
+		failure, ok := errors.AsType[*SourceError](err)
+		if !ok || failure.Reason != "http_415" || !errors.Is(err, ErrSourceUnreachable) {
+			t.Fatalf("source failure = %v", err)
+		}
+		if strings.Contains(err.Error(), "secret-value") || strings.Contains(err.Error(), "private upstream") {
+			t.Fatal("source diagnostic exposed upstream response text")
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		cause  error
+		reason string
+	}{
+		{"Should classify a blocked destination", outboundpolicy.ErrBlockedDestination, "network_blocked"},
+		{"Should classify insecure transport", outboundpolicy.ErrInsecureTransport, "network_blocked"},
+		{"Should classify DNS failure", &net.DNSError{Err: "private resolver details", Name: "private.test"}, "dns_failed"},
+		{"Should classify TLS verification failure", &tls.CertificateVerificationError{Err: errors.New("private certificate details")}, "tls_failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := remoteSourceError(tc.cause)
+			failure, ok := errors.AsType[*SourceError](err)
+			if !ok || failure.Reason != tc.reason || !errors.Is(err, tc.cause) {
+				t.Fatalf("source failure = %v, want %s with preserved cause", err, tc.reason)
+			}
+			if strings.Contains(err.Error(), "private") {
+				t.Fatal("source diagnostic exposed private transport details")
+			}
+		})
+	}
 }
 
 func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {

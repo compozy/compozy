@@ -27,8 +27,19 @@
         },
         "compozy-web#build": {
             "dependsOn": ["//#codegen-check", "typecheck", "^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/catalog/icons/**"],
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]
+        },
+        "compozy-web#test": {
+            "dependsOn": ["//#codegen-check", "transit"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/catalog/icons/**"],
+            "outputs": []
+        },
+        "compozy-web#build-storybook": {
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/catalog/icons/**"],
+            "outputs": ["storybook-static/**"]
         },
         "@compozy/ui#build": {
             "dependsOn": [],

@@ -2,6 +2,7 @@ import Avatar from "boring-avatars";
 import { Component, useState, type ReactNode } from "react";
 
 import { cn, KindIcon } from "@compozy/ui";
+import { marketplaceIconURL } from "../lib/marketplace-icon";
 
 import {
   marketplaceBrandKeyFor,
@@ -87,7 +88,7 @@ class MarketplaceLogoBoundary extends Component<
  */
 function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntryLogoProps) {
   const [failedIcon, setFailedIcon] = useState<string>();
-  const icon = entry.icon?.trim();
+  const icon = marketplaceIconURL(entry.icon);
   const brandKey = marketplaceBrandKeyFor(entry);
   const wellClass = cn(
     "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg-strong",

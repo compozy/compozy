@@ -419,39 +419,47 @@ func TestClientDownloadSelectsRequestedAsset(t *testing.T) {
 func TestClientDownloadFallsBackToSourceArchive(t *testing.T) {
 	t.Parallel()
 
-	archive := mustTarGz(t, map[string]string{"demo-v1.2.3/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n"})
-	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/repos/acme/demo/releases/latest":
-			writeJSON(writer, `{
+	t.Run("Should download a repository archive with the API media type", func(t *testing.T) {
+		t.Parallel()
+
+		archive := mustTarGz(t, map[string]string{"demo-v1.2.3/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n"})
+		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/repos/acme/demo/releases/latest":
+				writeJSON(writer, `{
 				"tag_name":"v1.2.3",
 				"draft":false,
 				"prerelease":false,
 				"tarball_url":"`+serverURLPlaceholder+`/downloads/source.tar.gz",
 				"assets":[]
 			}`)
-		case "/downloads/source.tar.gz":
-			writer.Header().Set("Content-Type", "application/x-gzip")
-			writeTestHTTPResponse(t, writer, archive)
-		default:
-			http.NotFound(writer, request)
-		}
-	})
-	defer server.Close()
+			case "/downloads/source.tar.gz":
+				if request.Header.Get("Accept") != "application/vnd.github+json" {
+					http.Error(writer, "unsupported archive API media type", http.StatusUnsupportedMediaType)
+					return
+				}
+				writer.Header().Set("Content-Type", "application/x-gzip")
+				writeTestHTTPResponse(t, writer, archive)
+			default:
+				http.NotFound(writer, request)
+			}
+		})
+		defer server.Close()
 
-	client := NewClient(server.URL)
-	result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := result.Reader.Close(); err != nil {
-			t.Errorf("result.Reader.Close() error = %v", err)
+		client := NewClient(server.URL)
+		result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+		if err != nil {
+			t.Fatalf("Download() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := result.Reader.Close(); err != nil {
+				t.Errorf("result.Reader.Close() error = %v", err)
+			}
+		})
+		if result.ContentType != "application/x-gzip" {
+			t.Fatalf("Download() content type = %q, want application/x-gzip", result.ContentType)
 		}
 	})
-	if result.ContentType != "application/x-gzip" {
-		t.Fatalf("Download() content type = %q, want application/x-gzip", result.ContentType)
-	}
 }
 
 func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {

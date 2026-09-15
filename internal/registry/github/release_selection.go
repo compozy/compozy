@@ -173,12 +173,23 @@ func repositoryNotFoundError(slug string) error {
 	return fmt.Errorf("github: repository %q not found: %w", slug, registry.NewPackageNotFoundError(slug))
 }
 
+// ResponseError retains the status independently of the untrusted upstream message.
+type ResponseError struct {
+	StatusCode int
+	message    string
+}
+
+var _ error = (*ResponseError)(nil)
+
+func (e *ResponseError) Error() string { return e.message }
+
 func responseError(response *http.Response, operation string, slug string) error {
 	message := readErrorMessage(response.Body)
+	summary := fmt.Sprintf("github: %s request failed for %q: %s", operation, slug, response.Status)
 	if message == "" {
-		return fmt.Errorf("github: %s request failed for %q: %s", operation, slug, response.Status)
+		return &ResponseError{StatusCode: response.StatusCode, message: summary}
 	}
-	return fmt.Errorf("github: %s request failed for %q: %s: %s", operation, slug, response.Status, message)
+	return &ResponseError{StatusCode: response.StatusCode, message: summary + ": " + message}
 }
 
 func readErrorMessage(body io.Reader) string {

@@ -4,12 +4,16 @@ package pluginsource
 
 import (
 	"errors"
+	"os"
 	"testing"
 )
 
 // Public acquisition is opt-in through the dedicated CI workflow, never the unit lane.
 func TestPublicGitHubMarketplace(t *testing.T) {
 	t.Parallel()
+	if os.Getenv("COMPOZY_TEST_PUBLIC_MARKETPLACE") != "1" {
+		t.Skip("public acquisition runs only in its opt-in CI lane")
+	}
 	t.Run("Should acquire the official public marketplace and its pinned snapshot", func(t *testing.T) {
 		t.Parallel()
 		source, err := NewGitHubSource("github:anthropics/claude-plugins-official")

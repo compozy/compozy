@@ -1,8 +1,12 @@
 name: Marketplace public acquisition
 
 on:
-  push:
-    branches: [fix/issue-644-marketplace-retry-images]
+  pull_request:
+    paths:
+      - internal/marketplace/**
+      - internal/registry/github/**
+      - internal/outboundpolicy/**
+      - .github/workflows/marketplace-public.yml
   workflow_dispatch:
 
 permissions:
@@ -20,4 +24,5 @@ jobs:
       - name: Read public marketplace with the production acquisition client
         env:
           CGO_ENABLED: "1"
+          COMPOZY_TEST_PUBLIC_MARKETPLACE: "1"
         run: go test -race -tags=integration -count=1 -timeout=2m -v ./internal/marketplace/pluginsource -run '^TestPublicGitHubMarketplace$'

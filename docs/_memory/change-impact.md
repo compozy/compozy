@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Issue 644 — Marketplace acquisition recovery and production images
+
+- **Native tools / CLI / HTTP / UDS:** existing Marketplace operations retain their IDs, routes and
+  schemas. GitHub repository tarballs use the API JSON Accept type before following the archive
+  redirect; binary release assets keep their binary media type. Source diagnostics retain safe HTTP,
+  DNS, TLS and outbound-policy classifications without exposing upstream bodies or credentials.
+- **Extensibility / hooks / config:** no new keys, permissions, hooks or SDK shapes. Public plugin
+  acquisition remains unauthenticated, commit-pinned, bounded and governed by outboundpolicy.
+- **Workspace / profile isolation and compatibility:** existing source generations, cached entries,
+  installation ownership and user data remain intact. No migrations or compatibility removals.
+- **Web:** only degraded sources are named in refresh failures. Retry invalidates and rereads the
+  canonical catalog as before. Shipped catalog icons reuse the repository assets in the web bundle;
+  supported data images remain available and unsupported remote icons fall back before a request.
+  CSP stays unchanged. No arbitrary image proxy or browser network allowance is introduced.
+- **Official skill:** `compozy` tools-and-skills guidance remains correct: inspect source diagnostics,
+  preserve cached entries and retry through the existing refresh operation; no command change.
+- **Docs / QA:** Marketplace index and source docs explain recovery, diagnostics and image support.
+  The existing landing scenario and Marketplace E2E suite cover partial failure, cached entries,
+  Retry/Refresh recovery, production CSP image loading and viewport screenshots. Public acquisition
+  is an opt-in CI integration probe; first CI reproduction fetched 52 plugins and then failed at the
+  archive endpoint with HTTP 415. All corrected-head gates and real browser evidence run in CI.
+
 ## Issue 627 — Overlay model discovery and binding
 
 - **Native tools:** existing provider model list/status/refresh/curate and session-create tools keep

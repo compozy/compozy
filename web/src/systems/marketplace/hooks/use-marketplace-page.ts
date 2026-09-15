@@ -29,9 +29,13 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
   };
   const refreshCatalog = () =>
     refresh.mutateAsync().then(response => {
-      const failed = response.sources.find(result => result.error_class);
-      if (failed) {
-        reportRefreshFailure(new Error(`Could not refresh the catalog (${failed.error_class})`));
+      const failed = response.sources.filter(result => result.error_class);
+      if (failed.length > 0) {
+        reportRefreshFailure(
+          new Error(
+            `Could not refresh ${failed.map(result => `${result.source} (${result.error_class})`).join(", ")}`
+          )
+        );
       }
     }, reportRefreshFailure);
   const pages = catalog.data?.pages ?? [];

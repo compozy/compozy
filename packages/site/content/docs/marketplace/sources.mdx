@@ -42,6 +42,12 @@ its last successful listing. Disabled sources are neither fetched nor listed in 
 has not been read reports `never`. `compozy marketplace refresh` reports every source and exits with
 status 1 only when all attempted sources failed.
 
+GitHub source acquisition pins the document and repository archive to one commit. A source may
+therefore fail even when its marketplace JSON is reachable. The safe `error_class` distinguishes
+upstream HTTP status (for example, `http_415`), `rate_limited`, `dns_failed`, `tls_failed`, and
+`network_blocked`; unknown failures retain `fetch_failed`. Upstream response text and credentials
+are not included. Retry uses the same public source and network policy, without borrowing a token.
+
 A name collision returns `marketplace_source_exists` with `suggested_name`. A name retained by an
 installed extension returns `marketplace_source_name_retained` with `retained_by`. Use another name
 or the original source ref. `compozy` and `compozy-catalog` are reserved. A rejected document reports

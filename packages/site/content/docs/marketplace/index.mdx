@@ -21,6 +21,12 @@ version, source, and trust decision. With one source, entries appear in a flat g
 have separate sections. Refresh fetches the latest catalog. If a source is unreachable, cached
 entries remain visible with their stale status. An unavailable source is not an empty catalog.
 
+The refresh warning names each failed source. Healthy sources remain current, and Retry clears the
+warning once acquisition succeeds. Catalog logos shipped with the app load from its own assets;
+supported inline PNG, SVG and WebP icons also render. Other remote icon URLs use the entry's brand
+mark or generated tile without making an external image request. Updating the app updates its
+shipped logos; refreshing the catalog alone does not download new logo files.
+
 The HTTP and UDS interfaces expose the same catalog:
 
 ```http
