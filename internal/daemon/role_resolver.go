@@ -387,8 +387,7 @@ func firstRoleValue(values ...string) string {
 	return ""
 }
 
-// effectiveRoleEnabled keeps background status and invocation under the same memory gate.
-// Pressure summaries belong to the session lifecycle and use their explicit role switch.
+// Compaction denotes configured availability for status and actual applicability for invocation.
 func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled, compaction bool) bool {
 	if !enabled {
 		return false
