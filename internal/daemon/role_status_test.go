@@ -202,17 +202,23 @@ func TestRoleStatusProjection(t *testing.T) {
 		})
 	}
 
-	t.Run("Should preserve the profile checkpoint switch under daemon compaction", func(t *testing.T) {
-		t.Parallel()
-		global := roleResolverConfig()
-		global.Memory.Enabled = false
-		global.Session.Compaction.Enabled = true
-		for _, enabled := range []bool{true, false} {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{
+		{name: "Should honor profile checkpoint opt-in under daemon compaction", enabled: true},
+		{name: "Should honor profile checkpoint opt-out under daemon compaction"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			global := roleResolverConfig()
+			global.Memory.Enabled = false
+			global.Session.Compaction.Enabled = true
 			scoped := loopActionBinderWorkspace(t, nil)
 			scoped.ProfileID = "profile-engineering"
 			scoped.Config.Memory.Enabled = false
 			scoped.Config.Session.Compaction.Enabled = false
-			scoped.Config.Roles.CheckpointSummary.Enabled = enabled
+			scoped.Config.Roles.CheckpointSummary.Enabled = tc.enabled
 			resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
 			resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
 			ctx := withRoleInvocationCorrelation(
@@ -220,11 +226,11 @@ func TestRoleStatusProjection(t *testing.T) {
 				roleInvocationCorrelation{ProfileID: "profile-engineering", SessionCompaction: true},
 			)
 			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
-			if err != nil || status.Enabled != enabled {
-				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, enabled)
+			if err != nil || status.Enabled != tc.enabled {
+				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, tc.enabled)
 			}
-		}
-	})
+		})
+	}
 
 	t.Run("Should report a missing catalog agent without failing projection", func(t *testing.T) {
 		t.Parallel()
