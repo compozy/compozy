@@ -26,6 +26,23 @@
   canonical extraction tests now cover metadata acceptance and byte limits. All corrected-head
   gates and real browser evidence run in CI.
 
+## Context rail quiet defaults (fix/context-rail-quiet)
+
+- **Native tools / CLI / HTTP / UDS:** none. `/usage`, `/usage/turns`, and the session context
+  read keep their DTOs; `reported_turn_id`, `reported_at`, and `pressure_threshold` still arrive and
+  still feed the stale cue, the bar tick, and the tooltip compaction sentence.
+- **Extensibility/hooks/config:** no contract, hook, permission, SDK, or config changes.
+- **Workspace data isolation:** no schema, query, or authorization change.
+- **Web / Docs / official skill:** Web only. The composer tooltip drops its provenance row
+  (`reported` chip, `as of turn <id>`); the rail meter drops its `reported` chip and the
+  clock/threshold line, keeping a chip only for loading, unavailable, stale, near compaction, and
+  estimated size; Turns ships folded behind the same chevron head as Compozy context. The current
+  row in the sessions sidebar drops its accent left bar and keeps the selected tint. QA scenarios
+  `ET-web-session-context-meter`, `ET-web-session-context-sidebar`, and
+  `ET-web-session-sidebar-threads` record the new reads. No skill or docs-site change.
+- **Verification:** owning unit suite `session-inspector.test.tsx` and the focused browser E2E
+  `session context E2E-001` against the acpmock fixture.
+
 ## Pending stop recovery after a Goal generation change
 
 - **Native tools / CLI / HTTP / UDS:** existing Goal cancel/clear/replace and session-stop recovery

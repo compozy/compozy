@@ -1,14 +1,10 @@
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  StatusBreakdown,
-  cn,
-} from "@compozy/ui";
-import { ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, StatusBreakdown, cn } from "@compozy/ui";
 import type { SessionContextPayload } from "../types";
 import { formatContextBytes, formatContextTokens, formatContextTurn } from "../lib/context-format";
-import { SessionInspectorSection } from "./session-inspector-section";
+import {
+  SessionInspectorDisclosureHead,
+  SessionInspectorSection,
+} from "./session-inspector-section";
 
 type InjectedRow = NonNullable<SessionContextPayload["injected"]>["rows"][number];
 
@@ -98,30 +94,20 @@ export function SessionContextInjectedSection({
   return (
     <SessionInspectorSection data-testid="session-context-injected" hidden={rows.length === 0}>
       <Collapsible defaultOpen={defaultOpen}>
-        <CollapsibleTrigger
-          render={
-            <button
-              type="button"
-              className="group flex w-full items-center gap-1.5 rounded-sm text-left text-fg outline-none focus-visible:shadow-focus-ring"
-            />
-          }
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className="size-3.25 shrink-0 text-subtle transition-transform duration-base ease-out group-aria-expanded:rotate-90 motion-reduce:transition-none"
-          />
-          <span className="text-form-label font-medium">CompozyOS context</span>
-          <span className="ml-auto font-mono text-mono-id tabular-nums text-muted">
-            {total != null ? (
+        <SessionInspectorDisclosureHead
+          meta={
+            total != null ? (
               <>
                 ≈ {formatContextTokens(total)}
                 <small className="ml-1 text-faint">bytes/4</small>
               </>
             ) : (
               `${rows.length} ${rows.length === 1 ? "row" : "rows"}`
-            )}
-          </span>
-        </CollapsibleTrigger>
+            )
+          }
+        >
+          CompozyOS context
+        </SessionInspectorDisclosureHead>
         <CollapsibleContent>
           <ul className={cn("flex flex-col gap-1.75 pt-1.5", INDENT)}>
             {rows.map(row => (

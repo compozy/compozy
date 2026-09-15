@@ -50,9 +50,7 @@ export function SessionListRow({
         type="button"
         className={cn(
           "relative grid min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none",
-          selected && "bg-row-selected",
-          current &&
-            "bg-row-selected before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
+          (selected || current) && "bg-row-selected"
         )}
         data-status={session.badge}
         data-testid={`${testIdPrefix}-session-${session.id}`}

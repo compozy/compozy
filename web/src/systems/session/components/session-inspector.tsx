@@ -17,6 +17,7 @@ export interface SessionInspectorProps {
   turnsUnavailable?: boolean;
   activity?: SessionActivityView;
   injectedDefaultOpen?: boolean;
+  turnsDefaultOpen?: boolean;
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
   className?: string;
@@ -29,6 +30,7 @@ export function SessionInspector({
   turnsUnavailable,
   activity,
   injectedDefaultOpen,
+  turnsDefaultOpen,
   drawerOpen,
   onDrawerOpenChange,
   className,
@@ -49,7 +51,11 @@ export function SessionInspector({
           defaultOpen={injectedDefaultOpen}
         />
         <SessionInspectorUsageSection usage={usage} />
-        <SessionContextTurnsSection data={turns} unavailable={turnsUnavailable} />
+        <SessionContextTurnsSection
+          data={turns}
+          unavailable={turnsUnavailable}
+          defaultOpen={turnsDefaultOpen}
+        />
         <SessionActivitySection activity={activity} />
       </div>
     </DetailInspector>

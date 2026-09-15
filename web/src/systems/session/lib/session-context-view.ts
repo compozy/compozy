@@ -1,9 +1,4 @@
-import {
-  formatContextClock,
-  formatContextPercent,
-  formatContextTokens,
-  formatContextTurn,
-} from "./context-format";
+import { formatContextPercent, formatContextTokens } from "./context-format";
 import {
   sessionContextRingState,
   type SessionContextRingState,
@@ -12,6 +7,8 @@ import {
 
 // View models for the composer control and the Context meter. Every branch that
 // decides copy, tone, or geometry lives here so the components stay declarative.
+// Both surfaces default to quiet: a plain report shows its numbers only, and a
+// chip appears just when the reading carries a caveat.
 
 export interface SessionContextRingGeometry {
   track: { stroke: string; dasharray?: string };
@@ -46,8 +43,10 @@ export interface SessionContextChipView {
   form: "tint" | "hollow";
 }
 
-/** Meter chip: reported · stale · estimated size · near compaction · unavailable (hollow). */
-export function describeSessionContextChip(context: SessionContextView): SessionContextChipView {
+/** Meter chip: loading · unavailable (hollow) · stale · near compaction · estimated size; a plain report has none. */
+export function describeSessionContextChip(
+  context: SessionContextView
+): SessionContextChipView | undefined {
   if (context.loading && context.used == null)
     return { label: "loading", tone: "neutral", form: "tint" };
   if (context.state === "unavailable")
@@ -56,17 +55,13 @@ export function describeSessionContextChip(context: SessionContextView): Session
   if (context.warning) return { label: "near compaction", tone: "warning", form: "tint" };
   if (context.state === "estimated_size")
     return { label: "estimated size", tone: "neutral", form: "tint" };
-  return { label: context.state, tone: "neutral", form: "tint" };
+  return undefined;
 }
 
 export type SessionContextTooltipRow =
   | { kind: "numbers"; percent?: string; amount: string; warning: boolean }
   | { kind: "headline"; text: string }
-  | {
-      kind: "state";
-      chip?: { label: "reported" | "stale"; tone: "neutral" | "warning" };
-      asOf?: string;
-    }
+  | { kind: "stale" }
   | { kind: "sentence"; text: string }
   | { kind: "policy"; text: string };
 
@@ -131,15 +126,7 @@ function tooltipRows(
     amount: amountLabel(used, context.size),
     warning: context.warning,
   });
-  const asOf = context.reported_turn_id
-    ? `as of turn ${formatContextTurn(context.reported_turn_id)}`
-    : undefined;
-  const chip = unavailable
-    ? undefined
-    : context.stale
-      ? ({ label: "stale", tone: "warning" } as const)
-      : ({ label: "reported", tone: "neutral" } as const);
-  if (chip || asOf) rows.push({ kind: "state", chip, asOf });
+  if (!unavailable && context.stale) rows.push({ kind: "stale" });
   if (unavailable) rows.push({ kind: "sentence", text: "Usage unavailable" });
   if (context.size_source === "catalog") {
     rows.push({ kind: "sentence", text: "Window from model catalog." });
@@ -184,9 +171,8 @@ export type SessionContextMeterView =
       value: string;
       amount: string;
       warning: boolean;
-      chip: SessionContextChipView;
+      chip?: SessionContextChipView;
       tiers?: SessionContextTiersView;
-      line: string[];
     };
 
 function meterEmpty(context: SessionContextView, unavailable: boolean): SessionContextMeterView {
@@ -199,21 +185,6 @@ function meterEmpty(context: SessionContextView, unavailable: boolean): SessionC
     title: "No context report yet",
     description: "The meter fills once the agent reports its first turn.",
   };
-}
-
-/** "as of turn 12 · 18:03:01 · Compaction runs at 85%"; the policy leads while it is the warning. */
-function reportLine(context: SessionContextView, unavailable: boolean): string[] {
-  const policy = compactionPolicy(context);
-  const clock = context.reported_at ? formatContextClock(context.reported_at) : "";
-  const asOf = context.reported_turn_id
-    ? `as of turn ${formatContextTurn(context.reported_turn_id)}${clock ? ` · ${clock}` : ""}`
-    : undefined;
-  const line = (context.warning ? [policy, asOf] : [asOf, policy]).filter(
-    (part): part is string => part != null
-  );
-  if (context.size_source === "catalog") line.push("Window from model catalog.");
-  if (unavailable) line.push("Usage unavailable");
-  return line;
 }
 
 function meterTiers(
@@ -247,6 +218,5 @@ export function describeSessionContextMeter(context: SessionContextView): Sessio
     warning: context.warning,
     chip: describeSessionContextChip(context),
     tiers: meterTiers(context, used),
-    line: reportLine(context, unavailable),
   };
 }
