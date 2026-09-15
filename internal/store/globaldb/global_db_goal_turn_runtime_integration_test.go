@@ -1533,6 +1533,9 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 						PolicySpecDigest: "policy-" + sessionID, CreationDigest: "creation-" + sessionID})
 			}
 			insertGoalSchemaLoopRun(t, db, "run-cancel", "ws-cancel", tc.origin, new("session-origin"))
+			if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET generation = 1 WHERE id = ?", "run-cancel"); err != nil {
+				t.Fatalf("set active cancellation generation: %v", err)
+			}
 			key := goal.TurnKey{WorkspaceID: "ws-cancel", LoopRunID: "run-cancel", Generation: 1, NodeID: "goal"}
 			checkpoint, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
 				Key: key, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
