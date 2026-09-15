@@ -13,6 +13,7 @@ const bundledIcons = new Map(
 );
 
 /** Resolve shipped assets without granting feed URLs access to the browser's network. */
+/** Resolve only shipped catalog assets or supported inline images under the production CSP. */
 export function marketplaceIconURL(value: string | null | undefined): string | undefined {
   const icon = value?.trim();
   if (!icon) return undefined;

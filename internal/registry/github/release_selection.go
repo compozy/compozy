@@ -181,8 +181,10 @@ type ResponseError struct {
 
 var _ error = (*ResponseError)(nil)
 
+// Error preserves the existing GitHub diagnostic message; public source errors expose only StatusCode.
 func (e *ResponseError) Error() string { return e.message }
 
+// responseError retains the HTTP status separately from the bounded upstream diagnostic message.
 func responseError(response *http.Response, operation string, slug string) error {
 	message := readErrorMessage(response.Body)
 	summary := fmt.Sprintf("github: %s request failed for %q: %s", operation, slug, response.Status)

@@ -103,6 +103,12 @@ func extractTar(reader io.Reader, root *fileutil.Directory, limits ExtractionLim
 			return fmt.Errorf("read tar entry: %w", readErr)
 		}
 
+		// Git archives include a global PAX header carrying commit metadata.
+		// archive/tar has consumed its bounded payload; it is not a filesystem node.
+		if header.Typeflag == tar.TypeXGlobalHeader {
+			continue
+		}
+
 		entryName, cleanErr := cleanArchiveEntryPath(header.Name)
 		if cleanErr != nil {
 			return fmt.Errorf("clean archive entry %q: %w", header.Name, cleanErr)

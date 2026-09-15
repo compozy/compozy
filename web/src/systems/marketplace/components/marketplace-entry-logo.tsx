@@ -86,6 +86,7 @@ class MarketplaceLogoBoundary extends Component<
  * tile seeded by the entry id → monogram only when the tile fails to render. The marble tile is
  * the one authorized identity color on a resting row (DESIGN-NOTES Q3).
  */
+/** Render a CSP-compatible image, then the existing brand or generated fallback on failure. */
 function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntryLogoProps) {
   const [failedIcon, setFailedIcon] = useState<string>();
   const icon = marketplaceIconURL(entry.icon);

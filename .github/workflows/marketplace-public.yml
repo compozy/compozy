@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - internal/marketplace/**
-      - internal/registry/github/**
+      - internal/registry/**
       - internal/outboundpolicy/**
       - .github/workflows/marketplace-public.yml
   workflow_dispatch:

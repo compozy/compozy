@@ -118,6 +118,7 @@ func (e *SourceError) Unwrap() []error {
 	return []error{ErrSourceUnreachable, e.Cause}
 }
 
+// remoteSourceError exposes a safe failure class while retaining the private cause for error inspection.
 func remoteSourceError(err error) error {
 	reason := "fetch_failed"
 	if errors.Is(err, github.ErrRateLimited) {

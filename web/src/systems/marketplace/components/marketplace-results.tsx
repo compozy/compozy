@@ -223,6 +223,7 @@ function MarketplaceSectionGist({
 }
 
 /** The last projection the daemon could load, under one 12px line that says so — never a banner. */
+/** Attribute failed refreshes and cached timestamps to the degraded sources reported by the daemon. */
 function MarketplaceStaleLine({ page }: { page: MarketplacePageModel }) {
   const degraded = page.sources.filter(source => source.state === "degraded");
   const failed = degraded.length > 0 || Boolean(page.diagnostic);

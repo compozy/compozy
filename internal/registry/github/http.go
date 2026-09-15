@@ -67,6 +67,7 @@ func (c *Client) doRequest(
 	return response, nil
 }
 
+// openDownloadResponse negotiates the API media type for source archives and binary media for release assets.
 func (c *Client) openDownloadResponse(
 	ctx context.Context,
 	repo repoSlug,
