@@ -41,9 +41,13 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil || stopped.State != session.StateStopped {
 			t.Fatalf("session before deletion = %#v, %v", stopped, err)
 		}
-		connection, ok := fixture.goalStore.(interface{ DB() *sql.DB })
+		connection, ok := fixture.goalStore.(interface {
+			loopAPIPersistence
+			loopGoalAPIPersistence
+			DB() *sql.DB
+		})
 		if !ok {
-			t.Fatal("Goal store has no fixture connection")
+			t.Fatal("Goal store lacks the lifecycle persistence fixture")
 		}
 		if _, err := connection.DB().ExecContext(ctx,
 			"UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ? WHERE id = ?",
@@ -59,7 +63,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		fixture.manager.SetGoalCommandHandler(&daemonLoopAPIService{
-			aggregate: aggregate, persistence: fixture.goalStore, goalPersistence: fixture.goalStore,
+			aggregate: aggregate, persistence: connection, goalPersistence: connection,
 		})
 		if err := fixture.manager.Delete(ctx, originID); err != nil {
 			t.Fatalf("Delete(stopped Goal owner) error = %v", err)
