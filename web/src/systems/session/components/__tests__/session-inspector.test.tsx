@@ -214,9 +214,15 @@ describe("Session context", () => {
     await user.tab();
     expect(button).toHaveFocus();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("35% · 89.7K / 256K");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("as of turn 12");
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("as of turn");
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("reported");
     await user.keyboard("{Enter}");
     expect(screen.getByRole("complementary", { name: "Context" })).toBeVisible();
+    const meter = screen.getByTestId("session-context-meter");
+    expect(meter).toHaveTextContent("35%");
+    expect(meter).not.toHaveTextContent("reported");
+    expect(meter).not.toHaveTextContent("as of turn");
+    expect(meter).not.toHaveTextContent("Compaction runs at");
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(document.querySelector('[data-testid^="session-inspector-tab-"]')).toBeNull();
     expect(screen.getByTestId("session-inspector").children).toHaveLength(5);
@@ -361,7 +367,8 @@ describe("Session context", () => {
     expect(rows[0]).toHaveTextContent("may have been summarized");
   });
 
-  it("Should keep the last meter with an unavailable chip and omit unreported cache tiles", () => {
+  it("Should keep the last meter with an unavailable chip and omit unreported cache tiles", async () => {
+    const user = userEvent.setup();
     const { rerender } = render(
       <SessionInspector
         context={deriveSessionContext(sessionContextFixture, { unavailable: true })}
@@ -375,17 +382,27 @@ describe("Session context", () => {
     rerender(<SessionInspector context={deriveSessionContext(undefined, { unavailable: true })} />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Usage unavailable");
     expect(screen.queryByText("Cache read")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-context-turns")).not.toHaveTextContent("No turns yet");
+    await user.click(screen.getByRole("button", { name: /^Turns/ }));
     expect(screen.getByTestId("session-context-turns")).toHaveTextContent("No turns yet");
     expect(screen.getByTestId("session-context-activity").querySelector("li")).toBeNull();
   });
 
-  it("Should order the union and compaction markers by sequence without claiming completion", () => {
+  it("Should order the union and compaction markers by sequence without claiming completion", async () => {
+    const user = userEvent.setup();
     render(
       <SessionInspector
         turns={sessionContextTurnsFixture}
         activity={{ status: "Working for 49m 20s" }}
       />
     );
+    const turnsHead = screen.getByRole("button", { name: /^Turns/ });
+    expect(turnsHead).toHaveAttribute("aria-expanded", "false");
+    expect(turnsHead).toHaveTextContent("4 turns");
+    expect(screen.queryAllByTestId("session-context-turn-row")).toHaveLength(0);
+    expect(screen.getByTestId("session-context-turns")).not.toHaveTextContent("newest first");
+    await user.click(turnsHead);
+    expect(turnsHead).toHaveAttribute("aria-expanded", "true");
     const rows = screen.getAllByTestId("session-context-turn-row");
     expect(rows.map(row => within(row).getByText(/^Turn [0-9]+$/).textContent)).toEqual([
       "Turn 4",
@@ -419,6 +436,7 @@ describe("Session context", () => {
         }}
       />
     );
+    await user.click(screen.getByRole("button", { name: /^Turns/ }));
     expect(screen.getAllByTestId("session-context-turn-row")).toHaveLength(50);
     expect(screen.getAllByTestId("session-context-turn-row")[0]).toHaveTextContent("Turn 120");
     await user.click(screen.getByRole("button", { name: /^Show earlier turns/ }));
@@ -464,7 +482,7 @@ describe("Fable context surface corrections", () => {
       />
     );
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("near compaction");
-    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("Compaction runs at 85%");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("Compaction runs at");
     rerender(
       <SessionInspector
         context={deriveSessionContext({
@@ -482,6 +500,7 @@ describe("Fable context surface corrections", () => {
   it("Should show reported per-turn cost and currency while preserving the empty cost cell", () => {
     render(
       <SessionInspector
+        turnsDefaultOpen
         turns={{
           compactions: [],
           turns: [

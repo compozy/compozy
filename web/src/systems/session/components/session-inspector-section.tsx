@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
-import { Empty, Eyebrow, cn, type EmptyProps } from "@compozy/ui";
+import { ChevronRight } from "lucide-react";
+import { CollapsibleTrigger, Empty, Eyebrow, cn, type EmptyProps } from "@compozy/ui";
 
 /** One rail section: internal rhythm only; the rail body owns the gap between sections. */
 export function SessionInspectorSection({ className, ...props }: ComponentProps<"section">) {
@@ -24,6 +25,42 @@ export function SessionInspectorSectionHead({
         </span>
       ) : null}
     </div>
+  );
+}
+
+/** Chevron-first trigger of a section that ships collapsed; the mono meta summarizes what the fold hides. */
+export function SessionInspectorDisclosureHead({
+  children,
+  meta,
+  className,
+  ...props
+}: Omit<ComponentProps<typeof CollapsibleTrigger>, "render"> & {
+  meta?: ReactNode;
+}) {
+  return (
+    <CollapsibleTrigger
+      render={
+        <button
+          type="button"
+          className={cn(
+            "group flex w-full items-center gap-1.5 rounded-sm text-left text-fg outline-none focus-visible:shadow-focus-ring",
+            className
+          )}
+        />
+      }
+      {...props}
+    >
+      <ChevronRight
+        aria-hidden="true"
+        className="size-3.25 shrink-0 text-subtle transition-transform duration-base ease-out group-aria-expanded:rotate-90 motion-reduce:transition-none"
+      />
+      <span className="text-form-label font-medium">{children}</span>
+      {meta ? (
+        <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-muted">
+          {meta}
+        </span>
+      ) : null}
+    </CollapsibleTrigger>
   );
 }
 

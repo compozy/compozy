@@ -111,20 +111,12 @@ function SessionContextTooltipLine({
           {row.text}
         </p>
       );
-    case "state":
+    case "stale":
       return (
-        <p className={cn("flex items-center gap-1.5 text-subtle", className)} {...props}>
-          {row.chip ? (
-            <Pill size="xs" tone={row.chip.tone}>
-              {row.chip.label}
-            </Pill>
-          ) : null}
-          {row.chip && row.asOf ? (
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-          ) : null}
-          {row.asOf ? <span>{row.asOf}</span> : null}
+        <p className={cn("flex items-center", className)} {...props}>
+          <Pill size="xs" tone="warning">
+            stale
+          </Pill>
         </p>
       );
     case "policy":

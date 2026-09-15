@@ -4,7 +4,7 @@ area: ET
 title: In-window sessions sidebar with provenance threads and in-place switch
 persona: Bruno
 journey: J-14
-expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts closed (transcript full-bleed) and opens as a 264px left rail hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row carries an accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
+expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts closed (transcript full-bleed) and opens as a 264px left rail hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
 entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
 qa_status: pass
 bug_ids: compozy/compozy#416
@@ -41,3 +41,5 @@ active. Thread controls and in-place navigation at rest retain their behavior.
 All-workspaces groups remain navigation-only. The new
 `ET-web-session-list-bulk-actions` scenario owns selection, catalog membership,
 sequential actions, confirmation, and retry; prior thread evidence above is retained.
+
+2026-09-15 quiet-context pass: the current session row dropped its accent left bar; `bg-row-selected` alone marks it, the same tint as multi-selection. Expected updated; the owning unit suite re-verified, no live re-walk.

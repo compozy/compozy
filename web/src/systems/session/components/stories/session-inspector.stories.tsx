@@ -85,6 +85,7 @@ export const Unavailable: Story = {
 export const TokensWithCache: Story = {};
 export const TurnsUnion: Story = {
   args: {
+    turnsDefaultOpen: true,
     turns: {
       ...sessionContextTurnsFixture,
       turns: sessionContextTurnsFixture.turns.map(turn =>
@@ -97,6 +98,7 @@ export const TurnsUnion: Story = {
 };
 export const ManyTurns: Story = {
   args: {
+    turnsDefaultOpen: true,
     turns: {
       compactions: [],
       turns: Array.from({ length: 120 }, (_, index) => ({
@@ -109,6 +111,7 @@ export const ManyTurns: Story = {
 };
 export const OpaqueTurnIds: Story = {
   args: {
+    turnsDefaultOpen: true,
     turns: {
       compactions: [],
       turns: [

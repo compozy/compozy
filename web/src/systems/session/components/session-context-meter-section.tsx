@@ -1,10 +1,9 @@
-import { Fragment, type ComponentProps } from "react";
-import { Clock, Gauge, Minimize2 } from "lucide-react";
+import type { ComponentProps } from "react";
+import { Gauge } from "lucide-react";
 import { Pill, StackedProgress, StatusBreakdown, cn } from "@compozy/ui";
 import type { SessionContextView } from "../lib/session-context";
 import { formatContextTokens } from "../lib/context-format";
 import {
-  describeSessionContextChip,
   describeSessionContextMeter,
   type SessionContextMeterView,
   type SessionContextTiersView,
@@ -12,16 +11,6 @@ import {
 import { SessionInspectorEmpty, SessionInspectorSection } from "./session-inspector-section";
 
 type StatusBreakdownItem = ComponentProps<typeof StatusBreakdown>["items"][number];
-
-/** Meter chip: reported · stale · estimated size · near compaction · unavailable (hollow). */
-export function SessionContextStateChip({ context }: { context: SessionContextView }) {
-  const chip = describeSessionContextChip(context);
-  return (
-    <Pill size="xs" form={chip.form} tone={chip.tone}>
-      {chip.label}
-    </Pill>
-  );
-}
 
 /** Tier swatches are magnitude keys: 8px squares, never signal dots. */
 function TierSwatch({ className, ...props }: ComponentProps<"span">) {
@@ -118,37 +107,7 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
   );
 }
 
-function SessionContextMeterLine({ parts, warning }: { parts: string[]; warning: boolean }) {
-  const Icon = warning ? Minimize2 : Clock;
-  return (
-    <p
-      className={cn(
-        "flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-micro leading-4 text-subtle",
-        warning && "text-warning"
-      )}
-    >
-      <Icon aria-hidden="true" className="size-2.75 shrink-0" />
-      {parts.map((part, index) => (
-        <Fragment key={part}>
-          {index > 0 ? (
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-          ) : null}
-          <span>{part}</span>
-        </Fragment>
-      ))}
-    </p>
-  );
-}
-
-function SessionContextMeterBody({
-  view,
-  context,
-}: {
-  view: SessionContextMeterView;
-  context: SessionContextView;
-}) {
+function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
   if (view.kind === "empty") {
     return <SessionInspectorEmpty icon={Gauge} title={view.title} description={view.description} />;
   }
@@ -175,14 +134,15 @@ function SessionContextMeterBody({
           {view.value}
         </span>
         <span className="font-mono text-mono-id text-muted">{view.amount}</span>
-        <span className="ml-auto self-center">
-          <SessionContextStateChip context={context} />
-        </span>
+        {view.chip ? (
+          <span className="ml-auto self-center">
+            <Pill size="xs" form={view.chip.form} tone={view.chip.tone}>
+              {view.chip.label}
+            </Pill>
+          </span>
+        ) : null}
       </div>
       {view.tiers ? <SessionContextTiers tiers={view.tiers} /> : null}
-      {view.line.length > 0 ? (
-        <SessionContextMeterLine parts={view.line} warning={view.warning} />
-      ) : null}
     </>
   );
 }
@@ -191,7 +151,7 @@ export function SessionContextMeterSection({ context }: { context: SessionContex
   const view = describeSessionContextMeter(context);
   return (
     <SessionInspectorSection data-testid="session-context-meter">
-      <SessionContextMeterBody view={view} context={context} />
+      <SessionContextMeterBody view={view} />
     </SessionInspectorSection>
   );
 }

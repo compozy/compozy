@@ -1,6 +1,6 @@
 import { describeCost } from "@/lib/cost-provenance";
 import { Fragment, useState } from "react";
-import { Button } from "@compozy/ui";
+import { Button, Collapsible, CollapsibleContent } from "@compozy/ui";
 import { History, Minimize2 } from "lucide-react";
 import type { SessionUsageTurnsResponse } from "../types";
 import {
@@ -9,9 +9,9 @@ import {
   formatContextTurn,
 } from "../lib/context-format";
 import {
+  SessionInspectorDisclosureHead,
   SessionInspectorEmpty,
   SessionInspectorSection,
-  SessionInspectorSectionHead,
 } from "./session-inspector-section";
 
 const VISIBLE_TURNS = 50;
@@ -99,12 +99,20 @@ function SessionContextCompactionMarker({ marker }: { marker: Compaction }) {
   );
 }
 
+function turnsMeta(count: number, unavailable: boolean): string | undefined {
+  if (count > 0) return `${count.toLocaleString()} ${count === 1 ? "turn" : "turns"}`;
+  return unavailable ? "unavailable" : undefined;
+}
+
+/** Ships folded: the head carries the count, the per-turn history opens on demand. */
 export function SessionContextTurnsSection({
   data,
   unavailable = false,
+  defaultOpen = false,
 }: {
   data?: SessionUsageTurnsResponse;
   unavailable?: boolean;
+  defaultOpen?: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
   const turns = [...(data?.turns ?? [])].sort((a, b) => b.sequence - a.sequence);
@@ -130,41 +138,37 @@ export function SessionContextTurnsSection({
   ].sort((a, b) => b.sequence - a.sequence);
   return (
     <SessionInspectorSection data-testid="session-context-turns">
-      <SessionInspectorSectionHead
-        meta={
-          turns.length > 0
-            ? capped
-              ? `latest ${VISIBLE_TURNS} of ${turns.length.toLocaleString()}`
-              : "newest first"
-            : undefined
-        }
-      >
-        Turns
-      </SessionInspectorSectionHead>
-      {unavailable ? (
-        <p className="text-micro leading-4 text-faint">Turn usage unavailable</p>
-      ) : null}
-      {rows.length ? (
-        <div className="flex flex-col overflow-hidden rounded-md border border-line-soft bg-canvas">
-          <ul className="divide-y divide-line-soft">
-            {rows.map(row => (
-              <Fragment key={row.key}>{row.content}</Fragment>
-            ))}
-          </ul>
-          {capped ? (
-            <div className="flex justify-center border-t border-line-soft p-1.5">
-              <Button variant="ghost" size="xs" onClick={() => setShowAll(true)}>
-                Show earlier turns
-                <span className="font-mono text-mono-id tabular-nums text-faint">
-                  {(turns.length - VISIBLE_TURNS).toLocaleString()}
-                </span>
-              </Button>
-            </div>
+      <Collapsible defaultOpen={defaultOpen}>
+        <SessionInspectorDisclosureHead meta={turnsMeta(turns.length, unavailable)}>
+          Turns
+        </SessionInspectorDisclosureHead>
+        <CollapsibleContent className="flex flex-col gap-2.25 pt-2.25">
+          {unavailable ? (
+            <p className="text-micro leading-4 text-faint">Turn usage unavailable</p>
           ) : null}
-        </div>
-      ) : !unavailable ? (
-        <SessionInspectorEmpty icon={History} title="No turns yet" />
-      ) : null}
+          {rows.length ? (
+            <div className="flex flex-col overflow-hidden rounded-md border border-line-soft bg-canvas">
+              <ul className="divide-y divide-line-soft">
+                {rows.map(row => (
+                  <Fragment key={row.key}>{row.content}</Fragment>
+                ))}
+              </ul>
+              {capped ? (
+                <div className="flex justify-center border-t border-line-soft p-1.5">
+                  <Button variant="ghost" size="xs" onClick={() => setShowAll(true)}>
+                    Show earlier turns
+                    <span className="font-mono text-mono-id tabular-nums text-faint">
+                      {(turns.length - VISIBLE_TURNS).toLocaleString()}
+                    </span>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : !unavailable ? (
+            <SessionInspectorEmpty icon={History} title="No turns yet" />
+          ) : null}
+        </CollapsibleContent>
+      </Collapsible>
     </SessionInspectorSection>
   );
 }
