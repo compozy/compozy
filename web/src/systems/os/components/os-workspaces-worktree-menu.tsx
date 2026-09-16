@@ -43,6 +43,7 @@ export interface OsWorkspacesWorktreeMenuProps {
   onDeleteRow: (entry: WorktreeNestEntry) => void;
 }
 
+/** Moves real DOM focus among selection controls, including rows absent from navigation. */
 function moveSelectionFocus(event: KeyboardEvent<HTMLElement>) {
   // Selection owns keyboard focus, including missing rows that navigation excludes.
   event.stopPropagation();
@@ -165,6 +166,7 @@ export function OsWorkspacesWorktreeMenu({
   );
 }
 
+/** Toggles an eligible row without navigating or adopting a discovered checkout. */
 function SelectableWorktreeRow({
   entry,
   selection,
@@ -198,6 +200,7 @@ function SelectableWorktreeRow({
   );
 }
 
+/** Projects either selection controls or navigable rows with owner-gated singular actions. */
 function WorktreeMenuRows({
   model,
   selection,
@@ -270,6 +273,7 @@ function WorktreeMenuRows({
   );
 }
 
+/** Activates creation locally so selection focus cannot trigger the outer navigation cursor. */
 function WorktreeCreationFooter({
   selectionMode,
   canCreate,

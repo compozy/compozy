@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// worktreeMutationTarget freezes a route reference to its saved ID after checking
+// caller authority and active profile ownership. On failure it writes the response.
 func (h *BaseHandlers) worktreeMutationTarget(c *gin.Context, workspaceID, ref string) (string, bool) {
 	item, err := h.Worktrees.Resolve(c.Request.Context(), workspaceID, ref)
 	if err != nil {

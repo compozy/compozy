@@ -57,6 +57,7 @@ export interface WorktreeSubmenuPanelProps {
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
 }
 
+/** Exposes singular cleanup or restore actions using the lifecycle state of the represented row. */
 function WorktreeSubmenuRowActions({
   entry,
   testIdPrefix,

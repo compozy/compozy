@@ -11,6 +11,7 @@ import {
 import { useWorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-batch";
 import type { WorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
+/** Presents the frozen removal/dismissal consequences and non-atomic per-item results. */
 export function WorktreeBulkRemoveDialog({
   batch,
   onClose,

@@ -60,6 +60,8 @@ func (s *Service) Get(ctx context.Context, workspaceID, ref string) (*Worktree, 
 	return item, nil
 }
 
+// List combines registered and discovered checkouts, reconciling vanished ready
+// rows without overwriting concurrent lifecycle changes or guessing on stat errors.
 func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*Listing, error) {
 	workspace, err := s.resolveWorkspace(ctx, workspaceID)
 	if err != nil {
@@ -137,6 +139,8 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 	return listing, nil
 }
 
+// markMissing updates a ready snapshot conditionally; a concurrent winner is
+// reread into the snapshot so stale discovery cannot resurrect its previous state.
 func (s *Service) markMissing(ctx context.Context, row *Worktree) error {
 	swapped, err := s.store.CompareAndSwapState(ctx, row.WorkspaceID, row.ID, StateReady, StateMissing, s.now().UTC())
 	if err != nil {

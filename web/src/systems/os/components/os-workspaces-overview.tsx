@@ -373,6 +373,7 @@ function OsWorkspacesStage({
   );
 }
 
+/** Keeps the active menu anchored to its workspace tile while keyboard focus moves into rows. */
 function WorkspaceTiles({
   entries,
   switcher,
@@ -430,6 +431,7 @@ function WorkspaceTiles({
   );
 }
 
+/** Derives represented navigation and counts, treating only ready selected worktrees as current. */
 function projectWorkspacesStage({
   workspaces,
   worktreesByWorkspace,

@@ -173,6 +173,7 @@ export function WorktreeContextDialogBoundary({
   );
 }
 
+/** Keeps dismissal and Git-validated restoration bound to the selected record owner. */
 export function WorktreeMissingDialogBoundary({
   workspaceId,
   worktree,

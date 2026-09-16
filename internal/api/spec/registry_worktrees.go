@@ -169,6 +169,8 @@ func cancelWorktreeOperationSpec() OperationSpec {
 	)
 }
 
+// removeWorktreeOperationSpec keeps the singular HTTP/UDS removal contract,
+// including explicit force acknowledgement and optional profile selection.
 func removeWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
@@ -195,6 +197,8 @@ func removeWorktreeOperationSpec() OperationSpec {
 	}
 }
 
+// dismissWorktreeOperationSpec exposes the same profile authority as removal
+// while retaining the established metadata-only tombstone operation.
 func dismissWorktreeOperationSpec() OperationSpec {
 	op := worktreeNoContentOperation(
 		httpMethodPost, specAPIWorktreePath+"/dismiss", "dismissWorktree", "Dismiss a worktree tombstone",
@@ -275,6 +279,8 @@ func worktreeRouteParams() []ParameterSpec {
 	}
 }
 
+// withWorktreeCleanupProfile documents the compatibility boundary: omitted
+// operator selectors infer ownership, while authenticated agents stay scoped.
 func withWorktreeCleanupProfile(params ...ParameterSpec) []ParameterSpec {
 	return append(params, queryParam(
 		specProfileKey,

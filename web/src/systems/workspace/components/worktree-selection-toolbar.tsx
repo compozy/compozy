@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { Button, MenubarItem, cn } from "@compozy/ui";
 import type { WorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
+/** Composes persistent menu/button actions while keeping selection activation inside the list. */
 export function WorktreeSelectionToolbar({
   selection,
   menu = false,

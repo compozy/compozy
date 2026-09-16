@@ -6,6 +6,9 @@ import (
 	"fmt"
 )
 
+// Dismiss hides a missing, removed, or failed record while retaining its history.
+// It excludes active use, fences concurrent state changes, and is repeat-safe;
+// no filesystem or Git operation runs, even if the saved path has reappeared.
 func (s *Service) Dismiss(ctx context.Context, workspaceID, id string) error {
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if errors.Is(err, ErrNotFound) {

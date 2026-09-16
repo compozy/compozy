@@ -124,6 +124,7 @@ export function useAdoptWorktree(workspaceID: string, profile?: string) {
   });
 }
 
+/** Removes one authorized checkout and clears only its matching UI scope after success. */
 export function useRemoveWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
@@ -146,6 +147,7 @@ export function useRemoveWorktree(workspaceID: string, profile?: string) {
   });
 }
 
+/** Dismisses retained metadata and refreshes the catalog without deleting session/run history. */
 export function useDismissWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 

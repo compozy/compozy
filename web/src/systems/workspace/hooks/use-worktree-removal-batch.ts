@@ -43,6 +43,10 @@ const batchLogic = createStoreLogic({
   },
 });
 
+/**
+ * Confirms terminal receipts or rejects drift in a frozen target before mutation.
+ * Path/state changes require fresh selection rather than changing the confirmed action.
+ */
 async function reconcileTarget(
   batch: WorktreeRemovalBatch,
   row: WorktreePayload
@@ -64,6 +68,11 @@ async function reconcileTarget(
   return false;
 }
 
+/**
+ * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
+ * Reconciles lost responses, preserves successful receipts, and retries only unresolved
+ * targets without force. Scope and cache cleanup follow the confirmed workspace and ID.
+ */
 export function useWorktreeRemovalBatch(
   input: WorktreeRemovalBatch,
   activeProfile: WorktreeRemovalProfile | null

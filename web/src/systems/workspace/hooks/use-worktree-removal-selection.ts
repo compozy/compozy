@@ -16,6 +16,7 @@ export interface WorktreeRemovalBatch {
   worktrees: readonly WorktreePayload[];
 }
 
+/** Explains why a represented row lacks cleanup authority; catalog visibility alone is insufficient. */
 export function worktreeCleanupReason(
   entry: WorktreeNestEntry,
   workspaceId: string,
@@ -65,6 +66,11 @@ const selectionLogic = createStoreLogic({
   },
 });
 
+/**
+ * Holds copied row identities within one workspace/profile selection scope.
+ * Select-all includes only currently represented eligible rows; later catalog
+ * updates never silently add targets or replace the saved selection payloads.
+ */
 export function useWorktreeRemovalSelection(
   workspaceId: string,
   entries: readonly WorktreeNestEntry[],
