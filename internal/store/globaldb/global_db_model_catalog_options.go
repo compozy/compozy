@@ -11,10 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+// normalizeModelCatalogOptions validates descriptors while preserving unknown versus observed-empty snapshots.
 func normalizeModelCatalogOptions(
 	options []modelcatalog.ModelOptionDescriptor,
 ) ([]modelcatalog.ModelOptionDescriptor, error) {
-	if len(options) == 0 {
+	if options == nil {
 		return nil, nil
 	}
 	normalized := make([]modelcatalog.ModelOptionDescriptor, 0, len(options))

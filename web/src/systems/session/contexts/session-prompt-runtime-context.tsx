@@ -65,6 +65,7 @@ function runtimeInputFromValues(
   });
 }
 
+/** Bind server inputs to one session intent store while exposing capability snapshots separately. */
 export function SessionPromptRuntimeProvider({
   session,
   canPrompt,

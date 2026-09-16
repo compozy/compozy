@@ -61,6 +61,8 @@ func normalizeModelCatalogTransportBindings(
 	return normalized, nil
 }
 
+// normalizeModelCatalogRowBindings validates configuration-matrix coordinates against their logical model.
+// OptionSelections chooses a transport; ConfigOptions describes controls available after that transport is selected.
 func normalizeModelCatalogRowBindings(row *modelcatalog.ModelRow) error {
 	bindings, err := normalizeModelCatalogTransportBindings(row.TransportBindings)
 	if err != nil {
@@ -126,6 +128,7 @@ func insertModelCatalogTransportBindings(
 	return nil
 }
 
+// listModelCatalogTransportBindings restores validated snapshots within the requested catalog execution contexts.
 func listModelCatalogTransportBindings(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,

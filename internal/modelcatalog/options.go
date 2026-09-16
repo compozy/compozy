@@ -49,7 +49,7 @@ type ModelOptionSelection struct {
 
 // CloneModelOptionDescriptors returns an ownership-safe copy of model option descriptors.
 func CloneModelOptionDescriptors(options []ModelOptionDescriptor) []ModelOptionDescriptor {
-	if len(options) == 0 {
+	if options == nil {
 		return nil
 	}
 	cloned := make([]ModelOptionDescriptor, len(options))

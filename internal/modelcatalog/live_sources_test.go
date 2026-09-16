@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+// TestLiveProviderSources verifies discovery at provider I/O boundaries and source-specific capability ownership.
 func TestLiveProviderSources(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +138,8 @@ func TestLiveProviderSources(t *testing.T) {
 				"claude-fable-5-1": {modelOption, effort},
 				"claude-fable-5-1[1m]": {modelOption, {ID: "effort", Kind: acp.SessionConfigOptionKindSelect,
 					CurrentValueID: "max", Values: []acp.SessionConfigOptionValue{{Value: "max"}}}},
-				"claude-fable-5": {modelOption},
+				"claude-fable-5":    {modelOption},
+				"custom-deployment": {{ID: "mode", Category: "mode"}, {ID: "effort", ReadOnly: true}},
 			},
 		}
 		source := newLiveSourceForTest(
@@ -173,6 +175,10 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatalf("leaked effort = %#v", older)
 		}
 		assertClaudeTransportBinding(t, requireModelRow(t, rows, "custom-deployment"), "custom-deployment")
+		custom := requireModelRow(t, rows, "custom-deployment")
+		if custom.TransportBindings[0].ConfigOptions == nil || len(custom.TransportBindings[0].ConfigOptions) != 0 {
+			t.Fatalf("inspected empty snapshot lost: %#v", custom.TransportBindings)
+		}
 		// An advertised provider default must not inherit a static explicit effort.
 		for i := range rows {
 			if rows[i].ModelID == latest.ModelID {
@@ -999,6 +1005,7 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 	})
 }
 
+// TestLiveProviderSourceRegistration verifies provider configuration and account-scoped source registration.
 func TestLiveProviderSourceRegistration(t *testing.T) {
 	t.Parallel()
 
@@ -1493,6 +1500,7 @@ type fakeACPModelProbe struct {
 	requests []ACPModelProbeRequest
 }
 
+// InspectModels supplies isolated per-model snapshots at the ACP discovery I/O boundary.
 func (p *fakeACPModelProbe) InspectModels(
 	_ context.Context,
 	req ACPModelProbeRequest,

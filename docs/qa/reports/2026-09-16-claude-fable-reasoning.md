@@ -32,7 +32,7 @@ Fable 5.1 discovery/binding journey. Its open effort identifiers and existing re
   identified `claude-fable-5-1`. This is transport evidence, not yet an application walkthrough.
 - Focused ACP/modelcatalog race tests pass, including per-model discovery, models without effort,
   and explicit failure when a provider does not confirm requested configuration.
-- Focused Web suites pass: 118 tests across catalog mapping, rendered selector and prompt-runtime
+- Focused Web suites pass: 119 tests across catalog mapping, rendered selector and prompt-runtime
   hydration. New coverage distinguishes unknown capability and applies thought-level notifications
   only to the effective model without overwriting pending prompt intent.
 - Existing account-scoped ACP subprocess/SQLite integration passed; expanded persistence coverage
@@ -41,9 +41,9 @@ Fable 5.1 discovery/binding journey. Its open effort identifiers and existing re
 
 ## Remaining acceptance evidence
 
-Rendered application selection, favorites/recent continuity, catalog warm/reload behavior, live
-prompt acknowledgement through Compozy, model switching and failure/recovery walkthroughs remain
-pending. The first PR head completed Greptile review without findings. CodeRabbit identified three capability
+Rendered full-list selection, favorite/recent selection, and Low persistence through browser and
+lab-daemon restart are verified. Live prompt acknowledgement through Compozy, model switching
+and successful provider recovery remain pending. The first PR head completed Greptile review without findings. CodeRabbit identified three capability
 boundary findings and a documentation warning; React Doctor identified hook complexity. These
 are being remediated, with current-head review and CI still required. Initial CI also identified Go
 format/lint, product-language wording, and a terminal golden-path E2E failure; none is claimed green.
@@ -66,3 +66,27 @@ lab-daemon restart. Retrying discovery hit the installed account's HTTP 429 rate
 source status retained its previous five rows and last-success timestamp, marked them stale, and
 reported the upstream error. No cache/database edits or provider-default substitution were used.
 The application prompt and recovery walkthrough are still pending after the production corrections.
+
+## Rendered application and remaining blocker
+
+[Inspected screenshot and caption](https://github.com/compozy/compozy/pull/658#issuecomment-5702791815)
+show the real selector with Fable 5.1 selected and favorited, five advertised stops, Low selected,
+and a visible stale-source warning. Reload preserves the favorite and selected Low. The distinct
+Fable 5 row remains separate. No operator session was used.
+
+The next application prompt reaches Claude with coherent model identity but returns account HTTP
+429. Public readback preserves selected Low and leaves the runtime unbound; it does not claim
+provider acknowledgement. Failed refresh preserves the prior five live rows and last-success time.
+The direct-adapter successful prompt does not close this application-level acceptance gap.
+
+The second review round identified empty-snapshot preservation and absent-policy semantics,
+with canonical source, merge, and persistence coverage. A separate review suggestion to validate
+configuration-matrix coordinates against post-selection live controls was not adopted: the released
+extension contract declares those coordinates against the logical row. Coverage preserves that
+distinction and the existing SQLite foreign keys. ACP complete snapshots intentionally
+withdraw effort levels when the thought-level option disappears. This preserves the tested
+config-option-update contract rather than retaining stale selectable levels.
+
+CI exposed a migration-test context reused after an expensive upgrade; close/read now use fresh
+bounded contexts, matching neighboring migration suites. All preservation assertions remain.
+Heavy checks continue in GitHub CI. Final-head CI and all reviewer dispositions are still pending.

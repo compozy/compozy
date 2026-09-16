@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+// TestMergeRows verifies source precedence, identity preservation, and truthful capability projections.
 func TestMergeRows(t *testing.T) {
 	t.Parallel()
 
@@ -634,6 +635,82 @@ func TestMergeRows(t *testing.T) {
 				model.ReasoningEfforts,
 				model.DefaultReasoningEffort,
 			)
+		}
+	})
+
+	t.Run("Should distinguish absent reasoning policy from explicit provider management", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name   string
+			policy map[string]bool
+			known  bool
+			apply  string
+		}{
+			{name: "no policy"},
+			{name: "another provider", policy: map[string]bool{"other": false}},
+			{name: "explicit none", policy: map[string]bool{"custom": false}, known: true, apply: "none"},
+			{name: "adjustable but unobserved", policy: map[string]bool{"custom": true}, apply: "acp_option"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				row := testRow(
+					SourceIDConfig,
+					SourceKindConfig,
+					PriorityConfig,
+					"custom",
+					"reasoner",
+					testTime(0),
+					func(row *ModelRow) { row.SupportsReasoning = new(true) },
+				)
+				model := requireSingleModel(t, MergeRows([]ModelRow{row}, MergeOptions{ReasoningApply: tc.policy}))
+				if model.ReasoningKnown != tc.known || model.ReasoningApply != tc.apply {
+					t.Fatalf(
+						"policy = %t/%q, want %t/%q",
+						model.ReasoningKnown,
+						model.ReasoningApply,
+						tc.known,
+						tc.apply,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should retain an inspected empty binding over lower-priority capabilities", func(t *testing.T) {
+		t.Parallel()
+		live := testRow(
+			"provider_live:claude",
+			SourceKindProviderLive,
+			PriorityProviderLive,
+			"claude",
+			"model",
+			testTime(1),
+			nil,
+		)
+		live.TransportBindings = []ModelTransportBinding{
+			{TransportModelID: "model", ConfigOptions: []ModelOptionDescriptor{}},
+		}
+		builtin := testRow(
+			SourceIDBuiltin,
+			SourceKindBuiltin,
+			PriorityBuiltin,
+			"claude",
+			"model",
+			testTime(0),
+			func(row *ModelRow) {
+				row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortHigh}
+				row.DefaultReasoningEffort = new(ReasoningEffortHigh)
+				row.TransportBindings = []ModelTransportBinding{
+					{TransportModelID: "model", ConfigOptions: []ModelOptionDescriptor{{ID: "effort"}}},
+				}
+			},
+		)
+		model := requireSingleModel(t, mergeTestRows([]ModelRow{builtin, live}))
+		binding := model.TransportBindings[0]
+		if binding.ConfigOptions == nil || len(binding.ConfigOptions) != 0 || len(model.ReasoningEfforts) != 0 ||
+			model.DefaultReasoningEffort != nil ||
+			!model.ReasoningKnown {
+			t.Fatalf("empty observation was lost: %#v / %#v", model, binding)
 		}
 	})
 

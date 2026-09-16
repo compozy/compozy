@@ -547,6 +547,7 @@ func (a *helperACPAgent) ResumeSession(
 	return acpsdk.ResumeSessionResponse{}, nil
 }
 
+// NewSession advertises the scenario capabilities without contacting a live provider.
 func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	if a.scenario == "mode_mapping" {
 		return acpsdk.NewSessionResponse{
@@ -988,6 +989,7 @@ func (a *helperACPAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
+// SetSessionConfigOption emulates provider-specific negotiation and model-dependent option changes.
 func (a *helperACPAgent) SetSessionConfigOption(
 	_ context.Context,
 	request acpsdk.SetSessionConfigOptionRequest,

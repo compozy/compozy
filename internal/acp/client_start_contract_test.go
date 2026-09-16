@@ -500,6 +500,7 @@ func TestStartCapturesSessionConfigOptions(t *testing.T) {
 	}
 }
 
+// TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession verifies inspection isolation and per-model discovery.
 func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) {
 	t.Parallel()
 
@@ -971,6 +972,7 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 	})
 }
 
+// TestConfigureRuntime verifies ordered negotiation, acknowledgement, and preservation after rejection.
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
 

@@ -319,6 +319,7 @@ func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunI
 	}
 }
 
+// TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome verifies isolated launch configuration and native transport identity.
 func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T) {
 	t.Parallel()
 

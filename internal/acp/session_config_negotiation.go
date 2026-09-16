@@ -124,6 +124,7 @@ func ValidateModelConfigValue(options []SessionConfigOption, modelID string) err
 	)
 }
 
+// applySessionReasoningEffort rejects unadvertised intent before requesting provider acknowledgement.
 func (d *Driver) applySessionReasoningEffort(
 	ctx context.Context,
 	process *AgentProcess,

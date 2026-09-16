@@ -1,6 +1,9 @@
 package modelcatalog
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 // applyEffectiveReasoningProfile separates observed capability from provider permission to apply it.
 func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOptions) {
@@ -10,10 +13,12 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 	model.ReasoningSource = ReasoningSourceCatalog
 	model.ReasoningKnown = hasProfile && (len(profileRow.ReasoningEfforts) > 0 || hasACPModelOptions(profileRow) ||
 		(profileRow.SupportsReasoning != nil && !*profileRow.SupportsReasoning))
-	model.ReasoningApply = "none"
-	if opts.canApplyReasoning(model.ProviderID) {
+	model.ReasoningApply = ""
+	canApply, policyKnown := opts.ReasoningApply[strings.TrimSpace(model.ProviderID)]
+	if canApply {
 		model.ReasoningApply = "acp_option"
-	} else {
+	} else if policyKnown {
+		model.ReasoningApply = "none"
 		// Explicitly disabled negotiation is intentional provider management, not missing discovery.
 		model.ReasoningKnown = true
 	}
@@ -43,6 +48,7 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 	}
 }
 
+// hasReasoningTransportBindings permits effort encoded in an advertised transport identity.
 func hasReasoningTransportBindings(model *Model) bool {
 	return len(model.ReasoningEfforts) > 0 && len(model.TransportBindings) > 0 &&
 		slices.ContainsFunc(model.TransportBindings, func(binding ModelTransportBinding) bool {
@@ -109,8 +115,13 @@ func cloneStringPtr(value *string) *string {
 
 // hasACPModelOptions recognizes a complete selected-model observation, even when effort is absent.
 func hasACPModelOptions(row ModelRow) bool {
-	return row.SourceKind == SourceKindProviderLive &&
-		slices.ContainsFunc(row.ConfigOptions, func(option ModelOptionDescriptor) bool {
-			return option.ID == "model" || option.Category == "model"
-		})
+	if row.SourceKind != SourceKindProviderLive {
+		return false
+	}
+	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok && binding.ConfigOptions != nil {
+		return true
+	}
+	return slices.ContainsFunc(row.ConfigOptions, func(option ModelOptionDescriptor) bool {
+		return option.ID == "model" || option.Category == "model"
+	})
 }

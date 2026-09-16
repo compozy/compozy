@@ -9,7 +9,12 @@ import { SessionPromptRuntimeCapabilitiesContext } from "../contexts/session-pro
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeEffective, SessionRuntimePayload } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
-import { normalizeRuntimeSpeed, resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
+import {
+  normalizeRuntimeSpeed,
+  resolveAgentRuntimeValue,
+  useAgents,
+  type AgentPayload,
+} from "@/systems/agent";
 import {
   providerNeedsAuth,
   type RuntimeCatalogProvider,
@@ -84,7 +89,6 @@ function runtimeProviderOptions(
  * the injected interaction store. A prompt snapshots that intent only at its
  * dispatch boundary, so catalog refetches never overwrite a user choice.
  */
-/** Keep live capabilities separate from serialized user intent and queued prompt snapshots. */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
@@ -97,20 +101,18 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
   const agent = agents.data?.find(candidate => candidate.name === input.agentName);
-  const agentRuntime = resolveAgentRuntimeValue(agent);
-  const agentSpeed =
-    normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal";
-  const fallbackValue = runtimeValueFromEffective(input.effectiveRuntime);
-  const defaultValue = fallbackValue.provider.length > 0 ? fallbackValue : agentRuntime;
-  const defaultSpeed = input.effectiveRuntime
-    ? runtimeSpeedFromEffective(input.effectiveRuntime)
-    : agentSpeed;
+  const { defaultValue, defaultSpeed } = promptRuntimeDefaults(agent, input.effectiveRuntime);
   const value = selectedValue ?? defaultValue;
   const speed = selectedSpeed ?? defaultSpeed;
 
   useEffect(() => {
-    store.trigger.defaultRuntimeResolved({ speed: defaultSpeed, value: defaultValue });
-  }, [defaultSpeed, defaultValue, store]);
+    // Synchronize server input changes into the external store used by prompt snapshots.
+    const defaults = promptRuntimeDefaults(agent, input.effectiveRuntime);
+    store.trigger.defaultRuntimeResolved({
+      speed: defaults.defaultSpeed,
+      value: defaults.defaultValue,
+    });
+  }, [agent, input.effectiveRuntime, store]);
   useEffect(
     () => () => {
       runtimeSelectionController.current?.abort();
@@ -250,6 +252,20 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   };
 }
 
+/** Resolve agent defaults only until a session has an effective binding of its own. */
+function promptRuntimeDefaults(
+  agent: AgentPayload | undefined,
+  effective: SessionRuntimeEffective | undefined
+) {
+  const fallback = runtimeValueFromEffective(effective);
+  return {
+    defaultValue: fallback.provider.length > 0 ? fallback : resolveAgentRuntimeValue(agent),
+    defaultSpeed: effective
+      ? runtimeSpeedFromEffective(effective)
+      : normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal",
+  };
+}
+
 /** Overlay acknowledged options only on their effective model, respecting provider policy and matrices. */
 function sessionModelCapabilities(
   models: RuntimeModelOption[],
@@ -265,6 +281,7 @@ function sessionModelCapabilities(
         option.id === "effort" ||
         option.id === "reasoning_effort")
   );
+  // ACP config_options is a complete snapshot: removing thought_level revokes stale levels.
   const effortSet = new Set<string>();
   for (const value of reasoning?.values ?? []) {
     if (value.value !== "default" && isReasoningEffort(value.value)) effortSet.add(value.value);

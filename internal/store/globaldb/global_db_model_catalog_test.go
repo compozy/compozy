@@ -271,6 +271,7 @@ func TestGlobalDBModelCatalogExecutionContextMigration(t *testing.T) {
 	)
 }
 
+// TestGlobalDBModelCatalogStore verifies transactional catalog replacement and lossless migration/reopen behavior.
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
 
@@ -308,12 +309,12 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := upgraded.Close(ctx); err != nil {
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
 			t.Fatal(err)
 		}
 		reopened := openGlobalDBForTest(t, path)
 		rows, err := reopened.ListRows(
-			ctx,
+			testutil.Context(t),
 			modelcatalog.ListOptions{ProviderID: "claude", SourceID: "config", IncludeAll: true},
 		)
 		if err != nil {
@@ -721,6 +722,14 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		fast := true
 		thinking := false
 		row := modelCatalogRow("config", "cursor", "grok-4.6", modelcatalog.SourceKindConfig, 120)
+		// Matrix coordinates select a transport; its live controls can use different option IDs.
+		row.ConfigOptions = []modelcatalog.ModelOptionDescriptor{
+			{
+				ID:     "context",
+				Kind:   modelcatalog.ModelOptionKindSelect,
+				Values: []modelcatalog.ModelOptionValue{{ValueID: "standard"}},
+			},
+		}
 		row.TransportBindings = []modelcatalog.ModelTransportBinding{
 			{
 				TransportModelID: "grok-4.6[effort=high,fast=true]",
@@ -735,6 +744,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			},
 			{
 				TransportModelID: "grok-4.6",
+				OptionSelections: []modelcatalog.ModelOptionSelection{{ID: "context", ValueID: "standard"}},
 				Label:            "Grok 4.6",
 				ConfigOptions: []modelcatalog.ModelOptionDescriptor{
 					{ID: "effort", Kind: modelcatalog.ModelOptionKindSelect,
@@ -742,6 +752,14 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				},
 			},
 		}
+		row.TransportBindings = append(
+			row.TransportBindings,
+			modelcatalog.ModelTransportBinding{
+				TransportModelID: "grok-4.6-managed",
+				ConfigOptions:    []modelcatalog.ModelOptionDescriptor{},
+			},
+			modelcatalog.ModelTransportBinding{TransportModelID: "grok-4.6-unobserved"},
+		)
 		replaceModelCatalogRows(
 			t,
 			globalDB,
@@ -1750,6 +1768,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 	})
 }
 
+// assertTransportBindingRoundTrip compares persisted identity, intent, and capability snapshots through the public store API.
 func assertTransportBindingRoundTrip(
 	ctx context.Context,
 	t *testing.T,

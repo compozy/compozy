@@ -53,6 +53,7 @@ export function runtimeACPSelectionsEqual(
   );
 }
 
+/** Keep controls owned by model, mode, and reasoning selectors out of the advanced section. */
 function isAdvancedRuntimeOption(option: RuntimeACPOption): boolean {
   return (
     !DEDICATED_OPTION_IDS.has(option.id.trim().toLowerCase()) &&

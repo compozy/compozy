@@ -74,6 +74,7 @@ func parseClaudeModelRows(
 	return rows
 }
 
+// claudeModelCandidates combines configured and curated identities without rewriting exact versions.
 func claudeModelCandidates(models compozyconfig.ProviderModelsConfig) []claudeModelCandidate {
 	candidates := make([]claudeModelCandidate, 0, len(models.Curated))
 	for _, model := range models.Curated {
@@ -202,6 +203,7 @@ func claudeModelVersion(value string) []int {
 	return version
 }
 
+// claudeModelTokens splits identity tokens for complete-version comparisons.
 func claudeModelTokens(value string) []string {
 	return strings.FieldsFunc(strings.ToLower(strings.TrimSpace(value)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)

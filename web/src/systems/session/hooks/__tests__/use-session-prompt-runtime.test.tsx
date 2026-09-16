@@ -374,7 +374,12 @@ describe("SessionPromptRuntimeProvider hydration", () => {
         ...session,
         runtime: {
           ...session.runtime,
-          acp_caps: { ...session.runtime.acp_caps!, config_options: [] },
+          acp_caps: {
+            ...session.runtime.acp_caps!,
+            config_options: [
+              { id: "mode", category: "mode", kind: "select", values: [{ value: "default" }] },
+            ],
+          },
         },
       };
       rerender();

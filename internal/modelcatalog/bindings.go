@@ -15,6 +15,7 @@ type ModelTransportBinding struct {
 	Thinking         *bool
 	OptionSelections []ModelOptionSelection
 	// ConfigOptions is the complete inspected snapshot for this transport, not a union.
+	// Nil means unobserved; an empty non-nil slice means observed with no adjustable options.
 	ConfigOptions []ModelOptionDescriptor
 }
 

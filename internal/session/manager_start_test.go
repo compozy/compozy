@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// TestCreateAcceptedLogicalRuntimeLifecycle verifies deferred provider binding across creation, prompts, and resume.
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Parallel()
 

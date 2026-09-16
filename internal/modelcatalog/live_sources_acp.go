@@ -181,6 +181,7 @@ func (s *LiveProviderSource) usesNativeCodexDiscovery(provider compozyconfig.Pro
 		providerexec.StrategyFor(provider).NativeCLI.Command == "codex"
 }
 
+// liveModelMappings preserves configured identities and adds provider-owned defaults for discovery.
 func liveModelMappings(providerID string, provider compozyconfig.ProviderConfig) compozyconfig.ProviderModelsConfig {
 	models := provider.Models
 	builtins := compozyconfig.BuiltinProviders()
@@ -211,7 +212,9 @@ func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfig
 	transportID := row.ModelID
 	for index := range row.TransportBindings {
 		binding := &row.TransportBindings[index]
-		binding.ConfigOptions = acpModelOptionDescriptors(models[binding.TransportModelID])
+		if options, inspected := models[binding.TransportModelID]; inspected {
+			binding.ConfigOptions = acpModelOptionDescriptors(options)
+		}
 	}
 	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok {
 		transportID = binding.TransportModelID
@@ -240,7 +243,7 @@ func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfig
 
 // acpModelOptionDescriptors keeps the selected model marker even when effort is provider-managed.
 func acpModelOptionDescriptors(options []acp.SessionConfigOption) []ModelOptionDescriptor {
-	var descriptors []ModelOptionDescriptor
+	descriptors := make([]ModelOptionDescriptor, 0, len(options))
 	for _, option := range options {
 		if option.ReadOnly || option.Category == "mode" || option.ID == "mode" {
 			continue
