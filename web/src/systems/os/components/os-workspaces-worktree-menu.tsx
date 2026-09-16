@@ -137,40 +137,14 @@ export function OsWorkspacesWorktreeMenu({
       footer={
         <>
           <WorktreeSelectionToolbar selection={selection} />
-          {canCreate ? (
-            <>
-              <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
-              <div
-                ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
-                role="menuitem"
-                aria-label="New worktree"
-                tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
-                data-testid="os-workspaces-worktree-create"
-                data-on={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? "true" : undefined}
-                className={cn(
-                  "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
-                  "text-left outline-none select-none",
-                  "transition-colors duration-base ease-out hover:bg-row-hover",
-                  "focus-visible:outline-none",
-                  focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
-                )}
-                onClick={
-                  createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick
-                }
-              >
-                <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
-                <b
-                  className={cn(
-                    "truncate text-form-label font-medium text-muted",
-                    "group-hover/wsov-foot:text-fg-strong",
-                    focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
-                  )}
-                >
-                  New worktree
-                </b>
-              </div>
-            </>
-          ) : null}
+          <WorktreeCreationFooter
+            canCreate={canCreate}
+            focusedRowKey={focusedRowKey}
+            registerRow={registerRow}
+            onCreate={
+              createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick
+            }
+          />
         </>
       }
     >
@@ -291,6 +265,52 @@ function WorktreeMenuRows({
           />
         );
       })}
+    </>
+  );
+}
+
+function WorktreeCreationFooter({
+  canCreate,
+  focusedRowKey,
+  registerRow,
+  onCreate,
+}: Pick<OsWorkspacesWorktreeMenuProps, "canCreate" | "focusedRowKey" | "registerRow"> & {
+  onCreate: (() => void) | undefined;
+}) {
+  return (
+    <>
+      {canCreate ? (
+        <>
+          <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
+          <div
+            ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
+            role="menuitem"
+            aria-label="New worktree"
+            tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
+            data-testid="os-workspaces-worktree-create"
+            data-on={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? "true" : undefined}
+            className={cn(
+              "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
+              "text-left outline-none select-none",
+              "transition-colors duration-base ease-out hover:bg-row-hover",
+              "focus-visible:outline-none",
+              focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
+            )}
+            onClick={onCreate}
+          >
+            <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
+            <b
+              className={cn(
+                "truncate text-form-label font-medium text-muted",
+                "group-hover/wsov-foot:text-fg-strong",
+                focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
+              )}
+            >
+              New worktree
+            </b>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }
