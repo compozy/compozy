@@ -788,6 +788,20 @@ for (const surface of ["menubar", "overview"] as const) {
     if (surface === "overview") await appPage.setViewportSize({ width: 390, height: 844 });
     if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
     else await openOverviewMenu(appPage, workspace.id);
+    if (surface === "overview") {
+      await appPage.getByText("Select worktrees…", { exact: true }).click();
+      await appPage.keyboard.press("End");
+      await expect(
+        appPage.getByRole("menuitem", { name: "New worktree", exact: true })
+      ).toBeFocused();
+      await appPage.screenshot({ path: testInfo.outputPath("overview-create-focus.png") });
+      await appPage.keyboard.press("Enter");
+      const creation = appPage.getByTestId("worktree-create-dialog");
+      await expect(creation).toBeVisible();
+      await creation.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(creation).toBeHidden();
+      await openOverviewMenu(appPage, workspace.id);
+    }
     const start = appPage.getByText("Select worktrees…", { exact: true });
     await start.focus();
     await appPage.keyboard.press("Enter");

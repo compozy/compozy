@@ -62,3 +62,7 @@ These are remediation records, not final CI/reviewer approval.
 ## Repository queue remediation
 
 Greptile identified that worktree removals share one repository lock with eight waiting slots. The final batch runner chains each target after its predecessor's receipt, matching session mutation ordering and avoiding self-induced queue refusals. It retains the compiler-compatible promise finalization. A 12-target regression in the owning lifecycle hook suite simulates that queue bound and requires every eligible target to complete; all seven tests in that suite passed. New domain imports use the required `@/*` aliases. The earlier parallel-fan-out attempt is superseded by this bounded execution; final CI and reviewer coverage remain required.
+
+## Selection-mode creation keyboard remediation
+
+CodeRabbit found that the overview's creation footer could not activate by keyboard in selection mode. The footer now joins that mode's focus order, shows focus independently of the navigation cursor, and handles Enter/Space on the intended action. Activation does not bubble into the stale workspace/menu navigation cursor. The owning overview suite passed all 36 tests, including both keys and assertions that no workspace or worktree navigation occurred. The existing narrow-viewport mixed-batch E2E journey now opens and cancels creation from selection mode before exercising cleanup; its rendered focus screenshot and real app result are verified in CI.

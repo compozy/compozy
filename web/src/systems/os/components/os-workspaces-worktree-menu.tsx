@@ -138,6 +138,7 @@ export function OsWorkspacesWorktreeMenu({
         <>
           <WorktreeSelectionToolbar selection={selection} />
           <WorktreeCreationFooter
+            selectionMode={selection.mode}
             canCreate={canCreate}
             focusedRowKey={focusedRowKey}
             registerRow={registerRow}
@@ -270,12 +271,14 @@ function WorktreeMenuRows({
 }
 
 function WorktreeCreationFooter({
+  selectionMode,
   canCreate,
   focusedRowKey,
   registerRow,
   onCreate,
 }: Pick<OsWorkspacesWorktreeMenuProps, "canCreate" | "focusedRowKey" | "registerRow"> & {
   onCreate: (() => void) | undefined;
+  selectionMode: boolean;
 }) {
   return (
     <>
@@ -286,17 +289,23 @@ function WorktreeCreationFooter({
             ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
             role="menuitem"
             aria-label="New worktree"
-            tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
+            tabIndex={selectionMode || focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
             data-testid="os-workspaces-worktree-create"
             data-on={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? "true" : undefined}
             className={cn(
               "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
               "text-left outline-none select-none",
               "transition-colors duration-base ease-out hover:bg-row-hover",
-              "focus-visible:outline-none",
+              "focus-visible:bg-row-selected focus-visible:outline-none",
               focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
             )}
             onClick={onCreate}
+            onKeyDown={event => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              event.stopPropagation();
+              onCreate?.();
+            }}
           >
             <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
             <b

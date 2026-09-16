@@ -134,6 +134,32 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it.each(["{Enter}", " "])(
+    "Should activate the focused create action with %s during selection without navigating",
+    async key => {
+      const user = userEvent.setup();
+      const ready = { ...worktreeBehindFixture, workspace_id: COMPOZY.id };
+      const callbacks = renderOverview({
+        removalProfile: { id: ready.profile_id, name: ready.profile_name, archived: false },
+        onRemoveWorktrees: vi.fn(),
+        worktreesByWorkspace: {
+          [COMPOZY.id]: {
+            worktrees: [ready],
+            discovered: [],
+            repo: { git_backed: true, git_available: true },
+          },
+        },
+      });
+      await user.click(screen.getByText("Select worktrees…"));
+      await user.keyboard("{End}");
+      expect(screen.getByRole("menuitem", { name: "New worktree" })).toHaveFocus();
+      await user.keyboard(key);
+      expect(callbacks.onCreateWorktree).toHaveBeenCalledExactlyOnceWith(COMPOZY.id);
+      expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
+      expect(callbacks.onSelectWorkspace).not.toHaveBeenCalled();
+    }
+  );
+
   it("Should return focus to the workspace menubar trigger after closing", async () => {
     const user = userEvent.setup();
     function FocusHarness() {
