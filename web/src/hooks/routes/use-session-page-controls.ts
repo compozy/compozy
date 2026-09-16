@@ -56,7 +56,6 @@ export function useSessionPageControls(
   const transcriptMessages = useSessionTranscriptThreadMessages();
   const isRunning = useAuiState(state => state.thread.isRunning);
   const deleteMutation = useDeleteSession({
-    workspaceId,
     onDeleteSuccess: () => {
       aui.thread.reset();
       toast.success("Session deleted.");
@@ -190,7 +189,7 @@ export function useSessionPageControls(
     if (controlsBusy || !userControllable) {
       return;
     }
-    deleteMutation.mutate(sessionId, {
+    deleteMutation.mutate(session, {
       onError: error => {
         console.error("Failed to delete session", error);
         toast.error(

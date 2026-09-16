@@ -98,7 +98,7 @@ export function useSessionLifecycleActions(
   const stop = useStopSession(options);
   const archive = useArchiveSession(options);
   const unarchive = useUnarchiveSession(options);
-  const remove = useDeleteSession(options);
+  const remove = useDeleteSession();
   const rename = useRenameSession(options);
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
@@ -130,7 +130,7 @@ export function useSessionLifecycleActions(
     pendingSessionId = unarchive.variables;
   } else if (remove.isPending) {
     pendingAction = "delete";
-    pendingSessionId = remove.variables;
+    pendingSessionId = remove.variables.id;
   }
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
@@ -148,7 +148,8 @@ export function useSessionLifecycleActions(
       previous,
       onProgress: setBatchResults,
       execute: async id => {
-        if (action === "delete") await remove.mutateAsync(id);
+        if (action === "delete")
+          await remove.mutateAsync(sessions.find(session => session.id === id)!);
         else if (action === "archive") await archive.mutateAsync(id);
         else if (action === "unarchive") await unarchive.mutateAsync(id);
         else {
@@ -209,7 +210,7 @@ export function useSessionLifecycleActions(
       return;
     }
     const { id } = deleteSession;
-    remove.mutate(id, {
+    remove.mutate(deleteSession, {
       onError: error => reportActionError("delete", error),
       onSuccess: () => {
         setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));

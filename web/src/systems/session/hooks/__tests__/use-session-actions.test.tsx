@@ -446,10 +446,14 @@ describe("session actions", () => {
     });
 
     await act(async () => {
-      await result.current.mutateAsync(createdSession.id);
+      await result.current.mutateAsync(createdSession);
     });
 
-    expect(deleteSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(deleteSession).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      createdSession.profile_name
+    );
     expect(cancelSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
@@ -518,7 +522,7 @@ describe("session actions", () => {
       { wrapper: createWrapper(queryClient) }
     );
     await waitFor(() => expect(queueSignal).toBeDefined());
-    act(() => result.current.deletion.mutate(createdSession.id));
+    act(() => result.current.deletion.mutate(createdSession));
     await waitFor(() => expect(deleteSession).toHaveBeenCalled());
     expect(queueSignal?.aborted).toBe(true);
     await act(async () => finishStaleRead({ inputs: [queuedInput] }));
@@ -557,7 +561,7 @@ describe("session actions", () => {
     });
 
     await act(async () => {
-      await expect(result.current.mutateAsync(createdSession.id)).rejects.toThrow("delete failed");
+      await expect(result.current.mutateAsync(createdSession)).rejects.toThrow("delete failed");
     });
 
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
@@ -595,7 +599,7 @@ describe("session actions", () => {
     let settled = false;
     let mutation!: Promise<void>;
     act(() => {
-      mutation = result.current.mutateAsync(createdSession.id).then(() => {
+      mutation = result.current.mutateAsync(createdSession).then(() => {
         settled = true;
       });
     });
@@ -684,7 +688,7 @@ describe("session actions", () => {
       let deleteMutation!: Promise<unknown>;
       let resumeMutation!: Promise<SessionPayload>;
       act(() => {
-        deleteMutation = result.current.remove.mutateAsync(createdSession.id).catch(error => error);
+        deleteMutation = result.current.remove.mutateAsync(createdSession).catch(error => error);
         resumeMutation = result.current.resume.mutateAsync(createdSession.id);
       });
 
@@ -1285,6 +1289,27 @@ describe("session lifecycle batches", () => {
     });
     return renderHook(() => useSessionLifecycleActions(), { wrapper: createWrapper(client) });
   }
+
+  it("deletes each target in its owning profile and workspace", async () => {
+    const targets = [
+      { ...createdSession, profile_name: "work", workspace_id: "ws_work" },
+      {
+        ...createdSession,
+        id: "personal-session",
+        profile_name: "personal",
+        workspace_id: "ws_personal",
+      },
+    ];
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onDeleteMany?.(targets));
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+    expect(vi.mocked(deleteSession).mock.calls).toEqual([
+      ["ws_work", createdSession.id, "work"],
+      ["ws_personal", "personal-session", "personal"],
+    ]);
+  });
 
   it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
     const targets = [

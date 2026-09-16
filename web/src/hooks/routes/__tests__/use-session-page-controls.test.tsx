@@ -479,7 +479,7 @@ describe("useSessionPageControls", () => {
     act(() => result.current.handleDelete());
     act(() => routeHookMocks.deleteOptions.current?.onDeleteSuccess?.());
 
-    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledWith("sess-1", {
+    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledWith(makeSession("stopped"), {
       onError: expect.any(Function),
     });
     expect(routeHookMocks.resetThread).toHaveBeenCalledOnce();

@@ -112,12 +112,13 @@ export async function fetchSession(
 export async function deleteSession(
   workspaceId: string,
   id: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       signal,
     }
   );

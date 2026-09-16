@@ -1,5 +1,13 @@
 # Compozy Change Impact
 
+## Issue 651 — Session deletion profile scope
+
+- Web single and bulk deletion send the selected session owner profile and workspace.
+- OpenAPI and generated consumers now declare the already-supported optional deletion profile selector. HTTP/UDS routes and authorization are unchanged; wrong-profile requests remain rejected.
+- Native tools, CLI, hooks, configuration, extensions, SDK and official skill syntax are unchanged.
+- No stored-data migration or profile boundary relaxation. Existing session QA covers non-default owners and neighbor preservation.
+
+
 ## Issue 644 — Marketplace acquisition recovery and production images
 
 - **Native tools / CLI / HTTP / UDS:** existing Marketplace operations retain their IDs, routes and
