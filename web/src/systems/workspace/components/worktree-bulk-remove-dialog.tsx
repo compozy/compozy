@@ -39,8 +39,9 @@ export function WorktreeBulkRemoveDialog({
             {model.batch.worktrees.length === 1 ? "worktree" : "worktrees"}?
           </DialogTitle>
           <DialogDescription>
-            {removed} checkouts will be removed through Git. Eligible managed branches may be
-            reclaimed. {dismissed} missing records will be dismissed from the list only; files at
+            {removed} {removed === 1 ? "checkout" : "checkouts"} will be removed through Git.
+            Eligible managed branches may be reclaimed. {dismissed} missing{" "}
+            {dismissed === 1 ? "record" : "records"} will be dismissed from the list only; files at
             those paths, branches, Git history, sessions and task or Loop history are preserved.
             Each target is checked separately. A refusal does not undo other successes.
           </DialogDescription>

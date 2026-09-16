@@ -823,7 +823,7 @@ for (const surface of ["menubar", "overview"] as const) {
     const dialog = appPage.getByTestId("worktree-bulk-remove-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("2 checkouts");
-    await expect(dialog).toContainText("1 missing records");
+    await expect(dialog).toContainText("1 missing record will be dismissed");
     await dialog.getByRole("button", { name: "Remove selected", exact: true }).click();
     await expect(dialog.getByRole("status")).toContainText("2 succeeded · 1 failed · 0 pending");
     await appPage.screenshot({ path: testInfo.outputPath(`${surface}-partial-result.png`) });
