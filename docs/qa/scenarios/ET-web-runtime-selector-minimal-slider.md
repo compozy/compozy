@@ -6,13 +6,13 @@ persona: Sol
 journey: J-17
 expected: The session-composer Next prompt selector remains one button with provider logo, model name, intensity meter, and chevron; it keeps provider rail and model rows minimal with no provider-name text, effort label, keyboard badge, or dividers; curated browsing remains distinct from full search; the reasoning footer exposes only valid levels, and drag, stop-label click, or track-arrow keys commit the selected model's advertised effort for the next prompt snapshot. It also exposes valid Fast controls, renders other advertised select or boolean options in Advanced, removes invalid selections after model changes, reacts to live descriptor updates, and disables unavailable controls for provider-managed runtimes.
 entry_points: web session-composer runtime selector; agent create/settings runtime control; onboarding default-model step
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: BUG-20260906-runtime-selector-closing-focus
 fix_status: fixed
-retest_status: pass
+retest_status: blocked
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/05-session-runtime-selector.png;docs/qa/evidence/2026-07-30-session-runtime-selector/12-claude-max-selected.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-hover.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-keyboard-focus.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-needs-signin.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-model-glyph.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-disabled-search.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-cursor-grok-catalog.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png;/Users/pedronauck/dev/qa-labs/compozy-cursor-onboarding-runtime-defaults-retest-20260828-171621-219738-lab/qa-artifacts/qa/screenshots/cursor-grok-reasoning-fast.png
-last_report: docs/qa/reports/2026-09-09-model-catalog-reasoning.md
+last_report: docs/qa/reports/2026-09-16-claude-fable-reasoning.md
 overlaps: RT-068;RT-072;RT-071;RT-064;RT-061
 ---
 
@@ -52,3 +52,5 @@ runtime plus ACP current value. Switch models while preserving a valid effort an
 one; exercise rapid selection, reload and queued-prompt snapshots. A model with unconfirmed metadata
 must not claim provider-managed effort. Failed discovery must preserve prior rows and recover after
 refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.
+
+QA 2026-09-16, issue #655: Rendered full/recent/favorite Fable selection, valid/invalid effort switching, rapid-input persistence, and narrow viewport passed. Next-prompt provider acknowledgement remains blocked. The installed adapter independently confirmed the account Fable usage limit; a later application attempt also reported native authentication resolution failure. No selected intent was reported as applied. See the current report for public rendered evidence and the remaining recovery steps.

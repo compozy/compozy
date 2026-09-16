@@ -1,6 +1,6 @@
 # Claude Fable 5.1 reasoning — issue 655
 
-Status: implementation and isolated application QA in progress. Not delivery evidence yet.
+Status: blocked verification. Implementation is in open PR #658; successful application prompt/recovery remains unverified because native Claude rejects the real attempts. This report does not claim delivery.
 
 ## Root cause and prior coverage
 
@@ -42,8 +42,8 @@ Fable 5.1 discovery/binding journey. Its open effort identifiers and existing re
 ## Remaining acceptance evidence
 
 Rendered full-list selection, favorite/recent selection, and Low persistence through browser and
-lab-daemon restart are verified. Live prompt acknowledgement through Compozy, model switching
-and successful provider recovery remain pending. The first PR head completed Greptile review without findings. CodeRabbit identified three capability
+lab-daemon restart are verified. Live prompt acknowledgement through Compozy, queued-prompt execution, and successful provider
+recovery remain pending. Model selection changes are verified below. The first PR head completed Greptile review without findings. CodeRabbit identified three capability
 boundary findings and a documentation warning; React Doctor identified hook complexity. These
 are being remediated, with current-head review and CI still required. Initial CI also identified Go
 format/lint, product-language wording, and a terminal golden-path E2E failure; none is claimed green.
@@ -65,7 +65,7 @@ The real application selected Fable 5.1 with its five advertised stops and persi
 lab-daemon restart. Retrying discovery hit the installed account's HTTP 429 rate limit. The public
 source status retained its previous five rows and last-success timestamp, marked them stale, and
 reported the upstream error. No cache/database edits or provider-default substitution were used.
-The application prompt and recovery walkthrough are still pending after the production corrections.
+The application prompt and recovery walkthrough remain blocked after the production corrections.
 
 ## Rendered application and remaining blocker
 
@@ -90,3 +90,34 @@ config-option-update contract rather than retaining stale selectable levels.
 CI exposed a migration-test context reused after an expensive upgrade; close/read now use fresh
 bounded contexts, matching neighboring migration suites. All preservation assertions remain.
 Heavy checks continue in GitHub CI. Final-head CI and all reviewer dispositions are still pending.
+
+## Follow-up walkthrough on code head fac7fe19d
+
+| Journey | Observed result | Verdict |
+| --- | --- | --- |
+| Exact full-list and existing favorite selection | Fable 5.1 remains distinct from Fable 5; five advertised stops are rendered. | Pass |
+| Valid effort on model switch | Fable Low to Sonnet retains Low. | Pass |
+| Invalid effort on model switch | Haiku removes the effort control and selected effort; returning to the Fable favorite selects its advertised High default. | Pass |
+| Rapid input and reload | From Low, End/Home/ArrowRight accepts Max and temporarily disables later input during persistence; public readback and reload retain Max. | Pass |
+| Narrow viewport | At 390×844 the 320-pixel picker fits, without horizontal page overflow; slider remains visible. | Pass |
+| Failed refresh | Prior successful rows remain available as stale with an explicit warning and original success timestamp. | Pass |
+| Applied effort and successful next prompt | The application remains unbound and preserves selected intent after native provider errors. | Blocked verification |
+| Real queued prompt and successful recovery | Cannot establish successful Fable turns while the provider rejects the account. | Blocked verification |
+
+[Narrow viewport and switch evidence](https://github.com/compozy/compozy/pull/658#issuecomment-5703095524)
+uses an inspected screenshot without host paths or session identifiers.
+
+A minimal control using the same installed native Claude and official ACP adapter, with no
+CompozyOS system context or MCP servers, selected exact Fable 5.1 and acknowledged Low. Its prompt
+then failed with `errorKind=rate_limit` and the account's Fable-limit message. This independently
+establishes the usage-capacity blocker. A later application retry additionally returned a native
+authentication-resolution error during model validation; it also preserved selected Max without
+marking it applied. No login, credit purchase, account change, host restart, or credential repair was
+performed. The remaining walk must resume with working native authentication and available Fable
+capacity; a different model or mocked answer cannot satisfy it.
+
+React Doctor completed code head fac7fe19d with no new issues. Greptile completed that head and
+correctly retains finding 4029705246 for incomplete real QA. CodeRabbit withdrew the proposed
+unconditional hydration early return after checking the complete-snapshot protocol. Other review
+coverage and final CI remain tracked in the PR. A Darwin CI dependency-download timeout requires a
+same-head retry; no check has been disabled. Heavy gates remain CI-only.
