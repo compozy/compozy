@@ -646,10 +646,10 @@ func TestMergeRows(t *testing.T) {
 			known  bool
 			apply  string
 		}{
-			{name: "no policy"},
-			{name: "another provider", policy: map[string]bool{"other": false}},
-			{name: "explicit none", policy: map[string]bool{"custom": false}, known: true, apply: "none"},
-			{name: "adjustable but unobserved", policy: map[string]bool{"custom": true}, apply: "acp_option"},
+			{name: "Should keep missing policy unknown"},
+			{name: "Should ignore another provider policy", policy: map[string]bool{"other": false}},
+			{name: "Should honor explicit provider management", policy: map[string]bool{"custom": false}, known: true, apply: "none"},
+			{name: "Should keep unobserved capabilities unknown", policy: map[string]bool{"custom": true}, apply: "acp_option"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

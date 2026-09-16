@@ -74,6 +74,7 @@ func mergeModelOptionDescriptor(
 	descriptor.Values = mergeModelOptionValues(descriptor.Values, incoming.Values)
 }
 
+// mergeModelOptionValue fills missing presentation metadata without changing the advertised value identity.
 func mergeModelOptionValues(
 	values []ModelOptionValue,
 	incoming []ModelOptionValue,

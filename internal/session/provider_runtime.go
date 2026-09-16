@@ -78,6 +78,7 @@ func (m *Manager) prepareProviderForStart(
 	return opts, nil
 }
 
+// prepareProviderStartPolicies resolves launch isolation and authentication before setting provider environment.
 func (m *Manager) prepareProviderStartPolicies(
 	ctx context.Context,
 	resolved compozyconfig.ResolvedAgent,

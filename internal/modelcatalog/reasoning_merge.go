@@ -105,6 +105,7 @@ func cloneEffortPtr(value *ReasoningEffort) *ReasoningEffort {
 	return &cloned
 }
 
+// cloneStringPtr prevents merged optional metadata from aliasing source-owned storage.
 func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil

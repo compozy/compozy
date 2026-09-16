@@ -91,7 +91,13 @@ CI exposed a migration-test context reused after an expensive upgrade; close/rea
 bounded contexts, matching neighboring migration suites. All preservation assertions remain.
 Heavy checks continue in GitHub CI. Final-head CI and all reviewer dispositions are still pending.
 
-## Follow-up walkthrough on code head fac7fe19d
+## Follow-up walkthrough versions
+
+The Web was served from code head fac7fe19d. The isolated daemon binary includes the production
+changes through 5511164; later empty-snapshot and absent-policy corrections have focused race and
+persistence coverage. The known, persisted Fable profile used in this walk is unchanged by those
+corrections. This is retained evidence for that unchanged path, not a final-binary application pass.
+The remaining successful prompt/recovery walk must use the final daemon binary.
 
 | Journey | Observed result | Verdict |
 | --- | --- | --- |

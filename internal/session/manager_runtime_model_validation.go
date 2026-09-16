@@ -148,6 +148,7 @@ func (m *Manager) resolveCatalogTransportModel(
 	}
 }
 
+// listLiveProviderModels reads available bindings within the resolved provider execution context.
 func (m *Manager) listLiveProviderModels(
 	ctx context.Context,
 	providerID string,

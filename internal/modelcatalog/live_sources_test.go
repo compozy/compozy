@@ -1470,6 +1470,7 @@ func newLiveSourceForTest(
 
 type mapSecretResolver map[string]string
 
+// ResolveRef supplies configured discovery credentials at the secret-store I/O boundary.
 func (r mapSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
 	if ctx == nil {
 		return "", errors.New("context required")

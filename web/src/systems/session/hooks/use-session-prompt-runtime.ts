@@ -33,6 +33,7 @@ import {
   workspaceProviderToOption,
 } from "@/systems/workspace";
 
+/** Convert acknowledged runtime fields to selector intent without inventing optional ACP values. */
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined
 ): RuntimeSelectorValue {
@@ -45,10 +46,12 @@ function runtimeValueFromEffective(
   };
 }
 
+/** Use normal speed when the effective runtime does not advertise a speed selection. */
 function runtimeSpeedFromEffective(effective: SessionRuntimeEffective | undefined): RuntimeSpeed {
   return effective?.speed ?? "normal";
 }
 
+/** Freeze only valid explicit selector fields for the prompt submission boundary. */
 function snapshotFromSelection(
   value: RuntimeSelectorValue,
   speed: RuntimeSpeed
@@ -68,6 +71,7 @@ function snapshotFromSelection(
   };
 }
 
+/** Combine workspace provider availability with current authentication status. */
 function runtimeProviderOptions(
   providers: SessionProviderOption[] | undefined,
   globalProviders: ProviderSummary[] | undefined
@@ -310,6 +314,7 @@ function sessionModelCapabilities(
   });
 }
 
+/** Read the latest selected intent, falling back to server defaults, at dispatch time. */
 export function getSessionPromptRuntimeSnapshot(
   store: SessionPromptRuntimeStore
 ): SessionPromptRuntimeSnapshot | null {

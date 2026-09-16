@@ -155,6 +155,7 @@ func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string
 	return fmt.Errorf("%w: session %q has a dead runtime", store.ErrSessionNotAttachable, target)
 }
 
+// isUnboundLogicalResume identifies accepted sessions that must bind a provider at their next prompt.
 func isUnboundLogicalResume(meta store.SessionMeta) bool {
 	return meta.RuntimeStatus == RuntimeStatusUnbound &&
 		meta.RuntimeTransition == RuntimeTransitionNone &&
