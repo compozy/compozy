@@ -3,6 +3,7 @@
 ## Issue 651 — Session deletion profile scope
 
 - Web single and bulk deletion send the selected session owner profile and workspace.
+- Successful deletion rereads the owning workspace catalog, global catalogs, and attention counts even without catalog SSE; unrelated workspace caches remain untouched. Browser response matchers require the profile query and QA captures retain separate profile evidence.
 - OpenAPI and generated consumers now declare the already-supported optional deletion profile selector. HTTP/UDS routes and authorization are unchanged; wrong-profile requests remain rejected.
 - Native tools, CLI, hooks, configuration, extensions, SDK and official skill syntax are unchanged.
 - No stored-data migration or profile boundary relaxation. Existing session QA covers non-default owners and neighbor preservation.

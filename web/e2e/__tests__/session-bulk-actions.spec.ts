@@ -92,10 +92,10 @@ for (const profile of ["default", "work"]) {
     // The selection bar preserves the host toolbar height: filtering stays in place.
     const filterAfter = await filter.boundingBox();
     expect(filterAfter?.y).toBe(filterBefore?.y);
-    await browserArtifacts.captureScreenshot("bulk-selection", appPage);
+    await browserArtifacts.captureScreenshot(`bulk-selection-${profile}`, appPage);
     await catalog.getByTestId("os-sessions-modal-selection-delete").click();
     await expect(appPage.getByRole("heading", { name: "Delete 3 sessions" })).toBeVisible();
-    await browserArtifacts.captureScreenshot("bulk-delete-confirm", appPage);
+    await browserArtifacts.captureScreenshot(`bulk-delete-confirm-${profile}`, appPage);
     await appPage.getByTestId("delete-dialog-confirm").click();
     await expect(appPage.getByTestId("delete-dialog")).toBeHidden();
     await expect(appPage.getByText("3 sessions deleted", { exact: true })).toBeVisible();
@@ -110,6 +110,6 @@ for (const profile of ["default", "work"]) {
     expect(remaining.sessions.filter(session => ids.includes(session.id))).toEqual([]);
     expect(remaining.sessions.some(session => session.id === neighborID)).toBe(true);
     await expect(catalog.getByTestId(`os-sessions-modal-session-${neighborID}`)).toBeVisible();
-    await browserArtifacts.captureScreenshot("bulk-delete-complete", appPage);
+    await browserArtifacts.captureScreenshot(`bulk-delete-complete-${profile}`, appPage);
   });
 }

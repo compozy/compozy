@@ -423,6 +423,12 @@ describe("session actions", () => {
     const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const onDeleteSuccess = vi.fn();
+    const globalKey = sessionKeys.list({ all_workspaces: true });
+    const otherWorkspaceKey = sessionKeys.list({ workspace_id: "other-workspace" });
+    for (const key of [globalKey, otherWorkspaceKey, sessionKeys.attentionSummary()]) {
+      queryClient.setQueryData(key, { sessions: [createdSession] });
+    }
+
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
     queryClient.setQueryData(
       sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
@@ -483,6 +489,10 @@ describe("session actions", () => {
       sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
     ).toBeUndefined();
     expect(onDeleteSuccess).toHaveBeenCalledOnce();
+    expect(queryClient.getQueryState(globalKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(sessionKeys.attentionSummary())?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherWorkspaceKey)?.isInvalidated).toBe(false);
+
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });

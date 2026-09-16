@@ -125,6 +125,7 @@ export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   });
 }
 
+/** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
 export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {}) {
   const queryClient = useQueryClient();
 
@@ -147,6 +148,8 @@ export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {})
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
       options.onDeleteSuccess?.();
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
     },
     onSettled: (_data, error, { id, workspace_id }) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });

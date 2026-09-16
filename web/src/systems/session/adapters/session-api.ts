@@ -109,6 +109,7 @@ export async function fetchSession(
   return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
 
+/** Deletes a session in its owning workspace and profile; rejects failed API responses. */
 export async function deleteSession(
   workspaceId: string,
   id: string,

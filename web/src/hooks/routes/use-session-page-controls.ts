@@ -42,6 +42,7 @@ interface UseSessionPageControlsOptions {
 
 export type { ResumeProviderUnavailableDetail, SessionResumeFailure };
 
+/** Coordinates session-page actions, preserving the displayed session ownership for deletion. */
 export function useSessionPageControls(
   sessionId: string,
   session: SessionPayload,
