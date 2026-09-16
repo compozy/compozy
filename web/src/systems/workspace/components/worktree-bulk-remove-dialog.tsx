@@ -8,8 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@compozy/ui";
-import { useWorktreeRemovalBatch } from "../hooks/use-worktree-removal-batch";
-import type { WorktreeRemovalBatch } from "../hooks/use-worktree-removal-selection";
+import { useWorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-batch";
+import type { WorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
 export function WorktreeBulkRemoveDialog({
   batch,

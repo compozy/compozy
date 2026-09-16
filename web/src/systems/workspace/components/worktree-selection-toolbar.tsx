@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Button, MenubarItem, cn } from "@compozy/ui";
-import type { WorktreeRemovalSelection } from "../hooks/use-worktree-removal-selection";
+import type { WorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
 export function WorktreeSelectionToolbar({
   selection,

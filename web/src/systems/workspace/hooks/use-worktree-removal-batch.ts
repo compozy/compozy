@@ -1,17 +1,17 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { dismissWorktree, removeWorktree } from "../adapters/worktree-api";
-import { inspectWorktree } from "../adapters/worktree-exit-api";
-import { workspaceKeys } from "../lib/query-keys";
-import { decodeWorktreeRefusal } from "../lib/worktree-refusal";
-import { removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
-import { activeWorkspaceStore } from "../stores/active-workspace-store";
-import type { WorktreePayload, WorktreesResponse } from "../types";
+import { dismissWorktree, removeWorktree } from "@/systems/workspace/adapters/worktree-api";
+import { inspectWorktree } from "@/systems/workspace/adapters/worktree-exit-api";
+import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
+import { decodeWorktreeRefusal } from "@/systems/workspace/lib/worktree-refusal";
+import { removeWorktreeFromList } from "@/systems/workspace/lib/worktree-list-reconciliation";
+import { activeWorkspaceStore } from "@/systems/workspace/stores/active-workspace-store";
+import type { WorktreePayload, WorktreesResponse } from "@/systems/workspace/types";
 import type {
   WorktreeRemovalBatch,
   WorktreeRemovalProfile,
-} from "./use-worktree-removal-selection";
+} from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
 interface RemovalResult {
   row: WorktreePayload;
@@ -79,62 +79,70 @@ export function useWorktreeRemovalBatch(
     if (!scopeMatches || !store.can.start()) return;
     store.trigger.start();
     const { batch, results } = store.getSnapshot().context;
-    return Promise.all(
-      results.map(async result => {
-        if (result.status === "success") return;
-        const row = result.row;
-        store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
-        let message = "Already removed or dismissed; confirmed by CompozyOS.";
-        try {
-          if (!(await reconcileTarget(batch, row))) {
-            if (row.state === "missing") {
-              await dismissWorktree(batch.workspaceId, row.id, undefined, batch.profile.name);
-              message = "Record dismissed. Files and history preserved.";
-            } else {
-              await removeWorktree(batch.workspaceId, row.id, {
-                profile: batch.profile.name,
-                force: false,
-              });
-              message = "Worktree removed.";
+    // Targets share the daemon's bounded repository queue. Chain each request
+    // after the previous receipt so selecting many rows cannot exhaust it.
+    return results
+      .reduce<Promise<void>>(
+        (previous, result) =>
+          previous.then(async () => {
+            if (result.status === "success") return;
+            const row = result.row;
+            store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
+            let message = "Already removed or dismissed; confirmed by CompozyOS.";
+            try {
+              if (!(await reconcileTarget(batch, row))) {
+                if (row.state === "missing") {
+                  await dismissWorktree(batch.workspaceId, row.id, undefined, batch.profile.name);
+                  message = "Record dismissed. Files and history preserved.";
+                } else {
+                  await removeWorktree(batch.workspaceId, row.id, {
+                    profile: batch.profile.name,
+                    force: false,
+                  });
+                  message = "Worktree removed.";
+                }
+              }
+            } catch (error) {
+              let confirmed = false;
+              try {
+                confirmed = await reconcileTarget(batch, row);
+              } catch {
+                /* Keep the original refusal visible. */
+              }
+              if (!confirmed) {
+                store.trigger.outcome({
+                  id: row.id,
+                  status: "failed",
+                  message:
+                    decodeWorktreeRefusal(error)?.message ??
+                    (error instanceof Error
+                      ? error.message
+                      : "Result unconfirmed. Retry checks CompozyOS before acting."),
+                });
+                return;
+              }
             }
-          }
-        } catch (error) {
-          let confirmed = false;
-          try {
-            confirmed = await reconcileTarget(batch, row);
-          } catch {
-            /* Keep the original refusal visible. */
-          }
-          if (!confirmed) {
-            store.trigger.outcome({
-              id: row.id,
-              status: "failed",
-              message:
-                decodeWorktreeRefusal(error)?.message ??
-                (error instanceof Error
-                  ? error.message
-                  : "Result unconfirmed. Retry checks CompozyOS before acting."),
+            store.trigger.outcome({ id: row.id, status: "success", message });
+            activeWorkspaceStore.trigger.worktreeRemoved({
+              workspaceId: batch.workspaceId,
+              worktreeId: row.id,
             });
-            return;
-          }
-        }
-        store.trigger.outcome({ id: row.id, status: "success", message });
-        activeWorkspaceStore.trigger.worktreeRemoved({
-          workspaceId: batch.workspaceId,
-          worktreeId: row.id,
+            queryClient.setQueryData<WorktreesResponse>(
+              workspaceKeys.worktrees(batch.workspaceId),
+              current => removeWorktreeFromList(current, row.id)
+            );
+            queryClient.removeQueries({
+              queryKey: workspaceKeys.worktreeDetail(batch.workspaceId, row.id),
+            });
+          }),
+        Promise.resolve()
+      )
+      .finally(() => {
+        store.trigger.finish();
+        void queryClient.invalidateQueries({
+          queryKey: workspaceKeys.worktrees(batch.workspaceId),
         });
-        queryClient.setQueryData<WorktreesResponse>(
-          workspaceKeys.worktrees(batch.workspaceId),
-          current => removeWorktreeFromList(current, row.id)
-        );
-        queryClient.removeQueries({
-          queryKey: workspaceKeys.worktreeDetail(batch.workspaceId, row.id),
-        });
-      })
-    ).finally(() => {
-      store.trigger.finish();
-      void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(batch.workspaceId) });
-    });
+      });
   };
   return { ...context, scopeMatches, run };
 }

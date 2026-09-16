@@ -102,9 +102,9 @@ describe("useCreateWorktree", () => {
 });
 
 // Invariant: immutable batch identity, per-item receipts and failed-only retry belong to lifecycle hooks.
-import { useWorktreeRemovalBatch } from "../use-worktree-removal-batch";
-import { useWorktreeRemovalSelection } from "../use-worktree-removal-selection";
-import { toWorktreeNestEntries } from "../../lib/worktree-display";
+import { useWorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-batch";
+import { useWorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
+import { toWorktreeNestEntries } from "@/systems/workspace/lib/worktree-display";
 const removalProfile = { id: "00000000000000000000000000", name: "default", archived: false };
 
 describe("worktree batch lifecycle", () => {
@@ -159,6 +159,37 @@ describe("worktree batch lifecycle", () => {
     });
   });
 
+  it("Should complete a selection larger than the repository queue without causing its own refusals", async () => {
+    const rows = Array.from({ length: 12 }, (_, index) =>
+      buildWorktreeFixture({ id: `wt_large_${index}`, workspace_id: "ws_alpha" })
+    );
+    mocks.inspectWorktree.mockImplementation(async (_workspace, id) => ({
+      worktree: rows.find(row => row.id === id),
+    }));
+    let pending = 0;
+    // The daemon allows one holder and eight waiters per repository.
+    mocks.removeWorktree.mockImplementation(async () => {
+      pending++;
+      const saturated = pending > 9;
+      await Promise.resolve();
+      pending--;
+      if (saturated) throw new Error("worktree_operation_in_progress");
+    });
+    const { result } = renderHook(
+      () =>
+        useWorktreeRemovalBatch(
+          { workspaceId: "ws_alpha", profile: removalProfile, worktrees: rows },
+          removalProfile
+        ),
+      { wrapper: createWrapper(new QueryClient()) }
+    );
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results.map(row => row.status)).toEqual(rows.map(() => "success"));
+    expect(mocks.removeWorktree).toHaveBeenCalledTimes(rows.length);
+  });
+
   it("Should reconcile a lost successful response without another destructive request", async () => {
     const row = buildWorktreeFixture({ workspace_id: "ws_alpha" });
     mocks.inspectWorktree
@@ -205,7 +236,7 @@ describe("worktree batch lifecycle", () => {
     for (const current of [
       { ...row, profile_id: "foreign" },
       { ...row, state: "ready" as const },
-      { ...row, agent_activity: "active" as const },
+      { ...row, agent_activity: "running" as const },
     ]) {
       mocks.inspectWorktree.mockResolvedValue({ worktree: current });
       await act(async () => {

@@ -1,4 +1,4 @@
-import type { useWorkspacesSwitcher } from "../hooks/use-workspaces-switcher";
+import type { useWorkspacesSwitcher } from "@/systems/os/hooks/use-workspaces-switcher";
 import {
   worktreeNestPresence,
   type WorkspacePayload,

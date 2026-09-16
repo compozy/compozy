@@ -1,8 +1,8 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import type { WorktreeNestEntry } from "../lib/worktree-display";
-import type { WorktreePayload } from "../types";
+import type { WorktreeNestEntry } from "@/systems/workspace/lib/worktree-display";
+import type { WorktreePayload } from "@/systems/workspace/types";
 
 export interface WorktreeRemovalProfile {
   id: string;
