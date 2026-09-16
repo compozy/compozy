@@ -107,6 +107,33 @@ function caption() {
 }
 
 describe("OsWorkspacesOverview", () => {
+  it("Should select ready and missing rows with bounded select all and clear on Escape", async () => {
+    const user = userEvent.setup();
+    const onRemoveWorktrees = vi.fn();
+    const missing = { ...worktreeMissingFixture, workspace_id: COMPOZY.id };
+    const ready = { ...worktreeBehindFixture, workspace_id: COMPOZY.id };
+    const callbacks = renderOverview({
+      removalProfile: { id: missing.profile_id, name: missing.profile_name, archived: false },
+      onRemoveWorktrees,
+      worktreesByWorkspace: {
+        [COMPOZY.id]: {
+          worktrees: [ready, missing],
+          discovered: [discoveredWorktreeFixture],
+          repo: { git_backed: true, git_available: true },
+        },
+      },
+    });
+    await user.click(screen.getByText("Select worktrees…"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: `Select ${missing.name}` }));
+    await user.keyboard("{Control>}a{/Control}");
+    await user.click(screen.getByText("Remove selected (2)…"));
+    expect(onRemoveWorktrees.mock.calls[0]?.[0].worktrees).toHaveLength(2);
+    expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByText("Select worktrees…")).toBeInTheDocument();
+    expect(callbacks.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("Should return focus to the workspace menubar trigger after closing", async () => {
     const user = userEvent.setup();
     function FocusHarness() {

@@ -1,3 +1,9 @@
+import {
+  useWorktreeRemovalSelection,
+  type WorktreeRemovalBatch,
+  type WorktreeRemovalProfile,
+} from "../hooks/use-worktree-removal-selection";
+import { WorktreeSelectionToolbar } from "./worktree-selection-toolbar";
 import { Ellipsis, Plus } from "lucide-react";
 
 import {
@@ -6,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   MenubarItem,
+  MenubarCheckboxItem,
   MenubarRadioGroup,
   MenubarRadioItem,
   MenubarSeparator,
@@ -46,6 +53,8 @@ export interface WorktreeSubmenuPanelProps {
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onOpenContext?: (entry: WorktreeNestEntry) => void;
   onClose?: () => void;
+  removalProfile?: WorktreeRemovalProfile | null;
+  onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
 }
 
 function WorktreeSubmenuRowActions({
@@ -92,7 +101,7 @@ function WorktreeSubmenuRowActions({
           variant={variant}
           onSelect={() => onResolveMissing?.(entry)}
         >
-          Resolve…
+          Clean up missing record…
         </ActionItem>
       ) : null}
       {canRemove ? (
@@ -193,8 +202,16 @@ export function WorktreeSubmenuPanel({
   onResolveMissing,
   onOpenContext,
   onClose,
+  removalProfile,
+  onRemoveWorktrees,
 }: WorktreeSubmenuPanelProps) {
   const workspaceId = node.workspace.id;
+  const selection = useWorktreeRemovalSelection(
+    workspaceId,
+    node.worktrees,
+    removalProfile,
+    onRemoveWorktrees
+  );
   const hasListRows = node.worktrees.length > 0;
   const selectEntry = (entry: WorktreeNestEntry) => {
     if (!entry.selectable) return;
@@ -203,14 +220,57 @@ export function WorktreeSubmenuPanel({
   };
 
   const rows = node.worktrees.map(entry => {
+    if (selection.mode) {
+      const reason = selection.reason(entry);
+      const content = (
+        <>
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <WorktreeNestRow
+              entry={{ ...entry, adoptable: false }}
+              userHomeDir={userHomeDir}
+              checked={variant !== "menu" && selection.selectedIds.has(entry.key)}
+            />
+            {reason ? <span className="text-form-hint text-subtle">{reason}</span> : null}
+          </span>
+        </>
+      );
+      return variant === "menu" ? (
+        <MenubarCheckboxItem
+          key={entry.key}
+          checked={selection.selectedIds.has(entry.key)}
+          className="group/wtnest min-w-0"
+          disabled={Boolean(reason)}
+          closeOnClick={false}
+          aria-label={`Select ${entry.name}`}
+          title={reason ?? undefined}
+          onClick={event => selection.toggle(entry, event.shiftKey)}
+        >
+          {content}
+        </MenubarCheckboxItem>
+      ) : (
+        <button
+          key={entry.key}
+          type="button"
+          role="checkbox"
+          aria-checked={selection.selectedIds.has(entry.key)}
+          disabled={Boolean(reason)}
+          aria-label={`Select ${entry.name}`}
+          title={reason ?? undefined}
+          className="flex w-full flex-wrap items-center gap-1 rounded-md p-2 text-left hover:bg-row-hover"
+          onClick={event => selection.toggle(entry, event.shiftKey)}
+        >
+          {content}
+        </button>
+      );
+    }
     const checked = entry.worktree != null && entry.worktree.id === selectedWorktreeId;
     const actions = (
       <WorktreeSubmenuRowActions
         entry={entry}
         testIdPrefix={testIdPrefix}
         variant={variant}
-        onRemoveWorktree={onRemoveWorktree}
-        onResolveMissing={onResolveMissing}
+        onRemoveWorktree={removalProfile && selection.reason(entry) ? undefined : onRemoveWorktree}
+        onResolveMissing={removalProfile && selection.reason(entry) ? undefined : onResolveMissing}
         onOpenContext={onOpenContext}
       />
     );
@@ -299,7 +359,16 @@ export function WorktreeSubmenuPanel({
 
   if (variant === "menu") {
     return (
-      <WorktreeNest viewportClassName={MENU_VIEWPORT_MAX_CLASS} footer={create}>
+      <WorktreeNest
+        onKeyDown={selection.onKeyDown}
+        viewportClassName={MENU_VIEWPORT_MAX_CLASS}
+        footer={
+          <>
+            <WorktreeSelectionToolbar selection={selection} menu={variant === "menu"} />
+            {create}
+          </>
+        }
+      >
         <MenubarRadioGroup
           value={selectedWorktreeId ?? ""}
           aria-label={`Worktrees in ${node.workspace.name}`}
@@ -312,12 +381,18 @@ export function WorktreeSubmenuPanel({
 
   return (
     <WorktreeNest
+      onKeyDown={selection.onKeyDown}
       role="group"
       aria-label={`Worktrees in ${node.workspace.name}`}
       className={PANEL_FRAME_MAX_CLASS}
       viewportClassName={PANEL_VIEWPORT_MAX_CLASS}
       listClassName="pr-2"
-      footer={create}
+      footer={
+        <>
+          <WorktreeSelectionToolbar selection={selection} menu={false} />
+          {create}
+        </>
+      }
     >
       {rows}
     </WorktreeNest>

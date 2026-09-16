@@ -118,6 +118,35 @@ function openChangeFlags(onOpenChange: ReturnType<typeof vi.fn>): boolean[] {
 }
 
 describe("WorkspaceMenu", () => {
+  it("Should select missing records without navigation and freeze the represented eligible population", async () => {
+    const user = userEvent.setup();
+    const onRemoveWorktrees = vi.fn();
+    const missing = { ...worktreeMissingFixture, workspace_id: gitAlpha.id };
+    const profile = { id: missing.profile_id, name: missing.profile_name, archived: false };
+    const callbacks = renderMenu({
+      removalProfile: profile,
+      onRemoveWorktrees,
+      worktreesByWorkspace: {
+        [gitAlpha.id]: {
+          worktrees: [missing],
+          discovered: [discoveredWorktreeFixture],
+          repo: { git_backed: true, git_available: true },
+        },
+      },
+    });
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await user.click(screen.getByText("Select worktrees…"));
+    const checkbox = screen.getByRole("menuitemcheckbox", { name: `Select ${missing.name}` });
+    await user.click(checkbox);
+    expect(checkbox).toHaveAttribute("aria-checked", "true");
+    expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
+    expect(openChangeFlags(callbacks.onOpenChange)).not.toContain(false);
+    await user.click(screen.getByText("Remove selected (1)…"));
+    expect(
+      onRemoveWorktrees.mock.calls[0]?.[0].worktrees.map((row: { id: string }) => row.id)
+    ).toEqual([missing.id]);
+  });
+
   it("Should render git-backed workspaces as submenu triggers and non-git ones as plain items", () => {
     renderMenu();
 

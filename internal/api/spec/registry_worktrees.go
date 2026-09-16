@@ -174,10 +174,11 @@ func removeWorktreeOperationSpec() OperationSpec {
 		Method: httpMethodDelete, Path: specAPIWorktreePath, OperationID: "removeWorktree",
 		Summary: "Remove a worktree", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal")),
+		Parameters: withProfileSelector(append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal"))...),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid removal query", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Profile does not permit removal", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      409,
@@ -191,9 +192,11 @@ func removeWorktreeOperationSpec() OperationSpec {
 }
 
 func dismissWorktreeOperationSpec() OperationSpec {
-	return worktreeNoContentOperation(
+	op := worktreeNoContentOperation(
 		httpMethodPost, specAPIWorktreePath+"/dismiss", "dismissWorktree", "Dismiss a worktree tombstone",
 	)
+	op.Parameters = withProfileSelector(op.Parameters...)
+	return op
 }
 
 func streamWorktreeOperationSpec() OperationSpec {

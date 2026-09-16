@@ -251,6 +251,9 @@ func (s *Service) evaluateFencedRemoval(
 		return false, RemovalRisk{}, nil, err
 	}
 	if !present {
+		if err := s.requireNoActiveSession(ctx, item); err != nil {
+			return false, RemovalRisk{}, nil, err
+		}
 		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)
 	}
 	risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)

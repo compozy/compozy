@@ -8,23 +8,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   aggregate: true,
   createWorktree: vi.fn(),
+  removeWorktree: vi.fn(),
+  dismissWorktree: vi.fn(),
+  inspectWorktree: vi.fn(),
   destination: "default",
   notifyUser: vi.fn(),
 }));
 
-vi.mock("../../adapters/worktree-api", () => ({
+vi.mock("../../adapters/worktree-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/worktree-api")>()),
   adoptWorktree: vi.fn(),
   cancelWorktreeCreate: vi.fn(),
   createWorktree: mocks.createWorktree,
-  dismissWorktree: vi.fn(),
-  removeWorktree: vi.fn(),
+  dismissWorktree: mocks.dismissWorktree,
+  removeWorktree: mocks.removeWorktree,
 }));
+vi.mock("../../adapters/worktree-exit-api", () => ({ inspectWorktree: mocks.inspectWorktree }));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: mocks.notifyUser }));
 vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),
   useProfileReadScope: () => ({
     aggregate: mocks.aggregate,
     destination: mocks.destination,
+    destinationOwner: {
+      id: "00000000000000000000000000",
+      name: mocks.destination,
+      archived: false,
+    },
   }),
 }));
 
@@ -88,5 +98,144 @@ describe("useCreateWorktree", () => {
       "marketing"
     );
     expect(mocks.notifyUser).not.toHaveBeenCalled();
+  });
+});
+
+// Invariant: immutable batch identity, per-item receipts and failed-only retry belong to lifecycle hooks.
+import { useWorktreeRemovalBatch } from "../use-worktree-removal-batch";
+import { useWorktreeRemovalSelection } from "../use-worktree-removal-selection";
+import { toWorktreeNestEntries } from "../../lib/worktree-display";
+const removalProfile = { id: "00000000000000000000000000", name: "default", archived: false };
+
+describe("worktree batch lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.destination = "default";
+  });
+
+  it("Should preserve successful receipts and reconcile before retrying only failures", async () => {
+    const ready = buildWorktreeFixture({ id: "wt_ready", workspace_id: "ws_alpha" });
+    const missing = buildWorktreeFixture({
+      id: "wt_missing",
+      workspace_id: "ws_alpha",
+      state: "missing",
+    });
+    mocks.inspectWorktree.mockImplementation(async (_workspace, id) => ({
+      worktree: id === ready.id ? ready : missing,
+    }));
+    mocks.removeWorktree.mockResolvedValue(undefined);
+    mocks.dismissWorktree
+      .mockRejectedValueOnce(new Error("connection lost"))
+      .mockResolvedValue(undefined);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(
+      () =>
+        useWorktreeRemovalBatch(
+          {
+            workspaceId: "ws_alpha",
+            profile: removalProfile,
+            worktrees: [ready, missing],
+          },
+          removalProfile
+        ),
+      { wrapper: createWrapper(client) }
+    );
+    await act(async () => {
+      await Promise.all([result.current.run(), result.current.run()]);
+    });
+    expect(result.current.scopeMatches).toBe(true);
+    expect(result.current.results.map(row => row.status)).toEqual(["success", "failed"]);
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results.map(row => row.status)).toEqual(["success", "success"]);
+    expect(mocks.removeWorktree).toHaveBeenCalledTimes(1);
+    expect(mocks.dismissWorktree).toHaveBeenCalledTimes(2);
+    expect(mocks.removeWorktree).toHaveBeenCalledWith("ws_alpha", ready.id, {
+      profile: "default",
+      force: false,
+    });
+  });
+
+  it("Should reconcile a lost successful response without another destructive request", async () => {
+    const row = buildWorktreeFixture({ workspace_id: "ws_alpha" });
+    mocks.inspectWorktree
+      .mockResolvedValueOnce({ worktree: row })
+      .mockResolvedValue({ worktree: { ...row, state: "removed" } });
+    mocks.removeWorktree.mockRejectedValueOnce(new Error("connection lost"));
+    const { result } = renderHook(
+      () =>
+        useWorktreeRemovalBatch(
+          {
+            workspaceId: "ws_alpha",
+            profile: removalProfile,
+            worktrees: [row],
+          },
+          removalProfile
+        ),
+      { wrapper: createWrapper(new QueryClient()) }
+    );
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results[0]?.status).toBe("success");
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(mocks.removeWorktree).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should refuse changed ownership, state and profile before a mutation", async () => {
+    const row = buildWorktreeFixture({ workspace_id: "ws_alpha", state: "missing" });
+    const batch = { workspaceId: "ws_alpha", profile: removalProfile, worktrees: [row] };
+    const { result, rerender } = renderHook(
+      ({ profile }) => useWorktreeRemovalBatch(batch, profile),
+      {
+        initialProps: { profile: { ...removalProfile, id: "foreign" } },
+        wrapper: createWrapper(new QueryClient()),
+      }
+    );
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(mocks.inspectWorktree).not.toHaveBeenCalled();
+    rerender({ profile: removalProfile });
+    for (const current of [
+      { ...row, profile_id: "foreign" },
+      { ...row, state: "ready" as const },
+      { ...row, agent_activity: "active" as const },
+    ]) {
+      mocks.inspectWorktree.mockResolvedValue({ worktree: current });
+      await act(async () => {
+        await result.current.run();
+      });
+      expect(result.current.results[0]?.status).toBe("failed");
+    }
+    expect(mocks.dismissWorktree).not.toHaveBeenCalled();
+    expect(mocks.removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it("Should freeze selected identities across live rows and reset on profile changes", () => {
+    const row = buildWorktreeFixture({ workspace_id: "ws_alpha" });
+    const newer = buildWorktreeFixture({ id: "wt_new", workspace_id: "ws_alpha" });
+    const onRemove = vi.fn();
+    const entries = (rows: (typeof row)[]) =>
+      toWorktreeNestEntries({ worktrees: rows, discovered: [] });
+    const { result, rerender } = renderHook(
+      ({ rows, profile }) =>
+        useWorktreeRemovalSelection("ws_alpha", entries(rows), profile, onRemove),
+      { initialProps: { rows: [row], profile: removalProfile } }
+    );
+    act(() => result.current.selectAll());
+    rerender({ rows: [row, newer], profile: removalProfile });
+    act(() => result.current.confirm());
+    expect(onRemove.mock.calls[0]?.[0].worktrees.map((item: typeof row) => item.id)).toEqual([
+      row.id,
+    ]);
+    rerender({ rows: [row], profile: { ...removalProfile, id: "other" } });
+    expect(result.current.count).toBe(0);
+    expect(result.current.eligibleCount).toBe(0);
   });
 });

@@ -21,6 +21,7 @@ import (
 )
 
 type worktreeServiceStub struct {
+	resolve        func(context.Context, string, string) (*worktree.Worktree, error)
 	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	adopt          func(context.Context, string, string, string) (*worktree.Worktree, error)
@@ -376,7 +377,10 @@ func (s worktreeServiceStub) ListDetails(
 	return nil, fmt.Errorf("unexpected ListDetails call")
 }
 
-func (s worktreeServiceStub) Resolve(context.Context, string, string) (*worktree.Worktree, error) {
+func (s worktreeServiceStub) Resolve(ctx context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+	if s.resolve != nil {
+		return s.resolve(ctx, workspaceID, ref)
+	}
 	return nil, fmt.Errorf("unexpected Resolve call")
 }
 
@@ -1022,6 +1026,46 @@ func TestWorktreeExitHandlers(t *testing.T) {
 func TestRemoveWorktreeRefusal(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject foreign and archived ownership before lifecycle mutation", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, owner string
+			archived    bool
+			status      int
+		}{
+			{name: "Should reject another owner", owner: store.DefaultProfileID, status: http.StatusNotFound},
+			{name: "Should reject an archived owner", owner: "profile-marketing", archived: true, status: http.StatusForbidden},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				state := profilepkg.StateActive
+				if tc.archived {
+					state = profilepkg.StateArchived
+				}
+				h := &BaseHandlers{Profiles: worktreeProfileServiceStub{state: state},
+					Workspaces: workspaceServiceStub{resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "registry-alpha", Name: ref}, WorkspaceID: "registry-alpha"}, nil
+					}}, Worktrees: worktreeServiceStub{
+						resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
+							return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: tc.owner}, nil
+						},
+					}}
+				router := gin.New()
+				router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", h.RemoveWorktree)
+				router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/dismiss", h.DismissWorktree)
+				for _, route := range []struct{ method, suffix string }{{http.MethodDelete, ""}, {http.MethodPost, "/dismiss"}} {
+					response := httptest.NewRecorder()
+					request := httptest.NewRequestWithContext(t.Context(), route.method,
+						"/workspaces/registry-alpha/worktrees/wt-owned"+route.suffix+"?profile=marketing", http.NoBody)
+					router.ServeHTTP(response, request)
+					if response.Code != tc.status || !strings.Contains(response.Body.String(), "worktree") {
+						t.Fatalf("%s response = %d %s", route.method, response.Code, response.Body.String())
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should return the exact risk inventory with status 409", func(t *testing.T) {
 		t.Parallel()
 
@@ -1035,7 +1079,9 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 					WorkspaceID: "workspace-a",
 				}, nil
 			}},
-			Worktrees: worktreeServiceStub{remove: func(
+			Worktrees: worktreeServiceStub{resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
+				return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID}, nil
+			}, remove: func(
 				_ context.Context,
 				workspaceID string,
 				worktreeID string,

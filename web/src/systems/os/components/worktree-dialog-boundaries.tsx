@@ -85,7 +85,7 @@ export function WorktreeRemoveDialogBoundary({
   worktree: WorktreePayload;
   onClose: () => void;
 }) {
-  const remove = useRemoveWorktree(workspaceId);
+  const remove = useRemoveWorktree(workspaceId, worktree.profile_name);
   const [forceRequested, setForceRequested] = useState(false);
   const sessions = useSessions(workspaceId, { filters: { worktree: worktree.id } });
   const { coordinator } = useOsShell();
@@ -182,8 +182,8 @@ export function WorktreeMissingDialogBoundary({
   worktree: WorktreePayload;
   onClose: () => void;
 }) {
-  const dismiss = useDismissWorktree(workspaceId);
-  const restore = useAdoptWorktree(workspaceId);
+  const dismiss = useDismissWorktree(workspaceId, worktree.profile_name);
+  const restore = useAdoptWorktree(workspaceId, worktree.profile_name);
 
   return (
     <WorktreeMissingResolutionDialog
@@ -192,8 +192,9 @@ export function WorktreeMissingDialogBoundary({
         if (!open) onClose();
       }}
       worktree={worktree}
-      outcome={dismiss.isSuccess ? WORKTREE_DISMISS_NOOP_OUTCOME : null}
-      refusal={decodeWorktreeRefusal(restore.error)}
+      outcome={dismiss.isSuccess ? WORKTREE_DISMISS_OUTCOME : null}
+      refusal={decodeWorktreeRefusal(dismiss.error ?? restore.error)}
+      error={(dismiss.error ?? restore.error)?.message}
       isPending={dismiss.isPending || restore.isPending}
       onDismissRecord={() => dismiss.mutate(worktree.id)}
       // Adoption is the restore path: it revalidates Git identity and returns
@@ -203,8 +204,8 @@ export function WorktreeMissingDialogBoundary({
   );
 }
 
-const WORKTREE_DISMISS_NOOP_OUTCOME =
-  "Nothing to clean up — no branch, worktree directory, or instance data found.";
+const WORKTREE_DISMISS_OUTCOME =
+  "Record dismissed. Files, branches, sessions and run history are preserved.";
 
 /** Adoption confirm/refusal for a selected discovered row (ADR-002). */
 export function WorktreeAdoptDialogBoundary({

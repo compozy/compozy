@@ -238,6 +238,10 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	id, ok = h.worktreeMutationTarget(c, scope.RegistryID, id)
+	if !ok {
+		return
+	}
 	force, ok := h.worktreeBoolQuery(c, "force")
 	if !ok {
 		return
@@ -256,6 +260,10 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 
 func (h *BaseHandlers) DismissWorktree(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	id, ok = h.worktreeMutationTarget(c, scope.RegistryID, id)
 	if !ok {
 		return
 	}

@@ -52,6 +52,9 @@ func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePa
 	}
 	existing, getErr := s.store.GetByPath(ctx, workspaceID, canonicalCandidate)
 	if getErr == nil && existing != nil {
+		if existing.ProfileID != profileID {
+			return nil, ErrNotFound
+		}
 		return s.reuseAdoptedWorktree(ctx, existing, identity.adminGitDir)
 	}
 	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
@@ -136,6 +139,9 @@ func (s *Service) reuseAdoptedWorktree(
 		current, currentErr := s.store.Get(ctx, existing.WorkspaceID, existing.ID)
 		if currentErr != nil {
 			return nil, fmt.Errorf("worktree: reread adopted path: %w", currentErr)
+		}
+		if current == nil || current.State != StateReady {
+			return nil, ErrNotReady
 		}
 		return current, nil
 	}

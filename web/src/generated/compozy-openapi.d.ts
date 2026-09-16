@@ -157395,6 +157395,8 @@ export interface operations {
       query?: {
         /** @description Confirm destructive removal */
         force?: boolean;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -157416,6 +157418,36 @@ export interface operations {
       };
       /** @description Invalid removal query */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Profile does not permit removal */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -157790,7 +157822,10 @@ export interface operations {
   };
   dismissWorktree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */

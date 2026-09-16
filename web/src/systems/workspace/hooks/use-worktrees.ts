@@ -15,6 +15,7 @@ import {
   type AdoptWorktreeParams,
   type CreateWorktreeParams,
 } from "../adapters/worktree-api";
+import { activeWorkspaceStore } from "../stores/active-workspace-store";
 import { workspaceKeys } from "../lib/query-keys";
 import { worktreesListOptions } from "../lib/query-options";
 import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
@@ -113,22 +114,27 @@ export function useCancelWorktreeCreate(workspaceID: string) {
  * Also the "It's back" path: adopting a registered `missing` path revalidates
  * Git identity and restores that record to `ready`.
  */
-export function useAdoptWorktree(workspaceID: string) {
+export function useAdoptWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: AdoptWorktreeParams) => adoptWorktree(workspaceID, params),
+    mutationFn: (params: AdoptWorktreeParams) =>
+      adoptWorktree(workspaceID, params, undefined, profile),
     onSuccess: worktree => reconcileThenInvalidate(queryClient, workspaceID, worktree),
   });
 }
 
-export function useRemoveWorktree(workspaceID: string) {
+export function useRemoveWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ worktreeID, force }: { worktreeID: string; force?: boolean }) =>
-      removeWorktree(workspaceID, worktreeID, { force }),
+      removeWorktree(workspaceID, worktreeID, { force, profile }),
     onSuccess: (_data, variables) => {
+      activeWorkspaceStore.trigger.worktreeRemoved({
+        workspaceId: workspaceID,
+        worktreeId: variables.worktreeID,
+      });
       queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
         removeWorktreeFromList(current, variables.worktreeID)
       );
@@ -140,12 +146,17 @@ export function useRemoveWorktree(workspaceID: string) {
   });
 }
 
-export function useDismissWorktree(workspaceID: string) {
+export function useDismissWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (worktreeID: string) => dismissWorktree(workspaceID, worktreeID),
+    mutationFn: (worktreeID: string) =>
+      dismissWorktree(workspaceID, worktreeID, undefined, profile),
     onSuccess: (_data, worktreeID) => {
+      activeWorkspaceStore.trigger.worktreeRemoved({
+        workspaceId: workspaceID,
+        worktreeId: worktreeID,
+      });
       queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
         removeWorktreeFromList(current, worktreeID)
       );
