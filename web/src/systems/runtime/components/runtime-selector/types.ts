@@ -147,6 +147,8 @@ export interface RuntimeModelOption {
   cost_reasoning?: number | null;
   supports_tools?: boolean | null;
   supports_reasoning?: boolean | null;
+  /** Whether effort capability has an authoritative source beyond enrichment. */
+  reasoning_known?: boolean;
   /** Selectable effort subset the runtime can honor; empty = not selectable. */
   efforts: ReasoningEffort[];
   /** Canonical default within `efforts` ("" = provider default). Sanitized by the mapper. */
@@ -164,7 +166,12 @@ export interface RuntimeModelOption {
   disabled_reason?: string;
 }
 
-export type RuntimeReasoningMode = "levels" | "supported-nolevels" | "none" | "no-model";
+export type RuntimeReasoningMode =
+  | "levels"
+  | "supported-nolevels"
+  | "none"
+  | "no-model"
+  | "unknown";
 
 export interface RuntimeReasoningState {
   mode: RuntimeReasoningMode;
@@ -202,6 +209,12 @@ export function resolveReasoningState(
       defaultEffort: fallback !== "" && levels.includes(fallback) ? fallback : "",
       source: model.reasoning_source ?? "catalog",
     };
+  }
+  if (
+    model.supports_reasoning !== false &&
+    (model.reasoning_known === false || model.supports_reasoning == null)
+  ) {
+    return { mode: "unknown", levels: [], defaultEffort: "", source: "catalog" };
   }
   if (model.supports_reasoning) {
     return { mode: "supported-nolevels", levels: [], defaultEffort: "", source: "catalog" };

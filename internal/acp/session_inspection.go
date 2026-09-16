@@ -15,13 +15,64 @@ type SessionInspectionRequest struct {
 	Env       []string
 }
 
+// SessionModelInspection retains options for each independently selected transport model.
+type SessionModelInspection struct {
+	Options []SessionConfigOption
+	Models  map[string][]SessionConfigOption
+}
+
+// InspectSessionModels reads model-specific options without submitting a prompt.
+func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (SessionModelInspection, error) {
+	var result SessionModelInspection
+	err := inspectSession(ctx, req, func(driver *Driver, proc *AgentProcess) error {
+		result.Options = CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions)
+		model, ok := ModelConfigOption(result.Options)
+		if !ok {
+			return errors.New("acp: inspected session has no model option")
+		}
+		result.Models = make(map[string][]SessionConfigOption, len(model.Values))
+		for _, value := range model.Values {
+			if _, exists := result.Models[value.Value]; exists {
+				continue
+			}
+			if model.ReadOnly && value.Value != model.CurrentValueID {
+				continue
+			}
+			if !model.ReadOnly {
+				if _, err := driver.applySessionModel(ctx, proc, value.Value); err != nil {
+					return fmt.Errorf("acp: inspect model %q: %w", value.Value, err)
+				}
+			}
+			result.Models[value.Value] = CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions)
+		}
+		return nil
+	})
+	if err != nil {
+		return SessionModelInspection{}, err
+	}
+	return result, nil
+}
+
 // InspectSessionConfigOptions creates a short-lived ACP session and returns its advertised config options.
 func InspectSessionConfigOptions(
 	ctx context.Context,
 	req SessionInspectionRequest,
-) (_ []SessionConfigOption, err error) {
+) ([]SessionConfigOption, error) {
+	var options []SessionConfigOption
+	err := inspectSession(ctx, req, func(_ *Driver, proc *AgentProcess) error {
+		options = CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions)
+		return nil
+	})
+	return options, err
+}
+
+func inspectSession(
+	ctx context.Context,
+	req SessionInspectionRequest,
+	inspect func(*Driver, *AgentProcess) error,
+) (err error) {
 	if ctx == nil {
-		return nil, errors.New("acp: session inspection context is required")
+		return errors.New("acp: session inspection context is required")
 	}
 	driver := New()
 	proc, err := driver.Start(ctx, StartOpts{
@@ -32,7 +83,7 @@ func InspectSessionConfigOptions(
 		Inspection: true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("acp: inspect session config options: %w", err)
+		return fmt.Errorf("acp: inspect session config options: %w", err)
 	}
 	defer func() {
 		// Stop uses defaultStopTimeout for cooperative shutdown before signal escalation.
@@ -45,5 +96,5 @@ func InspectSessionConfigOptions(
 		}
 	}()
 
-	return CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions), nil
+	return inspect(driver, proc)
 }

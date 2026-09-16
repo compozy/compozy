@@ -535,6 +535,48 @@ func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) 
 	})
 }
 
+// Invariant: discovery retains each model's acknowledged options without prompting.
+// Owning layer and canonical suite: ACP session lifecycle contract.
+func TestInspectSessionModels(t *testing.T) {
+	t.Parallel()
+	t.Run("Should isolate model-specific options and models without effort", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "model-inspection.jsonl")
+		inspection, err := InspectSessionModels(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnvWithCapture("model_specific_config_options", "", captureFile),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v", err)
+		}
+		if len(inspection.Models) != 3 {
+			t.Fatalf("inspected models = %v, want 3", inspection.Models)
+		}
+		assertConfigOption(t, inspection.Models["new-model"], "effort", "low", "low")
+		assertConfigOption(t, inspection.Models["other-model"], "effort", "none", "none", "max")
+		_, found := ReasoningConfigOption(inspection.Models["loaded-model"])
+		if found {
+			t.Fatal("model without effort inherited another model's effort")
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionPrompt) {
+			t.Fatal("discovery submitted a prompt")
+		}
+	})
+	t.Run("Should fail discovery when a model selection is not acknowledged", func(t *testing.T) {
+		t.Parallel()
+		inspection, err := InspectSessionModels(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("config_options_unconfirmed", ""),
+		})
+		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
+			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		}
+		if len(inspection.Models) != 0 {
+			t.Fatalf("failed inspection published models: %v", inspection.Models)
+		}
+	})
+}
+
 func TestStopCancelsANonInspectionSession(t *testing.T) {
 	t.Parallel()
 
@@ -931,6 +973,19 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: requested intent is not effective until provider readback confirms it.
+	t.Run("Should preserve prior effort when the provider does not confirm a change", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "config_options_unconfirmed", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{ReasoningEffort: "high"})
+		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
+			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
+	})
 
 	t.Run("Should apply model then refreshed reasoning effort then speed", func(t *testing.T) {
 		t.Parallel()

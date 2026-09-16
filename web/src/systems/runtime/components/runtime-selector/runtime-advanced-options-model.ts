@@ -1,6 +1,14 @@
 import type { RuntimeACPOption, RuntimeACPOptionSelection } from "./types";
 
-const DEDICATED_OPTION_IDS = new Set(["model", "reasoning_effort", "effort", "speed", "fast"]);
+const DEDICATED_OPTION_IDS = new Set([
+  "model",
+  "mode",
+  "reasoning_effort",
+  "effort",
+  "speed",
+  "fast",
+]);
+const DEDICATED_OPTION_CATEGORIES = new Set(["model", "mode", "thought_level"]);
 
 function sortByID<T extends { id: string }>(values: readonly T[]): T[] {
   return [...values].sort((left, right) => left.id.localeCompare(right.id));
@@ -46,7 +54,10 @@ export function runtimeACPSelectionsEqual(
 }
 
 function isAdvancedRuntimeOption(option: RuntimeACPOption): boolean {
-  return !DEDICATED_OPTION_IDS.has(option.id.trim().toLowerCase());
+  return (
+    !DEDICATED_OPTION_IDS.has(option.id.trim().toLowerCase()) &&
+    !DEDICATED_OPTION_CATEGORIES.has(option.category?.trim().toLowerCase() ?? "")
+  );
 }
 
 export function advancedRuntimeOptions(

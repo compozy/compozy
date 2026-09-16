@@ -42,3 +42,13 @@ QA 2026-08-28: pass. The shared onboarding selector exposed an enabled Fast swit
 QA re-walk 2026-09-06: selecting the runtime, closing with Escape, entering the composer and submitting now preserves composer focus through the popup exit. The provider/model-override browser journey asserts focus after the popup closes and passed with the combined repaired build. Existing model/effort persistence and ordinary Escape restoration also pass. See BUG-20260906-runtime-selector-closing-focus and `.cache/sessions-selector-root-integrated-green.log`.
 
 QA 2026-09-09: pass for the changed catalog/reasoning journey. Fresh native discovery exposed Astra through Ultra, Luna through Max, Grok 4.5 through High and Grok 4.6 through Extra high. Saved runtime survived reload/restart. Native Cursor and Codex prompts completed; unsupported Cursor combinations returned 400 without changing the selection. See the current report for captures, exact runtime evidence and limits.
+
+
+QA impact 2026-09-16, issue #655 (verification pending): use the installed Claude adapter in an
+isolated daemon and select the exact Fable 5.1 identity from the full list and an existing recent or
+favorite row. Compare cold discovery, persisted rows and a resumed session. Record the advertised
+model-specific thought levels, choose an effort, submit a real prompt and confirm the effective
+runtime plus ACP current value. Switch models while preserving a valid effort and clearing an invalid
+one; exercise rapid selection, reload and queued-prompt snapshots. A model with unconfirmed metadata
+must not claim provider-managed effort. Failed discovery must preserve prior rows and recover after
+refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.

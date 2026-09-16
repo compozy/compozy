@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -195,7 +196,12 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
-	process.setConfigOptions(sessionConfigOptionsFromSDK(response.ConfigOptions))
+	options := sessionConfigOptionsFromSDK(response.ConfigOptions)
+	confirmed, ok := findConfigOptionByID(options, selection.ID)
+	if !ok || !selection.matches(confirmed) {
+		return fmt.Errorf("acp: provider did not confirm config option %q", selection.ID)
+	}
+	process.setConfigOptions(options)
 	return nil
 }
 

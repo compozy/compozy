@@ -570,6 +570,7 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		}, nil
 	}
 	if a.scenario == "config_options" ||
+		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
@@ -993,6 +994,9 @@ func (a *helperACPAgent) SetSessionConfigOption(
 ) (acpsdk.SetSessionConfigOptionResponse, error) {
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
+	if a.scenario == "config_options_unconfirmed" {
+		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+	}
 	if request.ValueId != nil {
 		configID := string(request.ValueId.ConfigId)
 		value := acpsdk.SessionConfigValueId(strings.TrimSpace(string(request.ValueId.Value)))
@@ -1005,6 +1009,12 @@ func (a *helperACPAgent) SetSessionConfigOption(
 				helperModelConfigOptions(string(value)),
 				helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
 			)
+			if a.scenario == "model_specific_config_options" && value != "other-model" {
+				configOptions = helperModelConfigOptions(string(value))
+				if value == "new-model" {
+					configOptions = append(configOptions, helperSelectConfigOption("effort", "Reasoning effort", "low", "low"))
+				}
+			}
 			if a.scenario == "runtime_config_options" {
 				configOptions = append(
 					configOptions,

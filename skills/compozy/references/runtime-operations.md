@@ -146,6 +146,14 @@ searched.
 
 Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning.
 
+For Claude, compare the exact catalog model ID with the installed ACP adapter's selected model and
+returned `thought_level` options. Discovery selects each model in a disposable session; it does not
+copy the initial model's effort profile across the catalog. Exact versions remain distinct, including
+saved selections and favorites. Refresh only the affected source after an adapter or catalog upgrade.
+Missing effort metadata is unconfirmed capability, not proof that the provider manages effort.
+Confirm a requested effort through effective runtime and ACP current-value readback after a prompt;
+selected intent alone is not evidence that the provider applied it.
+
 Use structured output when agents need to inspect or route results.
 
 Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,

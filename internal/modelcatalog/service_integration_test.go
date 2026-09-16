@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -40,7 +41,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 				Model:    name,
 				ConfigOptions: []acpmock.SessionConfigOptionFixture{{
 					ID: "model", Name: "Model", Category: "model", Current: name,
-					Values: []acpmock.SessionConfigOptionValueFixture{{Value: name, Label: name}},
+					Values: []acpmock.SessionConfigOptionValueFixture{{Value: name, Label: map[string]string{"haiku": "Haiku 4.5", "sonnet": "Sonnet 5"}[name]}},
 				}},
 				Turns: []acpmock.TurnFixture{
 					{
@@ -49,6 +50,11 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 					},
 				},
 			})
+			if name == "sonnet" {
+				fixture.Agents[len(fixture.Agents)-1].ConfigOptions = append(fixture.Agents[len(fixture.Agents)-1].ConfigOptions,
+					acpmock.SessionConfigOptionFixture{ID: "deliberation", Name: "Effort", Category: "thought_level", Current: "future-effort",
+						Values: []acpmock.SessionConfigOptionValueFixture{{Value: "low"}, {Value: "future-effort"}}})
+			}
 		}
 		data, err := json.Marshal(fixture)
 		if err != nil {
@@ -78,7 +84,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 			}
 			sources = append(sources, source)
 		}
-		service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{})
+		service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{ReasoningApply: map[string]bool{"claude-haiku": true, "claude-sonnet": true}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,6 +114,25 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 			if len(models[0].TransportBindings) != 1 ||
 				models[0].TransportBindings[0].TransportModelID != test.transport {
 				t.Fatalf("transport bindings = %#v", models[0].TransportBindings)
+			}
+			// A fresh service must recover the same model-specific profile from SQLite.
+			persisted, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{ReasoningApply: map[string]bool{test.provider: true}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			reloaded, err := persisted.ListModels(ctx, modelcatalog.ListOptions{ProviderID: test.provider, ExecutionContext: execution, Now: integrationTime(0)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reloaded) != 1 || !reflect.DeepEqual(reloaded[0].ConfigOptions, models[0].ConfigOptions) {
+				t.Fatalf("reloaded model options = %#v, want %#v", reloaded, models[0].ConfigOptions)
+			}
+			var wantEfforts []modelcatalog.ReasoningEffort
+			if test.transport == "sonnet" {
+				wantEfforts = []modelcatalog.ReasoningEffort{"low", "future-effort"}
+			}
+			if !slices.Equal(reloaded[0].ReasoningEfforts, wantEfforts) {
+				t.Fatalf("reloaded effort for %s = %v, want %v", test.provider, reloaded[0].ReasoningEfforts, wantEfforts)
 			}
 		}
 	})

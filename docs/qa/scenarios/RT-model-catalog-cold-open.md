@@ -64,3 +64,13 @@ the prior identity. Cursor active/stopped selection succeeds; foreign logical ID
 fail without changing revision 2. Two distinct account catalogs and private bindings are checked
 by the existing ACP-subprocess/SQLite integration suite, not claimed as two vendor logins. See the
 report for evidence and the API snapshot regression discovered and repaired during the walk.
+
+
+QA impact 2026-09-16, issue #655 (verification pending): use the installed Claude adapter in an
+isolated daemon and select the exact Fable 5.1 identity from the full list and an existing recent or
+favorite row. Compare cold discovery, persisted rows and a resumed session. Record the advertised
+model-specific thought levels, choose an effort, submit a real prompt and confirm the effective
+runtime plus ACP current value. Switch models while preserving a valid effort and clearing an invalid
+one; exercise rapid selection, reload and queued-prompt snapshots. A model with unconfirmed metadata
+must not claim provider-managed effort. Failed discovery must preserve prior rows and recover after
+refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.

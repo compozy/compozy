@@ -29,3 +29,13 @@ Reset for store, HTTP/UDS/CLI/native, restart, and next-prompt continuity.
 QA 2026-08-28: pass after repair. A real stop and daemon restart initially exposed a projection gap;
 after the fix, public list/read state retained Grok 4.6, xhigh, Fast, revision 2, and generation 1.
 Canonical store, reconciliation, query, resume, and runtime suites pass with `-race`.
+
+
+QA impact 2026-09-16, issue #655 (verification pending): use the installed Claude adapter in an
+isolated daemon and select the exact Fable 5.1 identity from the full list and an existing recent or
+favorite row. Compare cold discovery, persisted rows and a resumed session. Record the advertised
+model-specific thought levels, choose an effort, submit a real prompt and confirm the effective
+runtime plus ACP current value. Switch models while preserving a valid effort and clearing an invalid
+one; exercise rapid selection, reload and queued-prompt snapshots. A model with unconfirmed metadata
+must not claim provider-managed effort. Failed discovery must preserve prior rows and recover after
+refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.

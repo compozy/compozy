@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Issue 655 — Claude model identity and effort discovery
+
+- **Native tools / CLI / HTTP / UDS:** existing model list, source refresh/status and session-runtime
+  surfaces retain their routes, IDs and schemas. ACP discovery now selects each model before retaining
+  its option descriptors and effort profile. Successful writes require matching provider readback.
+- **Extensibility / hooks / config:** no new hooks, configuration keys or public DTO fields. Explicit
+  apply strategies and authoritative configuration matrices remain enforced. Future advertised effort
+  identifiers remain provider-owned strings. No generated contract changes are required.
+- **Compatibility / isolation:** saved selections, favorites and runtime configs are untouched. Exact
+  versions remain distinct; private context-window bindings remain attached to their model. Account,
+  profile and workspace source keys are unchanged. Failed discovery keeps the last successful rows.
+  Refresh replaces old discovery results through the existing lifecycle; no database repair or migration.
+- **Web:** unknown capability has its own footer state. The active composer reads server capabilities
+  separately from pending prompt intent and updates only the effective model's eligible efforts.
+  Standard thought-level categories are dedicated controls, not duplicated as advanced options.
+- **Docs / official skill / QA:** model-catalog documentation and runtime-operation guidance explain
+  model-specific discovery, exact identities and confirmed application. Existing catalog, selector and
+  runtime-continuity scenarios own the real walkthrough. Evidence is tracked in the issue 655 report.
+
 ## Issue 651 — Session deletion profile scope
 
 - Web single and bulk deletion send the selected session owner profile and workspace.

@@ -8,7 +8,9 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 	model.DefaultReasoningEffort = nil
 	model.ReasoningSource = ReasoningSourceCatalog
 	if hasProfile {
-		model.SupportsReasoning = cloneBoolPtr(profileRow.SupportsReasoning)
+		if profileRow.SupportsReasoning != nil {
+			model.SupportsReasoning = cloneBoolPtr(profileRow.SupportsReasoning)
+		}
 		model.ReasoningEfforts = append([]ReasoningEffort(nil), profileRow.ReasoningEfforts...)
 		if len(model.ReasoningEfforts) > 0 && model.SupportsReasoning == nil {
 			value := true
@@ -43,7 +45,7 @@ func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 		if row.SourceKind == SourceKindModelsDev {
 			continue
 		}
-		if row.SupportsReasoning != nil || len(row.ReasoningEfforts) > 0 {
+		if row.SupportsReasoning != nil || len(row.ReasoningEfforts) > 0 || hasACPModelOptions(row) {
 			return row, true
 		}
 	}
@@ -52,10 +54,12 @@ func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 
 func explicitDefaultReasoningEffort(rows []ModelRow) *ReasoningEffort {
 	for _, row := range rows {
-		if row.SourceKind == SourceKindModelsDev || row.DefaultReasoningEffort == nil {
+		if row.SourceKind == SourceKindModelsDev {
 			continue
 		}
-		return row.DefaultReasoningEffort
+		if row.DefaultReasoningEffort != nil || hasACPModelOptions(row) {
+			return row.DefaultReasoningEffort
+		}
 	}
 	return nil
 }
@@ -89,4 +93,11 @@ func cloneStringPtr(value *string) *string {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func hasACPModelOptions(row ModelRow) bool {
+	return row.SourceKind == SourceKindProviderLive &&
+		slices.ContainsFunc(row.ConfigOptions, func(option ModelOptionDescriptor) bool {
+			return option.ID == "model" || option.Category == "model"
+		})
 }

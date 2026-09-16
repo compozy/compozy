@@ -1,12 +1,13 @@
-import { useEffect, useRef } from "react";
+import { use, useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { SessionPromptRuntimeCapabilitiesContext } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
-import type { SessionRuntimeEffective } from "../types";
+import type { SessionRuntimeEffective, SessionRuntimePayload } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
 import { normalizeRuntimeSpeed, resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
 import {
@@ -19,6 +20,7 @@ import {
   normalizeRuntimeACPSelections,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
+  type RuntimeModelOption,
 } from "@/systems/runtime";
 import {
   type SessionProviderOption,
@@ -83,6 +85,7 @@ function runtimeProviderOptions(
  * dispatch boundary, so catalog refetches never overwrite a user choice.
  */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
+  const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
@@ -223,7 +226,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       error: catalog.error,
       loaded: catalog.loaded,
       loading: catalog.loading,
-      models: catalog.models,
+      models: sessionModelCapabilities(catalog.models, runtimeCapabilities),
       providers,
       refresh: catalog.refresh,
       refreshError: catalog.refreshError,
@@ -250,6 +253,47 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     speed,
     value,
   };
+}
+
+function sessionModelCapabilities(
+  models: RuntimeModelOption[],
+  runtime: SessionRuntimePayload | undefined
+): RuntimeModelOption[] {
+  const options = runtime?.acp_caps?.config_options;
+  const effective = runtime?.effective;
+  if (!options || !effective?.model) return models;
+  const reasoning = options.find(
+    option =>
+      option.kind === "select" &&
+      (option.category === "thought_level" ||
+        option.id === "effort" ||
+        option.id === "reasoning_effort")
+  );
+  const effortSet = new Set<string>();
+  for (const value of reasoning?.values ?? []) {
+    if (value.value !== "default" && isReasoningEffort(value.value)) effortSet.add(value.value);
+  }
+  const efforts = [...effortSet];
+  return models.map<RuntimeModelOption>(model => {
+    // Catalog eligibility enforces the provider apply strategy and explicit matrices.
+    // Live options belong only to the effective model, never pending prompt intent.
+    if (
+      model.provider !== effective.provider ||
+      model.id !== effective.model ||
+      model.efforts.length === 0 ||
+      model.configurations
+    )
+      return model;
+    return {
+      ...model,
+      efforts,
+      default_effort: effortSet.has(reasoning?.current_value_id ?? "")
+        ? reasoning?.current_value_id
+        : "",
+      reasoning_source: "acp",
+      reasoning_known: true,
+    };
+  });
 }
 
 export function getSessionPromptRuntimeSnapshot(
