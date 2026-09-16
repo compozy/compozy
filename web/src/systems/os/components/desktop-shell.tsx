@@ -165,6 +165,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
   );
 }
 
+/** Wires both workspace lists to the same profile authority and lifecycle dialog targets. */
 function DesktopShellScopedBody({
   continuityStreamsEnabled,
   client,

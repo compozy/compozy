@@ -164,6 +164,7 @@ const GLOBAL_CAPTION: OsWorkspacesCaptionModel = {
   path: "~",
 };
 
+/** Coordinates workspace navigation while keeping selection and cleanup inside the owning menu. */
 function OsWorkspacesStage({
   workspaces,
   activeWorkspaceId,
