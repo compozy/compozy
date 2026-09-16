@@ -278,7 +278,8 @@ func worktreeRouteParams() []ParameterSpec {
 func withWorktreeCleanupProfile(params ...ParameterSpec) []ParameterSpec {
 	return append(params, queryParam(
 		specProfileKey,
-		"Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
+		"Act as this profile by name. If omitted, operator requests infer the target record owner; "+
+			"authenticated agents remain scoped to their session profile.",
 		false,
 	))
 }
