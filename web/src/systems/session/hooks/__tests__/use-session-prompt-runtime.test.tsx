@@ -299,91 +299,95 @@ describe("useSessionPromptRuntime", () => {
 describe("SessionPromptRuntimeProvider hydration", () => {
   // Invariant: config_option_update changes only the effective model's capabilities,
   // while pending and queued prompt intent remains owned by the interaction store.
-  it("Should follow model-specific thought levels without replacing pending intent", async () => {
-    const workspaceId = workspaceDetailFixture.workspace.id;
-    const { queryClient } = createHarness();
-    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
-      ...workspaceDetailFixture,
-      agents: [],
-      providers: [
-        { name: "claude", display_name: "Claude", harness: "acp", runtime_provider: "claude" },
-      ],
-    } satisfies WorkspaceDetailPayload);
-    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
-    queryClient.setQueryData(providerKeys.lists(), {
-      providers: [provider("claude", "authenticated")],
-    });
-    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
-      models: ["claude-fable-5-1", "claude-fable-5"].map(id => ({
-        ...model("claude", id),
-        supports_reasoning: true,
-        reasoning_efforts: ["low", "high"],
-      })),
-    } satisfies AllModelsListResponse);
-    let session: SessionPayload = {
-      ...primarySessionFixture,
-      workspace_id: workspaceId,
-      runtime: {
-        ...primarySessionFixture.runtime,
-        effective: { provider: "claude", model: "claude-fable-5-1", reasoning_effort: "high" },
-        selected: { provider: "claude", model: "claude-fable-5", reasoning_effort: "low" },
-        acp_caps: {
-          prompt_audio: false,
-          prompt_image: false,
-          prompt_embedded_context: false,
-          supports_load_session: true,
-          config_options: [
-            {
-              id: "deliberation",
-              category: "thought_level",
-              kind: "select",
-              current_value_id: "high",
-              values: [{ value: "default" }, { value: "high" }, { value: "future-effort" }],
-            },
-          ],
+  it.each(["acp_option", "none"])(
+    "Should follow model-specific thought levels under %s without replacing pending intent",
+    async reasoningApply => {
+      const workspaceId = workspaceDetailFixture.workspace.id;
+      const { queryClient } = createHarness();
+      queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+        ...workspaceDetailFixture,
+        agents: [],
+        providers: [
+          { name: "claude", display_name: "Claude", harness: "acp", runtime_provider: "claude" },
+        ],
+      } satisfies WorkspaceDetailPayload);
+      queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+      queryClient.setQueryData(providerKeys.lists(), {
+        providers: [provider("claude", "authenticated")],
+      });
+      queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+        models: ["claude-fable-5-1", "claude-fable-5"].map(id => ({
+          ...model("claude", id),
+          supports_reasoning: true,
+          reasoning_apply: reasoningApply,
+          reasoning_efforts: id === "claude-fable-5-1" ? [] : ["low", "high"],
+        })),
+      } satisfies AllModelsListResponse);
+      let session: SessionPayload = {
+        ...primarySessionFixture,
+        workspace_id: workspaceId,
+        runtime: {
+          ...primarySessionFixture.runtime,
+          effective: { provider: "claude", model: "claude-fable-5-1", reasoning_effort: "high" },
+          selected: { provider: "claude", model: "claude-fable-5", reasoning_effort: "low" },
+          acp_caps: {
+            prompt_audio: false,
+            prompt_image: false,
+            prompt_embedded_context: false,
+            supports_load_session: true,
+            config_options: [
+              {
+                id: "deliberation",
+                category: "thought_level",
+                kind: "select",
+                current_value_id: "high",
+                values: [{ value: "default" }, { value: "high" }, { value: "future-effort" }],
+              },
+            ],
+          },
         },
-      },
-    };
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>
-        <SessionPromptRuntimeProvider session={session} canPrompt>
-          {children}
-        </SessionPromptRuntimeProvider>
-      </QueryClientProvider>
-    );
-    const { result, rerender } = renderHook(
-      () => useSessionPromptRuntime(useSessionPromptRuntimeContext()),
-      { wrapper }
-    );
-    await waitFor(() => expect(result.current.catalog.models).toHaveLength(2));
-    expect(
-      result.current.catalog.models.find(row => row.id === "claude-fable-5-1")?.efforts
-    ).toEqual(["high", "future-effort"]);
-    expect(result.current.catalog.models.find(row => row.id === "claude-fable-5")?.efforts).toEqual(
-      ["low", "high"]
-    );
-    expect(result.current.getRuntimeSnapshot()).toEqual({
-      provider: "claude",
-      model: "claude-fable-5",
-      reasoning_effort: "low",
-    });
-    session = {
-      ...session,
-      runtime: {
-        ...session.runtime,
-        acp_caps: { ...session.runtime.acp_caps!, config_options: [] },
-      },
-    };
-    rerender();
-    expect(
-      result.current.catalog.models.find(row => row.id === "claude-fable-5-1")?.efforts
-    ).toEqual([]);
-    expect(result.current.getRuntimeSnapshot()).toEqual({
-      provider: "claude",
-      model: "claude-fable-5",
-      reasoning_effort: "low",
-    });
-  });
+      };
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          <SessionPromptRuntimeProvider session={session} canPrompt>
+            {children}
+          </SessionPromptRuntimeProvider>
+        </QueryClientProvider>
+      );
+      const { result, rerender } = renderHook(
+        () => useSessionPromptRuntime(useSessionPromptRuntimeContext()),
+        { wrapper }
+      );
+      await waitFor(() => expect(result.current.catalog.models).toHaveLength(2));
+      expect(
+        result.current.catalog.models.find(row => row.id === "claude-fable-5-1")?.efforts
+      ).toEqual(reasoningApply === "acp_option" ? ["high", "future-effort"] : []);
+      expect(
+        result.current.catalog.models.find(row => row.id === "claude-fable-5")?.efforts
+      ).toEqual(["low", "high"]);
+      expect(result.current.getRuntimeSnapshot()).toEqual({
+        provider: "claude",
+        model: "claude-fable-5",
+        reasoning_effort: "low",
+      });
+      session = {
+        ...session,
+        runtime: {
+          ...session.runtime,
+          acp_caps: { ...session.runtime.acp_caps!, config_options: [] },
+        },
+      };
+      rerender();
+      expect(
+        result.current.catalog.models.find(row => row.id === "claude-fable-5-1")?.efforts
+      ).toEqual([]);
+      expect(result.current.getRuntimeSnapshot()).toEqual({
+        provider: "claude",
+        model: "claude-fable-5",
+        reasoning_effort: "low",
+      });
+    }
+  );
 
   it("Should preserve selected ACP options when mounting and refetching a session", () => {
     const selected = {

@@ -149,6 +149,8 @@ export interface RuntimeModelOption {
   supports_reasoning?: boolean | null;
   /** Whether effort capability has an authoritative source beyond enrichment. */
   reasoning_known?: boolean;
+  /** Provider negotiation policy; absent only for older catalog payloads. */
+  reasoning_apply?: string;
   /** Selectable effort subset the runtime can honor; empty = not selectable. */
   efforts: ReasoningEffort[];
   /** Canonical default within `efforts` ("" = provider default). Sanitized by the mapper. */

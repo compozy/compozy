@@ -67,6 +67,7 @@ CREATE TABLE model_catalog_transport_bindings (
 			fast               INTEGER CHECK (fast IN (0, 1) OR fast IS NULL),
 			thinking           INTEGER CHECK (thinking IN (0, 1) OR thinking IS NULL),
 			rank               INTEGER NOT NULL CHECK (rank >= 0),
+            config_options_json TEXT NOT NULL DEFAULT 'null',
 			PRIMARY KEY (context_id, source_id, provider_id, model_id, transport_model_id),
 			FOREIGN KEY (context_id, source_id, provider_id, model_id)
 				REFERENCES model_catalog_rows(context_id, source_id, provider_id, model_id)

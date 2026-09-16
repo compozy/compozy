@@ -13,6 +13,11 @@ The first identity loss occurred in Claude catalog mapping: partial version-toke
 family fallback could map an exact new version to an older curated identity. Separately, live ACP
 discovery discarded every config option except model and never acquired each model's effort profile.
 The models.dev-only exact Fable 5.1 row consequently had reasoning support but no adjustable levels.
+A real application prompt then exposed a third boundary: the session launch seeded
+`ANTHROPIC_MODEL` with the logical ID but ACP selected the catalog transport ID with `[1m]`.
+The native override changed the adapter's advertisement, so negotiation rejected that transport ID.
+Launch now seeds the same validated transport identity while public/persisted IDs remain logical.
+
 The Web mapper passed that absence through; the selector incorrectly described it as provider-managed.
 The active composer also ignored session config-option updates, and successful ACP writes were not
 checked against returned current values before being reported as applied.
@@ -38,10 +43,26 @@ Fable 5.1 discovery/binding journey. Its open effort identifiers and existing re
 
 Rendered application selection, favorites/recent continuity, catalog warm/reload behavior, live
 prompt acknowledgement through Compozy, model switching and failure/recovery walkthroughs remain
-pending. Current-head CI and CodeRabbit, Greptile and React Doctor reviews have not run yet.
+pending. The first PR head completed Greptile review without findings. CodeRabbit identified three capability
+boundary findings and a documentation warning; React Doctor identified hook complexity. These
+are being remediated, with current-head review and CI still required. Initial CI also identified Go
+format/lint, product-language wording, and a terminal golden-path E2E failure; none is claimed green.
 
 ## Sources
 
 - [Claude model configuration](https://code.claude.com/docs/en/model-config)
 - [ACP session config options](https://agentclientprotocol.com/protocol/v1/session-config-options)
 - Installed official `@agentclientprotocol/claude-agent-acp` 0.78.0 model/effort implementation.
+
+## Review and failure-path follow-up
+
+Each transport now retains its inspected options through persistence. Catalog presentation and
+Claude launch share the same transport selection, so a sibling binding cannot supply its effort
+profile. Explicit negotiation policy and confirmed-capability fields cross the public boundary.
+Logical session resume now defers validation to the next concrete prompt bind, matching creation.
+
+The real application selected Fable 5.1 with its five advertised stops and persisted Low across a
+lab-daemon restart. Retrying discovery hit the installed account's HTTP 429 rate limit. The public
+source status retained its previous five rows and last-success timestamp, marked them stale, and
+reported the upstream error. No cache/database edits or provider-default substitution were used.
+The application prompt and recovery walkthrough are still pending after the production corrections.

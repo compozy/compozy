@@ -659,6 +659,13 @@ func TestMergeRows(t *testing.T) {
 		}, MergeOptions{ReasoningApply: map[string]bool{"custom": false}})
 
 		model := requireSingleModel(t, models)
+		if !model.ReasoningKnown || model.ReasoningApply != "none" {
+			t.Fatalf(
+				"reasoning negotiation policy = %t/%s, want known/none",
+				model.ReasoningKnown,
+				model.ReasoningApply,
+			)
+		}
 		if model.SupportsReasoning == nil || !*model.SupportsReasoning {
 			t.Fatalf("SupportsReasoning = %v, want true", model.SupportsReasoning)
 		}

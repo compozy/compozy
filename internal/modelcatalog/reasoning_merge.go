@@ -2,11 +2,21 @@ package modelcatalog
 
 import "slices"
 
+// applyEffectiveReasoningProfile separates observed capability from provider permission to apply it.
 func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOptions) {
 	profileRow, hasProfile := explicitReasoningProfileRow(rows)
 	model.ReasoningEfforts = nil
 	model.DefaultReasoningEffort = nil
 	model.ReasoningSource = ReasoningSourceCatalog
+	model.ReasoningKnown = hasProfile && (len(profileRow.ReasoningEfforts) > 0 || hasACPModelOptions(profileRow) ||
+		(profileRow.SupportsReasoning != nil && !*profileRow.SupportsReasoning))
+	model.ReasoningApply = "none"
+	if opts.canApplyReasoning(model.ProviderID) {
+		model.ReasoningApply = "acp_option"
+	} else {
+		// Explicitly disabled negotiation is intentional provider management, not missing discovery.
+		model.ReasoningKnown = true
+	}
 	if hasProfile {
 		if profileRow.SupportsReasoning != nil {
 			model.SupportsReasoning = cloneBoolPtr(profileRow.SupportsReasoning)
@@ -40,6 +50,7 @@ func hasReasoningTransportBindings(model *Model) bool {
 		})
 }
 
+// explicitReasoningProfileRow selects authoritative reasoning metadata, excluding enrichment-only claims.
 func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 	for _, row := range rows {
 		if row.SourceKind == SourceKindModelsDev {
@@ -52,6 +63,7 @@ func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 	return ModelRow{}, false
 }
 
+// explicitDefaultReasoningEffort stops at a complete ACP snapshot, including its provider-default choice.
 func explicitDefaultReasoningEffort(rows []ModelRow) *ReasoningEffort {
 	for _, row := range rows {
 		if row.SourceKind == SourceKindModelsDev {
@@ -95,6 +107,7 @@ func cloneStringPtr(value *string) *string {
 	return &cloned
 }
 
+// hasACPModelOptions recognizes a complete selected-model observation, even when effort is absent.
 func hasACPModelOptions(row ModelRow) bool {
 	return row.SourceKind == SourceKindProviderLive &&
 		slices.ContainsFunc(row.ConfigOptions, func(option ModelOptionDescriptor) bool {

@@ -178,6 +178,7 @@ func (d *Driver) applySessionReasoningEffort(
 	return true, nil
 }
 
+// applySessionConfigOption publishes new capabilities only after the response confirms the requested value.
 func (d *Driver) applySessionConfigOption(
 	ctx context.Context,
 	process *AgentProcess,

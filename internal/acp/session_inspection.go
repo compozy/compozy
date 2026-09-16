@@ -66,6 +66,7 @@ func InspectSessionConfigOptions(
 	return options, err
 }
 
+// inspectSession owns the disposable process and joins its bounded cleanup on every exit.
 func inspectSession(
 	ctx context.Context,
 	req SessionInspectionRequest,

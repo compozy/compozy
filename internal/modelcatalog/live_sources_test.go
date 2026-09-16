@@ -115,22 +115,55 @@ func TestLiveProviderSources(t *testing.T) {
 		modelOption := acp.SessionConfigOption{ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
 			CurrentValueID: "claude-fable-5-1[1m]", Values: []acp.SessionConfigOptionValue{
 				{Value: "claude-fable-5-1[1m]", Label: "Fable 5.1"},
+				{Value: "claude-fable-5-1", Label: "Fable 5.1"},
 				{Value: "claude-fable-5", Label: "Fable 5"},
 				{Value: "custom-deployment", Label: "Fable 5.1"},
 			}}
-		effort := acp.SessionConfigOption{ID: "deliberation", Category: "thought_level", Kind: acp.SessionConfigOptionKindSelect,
-			CurrentValueID: "high", Values: []acp.SessionConfigOptionValue{{Value: "default"}, {Value: "low"}, {Value: "high"}, {Value: "future-effort"}}}
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{modelOption}, models: map[string][]acp.SessionConfigOption{
-			"claude-fable-5-1[1m]": {modelOption, effort},
-			"claude-fable-5":       {modelOption},
-		}}
-		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}, ACPProbe: probe})
+		effort := acp.SessionConfigOption{
+			ID:             "deliberation",
+			Category:       "thought_level",
+			Kind:           acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "high",
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "default"},
+				{Value: "low"},
+				{Value: "high"},
+				{Value: "future-effort"},
+			},
+		}
+		probe := &fakeACPModelProbe{
+			options: []acp.SessionConfigOption{modelOption},
+			models: map[string][]acp.SessionConfigOption{
+				"claude-fable-5-1": {modelOption, effort},
+				"claude-fable-5-1[1m]": {modelOption, {ID: "effort", Kind: acp.SessionConfigOptionKindSelect,
+					CurrentValueID: "max", Values: []acp.SessionConfigOptionValue{{Value: "max"}}}},
+				"claude-fable-5": {modelOption},
+			},
+		}
+		source := newLiveSourceForTest(
+			t,
+			"claude",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}, ACPProbe: probe},
+		)
 		rows, err := source.ListModels(t.Context(), ListOptions{ProviderID: "claude", Now: testTime(0)})
 		if err != nil {
 			t.Fatal(err)
 		}
 		latest := requireModelRow(t, rows, "claude-fable-5-1")
 		assertClaudeTransportBinding(t, latest, "claude-fable-5-1[1m]")
+		preferred, ok := PreferredTransportBinding(latest.TransportBindings)
+		if !ok || preferred.TransportModelID != "claude-fable-5-1" {
+			t.Fatalf("preferred binding = %#v", preferred)
+		}
+		for _, binding := range latest.TransportBindings {
+			if len(binding.ConfigOptions) != 2 {
+				t.Fatalf("lost inspected options: %#v", binding)
+			}
+			if binding.TransportModelID == "claude-fable-5-1[1m]" && binding.ConfigOptions[1].CurrentValueID != "max" {
+				t.Fatalf("sibling profile replaced: %#v", binding)
+			}
+		}
 		if !slices.Equal(latest.ReasoningEfforts, []ReasoningEffort{"low", "high", "future-effort"}) ||
 			latest.DefaultReasoningEffort == nil || *latest.DefaultReasoningEffort != "high" {
 			t.Fatalf("latest profile = %#v", latest)
@@ -146,16 +179,33 @@ func TestLiveProviderSources(t *testing.T) {
 				rows[i].DefaultReasoningEffort = nil
 			}
 		}
-		rows = append(rows, ModelRow{ProviderID: "claude", ModelID: latest.ModelID, SourceKind: SourceKindBuiltin, Priority: PriorityBuiltin,
-			DefaultReasoningEffort: new(ReasoningEffort("low"))})
-		rows = append(rows, ModelRow{ProviderID: "claude", ModelID: older.ModelID, SourceKind: SourceKindBuiltin, Priority: PriorityBuiltin,
-			SupportsReasoning: new(true), ReasoningEfforts: []ReasoningEffort{"max"}})
+		rows = append(
+			rows,
+			ModelRow{
+				ProviderID: "claude",
+				ModelID:    latest.ModelID,
+				SourceKind: SourceKindBuiltin,
+				Priority:   PriorityBuiltin,
+				DefaultReasoningEffort: new(
+					ReasoningEffort("low"),
+				),
+			},
+			ModelRow{
+				ProviderID:        "claude",
+				ModelID:           older.ModelID,
+				SourceKind:        SourceKindBuiltin,
+				Priority:          PriorityBuiltin,
+				SupportsReasoning: new(true),
+				ReasoningEfforts:  []ReasoningEffort{"max"},
+			},
+		)
 		merged := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"claude": true}})
 		for _, model := range merged {
 			if model.ModelID == latest.ModelID && model.DefaultReasoningEffort != nil {
 				t.Fatalf("provider default replaced by seed: %#v", model)
 			}
-			if model.ModelID == older.ModelID && (len(model.ReasoningEfforts) != 0 || model.SupportsReasoning == nil || !*model.SupportsReasoning) {
+			if model.ModelID == older.ModelID &&
+				(len(model.ReasoningEfforts) != 0 || model.SupportsReasoning == nil || !*model.SupportsReasoning) {
 				t.Fatalf("observed absence must override seed levels without denying reasoning: %#v", model)
 			}
 		}

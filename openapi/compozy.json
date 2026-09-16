@@ -116087,11 +116087,17 @@
                           "provider_id": {
                             "type": "string"
                           },
+                          "reasoning_apply": {
+                            "type": "string"
+                          },
                           "reasoning_efforts": {
                             "items": {
                               "type": "string"
                             },
                             "type": "array"
+                          },
+                          "reasoning_known": {
+                            "type": "boolean"
                           },
                           "reasoning_source": {
                             "enum": [
@@ -117111,11 +117117,17 @@
                           "provider_id": {
                             "type": "string"
                           },
+                          "reasoning_apply": {
+                            "type": "string"
+                          },
                           "reasoning_efforts": {
                             "items": {
                               "type": "string"
                             },
                             "type": "array"
+                          },
+                          "reasoning_known": {
+                            "type": "boolean"
                           },
                           "reasoning_source": {
                             "enum": [
@@ -117925,11 +117937,17 @@
                         "provider_id": {
                           "type": "string"
                         },
+                        "reasoning_apply": {
+                          "type": "string"
+                        },
                         "reasoning_efforts": {
                           "items": {
                             "type": "string"
                           },
                           "type": "array"
+                        },
+                        "reasoning_known": {
+                          "type": "boolean"
                         },
                         "reasoning_source": {
                           "enum": [

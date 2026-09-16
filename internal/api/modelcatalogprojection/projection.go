@@ -45,6 +45,8 @@ func ProviderModel(model modelcatalog.Model) contract.ProviderModelPayload {
 		Featured:               model.Featured,
 		ReleaseDate:            OptionalString(model.ReleaseDate),
 		ReasoningSource:        model.ReasoningSource,
+		ReasoningKnown:         model.ReasoningKnown,
+		ReasoningApply:         model.ReasoningApply,
 		LastError:              modelcatalog.RedactString(model.LastError),
 	}
 	return payload

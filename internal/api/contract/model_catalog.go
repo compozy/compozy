@@ -65,8 +65,12 @@ type ProviderModelPayload struct {
 	Hidden                 bool                                `json:"hidden"`
 	Featured               bool                                `json:"featured"`
 	ReleaseDate            string                              `json:"release_date,omitempty"`
-	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
-	LastError              string                              `json:"last_error,omitempty"`
+	// ReasoningKnown distinguishes confirmed model options from reasoning-support enrichment.
+	ReasoningKnown bool `json:"reasoning_known,omitempty"`
+	// ReasoningApply reports whether live ACP options may configure effort (acp_option or none).
+	ReasoningApply  string          `json:"reasoning_apply,omitempty"`
+	ReasoningSource ReasoningSource `json:"reasoning_source,omitempty"`
+	LastError       string          `json:"last_error,omitempty"`
 }
 
 // ProviderModelConfigurationPayload is one public valid runtime-option combination.

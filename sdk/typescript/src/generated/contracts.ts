@@ -4328,6 +4328,8 @@ export interface ProviderModelPayload {
   hidden: boolean;
   featured: boolean;
   release_date?: string;
+  reasoning_known?: boolean;
+  reasoning_apply?: string;
   reasoning_source?: ReasoningSource;
   last_error?: string;
 }

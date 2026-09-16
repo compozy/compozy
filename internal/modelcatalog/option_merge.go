@@ -120,10 +120,14 @@ func mergeModelOptionValue(value *ModelOptionValue, incoming ModelOptionValue) {
 	}
 }
 
+// mergeTransportBinding keeps the highest-priority complete snapshot for each transport identity.
 func mergeTransportBinding(
 	binding *ModelTransportBinding,
 	incoming ModelTransportBinding,
 ) {
+	if binding.ConfigOptions == nil {
+		binding.ConfigOptions = CloneModelOptionDescriptors(incoming.ConfigOptions)
+	}
 	if binding.Label == "" {
 		binding.Label = incoming.Label
 	}

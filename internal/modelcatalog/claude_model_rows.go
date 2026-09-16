@@ -19,6 +19,7 @@ type claudeModelCandidate struct {
 	version     []int
 }
 
+// parseClaudeModelRows groups verified logical identities while retaining every advertised transport binding.
 func parseClaudeModelRows(
 	providerID string,
 	models compozyconfig.ProviderModelsConfig,
@@ -90,6 +91,7 @@ func claudeModelCandidates(models compozyconfig.ProviderModelsConfig) []claudeMo
 	return candidates
 }
 
+// claudeLogicalModelID preserves exact releases and only resolves aliases with unambiguous version evidence.
 func claudeLogicalModelID(
 	transportModelID string,
 	label string,
@@ -108,7 +110,7 @@ func claudeLogicalModelID(
 	if strings.HasPrefix(transportModelID, "claude-") {
 		return strings.TrimSuffix(transportModelID, "[1m]")
 	}
-	if strings.EqualFold(transportModelID, "default") {
+	if strings.EqualFold(transportModelID, providerDefaultOption) {
 		return transportModelID
 	}
 
@@ -134,13 +136,14 @@ func claudeLogicalModelID(
 	return matching[0].id
 }
 
+// claudeLiveDisplayName prefers the provider label without using it as an exact model identity.
 func claudeLiveDisplayName(
 	modelID string,
 	label string,
 	candidates []claudeModelCandidate,
 ) string {
 	trimmedLabel := strings.TrimSpace(label)
-	if trimmedLabel != "" && !strings.EqualFold(trimmedLabel, "default") {
+	if trimmedLabel != "" && !strings.EqualFold(trimmedLabel, providerDefaultOption) {
 		return trimmedLabel
 	}
 	for _, candidate := range candidates {
@@ -151,6 +154,7 @@ func claudeLiveDisplayName(
 	return modelID
 }
 
+// claudeLabelIdentifiesCandidate requires the full advertised version, excluding only an exact release date.
 func claudeLabelIdentifiesCandidate(label string, candidate claudeModelCandidate) bool {
 	version := claudeModelVersion(label)
 	if len(version) == 0 {
@@ -164,10 +168,11 @@ func claudeLabelIdentifiesCandidate(label string, candidate claudeModelCandidate
 	return slices.Equal(version, candidateVersion)
 }
 
+// claudeModelFamily extracts the family token used to narrow alias candidates.
 func claudeModelFamily(value string) string {
 	tokens := claudeModelTokens(value)
 	for _, token := range tokens {
-		if token == "claude" || token == "default" || token == "1m" || isClaudeNumericToken(token) {
+		if token == "claude" || token == providerDefaultOption || token == "1m" || isClaudeNumericToken(token) {
 			continue
 		}
 		return token

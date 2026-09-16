@@ -453,14 +453,15 @@ older static levels; a provider `default` value stays distinct from an explicit 
 selection fails discovery and preserves the previous successful catalog generation.
 
 In the session composer, live options update the effective model's catalog-enabled effort controls.
-Pending runtime intent and queued prompt snapshots remain separate. Configuration changes must be
-acknowledged by the provider's returned current value before Compozy treats them as applied.
+Pending runtime intent and queued prompt snapshots remain separate. Claude launch overrides use the validated transport binding while public model IDs remain logical.
+Configuration changes must be
+acknowledged by the provider's returned current value before CompozyOS treats them as applied.
 Enrichment-only reasoning support does not establish whether effort is adjustable: the selector
 shows unconfirmed options until authoritative metadata is available.
 
 Saved selections and favorites retain their provider and exact model IDs. After upgrading, refresh
 the affected live source to replace older discovery results. A distinct version that the account
-does not advertise remains unavailable for negotiation; Compozy does not silently upgrade it.
+does not advertise remains unavailable for negotiation; CompozyOS does not silently upgrade it.
 Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels, and new advertised values survive discovery, persistence, and selection without a release. The active provider validates membership. OpenCode discovery reads `opencode models --verbose` to retain each model's capabilities and effort variants. Configured discovery uses its declared command or endpoint, and
 extension sources call their `models/list` capability. Dynamic sources fail closed by recording source
 status; an explicit Cursor model is accepted only when a fresh Cursor catalog row advertises its logical
@@ -492,3 +493,9 @@ updated transitions.
   cobra source.
 - [Develop Extensions](/docs/extensions/develop#model-source-extensions) covers the
   manifest provide capability `model.source` and Host API model methods.
+
+The public model payload distinguishes confirmed reasoning metadata (`reasoning_known`) from
+permission to negotiate live effort options (`reasoning_apply`, either `acp_option` or `none`).
+A discovery source or reasoning-support flag alone does not confirm adjustable levels. Session
+updates can supply newly advertised levels when negotiation is enabled; they cannot override an
+explicit `none` strategy or a model's valid-configuration matrix.

@@ -161,10 +161,14 @@ func isUnboundLogicalResume(meta store.SessionMeta) bool {
 		strings.TrimSpace(derefString(meta.ACPSessionID)) == ""
 }
 
+// resumeAcceptedLogicalSession reopens durable intent without binding or validating the obsolete default model.
 func (m *Manager) resumeAcceptedLogicalSession(
 	ctx context.Context,
 	spec *sessionStartSpec,
 ) (*Session, error) {
+	// Like initial logical acceptance, resume does not bind the old default runtime.
+	// Validate the next prompt's concrete selection at initial bind instead.
+	spec.deferRuntimeValidation = true
 	accepted, err := m.acceptSessionStart(ctx, m.lifecycleCtx, spec)
 	if err != nil {
 		return nil, err

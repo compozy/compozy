@@ -1012,7 +1012,10 @@ func (a *helperACPAgent) SetSessionConfigOption(
 			if a.scenario == "model_specific_config_options" && value != "other-model" {
 				configOptions = helperModelConfigOptions(string(value))
 				if value == "new-model" {
-					configOptions = append(configOptions, helperSelectConfigOption("effort", "Reasoning effort", "low", "low"))
+					configOptions = append(
+						configOptions,
+						helperSelectConfigOption("effort", "Reasoning effort", "low", "low"),
+					)
 				}
 			}
 			if a.scenario == "runtime_config_options" {

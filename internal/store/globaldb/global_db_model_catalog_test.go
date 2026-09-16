@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -272,6 +273,64 @@ func TestGlobalDBModelCatalogExecutionContextMigration(t *testing.T) {
 
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the binding-snapshot migration preserves released transport identity and intent.
+	t.Run("Should upgrade the previous binding schema without changing existing selections", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00120_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := testutil.Context(t)
+		contextID, err := modelcatalog.GlobalCatalogExecutionContext().ID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		statements := []string{
+			`INSERT OR IGNORE INTO model_catalog_execution_contexts(context_id,scope) VALUES (?, 'global')`,
+			`INSERT INTO model_catalog_sources(context_id,source_id,provider_id,source_kind,priority,refresh_state)
+             VALUES (?, 'config', 'claude', 'config', 120, 'succeeded')`,
+			`INSERT INTO model_catalog_rows(context_id,source_id,provider_id,model_id,source_kind,priority)
+             VALUES (?, 'config', 'claude', 'claude-fable-5-1', 'config', 120)`,
+			`INSERT INTO model_catalog_transport_bindings(context_id,source_id,provider_id,model_id,transport_model_id,reasoning_effort,rank)
+             VALUES (?, 'config', 'claude', 'claude-fable-5-1', 'claude-fable-5-1[1m]', 'low', 0)`,
+		}
+		for _, statement := range statements {
+			if _, err := prefix.ExecContext(ctx, statement, contextID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openGlobalDBForTest(t, path)
+		rows, err := reopened.ListRows(
+			ctx,
+			modelcatalog.ListOptions{ProviderID: "claude", SourceID: "config", IncludeAll: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || len(rows[0].TransportBindings) != 1 {
+			t.Fatalf("upgraded rows = %#v", rows)
+		}
+		binding := rows[0].TransportBindings[0]
+		if binding.TransportModelID != "claude-fable-5-1[1m]" || binding.ReasoningEffort == nil ||
+			*binding.ReasoningEffort != "low" || len(binding.ConfigOptions) != 0 {
+			t.Fatalf(
+				"upgraded binding = %#v; existing intent must survive and undiscovered options stay unknown",
+				binding,
+			)
+		}
+	})
 
 	t.Run(
 		"Should atomically remove every context of a live source while preserving other providers",
@@ -669,10 +728,18 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				ReasoningEffort:  &reasoningEffort,
 				Fast:             &fast,
 				Thinking:         &thinking,
+				ConfigOptions: []modelcatalog.ModelOptionDescriptor{
+					{ID: "effort", Kind: modelcatalog.ModelOptionKindSelect,
+						CurrentValueID: "high", Values: []modelcatalog.ModelOptionValue{{ValueID: "high"}}},
+				},
 			},
 			{
 				TransportModelID: "grok-4.6",
 				Label:            "Grok 4.6",
+				ConfigOptions: []modelcatalog.ModelOptionDescriptor{
+					{ID: "effort", Kind: modelcatalog.ModelOptionKindSelect,
+						CurrentValueID: "low", Values: []modelcatalog.ModelOptionValue{{ValueID: "low"}}},
+				},
 			},
 		}
 		replaceModelCatalogRows(
@@ -1705,6 +1772,14 @@ func assertTransportBindingRoundTrip(
 		t.Fatalf("transport bindings = %#v, want %#v", got, want)
 	}
 	for index := range want {
+		if !reflect.DeepEqual(got[index].ConfigOptions, want[index].ConfigOptions) {
+			t.Fatalf(
+				"transport binding[%d] config options = %#v, want %#v",
+				index,
+				got[index].ConfigOptions,
+				want[index].ConfigOptions,
+			)
+		}
 		if got[index].TransportModelID != want[index].TransportModelID ||
 			got[index].Label != want[index].Label {
 			t.Fatalf("transport binding[%d] = %#v, want %#v", index, got[index], want[index])

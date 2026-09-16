@@ -214,6 +214,8 @@ type ProviderModelPayload struct {
 	Hidden                 bool                                `json:"hidden"`
 	Featured               bool                                `json:"featured"`
 	ReleaseDate            string                              `json:"release_date,omitempty"`
+	ReasoningKnown         bool                                `json:"reasoning_known,omitempty"`
+	ReasoningApply         string                              `json:"reasoning_apply,omitempty"`
 	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
 	LastError              string                              `json:"last_error,omitempty"`
 }

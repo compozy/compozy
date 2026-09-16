@@ -41,6 +41,14 @@ describe("toRuntimeModelOptions", () => {
       ],
     });
     expect(toRuntimeModelOptions([base])[0]).toMatchObject({ reasoning_known: false, efforts: [] });
+    for (const source_kind of ["config", "provider_live"]) {
+      expect(
+        toRuntimeModelOptions([{ ...base, sources: [{ ...base.sources[0]!, source_kind }] }])[0]
+      ).toMatchObject({ reasoning_known: false, efforts: [] });
+    }
+    expect(
+      toRuntimeModelOptions([{ ...base, reasoning_known: true, reasoning_apply: "none" }])[0]
+    ).toMatchObject({ reasoning_known: true, reasoning_apply: "none", efforts: [] });
     expect(
       toRuntimeModelOptions([
         {

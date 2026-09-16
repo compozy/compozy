@@ -94,7 +94,7 @@ func (m *Manager) prepareProviderStartPolicies(
 		return acp.StartOpts{}, providerSecretBindings{}, err
 	}
 	resolved.CredentialSlots = profileSlots
-	opts.Env = setProviderStartEnv(opts.Env, resolved)
+	opts.Env = setProviderStartEnv(opts.Env, resolved, opts.PreferredModel)
 
 	if resolved.HomePolicy == compozyconfig.ProviderHomePolicyIsolated {
 		opts.Env, err = providerenv.ApplyHomePolicy(
@@ -133,14 +133,15 @@ func (m *Manager) prepareProviderStartPolicies(
 	return opts, secretBindings, nil
 }
 
-func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent) []string {
+// setProviderStartEnv seeds logical session metadata and the independently validated native transport.
+func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent, preferredModel string) []string {
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER", strings.TrimSpace(resolved.Provider))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_HARNESS", string(resolved.Harness))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
 	env = setSessionStartEnvValue(env, "COMPOZY_MODEL", strings.TrimSpace(resolved.Model))
-	return setProviderModelEnv(env, resolved)
+	return setProviderModelEnv(env, resolved, preferredModel)
 }
 
 func providerProbeEnvForStart(

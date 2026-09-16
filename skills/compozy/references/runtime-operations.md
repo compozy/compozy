@@ -146,6 +146,10 @@ searched.
 
 Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning.
 
+The model payload's `reasoning_known` distinguishes confirmed options from support-only enrichment.
+`reasoning_apply=none` prevents live effort negotiation; `acp_option` permits model-specific ACP
+updates. Neither source presence nor a reasoning-support flag alone confirms adjustable effort.
+
 For Claude, compare the exact catalog model ID with the installed ACP adapter's selected model and
 returned `thought_level` options. Discovery selects each model in a disposable session; it does not
 copy the initial model's effort profile across the catalog. Exact versions remain distinct, including

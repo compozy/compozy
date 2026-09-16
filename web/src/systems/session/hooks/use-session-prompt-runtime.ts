@@ -84,6 +84,7 @@ function runtimeProviderOptions(
  * the injected interaction store. A prompt snapshots that intent only at its
  * dispatch boundary, so catalog refetches never overwrite a user choice.
  */
+/** Keep live capabilities separate from serialized user intent and queued prompt snapshots. */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
@@ -108,14 +109,8 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const speed = selectedSpeed ?? defaultSpeed;
 
   useEffect(() => {
-    const fallback = runtimeValueFromEffective(input.effectiveRuntime);
-    store.trigger.defaultRuntimeResolved({
-      speed: input.effectiveRuntime
-        ? runtimeSpeedFromEffective(input.effectiveRuntime)
-        : agentSpeed,
-      value: fallback.provider.length > 0 ? fallback : agentRuntime,
-    });
-  }, [agentRuntime, agentSpeed, input.effectiveRuntime, store]);
+    store.trigger.defaultRuntimeResolved({ speed: defaultSpeed, value: defaultValue });
+  }, [defaultSpeed, defaultValue, store]);
   useEffect(
     () => () => {
       runtimeSelectionController.current?.abort();
@@ -255,6 +250,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   };
 }
 
+/** Overlay acknowledged options only on their effective model, respecting provider policy and matrices. */
 function sessionModelCapabilities(
   models: RuntimeModelOption[],
   runtime: SessionRuntimePayload | undefined
@@ -280,7 +276,8 @@ function sessionModelCapabilities(
     if (
       model.provider !== effective.provider ||
       model.id !== effective.model ||
-      model.efforts.length === 0 ||
+      model.reasoning_apply === "none" ||
+      (model.reasoning_apply !== "acp_option" && model.efforts.length === 0) ||
       model.configurations
     )
       return model;

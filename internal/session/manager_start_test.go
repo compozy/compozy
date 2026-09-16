@@ -103,6 +103,14 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 			t.Fatalf("live catalog calls after logical acceptance = %d, want 0", got)
 		}
 
+		// Logical resume has the same admission boundary as initial acceptance.
+		h.manager = newManagerWithHarness(t, h, WithModelCatalog(h.manager.modelCatalog))
+		if _, err := h.manager.Resume(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		if got := catalogCalls.Load(); got != 0 {
+			t.Fatalf("live catalog calls after logical resume = %d, want 0", got)
+		}
 		result, err := h.manager.SendPrompt(testutil.Context(t), created.ID, SendPromptOpts{
 			Message: "Bind the catalog-validated runtime",
 			Runtime: &RuntimeSelection{

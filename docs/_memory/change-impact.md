@@ -2,22 +2,26 @@
 
 ## Issue 655 — Claude model identity and effort discovery
 
-- **Native tools / CLI / HTTP / UDS:** existing model list, source refresh/status and session-runtime
-  surfaces retain their routes, IDs and schemas. ACP discovery now selects each model before retaining
-  its option descriptors and effort profile. Successful writes require matching provider readback.
-- **Extensibility / hooks / config:** no new hooks, configuration keys or public DTO fields. Explicit
-  apply strategies and authoritative configuration matrices remain enforced. Future advertised effort
-  identifiers remain provider-owned strings. No generated contract changes are required.
-- **Compatibility / isolation:** saved selections, favorites and runtime configs are untouched. Exact
-  versions remain distinct; private context-window bindings remain attached to their model. Account,
-  profile and workspace source keys are unchanged. Failed discovery keeps the last successful rows.
-  Refresh replaces old discovery results through the existing lifecycle; no database repair or migration.
-- **Web:** unknown capability has its own footer state. The active composer reads server capabilities
-  separately from pending prompt intent and updates only the effective model's eligible efforts.
-  Standard thought-level categories are dedicated controls, not duplicated as advanced options.
-- **Docs / official skill / QA:** model-catalog documentation and runtime-operation guidance explain
-  model-specific discovery, exact identities and confirmed application. Existing catalog, selector and
-  runtime-continuity scenarios own the real walkthrough. Evidence is tracked in the issue 655 report.
+- **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add
+  `reasoning_known` and `reasoning_apply`; OpenAPI and generated Web/Go/TypeScript SDKs co-ship.
+  Discovery retains each transport's inspected options and projects the same deterministic route
+  used by Claude launch. Successful writes require matching provider readback.
+- **Extensibility / hooks / config:** no new hooks or configuration keys. Explicit apply strategies
+  and authoritative configuration matrices remain enforced. Future advertised effort identifiers
+  remain provider-owned strings.
+- **Compatibility / isolation:** saved selections, favorites and runtime configs keep their identities.
+  Exact versions, account/profile/workspace keys and private transport mappings remain distinct.
+  Global migration 00120 adds a validated per-binding option snapshot with an unknown default;
+  existing rows and dependent selections survive unchanged. Failed discovery retains prior rows,
+  last-success evidence and an explicit stale/error status. No manual cache repair.
+- **Web:** unknown capability has its own footer state. Session options hydrate only the effective
+  model when negotiation is enabled, including initially unknown effort; they do not replace pending
+  or queued intent. Standard thought levels are dedicated controls, not advanced-option duplicates.
+- **Session lifecycle:** unbound logical resume defers catalog validation until the next prompt's
+  actual binding, matching initial creation. Bound sessions retain their existing resume behavior.
+- **Docs / official skill / QA:** site and runtime-operation guidance explain exact discovery,
+  negotiation policy and confirmed application. Existing catalog, selector and continuity scenarios
+  own the real walkthrough; the issue 655 report tracks evidence and remaining limitations.
 
 ## Issue 651 — Session deletion profile scope
 

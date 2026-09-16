@@ -13,6 +13,7 @@ import (
 )
 
 const acpDiscoveryAgentName = "compozy-model-catalog"
+const providerDefaultOption = "default"
 
 // ACPModelProbe reads model options advertised by a short-lived ACP session.
 type ACPModelProbe interface {
@@ -54,6 +55,7 @@ func (SessionACPModelProbe) InspectModels(
 	return inspection, nil
 }
 
+// listACP discovers each model independently before publishing an atomic source snapshot.
 func (s *LiveProviderSource) listACP(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
@@ -204,21 +206,41 @@ func liveModelMappings(providerID string, provider compozyconfig.ProviderConfig)
 	return models
 }
 
+// applyACPModelReasoning retains each binding snapshot and projects only the route used for session launch.
 func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfigOption) {
 	transportID := row.ModelID
-	if len(row.TransportBindings) > 0 {
-		transportID = row.TransportBindings[0].TransportModelID
-		for _, binding := range row.TransportBindings {
-			if binding.TransportModelID != "default" &&
-				(transportID == "default" || binding.TransportModelID < transportID) {
-				transportID = binding.TransportModelID
-			}
-		}
+	for index := range row.TransportBindings {
+		binding := &row.TransportBindings[index]
+		binding.ConfigOptions = acpModelOptionDescriptors(models[binding.TransportModelID])
+	}
+	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok {
+		transportID = binding.TransportModelID
 	}
 	options, inspected := models[transportID]
 	if !inspected {
 		return
 	}
+	row.ConfigOptions = acpModelOptionDescriptors(options)
+	option, ok := acp.ReasoningConfigOption(options)
+	if !ok || option.ReadOnly {
+		return
+	}
+	efforts := make([]string, 0, len(option.Values))
+	for _, value := range option.Values {
+		if value.Value != providerDefaultOption {
+			efforts = append(efforts, value.Value)
+		}
+	}
+	row.ReasoningEfforts = normalizedReasoningEfforts(efforts)
+	row.SupportsReasoning = new(true)
+	if option.CurrentValueID != providerDefaultOption {
+		row.DefaultReasoningEffort = normalizedDefaultReasoningEffort(option.CurrentValueID)
+	}
+}
+
+// acpModelOptionDescriptors keeps the selected model marker even when effort is provider-managed.
+func acpModelOptionDescriptors(options []acp.SessionConfigOption) []ModelOptionDescriptor {
+	var descriptors []ModelOptionDescriptor
 	for _, option := range options {
 		if option.ReadOnly || option.Category == "mode" || option.ID == "mode" {
 			continue
@@ -230,21 +252,7 @@ func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfig
 			descriptor.Values = append(descriptor.Values, ModelOptionValue{ValueID: value.Value, Label: value.Label,
 				Description: value.Description, GroupID: value.GroupID, GroupLabel: value.GroupLabel, Order: index})
 		}
-		row.ConfigOptions = append(row.ConfigOptions, descriptor)
+		descriptors = append(descriptors, descriptor)
 	}
-	option, ok := acp.ReasoningConfigOption(options)
-	if !ok || option.ReadOnly {
-		return
-	}
-	efforts := make([]string, 0, len(option.Values))
-	for _, value := range option.Values {
-		if value.Value != "default" {
-			efforts = append(efforts, value.Value)
-		}
-	}
-	row.ReasoningEfforts = normalizedReasoningEfforts(efforts)
-	row.SupportsReasoning = new(true)
-	if option.CurrentValueID != "default" {
-		row.DefaultReasoningEffort = normalizedDefaultReasoningEffort(option.CurrentValueID)
-	}
+	return descriptors
 }
