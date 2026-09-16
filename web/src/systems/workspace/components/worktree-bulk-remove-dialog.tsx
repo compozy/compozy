@@ -33,7 +33,10 @@ export function WorktreeBulkRemoveDialog({
     >
       <DialogContent showCloseButton={false} data-testid="worktree-bulk-remove-dialog">
         <DialogHeader>
-          <DialogTitle>Remove {model.batch.worktrees.length} worktrees?</DialogTitle>
+          <DialogTitle>
+            Remove {model.batch.worktrees.length}{" "}
+            {model.batch.worktrees.length === 1 ? "worktree" : "worktrees"}?
+          </DialogTitle>
           <DialogDescription>
             {removed} checkouts will be removed through Git. Eligible managed branches may be
             reclaimed. {dismissed} missing records will be dismissed from the list only; files at

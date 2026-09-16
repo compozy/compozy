@@ -42,3 +42,13 @@ Direct browser inspection through the desktop connection became unavailable; the
 ## Final status
 
 Implementation and targeted verification are in progress toward delivery. Required current-head CI and completed external reviews are still pending. Do not interpret these targeted results as final delivery approval.
+
+## First review remediation
+
+- React Doctor's compiler error and three warnings: removed the unsupported try/finally shape, parallelized independent checked targets, and extracted keyboard/row/tile presentation. The three owning Web suites passed again (54 tests); final React Doctor coverage runs in CI.
+- Greptile compatibility finding: selector-free operator remove/dismiss calls infer the record owner at the API boundary. Explicit profile selectors, authenticated sessions and archived owners retain their restrictions. The owning API suite passed the legacy and refusal cases. OpenAPI and generated Web types describe the omission behavior.
+- CodeRabbit minor and nitpick: singular confirmation title; composed native div props and keyboard handler on the toolbar.
+- GitHub Go formatter findings: applied the pinned formatter only to changed files. The machine's unpinned shim lacked the formatter command, so the repository-pinned binary was used directly.
+- A final catalog audit moved concurrent-state coverage to the owning discovery suite and verified that a dismissed winner cannot leak back into a stale listing. Focused discovery and API suites passed.
+
+These are remediation records, not final CI/reviewer approval.

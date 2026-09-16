@@ -157395,7 +157395,7 @@ export interface operations {
       query?: {
         /** @description Confirm destructive removal */
         force?: boolean;
-        /** @description Act as this profile by name */
+        /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
         profile?: string;
       };
       header?: never;
@@ -157823,7 +157823,7 @@ export interface operations {
   dismissWorktree: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
         profile?: string;
       };
       header?: never;

@@ -396729,7 +396729,7 @@
             }
           },
           {
-            "description": "Act as this profile by name",
+            "description": "Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
             "in": "query",
             "name": "profile",
             "schema": {
@@ -398298,7 +398298,7 @@
             }
           },
           {
-            "description": "Act as this profile by name",
+            "description": "Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
             "in": "query",
             "name": "profile",
             "schema": {

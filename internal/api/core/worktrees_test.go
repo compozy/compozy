@@ -21,6 +21,7 @@ import (
 )
 
 type worktreeServiceStub struct {
+	dismiss        func(context.Context, string, string) error
 	resolve        func(context.Context, string, string) (*worktree.Worktree, error)
 	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
@@ -452,7 +453,10 @@ func (s worktreeServiceStub) Remove(
 	return s.remove(ctx, workspaceID, worktreeID, force)
 }
 
-func (s worktreeServiceStub) Dismiss(context.Context, string, string) error {
+func (s worktreeServiceStub) Dismiss(ctx context.Context, workspaceID, id string) error {
+	if s.dismiss != nil {
+		return s.dismiss(ctx, workspaceID, id)
+	}
 	return fmt.Errorf("unexpected Dismiss call")
 }
 
@@ -1042,14 +1046,22 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 				if tc.archived {
 					state = profilepkg.StateArchived
 				}
-				h := &BaseHandlers{Profiles: worktreeProfileServiceStub{state: state},
-					Workspaces: workspaceServiceStub{resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-						return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "registry-alpha", Name: ref}, WorkspaceID: "registry-alpha"}, nil
-					}}, Worktrees: worktreeServiceStub{
+				h := &BaseHandlers{
+					Profiles: worktreeProfileServiceStub{state: state},
+					Workspaces: workspaceServiceStub{
+						resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+							return workspacepkg.ResolvedWorkspace{
+								Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: ref},
+								WorkspaceID: "registry-alpha",
+							}, nil
+						},
+					},
+					Worktrees: worktreeServiceStub{
 						resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
 							return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: tc.owner}, nil
 						},
-					}}
+					},
+				}
 				router := gin.New()
 				router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", h.RemoveWorktree)
 				router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/dismiss", h.DismissWorktree)
@@ -1066,6 +1078,88 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should preserve selector-free operator calls without bypassing agent or archived ownership",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name   string
+				state  profilepkg.State
+				agent  bool
+				status int
+			}{
+				{name: "Should infer an active owner for legacy operators", state: profilepkg.StateActive, status: http.StatusNoContent},
+				{name: "Should refuse an archived owner without a selector", state: profilepkg.StateArchived, status: http.StatusForbidden},
+				{name: "Should authenticate agent credentials without a selector", state: profilepkg.StateActive, agent: true, status: http.StatusServiceUnavailable},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					mutated := 0
+					mutation := func(_ context.Context, workspaceID, id string) error {
+						if workspaceID != "registry-alpha" || id != "wt-owned" {
+							t.Fatalf("retargeted mutation: %s/%s", workspaceID, id)
+						}
+						mutated++
+						return nil
+					}
+					h := &BaseHandlers{
+						Profiles: worktreeProfileServiceStub{state: tc.state},
+						Workspaces: workspaceServiceStub{
+							resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+								return workspacepkg.ResolvedWorkspace{
+									Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: ref},
+									WorkspaceID: "registry-alpha",
+								}, nil
+							},
+						},
+						Worktrees: worktreeServiceStub{
+							resolve: func(_ context.Context, workspaceID, _ string) (*worktree.Worktree, error) {
+								return &worktree.Worktree{
+									ID:          "wt-owned",
+									WorkspaceID: workspaceID,
+									ProfileID:   "profile-marketing",
+								}, nil
+							},
+							remove: func(ctx context.Context, workspaceID, id string, force bool) (*worktree.RemovalRefusal, error) {
+								if force {
+									t.Fatal("unexpected force")
+								}
+								return nil, mutation(ctx, workspaceID, id)
+							},
+							dismiss: mutation,
+						},
+					}
+					router := gin.New()
+					router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", h.RemoveWorktree)
+					router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/dismiss", h.DismissWorktree)
+					for _, route := range []struct{ method, suffix string }{{http.MethodDelete, ""}, {http.MethodPost, "/dismiss"}} {
+						response := httptest.NewRecorder()
+						request := httptest.NewRequestWithContext(
+							t.Context(),
+							route.method,
+							"/workspaces/registry-alpha/worktrees/named-target"+route.suffix,
+							http.NoBody,
+						)
+						if tc.agent {
+							request.Header.Set("X-Compozy-Session-ID", "sess-unresolved")
+						}
+						router.ServeHTTP(response, request)
+						if response.Code != tc.status {
+							t.Fatalf("%s response = %d %s", route.method, response.Code, response.Body.String())
+						}
+					}
+					expected := 0
+					if tc.status == http.StatusNoContent {
+						expected = 2
+					}
+					if mutated != expected {
+						t.Fatalf("mutations = %d, want %d", mutated, expected)
+					}
+				})
+			}
+		},
+	)
+
 	t.Run("Should return the exact risk inventory with status 409", func(t *testing.T) {
 		t.Parallel()
 
@@ -1079,24 +1173,27 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 					WorkspaceID: "workspace-a",
 				}, nil
 			}},
-			Worktrees: worktreeServiceStub{resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
-				return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID}, nil
-			}, remove: func(
-				_ context.Context,
-				workspaceID string,
-				worktreeID string,
-				force bool,
-			) (*worktree.RemovalRefusal, error) {
-				if workspaceID != "registry-a" || worktreeID != "wt-a" || force {
-					t.Fatalf("Remove() args = %q, %q, %t", workspaceID, worktreeID, force)
-				}
-				return &worktree.RemovalRefusal{
-					Code: worktree.ErrDirtyRequiresForce.Error(),
-					Risk: worktree.RemovalRisk{
-						ChangedFiles: 2, Insertions: 4, Deletions: 1, UnpushedCommits: 3,
-					},
-				}, worktree.ErrDirtyRequiresForce
-			}},
+			Worktrees: worktreeServiceStub{
+				resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
+					return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID}, nil
+				},
+				remove: func(
+					_ context.Context,
+					workspaceID string,
+					worktreeID string,
+					force bool,
+				) (*worktree.RemovalRefusal, error) {
+					if workspaceID != "registry-a" || worktreeID != "wt-a" || force {
+						t.Fatalf("Remove() args = %q, %q, %t", workspaceID, worktreeID, force)
+					}
+					return &worktree.RemovalRefusal{
+						Code: worktree.ErrDirtyRequiresForce.Error(),
+						Risk: worktree.RemovalRisk{
+							ChangedFiles: 2, Insertions: 4, Deletions: 1, UnpushedCommits: 3,
+						},
+					}, worktree.ErrDirtyRequiresForce
+				},
+			},
 		}
 		router := gin.New()
 		router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", handlers.RemoveWorktree)

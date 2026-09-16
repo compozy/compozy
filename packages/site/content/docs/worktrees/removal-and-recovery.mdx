@@ -137,3 +137,8 @@ Dismissing a missing record preserves files even if something reappeared at that
 Git history, sessions and task/Loop history. It does not prune Git's administrative entries; an
 unregistered stale Git checkout may appear separately as unavailable discovery. Repeating dismissal
 by the retained ID is safe. Refreshing or restarting does not revive the dismissed registry entry.
+
+Existing HTTP/UDS remove and dismiss clients may omit `profile`: operator requests infer the owner
+from the target record. Explicit selectors must match that owner, authenticated agents remain bound
+to their session profile, and archived owners are refused. The Web bulk flow always sends its frozen
+profile selector; reading the all-profiles catalog does not grant bulk mutation authority.

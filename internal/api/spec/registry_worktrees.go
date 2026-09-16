@@ -171,10 +171,14 @@ func cancelWorktreeOperationSpec() OperationSpec {
 
 func removeWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodDelete, Path: specAPIWorktreePath, OperationID: "removeWorktree",
-		Summary: "Remove a worktree", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: withProfileSelector(append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal"))...),
+		Method:      httpMethodDelete,
+		Path:        specAPIWorktreePath,
+		OperationID: "removeWorktree",
+		Summary:     "Remove a worktree",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: withWorktreeCleanupProfile(
+			append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal"))...),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid removal query", Body: contract.ErrorPayload{}},
@@ -195,7 +199,7 @@ func dismissWorktreeOperationSpec() OperationSpec {
 	op := worktreeNoContentOperation(
 		httpMethodPost, specAPIWorktreePath+"/dismiss", "dismissWorktree", "Dismiss a worktree tombstone",
 	)
-	op.Parameters = withProfileSelector(op.Parameters...)
+	op.Parameters = withWorktreeCleanupProfile(op.Parameters...)
 	return op
 }
 
@@ -269,4 +273,12 @@ func worktreeRouteParams() []ParameterSpec {
 		pathParam("workspace_id", "Workspace id or path"),
 		pathParam("worktree_id", "Worktree id, name, or path"),
 	}
+}
+
+func withWorktreeCleanupProfile(params ...ParameterSpec) []ParameterSpec {
+	return append(params, queryParam(
+		specProfileKey,
+		"Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
+		false,
+	))
 }

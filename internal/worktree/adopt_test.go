@@ -113,12 +113,26 @@ func TestServiceAdopt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fixture.service.Adopt(t.Context(), "foreign-profile", fixture.workspace.ID, fixture.candidate); !errors.Is(err, ErrNotFound) {
+		if _, err := fixture.service.Adopt(
+			t.Context(),
+			"foreign-profile",
+			fixture.workspace.ID,
+			fixture.candidate,
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("foreign adoption = %v, want not found", err)
 		}
 		missing := *first
 		missing.State = StateMissing
-		if err := fixture.store.SetState(t.Context(), first.WorkspaceID, first.ID, StateDismissed, first.UpdatedAt); err != nil {
+		if err := fixture.store.SetState(
+			t.Context(),
+			first.WorkspaceID,
+			first.ID,
+			StateDismissed,
+			first.UpdatedAt,
+		); err != nil {
 			t.Fatal(err)
 		}
 		fixture.service.store = &lostStateFenceStore{memoryWorktreeStore: fixture.store}

@@ -1,10 +1,14 @@
-import { Button, MenubarItem } from "@compozy/ui";
+import type { ComponentProps } from "react";
+import { Button, MenubarItem, cn } from "@compozy/ui";
 import type { WorktreeRemovalSelection } from "../hooks/use-worktree-removal-selection";
 
 export function WorktreeSelectionToolbar({
   selection,
   menu = false,
-}: {
+  className,
+  onKeyDown,
+  ...props
+}: ComponentProps<"div"> & {
   selection: WorktreeRemovalSelection;
   menu?: boolean;
 }) {
@@ -35,8 +39,11 @@ export function WorktreeSelectionToolbar({
       ];
   return (
     <div
-      className="flex flex-wrap gap-1 p-1"
+      {...props}
+      className={cn("flex flex-wrap gap-1 p-1", className)}
       onKeyDown={event => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented) return;
         selection.onKeyDown(event);
         if (event.key === "Enter" || event.key === " ") event.stopPropagation();
       }}

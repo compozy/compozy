@@ -318,44 +318,13 @@ function OsWorkspacesStage({
             trackRef={scroll.trackRef}
             trackProps={scroll.trackProps}
           >
-            {entries.map((entry, index) => {
-              const focused = switcher.layer !== "menu" && index === switcher.focusIndex;
-              const anchorsMenu = index === switcher.focusIndex;
-              if (entry.kind === "add") {
-                return (
-                  <OsWorkspaceAddTile
-                    key={entry.key}
-                    data-testid="os-workspace-tile-add"
-                    focused={anchorsMenu}
-                    tabIndex={focused ? 0 : -1}
-                    ref={switcher.registerTile(entry.key)}
-                    {...switcher.tileHandlers(index)}
-                  />
-                );
-              }
-              const name = entry.node.workspace.name;
-              return (
-                <OsWorkspaceTile
-                  key={entry.key}
-                  data-testid={`os-workspace-tile-${entry.key}`}
-                  name={name}
-                  monogram={workspaceMonogram(name)}
-                  // The plate stays on the focused tile while the menu owns
-                  // key focus — it anchors which workspace the menu belongs to.
-                  focused={anchorsMenu}
-                  tabIndex={focused ? 0 : -1}
-                  current={
-                    scope === "workspace" && entry.key === activeWorkspaceId
-                      ? readySelectedWorktreeKey
-                        ? "wt"
-                        : "root"
-                      : null
-                  }
-                  ref={switcher.registerTile(entry.key)}
-                  {...switcher.tileHandlers(index)}
-                />
-              );
-            })}
+            <WorkspaceTiles
+              entries={entries}
+              switcher={switcher}
+              scope={scope}
+              activeWorkspaceId={activeWorkspaceId}
+              readySelectedWorktreeKey={readySelectedWorktreeKey}
+            />
           </OsWorkspacesStrip>
         )}
         <OsWorkspacesCaption
@@ -405,6 +374,63 @@ function OsWorkspacesStage({
         pickerShortcutLabel={shortcutLabels?.picker ?? null}
         globalScopeShortcutLabel={shortcutLabels?.globalScope ?? null}
       />
+    </>
+  );
+}
+
+function WorkspaceTiles({
+  entries,
+  switcher,
+  scope,
+  activeWorkspaceId,
+  readySelectedWorktreeKey,
+}: {
+  entries: WorkspacesSwitcherEntry[];
+  switcher: ReturnType<typeof useWorkspacesSwitcher>;
+  scope: WorkspaceScopeMode;
+  activeWorkspaceId: string | null;
+  readySelectedWorktreeKey: string | null;
+}) {
+  return (
+    <>
+      {entries.map((entry, index) => {
+        const focused = switcher.layer !== "menu" && index === switcher.focusIndex;
+        const anchorsMenu = index === switcher.focusIndex;
+        if (entry.kind === "add") {
+          return (
+            <OsWorkspaceAddTile
+              key={entry.key}
+              data-testid="os-workspace-tile-add"
+              focused={anchorsMenu}
+              tabIndex={focused ? 0 : -1}
+              ref={switcher.registerTile(entry.key)}
+              {...switcher.tileHandlers(index)}
+            />
+          );
+        }
+        const name = entry.node.workspace.name;
+        return (
+          <OsWorkspaceTile
+            key={entry.key}
+            data-testid={`os-workspace-tile-${entry.key}`}
+            name={name}
+            monogram={workspaceMonogram(name)}
+            // The plate stays on the focused tile while the menu owns
+            // key focus — it anchors which workspace the menu belongs to.
+            focused={anchorsMenu}
+            tabIndex={focused ? 0 : -1}
+            current={
+              scope === "workspace" && entry.key === activeWorkspaceId
+                ? readySelectedWorktreeKey
+                  ? "wt"
+                  : "root"
+                : null
+            }
+            ref={switcher.registerTile(entry.key)}
+            {...switcher.tileHandlers(index)}
+          />
+        );
+      })}
     </>
   );
 }

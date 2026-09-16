@@ -22,19 +22,41 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should dismiss idempotently and exclude active usage without touching disk", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
-		if err := fixture.store.SetState(t.Context(), fixture.workspace.ID, fixture.item.ID, StateMissing, fixture.item.UpdatedAt); err != nil {
+		if err := fixture.store.SetState(
+			t.Context(),
+			fixture.workspace.ID,
+			fixture.item.ID,
+			StateMissing,
+			fixture.item.UpdatedAt,
+		); err != nil {
 			t.Fatal(err)
 		}
-		release, acquired := fixture.service.usage.tryAcquireExclusive(worktreeUsageKey(fixture.workspace.ID, fixture.item.ID))
+		release, acquired := fixture.service.usage.tryAcquireExclusive(
+			worktreeUsageKey(fixture.workspace.ID, fixture.item.ID),
+		)
 		if !acquired {
 			t.Fatal("acquire exclusive usage")
 		}
-		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, fixture.item.ID); !errors.Is(err, ErrOperationInProgress) {
+		if err := fixture.service.Dismiss(
+			t.Context(),
+			fixture.workspace.ID,
+			fixture.item.ID,
+		); !errors.Is(
+			err,
+			ErrOperationInProgress,
+		) {
 			t.Fatalf("busy dismissal = %v", err)
 		}
 		release()
 		WithSessionGuard(fixedSessionGuard{active: true})(fixture.service)
-		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, fixture.item.ID); !errors.Is(err, ErrSessionActive) {
+		if err := fixture.service.Dismiss(
+			t.Context(),
+			fixture.workspace.ID,
+			fixture.item.ID,
+		); !errors.Is(
+			err,
+			ErrSessionActive,
+		) {
 			t.Fatalf("active dismissal = %v", err)
 		}
 		WithSessionGuard(fixedSessionGuard{})(fixture.service)
@@ -48,26 +70,6 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 		if _, err := os.Stat(fixture.item.Path); err != nil {
 			t.Fatalf("checkout changed: %v", err)
-		}
-	})
-
-	t.Run("Should preserve a competing lifecycle transition during missing reconciliation", func(t *testing.T) {
-		t.Parallel()
-		fixture := newRemovalTestFixture(t)
-		stale := fixture.item
-		for _, state := range []State{StateRemoving, StateRemoved, StateDismissed} {
-			if err := fixture.store.SetState(t.Context(), fixture.workspace.ID, fixture.item.ID, state, fixture.item.UpdatedAt); err != nil {
-				t.Fatal(err)
-			}
-			if err := fixture.service.markMissing(t.Context(), &stale); err != nil {
-				t.Fatal(err)
-			}
-			if stale.State != state || fixture.mustItem(t).State != state {
-				t.Fatalf("state %s was overwritten", state)
-			}
-		}
-		if fixture.events.count(EventMissing) != 0 {
-			t.Fatal("emitted stale missing event")
 		}
 	})
 

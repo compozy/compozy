@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -130,6 +131,9 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 			}
 		}
 	}
+	listing.Worktrees = slices.DeleteFunc(listing.Worktrees, func(row Worktree) bool {
+		return row.State == StateDismissed
+	})
 	return listing, nil
 }
 

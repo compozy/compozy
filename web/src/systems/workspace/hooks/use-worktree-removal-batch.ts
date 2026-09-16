@@ -79,9 +79,9 @@ export function useWorktreeRemovalBatch(
     if (!scopeMatches || !store.can.start()) return;
     store.trigger.start();
     const { batch, results } = store.getSnapshot().context;
-    try {
-      for (const result of results) {
-        if (result.status === "success") continue;
+    return Promise.all(
+      results.map(async result => {
+        if (result.status === "success") return;
         const row = result.row;
         store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
         let message = "Already removed or dismissed; confirmed by CompozyOS.";
@@ -115,7 +115,7 @@ export function useWorktreeRemovalBatch(
                   ? error.message
                   : "Result unconfirmed. Retry checks CompozyOS before acting."),
             });
-            continue;
+            return;
           }
         }
         store.trigger.outcome({ id: row.id, status: "success", message });
@@ -130,11 +130,11 @@ export function useWorktreeRemovalBatch(
         queryClient.removeQueries({
           queryKey: workspaceKeys.worktreeDetail(batch.workspaceId, row.id),
         });
-      }
-    } finally {
+      })
+    ).finally(() => {
       store.trigger.finish();
       void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(batch.workspaceId) });
-    }
+    });
   };
   return { ...context, scopeMatches, run };
 }

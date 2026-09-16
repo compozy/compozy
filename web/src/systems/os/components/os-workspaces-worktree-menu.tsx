@@ -4,7 +4,7 @@ import {
   type WorktreeRemovalBatch,
   type WorktreeRemovalProfile,
 } from "@/systems/workspace";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Plus } from "lucide-react";
 
 import { Button, cn } from "@compozy/ui";
@@ -41,6 +41,28 @@ export interface OsWorkspacesWorktreeMenuProps {
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onDeleteRow: (entry: WorktreeNestEntry) => void;
+}
+
+function moveSelectionFocus(event: KeyboardEvent<HTMLElement>) {
+  // Selection owns keyboard focus, including missing rows that navigation excludes.
+  event.stopPropagation();
+  if (!["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
+  const controls = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [role="menuitem"][tabindex="0"]'
+    )
+  );
+  if (!controls.length) return;
+  event.preventDefault();
+  const index = controls.indexOf(document.activeElement as HTMLElement);
+  const direction = event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey) ? -1 : 1;
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? controls.length - 1
+        : (index + direction + controls.length) % controls.length;
+  controls[next]?.focus();
 }
 
 /**
@@ -102,26 +124,7 @@ export function OsWorkspacesWorktreeMenu({
       onKeyDown={event => {
         selection.onKeyDown(event);
         if (!selection.mode || event.defaultPrevented) return;
-        // Selection owns keyboard focus, including missing rows that navigation excludes.
-        event.stopPropagation();
-        if (!["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
-        const controls = Array.from(
-          event.currentTarget.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), [role="menuitem"][tabindex="0"]'
-          )
-        );
-        if (!controls.length) return;
-        event.preventDefault();
-        const index = controls.indexOf(document.activeElement as HTMLElement);
-        const direction =
-          event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey) ? -1 : 1;
-        const next =
-          event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? controls.length - 1
-              : (index + direction + controls.length) % controls.length;
-        controls[next]?.focus();
+        moveSelectionFocus(event);
       }}
       role="menu"
       aria-label={`Worktrees of ${model.node.workspace.name}`}
@@ -176,28 +179,13 @@ export function OsWorkspacesWorktreeMenu({
       {model.visible.map(entry => {
         const navIndex = navIndexByKey.get(entry.key);
         if (selection.mode) {
-          const reason = selection.reason(entry);
           return (
-            <Button
+            <SelectableWorktreeRow
               key={entry.key}
-              variant="ghost"
-              role="menuitemcheckbox"
-              aria-checked={selection.selectedIds.has(entry.key)}
-              aria-label={`Select ${entry.name}`}
-              disabled={Boolean(reason)}
-              title={reason ?? undefined}
-              className="group/wtnest h-auto w-full flex-col items-stretch px-2 py-1.5 text-left"
-              onClick={event => selection.toggle(entry, event.shiftKey)}
-              onKeyDown={event => {
-                if (event.key === "Enter" || event.key === " ") event.stopPropagation();
-              }}
-            >
-              <WorktreeNestRow
-                entry={{ ...entry, adoptable: false, inertReason: reason }}
-                userHomeDir={userHomeDir}
-                checked={selection.selectedIds.has(entry.key)}
-              />
-            </Button>
+              entry={entry}
+              selection={selection}
+              userHomeDir={userHomeDir}
+            />
           );
         }
         return (
@@ -229,5 +217,38 @@ export function OsWorkspacesWorktreeMenu({
         );
       })}
     </WorktreeNest>
+  );
+}
+
+function SelectableWorktreeRow({
+  entry,
+  selection,
+  userHomeDir,
+}: {
+  entry: WorktreeNestEntry;
+  selection: ReturnType<typeof useWorktreeRemovalSelection>;
+  userHomeDir?: string;
+}) {
+  const reason = selection.reason(entry);
+  return (
+    <Button
+      variant="ghost"
+      role="menuitemcheckbox"
+      aria-checked={selection.selectedIds.has(entry.key)}
+      aria-label={`Select ${entry.name}`}
+      disabled={Boolean(reason)}
+      title={reason ?? undefined}
+      className="group/wtnest h-auto w-full flex-col items-stretch px-2 py-1.5 text-left"
+      onClick={event => selection.toggle(entry, event.shiftKey)}
+      onKeyDown={event => {
+        if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+      }}
+    >
+      <WorktreeNestRow
+        entry={{ ...entry, adoptable: false, inertReason: reason }}
+        userHomeDir={userHomeDir}
+        checked={selection.selectedIds.has(entry.key)}
+      />
+    </Button>
   );
 }
