@@ -173,10 +173,10 @@ func deleteSessionOperationSpec() OperationSpec {
 		Summary:     "Delete one session and remove it from persisted history",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},

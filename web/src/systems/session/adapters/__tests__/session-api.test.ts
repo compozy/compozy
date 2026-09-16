@@ -524,18 +524,18 @@ describe("deleteSession", () => {
   it("calls DELETE endpoint", async () => {
     mockEmptyResponse();
 
-    await deleteSession(WORKSPACE_ID, "sess-001");
+    await deleteSession(WORKSPACE_ID, "sess-001", "work");
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?profile=work",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(deleteSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+    await expect(deleteSession(WORKSPACE_ID, "unknown", "work")).rejects.toThrow(
       "Session not found: unknown"
     );
   });
@@ -543,7 +543,7 @@ describe("deleteSession", () => {
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(deleteSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
+    await expect(deleteSession(WORKSPACE_ID, "sess-001", "work")).rejects.toThrow(
       'Failed to delete session "sess-001": 500'
     );
   });

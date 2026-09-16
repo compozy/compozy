@@ -125,36 +125,36 @@ export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   });
 }
 
-export function useDeleteSession(
-  options: UseSessionWorkspaceOptions & { onDeleteSuccess?: () => void } = {}
-) {
+/** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
+export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {}) {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
+  // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
-    mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
-    onMutate: async id => {
-      const deleteWorkspaceId = requireWorkspace(workspaceId);
+    mutationFn: (session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">) =>
+      deleteSession(requireWorkspace(session.workspace_id), session.id, session.profile_name),
+    onMutate: async ({ id, workspace_id }) => {
+      const deleteWorkspaceId = requireWorkspace(workspace_id);
       sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
       await Promise.all([
         queryClient.cancelQueries({ queryKey: sessionKeys.detail(deleteWorkspaceId, id) }),
         queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
       ]);
     },
-    onSuccess: (_data, id) => {
-      const successWorkspaceId = requireWorkspace(workspaceId);
+    onSuccess: (_data, { id, workspace_id }) => {
+      const successWorkspaceId = requireWorkspace(workspace_id);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
       options.onDeleteSuccess?.();
-
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
     },
-    onSettled: (_data, error, id) => {
+    onSettled: (_data, error, { id, workspace_id }) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-      if (error && workspaceId) {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+      if (error && workspace_id) {
+        void invalidateSessionMutationQueries(queryClient, workspace_id, id);
       }
     },
   });

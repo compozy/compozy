@@ -407,7 +407,8 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const deleteResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "DELETE" &&
-      response.url().endsWith(sessionAPIPath(workspace.id, deletableSession.id))
+      new URL(response.url()).pathname === sessionAPIPath(workspace.id, deletableSession.id) &&
+      new URL(response.url()).searchParams.get("profile") === "default"
   );
   await appPage.getByTestId("delete-dialog-confirm").click();
   const deleteResponse = await deleteResponsePromise;

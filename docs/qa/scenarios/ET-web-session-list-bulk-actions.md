@@ -85,3 +85,13 @@ screenshots are recorded in [PR #647 — How you verified it](https://github.com
 The bulk lifecycle suite verifies per-ID error reporting, no premature success toast, retry of only
 failed IDs, and the final cumulative count. This scoped automated record does not claim a complete
 manual keyboard/range/archive walk.
+
+Issue #651 regression: repeat single and bulk deletion with sessions owned by a
+non-default profile. Each DELETE must carry the target's profile and workspace,
+even if the active selection changes before confirmation. Verify selected rows
+and windows reconcile, unselected sessions remain, and an explicitly wrong-profile
+DELETE still returns 404 without removing the target.
+
+With catalog SSE disconnected, delete a session and verify global attention rows
+and counts refresh alongside its workspace catalog. Preserve each profile’s
+before/confirmation/after captures under distinct names.
