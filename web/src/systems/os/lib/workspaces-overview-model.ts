@@ -1,6 +1,8 @@
+import type { useWorkspacesSwitcher } from "../hooks/use-workspaces-switcher";
 import {
   worktreeNestPresence,
   type WorkspacePayload,
+  type WorkspaceScopeMode,
   type WorkspaceTreeNode,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
@@ -50,4 +52,23 @@ export function buildWorkspacesWorktreeMenuModel(
     navRows.push({ key: WORKSPACES_MENU_CREATE_KEY, kind: "create", entry: null });
   }
   return { node, visible, navRows };
+}
+
+/** Project menu focus independently from tile/row presentation. */
+export function focusedWorkspacesMenu(
+  switcher: Pick<ReturnType<typeof useWorkspacesSwitcher>, "focusedEntry" | "layer" | "menuIndex">,
+  menuModelByKey: ReadonlyMap<string, OsWorkspacesWorktreeMenuModel | null>,
+  scope: WorkspaceScopeMode,
+  activeWorkspaceId: string | null,
+  readySelectedWorktreeKey: string | null
+) {
+  const focusedEntry = switcher.focusedEntry;
+  const focusedMenuKey = focusedEntry?.kind === "workspace" ? focusedEntry.key : null;
+  const menuModel = focusedMenuKey ? (menuModelByKey.get(focusedMenuKey) ?? null) : null;
+  const menuNavRows = menuModel?.navRows ?? [];
+  const scopedRowKey =
+    scope === "workspace" && focusedMenuKey === activeWorkspaceId ? readySelectedWorktreeKey : null;
+  const focusedRowKey =
+    switcher.layer === "menu" ? (menuNavRows[switcher.menuIndex]?.key ?? null) : null;
+  return { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey };
 }

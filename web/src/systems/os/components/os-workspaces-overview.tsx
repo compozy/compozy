@@ -16,6 +16,7 @@ import { OsWorkspacesHints } from "./os-workspaces-hints";
 import { OsWorkspacesStrip } from "./os-workspaces-strip";
 import {
   buildWorkspacesWorktreeMenuModel,
+  focusedWorkspacesMenu,
   type WorkspacesMenuNavRow,
 } from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeMenu } from "./os-workspaces-worktree-menu";
@@ -184,29 +185,23 @@ function OsWorkspacesStage({
   escapeGuardRef,
   shortcutLabels,
 }: OsWorkspacesStageProps) {
-  const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
-    : workspaces.map(flatNode);
-  const empty = tree.length === 0;
-  const entries: WorkspacesSwitcherEntry[] = empty
-    ? []
-    : [
-        ...tree.map(node => ({ key: node.workspace.id, kind: "workspace" as const, node })),
-        ADD_ENTRY,
-      ];
-  const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
-  const readySelectedWorktreeKey =
-    scope === "workspace" && selectedWorktreeId
-      ? (tree
-          .find(node => node.workspace.id === activeWorkspaceId)
-          ?.worktrees.find(
-            entry => entry.displayState === "ready" && entry.worktree?.id === selectedWorktreeId
-          )?.key ?? null)
-      : null;
-  const canCreate = Boolean(onCreateWorktree);
-  const menuModelByKey = new Map(
-    tree.map(node => [node.workspace.id, buildWorkspacesWorktreeMenuModel(node, canCreate)])
-  );
+  const {
+    tree,
+    empty,
+    entries,
+    totalWorktrees,
+    readySelectedWorktreeKey,
+    canCreate,
+    menuModelByKey,
+  } = projectWorkspacesStage({
+    workspaces,
+    worktreesByWorkspace,
+    userHomeDir,
+    scope,
+    selectedWorktreeId,
+    activeWorkspaceId,
+    onCreateWorktree,
+  });
 
   const activateEntry = (entry: WorkspacesSwitcherEntry) => {
     if (entry.kind === "add") {
@@ -261,14 +256,14 @@ function OsWorkspacesStage({
     escapeGuardRef.current = switcher.guardEscape;
   });
 
-  const focusedEntry = switcher.focusedEntry;
-  const focusedMenuKey = focusedEntry?.kind === "workspace" ? focusedEntry.key : null;
-  const menuModel = focusedMenuKey ? (menuModelByKey.get(focusedMenuKey) ?? null) : null;
-  const menuNavRows = menuModel?.navRows ?? [];
-  const scopedRowKey =
-    scope === "workspace" && focusedMenuKey === activeWorkspaceId ? readySelectedWorktreeKey : null;
-  const focusedRowKey =
-    switcher.layer === "menu" ? (menuNavRows[switcher.menuIndex]?.key ?? null) : null;
+  const { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey } =
+    focusedWorkspacesMenu(
+      switcher,
+      menuModelByKey,
+      scope,
+      activeWorkspaceId,
+      readySelectedWorktreeKey
+    );
 
   return (
     <>
@@ -344,7 +339,7 @@ function OsWorkspacesStage({
               removalProfile={removalProfile}
               onRemoveWorktrees={onRemoveWorktrees}
               onResolveMissing={entry => {
-                if (focusedMenuKey) onResolveMissingWorktree?.(focusedMenuKey, entry);
+                onResolveMissingWorktree?.(menuModel.node.workspace.id, entry);
               }}
               userHomeDir={userHomeDir}
               focusedRowKey={focusedRowKey}
@@ -354,7 +349,7 @@ function OsWorkspacesStage({
               rowHandlers={switcher.menuRowHandlers}
               canCreate={canCreate}
               onDeleteRow={entry => {
-                if (focusedMenuKey) onRemoveWorktree?.(focusedMenuKey, entry);
+                onRemoveWorktree?.(menuModel.node.workspace.id, entry);
               }}
             />
           ) : null}
@@ -433,4 +428,57 @@ function WorkspaceTiles({
       })}
     </>
   );
+}
+
+function projectWorkspacesStage({
+  workspaces,
+  worktreesByWorkspace,
+  userHomeDir,
+  scope,
+  selectedWorktreeId,
+  activeWorkspaceId,
+  onCreateWorktree,
+}: Pick<
+  OsWorkspacesStageProps,
+  | "workspaces"
+  | "worktreesByWorkspace"
+  | "userHomeDir"
+  | "scope"
+  | "selectedWorktreeId"
+  | "activeWorkspaceId"
+  | "onCreateWorktree"
+>) {
+  const tree = worktreesByWorkspace
+    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
+    : workspaces.map(flatNode);
+  const empty = tree.length === 0;
+  const entries: WorkspacesSwitcherEntry[] = empty
+    ? []
+    : [
+        ...tree.map(node => ({ key: node.workspace.id, kind: "workspace" as const, node })),
+        ADD_ENTRY,
+      ];
+  const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
+  const readySelectedWorktreeKey =
+    scope === "workspace" && selectedWorktreeId
+      ? (tree
+          .find(node => node.workspace.id === activeWorkspaceId)
+          ?.worktrees.find(
+            entry => entry.displayState === "ready" && entry.worktree?.id === selectedWorktreeId
+          )?.key ?? null)
+      : null;
+  const canCreate = Boolean(onCreateWorktree);
+  const menuModelByKey = new Map(
+    tree.map(node => [node.workspace.id, buildWorkspacesWorktreeMenuModel(node, canCreate)])
+  );
+
+  return {
+    tree,
+    empty,
+    entries,
+    totalWorktrees,
+    readySelectedWorktreeKey,
+    canCreate,
+    menuModelByKey,
+  };
 }

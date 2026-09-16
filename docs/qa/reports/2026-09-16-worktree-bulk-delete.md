@@ -52,3 +52,9 @@ Implementation and targeted verification are in progress toward delivery. Requir
 - A final catalog audit moved concurrent-state coverage to the owning discovery suite and verified that a dismissed winner cannot leak back into a stale listing. Focused discovery and API suites passed.
 
 These are remediation records, not final CI/reviewer approval.
+
+## Second review remediation
+
+- React Doctor confirmed the compiler and serial-await fixes on `f29b16b26`; two complexity warnings remained. Menu-row rendering and the pure focus projection were further separated. The two rendered-component suites passed again (48 tests). Current-head React Doctor remains authoritative.
+- The first CI race shard exposed an incomplete transport fixture: its worktree omitted the now-required persisted owner identity. The existing IT-033 fixture now carries the default owner and distinguishes public name resolution from the immutable mutation ID. HTTP/UDS success and exact refusal expectations are unchanged; the focused parity suite passed.
+- Restarted only the registered disposable QA daemon. Its fresh public catalog still excluded the dismissed ID, direct inspection retained the dismissed history, and the file recreated at that path remained present. No operator daemon was restarted.

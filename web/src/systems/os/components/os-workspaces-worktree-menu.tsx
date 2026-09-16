@@ -90,8 +90,6 @@ export function OsWorkspacesWorktreeMenu({
     removalProfile,
     onRemoveWorktrees
   );
-  // One popover at a time by construction: a single open-key owns them all.
-  const [actionsKey, setActionsKey] = useState<string | null>(null);
   const navIndexByKey = new Map(model.navRows.map((row, index) => [row.key, index]));
   const createNavIndex = navIndexByKey.get(WORKSPACES_MENU_CREATE_KEY);
 
@@ -176,6 +174,83 @@ export function OsWorkspacesWorktreeMenu({
         </>
       }
     >
+      <WorktreeMenuRows
+        model={model}
+        selection={selection}
+        removalProfile={removalProfile}
+        onResolveMissing={onResolveMissing}
+        onDeleteRow={onDeleteRow}
+        userHomeDir={userHomeDir}
+        scopedRowKey={scopedRowKey}
+        focusedRowKey={focusedRowKey}
+        registerRow={registerRow}
+        rowHandlers={rowHandlers}
+      />
+    </WorktreeNest>
+  );
+}
+
+function SelectableWorktreeRow({
+  entry,
+  selection,
+  userHomeDir,
+}: {
+  entry: WorktreeNestEntry;
+  selection: ReturnType<typeof useWorktreeRemovalSelection>;
+  userHomeDir?: string;
+}) {
+  const reason = selection.reason(entry);
+  return (
+    <Button
+      variant="ghost"
+      role="menuitemcheckbox"
+      aria-checked={selection.selectedIds.has(entry.key)}
+      aria-label={`Select ${entry.name}`}
+      disabled={Boolean(reason)}
+      title={reason ?? undefined}
+      className="group/wtnest h-auto w-full flex-col items-stretch px-2 py-1.5 text-left"
+      onClick={event => selection.toggle(entry, event.shiftKey)}
+      onKeyDown={event => {
+        if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+      }}
+    >
+      <WorktreeNestRow
+        entry={{ ...entry, adoptable: false, inertReason: reason }}
+        userHomeDir={userHomeDir}
+        checked={selection.selectedIds.has(entry.key)}
+      />
+    </Button>
+  );
+}
+
+function WorktreeMenuRows({
+  model,
+  selection,
+  removalProfile,
+  onResolveMissing,
+  onDeleteRow,
+  userHomeDir,
+  scopedRowKey,
+  focusedRowKey,
+  registerRow,
+  rowHandlers,
+}: Pick<
+  OsWorkspacesWorktreeMenuProps,
+  | "model"
+  | "removalProfile"
+  | "onResolveMissing"
+  | "onDeleteRow"
+  | "userHomeDir"
+  | "scopedRowKey"
+  | "focusedRowKey"
+  | "registerRow"
+  | "rowHandlers"
+> & { selection: ReturnType<typeof useWorktreeRemovalSelection> }) {
+  // One popover at a time by construction: a single open-key owns them all.
+  const [actionsKey, setActionsKey] = useState<string | null>(null);
+  const navIndexByKey = new Map(model.navRows.map((row, index) => [row.key, index]));
+  return (
+    <>
       {model.visible.map(entry => {
         const navIndex = navIndexByKey.get(entry.key);
         if (selection.mode) {
@@ -216,39 +291,6 @@ export function OsWorkspacesWorktreeMenu({
           />
         );
       })}
-    </WorktreeNest>
-  );
-}
-
-function SelectableWorktreeRow({
-  entry,
-  selection,
-  userHomeDir,
-}: {
-  entry: WorktreeNestEntry;
-  selection: ReturnType<typeof useWorktreeRemovalSelection>;
-  userHomeDir?: string;
-}) {
-  const reason = selection.reason(entry);
-  return (
-    <Button
-      variant="ghost"
-      role="menuitemcheckbox"
-      aria-checked={selection.selectedIds.has(entry.key)}
-      aria-label={`Select ${entry.name}`}
-      disabled={Boolean(reason)}
-      title={reason ?? undefined}
-      className="group/wtnest h-auto w-full flex-col items-stretch px-2 py-1.5 text-left"
-      onClick={event => selection.toggle(entry, event.shiftKey)}
-      onKeyDown={event => {
-        if (event.key === "Enter" || event.key === " ") event.stopPropagation();
-      }}
-    >
-      <WorktreeNestRow
-        entry={{ ...entry, adoptable: false, inertReason: reason }}
-        userHomeDir={userHomeDir}
-        checked={selection.selectedIds.has(entry.key)}
-      />
-    </Button>
+    </>
   );
 }
