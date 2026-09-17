@@ -47,7 +47,7 @@ function StreamMarkdownCode({
         caption={rawLanguage ? (normalizedLanguage ?? rawLanguage) : undefined}
         copyable
         density="compact"
-        className="my-2"
+        className="my-5"
       />
     );
   }

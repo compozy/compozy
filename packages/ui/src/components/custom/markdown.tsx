@@ -52,26 +52,31 @@ const PROSE_BASE = [
   "[&_pre_code]:bg-transparent [&_pre_code]:px-0",
 ].join(" ");
 
+// Block gaps exceed the prose line gap; headings sit closer to the text they introduce.
 const PROSE_NORMAL = [
-  "[&_p]:my-2",
-  "[&_blockquote]:my-3 [&_pre]:my-3 [&_table]:my-3",
-  "[&_ol]:my-2 [&_ul]:my-2",
-  "[&_h1]:mt-5 [&_h1]:mb-2",
-  "[&_h2]:mt-5 [&_h2]:mb-2",
-  "[&_h3]:mt-4 [&_h3]:mb-1.5",
-  "[&_h4]:mt-3 [&_h4]:mb-1",
-  "[&_h5]:mt-3 [&_h5]:mb-1",
-  "[&_h6]:mt-3 [&_h6]:mb-1",
+  "[&_p]:my-3.5 [&_li>p]:my-1.5",
+  "[&_blockquote]:my-5 [&_pre]:my-3 [&_[data-slot=markdown-table]]:my-5",
+  "[&_ol]:my-3.5 [&_ul]:my-3.5",
+  "[&_p+ol]:mt-2 [&_p+ul]:mt-2",
+  "[&_li>ol]:mt-1.5 [&_li>ol]:mb-2 [&_li>ul]:mt-1.5 [&_li>ul]:mb-2",
+  "[&_h1]:mt-8 [&_h1]:mb-3",
+  "[&_h2]:mt-8 [&_h2]:mb-2.5",
+  "[&_h3]:mt-6 [&_h3]:mb-1.5",
+  "[&_h4]:mt-5 [&_h4]:mb-1",
+  "[&_h5]:mt-5 [&_h5]:mb-1",
+  "[&_h6]:mt-5 [&_h6]:mb-1",
+  "[&_:is(h1,h2,h3,h4)+:is(h2,h3,h4,h5,h6)]:mt-3",
 ].join(" ");
 
+// Dense surfaces keep the small heading tier; the prose ladder is for reading columns.
 const PROSE_COMPACT = [
   "[&_p]:my-1",
-  "[&_blockquote]:my-2 [&_pre]:my-2 [&_table]:my-2 [&_hr]:my-2",
+  "[&_blockquote]:my-2 [&_pre]:my-2 [&_[data-slot=markdown-table]]:my-2 [&_hr]:my-2",
   "[&_ol]:my-1 [&_ul]:my-1 [&_li]:my-0",
-  "[&_h1]:mt-3 [&_h1]:mb-1",
-  "[&_h2]:mt-3 [&_h2]:mb-1",
-  "[&_h3]:mt-2.5 [&_h3]:mb-1",
-  "[&_h4]:mt-2 [&_h4]:mb-0.5",
+  "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-item-title",
+  "[&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-card-title",
+  "[&_h3]:mt-2.5 [&_h3]:mb-1 [&_h3]:text-small-body",
+  "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-small-body",
   "[&_h5]:mt-2 [&_h5]:mb-0.5",
   "[&_h6]:mt-2 [&_h6]:mb-0.5",
 ].join(" ");

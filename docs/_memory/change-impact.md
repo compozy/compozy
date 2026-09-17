@@ -1,5 +1,13 @@
 # Compozy Change Impact
 
+## Issue 653 — Rendered Markdown hierarchy
+
+- **Web:** every `<Markdown>` surface gains a real heading ladder (22 / 18 / 16 / 15 / 13.5 px over the 15 px body), semibold emphasis, accent-strong underlined links, wider block rhythm, and framed tables with a tinted header that scroll inside their own frame at narrow widths. `compact` surfaces (tool panels, palette previews) keep the small heading tier.
+- **Design system:** adds `--text-prose-h1..h3` and `--tracking-prose-h1..h3`; inline code now uses the existing `--text-inline-code`. `DESIGN.md` and the font-size class list are regenerated. Links are a deliberate, reviewed use of accent in prose; the underline keeps them recognisable without colour.
+- **Native tools / CLI / HTTP / UDS / hooks / config / extensions / SDK / official skill:** none. The Markdown safe-mode contract (sanitisation, URL transform, image fallback) is unchanged.
+- **Workspace / profile isolation and compatibility:** none. No stored data, routes, or public shapes change.
+- **Docs / QA:** no scenario owns prose typography. A token contract test keeps each heading tier above the prose body and the link colour at AA contrast on every prose surface; `MessageMarkdown` stories `LongAnswer` and `NarrowColumn` are the representative sample.
+
 ## Issue 651 — Session deletion profile scope
 
 - Web single and bulk deletion send the selected session owner profile and workspace.
