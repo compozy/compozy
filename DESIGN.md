@@ -1153,10 +1153,15 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
 - `<DescriptionCard>`: markdown rendering with the safe Streamdown config. Do
   not relax sanitization without a security review.
 - `<Markdown>` and `<StreamMarkdown>`: the prose grammar for every rendered
-  Markdown surface. Headings ride the `--text-prose-*` ladder and stay larger
-  than the body they introduce. Links are the sanctioned accent in running
-  text: `accent-strong` plus an underline, so color is never the only cue.
-  `compact` keeps the small heading tier for dense surfaces.
+  Markdown surface. H1–H3 ride the `--text-prose-*` ladder and stay larger
+  than the body; H4 matches the body and separates by weight; H5–H6 are a
+  muted label tier. Links are the sanctioned accent in running text:
+  `accent-strong` with a same-color underline, so color is never the only
+  cue. `compact` keeps the small heading tier, cell padding, and indents for
+  dense surfaces such as tool panels; `compact="relaxed"` pairs that tier
+  with prose paragraph breaks for muted reading panels such as reasoning.
+  Each part picks its density from `data-compact` on the prose root rather
+  than the root overriding the parts.
 - `<OwnerAvatar>`: owner identity. Color resolves through the owner palette
   helper; monogram and aria-label behavior stay in the primitive.
 - `<StatusDot>`: small state indicator. Defaults to decorative unless a label

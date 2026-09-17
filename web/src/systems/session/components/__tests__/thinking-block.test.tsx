@@ -78,6 +78,17 @@ describe("ThinkingBlock", () => {
     expect(content.textContent).not.toContain("- inspect the config");
   });
 
+  it("Should render reasoning on the compact tier with the relaxed prose rhythm", async () => {
+    const user = userEvent.setup();
+    render(<ThinkingBlock thinking="# Plan" thinkingComplete />);
+    await user.click(screen.getByTestId("thinking-trigger"));
+    const prose = screen
+      .getByTestId("thinking-content")
+      .querySelector('[data-slot="stream-markdown"]');
+    expect(prose).toHaveAttribute("data-compact", "true");
+    expect(prose).toHaveAttribute("data-rhythm", "relaxed");
+  });
+
   it("Should align the reasoning body to the detail rail with a single indent", async () => {
     const user = userEvent.setup();
     render(<ThinkingBlock thinking="Reasoned." thinkingComplete />);

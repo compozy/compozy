@@ -129,6 +129,8 @@ Split the body table. It gets 90% of the win, keeps a single file for backups, a
 
 ### Rollout steps
 
+Ship it in three steps, each behind its own release:
+
 1. Add \`message_bodies\` with a foreign key to \`messages.id\`.
    - Backfill in batches of 500 inside one transaction per batch.
    - Keep the old column until the backfill reports zero remaining rows.
@@ -176,6 +178,14 @@ export const NarrowColumn: Story = {
       <div className="w-88 max-w-full">
         <MessageMarkdown content={LONG_ANSWER_MARKDOWN} />
       </div>
+    </MarkdownFrame>
+  ),
+};
+
+export const Compact: Story = {
+  render: () => (
+    <MarkdownFrame>
+      <MessageMarkdown content={LONG_ANSWER_MARKDOWN} compact />
     </MarkdownFrame>
   ),
 };

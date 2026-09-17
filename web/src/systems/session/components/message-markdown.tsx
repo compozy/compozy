@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import { StreamMarkdown } from "@compozy/ui";
+import { StreamMarkdown, type StreamMarkdownProps } from "@compozy/ui";
 
 import { usePrefersReducedMotion } from "@/components/assistant-ui/hooks/use-prefers-reduced-motion";
 import { useSmoothStreamedText } from "../hooks/use-smooth-streamed-text";
@@ -18,11 +18,17 @@ export interface MessageMarkdownProps {
    * answer.
    */
   reveal?: boolean;
+  /** Prose density; the reasoning panel uses `"relaxed"` to keep small headings with prose breaks. */
+  compact?: StreamMarkdownProps["compact"];
 }
 
 // The reveal is presentation only: reduced motion and the client-local
 // "Smooth streaming" preference both render chunks as they arrive.
-function RevealedMarkdown({ content, streaming }: { content: string; streaming: boolean }) {
+function RevealedMarkdown({
+  content,
+  streaming,
+  compact,
+}: Required<Pick<MessageMarkdownProps, "content" | "streaming" | "compact">>) {
   const reducedMotion = usePrefersReducedMotion();
   const preference = useSmoothStreamingPreference();
   const animate = streaming && preference.enabled && !reducedMotion;
@@ -32,6 +38,7 @@ function RevealedMarkdown({ content, streaming }: { content: string; streaming: 
   return (
     <StreamMarkdown
       streaming={streaming}
+      compact={compact}
       data-reveal={animate ? "smooth" : "direct"}
       data-testid="message-markdown"
     >
@@ -41,14 +48,24 @@ function RevealedMarkdown({ content, streaming }: { content: string; streaming: 
 }
 
 export const MessageMarkdown = memo(
-  function MessageMarkdown({ content, streaming = false, reveal = false }: MessageMarkdownProps) {
+  function MessageMarkdown({
+    content,
+    streaming = false,
+    reveal = false,
+    compact = false,
+  }: MessageMarkdownProps) {
     if (reveal) {
-      return <RevealedMarkdown content={content} streaming={streaming} />;
+      return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
     }
-    return <StreamMarkdown streaming={streaming}>{content}</StreamMarkdown>;
+    return (
+      <StreamMarkdown streaming={streaming} compact={compact}>
+        {content}
+      </StreamMarkdown>
+    );
   },
   (prev, next) =>
     prev.content === next.content &&
     prev.streaming === next.streaming &&
-    prev.reveal === next.reveal
+    prev.reveal === next.reveal &&
+    prev.compact === next.compact
 );
