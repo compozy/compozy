@@ -21,3 +21,10 @@ Open the same completed task from Overview and task-run detail. Confirm the larg
 QA impact 2026-08-31: new bounded Web disclosure and sequential copy behavior.
 
 QA 2026-08-31: the deep-linked task Overview showed a closed 71,694-byte result with no `/result` request. Opening fetched offset 0 only; paging rendered bytes 16,385–32,768 in the bounded code viewport; Copy result fetched all five 16 KiB pages and announced `Copied result`. Browser errors were empty.
+
+QA impact 2026-09-17 (issue #653): a string task result renders through `<Markdown>` on the reading tier,
+so it now takes the prose heading ladder (H1 22 px, H2 18 px, heading top margins up to 32 px), a 14 px
+paragraph rhythm, accent-strong underlined links, and framed tables. Disclosure, paging, and copy
+behaviour are untouched. Not inspected in Storybook and not walked: confirm the collapsed preview
+(`max-h-44`) still shows useful body text when a result opens with headings, and that the expanded
+result reads comfortably.

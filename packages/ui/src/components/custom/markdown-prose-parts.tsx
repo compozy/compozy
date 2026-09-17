@@ -8,7 +8,7 @@ import {
   PROSE_TYPE_COMPACT,
 } from "./markdown-prose-constants";
 
-// Each part picks its own density from `data-compact` on the `group/md` root; margins stay in the root recipes.
+// Parts switch size, weight, and padding on `data-compact`; the root recipes own block margins and override any set here.
 
 type MdProps<T extends keyof React.JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
   node?: unknown;

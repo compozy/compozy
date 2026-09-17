@@ -1160,8 +1160,10 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   cue. `compact` keeps the small heading tier, cell padding, and indents for
   dense surfaces such as tool panels; `compact="relaxed"` pairs that tier
   with prose paragraph breaks for muted reading panels such as reasoning.
-  Each part picks its density from `data-compact` on the prose root rather
-  than the root overriding the parts.
+  Each part picks its size, weight, and padding from `data-compact` on the
+  prose root. Block margins are the exception: the root density recipes own
+  them and override the reading defaults that `li`, `hr`, and the streamed
+  code block carry.
 - `<OwnerAvatar>`: owner identity. Color resolves through the owner palette
   helper; monogram and aria-label behavior stay in the primitive.
 - `<StatusDot>`: small state indicator. Defaults to decorative unless a label
