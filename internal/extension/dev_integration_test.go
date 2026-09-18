@@ -958,7 +958,10 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 					t.Fatalf("GetDevLink(second) error = %v", err)
 				}
 				if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
-					t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
+					t.Fatalf(
+						"second dev link = %#v, want generation and one diagnostic replaced atomically",
+						secondLink,
+					)
 				}
 
 				writeFile(t, manifestPath, fmt.Sprintf(
@@ -1424,13 +1427,13 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 			prepare: func(t *testing.T, workspace *workspacepkg.ResolvedWorkspace) (DevLinkRequest, workspacepkg.RuntimeResolver) {
 				t.Helper()
 				return DevLinkRequest{
-						OriginPath:     filepath.Join(workspace.RootDir, "unused"),
-						GenerationHash: strings.Repeat("a", 64),
-					}, devBootFailureResolver{err: fmt.Errorf(
-						"development origin became unavailable: %s api_key=%s",
-						rawCauseCanary,
-						secretCanary,
-					)}
+					OriginPath:     filepath.Join(workspace.RootDir, "unused"),
+					GenerationHash: strings.Repeat("a", 64),
+				}, devBootFailureResolver{err: fmt.Errorf(
+					"development origin became unavailable: %s api_key=%s",
+					rawCauseCanary,
+					secretCanary,
+				)}
 			},
 		},
 		{
