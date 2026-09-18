@@ -182,6 +182,9 @@ tokens:
       mono-id: { size: "0.6875rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
       card-title: { size: "0.9375rem", line: "1.4" }
+      prose-h1: { size: "1.375rem", line: "1.25", tracking: "-0.022em" }
+      prose-h2: { size: "1.125rem", line: "1.3", tracking: "-0.018em" }
+      prose-h3: { size: "1rem", line: "1.4", tracking: "-0.01em" }
       code-block: { size: "0.78125rem", line: "1.5" }
       transcript-message: { size: "0.84375rem" }
       transcript-body: { size: "0.75rem" }
@@ -876,6 +879,9 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-mono-id`            | `0.6875rem`  |            | `0`        |
 | `--text-pill-group-badge`   | `0.5625rem`  |            |            |
 | `--text-card-title`         | `0.9375rem`  | `1.4`      |            |
+| `--text-prose-h1`           | `1.375rem`   | `1.25`     | `-0.022em` |
+| `--text-prose-h2`           | `1.125rem`   | `1.3`      | `-0.018em` |
+| `--text-prose-h3`           | `1rem`       | `1.4`      | `-0.01em`  |
 | `--text-code-block`         | `0.78125rem` | `1.5`      |            |
 | `--text-transcript-message` | `0.84375rem` |            |            |
 | `--text-transcript-body`    | `0.75rem`    |            |            |
@@ -898,6 +904,8 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
 | `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
 | `--tracking-body`         | `-0.006em` | `--tracking-row-title`    | `-0.01em`  |
+| `--tracking-prose-h1`     | `-0.022em` | `--tracking-prose-h2`     | `-0.018em` |
+| `--tracking-prose-h3`     | `-0.01em`  |                           |            |
 
 <!-- END:tokens:tracking-ladder -->
 
@@ -1144,6 +1152,18 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   without decorative accent rails.
 - `<DescriptionCard>`: markdown rendering with the safe Streamdown config. Do
   not relax sanitization without a security review.
+- `<Markdown>` and `<StreamMarkdown>`: the prose grammar for every rendered
+  Markdown surface. H1–H3 ride the `--text-prose-*` ladder and stay larger
+  than the body; H4 matches the body and separates by weight; H5–H6 are a
+  muted label tier. Links are the sanctioned accent in running text:
+  `accent-strong` with a same-color underline, so color is never the only
+  cue. `compact` keeps the small heading tier, cell padding, and indents for
+  dense surfaces such as tool panels; `compact="relaxed"` pairs that tier
+  with prose paragraph breaks for muted reading panels such as reasoning.
+  Each part picks its size, weight, and padding from `data-compact` on the
+  prose root. Block margins are the exception: the root density recipes own
+  them and override the reading defaults that `li`, `hr`, and the streamed
+  code block carry.
 - `<OwnerAvatar>`: owner identity. Color resolves through the owner palette
   helper; monogram and aria-label behavior stay in the primitive.
 - `<StatusDot>`: small state indicator. Defaults to decorative unless a label

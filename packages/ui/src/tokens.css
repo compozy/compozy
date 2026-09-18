@@ -247,6 +247,13 @@
      it has its own mono pair below. */
   --text-card-title: 0.9375rem;
   --text-card-title--line-height: 1.4;
+  /* Prose heading ladder (Markdown H1–H3) — must stay above the 15 px prose body. */
+  --text-prose-h1: 1.375rem; /* 22px */
+  --text-prose-h1--line-height: 1.25;
+  --text-prose-h2: 1.125rem; /* 18px */
+  --text-prose-h2--line-height: 1.3;
+  --text-prose-h3: 1rem; /* 16px */
+  --text-prose-h3--line-height: 1.4;
   /* Block-code tier — JetBrains Mono block surfaces (CodeBlock, JsonViewer)
      share one size; density varies padding/surface only. */
   --text-code-block: 0.78125rem; /* 12.5px */
@@ -291,6 +298,10 @@
   --tracking-body: -0.006em;
   /* Listing-row title optical tightening (one step, matches --text-card-title). */
   --tracking-row-title: -0.01em;
+  /* Prose heading ladder — tightening scales with size, like the page-head H1s. */
+  --tracking-prose-h1: -0.022em;
+  --tracking-prose-h2: -0.018em;
+  --tracking-prose-h3: -0.01em;
 
   /* Radii — base + ladder: 3 / 6 / 7 / 8 / 10 / 14 / 18 / pill. */
   --radius: 8px;
