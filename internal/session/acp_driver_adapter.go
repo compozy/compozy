@@ -78,6 +78,21 @@ func (a *ACPDriverAdapter) ConfigureRuntime(
 	return a.driver.ConfigureRuntime(ctx, native, config)
 }
 
+// NotifyExtension delivers one fire-and-forget extension notification over the
+// live agent connection.
+func (a *ACPDriverAdapter) NotifyExtension(
+	ctx context.Context,
+	proc *AgentProcess,
+	method string,
+	params any,
+) error {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return err
+	}
+	return a.driver.NotifyExtension(ctx, native, method, params)
+}
+
 // Interrupt signals only registered tool processes scoped to the session turn.
 func (a *ACPDriverAdapter) Interrupt(
 	ctx context.Context,

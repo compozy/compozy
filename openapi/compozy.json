@@ -337329,6 +337329,7 @@
                           },
                           "deadline": {
                             "format": "date-time",
+                            "nullable": true,
                             "type": "string"
                           },
                           "question": {

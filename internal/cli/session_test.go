@@ -1556,7 +1556,7 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		Question:  "Which workspace should I use?",
 		Choices:   []string{"staging", "production"},
 		AskedAt:   fixedTestNow,
-		Deadline:  fixedTestNow.Add(5 * time.Minute),
+		Deadline:  timePointer(fixedTestNow.Add(5 * time.Minute)),
 	}}}
 	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionClarificationsFn: func(_ context.Context, sessionID string) (ClarificationsRecord, error) {
@@ -1587,6 +1587,61 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pending clarifications = %#v, want %#v", got, want)
 	}
+}
+
+func TestSessionClarifyPendingRendersUnboundedDeadline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render the absent marker for an unbounded deadline", func(t *testing.T) {
+		t.Parallel()
+
+		want := ClarificationsRecord{Clarifications: []ClarificationPendingRecord{{
+			RequestID: "req-1",
+			SessionID: "sess-1",
+			AgentName: "reviewer",
+			Question:  "Which workspace should I use?",
+			Choices:   []string{"staging", "production"},
+			AskedAt:   fixedTestNow,
+			Deadline:  nil,
+		}}}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionClarificationsFn: func(_ context.Context, _ string) (ClarificationsRecord, error) {
+				return want, nil
+			},
+		})
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			sessionClarifyCommandUse,
+			"pending",
+			"sess-1",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session clarify pending) error = %v", err)
+		}
+		if !strings.Contains(human, "req-1") || !strings.Contains(human, "--") {
+			t.Fatalf("human pending clarifications = %q, want the request row with a -- deadline", human)
+		}
+
+		tonesque, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			sessionClarifyCommandUse,
+			"pending",
+			"sess-1",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session clarify pending -o toon) error = %v", err)
+		}
+		if !strings.Contains(tonesque, "req-1") {
+			t.Fatalf("toon pending clarifications = %q, want the request row", tonesque)
+		}
+	})
 }
 
 func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T) {
