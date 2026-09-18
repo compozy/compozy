@@ -117,12 +117,13 @@ export async function cancelWorktreeCreate(
 export async function adoptWorktree(
   workspaceID: string,
   params: AdoptWorktreeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<WorktreePayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/worktrees/adopt",
     {
-      params: { path: { workspace_id: workspaceID } },
+      params: { path: { workspace_id: workspaceID }, query: { profile } },
       body: params,
       signal,
     }
@@ -142,7 +143,7 @@ export async function adoptWorktree(
 export async function removeWorktree(
   workspaceID: string,
   worktreeID: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; profile?: string } = {},
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
@@ -150,7 +151,7 @@ export async function removeWorktree(
     {
       params: {
         path: { workspace_id: workspaceID, worktree_id: worktreeID },
-        query: options.force === undefined ? undefined : { force: options.force },
+        query: { force: options.force, profile: options.profile },
       },
       signal,
     }
@@ -168,12 +169,13 @@ export async function removeWorktree(
 export async function dismissWorktree(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  profile?: string
 ): Promise<void> {
   const { error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss",
     {
-      params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
+      params: { path: { workspace_id: workspaceID, worktree_id: worktreeID }, query: { profile } },
       signal,
     }
   );

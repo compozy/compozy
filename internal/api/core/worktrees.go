@@ -233,8 +233,14 @@ func (h *BaseHandlers) CancelWorktreeCreate(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// RemoveWorktree authorizes the saved target before delegating checkout removal.
+// Lifecycle refusals retain their structured 409 payload, including force risks.
 func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	id, ok = h.worktreeMutationTarget(c, scope.RegistryID, id)
 	if !ok {
 		return
 	}
@@ -254,8 +260,14 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// DismissWorktree authorizes metadata cleanup without deleting files or history.
+// The lifecycle service owns repeated-request and concurrent-state handling.
 func (h *BaseHandlers) DismissWorktree(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	id, ok = h.worktreeMutationTarget(c, scope.RegistryID, id)
 	if !ok {
 		return
 	}

@@ -22,3 +22,11 @@ that removal leaves the branch and the run history intact.
 
 2026-08-14 layout: the Path fact truncates with a tooltip when the absolute checkout is longer
 than the confirm dialog. Removal stages and copy are unchanged.
+
+
+2026-09-16 bulk-removal impact: both menubar and overview expose bounded selection and individual
+missing-record resolution. Verify mixed and missing-only selections, Escape/Shift/select-all,
+active/foreign/archived/discovered exclusions, immutable targets during live updates, per-item
+partial results and failed-only retry. Metadata dismissal preserves replacements and history;
+repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
+Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).

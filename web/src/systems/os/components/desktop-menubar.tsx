@@ -1,3 +1,4 @@
+import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/workspace";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { usePaletteCommand } from "../hooks/use-palette-registry";
@@ -60,6 +61,8 @@ export interface DesktopMenubarProps {
   onCreateWorktree?: (workspaceId: string) => void;
   onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  removalProfile?: WorktreeRemovalProfile | null;
+  onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /**
    * Profile switcher, supplied by the shell. It owns its own reads, so it is
@@ -100,6 +103,8 @@ export function DesktopMenubar({
   onResolveMissingWorktree,
   onOpenWorktreeContext,
   onRemoveWorktree,
+  removalProfile,
+  onRemoveWorktrees,
   profileSwitcher,
 }: DesktopMenubarProps) {
   const hydration = useDesktop(state => state.hydration);
@@ -184,6 +189,8 @@ export function DesktopMenubar({
           onResolveMissingWorktree={onResolveMissingWorktree}
           onOpenWorktreeContext={onOpenWorktreeContext}
           onRemoveWorktree={onRemoveWorktree}
+          removalProfile={removalProfile}
+          onRemoveWorktrees={onRemoveWorktrees}
         />
       )}
       menus={

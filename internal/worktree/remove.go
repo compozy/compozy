@@ -239,6 +239,8 @@ func (s *Service) runFencedRemoval(
 	}
 }
 
+// evaluateFencedRemoval revalidates the fenced checkout and its removal risks.
+// An absent path completes metadata reconciliation only when no session is active.
 func (s *Service) evaluateFencedRemoval(
 	ctx context.Context,
 	workspace Workspace,
@@ -251,6 +253,9 @@ func (s *Service) evaluateFencedRemoval(
 		return false, RemovalRisk{}, nil, err
 	}
 	if !present {
+		if err := s.requireNoActiveSession(ctx, item); err != nil {
+			return false, RemovalRisk{}, nil, err
+		}
 		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)
 	}
 	risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)

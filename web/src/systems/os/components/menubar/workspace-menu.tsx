@@ -1,3 +1,4 @@
+import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/workspace";
 import { Check, ChevronRight } from "lucide-react";
 
 import {
@@ -45,6 +46,8 @@ export interface WorkspaceMenuProps {
   onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /** Opens the remove dialog for an adopted worktree (row actions menu). */
+  removalProfile?: WorktreeRemovalProfile | null;
+  onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
@@ -88,6 +91,8 @@ export function WorkspaceMenu({
   onResolveMissingWorktree,
   onOpenWorktreeContext,
   onRemoveWorktree,
+  removalProfile,
+  onRemoveWorktrees,
 }: WorkspaceMenuProps) {
   const tree = worktreesByWorkspace
     ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
@@ -160,6 +165,8 @@ export function WorkspaceMenu({
                           >
                             <WorktreeSubmenuPanel
                               node={node}
+                              removalProfile={removalProfile}
+                              onRemoveWorktrees={onRemoveWorktrees}
                               selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
                               testIdPrefix="os"
                               variant="menu"

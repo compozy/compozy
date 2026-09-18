@@ -36,3 +36,11 @@ name reference; remove and dismiss reached the same row; name lookup stopped res
 tombstone while ID lookup preserved it; recreation with the retained branch produced ready row
 `wt_f593dc7d824caa9d`. UDS was exercised by the CLI journey, and the canonical transport suites own
 the exhaustive name/ID and native-tool parity matrix.
+
+
+2026-09-16 bulk-removal impact: both menubar and overview expose bounded selection and individual
+missing-record resolution. Verify mixed and missing-only selections, Escape/Shift/select-all,
+active/foreign/archived/discovered exclusions, immutable targets during live updates, per-item
+partial results and failed-only retry. Metadata dismissal preserves replacements and history;
+repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
+Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).

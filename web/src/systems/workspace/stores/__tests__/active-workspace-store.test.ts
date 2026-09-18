@@ -47,6 +47,20 @@ describe("activeWorkspaceStore", () => {
     clearActiveWorkspaceSelection();
   });
 
+  it("Should clear only the removed worktree in the matching workspace", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, "wt_first");
+    setActiveWorktreeId(WINDOW_TWO, WORKSPACE, "wt_second");
+    activeWorkspaceStore.trigger.worktreeRemoved({ workspaceId: "other", worktreeId: "wt_first" });
+    expect(context().worktreeByScope[WINDOW_ONE]).toBe("wt_first");
+    activeWorkspaceStore.trigger.worktreeRemoved({
+      workspaceId: WORKSPACE,
+      worktreeId: "wt_first",
+    });
+    expect(context().worktreeByScope[WINDOW_ONE]).toBeNull();
+    expect(context().worktreeByScope[WINDOW_TWO]).toBe("wt_second");
+    expect(context().worktreeByScope[SHELL_WORKTREE_SCOPE]).toBe("wt_second");
+  });
+
   it("Should turn Global off and select the workspace in one gesture", () => {
     enableGlobalScope();
     setActiveWorkspaceId("ws_alpha");

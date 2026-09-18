@@ -1,4 +1,4 @@
-import { useWorktrees } from "@/systems/workspace";
+import { useWorktrees, WorktreeBulkRemoveDialog } from "@/systems/workspace";
 
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
@@ -29,6 +29,12 @@ export function DesktopWorktreeDialogs({
 
   return (
     <>
+      {worktreeDialogs.removalBatch ? (
+        <WorktreeBulkRemoveDialog
+          batch={worktreeDialogs.removalBatch}
+          onClose={worktreeDialogs.closeRemoveBatch}
+        />
+      ) : null}
       {model.worktreeCreateWorkspaceId ? (
         <WorktreeCreateDialogBoundary
           workspaceId={model.worktreeCreateWorkspaceId}
