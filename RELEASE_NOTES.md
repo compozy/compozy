@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-15
+## 0.3.0 - 2026-09-18
 
 ### ♻️ Refactoring
 
@@ -76,6 +76,8 @@
 - Show session context and confirmed prompt deliveries (#635)
 - Unify marketplace catalog and plugin sources (#636)
 - Add release video workspace and production skill
+- Give rendered Markdown a readable visual hierarchy (#660)
+- Add safe bulk worktree cleanup to workspace lists (#656)
 
 ### 🐛 Bug Fixes
 
@@ -258,6 +260,8 @@
 - Recover marketplace sources and render catalog logos under CSP (#648)
 - Repair marketplace CI fixtures and evidence capture
 - Cancel unbound goals before deleting sessions (#647)
+- Preserve profile scope when deleting sessions (#652)
+- Discover Claude reasoning options for each exact model (#658)
 
 ### 🔧 Miscellaneous Tasks
 
