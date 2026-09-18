@@ -13,10 +13,11 @@ import (
 )
 
 const acpDiscoveryAgentName = "compozy-model-catalog"
+const providerDefaultOption = "default"
 
 // ACPModelProbe reads model options advertised by a short-lived ACP session.
 type ACPModelProbe interface {
-	InspectModels(context.Context, ACPModelProbeRequest) ([]acp.SessionConfigOption, error)
+	InspectModels(context.Context, ACPModelProbeRequest) (acp.SessionModelInspection, error)
 }
 
 // ACPModelProbeRequest captures one provider ACP discovery invocation.
@@ -33,27 +34,28 @@ type SessionACPModelProbe struct{}
 
 var _ ACPModelProbe = SessionACPModelProbe{}
 
-// InspectModels creates a short-lived ACP session without changing its configuration.
+// InspectModels selects each model in a disposable ACP session to read its options.
 func (SessionACPModelProbe) InspectModels(
 	ctx context.Context,
 	req ACPModelProbeRequest,
-) ([]acp.SessionConfigOption, error) {
-	options, err := acp.InspectSessionConfigOptions(ctx, acp.SessionInspectionRequest{
+) (acp.SessionModelInspection, error) {
+	inspection, err := acp.InspectSessionModels(ctx, acp.SessionInspectionRequest{
 		AgentName: acpDiscoveryAgentName,
 		Command:   strings.TrimSpace(req.Command),
 		Cwd:       strings.TrimSpace(req.Cwd),
 		Env:       append([]string(nil), req.Env...),
 	})
 	if err != nil {
-		return nil, fmt.Errorf(
+		return acp.SessionModelInspection{}, fmt.Errorf(
 			"model catalog: inspect %s ACP model options: %w",
 			strings.TrimSpace(req.ProviderID),
 			err,
 		)
 	}
-	return options, nil
+	return inspection, nil
 }
 
+// listACP discovers each model independently before publishing an atomic source snapshot.
 func (s *LiveProviderSource) listACP(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
@@ -72,7 +74,7 @@ func (s *LiveProviderSource) listACP(
 	if s.usesNativeCodexDiscovery(provider) {
 		return s.listCodex(ctx, env, timeout, now)
 	}
-	options, err := s.acpProbe.InspectModels(ctx, ACPModelProbeRequest{
+	inspection, err := s.acpProbe.InspectModels(ctx, ACPModelProbeRequest{
 		ProviderID: s.providerID,
 		Command:    strings.TrimSpace(provider.Command),
 		Cwd:        cwd,
@@ -82,7 +84,7 @@ func (s *LiveProviderSource) listACP(
 	if err != nil {
 		return nil, err
 	}
-	modelOption, ok := acp.ModelConfigOption(options)
+	modelOption, ok := acp.ModelConfigOption(inspection.Options)
 	if !ok {
 		return nil, fmt.Errorf(
 			"model catalog: %s ACP session did not advertise a model select option",
@@ -101,6 +103,9 @@ func (s *LiveProviderSource) listACP(
 			"model catalog: %s ACP model option did not advertise model values",
 			s.providerID,
 		)
+	}
+	for index := range rows {
+		applyACPModelReasoning(&rows[index], inspection.Models)
 	}
 	return rows, nil
 }
@@ -176,6 +181,7 @@ func (s *LiveProviderSource) usesNativeCodexDiscovery(provider compozyconfig.Pro
 		providerexec.StrategyFor(provider).NativeCLI.Command == "codex"
 }
 
+// liveModelMappings preserves configured identities and adds provider-owned defaults for discovery.
 func liveModelMappings(providerID string, provider compozyconfig.ProviderConfig) compozyconfig.ProviderModelsConfig {
 	models := provider.Models
 	builtins := compozyconfig.BuiltinProviders()
@@ -199,4 +205,57 @@ func liveModelMappings(providerID string, provider compozyconfig.ProviderConfig)
 		}
 	}
 	return models
+}
+
+// applyACPModelReasoning retains each binding snapshot and projects only the route used for session launch.
+func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfigOption) {
+	transportID := row.ModelID
+	for index := range row.TransportBindings {
+		binding := &row.TransportBindings[index]
+		if options, inspected := models[binding.TransportModelID]; inspected {
+			binding.ConfigOptions = acpModelOptionDescriptors(options)
+		}
+	}
+	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok {
+		transportID = binding.TransportModelID
+	}
+	options, inspected := models[transportID]
+	if !inspected {
+		return
+	}
+	row.ConfigOptions = acpModelOptionDescriptors(options)
+	option, ok := acp.ReasoningConfigOption(options)
+	if !ok || option.ReadOnly {
+		return
+	}
+	efforts := make([]string, 0, len(option.Values))
+	for _, value := range option.Values {
+		if value.Value != providerDefaultOption {
+			efforts = append(efforts, value.Value)
+		}
+	}
+	row.ReasoningEfforts = normalizedReasoningEfforts(efforts)
+	row.SupportsReasoning = new(true)
+	if option.CurrentValueID != providerDefaultOption {
+		row.DefaultReasoningEffort = normalizedDefaultReasoningEffort(option.CurrentValueID)
+	}
+}
+
+// acpModelOptionDescriptors keeps the selected model marker even when effort is provider-managed.
+func acpModelOptionDescriptors(options []acp.SessionConfigOption) []ModelOptionDescriptor {
+	descriptors := make([]ModelOptionDescriptor, 0, len(options))
+	for _, option := range options {
+		if option.ReadOnly || option.Category == "mode" || option.ID == "mode" {
+			continue
+		}
+		descriptor := ModelOptionDescriptor{ID: option.ID, Label: option.Label, Description: option.Description,
+			Category: option.Category, Kind: ModelOptionKind(option.Kind), CurrentValueID: option.CurrentValueID,
+			CurrentBool: cloneBoolPtr(option.CurrentBool)}
+		for index, value := range option.Values {
+			descriptor.Values = append(descriptor.Values, ModelOptionValue{ValueID: value.Value, Label: value.Label,
+				Description: value.Description, GroupID: value.GroupID, GroupLabel: value.GroupLabel, Order: index})
+		}
+		descriptors = append(descriptors, descriptor)
+	}
+	return descriptors
 }

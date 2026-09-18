@@ -162,6 +162,9 @@ export function toRuntimeModelOptions(
       cost_reasoning: model.cost?.reasoning_per_million ?? null,
       supports_tools: model.supports_tools ?? null,
       supports_reasoning: model.supports_reasoning ?? null,
+      reasoning_known:
+        model.reasoning_known === true || efforts.length > 0 || configurations !== undefined,
+      reasoning_apply: model.reasoning_apply,
       efforts,
       default_effort: defaultEffort,
       reasoning_source: model.reasoning_source,

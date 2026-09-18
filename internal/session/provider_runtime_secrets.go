@@ -45,7 +45,8 @@ func (r providerSecretMetadataResolver) GetMetadata(
 	}, nil
 }
 
-func setProviderModelEnv(env []string, resolved compozyconfig.ResolvedAgent) []string {
+// setProviderModelEnv keeps native Claude model advertisement aligned with the negotiated transport ID.
+func setProviderModelEnv(env []string, resolved compozyconfig.ResolvedAgent, preferredModel string) []string {
 	model := strings.TrimSpace(resolved.Model)
 	if model == "" || resolved.Harness != compozyconfig.ProviderHarnessACP {
 		return env
@@ -54,6 +55,11 @@ func setProviderModelEnv(env []string, resolved compozyconfig.ResolvedAgent) []s
 	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
 	if runtimeProvider == "" {
 		runtimeProvider = strings.TrimSpace(resolved.Provider)
+	}
+	// Claude's launch override changes its advertised model IDs. Seed the same
+	// validated transport ID that ACP will select, while COMPOZY_MODEL stays logical.
+	if runtimeProvider == runtimeProviderClaude && strings.TrimSpace(preferredModel) != "" {
+		model = strings.TrimSpace(preferredModel)
 	}
 
 	switch runtimeProvider {

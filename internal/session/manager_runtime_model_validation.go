@@ -1,7 +1,6 @@
 package session
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -149,6 +148,7 @@ func (m *Manager) resolveCatalogTransportModel(
 	}
 }
 
+// listLiveProviderModels reads available bindings within the resolved provider execution context.
 func (m *Manager) listLiveProviderModels(
 	ctx context.Context,
 	providerID string,
@@ -178,23 +178,10 @@ func (m *Manager) listLiveProviderModels(
 	return live, nil
 }
 
+// selectClaudeTransportModel uses the same route whose capabilities the catalog exposes.
 func selectClaudeTransportModel(model modelcatalog.Model) (string, error) {
-	bindings := append([]modelcatalog.ModelTransportBinding(nil), model.TransportBindings...)
-	slices.SortFunc(bindings, func(left, right modelcatalog.ModelTransportBinding) int {
-		leftDefault := strings.EqualFold(strings.TrimSpace(left.TransportModelID), "default")
-		rightDefault := strings.EqualFold(strings.TrimSpace(right.TransportModelID), "default")
-		if leftDefault != rightDefault {
-			if leftDefault {
-				return 1
-			}
-			return -1
-		}
-		return cmp.Compare(strings.TrimSpace(left.TransportModelID), strings.TrimSpace(right.TransportModelID))
-	})
-	for _, binding := range bindings {
-		if transportModel := strings.TrimSpace(binding.TransportModelID); transportModel != "" {
-			return transportModel, nil
-		}
+	if binding, ok := modelcatalog.PreferredTransportBinding(model.TransportBindings); ok {
+		return binding.TransportModelID, nil
 	}
 	return "", fmt.Errorf("session: Claude model %q has no live transport binding", model.ModelID)
 }

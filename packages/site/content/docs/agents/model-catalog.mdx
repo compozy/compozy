@@ -60,8 +60,11 @@ source registration without a daemon restart. Removal clears that overlay's live
 across profiles/workspaces; recreating it requires a new successful discovery. Source health appears
 as `provider_live:<overlay-id>`.
 
-Claude's advertised aliases, such as `haiku` and `sonnet`, map to logical catalog IDs using the
-runtime family's built-in identities and the overlay's configured model identities. Session creation
+Claude's advertised aliases, such as `haiku` and `sonnet`, map to logical catalog IDs only when
+the advertised version identifies exactly one configured or built-in candidate. Exact provider IDs
+keep their version; a new minor release never inherits an older release's identity. The `[1m]`
+transport suffix is retained in the private binding for the same model. `default` remains the
+provider's default rather than an inferred configured model. Session creation
 resolves the private transport alias from that overlay's live catalog. Another account's catalog
 cannot establish availability for the overlay. Built-in identity hints do not add unadvertised rows.
 
@@ -442,6 +445,23 @@ a recorded source status (with redacted error) instead of corrupting the project
 - The daemon joins outstanding refresh workers during shutdown.
 
 Codex uses the installed native CLI app server’s `model/list` endpoint to discover each model’s supported reasoning levels, default, and visibility across all result pages. This includes new models without adding their names to the built-in catalog. Explicit discovery commands retain their configured behavior. Claude and Hermes use short-lived ACP inspection so catalog values match the runtime transport.
+
+ACP discovery selects each advertised model in a disposable session and retains the returned
+model-specific options, including the standard `thought_level` category. It never submits a prompt.
+One model's efforts are not reused for another. An observed absence of adjustable effort supersedes
+older static levels; a provider `default` value stays distinct from an explicit effort. A failed
+selection fails discovery and preserves the previous successful catalog generation.
+
+In the session composer, live options update the effective model's catalog-enabled effort controls.
+Pending runtime intent and queued prompt snapshots remain separate. Claude launch overrides use the validated transport binding while public model IDs remain logical.
+Configuration changes must be
+acknowledged by the provider's returned current value before CompozyOS treats them as applied.
+Enrichment-only reasoning support does not establish whether effort is adjustable: the selector
+shows unconfirmed options until authoritative metadata is available.
+
+Saved selections and favorites retain their provider and exact model IDs. After upgrading, refresh
+the affected live source to replace older discovery results. A distinct version that the account
+does not advertise remains unavailable for negotiation; CompozyOS does not silently upgrade it.
 Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels, and new advertised values survive discovery, persistence, and selection without a release. The active provider validates membership. OpenCode discovery reads `opencode models --verbose` to retain each model's capabilities and effort variants. Configured discovery uses its declared command or endpoint, and
 extension sources call their `models/list` capability. Dynamic sources fail closed by recording source
 status; an explicit Cursor model is accepted only when a fresh Cursor catalog row advertises its logical
@@ -473,3 +493,9 @@ updated transitions.
   cobra source.
 - [Develop Extensions](/docs/extensions/develop#model-source-extensions) covers the
   manifest provide capability `model.source` and Host API model methods.
+
+The public model payload distinguishes confirmed reasoning metadata (`reasoning_known`) from
+permission to negotiate live effort options (`reasoning_apply`, either `acp_option` or `none`).
+A discovery source or reasoning-support flag alone does not confirm adjustable levels. Session
+updates can supply newly advertised levels when negotiation is enabled; they cannot override an
+explicit `none` strategy or a model's valid-configuration matrix.

@@ -338,25 +338,26 @@ func (q *Queries) InsertModelCatalogRow(ctx context.Context, arg InsertModelCata
 const insertModelCatalogTransportBinding = `-- name: InsertModelCatalogTransportBinding :exec
 INSERT INTO model_catalog_transport_bindings (
   context_id, source_id, provider_id, model_id, transport_model_id, label,
-  reasoning_effort, fast, thinking, rank
+  reasoning_effort, fast, thinking, rank, config_options_json
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10
+  ?8, ?9, ?10, ?11
 )
 `
 
 type InsertModelCatalogTransportBindingParams struct {
-	ContextID        string         `json:"context_id"`
-	SourceID         string         `json:"source_id"`
-	ProviderID       string         `json:"provider_id"`
-	ModelID          string         `json:"model_id"`
-	TransportModelID string         `json:"transport_model_id"`
-	Label            string         `json:"label"`
-	ReasoningEffort  sql.NullString `json:"reasoning_effort"`
-	Fast             sql.NullInt64  `json:"fast"`
-	Thinking         sql.NullInt64  `json:"thinking"`
-	Rank             int64          `json:"rank"`
+	ContextID         string         `json:"context_id"`
+	SourceID          string         `json:"source_id"`
+	ProviderID        string         `json:"provider_id"`
+	ModelID           string         `json:"model_id"`
+	TransportModelID  string         `json:"transport_model_id"`
+	Label             string         `json:"label"`
+	ReasoningEffort   sql.NullString `json:"reasoning_effort"`
+	Fast              sql.NullInt64  `json:"fast"`
+	Thinking          sql.NullInt64  `json:"thinking"`
+	Rank              int64          `json:"rank"`
+	ConfigOptionsJson string         `json:"config_options_json"`
 }
 
 func (q *Queries) InsertModelCatalogTransportBinding(ctx context.Context, arg InsertModelCatalogTransportBindingParams) error {
@@ -371,6 +372,7 @@ func (q *Queries) InsertModelCatalogTransportBinding(ctx context.Context, arg In
 		arg.Fast,
 		arg.Thinking,
 		arg.Rank,
+		arg.ConfigOptionsJson,
 	)
 	return err
 }
@@ -646,7 +648,8 @@ SELECT
   b.reasoning_effort,
   b.fast,
   b.thinking,
-  b.rank
+  b.rank,
+  b.config_options_json
 FROM model_catalog_transport_bindings b
 JOIN model_catalog_rows r
   ON r.context_id = b.context_id
@@ -696,6 +699,7 @@ func (q *Queries) ListModelCatalogTransportBindings(ctx context.Context, arg Lis
 			&i.Fast,
 			&i.Thinking,
 			&i.Rank,
+			&i.ConfigOptionsJson,
 		); err != nil {
 			return nil, err
 		}

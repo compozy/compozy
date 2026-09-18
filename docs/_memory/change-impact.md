@@ -1,5 +1,28 @@
 # Compozy Change Impact
 
+## Issue 655 — Claude model identity and effort discovery
+
+- **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add
+  `reasoning_known` and `reasoning_apply`; OpenAPI and generated Web/Go/TypeScript SDKs co-ship.
+  Discovery retains each transport's inspected options and projects the same deterministic route
+  used by Claude launch. Successful writes require matching provider readback.
+- **Extensibility / hooks / config:** no new hooks or configuration keys. Explicit apply strategies
+  and authoritative configuration matrices remain enforced. Future advertised effort identifiers
+  remain provider-owned strings.
+- **Compatibility / isolation:** saved selections, favorites and runtime configs keep their identities.
+  Exact versions, account/profile/workspace keys and private transport mappings remain distinct.
+  Global migration 00120 adds a validated per-binding option snapshot with an unknown default;
+  existing rows and dependent selections survive unchanged. Failed discovery retains prior rows,
+  last-success evidence and an explicit stale/error status. No manual cache repair.
+- **Web:** unknown capability has its own footer state. Session options hydrate only the effective
+  model when negotiation is enabled, including initially unknown effort; they do not replace pending
+  or queued intent. Standard thought levels are dedicated controls, not advanced-option duplicates.
+- **Session lifecycle:** unbound logical resume defers catalog validation until the next prompt's
+  actual binding, matching initial creation. Bound sessions retain their existing resume behavior.
+- **Docs / official skill / QA:** site and runtime-operation guidance explain exact discovery,
+  negotiation policy and confirmed application. Existing catalog, selector and continuity scenarios
+  own the real walkthrough; the issue 655 report tracks evidence and remaining limitations.
+
 ## Issue 654 — Bulk worktree removal and missing-record cleanup
 
 - Web composes existing singular remove/dismiss operations in both workspace lists, using immutable workspace/profile/record identity, bounded selection, per-item receipts and failed-only reconciled retry. Successful cleanup clears only matching workspace UI scopes.

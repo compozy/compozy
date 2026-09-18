@@ -48910,7 +48910,9 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
+              reasoning_apply?: string;
               reasoning_efforts?: string[];
+              reasoning_known?: boolean;
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
@@ -49289,7 +49291,9 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
+              reasoning_apply?: string;
               reasoning_efforts?: string[];
+              reasoning_known?: boolean;
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
@@ -49589,7 +49593,9 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
+              reasoning_apply?: string;
               reasoning_efforts?: string[];
+              reasoning_known?: boolean;
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
