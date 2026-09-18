@@ -33,6 +33,7 @@ export interface WorktreeMissingResolutionDialogProps {
   outcome: string | null;
   /** Set when re-verification found a different repository, or none. */
   refusal: WorktreeRefusal | null;
+  error?: string | null;
   isPending: boolean;
   onDismissRecord: () => void;
   /**
@@ -52,6 +53,7 @@ export function WorktreeMissingResolutionDialog({
   worktree,
   outcome,
   refusal,
+  error,
   isPending,
   onDismissRecord,
   onRestore,
@@ -80,9 +82,9 @@ export function WorktreeMissingResolutionDialog({
             </MetadataList.Row>
           </MetadataList>
 
-          {refusal ? (
+          {refusal || error ? (
             <Alert variant="danger" data-testid="worktree-missing-refusal">
-              <AlertDescription>{refusal.message}</AlertDescription>
+              <AlertDescription>{refusal?.message ?? error}</AlertDescription>
             </Alert>
           ) : null}
 

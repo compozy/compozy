@@ -323,3 +323,12 @@ export { useWorktreeDetailContext } from "./hooks/use-worktree-detail-context";
 export type { WorktreeDetailModel } from "./hooks/use-worktree-detail-context";
 export { toWorktreePrDialogModel } from "./lib/worktree-pr-rows";
 export type { WorktreePrDialogMode, WorktreePrDialogModel } from "./lib/worktree-pr-rows";
+
+export { useWorktreeRemovalSelection } from "./hooks/use-worktree-removal-selection";
+export type {
+  WorktreeRemovalBatch,
+  WorktreeRemovalProfile,
+} from "./hooks/use-worktree-removal-selection";
+export { WorktreeSelectionToolbar } from "./components/worktree-selection-toolbar";
+
+export { WorktreeBulkRemoveDialog } from "./components/worktree-bulk-remove-dialog";

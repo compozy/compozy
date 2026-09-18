@@ -100,3 +100,18 @@ timeout/cancel stop stays non-failing unless it carries an independent failure/p
 The session library suite owns classification; the component suite owns alert/detail rendering.
 Both cases failed before the production fix and passed afterwards. The existing daemon-served
 session E2E owns the surrounding transcript integration; this is not a new live-provider failure trial.
+
+QA impact 2026-09-17 (issue #653): full message bodies now render the prose heading ladder
+(H1–H3 at 22 / 18 / 16 px over the 15 px body, H4 at body size in semibold, H5–H6 as a muted
+13.5 px label tier), semibold emphasis, accent-strong links with a same-color underline, a 14 px
+paragraph rhythm, and framed tables with a tinted header. The calm grammar itself — folding, the
+live tail, Find, the message trail — is untouched; transcript row geometry is not part of the change.
+Walk: read a long answer with headings, a table, nested lists, links, a blockquote, and a fenced
+block at 360, 860, and 1600 px. A wide table must scroll inside its own frame, identifiers in cells
+must not break mid-word, and no horizontal page overflow may appear.
+
+QA 2026-09-17 (issue #653), Storybook only: `systems-session-components-messagemarkdown--long-answer`,
+`--narrow-column`, and `--rich-content` were inspected with computed styles against `main`. At a
+352 px column the table scrolled inside its frame (453 px of content) with no page overflow, and
+`message_bodies` stayed on one line. Not walked: a live-runtime transcript in the web session window. The
+frontmatter status is left as recorded because the last real-runtime walk predates this change.

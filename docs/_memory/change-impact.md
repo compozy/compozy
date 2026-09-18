@@ -23,6 +23,22 @@
   negotiation policy and confirmed application. Existing catalog, selector and continuity scenarios
   own the real walkthrough; the issue 655 report tracks evidence and remaining limitations.
 
+## Issue 654 — Bulk worktree removal and missing-record cleanup
+
+- Web composes existing singular remove/dismiss operations in both workspace lists, using immutable workspace/profile/record identity, bounded selection, per-item receipts and failed-only reconciled retry. Successful cleanup clears only matching workspace UI scopes.
+- Shared HTTP/UDS remove and dismiss handlers enforce explicit or authenticated session profiles against the retained record owner; operator calls without a selector infer the existing owner at the API boundary, preserving shipped clients (SD-013 lossless boundary translation); optional profile selectors now co-ship in OpenAPI and generated Web types. Existing routes, verbs and native tool IDs remain unchanged. The catalog stays cross-profile and is not mutation authority.
+- Dismissal uses the domain usage fence and active-session check, is idempotent by retained ID, and never touches files or branches. Missing reconciliation uses compare-and-swap so stale list reads cannot overwrite removal/dismissal. Restore rejects a competing dismissal and a foreign owner.
+- No SQLite/config/extension/SDK/hook shape changes or migrations. Existing removal hooks and Git safety checks remain authoritative; no force or session-stop batch operation is introduced. The official Compozy skill's ownership, cleanup and retained-history commands remain valid.
+- Owning tests: worktree removal/recovery and real Git lifecycle; shared API core worktree suite; existing Web hook, scope-store and two list interaction suites; real-daemon worktree E2E. QA report: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md`. Site removal/recovery docs and affected scenarios explain selection and recovery.
+
+## Issue 653 — Rendered Markdown hierarchy
+
+- **Web:** every `<Markdown>` surface gains a real heading ladder (22 / 18 / 16 / 15 / 13.5 px over the 15 px body), semibold emphasis, accent-strong underlined links, wider block rhythm, and framed tables with a tinted header that scroll inside their own frame at narrow widths. `compact` surfaces (tool panels, palette previews, and now the reasoning panel) keep their previous heading sizes, cell padding, and indents, and still gain the link, emphasis, and table-frame fixes. The reasoning panel uses `compact="relaxed"`, which keeps its previous paragraph rhythm.
+- **Design system:** adds `--text-prose-h1..h3` and `--tracking-prose-h1..h3`; inline code now uses the existing `--text-inline-code`. `DESIGN.md` and the font-size class list are regenerated. Links are a deliberate, reviewed use of accent in prose; the underline keeps them recognisable without colour.
+- **Native tools / CLI / HTTP / UDS / hooks / config / extensions / SDK / official skill:** none. The Markdown safe-mode contract (sanitisation, URL transform, image fallback) is unchanged.
+- **Workspace / profile isolation and compatibility:** none. No stored data, routes, or public shapes change.
+- **Docs / QA:** `ET-web-session-transcript-calm-grammar` (message bodies), `RT-055` (reasoning), `TA-107` (streamed width), `ET-web-agent-detail-tab-parity` (AGENT.md via `DescriptionCard`), `ET-palette-domain-views` (compact palette detail), `TA-web-task-detail-redesign` (task description card), and `TA-web-task-result-disclosure` (Markdown task result) carry dated impact entries; the `DescriptionCard` and task surfaces were not inspected with the Storybook verification and the live-runtime walk still owed. A token contract test, reading the same constants the components render with, keeps H1–H3 above the prose body and the link text and underline at their contrast floors on every prose surface; `MessageMarkdown` stories `LongAnswer` and `NarrowColumn` are the representative sample.
+
 ## Issue 651 — Session deletion profile scope
 
 - Web single and bulk deletion send the selected session owner profile and workspace.

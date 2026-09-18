@@ -169,15 +169,22 @@ func cancelWorktreeOperationSpec() OperationSpec {
 	)
 }
 
+// removeWorktreeOperationSpec keeps the singular HTTP/UDS removal contract,
+// including explicit force acknowledgement and optional profile selection.
 func removeWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodDelete, Path: specAPIWorktreePath, OperationID: "removeWorktree",
-		Summary: "Remove a worktree", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal")),
+		Method:      httpMethodDelete,
+		Path:        specAPIWorktreePath,
+		OperationID: "removeWorktree",
+		Summary:     "Remove a worktree",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: withWorktreeCleanupProfile(
+			append(worktreeRouteParams(), boolQueryParam("force", "Confirm destructive removal"))...),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid removal query", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Profile does not permit removal", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      409,
@@ -190,10 +197,14 @@ func removeWorktreeOperationSpec() OperationSpec {
 	}
 }
 
+// dismissWorktreeOperationSpec exposes the same profile authority as removal
+// while retaining the established metadata-only tombstone operation.
 func dismissWorktreeOperationSpec() OperationSpec {
-	return worktreeNoContentOperation(
+	op := worktreeNoContentOperation(
 		httpMethodPost, specAPIWorktreePath+"/dismiss", "dismissWorktree", "Dismiss a worktree tombstone",
 	)
+	op.Parameters = withWorktreeCleanupProfile(op.Parameters...)
+	return op
 }
 
 func streamWorktreeOperationSpec() OperationSpec {
@@ -266,4 +277,15 @@ func worktreeRouteParams() []ParameterSpec {
 		pathParam("workspace_id", "Workspace id or path"),
 		pathParam("worktree_id", "Worktree id, name, or path"),
 	}
+}
+
+// withWorktreeCleanupProfile documents the compatibility boundary: omitted
+// operator selectors infer ownership, while authenticated agents stay scoped.
+func withWorktreeCleanupProfile(params ...ParameterSpec) []ParameterSpec {
+	return append(params, queryParam(
+		specProfileKey,
+		"Act as this profile by name. If omitted, operator requests infer the target record owner; "+
+			"authenticated agents remain scoped to their session profile.",
+		false,
+	))
 }

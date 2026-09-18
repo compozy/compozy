@@ -1,3 +1,4 @@
+import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/workspace";
 import { useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { OsWorkspacesHints } from "./os-workspaces-hints";
 import { OsWorkspacesStrip } from "./os-workspaces-strip";
 import {
   buildWorkspacesWorktreeMenuModel,
+  focusedWorkspacesMenu,
   type WorkspacesMenuNavRow,
 } from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeMenu } from "./os-workspaces-worktree-menu";
@@ -44,7 +46,10 @@ export interface OsWorkspacesOverviewProps {
   userHomeDir?: string;
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  removalProfile?: WorktreeRemovalProfile | null;
+  onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   shortcutLabels?: {
     picker: string | null;
@@ -159,6 +164,7 @@ const GLOBAL_CAPTION: OsWorkspacesCaptionModel = {
   path: "~",
 };
 
+/** Coordinates workspace navigation while keeping selection and cleanup inside the owning menu. */
 function OsWorkspacesStage({
   workspaces,
   activeWorkspaceId,
@@ -171,35 +177,32 @@ function OsWorkspacesStage({
   selectedWorktreeId,
   onSelectWorktree,
   onCreateWorktree,
+  onResolveMissingWorktree,
   onRemoveWorktree,
+  removalProfile,
+  onRemoveWorktrees,
   onOpenChange,
   overlayRef,
   escapeGuardRef,
   shortcutLabels,
 }: OsWorkspacesStageProps) {
-  const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
-    : workspaces.map(flatNode);
-  const empty = tree.length === 0;
-  const entries: WorkspacesSwitcherEntry[] = empty
-    ? []
-    : [
-        ...tree.map(node => ({ key: node.workspace.id, kind: "workspace" as const, node })),
-        ADD_ENTRY,
-      ];
-  const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
-  const readySelectedWorktreeKey =
-    scope === "workspace" && selectedWorktreeId
-      ? (tree
-          .find(node => node.workspace.id === activeWorkspaceId)
-          ?.worktrees.find(
-            entry => entry.displayState === "ready" && entry.worktree?.id === selectedWorktreeId
-          )?.key ?? null)
-      : null;
-  const canCreate = Boolean(onCreateWorktree);
-  const menuModelByKey = new Map(
-    tree.map(node => [node.workspace.id, buildWorkspacesWorktreeMenuModel(node, canCreate)])
-  );
+  const {
+    tree,
+    empty,
+    entries,
+    totalWorktrees,
+    readySelectedWorktreeKey,
+    canCreate,
+    menuModelByKey,
+  } = projectWorkspacesStage({
+    workspaces,
+    worktreesByWorkspace,
+    userHomeDir,
+    scope,
+    selectedWorktreeId,
+    activeWorkspaceId,
+    onCreateWorktree,
+  });
 
   const activateEntry = (entry: WorkspacesSwitcherEntry) => {
     if (entry.kind === "add") {
@@ -254,14 +257,14 @@ function OsWorkspacesStage({
     escapeGuardRef.current = switcher.guardEscape;
   });
 
-  const focusedEntry = switcher.focusedEntry;
-  const focusedMenuKey = focusedEntry?.kind === "workspace" ? focusedEntry.key : null;
-  const menuModel = focusedMenuKey ? (menuModelByKey.get(focusedMenuKey) ?? null) : null;
-  const menuNavRows = menuModel?.navRows ?? [];
-  const scopedRowKey =
-    scope === "workspace" && focusedMenuKey === activeWorkspaceId ? readySelectedWorktreeKey : null;
-  const focusedRowKey =
-    switcher.layer === "menu" ? (menuNavRows[switcher.menuIndex]?.key ?? null) : null;
+  const { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey } =
+    focusedWorkspacesMenu(
+      switcher,
+      menuModelByKey,
+      scope,
+      activeWorkspaceId,
+      readySelectedWorktreeKey
+    );
 
   return (
     <>
@@ -311,44 +314,13 @@ function OsWorkspacesStage({
             trackRef={scroll.trackRef}
             trackProps={scroll.trackProps}
           >
-            {entries.map((entry, index) => {
-              const focused = switcher.layer !== "menu" && index === switcher.focusIndex;
-              const anchorsMenu = index === switcher.focusIndex;
-              if (entry.kind === "add") {
-                return (
-                  <OsWorkspaceAddTile
-                    key={entry.key}
-                    data-testid="os-workspace-tile-add"
-                    focused={anchorsMenu}
-                    tabIndex={focused ? 0 : -1}
-                    ref={switcher.registerTile(entry.key)}
-                    {...switcher.tileHandlers(index)}
-                  />
-                );
-              }
-              const name = entry.node.workspace.name;
-              return (
-                <OsWorkspaceTile
-                  key={entry.key}
-                  data-testid={`os-workspace-tile-${entry.key}`}
-                  name={name}
-                  monogram={workspaceMonogram(name)}
-                  // The plate stays on the focused tile while the menu owns
-                  // key focus — it anchors which workspace the menu belongs to.
-                  focused={anchorsMenu}
-                  tabIndex={focused ? 0 : -1}
-                  current={
-                    scope === "workspace" && entry.key === activeWorkspaceId
-                      ? readySelectedWorktreeKey
-                        ? "wt"
-                        : "root"
-                      : null
-                  }
-                  ref={switcher.registerTile(entry.key)}
-                  {...switcher.tileHandlers(index)}
-                />
-              );
-            })}
+            <WorkspaceTiles
+              entries={entries}
+              switcher={switcher}
+              scope={scope}
+              activeWorkspaceId={activeWorkspaceId}
+              readySelectedWorktreeKey={readySelectedWorktreeKey}
+            />
           </OsWorkspacesStrip>
         )}
         <OsWorkspacesCaption
@@ -365,6 +337,11 @@ function OsWorkspacesStage({
             <OsWorkspacesWorktreeMenu
               key={menuModel.node.workspace.id}
               model={menuModel}
+              removalProfile={removalProfile}
+              onRemoveWorktrees={onRemoveWorktrees}
+              onResolveMissing={entry => {
+                onResolveMissingWorktree?.(menuModel.node.workspace.id, entry);
+              }}
               userHomeDir={userHomeDir}
               focusedRowKey={focusedRowKey}
               scopedRowKey={scopedRowKey}
@@ -373,7 +350,7 @@ function OsWorkspacesStage({
               rowHandlers={switcher.menuRowHandlers}
               canCreate={canCreate}
               onDeleteRow={entry => {
-                if (focusedMenuKey) onRemoveWorktree?.(focusedMenuKey, entry);
+                onRemoveWorktree?.(menuModel.node.workspace.id, entry);
               }}
             />
           ) : null}
@@ -395,4 +372,116 @@ function OsWorkspacesStage({
       />
     </>
   );
+}
+
+/** Keeps the active menu anchored to its workspace tile while keyboard focus moves into rows. */
+function WorkspaceTiles({
+  entries,
+  switcher,
+  scope,
+  activeWorkspaceId,
+  readySelectedWorktreeKey,
+}: {
+  entries: WorkspacesSwitcherEntry[];
+  switcher: ReturnType<typeof useWorkspacesSwitcher>;
+  scope: WorkspaceScopeMode;
+  activeWorkspaceId: string | null;
+  readySelectedWorktreeKey: string | null;
+}) {
+  return (
+    <>
+      {entries.map((entry, index) => {
+        const focused = switcher.layer !== "menu" && index === switcher.focusIndex;
+        const anchorsMenu = index === switcher.focusIndex;
+        if (entry.kind === "add") {
+          return (
+            <OsWorkspaceAddTile
+              key={entry.key}
+              data-testid="os-workspace-tile-add"
+              focused={anchorsMenu}
+              tabIndex={focused ? 0 : -1}
+              ref={switcher.registerTile(entry.key)}
+              {...switcher.tileHandlers(index)}
+            />
+          );
+        }
+        const name = entry.node.workspace.name;
+        return (
+          <OsWorkspaceTile
+            key={entry.key}
+            data-testid={`os-workspace-tile-${entry.key}`}
+            name={name}
+            monogram={workspaceMonogram(name)}
+            // The plate stays on the focused tile while the menu owns
+            // key focus — it anchors which workspace the menu belongs to.
+            focused={anchorsMenu}
+            tabIndex={focused ? 0 : -1}
+            current={
+              scope === "workspace" && entry.key === activeWorkspaceId
+                ? readySelectedWorktreeKey
+                  ? "wt"
+                  : "root"
+                : null
+            }
+            ref={switcher.registerTile(entry.key)}
+            {...switcher.tileHandlers(index)}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Derives represented navigation and counts, treating only ready selected worktrees as current. */
+function projectWorkspacesStage({
+  workspaces,
+  worktreesByWorkspace,
+  userHomeDir,
+  scope,
+  selectedWorktreeId,
+  activeWorkspaceId,
+  onCreateWorktree,
+}: Pick<
+  OsWorkspacesStageProps,
+  | "workspaces"
+  | "worktreesByWorkspace"
+  | "userHomeDir"
+  | "scope"
+  | "selectedWorktreeId"
+  | "activeWorkspaceId"
+  | "onCreateWorktree"
+>) {
+  const tree = worktreesByWorkspace
+    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
+    : workspaces.map(flatNode);
+  const empty = tree.length === 0;
+  const entries: WorkspacesSwitcherEntry[] = empty
+    ? []
+    : [
+        ...tree.map(node => ({ key: node.workspace.id, kind: "workspace" as const, node })),
+        ADD_ENTRY,
+      ];
+  const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
+  const readySelectedWorktreeKey =
+    scope === "workspace" && selectedWorktreeId
+      ? (tree
+          .find(node => node.workspace.id === activeWorkspaceId)
+          ?.worktrees.find(
+            entry => entry.displayState === "ready" && entry.worktree?.id === selectedWorktreeId
+          )?.key ?? null)
+      : null;
+  const canCreate = Boolean(onCreateWorktree);
+  const menuModelByKey = new Map(
+    tree.map(node => [node.workspace.id, buildWorkspacesWorktreeMenuModel(node, canCreate)])
+  );
+
+  return {
+    tree,
+    empty,
+    entries,
+    totalWorktrees,
+    readySelectedWorktreeKey,
+    canCreate,
+    menuModelByKey,
+  };
 }

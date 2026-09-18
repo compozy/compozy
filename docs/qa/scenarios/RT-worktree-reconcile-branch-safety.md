@@ -23,3 +23,11 @@ workspace prune, cascade, unsafe leftover deletion, or compare-and-delete race c
 2026-08-15 entry move (reset to untested): the Workspaces overview became the Command-Tab
 switcher and no longer carries Resolve; the web entry is the menubar Workspace menu nest. CLI,
 HTTP/UDS, and event legs are untouched by the redesign — the reset covers the web entry leg only.
+
+
+2026-09-16 bulk-removal impact: both menubar and overview expose bounded selection and individual
+missing-record resolution. Verify mixed and missing-only selections, Escape/Shift/select-all,
+active/foreign/archived/discovered exclusions, immutable targets during live updates, per-item
+partial results and failed-only retry. Metadata dismissal preserves replacements and history;
+repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
+Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).

@@ -217,6 +217,45 @@ func TestServiceDiscovery(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should preserve competing lifecycle transitions and omit dismissed rows from stale catalogs",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, state := range []State{StateRemoving, StateRemoved, StateDismissed} {
+				t.Run("Should preserve "+string(state), func(t *testing.T) {
+					t.Parallel()
+					fixture := newDiscoveryTestFixture(t)
+					fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
+					row := Worktree{ID: "wt-race", WorkspaceID: fixture.workspace.ID, Name: "race",
+						Path: filepath.Join(t.TempDir(), "missing"), State: StateReady, Origin: OriginManual,
+						SetupState: SetupNone, CreatedAt: fixture.now, UpdatedAt: fixture.now}
+					if err := fixture.store.Insert(t.Context(), row); err != nil {
+						t.Fatal(err)
+					}
+					fixture.service.store = &competingDiscoveryStore{memoryWorktreeStore: fixture.store, state: state}
+					listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if state == StateDismissed {
+						if len(listing.Worktrees) != 0 {
+							t.Fatalf("dismissed row leaked into catalog: %#v", listing.Worktrees)
+						}
+					} else if len(listing.Worktrees) != 1 || listing.Worktrees[0].State != state {
+						t.Fatalf("catalog overwrote %s: %#v", state, listing.Worktrees)
+					}
+					current, err := fixture.store.Get(t.Context(), row.WorkspaceID, row.ID)
+					if err != nil || current.State != state {
+						t.Fatalf("stored transition = %#v, %v", current, err)
+					}
+					if fixture.events.count(EventMissing) != 0 {
+						t.Fatal("emitted stale missing event")
+					}
+				})
+			}
+		},
+	)
+
 	t.Run("Should mark a vanished registry row missing exactly once", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)
@@ -368,4 +407,22 @@ func newDiscoveryTestFixture(t *testing.T) *discoveryTestFixture {
 		WithEvents(fixture.events),
 	)
 	return fixture
+}
+
+type competingDiscoveryStore struct {
+	*memoryWorktreeStore
+	state State
+}
+
+func (s *competingDiscoveryStore) List(ctx context.Context, workspaceID string) ([]Worktree, error) {
+	rows, err := s.memoryWorktreeStore.List(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if err := s.SetState(ctx, workspaceID, row.ID, s.state, row.UpdatedAt); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
 }
