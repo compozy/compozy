@@ -319,8 +319,32 @@ func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunI
 	}
 }
 
+// TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome verifies isolated launch configuration and native transport identity.
 func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the native launch seed and subsequent ACP selection use the same
+	// validated transport identity; persisted/public model identity stays logical.
+	// Owning layer: provider start policies; canonical suite: this runtime boundary.
+	t.Run("Should seed Claude with its validated context transport binding", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		resolved := compozyconfig.ResolvedAgent{Provider: "claude-secondary", RuntimeProvider: "claude",
+			Model: "claude-fable-5-1", Harness: compozyconfig.ProviderHarnessACP,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI, EnvPolicy: compozyconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: compozyconfig.ProviderHomePolicyOperator}
+		opts, err := manager.prepareProviderForStart(t.Context(), &Session{}, resolved,
+			acp.StartOpts{PreferredModel: "claude-fable-5-1[1m]", Env: []string{"ANTHROPIC_MODEL=older-model"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != opts.PreferredModel {
+			t.Fatalf("native model = %q, ACP selection = %q", got, opts.PreferredModel)
+		}
+		if got := envValue(opts.Env, "COMPOZY_MODEL"); got != resolved.Model {
+			t.Fatalf("public model = %q, want %q", got, resolved.Model)
+		}
+	})
 
 	t.Run(
 		"Should expose provider auth metadata without injecting native credentials",

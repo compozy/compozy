@@ -34,3 +34,9 @@ The scenario was reset to untested, then re-walked through the official Web E2E 
 creation navigated to its composer, and E2E-022 created a session in a second workspace and opened
 that workspace/session route. Narrow and desktop Storybook captures verified the workspace selector,
 runtime deferral notice, and reachable Start session action. Status returned to pass.
+
+QA impact 2026-09-17 (issue #653): the Instructions tab renders AGENT.md through `DescriptionCard`,
+which now takes the reading-tier prose ladder (H1 22 px, H2 18 px, H3 16 px, heading top margins up to
+32 px), semibold emphasis, accent-strong links, and framed tables. Panel geometry and the tab contracts
+are untouched. Not walked: the Instructions tab in a live runtime; confirm a long AGENT.md still reads
+comfortably inside the panelbox and that no horizontal overflow appears.

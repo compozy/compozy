@@ -26,6 +26,49 @@ function payload(
 }
 
 describe("toRuntimeModelOptions", () => {
+  it("Should keep enrichment-only reasoning capability unknown until authoritative discovery", () => {
+    const base = payload({
+      model_id: "claude-fable-5-1",
+      supports_reasoning: true,
+      sources: [
+        {
+          source_id: "models_dev",
+          source_kind: "models_dev",
+          priority: 50,
+          stale: false,
+          refreshed_at: "2026-09-16T00:00:00Z",
+        },
+      ],
+    });
+    expect(toRuntimeModelOptions([base])[0]).toMatchObject({ reasoning_known: false, efforts: [] });
+    for (const source_kind of ["config", "provider_live"]) {
+      expect(
+        toRuntimeModelOptions([{ ...base, sources: [{ ...base.sources[0]!, source_kind }] }])[0]
+      ).toMatchObject({ reasoning_known: false, efforts: [] });
+    }
+    expect(
+      toRuntimeModelOptions([{ ...base, reasoning_known: true, reasoning_apply: "none" }])[0]
+    ).toMatchObject({ reasoning_known: true, reasoning_apply: "none", efforts: [] });
+    expect(
+      toRuntimeModelOptions([
+        {
+          ...base,
+          sources: [
+            ...base.sources,
+            {
+              source_id: "provider_live:claude",
+              source_kind: "provider_live",
+              priority: 110,
+              stale: false,
+              refreshed_at: "2026-09-16T00:00:00Z",
+            },
+          ],
+          reasoning_efforts: ["low", "future-effort"],
+        },
+      ])[0]
+    ).toMatchObject({ reasoning_known: true, efforts: ["low", "future-effort"] });
+  });
+
   it("Should map availability_state onto the live/stale/unavailable enum", () => {
     const result = toRuntimeModelOptions([
       payload({ model_id: "live", availability_state: "available_live" }),

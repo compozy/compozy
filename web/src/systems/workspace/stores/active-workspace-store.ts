@@ -133,6 +133,18 @@ export const activeWorkspaceStore = createStore({
         event.worktreeId
       );
     },
+    worktreeRemoved: (context, event: { workspaceId: string; worktreeId: string }) => {
+      if (context.selectedWorkspaceId !== event.workspaceId) return;
+      return {
+        ...context,
+        worktreeByScope: Object.fromEntries(
+          Object.entries(context.worktreeByScope).map(([key, id]) => [
+            key,
+            id === event.worktreeId ? null : id,
+          ])
+        ),
+      };
+    },
     worktreeSelectionCleared: (context, event: { scopeId: string }) =>
       withScope(context, event.scopeId, null),
     /**

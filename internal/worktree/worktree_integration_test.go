@@ -764,6 +764,28 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if got := reconcile.item(unrelated.ID).State; got != StateMissing {
 			t.Fatalf("unrelated replacement state = %q, want missing", got)
 		}
+		before := reconcile.git(unrelated.Path, "rev-parse", "--git-dir")
+		for range 2 {
+			if err := reconcile.service.Dismiss(t.Context(), reconcile.workspace.ID, unrelated.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if after := reconcile.git(unrelated.Path, "rev-parse", "--git-dir"); after != before {
+			t.Fatal("replacement repository changed")
+		}
+		if err := reconcile.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		listing, err = reconcile.service.List(t.Context(), reconcile.workspace.ID, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range listing.Worktrees {
+			if row.ID == unrelated.ID || row.ID == item.ID {
+				t.Fatal("dismissed record returned to catalog")
+			}
+		}
+
 	})
 
 	t.Run("Should clean only a Git-identity-matching forced leftover", func(t *testing.T) {

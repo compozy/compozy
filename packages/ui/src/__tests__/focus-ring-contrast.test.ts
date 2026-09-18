@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,6 +8,7 @@ import {
   parseRgbaColor,
   type Rgb,
 } from "../lib/contrast";
+import { readToken } from "./token-source";
 
 /**
  * Cross-surface computed focus-indicator audit (BUG-20260714).
@@ -28,8 +26,6 @@ import {
  * freeze the wrong ownership layer).
  */
 
-const TOKENS_CSS = readFileSync(join(__dirname, "..", "tokens.css"), "utf8");
-
 const MIN_RING_PX = 2;
 const MIN_NON_TEXT_CONTRAST = AA_NON_TEXT_CONTRAST;
 
@@ -46,12 +42,6 @@ const SURFACE_TOKENS = [
   "color-canvas-tint",
   "color-elevated",
 ] as const;
-
-function readToken(name: string): string {
-  const match = TOKENS_CSS.match(new RegExp(`--${name}\\s*:\\s*([^;]+);`));
-  if (!match) throw new Error(`token --${name} not found in tokens.css`);
-  return match[1].replace(/\s+/g, " ").trim();
-}
 
 function parseHex(hex: string): Rgb {
   const parsed = parseHexColor(hex);

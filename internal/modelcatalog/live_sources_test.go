@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+// TestLiveProviderSources verifies discovery at provider I/O boundaries and source-specific capability ownership.
 func TestLiveProviderSources(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +108,115 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain exact Claude versions and discover only their own advertised effort", func(t *testing.T) {
+		t.Parallel()
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = "claude-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		modelOption := acp.SessionConfigOption{ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "claude-fable-5-1[1m]", Values: []acp.SessionConfigOptionValue{
+				{Value: "claude-fable-5-1[1m]", Label: "Fable 5.1"},
+				{Value: "claude-fable-5-1", Label: "Fable 5.1"},
+				{Value: "claude-fable-5", Label: "Fable 5"},
+				{Value: "custom-deployment", Label: "Fable 5.1"},
+			}}
+		effort := acp.SessionConfigOption{
+			ID:             "deliberation",
+			Category:       "thought_level",
+			Kind:           acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "high",
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "default"},
+				{Value: "low"},
+				{Value: "high"},
+				{Value: "future-effort"},
+			},
+		}
+		probe := &fakeACPModelProbe{
+			options: []acp.SessionConfigOption{modelOption},
+			models: map[string][]acp.SessionConfigOption{
+				"claude-fable-5-1": {modelOption, effort},
+				"claude-fable-5-1[1m]": {modelOption, {ID: "effort", Kind: acp.SessionConfigOptionKindSelect,
+					CurrentValueID: "max", Values: []acp.SessionConfigOptionValue{{Value: "max"}}}},
+				"claude-fable-5":    {modelOption},
+				"custom-deployment": {{ID: "mode", Category: "mode"}, {ID: "effort", ReadOnly: true}},
+			},
+		}
+		source := newLiveSourceForTest(
+			t,
+			"claude",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}, ACPProbe: probe},
+		)
+		rows, err := source.ListModels(t.Context(), ListOptions{ProviderID: "claude", Now: testTime(0)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		latest := requireModelRow(t, rows, "claude-fable-5-1")
+		assertClaudeTransportBinding(t, latest, "claude-fable-5-1[1m]")
+		preferred, ok := PreferredTransportBinding(latest.TransportBindings)
+		if !ok || preferred.TransportModelID != "claude-fable-5-1" {
+			t.Fatalf("preferred binding = %#v", preferred)
+		}
+		for _, binding := range latest.TransportBindings {
+			if len(binding.ConfigOptions) != 2 {
+				t.Fatalf("lost inspected options: %#v", binding)
+			}
+			if binding.TransportModelID == "claude-fable-5-1[1m]" && binding.ConfigOptions[1].CurrentValueID != "max" {
+				t.Fatalf("sibling profile replaced: %#v", binding)
+			}
+		}
+		if !slices.Equal(latest.ReasoningEfforts, []ReasoningEffort{"low", "high", "future-effort"}) ||
+			latest.DefaultReasoningEffort == nil || *latest.DefaultReasoningEffort != "high" {
+			t.Fatalf("latest profile = %#v", latest)
+		}
+		older := requireModelRow(t, rows, "claude-fable-5")
+		if len(older.ReasoningEfforts) != 0 {
+			t.Fatalf("leaked effort = %#v", older)
+		}
+		assertClaudeTransportBinding(t, requireModelRow(t, rows, "custom-deployment"), "custom-deployment")
+		custom := requireModelRow(t, rows, "custom-deployment")
+		if custom.TransportBindings[0].ConfigOptions == nil || len(custom.TransportBindings[0].ConfigOptions) != 0 {
+			t.Fatalf("inspected empty snapshot lost: %#v", custom.TransportBindings)
+		}
+		// An advertised provider default must not inherit a static explicit effort.
+		for i := range rows {
+			if rows[i].ModelID == latest.ModelID {
+				rows[i].DefaultReasoningEffort = nil
+			}
+		}
+		rows = append(
+			rows,
+			ModelRow{
+				ProviderID: "claude",
+				ModelID:    latest.ModelID,
+				SourceKind: SourceKindBuiltin,
+				Priority:   PriorityBuiltin,
+				DefaultReasoningEffort: new(
+					ReasoningEffort("low"),
+				),
+			},
+			ModelRow{
+				ProviderID:        "claude",
+				ModelID:           older.ModelID,
+				SourceKind:        SourceKindBuiltin,
+				Priority:          PriorityBuiltin,
+				SupportsReasoning: new(true),
+				ReasoningEfforts:  []ReasoningEffort{"max"},
+			},
+		)
+		merged := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"claude": true}})
+		for _, model := range merged {
+			if model.ModelID == latest.ModelID && model.DefaultReasoningEffort != nil {
+				t.Fatalf("provider default replaced by seed: %#v", model)
+			}
+			if model.ModelID == older.ModelID &&
+				(len(model.ReasoningEfforts) != 0 || model.SupportsReasoning == nil || !*model.SupportsReasoning) {
+				t.Fatalf("observed absence must override seed levels without denying reasoning: %#v", model)
+			}
+		}
+	})
+
 	t.Run("Should preserve Claude logical model ids and provider transport bindings", func(t *testing.T) {
 		t.Parallel()
 
@@ -119,9 +229,9 @@ func TestLiveProviderSources(t *testing.T) {
 			Kind:     acp.SessionConfigOptionKindSelect,
 			Values: []acp.SessionConfigOptionValue{
 				{Value: "default", Label: "Default"},
-				{Value: "sonnet", Label: "Sonnet"},
+				{Value: "sonnet", Label: "Sonnet 5"},
 				{Value: "opus[1m]", Label: "Opus 5 1M"},
-				{Value: "haiku", Label: "Haiku"},
+				{Value: "haiku", Label: "Haiku 4.5"},
 				{Value: "claude-future-6", Label: "Claude Future 6"},
 			},
 		}}}
@@ -142,14 +252,15 @@ func TestLiveProviderSources(t *testing.T) {
 			"claude-haiku-4-5-20251001",
 			"claude-opus-5",
 			"claude-sonnet-5",
+			"default",
 		}; !slices.Equal(got, want) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
 		sonnet := requireModelRow(t, rows, "claude-sonnet-5")
-		if sonnet.DisplayName != "Claude Sonnet 5" {
+		if sonnet.DisplayName != "Sonnet 5" {
 			t.Fatalf("Claude Sonnet display name = %q, want canonical seed label", sonnet.DisplayName)
 		}
-		assertClaudeTransportBinding(t, sonnet, "default")
+		assertClaudeTransportBinding(t, requireModelRow(t, rows, "default"), "default")
 		assertClaudeTransportBinding(t, sonnet, "sonnet")
 
 		opus := requireModelRow(t, rows, "claude-opus-5")
@@ -894,6 +1005,7 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 	})
 }
 
+// TestLiveProviderSourceRegistration verifies provider configuration and account-scoped source registration.
 func TestLiveProviderSourceRegistration(t *testing.T) {
 	t.Parallel()
 
@@ -903,7 +1015,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		command := "env CLAUDE_CONFIG_DIR=/account-secondary claude-acp"
 		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
 			ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
-			Values: []acp.SessionConfigOptionValue{{Value: "haiku", Label: "Haiku"}},
+			Values: []acp.SessionConfigOptionValue{{Value: "haiku", Label: "Haiku 4.5"}},
 		}}}
 		providers := map[string]compozyconfig.ProviderConfig{overlay: {
 			RuntimeProvider: "claude", Command: command, AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
@@ -1358,6 +1470,7 @@ func newLiveSourceForTest(
 
 type mapSecretResolver map[string]string
 
+// ResolveRef supplies configured discovery credentials at the secret-store I/O boundary.
 func (r mapSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
 	if ctx == nil {
 		return "", errors.New("context required")
@@ -1383,18 +1496,20 @@ type fakeDiscoveryExecutor struct {
 type fakeACPModelProbe struct {
 	mu       sync.Mutex
 	options  []acp.SessionConfigOption
+	models   map[string][]acp.SessionConfigOption
 	err      error
 	requests []ACPModelProbeRequest
 }
 
+// InspectModels supplies isolated per-model snapshots at the ACP discovery I/O boundary.
 func (p *fakeACPModelProbe) InspectModels(
 	_ context.Context,
 	req ACPModelProbeRequest,
-) ([]acp.SessionConfigOption, error) {
+) (acp.SessionModelInspection, error) {
 	p.mu.Lock()
 	p.requests = append(p.requests, req)
 	p.mu.Unlock()
-	return acp.CloneSessionConfigOptions(p.options), p.err
+	return acp.SessionModelInspection{Options: acp.CloneSessionConfigOptions(p.options), Models: p.models}, p.err
 }
 
 func (p *fakeACPModelProbe) singleRequest(t *testing.T) ACPModelProbeRequest {

@@ -27,6 +27,7 @@ export interface OsWorkspacesWorktreeRowProps {
   actionsOpen: boolean;
   onActionsOpenChange: (open: boolean) => void;
   /** Delete stays gated to adopted, ready records — the remove flow's gate. */
+  onResolveMissing?: () => void;
   onDelete?: () => void;
   registerRow: (element: HTMLElement | null) => void;
   onSelect?: () => void;
@@ -45,6 +46,7 @@ export function OsWorkspacesWorktreeRow({
   actionsOpen,
   onActionsOpenChange,
   onDelete,
+  onResolveMissing,
   registerRow,
   onSelect,
 }: OsWorkspacesWorktreeRowProps) {
@@ -117,6 +119,9 @@ export function OsWorkspacesWorktreeRow({
             <Copy className="size-deck-glyph text-subtle" />
             Copy path
           </DropdownMenuItem>
+          {onResolveMissing ? (
+            <DropdownMenuItem onClick={onResolveMissing}>Clean up missing record…</DropdownMenuItem>
+          ) : null}
           {onDelete ? (
             <DropdownMenuItem
               variant="destructive"

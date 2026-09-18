@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import path from "node:path";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -767,3 +768,127 @@ test("operator sees no PR affordances without a credential", async ({ appPage, r
   await expect(prDialog.getByLabel("Title")).toHaveCount(0);
   await expect(prDialog.getByLabel("Description")).toHaveCount(0);
 });
+
+// The existing lifecycle suite owns real Git-backed batch outcomes on both list surfaces.
+for (const surface of ["menubar", "overview"] as const) {
+  test(`operator removes a mixed worktree selection from the ${surface}`, async ({
+    appPage,
+    runtime,
+  }, testInfo) => {
+    await completeOnboardingIfPrompted(appPage);
+    const workspace = await runtime.resolveWorkspace(repo.rootDir);
+    const clean = await seedReadyWorktree(runtime, workspace.id, "finished-work");
+    const dirty = await seedReadyWorktree(runtime, workspace.id, "draft-work");
+    const missing = await seedReadyWorktree(runtime, workspace.id, "absent-work");
+    await repo.dirtyWorktree(dirty.path);
+    await repo.removeDirectory(missing.path);
+    await repo.addExternalWorktree("external-work", "external-work");
+    await listWorktrees(runtime, workspace.id, true);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    if (surface === "overview") await appPage.setViewportSize({ width: 390, height: 844 });
+    if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
+    else await openOverviewMenu(appPage, workspace.id);
+    if (surface === "overview") {
+      await appPage.getByText("Select worktrees…", { exact: true }).click();
+      await appPage.keyboard.press("End");
+      await expect(
+        appPage.getByRole("menuitem", { name: "New worktree", exact: true })
+      ).toBeFocused();
+      await appPage.screenshot({ path: testInfo.outputPath("overview-create-focus.png") });
+      await appPage.keyboard.press("Enter");
+      const creation = appPage.getByTestId("worktree-create-dialog");
+      await expect(creation).toBeVisible();
+      await creation.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(creation).toBeHidden();
+      await openOverviewMenu(appPage, workspace.id);
+    }
+    const start = appPage.getByText("Select worktrees…", { exact: true });
+    await start.focus();
+    await appPage.keyboard.press("Enter");
+    const missingChoice = appPage.getByRole("menuitemcheckbox", { name: "Select absent-work" });
+    await missingChoice.focus();
+    await appPage.keyboard.press("Space");
+    await expect(missingChoice).toHaveAttribute("aria-checked", "true");
+    await appPage.keyboard.press("ControlOrMeta+a");
+    await expect(appPage.getByText("Remove selected (3)…", { exact: true })).toBeVisible();
+    await appPage.keyboard.press("Escape");
+    await expect(appPage.getByText("Select worktrees…", { exact: true })).toBeVisible();
+    await appPage.getByText("Select worktrees…", { exact: true }).click();
+    await appPage.getByText("Select all eligible (3)", { exact: true }).click();
+    await expect(
+      appPage.getByRole("menuitemcheckbox", { name: "Select external-work" })
+    ).toBeDisabled();
+    await appPage.screenshot({ path: testInfo.outputPath(`${surface}-selection.png`) });
+    await appPage.getByText("Remove selected (3)…", { exact: true }).click();
+    const dialog = appPage.getByTestId("worktree-bulk-remove-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("2 checkouts");
+    await expect(dialog).toContainText("1 missing record will be dismissed");
+    await dialog.getByRole("button", { name: "Remove selected", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText("2 succeeded · 1 failed · 0 pending");
+    await appPage.screenshot({ path: testInfo.outputPath(`${surface}-partial-result.png`) });
+    const partial = await listWorktrees(runtime, workspace.id, true);
+    expect(partial.worktrees.find(row => row.id === clean.id)?.state).toBe("removed");
+    expect(partial.worktrees.find(row => row.id === dirty.id)?.state).toBe("ready");
+    expect(partial.worktrees.some(row => row.id === missing.id)).toBe(false);
+    // Repair the disposable untracked edit, then use the UI's failed-only retry.
+    await unlink(path.join(dirty.path, "uncommitted.txt"));
+    await dialog.getByRole("button", { name: "Retry failed (1)" }).click();
+    await expect(dialog.getByRole("status")).toContainText("3 succeeded · 0 failed · 0 pending");
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    const final = await listWorktrees(runtime, workspace.id, true);
+    expect(final.worktrees.find(row => row.id === dirty.id)?.state).toBe("removed");
+    expect(final.worktrees.some(row => row.id === missing.id)).toBe(false);
+    expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(true);
+  });
+}
+
+for (const surface of ["menubar", "overview"] as const) {
+  test(`operator cleans up only missing records from the ${surface} and preserves reappeared files`, async ({
+    appPage,
+    runtime,
+  }) => {
+    await completeOnboardingIfPrompted(appPage);
+    const workspace = await runtime.resolveWorkspace(repo.rootDir);
+    const first = await seedReadyWorktree(runtime, workspace.id, "missing-first");
+    const second = await seedReadyWorktree(runtime, workspace.id, "missing-second");
+    await repo.removeDirectory(first.path);
+    await repo.removeDirectory(second.path);
+    await listWorktrees(runtime, workspace.id, true);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
+    else await openOverviewMenu(appPage, workspace.id);
+    // Individual cleanup exposes the existing restore alternative on either surface.
+    if (surface === "menubar") await chooseNestRowAction(appPage, first.id, "resolve");
+    else {
+      await appPage.getByTestId(`os-workspaces-worktree-actions-${first.id}`).click();
+      await appPage.getByRole("menuitem", { name: "Clean up missing record…" }).click();
+    }
+    const resolution = appPage.getByTestId("worktree-missing-dialog");
+    await expect(resolution).toBeVisible();
+    await expect(resolution.getByTestId("worktree-missing-restore")).toBeVisible();
+    await resolution.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(resolution).toHaveCount(0);
+    if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
+    // Overview remains visible beneath its target dialog.
+    await appPage.getByText("Select worktrees…", { exact: true }).click();
+    await appPage.getByText("Select all eligible (2)", { exact: true }).click();
+    await appPage.getByText("Remove selected (2)…", { exact: true }).click();
+    const dialog = appPage.getByTestId("worktree-bulk-remove-dialog");
+    await expect(dialog).toContainText("0 checkouts");
+    // A new directory at the stale path is outside metadata cleanup authority.
+    await mkdir(first.path, { recursive: true });
+    const preserved = path.join(first.path, "keep.txt");
+    await writeFile(preserved, "keep replacement files\n");
+    await dialog.getByRole("button", { name: "Remove selected", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText("2 succeeded · 0 failed · 0 pending");
+    expect(await readFile(preserved, "utf8")).toBe("keep replacement files\n");
+    const listing = await listWorktrees(runtime, workspace.id, true);
+    expect(listing.worktrees.some(row => row.id === first.id || row.id === second.id)).toBe(false);
+    const retained = await runtime.requestJSON<{ worktree: WorktreeRecord }>(
+      `/api/workspaces/${workspace.id}/worktrees/${first.id}`
+    );
+    expect(retained.worktree.state).toBe("dismissed");
+  });
+}

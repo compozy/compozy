@@ -113,7 +113,7 @@ export function ThinkingBlock({
             "focus-visible:shadow-focus-ring focus-visible:outline-none"
           )}
         >
-          <MessageMarkdown content={thinking} streaming={live} />
+          <MessageMarkdown content={thinking} streaming={live} compact="relaxed" />
         </div>
       ) : null}
     </div>

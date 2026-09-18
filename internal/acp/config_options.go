@@ -179,11 +179,17 @@ func ModelConfigOption(options []SessionConfigOption) (SessionConfigOption, bool
 	return findModelConfigOption(options)
 }
 
+// findReasoningConfigOption uses the shared identifier and standard-category matching contract.
 func findReasoningConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
 	if option, ok := findSelectConfigOption(options, "reasoning_effort", "effort"); ok {
 		return option, true
 	}
 	return findSelectConfigOptionByCategory(options, string(acpsdk.SessionConfigOptionCategoryThoughtLevel))
+}
+
+// ReasoningConfigOption returns the provider's model-specific thought-level selector.
+func ReasoningConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
+	return findReasoningConfigOption(options)
 }
 
 func findSelectConfigOptionByCategory(options []SessionConfigOption, category string) (SessionConfigOption, bool) {

@@ -1,14 +1,31 @@
 package modelcatalog
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
+// applyEffectiveReasoningProfile separates observed capability from provider permission to apply it.
 func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOptions) {
 	profileRow, hasProfile := explicitReasoningProfileRow(rows)
 	model.ReasoningEfforts = nil
 	model.DefaultReasoningEffort = nil
 	model.ReasoningSource = ReasoningSourceCatalog
+	model.ReasoningKnown = hasProfile && (len(profileRow.ReasoningEfforts) > 0 || hasACPModelOptions(profileRow) ||
+		(profileRow.SupportsReasoning != nil && !*profileRow.SupportsReasoning))
+	model.ReasoningApply = ""
+	canApply, policyKnown := opts.ReasoningApply[strings.TrimSpace(model.ProviderID)]
+	if canApply {
+		model.ReasoningApply = "acp_option"
+	} else if policyKnown {
+		model.ReasoningApply = "none"
+		// Explicitly disabled negotiation is intentional provider management, not missing discovery.
+		model.ReasoningKnown = true
+	}
 	if hasProfile {
-		model.SupportsReasoning = cloneBoolPtr(profileRow.SupportsReasoning)
+		if profileRow.SupportsReasoning != nil {
+			model.SupportsReasoning = cloneBoolPtr(profileRow.SupportsReasoning)
+		}
 		model.ReasoningEfforts = append([]ReasoningEffort(nil), profileRow.ReasoningEfforts...)
 		if len(model.ReasoningEfforts) > 0 && model.SupportsReasoning == nil {
 			value := true
@@ -31,6 +48,7 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 	}
 }
 
+// hasReasoningTransportBindings permits effort encoded in an advertised transport identity.
 func hasReasoningTransportBindings(model *Model) bool {
 	return len(model.ReasoningEfforts) > 0 && len(model.TransportBindings) > 0 &&
 		slices.ContainsFunc(model.TransportBindings, func(binding ModelTransportBinding) bool {
@@ -38,24 +56,28 @@ func hasReasoningTransportBindings(model *Model) bool {
 		})
 }
 
+// explicitReasoningProfileRow selects authoritative reasoning metadata, excluding enrichment-only claims.
 func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 	for _, row := range rows {
 		if row.SourceKind == SourceKindModelsDev {
 			continue
 		}
-		if row.SupportsReasoning != nil || len(row.ReasoningEfforts) > 0 {
+		if row.SupportsReasoning != nil || len(row.ReasoningEfforts) > 0 || hasACPModelOptions(row) {
 			return row, true
 		}
 	}
 	return ModelRow{}, false
 }
 
+// explicitDefaultReasoningEffort stops at a complete ACP snapshot, including its provider-default choice.
 func explicitDefaultReasoningEffort(rows []ModelRow) *ReasoningEffort {
 	for _, row := range rows {
-		if row.SourceKind == SourceKindModelsDev || row.DefaultReasoningEffort == nil {
+		if row.SourceKind == SourceKindModelsDev {
 			continue
 		}
-		return row.DefaultReasoningEffort
+		if row.DefaultReasoningEffort != nil || hasACPModelOptions(row) {
+			return row.DefaultReasoningEffort
+		}
 	}
 	return nil
 }
@@ -83,10 +105,24 @@ func cloneEffortPtr(value *ReasoningEffort) *ReasoningEffort {
 	return &cloned
 }
 
+// cloneStringPtr prevents merged optional metadata from aliasing source-owned storage.
 func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil
 	}
 	cloned := *value
 	return &cloned
+}
+
+// hasACPModelOptions recognizes a complete selected-model observation, even when effort is absent.
+func hasACPModelOptions(row ModelRow) bool {
+	if row.SourceKind != SourceKindProviderLive {
+		return false
+	}
+	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok && binding.ConfigOptions != nil {
+		return true
+	}
+	return slices.ContainsFunc(row.ConfigOptions, func(option ModelOptionDescriptor) bool {
+		return option.ID == "model" || option.Category == "model"
+	})
 }

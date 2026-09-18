@@ -1,14 +1,20 @@
-import { useEffect, useRef } from "react";
+import { use, useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { SessionPromptRuntimeCapabilitiesContext } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
-import type { SessionRuntimeEffective } from "../types";
+import type { SessionRuntimeEffective, SessionRuntimePayload } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
-import { normalizeRuntimeSpeed, resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
+import {
+  normalizeRuntimeSpeed,
+  resolveAgentRuntimeValue,
+  useAgents,
+  type AgentPayload,
+} from "@/systems/agent";
 import {
   providerNeedsAuth,
   type RuntimeCatalogProvider,
@@ -19,6 +25,7 @@ import {
   normalizeRuntimeACPSelections,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
+  type RuntimeModelOption,
 } from "@/systems/runtime";
 import {
   type SessionProviderOption,
@@ -26,6 +33,7 @@ import {
   workspaceProviderToOption,
 } from "@/systems/workspace";
 
+/** Convert acknowledged runtime fields to selector intent without inventing optional ACP values. */
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined
 ): RuntimeSelectorValue {
@@ -38,10 +46,12 @@ function runtimeValueFromEffective(
   };
 }
 
+/** Use normal speed when the effective runtime does not advertise a speed selection. */
 function runtimeSpeedFromEffective(effective: SessionRuntimeEffective | undefined): RuntimeSpeed {
   return effective?.speed ?? "normal";
 }
 
+/** Freeze only valid explicit selector fields for the prompt submission boundary. */
 function snapshotFromSelection(
   value: RuntimeSelectorValue,
   speed: RuntimeSpeed
@@ -61,6 +71,7 @@ function snapshotFromSelection(
   };
 }
 
+/** Combine workspace provider availability with current authentication status. */
 function runtimeProviderOptions(
   providers: SessionProviderOption[] | undefined,
   globalProviders: ProviderSummary[] | undefined
@@ -83,6 +94,7 @@ function runtimeProviderOptions(
  * dispatch boundary, so catalog refetches never overwrite a user choice.
  */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
+  const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
@@ -93,26 +105,18 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
   const agent = agents.data?.find(candidate => candidate.name === input.agentName);
-  const agentRuntime = resolveAgentRuntimeValue(agent);
-  const agentSpeed =
-    normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal";
-  const fallbackValue = runtimeValueFromEffective(input.effectiveRuntime);
-  const defaultValue = fallbackValue.provider.length > 0 ? fallbackValue : agentRuntime;
-  const defaultSpeed = input.effectiveRuntime
-    ? runtimeSpeedFromEffective(input.effectiveRuntime)
-    : agentSpeed;
+  const { defaultValue, defaultSpeed } = promptRuntimeDefaults(agent, input.effectiveRuntime);
   const value = selectedValue ?? defaultValue;
   const speed = selectedSpeed ?? defaultSpeed;
 
   useEffect(() => {
-    const fallback = runtimeValueFromEffective(input.effectiveRuntime);
+    // Synchronize server input changes into the external store used by prompt snapshots.
+    const defaults = promptRuntimeDefaults(agent, input.effectiveRuntime);
     store.trigger.defaultRuntimeResolved({
-      speed: input.effectiveRuntime
-        ? runtimeSpeedFromEffective(input.effectiveRuntime)
-        : agentSpeed,
-      value: fallback.provider.length > 0 ? fallback : agentRuntime,
+      speed: defaults.defaultSpeed,
+      value: defaults.defaultValue,
     });
-  }, [agentRuntime, agentSpeed, input.effectiveRuntime, store]);
+  }, [agent, input.effectiveRuntime, store]);
   useEffect(
     () => () => {
       runtimeSelectionController.current?.abort();
@@ -223,7 +227,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       error: catalog.error,
       loaded: catalog.loaded,
       loading: catalog.loading,
-      models: catalog.models,
+      models: sessionModelCapabilities(catalog.models, runtimeCapabilities),
       providers,
       refresh: catalog.refresh,
       refreshError: catalog.refreshError,
@@ -252,6 +256,65 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   };
 }
 
+/** Resolve agent defaults only until a session has an effective binding of its own. */
+function promptRuntimeDefaults(
+  agent: AgentPayload | undefined,
+  effective: SessionRuntimeEffective | undefined
+) {
+  const fallback = runtimeValueFromEffective(effective);
+  return {
+    defaultValue: fallback.provider.length > 0 ? fallback : resolveAgentRuntimeValue(agent),
+    defaultSpeed: effective
+      ? runtimeSpeedFromEffective(effective)
+      : normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal",
+  };
+}
+
+/** Overlay acknowledged options only on their effective model, respecting provider policy and matrices. */
+function sessionModelCapabilities(
+  models: RuntimeModelOption[],
+  runtime: SessionRuntimePayload | undefined
+): RuntimeModelOption[] {
+  const options = runtime?.acp_caps?.config_options;
+  const effective = runtime?.effective;
+  if (!options || !effective?.model) return models;
+  const reasoning = options.find(
+    option =>
+      option.kind === "select" &&
+      (option.category === "thought_level" ||
+        option.id === "effort" ||
+        option.id === "reasoning_effort")
+  );
+  // ACP config_options is a complete snapshot: removing thought_level revokes stale levels.
+  const effortSet = new Set<string>();
+  for (const value of reasoning?.values ?? []) {
+    if (value.value !== "default" && isReasoningEffort(value.value)) effortSet.add(value.value);
+  }
+  const efforts = [...effortSet];
+  return models.map<RuntimeModelOption>(model => {
+    // Catalog eligibility enforces the provider apply strategy and explicit matrices.
+    // Live options belong only to the effective model, never pending prompt intent.
+    if (
+      model.provider !== effective.provider ||
+      model.id !== effective.model ||
+      model.reasoning_apply === "none" ||
+      (model.reasoning_apply !== "acp_option" && model.efforts.length === 0) ||
+      model.configurations
+    )
+      return model;
+    return {
+      ...model,
+      efforts,
+      default_effort: effortSet.has(reasoning?.current_value_id ?? "")
+        ? reasoning?.current_value_id
+        : "",
+      reasoning_source: "acp",
+      reasoning_known: true,
+    };
+  });
+}
+
+/** Read the latest selected intent, falling back to server defaults, at dispatch time. */
 export function getSessionPromptRuntimeSnapshot(
   store: SessionPromptRuntimeStore
 ): SessionPromptRuntimeSnapshot | null {

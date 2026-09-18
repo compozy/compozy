@@ -165,6 +165,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
   );
 }
 
+/** Wires both workspace lists to the same profile authority and lifecycle dialog targets. */
 function DesktopShellScopedBody({
   continuityStreamsEnabled,
   client,
@@ -269,6 +270,8 @@ function DesktopShellScopedBody({
         onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
         onOpenWorktreeContext={worktreeDialogs.requestContext}
         onRemoveWorktree={worktreeDialogs.requestRemove}
+        removalProfile={worktreeDialogs.removalProfile}
+        onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -405,7 +408,10 @@ function DesktopShellScopedBody({
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
+        onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
         onRemoveWorktree={worktreeDialogs.requestRemove}
+        removalProfile={worktreeDialogs.removalProfile}
+        onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
       />
       <WorkspaceSetupDialogBoundary
         defaults={workspaceSetupDefaults}

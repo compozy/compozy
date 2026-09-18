@@ -6,13 +6,13 @@ persona: Sol
 journey: J-17
 expected: On the first selector open after daemon start, persisted rows are immediately usable; if an allowed provider has no rows, Web requests one aggregate refresh and rereads the catalog once, while provider probes remain daemon-owned background work. Newly advertised models appear without a code update, failed refresh keeps rows stale, and shutdown joins or cancels work cleanly.
 entry_points: onboarding default-model selector; agent runtime selector; session composer RuntimeSelector
-qa_status: pass
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-runtime-ui-regressions-20260827-155435-128437-lab/qa-artifacts/qa/runtime-ui-proof.md; /Users/pedronauck/dev/qa-labs/compozy-cursor-onboarding-runtime-defaults-retest-20260828-171621-219738-lab/qa-artifacts/qa/notes/cursor-defaults-retest-evidence.md; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/screenshots/onboarding-runtime.png; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-last_report: docs/qa/reports/2026-09-12-pr-630-634-integration.md
+last_report: docs/qa/reports/2026-09-16-claude-fable-reasoning.md
 overlaps: ET-web-runtime-selector-minimal-slider; RT-068; RT-072
 ---
 
@@ -64,3 +64,15 @@ the prior identity. Cursor active/stopped selection succeeds; foreign logical ID
 fail without changing revision 2. Two distinct account catalogs and private bindings are checked
 by the existing ACP-subprocess/SQLite integration suite, not claimed as two vendor logins. See the
 report for evidence and the API snapshot regression discovered and repaired during the walk.
+
+
+QA impact 2026-09-16, issue #655 (verification pending): use the installed Claude adapter in an
+isolated daemon and select the exact Fable 5.1 identity from the full list and an existing recent or
+favorite row. Compare cold discovery, persisted rows and a resumed session. Record the advertised
+model-specific thought levels, choose an effort, submit a real prompt and confirm the effective
+runtime plus ACP current value. Switch models while preserving a valid effort and clearing an invalid
+one; exercise rapid selection, reload and queued-prompt snapshots. A model with unconfirmed metadata
+must not claim provider-managed effort. Failed discovery must preserve prior rows and recover after
+refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.
+
+QA 2026-09-16, issue #655: Fresh discovery produced exact Fable 5.1 and model-specific levels. Persisted rows survived restart; failed refresh retained prior valid rows as stale. Successful refresh recovery remains blocked. The installed adapter independently confirmed the account Fable usage limit; a later application attempt also reported native authentication resolution failure. No selected intent was reported as applied. See the current report for public rendered evidence and the remaining recovery steps.

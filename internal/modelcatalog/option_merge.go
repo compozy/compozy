@@ -74,6 +74,7 @@ func mergeModelOptionDescriptor(
 	descriptor.Values = mergeModelOptionValues(descriptor.Values, incoming.Values)
 }
 
+// mergeModelOptionValue fills missing presentation metadata without changing the advertised value identity.
 func mergeModelOptionValues(
 	values []ModelOptionValue,
 	incoming []ModelOptionValue,
@@ -120,10 +121,14 @@ func mergeModelOptionValue(value *ModelOptionValue, incoming ModelOptionValue) {
 	}
 }
 
+// mergeTransportBinding keeps the highest-priority complete snapshot for each transport identity.
 func mergeTransportBinding(
 	binding *ModelTransportBinding,
 	incoming ModelTransportBinding,
 ) {
+	if binding.ConfigOptions == nil {
+		binding.ConfigOptions = CloneModelOptionDescriptors(incoming.ConfigOptions)
+	}
 	if binding.Label == "" {
 		binding.Label = incoming.Label
 	}

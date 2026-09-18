@@ -1308,16 +1308,17 @@ type ModelCatalogSource struct {
 }
 
 type ModelCatalogTransportBinding struct {
-	ContextID        string         `json:"context_id"`
-	SourceID         string         `json:"source_id"`
-	ProviderID       string         `json:"provider_id"`
-	ModelID          string         `json:"model_id"`
-	TransportModelID string         `json:"transport_model_id"`
-	Label            string         `json:"label"`
-	ReasoningEffort  sql.NullString `json:"reasoning_effort"`
-	Fast             sql.NullInt64  `json:"fast"`
-	Thinking         sql.NullInt64  `json:"thinking"`
-	Rank             int64          `json:"rank"`
+	ContextID         string         `json:"context_id"`
+	SourceID          string         `json:"source_id"`
+	ProviderID        string         `json:"provider_id"`
+	ModelID           string         `json:"model_id"`
+	TransportModelID  string         `json:"transport_model_id"`
+	Label             string         `json:"label"`
+	ReasoningEffort   sql.NullString `json:"reasoning_effort"`
+	Fast              sql.NullInt64  `json:"fast"`
+	Thinking          sql.NullInt64  `json:"thinking"`
+	Rank              int64          `json:"rank"`
+	ConfigOptionsJson string         `json:"config_options_json"`
 }
 
 type ModelCatalogTransportBindingSelection struct {

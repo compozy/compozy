@@ -39,8 +39,8 @@ Expected result:
 Mutation receipts always report the canonical Worktree ID, even when the command is addressed by
 name.
 
-A bound idle session is stopped before removal. A session that is mid-turn blocks removal with
-`worktree_session_active`.
+An active bound session blocks removal with `worktree_session_active`. Removal never silently
+stops sessions. End the session through its own controls before retrying.
 
 ## Review a refusal before force
 
@@ -111,3 +111,34 @@ compozy worktree create feature-auth --workspace . --existing-branch <retained-b
 Use `feature-auth` for `<retained-branch>` when the original Worktree used its default branch. This
 creates a new Worktree ID while the dismissed record and its history remain readable by the old ID.
 Use `--branch <new-branch>` instead when the replacement should start from a different branch.
+
+## Remove several Worktrees in the app
+
+In the menubar workspace submenu or Workspaces overview, choose **Select worktrees…**.
+Select individual rows, use Shift to select a range, or choose **Select all eligible**.
+Select all captures only eligible rows currently represented by that list; later arrivals are not
+added. Escape clears selection. Selection never navigates into a checkout or adopts a discovered one.
+
+**Remove selected** freezes the workspace, profile and Worktree IDs. The confirmation separates
+checkout removal from dismissal of missing records. Missing rows can also be resolved individually
+through **Clean up missing record…**, which retains **It's back**.
+
+Each target receives fresh server checks. Active/busy Worktrees, unknown lifecycle states,
+unreadable status, hook denials, dirty edits and unpublished work remain refused. The batch never
+forces removal or stops sessions. Switch to the owning active profile before selecting a foreign
+row; archived owners and unregistered discovered checkouts are ineligible.
+
+Results report each success and refusal independently. Successful targets stay recorded in the
+result list; **Retry failed** reconciles the original IDs and retries only failed or unconfirmed
+items. A changed lifecycle state requires a new selection and confirmation. This is not an atomic
+batch: one refusal does not undo successful removals.
+
+Dismissing a missing record preserves files even if something reappeared at that path, plus branches,
+Git history, sessions and task/Loop history. It does not prune Git's administrative entries; an
+unregistered stale Git checkout may appear separately as unavailable discovery. Repeating dismissal
+by the retained ID is safe. Refreshing or restarting does not revive the dismissed registry entry.
+
+Existing HTTP/UDS remove and dismiss clients may omit `profile`: operator requests infer the owner
+from the target record. Explicit selectors must match that owner, authenticated agents remain bound
+to their session profile, and archived owners are refused. The Web bulk flow always sends its frozen
+profile selector; reading the all-profiles catalog does not grant bulk mutation authority.

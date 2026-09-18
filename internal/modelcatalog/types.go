@@ -201,6 +201,8 @@ type Model struct {
 	Featured                 bool
 	ReleaseDate              *string
 	ReasoningSource          ReasoningSource
+	ReasoningKnown           bool
+	ReasoningApply           string
 	LastError                string
 }
 

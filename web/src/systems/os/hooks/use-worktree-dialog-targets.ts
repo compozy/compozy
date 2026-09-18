@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useProfileReadScope } from "@/systems/profiles";
 
 import type {
   DiscoveredWorktreePayload,
   WorktreeNestEntry,
   WorktreePayload,
+  WorktreeRemovalBatch,
+  WorktreeRemovalProfile,
 } from "@/systems/workspace";
 
 interface DiscoveredTarget {
@@ -17,6 +20,10 @@ interface WorktreeTarget {
 }
 
 export interface WorktreeDialogTargets {
+  removalProfile: WorktreeRemovalProfile | null;
+  removalBatch: WorktreeRemovalBatch | null;
+  requestRemoveBatch: (batch: WorktreeRemovalBatch) => void;
+  closeRemoveBatch: () => void;
   adoptTarget: DiscoveredTarget | null;
   removeTarget: WorktreeTarget | null;
   missingTarget: WorktreeTarget | null;
@@ -41,12 +48,18 @@ export interface WorktreeDialogTargets {
 
 /** Which worktree lifecycle dialog the shell currently has open, if any. */
 export function useWorktreeDialogTargets(): WorktreeDialogTargets {
+  const removalProfile = useProfileReadScope().destinationOwner;
+  const [removalBatch, setRemovalBatch] = useState<WorktreeRemovalBatch | null>(null);
   const [adoptTarget, setAdoptTarget] = useState<DiscoveredTarget | null>(null);
   const [removeTarget, setRemoveTarget] = useState<WorktreeTarget | null>(null);
   const [missingTarget, setMissingTarget] = useState<WorktreeTarget | null>(null);
   const [contextTarget, setContextTarget] = useState<WorktreeTarget | null>(null);
 
   return {
+    removalProfile,
+    removalBatch,
+    requestRemoveBatch: setRemovalBatch,
+    closeRemoveBatch: () => setRemovalBatch(null),
     adoptTarget,
     removeTarget,
     missingTarget,

@@ -85,11 +85,11 @@ VALUES (
 -- name: InsertModelCatalogTransportBinding :exec
 INSERT INTO model_catalog_transport_bindings (
   context_id, source_id, provider_id, model_id, transport_model_id, label,
-  reasoning_effort, fast, thinking, rank
+  reasoning_effort, fast, thinking, rank, config_options_json
 ) VALUES (
   sqlc.arg(context_id), sqlc.arg(source_id), sqlc.arg(provider_id), sqlc.arg(model_id),
   sqlc.arg(transport_model_id), sqlc.arg(label), sqlc.narg(reasoning_effort),
-  sqlc.narg(fast), sqlc.narg(thinking), sqlc.arg(rank)
+  sqlc.narg(fast), sqlc.narg(thinking), sqlc.arg(rank), sqlc.arg(config_options_json)
 );
 
 -- name: ListModelCatalogTransportBindings :many
@@ -103,7 +103,8 @@ SELECT
   b.reasoning_effort,
   b.fast,
   b.thinking,
-  b.rank
+  b.rank,
+  b.config_options_json
 FROM model_catalog_transport_bindings b
 JOIN model_catalog_rows r
   ON r.context_id = b.context_id

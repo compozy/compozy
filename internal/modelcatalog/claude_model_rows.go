@@ -19,6 +19,7 @@ type claudeModelCandidate struct {
 	version     []int
 }
 
+// parseClaudeModelRows groups verified logical identities while retaining every advertised transport binding.
 func parseClaudeModelRows(
 	providerID string,
 	models compozyconfig.ProviderModelsConfig,
@@ -39,7 +40,7 @@ func parseClaudeModelRows(
 		}
 		seenTransportIDs[transportModelID] = struct{}{}
 
-		modelID := claudeLogicalModelID(transportModelID, value.Label, models, candidates)
+		modelID := claudeLogicalModelID(transportModelID, value.Label, candidates)
 		if modelID == "" {
 			modelID = transportModelID
 		}
@@ -73,6 +74,7 @@ func parseClaudeModelRows(
 	return rows
 }
 
+// claudeModelCandidates combines configured and curated identities without rewriting exact versions.
 func claudeModelCandidates(models compozyconfig.ProviderModelsConfig) []claudeModelCandidate {
 	candidates := make([]claudeModelCandidate, 0, len(models.Curated))
 	for _, model := range models.Curated {
@@ -90,10 +92,10 @@ func claudeModelCandidates(models compozyconfig.ProviderModelsConfig) []claudeMo
 	return candidates
 }
 
+// claudeLogicalModelID preserves exact releases and only resolves aliases with unambiguous version evidence.
 func claudeLogicalModelID(
 	transportModelID string,
 	label string,
-	models compozyconfig.ProviderModelsConfig,
 	candidates []claudeModelCandidate,
 ) string {
 	transportModelID = strings.TrimSpace(transportModelID)
@@ -105,8 +107,12 @@ func claudeLogicalModelID(
 			return candidate.id
 		}
 	}
-	if strings.EqualFold(transportModelID, "default") {
-		return strings.TrimSpace(models.Default)
+	// Exact provider IDs must never be reinterpreted as a different curated version.
+	if strings.HasPrefix(transportModelID, "claude-") {
+		return strings.TrimSuffix(transportModelID, "[1m]")
+	}
+	if strings.EqualFold(transportModelID, providerDefaultOption) {
+		return transportModelID
 	}
 
 	family := claudeModelFamily(transportModelID)
@@ -122,32 +128,23 @@ func claudeLogicalModelID(
 			matching = append(matching, candidate)
 		}
 	}
-	if len(matching) == 0 && family != "" {
-		for _, candidate := range candidates {
-			if candidate.family == family {
-				matching = append(matching, candidate)
-			}
-		}
-	}
 	if len(matching) == 0 {
 		return transportModelID
 	}
-	slices.SortFunc(matching, func(left claudeModelCandidate, right claudeModelCandidate) int {
-		if versionOrder := compareClaudeVersions(left.version, right.version); versionOrder != 0 {
-			return -versionOrder
-		}
-		return cmp.Compare(left.id, right.id)
-	})
+	if len(matching) != 1 {
+		return transportModelID
+	}
 	return matching[0].id
 }
 
+// claudeLiveDisplayName prefers the provider label without using it as an exact model identity.
 func claudeLiveDisplayName(
 	modelID string,
 	label string,
 	candidates []claudeModelCandidate,
 ) string {
 	trimmedLabel := strings.TrimSpace(label)
-	if trimmedLabel != "" && !strings.EqualFold(trimmedLabel, "default") {
+	if trimmedLabel != "" && !strings.EqualFold(trimmedLabel, providerDefaultOption) {
 		return trimmedLabel
 	}
 	for _, candidate := range candidates {
@@ -158,26 +155,25 @@ func claudeLiveDisplayName(
 	return modelID
 }
 
+// claudeLabelIdentifiesCandidate requires the full advertised version, excluding only an exact release date.
 func claudeLabelIdentifiesCandidate(label string, candidate claudeModelCandidate) bool {
-	labelTokens := claudeModelTokens(label)
-	if len(labelTokens) == 0 {
+	version := claudeModelVersion(label)
+	if len(version) == 0 {
 		return false
 	}
-	for _, token := range claudeModelTokens(candidate.id) {
-		if token == liveSourcesClaudeKey || token == "1m" {
-			continue
-		}
-		if !slices.Contains(labelTokens, token) {
-			return false
-		}
+	candidateVersion := candidate.version
+	// A dated exact release can match its advertised version, but never another minor version.
+	if len(candidateVersion) > 0 && candidateVersion[len(candidateVersion)-1] >= 20000101 {
+		candidateVersion = candidateVersion[:len(candidateVersion)-1]
 	}
-	return true
+	return slices.Equal(version, candidateVersion)
 }
 
+// claudeModelFamily extracts the family token used to narrow alias candidates.
 func claudeModelFamily(value string) string {
 	tokens := claudeModelTokens(value)
 	for _, token := range tokens {
-		if token == "claude" || token == "default" || token == "1m" || isClaudeNumericToken(token) {
+		if token == "claude" || token == providerDefaultOption || token == "1m" || isClaudeNumericToken(token) {
 			continue
 		}
 		return token
@@ -207,23 +203,7 @@ func claudeModelVersion(value string) []int {
 	return version
 }
 
-func compareClaudeVersions(left []int, right []int) int {
-	for index := range max(len(left), len(right)) {
-		leftValue := 0
-		if index < len(left) {
-			leftValue = left[index]
-		}
-		rightValue := 0
-		if index < len(right) {
-			rightValue = right[index]
-		}
-		if order := cmp.Compare(leftValue, rightValue); order != 0 {
-			return order
-		}
-	}
-	return 0
-}
-
+// claudeModelTokens splits identity tokens for complete-version comparisons.
 func claudeModelTokens(value string) []string {
 	return strings.FieldsFunc(strings.ToLower(strings.TrimSpace(value)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)

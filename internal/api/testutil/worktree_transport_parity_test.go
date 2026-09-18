@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,7 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				wantStatus     int
 				wantRef        string
 				wantWorktreeID string
+				wantMutationID string
 			}{
 				{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
 				{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
@@ -48,8 +50,8 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				{name: "exit action by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted, wantRef: "parity"},
 				{name: "exit cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent, wantRef: "parity"},
 				{name: "create cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/cancel", wantStatus: http.StatusNoContent, wantRef: "parity"},
-				{name: "remove by name", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusNoContent, wantRef: "parity"},
-				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent, wantRef: "parity"},
+				{name: "remove by name", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusNoContent, wantRef: "parity", wantMutationID: "wt-parity"},
+				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent, wantRef: "parity", wantMutationID: "wt-parity"},
 			} {
 				t.Run("Should match "+test.name, func(t *testing.T) {
 					t.Parallel()
@@ -64,6 +66,14 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 							service.refs[0] != test.wantRef ||
 							service.refs[1] != test.wantRef) {
 						t.Fatalf("forwarded refs = %#v, want HTTP and UDS ref %q", service.refs, test.wantRef)
+					}
+					if test.wantMutationID != "" &&
+						(len(service.mutationIDs) != 2 || service.mutationIDs[0] != test.wantMutationID || service.mutationIDs[1] != test.wantMutationID) {
+						t.Fatalf(
+							"mutation identities = %#v, want HTTP and UDS ID %q",
+							service.mutationIDs,
+							test.wantMutationID,
+						)
 					}
 					if test.wantWorktreeID != "" {
 						var status contract.WorktreeStatusResponse
@@ -225,11 +235,12 @@ func assertWorktreeParityResponse(
 }
 
 type parityWorktreeService struct {
-	item       worktree.Worktree
-	status     worktree.Status
-	inspectErr error
-	removal    *worktree.RemovalRefusal
-	refs       []string
+	item        worktree.Worktree
+	status      worktree.Status
+	inspectErr  error
+	removal     *worktree.RemovalRefusal
+	refs        []string
+	mutationIDs []string
 }
 
 func (s *parityWorktreeService) recordRef(ref string) { s.refs = append(s.refs, ref) }
@@ -240,9 +251,18 @@ func newParityWorktreeService() *parityWorktreeService {
 	refreshed := parityWorktreeTime()
 	return &parityWorktreeService{
 		item: worktree.Worktree{
-			ID: "wt-parity", WorkspaceID: "ws-registry", Name: "parity", Branch: branch,
-			Path: "/repo/feature", State: worktree.StateReady, Origin: worktree.OriginManual,
-			SetupState: worktree.SetupNone, BaseRef: "main", CreatedAt: refreshed, UpdatedAt: refreshed,
+			ID:          "wt-parity",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "ws-registry",
+			Name:        "parity",
+			Branch:      branch,
+			Path:        "/repo/feature",
+			State:       worktree.StateReady,
+			Origin:      worktree.OriginManual,
+			SetupState:  worktree.SetupNone,
+			BaseRef:     "main",
+			CreatedAt:   refreshed,
+			UpdatedAt:   refreshed,
 		},
 		status: worktree.Status{
 			WorktreeID: "wt-parity", Branch: &branch, Detached: &detached, HeadSHA: &head,
@@ -354,12 +374,12 @@ func (s *parityWorktreeService) Remove(
 	ref string,
 	_ bool,
 ) (*worktree.RemovalRefusal, error) {
-	s.recordRef(ref)
+	s.mutationIDs = append(s.mutationIDs, ref)
 	return s.removal, nil
 }
 
 func (s *parityWorktreeService) Dismiss(_ context.Context, _ string, ref string) error {
-	s.recordRef(ref)
+	s.mutationIDs = append(s.mutationIDs, ref)
 	return nil
 }
 

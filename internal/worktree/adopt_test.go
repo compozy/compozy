@@ -106,6 +106,46 @@ func TestServiceAdopt(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse another profile and never report a lost restore as successful", func(t *testing.T) {
+		t.Parallel()
+		fixture := newAdoptionTestFixture(t)
+		first, err := fixture.service.Adopt(t.Context(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.service.Adopt(
+			t.Context(),
+			"foreign-profile",
+			fixture.workspace.ID,
+			fixture.candidate,
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
+			t.Fatalf("foreign adoption = %v, want not found", err)
+		}
+		missing := *first
+		missing.State = StateMissing
+		if err := fixture.store.SetState(
+			t.Context(),
+			first.WorkspaceID,
+			first.ID,
+			StateDismissed,
+			first.UpdatedAt,
+		); err != nil {
+			t.Fatal(err)
+		}
+		fixture.service.store = &lostStateFenceStore{memoryWorktreeStore: fixture.store}
+		restored, err := fixture.service.reuseAdoptedWorktree(t.Context(), &missing, first.GitDir)
+		if !errors.Is(err, ErrNotReady) || restored != nil {
+			t.Fatalf("concurrent dismissal restore = %#v, %v", restored, err)
+		}
+		current, err := fixture.store.Get(t.Context(), first.WorkspaceID, first.ID)
+		if err != nil || current.State != StateDismissed {
+			t.Fatalf("retained state = %#v, %v", current, err)
+		}
+	})
+
 	t.Run("Should restore a matching missing row after revalidating its Git identity", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)

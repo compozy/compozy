@@ -492,7 +492,7 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
   it("Should hide the trigger meter when the selected model exposes no efforts", () => {
     renderSelector({
       value: { provider: "codex", model: "plain", reasoning_effort: "" },
-      models: [model("plain", { name: "Plain", efforts: [] })],
+      models: [model("plain", { name: "Plain", supports_reasoning: false, efforts: [] })],
     });
 
     const trigger = screen.getByTestId("rt-trigger");
@@ -2018,7 +2018,7 @@ describe("RuntimeSelector single-line row", () => {
       models: [
         model("leveled", { name: "Leveled", efforts: ["low", "high"] }),
         model("supp", { name: "Supported", supports_reasoning: true, efforts: [] }),
-        model("plain", { name: "Plain", efforts: [] }),
+        model("plain", { name: "Plain", supports_reasoning: false, efforts: [] }),
       ],
     });
 
@@ -2075,6 +2075,20 @@ describe("RuntimeSelector reasoning footer modes", () => {
     });
     expect(footer).toHaveAttribute("data-reasoning-mode", "supported-nolevels");
     expect(footer).toHaveTextContent("Reasoning is on");
+  });
+
+  it("Should identify unconfirmed capability without claiming the provider decides", async () => {
+    const footer = await footerFor(
+      [model("unknown", { supports_reasoning: true, reasoning_known: false, efforts: [] })],
+      {
+        provider: "codex",
+        model: "unknown",
+        reasoning_effort: "",
+      }
+    );
+    expect(footer).toHaveAttribute("data-reasoning-mode", "unknown");
+    expect(footer).toHaveTextContent("haven't been confirmed");
+    expect(footer).not.toHaveTextContent("provider decides");
   });
 
   it("Should show the 'no reasoning effort' note for models without reasoning", async () => {
@@ -2174,7 +2188,7 @@ describe("RuntimeSelector speed request", () => {
     const user = userEvent.setup();
     const withSwitch = renderSelector({
       value: { provider: "codex", model: "plain", reasoning_effort: "" },
-      models: [model("plain", { name: "Plain", efforts: [] })],
+      models: [model("plain", { name: "Plain", supports_reasoning: false, efforts: [] })],
       props: { speed: "normal", onSpeedChange: vi.fn() },
     });
 

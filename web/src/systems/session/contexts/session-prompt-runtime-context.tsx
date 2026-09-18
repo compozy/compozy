@@ -6,7 +6,10 @@ import {
   sessionPromptRuntimeInput,
   sessionPromptRuntimeStoreLogic,
 } from "../stores/session-prompt-runtime-store";
-import { SessionPromptRuntimeContext } from "./session-prompt-runtime-context-value";
+import {
+  SessionPromptRuntimeContext,
+  SessionPromptRuntimeCapabilitiesContext,
+} from "./session-prompt-runtime-context-value";
 
 export interface SessionPromptRuntimeProviderProps {
   session: SessionPayload;
@@ -62,6 +65,7 @@ function runtimeInputFromValues(
   });
 }
 
+/** Bind server inputs to one session intent store while exposing capability snapshots separately. */
 export function SessionPromptRuntimeProvider({
   session,
   canPrompt,
@@ -139,5 +143,11 @@ export function SessionPromptRuntimeProvider({
     store,
   ]);
 
-  return <SessionPromptRuntimeContext value={store}>{children}</SessionPromptRuntimeContext>;
+  return (
+    <SessionPromptRuntimeContext value={store}>
+      <SessionPromptRuntimeCapabilitiesContext value={session.runtime}>
+        {children}
+      </SessionPromptRuntimeCapabilitiesContext>
+    </SessionPromptRuntimeContext>
+  );
 }

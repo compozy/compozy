@@ -780,6 +780,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload worktree cleanup UI evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: worktree-cleanup-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*worktrees*/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload web E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7

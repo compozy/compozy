@@ -85,6 +85,14 @@ export function SelectorFooter({
     );
   }
 
+  if (reasoning.mode === "unknown") {
+    return (
+      <FooterNote mode="unknown" speedSwitch={speedSwitch}>
+        Reasoning options haven't been confirmed.
+      </FooterNote>
+    );
+  }
+
   if (reasoning.mode === "none") {
     return (
       <FooterNote mode="none" speedSwitch={speedSwitch}>

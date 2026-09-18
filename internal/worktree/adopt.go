@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+// Adopt validates a discovered checkout under the repository lock before
+// registering it for this profile or restoring its existing missing record.
 func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePath string) (*Worktree, error) {
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" {
@@ -52,6 +54,9 @@ func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePa
 	}
 	existing, getErr := s.store.GetByPath(ctx, workspaceID, canonicalCandidate)
 	if getErr == nil && existing != nil {
+		if existing.ProfileID != profileID {
+			return nil, ErrNotFound
+		}
 		return s.reuseAdoptedWorktree(ctx, existing, identity.adminGitDir)
 	}
 	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
@@ -114,6 +119,8 @@ func (s *Service) insertAdoptedWorktree(
 	return &item, nil
 }
 
+// reuseAdoptedWorktree restores only the validated saved Git identity. A lost
+// state swap succeeds only if the winning operation already made the row ready.
 func (s *Service) reuseAdoptedWorktree(
 	ctx context.Context,
 	existing *Worktree,
@@ -136,6 +143,9 @@ func (s *Service) reuseAdoptedWorktree(
 		current, currentErr := s.store.Get(ctx, existing.WorkspaceID, existing.ID)
 		if currentErr != nil {
 			return nil, fmt.Errorf("worktree: reread adopted path: %w", currentErr)
+		}
+		if current == nil || current.State != StateReady {
+			return nil, ErrNotReady
 		}
 		return current, nil
 	}

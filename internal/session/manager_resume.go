@@ -155,16 +155,21 @@ func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string
 	return fmt.Errorf("%w: session %q has a dead runtime", store.ErrSessionNotAttachable, target)
 }
 
+// isUnboundLogicalResume identifies accepted sessions that must bind a provider at their next prompt.
 func isUnboundLogicalResume(meta store.SessionMeta) bool {
 	return meta.RuntimeStatus == RuntimeStatusUnbound &&
 		meta.RuntimeTransition == RuntimeTransitionNone &&
 		strings.TrimSpace(derefString(meta.ACPSessionID)) == ""
 }
 
+// resumeAcceptedLogicalSession reopens durable intent without binding or validating the obsolete default model.
 func (m *Manager) resumeAcceptedLogicalSession(
 	ctx context.Context,
 	spec *sessionStartSpec,
 ) (*Session, error) {
+	// Like initial logical acceptance, resume does not bind the old default runtime.
+	// Validate the next prompt's concrete selection at initial bind instead.
+	spec.deferRuntimeValidation = true
 	accepted, err := m.acceptSessionStart(ctx, m.lifecycleCtx, spec)
 	if err != nil {
 		return nil, err

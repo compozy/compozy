@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -59,6 +60,8 @@ func (s *Service) Get(ctx context.Context, workspaceID, ref string) (*Worktree, 
 	return item, nil
 }
 
+// List combines registered and discovered checkouts, reconciling vanished ready
+// rows without overwriting concurrent lifecycle changes or guessing on stat errors.
 func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*Listing, error) {
 	workspace, err := s.resolveWorkspace(ctx, workspaceID)
 	if err != nil {
@@ -121,15 +124,41 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 		}
 		_, inGit := gitPaths[canonicalComparablePath(row.Path)]
 		_, statErr := os.Stat(row.Path)
+		if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+			return nil, fmt.Errorf("worktree: inspect registered path: %w", statErr)
+		}
 		if !inGit || errors.Is(statErr, os.ErrNotExist) {
-			if err := s.store.SetState(ctx, workspaceID, row.ID, StateMissing, s.now().UTC()); err != nil {
-				return nil, fmt.Errorf("worktree: mark missing: %w", err)
+			if err := s.markMissing(ctx, row); err != nil {
+				return nil, err
 			}
-			row.State = StateMissing
-			s.emit(ctx, EventMissing, *row)
 		}
 	}
+	listing.Worktrees = slices.DeleteFunc(listing.Worktrees, func(row Worktree) bool {
+		return row.State == StateDismissed
+	})
 	return listing, nil
+}
+
+// markMissing updates a ready snapshot conditionally; a concurrent winner is
+// reread into the snapshot so stale discovery cannot resurrect its previous state.
+func (s *Service) markMissing(ctx context.Context, row *Worktree) error {
+	swapped, err := s.store.CompareAndSwapState(ctx, row.WorkspaceID, row.ID, StateReady, StateMissing, s.now().UTC())
+	if err != nil {
+		return fmt.Errorf("worktree: mark missing: %w", err)
+	}
+	if !swapped {
+		current, err := s.store.Get(ctx, row.WorkspaceID, row.ID)
+		if err != nil {
+			return fmt.Errorf("worktree: reread reconciled row: %w", err)
+		}
+		if current != nil {
+			*row = *current
+		}
+		return nil
+	}
+	row.State = StateMissing
+	s.emit(ctx, EventMissing, *row)
+	return nil
 }
 
 func (s *Service) repoState(ctx context.Context, workspace Workspace) (RepoState, error) {

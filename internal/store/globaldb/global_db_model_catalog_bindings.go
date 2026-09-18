@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
+// normalizeModelCatalogTransportBindings validates transport identities and their complete capability snapshots.
 func normalizeModelCatalogTransportBindings(
 	bindings []modelcatalog.ModelTransportBinding,
 ) ([]modelcatalog.ModelTransportBinding, error) {
@@ -50,11 +52,17 @@ func normalizeModelCatalogTransportBindings(
 				binding.ReasoningEffort = new(effort)
 			}
 		}
+		binding.ConfigOptions, err = normalizeModelCatalogOptions(binding.ConfigOptions)
+		if err != nil {
+			return nil, fmt.Errorf("store: transport binding %q options: %w", transportModelID, err)
+		}
 		normalized = append(normalized, binding)
 	}
 	return normalized, nil
 }
 
+// normalizeModelCatalogRowBindings validates configuration-matrix coordinates against their logical model.
+// OptionSelections chooses a transport; ConfigOptions describes controls available after that transport is selected.
 func normalizeModelCatalogRowBindings(row *modelcatalog.ModelRow) error {
 	bindings, err := normalizeModelCatalogTransportBindings(row.TransportBindings)
 	if err != nil {
@@ -78,6 +86,7 @@ func normalizeModelCatalogRowBindings(row *modelcatalog.ModelRow) error {
 	return nil
 }
 
+// insertModelCatalogTransportBindings persists each normalized snapshot atomically with its source row.
 func insertModelCatalogTransportBindings(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
@@ -86,19 +95,24 @@ func insertModelCatalogTransportBindings(
 ) error {
 	queries := sqlcgen.New(exec)
 	for rank, binding := range row.TransportBindings {
+		options, err := json.Marshal(binding.ConfigOptions)
+		if err != nil {
+			return fmt.Errorf("store: encode transport binding options: %w", err)
+		}
 		if err := queries.InsertModelCatalogTransportBinding(
 			ctx,
 			sqlcgen.InsertModelCatalogTransportBindingParams{
-				ContextID:        contextID,
-				SourceID:         row.SourceID,
-				ProviderID:       row.ProviderID,
-				ModelID:          row.ModelID,
-				TransportModelID: binding.TransportModelID,
-				Label:            binding.Label,
-				ReasoningEffort:  nullableReasoningEffort(binding.ReasoningEffort),
-				Fast:             nullableBoolToSQLiteInt(binding.Fast),
-				Thinking:         nullableBoolToSQLiteInt(binding.Thinking),
-				Rank:             int64(rank),
+				ContextID:         contextID,
+				SourceID:          row.SourceID,
+				ProviderID:        row.ProviderID,
+				ModelID:           row.ModelID,
+				TransportModelID:  binding.TransportModelID,
+				Label:             binding.Label,
+				ReasoningEffort:   nullableReasoningEffort(binding.ReasoningEffort),
+				Fast:              nullableBoolToSQLiteInt(binding.Fast),
+				Thinking:          nullableBoolToSQLiteInt(binding.Thinking),
+				Rank:              int64(rank),
+				ConfigOptionsJson: string(options),
 			},
 		); err != nil {
 			return fmt.Errorf(
@@ -114,6 +128,7 @@ func insertModelCatalogTransportBindings(
 	return nil
 }
 
+// listModelCatalogTransportBindings restores validated snapshots within the requested catalog execution contexts.
 func listModelCatalogTransportBindings(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
@@ -162,6 +177,7 @@ func listModelCatalogTransportBindings(
 	return bindings, nil
 }
 
+// modelCatalogTransportBindingFromGenerated decodes and validates stored capabilities at the repository boundary.
 func modelCatalogTransportBindingFromGenerated(
 	row sqlcgen.ModelCatalogTransportBinding,
 ) (modelcatalog.ModelTransportBinding, error) {
@@ -181,8 +197,17 @@ func modelCatalogTransportBindingFromGenerated(
 	if err != nil {
 		return modelcatalog.ModelTransportBinding{}, err
 	}
+	var options []modelcatalog.ModelOptionDescriptor
+	if err := json.Unmarshal([]byte(row.ConfigOptionsJson), &options); err != nil {
+		return modelcatalog.ModelTransportBinding{}, fmt.Errorf("store: decode transport binding options: %w", err)
+	}
+	options, err = normalizeModelCatalogOptions(options)
+	if err != nil {
+		return modelcatalog.ModelTransportBinding{}, err
+	}
 	return modelcatalog.ModelTransportBinding{
 		TransportModelID: transportModelID,
+		ConfigOptions:    options,
 		Label:            strings.TrimSpace(row.Label),
 		ReasoningEffort:  reasoningEffort,
 		Fast:             fast,
