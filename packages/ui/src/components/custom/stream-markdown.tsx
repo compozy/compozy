@@ -6,7 +6,7 @@ import type { Components } from "streamdown";
 import { normalizeCompozyCodeLanguage } from "../../lib/code-theme";
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
-import { Markdown } from "./markdown";
+import { Markdown, type MarkdownProps } from "./markdown";
 import { INLINE_CODE_CLASS } from "./markdown-components";
 
 type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
@@ -47,7 +47,7 @@ function StreamMarkdownCode({
         caption={rawLanguage ? (normalizedLanguage ?? rawLanguage) : undefined}
         copyable
         density="compact"
-        className="my-2"
+        className="my-5"
       />
     );
   }
@@ -68,6 +68,8 @@ const STREAM_MARKDOWN_COMPONENTS: Partial<Components> = {
 export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "children"> {
   children: string;
   streaming?: boolean;
+  /** Density forwarded to `<Markdown>`; see `MarkdownProps["compact"]`. */
+  compact?: MarkdownProps["compact"];
 }
 
 /**
@@ -75,11 +77,18 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
  * prose grammar but swaps in the Compozy `<CodeBlock>` for fenced code blocks (with
  * copy + syntax highlighting). Inline code uses the shared Markdown recipe.
  */
-function StreamMarkdown({ children, streaming = false, className, ...props }: StreamMarkdownProps) {
+function StreamMarkdown({
+  children,
+  streaming = false,
+  compact = false,
+  className,
+  ...props
+}: StreamMarkdownProps) {
   return (
     <Markdown
       data-slot="stream-markdown"
       streaming={streaming}
+      compact={compact}
       components={STREAM_MARKDOWN_COMPONENTS}
       className={cn("max-w-[72ch]", className)}
       {...props}

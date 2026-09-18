@@ -62,3 +62,9 @@ Expected evidence: screenshots per kind (tasks chips + empty-with-filter, saniti
 detail, detail pane populated and cleared, form blocked on first invalid field, grid with
 placeholder tile, vault names-only), a screen-reader or keyboard-only pass note for the
 combobox/2D-navigation contract, and the overflow note at scale.
+
+QA impact 2026-09-17 (issue #653): the palette detail view renders `<Markdown compact>`. Compact keeps
+its previous heading sizes, cell padding, and indents, and gains accent-strong underlined links, semibold
+emphasis, and a framed table with a tinted, non-wrapping header. Verified in the web Storybook story
+`systems-session-components-messagemarkdown--compact` only, which renders the same compact recipe. Not walked: a palette detail containing a table or links
+in a live runtime; confirm the framed table scrolls inside the detail pane rather than widening it.

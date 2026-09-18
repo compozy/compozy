@@ -51,6 +51,21 @@ describe("MessageMarkdown", () => {
     expect(container.querySelector("code")?.textContent).toBe("compozy start");
   });
 
+  it("forwards compact to the prose root on both render paths", () => {
+    const direct = render(<MessageMarkdown content="# Plan" compact />);
+    expect(direct.container.querySelector('[data-slot="stream-markdown"]')).toHaveAttribute(
+      "data-compact",
+      "true"
+    );
+    direct.unmount();
+
+    const revealed = render(<MessageMarkdown content="# Plan" compact reveal />);
+    expect(revealed.container.querySelector('[data-slot="stream-markdown"]')).toHaveAttribute(
+      "data-compact",
+      "true"
+    );
+  });
+
   it("renders incomplete fenced code while streaming", async () => {
     const { container } = render(
       <MessageMarkdown content={"Plan:\n\n```ts\nconst value = 1"} streaming />
