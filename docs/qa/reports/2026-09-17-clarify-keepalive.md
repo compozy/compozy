@@ -106,7 +106,24 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 ## Human Verifications Needed
 
 - [ ] Real-provider idle-limit read: ask a clarification under the unbounded policy from a live Claude/Codex (or other provider) agent, wait 90s without answering, confirm the tool call survives on 30s pings and note whether the 30s margin was needed; a provider keeping its own shorter timeout is documented behavior, not a defect. Follow-up owner: next QA cycle touching provider variance (ADR-001 Open Question).
-- [ ] Live multi-surface race staging (CLI answer vs HTTP cancel vs session stop concurrently) if a future change touches the terminal path; current race-once evidence is seam-level under `-race`.
+- [x] Live multi-surface race staging — closed 2026-09-18 (see Outstanding Walk Closure below).
+
+## Outstanding Walk Closure — 2026-09-18
+
+Lab: `clarify-keepalive-outstanding-walks-20260918-103849-382089` (isolated, targeted profile cli/api/runtime, build `7f5084e20` worktree), teardown `"clean": true`. Evidence: `qa-artifacts/qa/walk-evidence/` in the lab (`walk_notes.md`, `race_results.json`, daemon log, acpmock diagnostics).
+
+### Extension-host inheritance walk (was Bruno's gap) — Pass
+
+- Built and installed the `sdk/examples/clarify-tool` extension into the lab daemon (`extension build` → `install --allow-unverified --yes` → `state: active`); `ext__clarify_tool__ask` registered callable after `tools.policy.external_default = "enabled"` (restart) and the agent declaring `toolsets: [compozy__clarify]`.
+- Live round trip on a bound fixture session (`sess-985768a486dcdb19`, turn held by the mock agent): `compozy tool invoke ext__clarify_tool__ask --session … --agent attention-agent --input '{"question":" Which release lane? ","choices":[" Stable ","Canary"]}'` produced the live pending projection `{"request_id":"592fa525-…","question":"Which release lane?","choices":["Stable","Canary"],"deadline":null}` via `session clarify pending -o json` — extension asks share the broker's wait/pinning/ping contract with no separate vocabulary, matching `handleClarifyAsk` → `broker.Ask` by construction.
+- Subprocess-side proof: driving `clarify-tool/bin` over the extension-service JSON-RPC transport, `tools/call` emits the host notification `clarify/ask {"invocation_id":…,"question":" Standalone Q? ","choices":["X","Y"]}`, and a broker-shaped answer `{"choice":0,"text":"","fallback":false}` resolves the blocked tool call to `{"structured":{"choice":0,"text":"","fallback":false}}`.
+- Public harness corroboration: `go test -tags=integration -run TestReferenceExtensionsEndToEnd ./internal/extension/` green (9.321s) — install → descriptor → invoke → pending (CLI+HTTP) → answer → blocked invoke resumes with the answer.
+
+### Live multi-surface race walk (was Ada's gap) — Pass
+
+Staged concurrently against the same live pending request (`multisurface_race.py`): HTTP `POST …/clarifications/:id/answer {"text":"http-loser"}`, CLI `clarify answer --choice 1`, CLI `clarify answer --text late-cancel`, CLI `session stop`. Every loser observed the deterministic settled receipt `outcome: "already-resolved"` naming the interaction (`int_…`), the winner's resolution held, `session stop` settled the session `stopped` with no resurrection, and no second terminal event fired — exactly-once terminal resolution across CLI/HTTP + stop on the live daemon, layered on the `-race` seam evidence (UT-007/011/012/013, `TestClarifyBridgeAnswerExpiryRace`).
+
+Boundary recorded: the blocked tool call was staged through the operator `tool invoke` surface (the acpmock fixture harness cannot call MCP tools mid-turn), and the CLI's 30s UDS client timeout cut one blocked call before its answer; exactly-once resolution and loser receipts above were captured on the live pending request itself.
 
 ## Decisions for a Human
 
@@ -122,6 +139,6 @@ None — the one reproduced defect passed the fix-loop governor (spec-mandated s
 
 - **Exit gate:** `make gate` → FAIL at `codegen-check` only: Daytona sidecar asset stale (pre-existing on pristine HEAD per task_01/task_03 memory; zero `internal/sandbox` files touched — verified). Spec-owned lanes green: `make go-lint` 0 issues; `make boundaries` respected; `check-cli-docs.sh` up to date; `go test ./internal/cli/ ./internal/config/` ok; `-race` daemon/session/acp/extension clarify suites ok; integration E2E journeys PASS (74.447s).
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 1 (fixed) · Cosmetic 0
-- **Coverage:** 1/4 charters live-walked (Dora policy matrix); Théo ran the E2E harness, Ada and Bruno produced seam/suite evidence; MS settled pass; RT pass covers only harness-observed legs with the extension-inheritance and multi-surface race walks outstanding.
-- **Taxonomy:** journeys (J-answer-agent-requests, J-administer-runtime-settings, J-15 canary) and functional checks walked; edge/error legs covered at the owning seams with the live multi-surface race and extension-host walks outstanding; experiential skipped (no UI surface changed — zero-deadline rendering is owned by clarify-timeout); cross-cutting consistency swept for stale bounded wording.
-- **Verdict:** ready on MS/policy legs; RT re-walk outstanding for the extension-inheritance and multi-surface race legs.
+- **Coverage:** 1/4 charters live-walked (Dora policy matrix); Théo ran the E2E harness, Ada and Bruno produced seam/suite evidence; MS settled pass; RT harness-observed legs settled pass and the extension-inheritance + multi-surface race walks closed 2026-09-18 (see Outstanding Walk Closure).
+- **Taxonomy:** journeys (J-answer-agent-requests, J-administer-runtime-settings, J-15 canary) and functional checks walked; edge/error legs covered at the owning seams; experiential skipped (no UI surface changed — zero-deadline rendering is owned by clarify-timeout); cross-cutting consistency swept for stale bounded wording.
+- **Verdict:** ready on MS/policy legs; RT re-walk closed 2026-09-18 (extension-host inheritance and live multi-surface race walks recorded above, lab teardown clean). RT settles pass with the remaining real-provider idle-limit observation as a named follow-up.

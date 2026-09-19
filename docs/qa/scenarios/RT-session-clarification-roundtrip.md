@@ -6,7 +6,7 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: A live session derives `waiting-for-input`, exposes one sanitized clarification through status and interaction discovery, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the live tool with `answered`, resolves a restart-orphaned request with `resolved-after-restart`, returns the original winner on duplicate resolution, and keeps all evidence workspace-isolated; an unbounded pending request shows `deadline: null` with no countdown, stays answerable past the 60s mark while keepalive pings flow, and a late answer returns the answer while a finite policy still falls back with `timed_out`.
 entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications; compozy config get/set tools.clarify.timeout
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260917-clarify-timeout-config-set
 fix_status: fixed
 retest_status: pass
@@ -60,6 +60,19 @@ evidence above is preserved. Task 05 owns the cross-surface walk. No web rows: z
 rendering is owned by `.compozy/tasks/clarify-timeout`. E2E-001/E2E-002 (see
 `.compozy/tasks/clarify-keepalive/_tests.md`) are referenced as live-walk journeys for that
 execution, not as automated-test claims.
+
+Outstanding-walk closure 2026-09-18 (docs/qa/reports/2026-09-17-clarify-keepalive.md → Outstanding
+Walk Closure): the two legs the 2026-09-17 run named outstanding are now walked. Extension-host
+inheritance: `sdk/examples/clarify-tool` installed active in an isolated lab (build 7f5084e20
+worktree); operator-surface `tool invoke ext__clarify_tool__ask` produced the exact live pending
+projection (`deadline: null`, normalized question/choices, `agent_name attention-agent`), and a
+subprocess-stage `tools/call` → host `clarify/ask` → broker-shaped answer resolved the blocked call
+to `{"choice":0,"text":"","fallback":false}`; `TestReferenceExtensionsEndToEnd` green as public
+corroboration. Live multi-surface race: HTTP answer + CLI `--choice 1` + CLI `--text` + CLI
+`session stop` fired concurrently against one live pending request — every loser observed the
+deterministic `already-resolved` receipt, no second terminal event, no resurrection after stop.
+`qa_status` returns to `pass`. Remaining follow-up (real-provider idle-limit read) stays in the
+report's Human Verifications list.
 
 Unbounded-wait and keepalive evidence expectations (all cite timestamp, exact command, observed output):
 
