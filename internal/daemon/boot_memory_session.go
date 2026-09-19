@@ -123,6 +123,7 @@ func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error
 		state.logger,
 		withClarifyClock(d.now),
 		withClarifySessionProfileResolver(clarifySessionProfileResolver(state.sessions)),
+		withClarifyKeepalive(clarifyKeepaliveForSessions(state.sessions)),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create clarification broker: %w", err)

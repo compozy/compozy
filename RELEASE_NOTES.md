@@ -1337,6 +1337,20 @@ and active configuration are written atomically, once; unrelated settings and
 extension configuration are preserved. Settings and `config set` reject new
 writes of these acquisition fields.
 
+`tools.clarify.timeout` now defaults to no automatic expiration. An omitted key
+or an explicit `timeout = "0s"` means a pending clarification waits until it is
+answered, explicitly canceled, or stopped with its owning context; explicit
+`1s`–`24h` values keep the existing deadline, fallback answer, and `timed_out`
+outcome. Installations that want the previous behavior set `timeout = "5m"`
+explicitly and restart the daemon (the key keeps its TOML duration shape, user
+scope, and restart-required lifecycle). An unbounded pending clarification
+reports `deadline: null` on every surface, and the daemon holds the agent's
+blocked call open with `_compozy/clarify_ping` keepalive notifications every
+30s until the request resolves. Out-of-range durations are rejected
+with `tools.clarify.timeout must be between 1s and 24h, or 0s for no
+expiration: <value>`; malformed durations fail at TOML parse. The last valid
+policy stays in both cases.
+
 ### Features
 
 - Client plugins with manifests under `.claude-plugin/`, `.codex-plugin/` or

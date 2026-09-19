@@ -739,6 +739,7 @@ type hostedProxyClientStub struct {
 	mu          sync.Mutex
 	bind        HostedBindResponse
 	callResult  HostedCallResponse
+	block       func(HostedCallRequest) (HostedCallResponse, error)
 	calls       []HostedCallRequest
 	releases    []HostedReleaseRequest
 	projections chan HostedProjectionResponse
@@ -791,8 +792,14 @@ func (c *hostedProxyClientStub) CallHostedMCP(
 	req HostedCallRequest,
 ) (HostedCallResponse, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.calls = append(c.calls, req)
+	block := c.block
+	c.mu.Unlock()
+	if block != nil {
+		return block(req)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.callResult, nil
 }
 

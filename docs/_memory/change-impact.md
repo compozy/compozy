@@ -1,5 +1,15 @@
 # Compozy Change Impact
 
+## Clarify keepalive — unbounded default plus ACP ping
+
+Owning spec: `.compozy/tasks/clarify-keepalive/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001 records the ping-transport decision; reuses `.compozy/tasks/clarify-timeout` ADR-001 for the unbounded default).
+
+- **Native tools / CLI / HTTP / UDS:** `compozy__clarify` keeps its ID, schemas, and risk; `session clarify pending|answer` keep their verbs and shapes except unbounded pending reports `deadline: null`. No route, DTO, or verb added or removed.
+- **Extensibility / hooks / config:** extension `clarify/ask` and both SDK `AskClarification` paths inherit the wait and keepalive with no manifest, permission, or SDK change. Config `tools.clarify.timeout` keeps its key and duration shape; omitted/`0s` becomes unbounded (default flips from 5m), `1s`–`24h` stays finite — SD-013 regime 2 with release-note migration block, explicit finite values auto-keep working. The key is agent-mutable at user scope only: workspace and profile writes are rejected (`--scope user` guidance). New ACP agent-facing notification `_compozy/clarify_ping` (identity-only, ignorable by non-supporting agents). Follow-up (2026-09-18): the ACP ping alone does not keep real agents alive — opencode's MCP client aborts any hosted tool call after its ~60s default request window, and the ACP notification never reaches that timer. The hosted stdio proxy now emits standard MCP `notifications/progress` (every 30s while a call blocks, token echoed from the request) so `resetTimeoutOnProgress` clients reset instead of canceling; clients without a progress token receive nothing.
+- **Workspace data isolation:** pings resolve session → own live agent process only; no cross-session or cross-workspace delivery. Pending waits stay broker-owned in memory; no stored-data change, no migration.
+- **Official skill:** `skills/compozy/references/runtime-operations.md` clarify section stays valid (same verbs); provider contract note for `_compozy/clarify_ping` co-shipped in `packages/site/content/docs/agents/providers.mdx` ("Clarification keepalive") alongside the spec's `_dx.md`.
+- **Web/Docs/QA:** no `web/` rendering change in this spec (zero-deadline display owned by `clarify-timeout`); the nullable wire deadline co-ships only the regenerated OpenAPI nullable flag, the generated TS type, and a matching `string | null` parameter widening. `packages/site` co-ships the config reference, the provider doc, and the stale-bounded-wording sweep (`tools/toolsets.mdx`, `sessions/permissions.mdx`, `extensions/develop.mdx`); the durable clarify transcript projects `deadline: null` for unbounded waits. QA: `J-answer-agent-requests` gains the unbounded branch, MS/RT scenarios and four charters carry the cycle. Verification owned by `_tests.md` (bridge/config/session/acp suites plus E2E-001/E2E-002).
+
 ## Issue 655 — Claude model identity and effort discovery
 
 - **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add

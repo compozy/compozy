@@ -26,7 +26,7 @@ const clarifyRequestSchema = z.object({
   question: z.string(),
   choices: z.array(z.string()).optional(),
   asked_at: z.string().optional(),
-  deadline: z.string().optional(),
+  deadline: z.string().nullable().optional(),
 });
 
 /** Canonical `ClarifyEvent` wire shape carried by the `data-compozy-event` clarify payload. */
@@ -98,7 +98,7 @@ export function parseClarifyEvent(data: AgentEventPayload): ClarifyEventView | n
  * Static, non-ticking deadline hint (absolute local time). The broker enforces the timeout server
  * side and emits a `timed_out` event; the client never runs a countdown.
  */
-export function formatClarifyDeadline(deadline: string | undefined): string | null {
+export function formatClarifyDeadline(deadline: string | null | undefined): string | null {
   if (!deadline) {
     return null;
   }

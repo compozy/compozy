@@ -207,7 +207,7 @@ export interface ClarifyEventRequest {
   question: string;
   choices?: string[];
   asked_at?: string;
-  deadline?: string;
+  deadline?: string | null;
 }
 
 /**

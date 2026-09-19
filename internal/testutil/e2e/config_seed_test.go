@@ -69,6 +69,29 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 	}
 }
 
+func TestSeedConfigPersistsLogOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist the log overlay in seeded config", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Log.Level = "debug"
+			},
+		})
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Log.Level != "debug" {
+			t.Fatalf("loaded.Log.Level = %q, want debug", loaded.Log.Level)
+		}
+	})
+}
+
 func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	t.Parallel()
 
