@@ -408,7 +408,10 @@ type autoTitleSpawnSessionsStub struct {
 	// refuseProvider makes the provider refuse the turn on that route, the
 	// post-acceptance refusal a fallback advance has to survive.
 	refuseProvider string
-	providers      []string
+	// refuseAfterOutput streams agent text before the refusal, which must keep
+	// the turn on its accepted route.
+	refuseAfterOutput bool
+	providers         []string
 }
 
 type cancelAwareAutoTitleSpawnSessionsStub struct {
@@ -470,6 +473,9 @@ func (s *autoTitleSpawnSessionsStub) PromptSynthetic(
 	events := make(chan acp.AgentEvent, 2)
 	defer close(events)
 	if s.refuseProvider != "" && s.providers[len(s.providers)-1] == s.refuseProvider {
+		if s.refuseAfterOutput {
+			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Partial"}
+		}
 		events <- acp.AgentEvent{
 			Type:          acp.EventTypeError,
 			Error:         "You've hit your session limit",

@@ -99,21 +99,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (string, bool, error) {
-		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
-			ParentSessionID:     strings.TrimSpace(request.SessionID),
-			AgentName:           route.AgentName,
-			Provider:            route.Provider,
-			Model:               route.Model,
-			ReasoningEffort:     route.ReasoningEffort,
-			Speed:               route.Speed,
-			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
-			Name:                autoTitleSessionName,
-			PromptOverlay:       autoTitlePromptOverlay(),
-			SpawnRole:           session.SpawnRoleAutoTitle,
-			TTL:                 g.childTTL(),
-			AutoStopOnParent:    true,
-			DiscardStartFailure: true,
-		})
+		spawned, spawnErr := g.sessions.Spawn(attemptCtx, g.autoTitleSpawnOpts(request, route))
 		if spawnErr != nil {
 			// Spawn can return a live session with a hook-dispatch error; keep the
 			// pre-existing behavior of failing the attempt instead of prompting.
@@ -125,7 +111,14 @@ func (g *forkedAutoTitleGenerator) Generate(
 		}
 		collected, attemptErr := g.runAutoTitleTurn(attemptCtx, spawned.ID, prompt)
 		if errors.Is(attemptErr, errProviderRefusedTurn) {
-			return "", false, errors.Join(attemptErr, g.discardAutoTitleAttempt(ctx, spawned.ID))
+			discardErr := g.discardAutoTitleAttempt(ctx, spawned.ID)
+			if discardErr == nil {
+				return "", false, attemptErr
+			}
+			// The refused child may still be running; keep it owned so the outer
+			// stop runs, and do not start another provider attempt beside it.
+			child = spawned
+			return "", true, errors.Join(attemptErr, discardErr)
 		}
 		child = spawned
 		return collected, true, attemptErr
@@ -141,6 +134,27 @@ func (g *forkedAutoTitleGenerator) Generate(
 		return "", errors.New("daemon: automatic title output is empty")
 	}
 	return title, nil
+}
+
+func (g *forkedAutoTitleGenerator) autoTitleSpawnOpts(
+	request autoTitleRequest,
+	route roleAttemptRoute,
+) session.SpawnOpts {
+	return session.SpawnOpts{
+		ParentSessionID:     strings.TrimSpace(request.SessionID),
+		AgentName:           route.AgentName,
+		Provider:            route.Provider,
+		Model:               route.Model,
+		ReasoningEffort:     route.ReasoningEffort,
+		Speed:               route.Speed,
+		ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+		Name:                autoTitleSessionName,
+		PromptOverlay:       autoTitlePromptOverlay(),
+		SpawnRole:           session.SpawnRoleAutoTitle,
+		TTL:                 g.childTTL(),
+		AutoStopOnParent:    true,
+		DiscardStartFailure: true,
+	}
 }
 
 // runAutoTitleTurn prompts one spawned attempt and collects its output. A
@@ -256,9 +270,15 @@ func collectAutoTitleOutput(ctx context.Context, events <-chan acp.AgentEvent) (
 				}
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", providerRefusedTurnError(event, fmt.Errorf(
+				agentErr := fmt.Errorf(
 					"daemon: automatic title agent error: %s", strings.TrimSpace(event.Error),
-				))
+				)
+				if output.Len() > 0 {
+					// The turn already produced work; refusing it now is not a
+					// pre-output refusal and must not advance to another route.
+					return "", agentErr
+				}
+				return "", providerRefusedTurnError(event, agentErr)
 			}
 		}
 	}

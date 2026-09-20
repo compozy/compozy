@@ -24,6 +24,11 @@
   change. No official-skill (`skills/compozy/`) command change.
 - **Web / Docs:** no Web change. User-session quota fallback remains unimplemented, so
   `docs/agents/providers.mdx` stays accurate as written.
+- **Refusal is bounded to a turn with no output:** the collectors only mark a refusal while the
+  accumulated output is empty. A provider that streams agent text and then refuses keeps the turn on
+  its accepted route, so a fallback never reruns work that already started. When stopping a refused
+  child fails, the attempt keeps ownership of that session and reports failure instead of starting
+  another route beside a session that may still be running.
 - **Owning tests:** `internal/daemon/role_fallback_test.go` — a predicate table over
   `providerRefusedTurnError` and one end-to-end advance through the real `forkedAutoTitleGenerator`,
   reusing the existing `autoTitleSpawnSessionsStub`. Both were mutation-checked against a predicate

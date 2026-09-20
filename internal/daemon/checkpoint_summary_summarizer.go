@@ -97,7 +97,12 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		}
 		collected, attemptErr := s.runCheckpointSummaryTurn(attemptCtx, created.ID, prompt)
 		if errors.Is(attemptErr, errProviderRefusedTurn) {
-			return "", false, errors.Join(attemptErr, s.discardCheckpointSummaryAttempt(ctx, created.ID))
+			discardErr := s.discardCheckpointSummaryAttempt(ctx, created.ID)
+			if discardErr == nil {
+				return "", false, attemptErr
+			}
+			summarySession = created
+			return "", true, errors.Join(attemptErr, discardErr)
 		}
 		summarySession = created
 		return collected, true, attemptErr
@@ -178,9 +183,13 @@ func collectCheckpointSummaryOutput(ctx context.Context, events <-chan acp.Agent
 			case acp.EventTypeAgentMessage:
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", providerRefusedTurnError(event, fmt.Errorf(
+				agentErr := fmt.Errorf(
 					"daemon: checkpoint summary agent error: %s", strings.TrimSpace(event.Error),
-				))
+				)
+				if output.Len() > 0 {
+					return "", agentErr
+				}
+				return "", providerRefusedTurnError(event, agentErr)
 			}
 		}
 	}

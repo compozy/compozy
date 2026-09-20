@@ -346,15 +346,36 @@ func TestProviderRefusedTurnError(t *testing.T) {
 		err     error
 		refused bool
 	}{
-		{name: "rate limited", event: providerErrorEvent(acp.ProviderErrorRateLimited), err: agentErr, refused: true},
-		{name: "auth required", event: providerErrorEvent(acp.ProviderErrorAuthRequired), err: agentErr, refused: true},
-		{name: "unclassified", event: acp.AgentEvent{Type: acp.EventTypeError}, err: agentErr},
-		{name: "no error", event: providerErrorEvent(acp.ProviderErrorRateLimited)},
+		{
+			name:    "Should mark a rate-limited refusal",
+			event:   providerErrorEvent(acp.ProviderErrorRateLimited),
+			err:     agentErr,
+			refused: true,
+		},
+		{
+			name:    "Should mark an auth-required refusal",
+			event:   providerErrorEvent(acp.ProviderErrorAuthRequired),
+			err:     agentErr,
+			refused: true,
+		},
+		{
+			name:  "Should leave an unclassified agent error unmarked",
+			event: acp.AgentEvent{Type: acp.EventTypeError},
+			err:   agentErr,
+		},
+		{
+			name:  "Should pass a nil error through",
+			event: providerErrorEvent(acp.ProviderErrorRateLimited),
+		},
 	} {
-		got := providerRefusedTurnError(testCase.event, testCase.err)
-		if errors.Is(got, errProviderRefusedTurn) != testCase.refused {
-			t.Fatalf("providerRefusedTurnError(%s) = %v, want refused=%v", testCase.name, got, testCase.refused)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := providerRefusedTurnError(testCase.event, testCase.err)
+			if errors.Is(got, errProviderRefusedTurn) != testCase.refused {
+				t.Fatalf("providerRefusedTurnError() = %v, want refused=%v", got, testCase.refused)
+			}
+		})
 	}
 }
 
@@ -366,6 +387,42 @@ func providerErrorEvent(code string) acp.AgentEvent {
 // accepted, the provider then refuses the turn, and the remaining route runs it.
 func TestRoleFallbackAdvancesOnProviderRefusal(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should run the next route when the provider refuses the turn", func(t *testing.T) {
+		t.Parallel()
+
+		roleFallbackAdvancesOnProviderRefusal(t)
+	})
+
+	t.Run("Should stay on the accepted route when the turn already produced output", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &autoTitleSpawnSessionsStub{refuseProvider: "primary", refuseAfterOutput: true}
+		_, err := autoTitleRefusalGenerator(sessions).Generate(t.Context(), autoTitleRequest{
+			SessionID: "sess-parent", UserMessage: "u", AssistantReply: "a",
+		})
+		if err == nil {
+			t.Fatal("Generate() error = nil, want the primary route error")
+		}
+		if want := []string{"primary"}; !reflect.DeepEqual(sessions.providers, want) {
+			t.Fatalf("attempted providers = %#v, want no fallback advance after output", sessions.providers)
+		}
+	})
+}
+
+func autoTitleRefusalGenerator(sessions autoTitleSpawnSessions) *forkedAutoTitleGenerator {
+	role := fallbackTestRole(nil)
+	role.Role = compozyconfig.RoleAutoTitle
+	role.Enabled = true
+	return newForkedAutoTitleGenerator(sessions, roleResolverFunc(
+		func(context.Context, string, compozyconfig.RoleName) (ResolvedRole, error) {
+			return role, nil
+		},
+	), 0, nil)
+}
+
+func roleFallbackAdvancesOnProviderRefusal(t *testing.T) {
+	t.Helper()
 
 	role := fallbackTestRole(nil)
 	role.Role = compozyconfig.RoleAutoTitle
