@@ -9,8 +9,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -332,4 +334,63 @@ func (r *roleEventRecorder) single(t *testing.T) store.EventSummary {
 		t.Fatalf("event count = %d, want 1", len(r.events))
 	}
 	return r.events[0]
+}
+
+func TestProviderRefusedTurnError(t *testing.T) {
+	t.Parallel()
+
+	agentErr := errors.New("daemon: automatic title agent error")
+	for _, testCase := range []struct {
+		name    string
+		event   acp.AgentEvent
+		err     error
+		refused bool
+	}{
+		{name: "rate limited", event: providerErrorEvent(acp.ProviderErrorRateLimited), err: agentErr, refused: true},
+		{name: "auth required", event: providerErrorEvent(acp.ProviderErrorAuthRequired), err: agentErr, refused: true},
+		{name: "unclassified", event: acp.AgentEvent{Type: acp.EventTypeError}, err: agentErr},
+		{name: "no error", event: providerErrorEvent(acp.ProviderErrorRateLimited)},
+	} {
+		got := providerRefusedTurnError(testCase.event, testCase.err)
+		if errors.Is(got, errProviderRefusedTurn) != testCase.refused {
+			t.Fatalf("providerRefusedTurnError(%s) = %v, want refused=%v", testCase.name, got, testCase.refused)
+		}
+	}
+}
+
+func providerErrorEvent(code string) acp.AgentEvent {
+	return acp.AgentEvent{Type: acp.EventTypeError, ProviderError: &acp.ProviderErrorDiagnostic{Code: code}}
+}
+
+// TestRoleFallbackAdvancesOnProviderRefusal guards the wiring: the session is
+// accepted, the provider then refuses the turn, and the remaining route runs it.
+func TestRoleFallbackAdvancesOnProviderRefusal(t *testing.T) {
+	t.Parallel()
+
+	role := fallbackTestRole(nil)
+	role.Role = compozyconfig.RoleAutoTitle
+	role.Enabled = true
+	sessions := &autoTitleSpawnSessionsStub{refuseProvider: "primary"}
+	generator := newForkedAutoTitleGenerator(sessions, roleResolverFunc(
+		func(context.Context, string, compozyconfig.RoleName) (ResolvedRole, error) {
+			return role, nil
+		},
+	), 0, nil)
+	title, err := generator.Generate(t.Context(), autoTitleRequest{
+		SessionID:      "sess-parent",
+		UserMessage:    "why did checkout retry twice",
+		AssistantReply: "a race in the retry guard",
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if title != "Checkout retry race" {
+		t.Fatalf("Generate() = %q, want the title produced by the second route", title)
+	}
+	if want := []string{"primary", "secondary"}; !reflect.DeepEqual(sessions.providers, want) {
+		t.Fatalf("attempted providers = %#v, want %#v", sessions.providers, want)
+	}
+	if len(sessions.stops) != 2 || sessions.stops[0].cause != session.CauseFailed {
+		t.Fatalf("stops = %#v, want the refused child stopped with CauseFailed first", sessions.stops)
+	}
 }

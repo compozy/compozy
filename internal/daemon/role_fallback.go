@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -125,6 +126,24 @@ func invokeRoleWithFallback[T any](
 		len(role.Fallbacks)+1,
 		errors.Join(attemptErrors...),
 	)
+}
+
+// errProviderRefusedTurn marks a turn the provider refused before the agent
+// produced any output, so a remaining fallback route may still run it.
+var errProviderRefusedTurn = errors.New("daemon: provider refused the turn before any output")
+
+// providerRefusedTurnError joins errProviderRefusedTurn onto err when the error
+// event carries a provider refusal ACP already classified.
+func providerRefusedTurnError(event acp.AgentEvent, err error) error {
+	if err == nil || event.ProviderError == nil {
+		return err
+	}
+	switch event.ProviderError.Code {
+	case acp.ProviderErrorAuthRequired, acp.ProviderErrorRateLimited:
+		return errors.Join(errProviderRefusedTurn, err)
+	default:
+		return err
+	}
 }
 
 func roleAttemptError(role compozyconfig.RoleName, attempt int, err error) error {
