@@ -92,3 +92,9 @@ docs/qa/state.csv
 docs/qa/evidence/**
 docs/tweets/**
 # <<< skeeper ignored specs <<<
+
+# graphify knowledge-graph output (generated, not source)
+graphify-out/
+
+# gitnexus knowledge-graph index (generated, not source)
+.gitnexus/
