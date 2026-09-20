@@ -1166,8 +1166,11 @@ These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extr
 | `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, and `acp_options`.           |
 
 Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
-consumer may advance only before ACP accepts a session; CompozyOS never silently reroutes work after
-acceptance. Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the role,
+consumer advances only while the route has produced no work: either ACP refused the session before
+accepting it, or it accepted the session and then refused the turn before the agent emitted any
+output. CompozyOS never silently reroutes work after acceptance — a turn that emitted output stays
+on its route and fails there, and a refused session is stopped before the next attempt runs.
+Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the role,
 the fallback's one-based `attempt`, provider, and model. The event records an attempt, not success.
 
 ```toml
