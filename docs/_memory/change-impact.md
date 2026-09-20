@@ -1,5 +1,39 @@
 # Compozy Change Impact
 
+## Issue 617 — Role fallback advances on a provider refusal
+
+- **Trigger scope:** `invokeRoleWithFallback` has five production callers, not the three the issue
+  names: `Generate`, `Summarize`, `startCoordinatorSession`, `spawnExtractorSession` and `BreakTie`.
+  `BreakTie` already advanced on a refused turn because `InvokeTransientModel` sets `Accepted` only
+  after the prompt succeeds; `Generate` and `Summarize` now match it by prompting inside the
+  invocation closure. `startCoordinatorSession` and `spawnExtractorSession` hand their session on and
+  keep the spawn-acceptance predicate.
+- **Acceptance boundary:** unchanged. A route advances only when the provider refused the turn before
+  any output, classified from the typed `AgentEvent.ProviderError` codes ACP already emits
+  (`provider_auth_required`, `provider_rate_limited`). Any other prompt error stays on the accepted
+  route and ends the operation as before. `role.fallback.used` still precedes every attempt.
+- **Session lifecycle:** a refused child is stopped with `CauseFailed` before the next route runs, so
+  no attempt leaks a running session. The accepted child keeps its existing completion stop.
+- **Native tools / CLI / HTTP / UDS:** no route, verb, tool ID or DTO change. Provider failure kinds
+  and next actions are unchanged; no `use_fallback` action is introduced.
+- **Extensibility / hooks / config:** none. No `command` field on `RoleFallback` — a fallback route
+  already reaches a second account through a provider overlay — and no `fallback_chain` on `AgentDef`,
+  which would be unreachable for user prompts: those are governed by the session prompt-failure
+  barrier, which classifies on `store.FailureKind` and never consults a role chain.
+- **Workspace data isolation and compatibility:** no SQLite, config, persisted shape or migration
+  change. No official-skill (`skills/compozy/`) command change.
+- **Web / Docs:** no Web change. User-session quota fallback remains unimplemented, so
+  `docs/agents/providers.mdx` stays accurate as written.
+- **Refusal is bounded to a turn with no output:** the collectors only mark a refusal while the
+  accumulated output is empty. A provider that streams agent text and then refuses keeps the turn on
+  its accepted route, so a fallback never reruns work that already started. When stopping a refused
+  child fails, the attempt keeps ownership of that session and reports failure instead of starting
+  another route beside a session that may still be running.
+- **Owning tests:** `internal/daemon/role_fallback_test.go` — a predicate table over
+  `providerRefusedTurnError` and one end-to-end advance through the real `forkedAutoTitleGenerator`,
+  reusing the existing `autoTitleSpawnSessionsStub`. Both were mutation-checked against a predicate
+  that never marks a refusal.
+
 ## Issue 655 — Claude model identity and effort discovery
 
 - **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add

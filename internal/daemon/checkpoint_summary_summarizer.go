@@ -70,10 +70,11 @@ func (s *daemonCheckpointSummarizer) Summarize(
 	if err != nil {
 		return "", err
 	}
-	summarySession, err := invokeRoleWithFallback(ctx, role, correlation, func(
+	var summarySession *session.Session
+	output, err := invokeRoleWithFallback(ctx, role, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
-	) (*session.Session, bool, error) {
+	) (string, bool, error) {
 		created, createErr := s.sessions.CreateLifecycleContinuation(attemptCtx, session.CreateOpts{
 			AgentName:           route.AgentName,
 			Provider:            route.Provider,
@@ -87,24 +88,63 @@ func (s *daemonCheckpointSummarizer) Summarize(
 			Lineage:             &store.SessionLineage{SpawnRole: session.SpawnRoleCheckpointSummary},
 			DiscardStartFailure: true,
 		})
-		return created, created != nil, createErr
+		if createErr != nil {
+			summarySession = created
+			return "", created != nil, fmt.Errorf("daemon: create checkpoint summary session: %w", createErr)
+		}
+		if created == nil {
+			return "", false, errors.New("daemon: checkpoint summary create returned no session")
+		}
+		collected, attemptErr := s.runCheckpointSummaryTurn(attemptCtx, created.ID, prompt)
+		if errors.Is(attemptErr, errProviderRefusedTurn) {
+			discardErr := s.discardCheckpointSummaryAttempt(ctx, created.ID)
+			if discardErr == nil {
+				return "", false, attemptErr
+			}
+			summarySession = created
+			return "", true, errors.Join(attemptErr, discardErr)
+		}
+		summarySession = created
+		return collected, true, attemptErr
 	})
 	if summarySession != nil {
 		defer s.stopCheckpointSummarySession(ctx, summarySession.ID, &err)
 	}
 	if err != nil {
-		return "", fmt.Errorf("daemon: create checkpoint summary session: %w", err)
-	}
-
-	events, err := s.sessions.PromptLifecycleContinuation(ctx, summarySession.ID, prompt)
-	if err != nil {
-		return "", fmt.Errorf("daemon: prompt checkpoint summary session %q: %w", summarySession.ID, err)
-	}
-	output, err := collectCheckpointSummaryOutput(ctx, events)
-	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(output), nil
+}
+
+// runCheckpointSummaryTurn prompts one created attempt and collects its output.
+// A provider refusal is reported through errProviderRefusedTurn so the caller
+// can advance to the next fallback route.
+func (s *daemonCheckpointSummarizer) runCheckpointSummaryTurn(
+	ctx context.Context,
+	sessionID string,
+	prompt string,
+) (string, error) {
+	events, err := s.sessions.PromptLifecycleContinuation(ctx, sessionID, prompt)
+	if err != nil {
+		return "", fmt.Errorf("daemon: prompt checkpoint summary session %q: %w", sessionID, err)
+	}
+	return collectCheckpointSummaryOutput(ctx, events)
+}
+
+// discardCheckpointSummaryAttempt stops the session of a refused route so the
+// next attempt does not leave it running.
+func (s *daemonCheckpointSummarizer) discardCheckpointSummaryAttempt(
+	ctx context.Context,
+	sessionID string,
+) error {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), checkpointSummaryStopTimeout)
+	defer cancel()
+	if err := s.sessions.StopWithCause(
+		stopCtx, sessionID, session.CauseFailed, "checkpoint summary route refused by provider",
+	); err != nil {
+		return fmt.Errorf("daemon: stop refused checkpoint summary session: %w", err)
+	}
+	return nil
 }
 
 func (s *daemonCheckpointSummarizer) stopCheckpointSummarySession(
@@ -143,7 +183,13 @@ func collectCheckpointSummaryOutput(ctx context.Context, events <-chan acp.Agent
 			case acp.EventTypeAgentMessage:
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", fmt.Errorf("daemon: checkpoint summary agent error: %s", strings.TrimSpace(event.Error))
+				agentErr := fmt.Errorf(
+					"daemon: checkpoint summary agent error: %s", strings.TrimSpace(event.Error),
+				)
+				if output.Len() > 0 {
+					return "", agentErr
+				}
+				return "", providerRefusedTurnError(event, agentErr)
 			}
 		}
 	}

@@ -405,6 +405,13 @@ type autoTitleSpawnSessionsStub struct {
 	spawn      session.SpawnOpts
 	prompt     session.SyntheticPromptOpts
 	stops      []autoTitleStopCall
+	// refuseProvider makes the provider refuse the turn on that route, the
+	// post-acceptance refusal a fallback advance has to survive.
+	refuseProvider string
+	// refuseAfterOutput streams agent text before the refusal, which must keep
+	// the turn on its accepted route.
+	refuseAfterOutput bool
+	providers         []string
 }
 
 type cancelAwareAutoTitleSpawnSessionsStub struct {
@@ -453,7 +460,8 @@ func (s *autoTitleSpawnSessionsStub) Spawn(
 ) (*session.Session, error) {
 	s.spawnCalls++
 	s.spawn = opts
-	return &session.Session{ID: "sess-title-child"}, nil
+	s.providers = append(s.providers, opts.Provider)
+	return &session.Session{ID: fmt.Sprintf("sess-title-child-%d", s.spawnCalls)}, nil
 }
 
 func (s *autoTitleSpawnSessionsStub) PromptSynthetic(
@@ -463,9 +471,20 @@ func (s *autoTitleSpawnSessionsStub) PromptSynthetic(
 ) (<-chan acp.AgentEvent, error) {
 	s.prompt = opts
 	events := make(chan acp.AgentEvent, 2)
+	defer close(events)
+	if s.refuseProvider != "" && s.providers[len(s.providers)-1] == s.refuseProvider {
+		if s.refuseAfterOutput {
+			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Partial"}
+		}
+		events <- acp.AgentEvent{
+			Type:          acp.EventTypeError,
+			Error:         "You've hit your session limit",
+			ProviderError: &acp.ProviderErrorDiagnostic{Code: acp.ProviderErrorRateLimited},
+		}
+		return events, nil
+	}
 	events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Checkout retry race"}
 	events <- acp.AgentEvent{Type: acp.EventTypeDone}
-	close(events)
 	return events, nil
 }
 
