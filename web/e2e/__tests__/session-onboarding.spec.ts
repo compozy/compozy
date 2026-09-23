@@ -45,6 +45,42 @@ test.use({
   },
 });
 
+test("Start session preselects the registered workspace default agent", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace =
+    runtime.seeded.workspace ??
+    (runtime.paths?.workspaceDir
+      ? await runtime.resolveWorkspace(runtime.paths.workspaceDir)
+      : undefined);
+  if (!workspace) throw new Error("browser runtime has no project workspace");
+  await ensureProjectWorkspace(appPage, runtime);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  const updated = await runtime.requestJSON<{ workspace: { default_agent?: string } }>(
+    workspacePath,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ default_agent: browserLifecycleAgent }),
+    }
+  );
+  expect(updated.workspace.default_agent).toBe(browserLifecycleAgent);
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(appPage, runtime);
+  const persisted = await runtime.requestJSON<{ workspace: { default_agent?: string } }>(
+    workspacePath
+  );
+  expect(persisted.workspace.default_agent).toBe(browserLifecycleAgent);
+  await appPage.getByRole("button", { name: "New session", exact: true }).click();
+
+  const dialog = appPage.getByTestId("session-create-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
+    browserLifecycleAgent
+  );
+});
+
 test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({
   appPage,
   browserArtifacts,

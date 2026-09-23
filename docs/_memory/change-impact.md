@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Issue 667 — Start session workspace default agent
+
+- **Web:** unspecified Start session actions preselect the active workspace registration's
+  `default_agent`; worktree actions use their owning workspace registration. Agent-specific
+  actions preserve the explicitly selected agent. An absent default retains the existing
+  `general` fallback and still requires a valid agent before submission.
+- **Native tools / CLI / HTTP / UDS / extensibility / hooks / config / SDK / official skill:** no
+  contract, configuration key, or behavior change. The Web reads the existing workspace catalog.
+- **Workspace / profile isolation and compatibility:** the chosen agent comes from the exact
+  target workspace row; no other workspace default, session profile binding, or persisted session
+  data changes. Existing sessions retain their agent bindings.
+- **Docs / QA:** workspace configuration guidance and the Start session scenario describe the
+  preselection. The session-create hook suite covers ordinary and worktree launches; the
+  isolated daemon-served browser replay confirms the registered default in the dialog.
+
 ## Issue 655 — Claude model identity and effort discovery
 
 - **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add

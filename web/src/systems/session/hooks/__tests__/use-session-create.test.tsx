@@ -23,6 +23,10 @@ import { useSessionPromptFallback } from "../use-session-prompt-fallback";
 const workspace = vi.hoisted(() => ({
   runtimeWorkspaceId: "ws_home" as string | null,
   runtimeWorkspace: { default_agent: "general" } as { default_agent?: string } | undefined,
+  registeredWorkspaces: [
+    { id: "ws_home", default_agent: "general" },
+    { id: "ws_other", default_agent: "operator" },
+  ],
   scope: "global" as "global" | "workspace",
 }));
 const agents = vi.hoisted(() => ({
@@ -60,6 +64,10 @@ describe("session create workspace binding", () => {
   beforeEach(() => {
     workspace.runtimeWorkspaceId = "ws_home";
     workspace.runtimeWorkspace = { default_agent: "general" };
+    workspace.registeredWorkspaces = [
+      { id: "ws_home", default_agent: "general" },
+      { id: "ws_other", default_agent: "operator" },
+    ];
     workspace.scope = "global";
     agents.data = [{ name: "general" }];
     agents.isSuccess = true;
@@ -72,6 +80,7 @@ describe("session create workspace binding", () => {
   });
 
   it("Should open against the hidden home workspace while Global scope is active", () => {
+    workspace.runtimeWorkspace = { default_agent: "operator" };
     const store = createSessionCreateStore();
     const wrapper = ({ children }: { children: ReactNode }) => (
       <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
@@ -87,6 +96,71 @@ describe("session create workspace binding", () => {
       draft: { agentName: "general", workspaceId: "ws_home" },
     });
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the existing fallback when no workspace default is configured", () => {
+    workspace.runtimeWorkspace = { default_agent: "" };
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithPrompt("Inspect the repository"));
+
+    expect(store.getSnapshot().context.draft.agentName).toBe("general");
+  });
+
+  it("Should preselect the active workspace default for an unspecified Start session", () => {
+    workspace.runtimeWorkspace = { default_agent: "operator" };
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithPrompt("Investigate the failure"));
+
+    expect(store.getSnapshot().context).toMatchObject({
+      open: true,
+      draft: { agentName: "operator", workspaceId: "ws_home" },
+      pendingPrompt: "Investigate the failure",
+    });
+  });
+
+  it("Should preselect the workspace default from a generic New session action", () => {
+    workspace.runtimeWorkspace = { default_agent: "operator" };
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openForAgent(""));
+
+    expect(store.getSnapshot().context.draft).toMatchObject({
+      agentName: "operator",
+      workspaceId: "ws_home",
+    });
+  });
+
+  it("Should preselect the target workspace default for a worktree launch", () => {
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openForWorktree("ws_other", "wt_other"));
+
+    expect(store.getSnapshot().context).toMatchObject({
+      open: true,
+      draft: {
+        agentName: "operator",
+        workspaceId: "ws_other",
+        environment: { kind: "worktree", worktreeId: "wt_other" },
+      },
+    });
   });
 
   it("Should seed the environment from the acting scope's ready worktree", () => {
