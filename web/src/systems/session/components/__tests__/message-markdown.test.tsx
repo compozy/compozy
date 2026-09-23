@@ -42,6 +42,30 @@ describe("MessageMarkdown", () => {
     expect(codeBlock?.textContent).toContain("compozy start");
   });
 
+  it("ends a Mermaid code fence before subsequent Markdown prose", () => {
+    const { container } = render(
+      <MessageMarkdown
+        content={[
+          "```mermaid",
+          "flowchart LR",
+          "  A --> B",
+          "```",
+          "",
+          "## After",
+          "",
+          "Plain text.",
+        ].join("\n")}
+      />
+    );
+
+    const codeBlocks = container.querySelectorAll<HTMLElement>('[data-slot="code-block"]');
+    expect(codeBlocks).toHaveLength(1);
+    expect(codeBlocks[0]).toHaveTextContent("flowchart LR");
+    expect(codeBlocks[0]).not.toHaveTextContent("After");
+    expect(screen.getByRole("heading", { name: "After" })).toBeInTheDocument();
+    expect(screen.getByText("Plain text.")).toBeInTheDocument();
+  });
+
   it("keeps inline code as compact inline prose", () => {
     const { container } = render(
       <MessageMarkdown content={"Use `compozy start` from the shell."} />

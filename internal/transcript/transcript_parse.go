@@ -2,7 +2,6 @@ package transcript
 
 import (
 	"encoding/json"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -20,14 +19,16 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 
 	content := strings.TrimSpace(sessionEvent.Content)
 	if content == "" {
+		if sessionEvent.Content != "" && isTranscriptTextEvent(parsed.Type) {
+			parsed.Text = sessionEvent.Content
+		}
 		return redactTranscriptEvent(parsed)
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(content), &payload); err != nil {
-		if parsed.Type == acp.EventTypeUserMessage || parsed.Type == acp.EventTypeAgentMessage ||
-			parsed.Type == acp.EventTypeThought {
-			parsed.Text = content
+		if isTranscriptTextEvent(parsed.Type) {
+			parsed.Text = sessionEvent.Content
 			return redactTranscriptEvent(parsed)
 		}
 		return redactTranscriptEvent(parsed)
@@ -42,9 +43,18 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 	return redactTranscriptEvent(parseLooseEvent(parsed, payload))
 }
 
+func isTranscriptTextEvent(eventType string) bool {
+	return eventType == acp.EventTypeUserMessage || eventType == acp.EventTypeAgentMessage ||
+		eventType == acp.EventTypeThought
+}
+
 func parseCanonicalEvent(parsed event, payload map[string]any) event {
 	parsed.Type = firstNonEmpty(nestedString(payload, "type"), parsed.Type)
-	parsed.Text = firstNonEmpty(nestedString(payload, "authored_text"), nestedString(payload, "text"))
+	// Whitespace-only chunks carry Markdown boundaries and indentation.
+	parsed.Text = nestedString(payload, "text")
+	if authoredText := nestedString(payload, "authored_text"); authoredText != "" {
+		parsed.Text = authoredText
+	}
 	parsed.Attachments = eventAttachmentsFromValue(payload["attachments"])
 	parsed.StopReason = nestedString(payload, "stop_reason")
 	parsed.Error = nestedString(payload, "error")

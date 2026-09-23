@@ -6,7 +6,7 @@ persona: Théo
 journey: J-14
 expected: One or multiple live tool rows appear above a calm completed-tools summary. Settled turns fold once; interrupted turns remain open with a truthful stop cause. Absorbed failures keep the group neutral and expose the individual failed row. Find searches the full retained projection, opens the exact field/fold, preserves focus through live updates and archive invalidation, and downloads complete payloads; the message trail supports previews and deliberate jumps.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
 retest_status: pass
@@ -15,6 +15,14 @@ evidence: docs/qa/reports/2026-09-06-sessions-stability.md
 last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
 overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-session-thread-full-bleed
 ---
+
+QA impact 2026-09-23 (issue #669): agent text streamed with newline-only or indentation-only chunks
+must preserve those bytes in live transcript updates and after reload. Verify a Mermaid fence split
+across chunks contains only the diagram syntax as code, followed by a rendered Markdown heading and
+paragraph. Reopen a session recorded before the projection upgrade and verify the same result
+without duplicate messages or changed message identity. Backend parser, projection, and upgrade
+regressions pass; the isolated browser walkthrough is pending, so this scenario's current status
+is untested.
 
 2026-08-20 retry: skipped by explicit user instruction. No real-provider transcript was created or inspected.
 
