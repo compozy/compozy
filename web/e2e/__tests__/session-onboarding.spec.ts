@@ -79,6 +79,26 @@ test("Start session preselects the registered workspace default agent", async ({
   await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
+  await expect(dialog.getByTestId("session-create-submit")).toBeVisible();
+  const createResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
+  await dialog.getByTestId("session-create-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+  const createPayload = (await createResponse.json()) as {
+    session?: { id?: string; agent_name?: string };
+  };
+  const sessionId = createPayload.session?.id ?? "";
+  expect(sessionId).not.toBe("");
+  expect(createPayload.session?.agent_name).toBe(browserLifecycleAgent);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
+  const sessionWin = sessionWindow(appPage, sessionId);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionWindowSelectors(sessionWin, appPage).composerTextarea).toBeVisible();
 });
 
 test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({

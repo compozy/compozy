@@ -6,10 +6,10 @@ persona: Dora
 journey: J-17
 expected: Opening Start session without an explicit agent preselects the active workspace's default agent; starting from a worktree uses that worktree's workspace default, while an explicit agent choice wins. The dialog shows agent selection, with workspace, optional name, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-logs/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-advanced-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png
 last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
@@ -54,4 +54,8 @@ worktree launch should use its owning workspace default. An explicit agent launc
 selection. Check a workspace with no configured default separately; the existing `general`
 fallback may be unavailable and must not silently start a different agent. Issue #667 tracks the
 change. The focused hook suite (19 tests) and the isolated daemon-served browser replay of the
-registered default passed on 2026-09-23. The broader launch-to-composer journey remains pending.
+registered default passed on 2026-09-23. The daemon-served browser E2E replay then created a
+session from the generic New session action with that default, confirmed the returned agent and
+destination route, and reached the destination composer. The earlier 2026-08-27 walk covered the
+Simple/Advanced launch controls and the separate first prompt. The 2026-09-23 default-agent
+launch-to-composer retest passed (`web/e2e/__tests__/session-onboarding.spec.ts`).

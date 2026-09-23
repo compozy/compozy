@@ -771,6 +771,13 @@ func configureExtensionAuthoringSDKReplace(
 
 func buildStampedExtensionAuthoringBinary(t *testing.T, ctx context.Context, repoRoot string) string {
 	t.Helper()
+	// The runtime E2E lane prepares the release-compatible binary before test timeouts start.
+	if binaryPath := strings.TrimSpace(os.Getenv("COMPOZY_TEST_STAMPED_DAEMON_BIN")); binaryPath != "" {
+		if _, err := os.Stat(binaryPath); err != nil {
+			t.Fatalf("stamped compozy binary error = %v", err)
+		}
+		return binaryPath
+	}
 	binaryPath := filepath.Join(t.TempDir(), "compozy")
 	// #nosec G204 -- the test builds the current checkout with an explicit release-compatible version stamp.
 	command := execabs.CommandContext(
