@@ -16,14 +16,6 @@ last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
 overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-session-thread-full-bleed
 ---
 
-QA impact 2026-09-23 (issue #669): agent text streamed with newline-only or indentation-only chunks
-must preserve those bytes in live transcript updates and after reload. Verify a Mermaid fence split
-across chunks contains only the diagram syntax as code, followed by a rendered Markdown heading and
-paragraph. Reopen a session recorded before the projection upgrade and verify the same result
-without duplicate messages or changed message identity. Backend parser, projection, and upgrade
-regressions pass; the isolated browser walkthrough is pending, so this scenario's current status
-is untested.
-
 2026-08-20 retry: skipped by explicit user instruction. No real-provider transcript was created or inspected.
 
 story: As a person supervising agent work I read a calm, text-first transcript where settled work collapses to semantic summaries and only failures and the live tail demand attention.

@@ -146,4 +146,65 @@ func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should repair padding around raw text chunks", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		owner := testSessionDBOwner("sess-raw-padding-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		opened, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := opened.Record(ctx, SessionEvent{
+			TurnID: "turn-padding", Type: acp.EventTypeAgentMessage, AgentName: "coder",
+			Content: "  indented prose  ", Timestamp: time.Date(2026, 9, 23, 11, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := opened.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		fixture, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var messageID string
+		if err := fixture.QueryRowContext(ctx, `SELECT message_id FROM transcript_entries WHERE turn_id='turn-padding'`).
+			Scan(&messageID); err != nil {
+			t.Fatal(err)
+		}
+		oldMessage, err := json.Marshal(transcript.UIMessage{
+			ID: messageID, Role: transcript.UIRoleAssistant,
+			Parts: []transcript.UIMessagePart{{Type: "text", Text: "indented prose"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.ExecContext(ctx, `UPDATE transcript_entries SET message_json=?`, oldMessage); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.ExecContext(
+			ctx,
+			`UPDATE transcript_projection_state SET projection_version=1`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.Close(); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		page, err := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil || len(page.Entries) != 1 {
+			t.Fatalf("upgraded page = %#v, %v", page, err)
+		}
+		if got := transcript.UIMessageText(page.Entries[0].Message); got != "  indented prose  " {
+			t.Fatalf("repaired raw padding = %q", got)
+		}
+		if err := reader.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 }

@@ -17,7 +17,7 @@ import (
 const whitespaceProjectionVersion = 1
 const whitespaceUpgradeBatchSize = 512
 
-// upgradeTranscriptWhitespaceProjection replays only entries with discarded whitespace chunks.
+// upgradeTranscriptWhitespaceProjection replays entries whose text whitespace changed in version 1.
 func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sessionID string) (retErr error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -98,7 +98,7 @@ func whitespaceProjectionEntryKeys(ctx context.Context, queries *sqlcgen.Queries
 			return nil, fmt.Errorf("store: read transcript text events for upgrade: %w", err)
 		}
 		for _, event := range textEvents {
-			if hasWhitespaceOnlyTextChunk(event.Content) {
+			if needsWhitespaceProjectionRepair(event.Content) {
 				keys[event.TranscriptEntryKey] = struct{}{}
 			}
 			afterSequence = event.Sequence
@@ -115,7 +115,7 @@ func whitespaceProjectionEntryKeys(ctx context.Context, queries *sqlcgen.Queries
 	return orderedKeys, nil
 }
 
-func hasWhitespaceOnlyTextChunk(content string) bool {
+func needsWhitespaceProjectionRepair(content string) bool {
 	if content != "" && strings.TrimSpace(content) == "" {
 		return true
 	}
@@ -127,7 +127,7 @@ func hasWhitespaceOnlyTextChunk(content string) bool {
 		} `json:"content"`
 	}
 	if err := json.Unmarshal([]byte(content), &payload); err != nil {
-		return false
+		return content != strings.TrimSpace(content)
 	}
 	for _, text := range []string{payload.Text, payload.AuthoredText, payload.Content.Text} {
 		if text != "" && strings.TrimSpace(text) == "" {
