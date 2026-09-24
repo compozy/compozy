@@ -63,14 +63,15 @@ type conditionCompilerKey struct {
 }
 
 type lintContext struct {
-	def                dsl.Definition
-	linter             *DefinitionLinter
-	errors             []LintError
-	nodeByID           map[dsl.NodeID]dsl.Node
-	adjacency          map[dsl.NodeID][]dsl.NodeID
-	reverse            map[dsl.NodeID][]dsl.NodeID
-	conditionCompilers map[conditionCompilerKey]*refs.ConditionCompiler
-	hasCycle           bool
+	def                       dsl.Definition
+	linter                    *DefinitionLinter
+	errors                    []LintError
+	nodeByID                  map[dsl.NodeID]dsl.Node
+	adjacency                 map[dsl.NodeID][]dsl.NodeID
+	reverse                   map[dsl.NodeID][]dsl.NodeID
+	conditionCompilers        map[conditionCompilerKey]*refs.ConditionCompiler
+	legacyRunLoopOutputSchema bool
+	hasCycle                  bool
 }
 
 func newLintContext(def dsl.Definition, linter *DefinitionLinter) *lintContext {

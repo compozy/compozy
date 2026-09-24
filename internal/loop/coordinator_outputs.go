@@ -335,7 +335,11 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 	if child.Status.Terminal() {
 		switch child.Status {
 		case StatusDone, StatusNoOp:
-			setGenerationOutputRef(&output, childLoopStatusRef(child.Status))
+			ref, refErr := completedChildLoopOutputRef(graph, output.NodeID, child)
+			if refErr != nil {
+				return GenerationOutput{}, false, nil, refErr
+			}
+			setGenerationOutputRef(&output, ref)
 			output.Status = generationOutputSucceeded
 		default:
 			setGenerationOutputRef(&output, childLoopFailureRef(child))
@@ -356,6 +360,19 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 		LoopRunID:  childRunID,
 		ReasonCode: childLoopTimeoutReason,
 	}}, nil
+}
+
+func completedChildLoopOutputRef(graph dsl.Graph, nodeID string, child Run) (string, error) {
+	node, found := graphNode(graph, dsl.NodeID(nodeID))
+	if !found || !declaresCompletedRunLoopResult(node) {
+		// Keep the scalar result for definitions without an explicit structured output contract.
+		return childLoopStatusRef(child.Status), nil
+	}
+	payload, err := json.Marshal(completedRunLoopResult{LoopRunID: string(child.ID), Status: string(child.Status)})
+	if err != nil {
+		return "", fmt.Errorf("loop: encode completed child result: %w", err)
+	}
+	return string(payload), nil
 }
 
 func (r *CoordinatorRunner) awaitingChildTimedOut(

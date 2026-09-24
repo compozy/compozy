@@ -97,6 +97,8 @@ const (
 	CodeWatchEventsFilterTooBroad = "watch_events_filter_too_broad"
 	// CodeWatchEventsShapeInvalid reports events/watch/produces shape contradictions.
 	CodeWatchEventsShapeInvalid = "watch_events_shape_invalid"
+	// CodeRunLoopOutputShapeInvalid reports a produces shape unsupported by run-loop completion.
+	CodeRunLoopOutputShapeInvalid = "run_loop_output_shape_invalid"
 	// CodeFileImportParseRequired reports a missing or unsupported file-import parse mode.
 	CodeFileImportParseRequired = "file_import_parse_required"
 	// CodeDuplicateNodeID reports repeated node IDs.

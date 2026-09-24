@@ -10,9 +10,10 @@ func compileSubLoopBodies(
 	resolved *ResolvedDefinition,
 	def dsl.Definition,
 	tools ToolSchemaSource,
+	legacyRunLoopOutputSchema bool,
 ) error {
 	for _, node := range def.Graph.Nodes {
-		if err := compileSubLoopBody(resolved, def, node, "", tools); err != nil {
+		if err := compileSubLoopBody(resolved, def, node, "", tools, legacyRunLoopOutputSchema); err != nil {
 			return err
 		}
 	}
@@ -25,6 +26,7 @@ func compileSubLoopBody(
 	node dsl.Node,
 	prefix string,
 	tools ToolSchemaSource,
+	legacyRunLoopOutputSchema bool,
 ) error {
 	if !isControlKind(node, dsl.ControlSubLoop) || node.Body == nil {
 		return nil
@@ -33,6 +35,7 @@ func compileSubLoopBody(
 	nested := parent
 	nested.Graph = *node.Body
 	nestedCtx := newLintContext(nested, &DefinitionLinter{tools: tools})
+	nestedCtx.legacyRunLoopOutputSchema = legacyRunLoopOutputSchema
 	nestedCtx.indexGraphTrusted()
 	for _, child := range node.Body.Nodes {
 		namespace := nestedCtx.namespaceForNode(child.ID, nestedCtx.hasTriggerStart())
@@ -46,7 +49,14 @@ func compileSubLoopBody(
 				resolved.ToolSchemas[child.Kind] = snapshot
 			}
 		}
-		if err := compileSubLoopBody(resolved, nested, child, string(qualifiedParentID), tools); err != nil {
+		if err := compileSubLoopBody(
+			resolved,
+			nested,
+			child,
+			string(qualifiedParentID),
+			tools,
+			legacyRunLoopOutputSchema,
+		); err != nil {
 			return err
 		}
 	}

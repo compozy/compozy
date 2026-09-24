@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Issue 671 — Awaited child output matches its declared shape
+
+- **Native tools / CLI / HTTP / UDS:** Loop validate and publish reject unsupported `run-loop`
+  `produces` fields or types. Existing run/status/result routes and IDs stay unchanged. Awaited
+  nodes with the exact declared `loop_run_id` and `status` strings persist those terminal values.
+- **Extensibility / hooks / config:** no new hook, extension capability, or configuration key.
+  The authored `produces` schema selects the structured result already allowed by the Loop DSL.
+- **Compatibility / isolation:** awaited nodes without `produces` retain their scalar terminal
+  output. Historical unsupported declarations retain that scalar too. Existing Run snapshots and
+  workspaces are unchanged; child identity still comes from the same-workspace parent-owned Run.
+- **Web / docs / official skill:** the shared validator supplies Web editor diagnostics without a
+  UI change. Site authoring references document both result forms. The official Loop skill already
+  directs operators to the persisted `child_loop_run_id`; no instruction change is needed.
+- **QA / verification:** `LP-run-loop-await-child-ordering` adds declared-output and validation
+  checks. Focused linter and coordinator tests cover rejection, child `done`/`no-op`, legacy scalar
+  output, and downstream template rendering. A live restart walk remains separate evidence.
+
 ## Issue 655 — Claude model identity and effort discovery
 
 - **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add
