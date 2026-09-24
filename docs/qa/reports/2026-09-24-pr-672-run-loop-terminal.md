@@ -35,7 +35,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Surprises:** Restart reconciliation logged two `terminal run lifecycle identity is incomplete` warnings, but public read and resume paths completed normally.
 - **Suggested next charter:** Packaged release smoke after merge.
 
-Restorable receipts: `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/` (Skeeper namespace `compozy`, pinned by `skeeper.lock`). The strict lab auditor passed with zero blockers and warnings; its result is `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/qa-audit-report.json`.
+Restorable receipts: `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/` (Skeeper namespace `compozy`, pinned by `skeeper.lock` on the same `v0.3` sidecar ref used by `origin/main`). The strict lab auditor passed with zero blockers and warnings; its result is `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/qa-audit-report.json`.
 
 ## What Was Fixed
 
