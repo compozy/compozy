@@ -11,7 +11,7 @@ bug_ids: 671
 fix_status: fixed
 retest_status: pass
 fix_commits: 81a193db8d9822b85616230d6a3a5a85b6663623
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/parent-after-restart.json; /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/parent-final.json; /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/http-parent-final.json
+evidence: docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/parent-after-restart.json; docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/parent-final.json; docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/http-parent-final.json
 last_report: docs/qa/reports/2026-09-24-pr-672-run-loop-terminal.md
 overlaps:
 ---

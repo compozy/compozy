@@ -35,7 +35,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Surprises:** Restart reconciliation logged two `terminal run lifecycle identity is incomplete` warnings, but public read and resume paths completed normally.
 - **Suggested next charter:** Packaged release smoke after merge.
 
-Receipts: `/Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/`. The strict lab auditor passed with zero blockers and warnings at `qa-artifacts/qa/qa-audit-report.md`.
+Restorable receipts: `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/` (Skeeper namespace `compozy`, pinned by `skeeper.lock`). The strict lab auditor passed with zero blockers and warnings; its result is `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/qa-audit-report.json`.
 
 ## What Was Fixed
 
@@ -64,6 +64,6 @@ The structured and legacy scalar outputs can be observed in the same parent run 
 ## Final Status
 
 - **Targeted QA:** PASS. One of one in-scope journeys completed after a real daemon restart; CLI and HTTP terminal reads matched.
-- **Local gate:** `make gate` passed on this code head before the earlier commit and push. Its cached status is recorded at `/Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/verify-gate.log`.
+- **Local gate:** `make gate` passed on this code head before the earlier commit and push. Its cached status is recorded at `docs/qa/evidence/2026-09-24-pr-672-run-loop-terminal/verify-gate.log`.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0.
 - **PR readiness:** Pending exact-head CI completion and required code-owner approval.
