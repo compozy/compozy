@@ -8,11 +8,11 @@ expected: A parent Loop with two ordered run-loop nodes in mode await keeps the 
 entry_points: compozy loop run; compozy loop status; compozy loop runs; HTTP and UDS Loop run detail
 qa_status: pass
 bug_ids: 671
-fix_status:
-retest_status:
-fix_commits:
-evidence: /home/franciscpd/dev/qa-labs/compozy-run-loop-await-child-20260813-201607-890089-lab/qa-artifacts/qa/parent-after-restart.json; /home/franciscpd/dev/qa-labs/compozy-run-loop-await-child-20260813-201607-890089-lab/qa-artifacts/qa/final-summary.json
-last_report: docs/qa/reports/2026-08-13-run-loop-await-child.md
+fix_status: fixed
+retest_status: pass
+fix_commits: 81a193db8d9822b85616230d6a3a5a85b6663623
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/parent-after-restart.json; /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/parent-final.json; /Users/pedronauck/dev/qa-labs/compozy-pr-672-run-loop-terminal-20260924-194241-052016-lab/qa-artifacts/qa/cli/http-parent-final.json
+last_report: docs/qa/reports/2026-09-24-pr-672-run-loop-terminal.md
 overlaps:
 ---
 
@@ -27,7 +27,9 @@ verify the persisted node output and rendered prompt use the exact child ID and 
 Repeat without `produces` to verify the scalar terminal marker remains, and confirm validation
 rejects an unsupported field or type before starting a child. Validation also rejects constraints
 on `loop_run_id` or `status` that terminal values cannot guarantee, such as a status enum containing
-only `done`. This extension still needs a live walk; the focused coordinator and linter tests cover
-the runtime and authoring boundaries.
+only `done`. The 2026-09-24 isolated CLI/HTTP walk confirmed the same first child ID after a
+daemon restart, a rendered downstream receipt with its ID and terminal status, and the unchanged
+scalar output for the second node without `produces`. Both child runs and the parent reached
+`done`; the live definition validator rejected constrained and extra output fields.
 
 Issue: https://github.com/compozy/compozy/issues/386
