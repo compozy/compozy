@@ -1556,7 +1556,7 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		Question:  "Which workspace should I use?",
 		Choices:   []string{"staging", "production"},
 		AskedAt:   fixedTestNow,
-		Deadline:  fixedTestNow.Add(5 * time.Minute),
+		Deadline:  timePointer(fixedTestNow.Add(5 * time.Minute)),
 	}}}
 	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionClarificationsFn: func(_ context.Context, sessionID string) (ClarificationsRecord, error) {
@@ -1587,6 +1587,82 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pending clarifications = %#v, want %#v", got, want)
 	}
+}
+
+func TestSessionClarifyPendingRendersUnboundedDeadline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render the absent marker for an unbounded deadline", func(t *testing.T) {
+		t.Parallel()
+
+		want := ClarificationsRecord{Clarifications: []ClarificationPendingRecord{{
+			RequestID: "req-1",
+			SessionID: "sess-1",
+			AgentName: "reviewer",
+			Question:  "Which workspace should I use?",
+			Choices:   []string{"staging", "production"},
+			AskedAt:   fixedTestNow,
+			Deadline:  nil,
+		}}}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionClarificationsFn: func(_ context.Context, _ string) (ClarificationsRecord, error) {
+				return want, nil
+			},
+		})
+
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			sessionClarifyCommandUse,
+			"pending",
+			"sess-1",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session clarify pending) error = %v", err)
+		}
+		if !strings.Contains(human, "REQUEST ID") {
+			t.Fatalf("human pending clarifications = %q, want the deadline table headers", human)
+		}
+		humanRow := pendingClarificationDataRow(t, human)
+		humanFields := strings.Fields(humanRow)
+		if len(humanFields) < 5 || humanFields[0] != "req-1" || humanFields[len(humanFields)-1] != "--" {
+			t.Fatalf("human deadline row = %q, want req-1 with the exact -- unbounded deadline cell", humanRow)
+		}
+
+		tonesque, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			sessionClarifyCommandUse,
+			"pending",
+			"sess-1",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session clarify pending -o toon) error = %v", err)
+		}
+		if !strings.Contains(tonesque, "{request_id,agent_name,question,choices,deadline}") {
+			t.Fatalf("toon pending clarifications = %q, want the deadline field in the TOON header", tonesque)
+		}
+		toonRow := strings.TrimPrefix(pendingClarificationDataRow(t, tonesque), "  ")
+		toonFields := strings.Split(toonRow, ",")
+		if len(toonFields) != 5 || toonFields[0] != "req-1" || toonFields[len(toonFields)-1] != `""` {
+			t.Fatalf("toon deadline row = %q, want req-1 with an empty unbounded deadline field", toonRow)
+		}
+	})
+}
+
+func pendingClarificationDataRow(t *testing.T, output string) string {
+	t.Helper()
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "req-1") {
+			return line
+		}
+	}
+	t.Fatalf("output = %q, want a data row for req-1", output)
+	return ""
 }
 
 func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T) {

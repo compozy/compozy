@@ -43,8 +43,13 @@ const (
 	toolSurfaceToolsArtifactsMaxAgePath                        = "tools.artifacts.max_age"
 	toolSurfaceToolsArtifactsMaxBytesPath                      = "tools.artifacts.max_bytes"
 	toolSurfaceToolsArtifactsMaxCountPath                      = "tools.artifacts.max_count"
+	toolSurfaceToolsClarifyTimeoutPath                         = "tools.clarify.timeout"
 	toolSurfaceWebhookSecretRefKey                             = "webhook_secret_ref"
 )
+
+// toolSurfaceToolsClarifyTimeoutSegments splits the boot-scoped clarify
+// timeout path for scope checks without repeating its segments.
+var toolSurfaceToolsClarifyTimeoutSegments = strings.Split(toolSurfaceToolsClarifyTimeoutPath, ".")
 
 var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
@@ -184,6 +189,7 @@ var (
 		toolSurfaceToolsArtifactsMaxAgePath:                        ConfigValueDuration,
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxCountPath:                      ConfigValueInt,
+		toolSurfaceToolsClarifyTimeoutPath:                         ConfigValueDuration,
 	}, roleMutableConfigKinds, automationToolPathKinds(), loopAndGoalToolPathKinds(),
 		taskToolSurfaceMutableConfigKinds(), worktreeToolSurfaceMutableConfigKinds(),
 		sessionAttachmentsToolPathKinds())

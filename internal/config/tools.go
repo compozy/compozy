@@ -29,8 +29,8 @@ const (
 	// MaxHostedMCPBindNonceTTLSeconds is the largest supported hosted MCP bind window.
 	MaxHostedMCPBindNonceTTLSeconds = 300
 
-	// DefaultToolsClarifyTimeout is the boot-snapshotted clarification wait.
-	DefaultToolsClarifyTimeout = 5 * time.Minute
+	// DefaultToolsClarifyTimeout is the boot-snapshotted clarification wait (zero means unbounded).
+	DefaultToolsClarifyTimeout time.Duration = 0
 	// MinToolsClarifyTimeout is the smallest supported clarification wait.
 	MinToolsClarifyTimeout = time.Second
 	// MaxToolsClarifyTimeout is the largest supported clarification wait.
@@ -154,13 +154,16 @@ func (c ToolsHostedMCPConfig) Validate() error {
 	return nil
 }
 
-// Validate ensures clarification waits are bounded and useful.
+// Validate ensures clarification waits are either unbounded (zero) or inside
+// the finite 1s-24h band. Zero covers both the omitted key (via
+// DefaultToolsConfig) and an explicit `0s`.
 func (c ToolsClarifyConfig) Validate() error {
+	if c.Timeout == 0 {
+		return nil
+	}
 	if c.Timeout < MinToolsClarifyTimeout || c.Timeout > MaxToolsClarifyTimeout {
 		return fmt.Errorf(
-			"tools.clarify.timeout must be between %s and %s: %s",
-			MinToolsClarifyTimeout,
-			MaxToolsClarifyTimeout,
+			"tools.clarify.timeout must be between 1s and 24h, or 0s for no expiration: %s",
 			c.Timeout,
 		)
 	}

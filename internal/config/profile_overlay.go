@@ -17,6 +17,7 @@ var profileOverlayDeniedRoots = []string{
 var profileOverlayDeniedPaths = [][]string{
 	{"window_manager", "global_shortcuts"},
 	{"terminal", "max_per_daemon"},
+	toolSurfaceToolsClarifyTimeoutSegments,
 }
 
 func applyProfileConfigOverlayFile(path string, dst *Config, source string) error {

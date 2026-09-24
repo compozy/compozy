@@ -2967,6 +2967,7 @@ func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
 			"[http]\nport = 9999\n",
 			"[sandboxes.dev]\nbackend = \"host\"\n",
 			"[window_manager.global_shortcuts]\nsummon = \"meta+KeyK\"\n",
+			"[tools.clarify]\ntimeout = \"5m\"\n",
 		}
 		for _, input := range inputs {
 			_, err := loadProfileConfigOverlayBytes([]byte(input), "profile.toml")

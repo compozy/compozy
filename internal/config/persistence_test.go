@@ -591,6 +591,26 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject boot-scoped clarify timeout writes at workspace scope", func(t *testing.T) {
+		t.Parallel()
+		err := ValidateConfigWriteScope(
+			WriteScopeWorkspace,
+			[]string{"tools", "clarify", "timeout"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "global-only") {
+			t.Fatalf("ValidateConfigWriteScope() error = %v, want global-only rejection", err)
+		}
+		if !strings.Contains(err.Error(), "--scope user") {
+			t.Fatalf("ValidateConfigWriteScope() error = %v, want user-scope guidance", err)
+		}
+		if err := ValidateConfigWriteScope(
+			WriteScopeUser,
+			[]string{"tools", "clarify", "timeout"},
+		); err != nil {
+			t.Fatalf("ValidateConfigWriteScope(user) error = %v, want nil", err)
+		}
+	})
+
 	t.Run("Should reject non-source skill fields at workspace scope", func(t *testing.T) {
 		t.Parallel()
 		err := ValidateConfigWriteScope(
