@@ -437,7 +437,7 @@ test("E2E-001: CLI golden path opens, runs, lists, and journals a terminal", asy
   ]);
   await attached.waitForOutput(/opened .* — attached\. Detach: Ctrl-\\ Ctrl-\\/u);
   await attached.write("printf 'terminal-golden-path\\n'\n");
-  await attached.waitForOutput("terminal-golden-path");
+  await attached.waitForOutput(/terminal-golden-path\n/u);
   await attached.write("\u001c\u001c");
   await attached.waitForOutput("[detached — terminal keeps running]");
   expect(await attached.waitForExit()).toBe(0);
