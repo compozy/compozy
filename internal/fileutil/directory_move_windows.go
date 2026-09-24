@@ -86,13 +86,13 @@ func moveBoundDirectoryWithSync(
 			state = DirectoryMoveCollision
 		}
 		return DirectoryMoveResult{
-			State: state,
-		}, fmt.Errorf(
-			"fileutil: move directory %q to %q: %w",
-			binding.name,
-			targetName,
-			err,
-		)
+				State: state,
+			}, fmt.Errorf(
+				"fileutil: move directory %q to %q: %w",
+				binding.name,
+				targetName,
+				err,
+			)
 	}
 	return committedWindowsDirectoryMoveResult(binding.parent, target, syncDirectory), nil
 }

@@ -1427,13 +1427,13 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 			prepare: func(t *testing.T, workspace *workspacepkg.ResolvedWorkspace) (DevLinkRequest, workspacepkg.RuntimeResolver) {
 				t.Helper()
 				return DevLinkRequest{
-					OriginPath:     filepath.Join(workspace.RootDir, "unused"),
-					GenerationHash: strings.Repeat("a", 64),
-				}, devBootFailureResolver{err: fmt.Errorf(
-					"development origin became unavailable: %s api_key=%s",
-					rawCauseCanary,
-					secretCanary,
-				)}
+						OriginPath:     filepath.Join(workspace.RootDir, "unused"),
+						GenerationHash: strings.Repeat("a", 64),
+					}, devBootFailureResolver{err: fmt.Errorf(
+						"development origin became unavailable: %s api_key=%s",
+						rawCauseCanary,
+						secretCanary,
+					)}
 			},
 		},
 		{

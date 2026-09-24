@@ -552,7 +552,7 @@ notification per the ACP extension rules, with zero behavior change.
 ```
 
 - `deadline: null` marks a wait with no automatic expiration; a finite wait carries its RFC 3339
-  deadline. Agents must never invent a local expiry: the Compozy-side deadline stays authoritative.
+  deadline. Agents must never invent a local expiry: the CompozyOS-side deadline stays authoritative.
 - `seq` counts pings for the request from 1; duplicates and gaps are normal liveness, never a state
   transition. Unknown request IDs are ignored.
 - The notification carries identity only: no tokens, no answer, no question content. Delivery

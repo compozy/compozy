@@ -385,20 +385,20 @@ func (fakeStore) ReserveQueuedRun(
 	taskpkg.QueueRunReservation,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{
-		ID:             "task-1",
-		Scope:          taskpkg.ScopeGlobal,
-		Title:          "bootstrap",
-		Priority:       taskpkg.PriorityMedium,
-		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
-		Status:         taskpkg.TaskStatusReady,
-		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
-		ApprovalState:  taskpkg.ApprovalStatePending,
-	}, taskpkg.Run{
-		ID:      "run-1",
-		TaskID:  "task-1",
-		Status:  taskpkg.TaskRunStatusQueued,
-		Attempt: 1,
-	}, false, nil
+			ID:             "task-1",
+			Scope:          taskpkg.ScopeGlobal,
+			Title:          "bootstrap",
+			Priority:       taskpkg.PriorityMedium,
+			MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+			Status:         taskpkg.TaskStatusReady,
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+			ApprovalState:  taskpkg.ApprovalStatePending,
+		}, taskpkg.Run{
+			ID:      "run-1",
+			TaskID:  "task-1",
+			Status:  taskpkg.TaskRunStatusQueued,
+			Attempt: 1,
+		}, false, nil
 }
 
 func (fakeStore) CompleteCoordinatorAndEnqueueNext(

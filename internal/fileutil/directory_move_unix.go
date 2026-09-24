@@ -68,20 +68,20 @@ func commitPreparedDirectoryMove(
 			targetSyncErr = target.Sync()
 		}
 		return DirectoryMoveResult{
-			State: DirectoryMoveCommitted,
-			PostCommitErr: errors.Join(
-				wrapDirectoryMovePostCommitError("close unverified private candidate", candidateCloseErr),
-				wrapDirectoryMovePostCommitError("close preserved private transaction", transactionCloseErr),
-				wrapDirectoryMovePostCommitError("sync source parent", sourceSyncErr),
-				wrapDirectoryMovePostCommitError("sync target parent", targetSyncErr),
-			),
-		}, errors.Join(
-			&MoveRecoveryError{
-				TransactionName: move.transactionName,
-				CandidateName:   recoveryName,
-				Cause:           errors.Join(err, recoveryErr),
-			},
-		)
+				State: DirectoryMoveCommitted,
+				PostCommitErr: errors.Join(
+					wrapDirectoryMovePostCommitError("close unverified private candidate", candidateCloseErr),
+					wrapDirectoryMovePostCommitError("close preserved private transaction", transactionCloseErr),
+					wrapDirectoryMovePostCommitError("sync source parent", sourceSyncErr),
+					wrapDirectoryMovePostCommitError("sync target parent", targetSyncErr),
+				),
+			}, errors.Join(
+				&MoveRecoveryError{
+					TransactionName: move.transactionName,
+					CandidateName:   recoveryName,
+					Cause:           errors.Join(err, recoveryErr),
+				},
+			)
 	}
 
 	candidateCloseErr := move.candidate.Close()
