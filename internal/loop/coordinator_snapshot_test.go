@@ -422,33 +422,34 @@ start: [{ kind: manual }]
 
 func TestExecutedDefinitionSnapshotShouldHydrateLegacyRunLoopOutputReference(t *testing.T) {
 	t.Parallel()
-	legacyBody := dsl.Graph{
-		Nodes: []dsl.Node{
-			{
-				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-				Params:   dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopAwait)},
-				Produces: dsl.Schema{"loop_run_id": "string", "status": "string"},
-			},
-			{
-				ID:    "inspect",
-				Class: dsl.NodeClassAction,
-				Kind:  string(dsl.ActionRunAgent),
-				Params: dsl.NodeParams{
-					"agent":  "qa",
-					"prompt": "{{ if false }}{{ .nodes.child.output.status }}{{ end }}ok",
-				},
-			},
-		},
-		Edges: []dsl.Edge{{From: "child", To: "inspect"}},
-	}
 	for _, testCase := range []struct {
 		name   string
 		nested bool
 	}{
-		{name: "top-level"},
-		{name: "nested sub-loop", nested: true},
+		{name: "Should hydrate a top-level loop", nested: false},
+		{name: "Should hydrate a nested sub-loop", nested: true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			legacyBody := dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+						Params:   dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopAwait)},
+						Produces: dsl.Schema{"loop_run_id": "string", "status": "string"},
+					},
+					{
+						ID:    "inspect",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunAgent),
+						Params: dsl.NodeParams{
+							"agent":  "qa",
+							"prompt": "{{ if false }}{{ .nodes.child.output.status }}{{ end }}ok",
+						},
+					},
+				},
+				Edges: []dsl.Edge{{From: "child", To: "inspect"}},
+			}
 			definition := pinnedSnapshotDefinition()
 			if testCase.nested {
 				body := legacyBody
@@ -489,27 +490,30 @@ func TestExecutedDefinitionSnapshotShouldHydrateLegacyRunLoopOutputReference(t *
 
 func TestExecutedDefinitionSnapshotShouldHydrateDetachedRunLoopID(t *testing.T) {
 	t.Parallel()
-	definition := pinnedSnapshotDefinition()
-	definition.Graph = dsl.Graph{
-		Nodes: []dsl.Node{
-			{
-				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-				Params: dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopDetach)},
+	t.Run("Should hydrate a detached run-loop ID", func(t *testing.T) {
+		t.Parallel()
+		definition := pinnedSnapshotDefinition()
+		definition.Graph = dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopDetach)},
+				},
+				{
+					ID: "inspect", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{"agent": "qa", "prompt": "{{ .nodes.child.output.loop_run_id }}"},
+				},
 			},
-			{
-				ID: "inspect", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
-				Params: dsl.NodeParams{"agent": "qa", "prompt": "{{ .nodes.child.output.loop_run_id }}"},
-			},
-		},
-		Edges: []dsl.Edge{{From: "child", To: "inspect"}},
-	}
-	resolved, err := NewCompiler().Compile(definition)
-	if err != nil {
-		t.Fatalf("Compile() error = %v", err)
-	}
-	if _, _, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig()); err != nil {
-		t.Fatalf("BuildExecutedDefinitionSnapshot(detached run-loop id) error = %v", err)
-	}
+			Edges: []dsl.Edge{{From: "child", To: "inspect"}},
+		}
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if _, _, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig()); err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot(detached run-loop id) error = %v", err)
+		}
+	})
 }
 
 func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.T) {

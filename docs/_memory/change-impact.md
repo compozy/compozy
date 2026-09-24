@@ -3,7 +3,7 @@
 ## Issue 671 — Awaited child output matches its declared shape
 
 - **Native tools / CLI / HTTP / UDS:** Loop validate and publish reject unsupported `run-loop`
-  `produces` fields or types. Existing run/status/result routes and IDs stay unchanged. Awaited
+  `produces` fields, types, or constraints. Existing run/status/result routes and IDs stay unchanged. Awaited
   nodes with the exact declared `loop_run_id` and `status` strings persist those terminal values.
 - **Extensibility / hooks / config:** no new hook, extension capability, or configuration key.
   The authored `produces` schema selects the structured result already allowed by the Loop DSL.

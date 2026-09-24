@@ -84,7 +84,7 @@ func runLoopOutputFieldIsString(value any) bool {
 	case string:
 		return schema == jsonSchemaStringType
 	case map[string]any:
-		return schema[jsonSchemaTypeKey] == jsonSchemaStringType
+		return len(schema) == 1 && schema[jsonSchemaTypeKey] == jsonSchemaStringType
 	default:
 		return false
 	}

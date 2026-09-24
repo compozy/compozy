@@ -25,7 +25,9 @@ Issue 671 extension: give one awaited node `produces: {loop_run_id: string, stat
 use `{{ .nodes.<id>.output.loop_run_id }}` in a downstream prompt. After child `done` and `no-op`,
 verify the persisted node output and rendered prompt use the exact child ID and terminal status.
 Repeat without `produces` to verify the scalar terminal marker remains, and confirm validation
-rejects an unsupported field or type before starting a child. This extension still needs a live
-walk; the focused coordinator and linter tests cover the runtime and authoring boundaries.
+rejects an unsupported field or type before starting a child. Validation also rejects constraints
+on `loop_run_id` or `status` that terminal values cannot guarantee, such as a status enum containing
+only `done`. This extension still needs a live walk; the focused coordinator and linter tests cover
+the runtime and authoring boundaries.
 
 Issue: https://github.com/compozy/compozy/issues/386
