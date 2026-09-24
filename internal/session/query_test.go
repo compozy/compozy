@@ -1980,6 +1980,33 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		})
 	}
 
+	t.Run("Should allow an accepted unbound session with no event database at boot", func(t *testing.T) {
+		h := newHarness(t)
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.UpgradeSessionDatabase(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("UpgradeSessionDatabase(unbound) error = %v", err)
+		}
+	})
+
+	t.Run("Should refuse a missing event database for a bound session", func(t *testing.T) {
+		h := newHarness(t)
+		writeStoppedSessionArtifacts(t, h, "stored-no-db", false)
+		if err := h.manager.UpgradeSessionDatabase(
+			testutil.Context(t),
+			"stored-no-db",
+		); !errors.Is(
+			err,
+			ErrSessionNotFound,
+		) {
+			t.Fatalf("UpgradeSessionDatabase(bound without db) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+
 	t.Run("Should requires context and session id", func(t *testing.T) {
 		h := newHarness(t)
 		var nilCtx context.Context
