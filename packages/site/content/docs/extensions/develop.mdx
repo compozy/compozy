@@ -458,7 +458,7 @@ is UTF-8 text.
 A tool-provider extension may declare `clarify/ask` and call it only while handling an active
 daemon-issued `tools/call`. The Go SDK keeps the invocation authority internal and exposes
 `ToolRequest.AskClarification(ctx, ClarifyQuestion{Question: "…", Choices: []string{"…"}})`. The call
-blocks until the operator answers, the configured timeout returns the fallback sentinel, or the tool
+blocks until the operator answers, a finite `[tools.clarify] timeout` returns the fallback sentinel, or the tool
 call is canceled.
 
 The daemon binds each invocation to the extension and active session, derives workspace and agent
@@ -636,7 +636,7 @@ SDKs:
 
 | Example                        | Shows                                                                                             |
 | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `sdk/examples/clarify-tool`    | A Go tool provider that asks the operator a bounded question.                                     |
+| `sdk/examples/clarify-tool`    | A Go tool provider that asks the operator a question (unbounded wait by default).                 |
 | `sdk/examples/notes-commands`  | Contributed operator commands: a flat leaf, a declared group, a nested leaf, and projected flags. |
 | `sdk/examples/prompt-enhancer` | A TypeScript extension with both a `prompt.post_assemble` hook and a persistent subprocess.       |
 

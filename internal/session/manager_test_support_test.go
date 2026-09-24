@@ -820,6 +820,8 @@ type fakeDriver struct {
 	cancelHook            func(proc *fakeProcess) error
 	cancelWithContextHook func(context.Context, *fakeProcess) error
 	approveHook           func(proc *fakeProcess, req acp.ApproveRequest) error
+	notifyCalls           []agentExtensionNotifyCall
+	notifyHook            func(proc *AgentProcess, method string, params any) error
 	stopHook              func(proc *fakeProcess) error
 	verifyExitHook        func(*AgentProcess) (bool, error)
 	killHook              func(*fakeProcess) error
@@ -1368,6 +1370,31 @@ func (d *fakeDriver) Interrupt(
 		return toolruntime.InterruptReport{}, d.interruptErr
 	}
 	return toolruntime.InterruptReport{Matched: 1, Signaled: 1}, nil
+}
+
+type agentExtensionNotifyCall struct {
+	proc   *AgentProcess
+	method string
+	params any
+}
+
+func (d *fakeDriver) NotifyExtension(
+	ctx context.Context,
+	proc *AgentProcess,
+	method string,
+	params any,
+) error {
+	d.mu.Lock()
+	d.notifyCalls = append(d.notifyCalls, agentExtensionNotifyCall{proc: proc, method: method, params: params})
+	hook := d.notifyHook
+	d.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if hook != nil {
+		return hook(proc, method, params)
+	}
+	return nil
 }
 
 func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {

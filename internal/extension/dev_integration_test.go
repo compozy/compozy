@@ -958,7 +958,10 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 					t.Fatalf("GetDevLink(second) error = %v", err)
 				}
 				if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
-					t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
+					t.Fatalf(
+						"second dev link = %#v, want generation and one diagnostic replaced atomically",
+						secondLink,
+					)
 				}
 
 				writeFile(t, manifestPath, fmt.Sprintf(

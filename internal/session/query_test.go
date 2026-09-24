@@ -1946,8 +1946,10 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	t.Parallel()
 
 	// Invariant: startup upgrades only older owned databases through the writer,
-	// while query callers and incompatible databases remain read-only.
+	// allows an owned pre-bind session without history, and refuses missing bound
+	// histories while query callers and incompatible databases remain read-only.
 	// Owner: Manager recorder boundary; canonical suite: query_test.go.
+	acpID := "acp-1"
 	for _, tc := range []struct {
 		name       string
 		readErr    error
@@ -1976,6 +1978,55 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			}
 			if !tc.wantWriter && (!errors.Is(err, tc.readErr) || writerOpens != 0) {
 				t.Fatalf("refusal=%v, writers=%d", err, writerOpens)
+			}
+		})
+	}
+
+	t.Run("Should allow an accepted unbound session with no event database at boot", func(t *testing.T) {
+		h := newHarness(t)
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.UpgradeSessionDatabase(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("UpgradeSessionDatabase(unbound) error = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name       string
+		status     store.SessionRuntimeStatus
+		transition store.SessionRuntimeTransition
+		acpID      *string
+	}{
+		{"bound session", store.SessionRuntimeReady, store.SessionRuntimeTransitionInitialBind, nil},
+		{"previously bound unbound session", store.SessionRuntimeUnbound, store.SessionRuntimeTransitionInitialBind, nil},
+		{"unbound session with ACP identity", store.SessionRuntimeUnbound, store.SessionRuntimeTransitionNone, &acpID},
+	} {
+		t.Run("Should refuse a missing event database for a "+tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			dbPath := writeStoppedSessionArtifacts(t, h, "stored-no-db", false)
+			metaPath := store.SessionMetaFile(filepath.Dir(dbPath))
+			meta, err := store.ReadSessionMeta(metaPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta.RuntimeStatus = tc.status
+			meta.RuntimeTransition = tc.transition
+			meta.ACPSessionID = tc.acpID
+			if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.UpgradeSessionDatabase(
+				testutil.Context(t),
+				meta.ID,
+			); !errors.Is(
+				err,
+				ErrSessionNotFound,
+			) {
+				t.Fatalf("UpgradeSessionDatabase(%s without db) error = %v, want ErrSessionNotFound", tc.name, err)
 			}
 		})
 	}

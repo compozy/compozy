@@ -262,6 +262,8 @@ func callHostedTool(
 			IsError: true,
 		}, nil
 	}
+	progress := startHostedToolProgress(ctx, req)
+	defer progress()
 	response, err := client.CallHostedMCP(ctx, HostedCallRequest{
 		BindID:     bindID,
 		ToolName:   req.Params.Name,
