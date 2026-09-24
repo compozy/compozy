@@ -58,3 +58,5 @@ None.
 Local `make gate` PASS: `.cache/gate/go-lint.json` and `.cache/gate/go-test.json` (affected Go lint and race suites). The integration-tagged extension E2E and final exact-head CI remain separate PR delivery checks.
 
 The targeted lab's strict `audit-qa-evidence.py --strict` returned no blockers or warnings. Its `qa/qa-audit-report.json` and `qa/teardown.json` are retained under the lab evidence path; teardown reports `clean: true` and no survivors. The owned PostgreSQL container and Colima `pr674` profile were removed after the walk.
+
+After this live walk, the session prompt runtime suite caught and verified one adjacent edge: a restricted session can change an ACP runtime option while keeping the full-access mode filtered. The paired test still refuses a full-access preference enabled only after session creation. This edge has focused race evidence in `internal/session/manager_transition_test.go`; the lab had already been torn down and was not rerun for that unit-level distinction.

@@ -989,7 +989,9 @@ job alongside Gateway recovery; no safety check or test assertion was removed.
 
 - **Native tools / CLI / HTTP / UDS:** existing session and agent reads report the effective ACP
   mode; no tool IDs, routes, commands, or DTO fields change. A narrower session permission policy
-  drops an inherited unrestricted agent mode; explicit unrestricted session selections are refused.
+  drops an inherited unrestricted agent mode at start and on later runtime changes; explicit
+  unrestricted session selections are refused. A preference newly enabled after session start is
+  also refused on a restricted prompt runtime change.
 - **Extensibility / hooks / config:** `[permissions] provider_full_access` is an opt-in, operator-owned
   TOML setting. It maps to Codex `agent-full-access` and Claude Code `bypassPermissions` for new
   `approve-all` sessions. Existing defaults remain when it is false; unsupported ACP providers

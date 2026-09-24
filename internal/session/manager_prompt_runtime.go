@@ -285,7 +285,10 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, false)
+	// The bound route records whether an unrestricted preference was already present at session start.
+	boundRoute := session.providerRoutingSnapshot()
+	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
 	}

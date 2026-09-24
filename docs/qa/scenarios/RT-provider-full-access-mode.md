@@ -4,14 +4,14 @@ area: RT
 title: Apply an explicit unrestricted ACP provider mode to trusted local sessions
 persona: Ada
 journey: J-15
-expected: With permissions.provider_full_access enabled and effective approve-all permissions, new Codex sessions select agent-full-access and new Claude Code sessions select bypassPermissions. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes while explicit unrestricted session selections are refused; unsupported providers report an error.
+expected: With permissions.provider_full_access enabled and effective approve-all permissions, new Codex sessions select agent-full-access and new Claude Code sessions select bypassPermissions. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; unsupported providers report an error.
 entry_points: config.toml permissions; compozy agent info; compozy session prompt; Loop run-agent
 qa_status: pass
 bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: internal/config/provider_test.go;internal/acp/types_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-09-24-pr-674-provider-full-access.md
+evidence: internal/config/provider_test.go;internal/acp/types_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-09-24-pr-674-provider-full-access.md
 last_report: docs/qa/reports/2026-09-24-pr-674-provider-full-access.md
 overlaps: RT-session-sandbox-first-bind; RT-cursor-agent-mode
 ---
