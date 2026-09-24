@@ -27,6 +27,10 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
+		*overlay.Permissions.ProviderFullAccess {
+		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
+	}
 	if err := overlay.Apply(dst); err != nil {
 		return err
 	}
@@ -266,5 +270,8 @@ func (o limitsOverlay) Apply(dst *LimitsConfig) {
 func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 	if o.Mode != nil {
 		dst.Mode = *o.Mode
+	}
+	if o.ProviderFullAccess != nil {
+		dst.ProviderFullAccess = *o.ProviderFullAccess
 	}
 }

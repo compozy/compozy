@@ -289,6 +289,12 @@ func (m *Manager) preparePromptRuntimePlan(
 	if err != nil {
 		return nil, err
 	}
+	if err := acp.ValidateACPModePermissions(
+		spec.acpOptions,
+		m.startPermissions(session.Type, startSpecPermissions(&spec, runtime.agent.Permissions)),
+	); err != nil {
+		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
+	}
 	existingDefinition, manifest := session.startupDefinition()
 	runtime.startupManifest = manifest
 	runtime.agentDef.Prompt = existingDefinition.Prompt

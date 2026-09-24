@@ -464,6 +464,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathTrustForbidden,
 		},
 		{
+			name:   "Should reject agent mutation of provider full access preference",
+			path:   "permissions.provider_full_access",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
 			name:   "Should reject memory global dir trust root",
 			path:   "memory.global_dir",
 			denial: ConfigPathTrustForbidden,

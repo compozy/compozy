@@ -121,7 +121,18 @@ const (
 
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {
-	Mode PermissionMode `toml:"mode"`
+	Mode               PermissionMode `toml:"mode"`
+	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
+}
+
+// IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
+func IsUnrestrictedACPMode(mode string) bool {
+	switch mode {
+	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions":
+		return true
+	default:
+		return false
+	}
 }
 
 // ObservabilityConfig controls global event retention settings.
