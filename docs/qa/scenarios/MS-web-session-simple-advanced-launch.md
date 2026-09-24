@@ -4,7 +4,7 @@ area: MS
 title: Start session separates launch details from the prompt composer
 persona: Dora
 journey: J-17
-expected: Opening Start session shows agent selection, with workspace, optional name, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
+expected: Opening Start session without an explicit agent preselects the active workspace's default agent; starting from a worktree uses that worktree's workspace default, while an explicit agent choice wins. The dialog shows agent selection, with workspace, optional name, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
 qa_status: pass
 bug_ids: BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance
@@ -48,3 +48,22 @@ was removed and the launch/composer boundary was restored.
 
 QA 2026-08-27: Simple and Advanced were prompt-free. Start created one durable session and opened
 its composer; the separate first prompt completed once with the agent's Grok 4.5 High/Fast runtime.
+
+QA impact 2026-09-23: Start session should preselect the active workspace default agent, and a
+worktree launch should use its owning workspace default. An explicit agent launch must retain its
+selection. Check a workspace with no configured default separately; the existing `general`
+fallback may be unavailable and must not silently start a different agent. Issue #667 tracks the
+change. The focused hook suite (19 tests) and the isolated daemon-served browser replay of the
+registered default passed on 2026-09-23. The daemon-served browser E2E replay then created a
+session from the generic New session action with that default, confirmed the returned agent and
+destination route, and reached the destination composer. The earlier 2026-08-27 walk covered the
+Simple/Advanced launch controls and the separate first prompt. The 2026-09-23 default-agent
+launch-to-composer retest passed (`web/e2e/__tests__/session-onboarding.spec.ts`).
+
+QA impact 2026-09-24: Launching from a worktree while Global or another project is active must
+activate the worktree's owning workspace before the dialog resolves its agent catalog and
+destination. Verify the selected worktree, default agent, and resulting session-create request
+through the worktree browser journey (`web/e2e/__tests__/worktrees.spec.ts`).
+The isolated daemon-served Chromium replay passed: Global changed to the owning workspace,
+the dialog selected its default agent and ready worktree, and POST /api/sessions carried that
+workspace, worktree, and agent.

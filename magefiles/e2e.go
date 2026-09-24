@@ -67,7 +67,7 @@ func runE2ELane(lane e2elane.Lane) (runErr error) {
 		}
 	}
 
-	laneEnv, err := prepareE2ELaneEnv()
+	laneEnv, err := prepareE2ELaneEnv(len(plan.GoSuites) > 0)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (env e2eLaneEnv) Cleanup() error {
 	return env.cleanup()
 }
 
-func prepareE2ELaneEnv() (e2eLaneEnv, error) {
+func prepareE2ELaneEnv(needStampedDaemon bool) (e2eLaneEnv, error) {
 	var cleanups []func() error
 	daemonPath, cleanup, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
@@ -147,6 +147,24 @@ func prepareE2ELaneEnv() (e2eLaneEnv, error) {
 	values := map[string]string{
 		daemonBinaryEnvVar: daemonPath,
 		driverBinaryEnvVar: driverPath,
+	}
+	if needStampedDaemon {
+		stampedPath, stampedCleanup, stampErr := resolveOrBuildLaneBinary(
+			stampedDaemonBinaryEnvVar,
+			func(outputPath string) error {
+				return runCommandInDir(
+					context.Background(), ".", "go", "build", "-ldflags",
+					"-X github.com/compozy/compozy/internal/version.Version=v0.3.0-beta.1",
+					"-o", outputPath, "./cmd/compozy",
+				)
+			},
+			"compozy-stamped",
+		)
+		if stampErr != nil {
+			return e2eLaneEnv{}, errors.Join(stampErr, runCleanups(cleanups))
+		}
+		cleanups = append(cleanups, stampedCleanup)
+		values[stampedDaemonBinaryEnvVar] = stampedPath
 	}
 	if _, err := os.Stat(webDistIndex); err == nil {
 		absWebDistDir, absErr := filepath.Abs(webDistDir)
