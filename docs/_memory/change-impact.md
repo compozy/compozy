@@ -3,7 +3,7 @@
 ## PR 661 CI remediation — metadata-only session restart
 
 - **Native tools / CLI / HTTP / UDS / extensions / hooks / config / official skill:** no contract or configuration change. The existing restart action can reach ready when a concurrently accepted, unbound session has metadata but no event database.
-- **Workspace data isolation and compatibility:** the boot upgrade still verifies catalog ownership and migrates every existing retained event database. Only an owned, unbound session with no database has nothing to upgrade; missing databases for bound sessions and incompatible existing databases still refuse boot. No state is deleted or migrated by this change.
+- **Workspace data isolation and compatibility:** the boot upgrade still verifies catalog ownership and migrates every existing retained event database. Only an owned session with no runtime transition or ACP identity and no database has nothing to upgrade; missing histories for previously bound sessions, even if now unbound, and incompatible existing databases still refuse boot. No state is deleted or migrated by this change.
 - **Web / Docs / QA:** no UI or public documentation shape changes. `TA-scheduled-session-restart-recovery` and its existing `jobs-hardening.spec.ts` browser journey own the restart evidence; the manager query suite covers metadata-only boot and the bound-session refusal.
 
 ## Clarify keepalive — unbounded default plus ACP ping

@@ -63,7 +63,10 @@ func (m *Manager) UpgradeSessionDatabase(ctx context.Context, id string) error {
 	}
 	if errors.Is(err, ErrSessionNotFound) {
 		meta, metaErr := m.readMetaWithContext(ctx, id)
-		if metaErr == nil && meta.RuntimeStatus == store.SessionRuntimeUnbound {
+		if metaErr == nil &&
+			meta.RuntimeStatus == store.SessionRuntimeUnbound &&
+			meta.RuntimeTransition == store.SessionRuntimeTransitionNone &&
+			meta.ACPSessionID == nil {
 			dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, meta.ID))
 			if _, statErr := os.Stat(dbPath); errors.Is(statErr, os.ErrNotExist) {
 				// Accepted sessions have metadata before their first runtime binds an event database.
