@@ -680,6 +680,9 @@ jobs:
         with:
           team: ${{ vars.TURBO_TEAM }}
 
+      - name: Warm stamped runtime binary build cache
+        run: go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.3.0-beta.1" -o "${{ runner.temp }}/compozy-e2e-stamped" ./cmd/compozy
+
       - name: Run runtime E2E lane
         run: make test-e2e-runtime
         env:
