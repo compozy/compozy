@@ -15,15 +15,23 @@ import (
 
 func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"agent-full-access", "bypassPermissions"} {
-		t.Run(mode, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mode string
+	}{
+		{name: "Should require approval for Codex full access", mode: "agent-full-access"},
+		{name: "Should require approval for Claude bypass permissions", mode: "bypassPermissions"},
+		{name: "Should require approval for YOLO mode", mode: "yolo"},
+		{name: "Should require approval for Goose auto mode", mode: "auto"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			base := StartOpts{
 				AgentName: "codex",
 				Command:   "codex-acp",
 				Cwd:       t.TempDir(),
 				ACPOptions: []SessionConfigOptionSelection{{
-					ID: "mode", ValueID: mode,
+					ID: "mode", ValueID: tc.mode,
 				}},
 			}
 			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {

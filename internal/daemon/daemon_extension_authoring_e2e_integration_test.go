@@ -35,24 +35,35 @@ const (
 )
 
 func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
+	repoRoot := extensionAuthoringE2ERepoRoot(t)
+	buildCtx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	binaryPath := buildStampedExtensionAuthoringBinary(t, buildCtx, repoRoot)
+
 	t.Run(
 		"Should complete the development loop without trust prompts",
-		testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts,
+		func(t *testing.T) {
+			testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t, binaryPath, repoRoot)
+		},
 	)
 	t.Run(
 		"Should complete the resource-only development loop",
-		testDaemonE2EResourceOnlyExtensionAuthoring,
+		func(t *testing.T) {
+			testDaemonE2EResourceOnlyExtensionAuthoring(t, binaryPath)
+		},
 	)
 }
 
-func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
+func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(
+	t *testing.T,
+	binaryPath string,
+	repoRoot string,
+) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
 
-	repoRoot := extensionAuthoringE2ERepoRoot(t)
-	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,
@@ -140,14 +151,12 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 	}
 }
 
-func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T) {
+func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T, binaryPath string) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
 
-	repoRoot := extensionAuthoringE2ERepoRoot(t)
-	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,

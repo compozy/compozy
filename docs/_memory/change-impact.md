@@ -988,12 +988,13 @@ job alongside Gateway recovery; no safety check or test assertion was removed.
 ## Issue 673 — ACP provider full-access preference
 
 - **Native tools / CLI / HTTP / UDS:** existing session and agent reads report the effective ACP
-  mode; no tool IDs, routes, commands, or DTO fields change. Session startup refuses unrestricted
-  modes under stricter effective permissions.
+  mode; no tool IDs, routes, commands, or DTO fields change. A narrower session permission policy
+  drops an inherited unrestricted agent mode; explicit unrestricted session selections are refused.
 - **Extensibility / hooks / config:** `[permissions] provider_full_access` is an opt-in, operator-owned
   TOML setting. It maps to Codex `agent-full-access` and Claude Code `bypassPermissions` for new
   `approve-all` sessions. Existing defaults remain when it is false; unsupported ACP providers
-  report a resolution error. Agent-authored ACP mode options retain precedence.
+  report a resolution error. Agent-authored ACP mode options retain precedence. Explicit `yolo`
+  and `auto` modes are also treated as unrestricted at the session permission boundary.
 - **Workspace isolation / compatibility:** no stored schema or migration changes. CompozyOS native
   tool policy, workspace sandbox selection, and operating-system permissions still apply. The
   provider-native command sandbox may be removed inside those boundaries when explicitly selected.

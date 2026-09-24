@@ -128,7 +128,7 @@ type PermissionsConfig struct {
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
 func IsUnrestrictedACPMode(mode string) bool {
 	switch mode {
-	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions":
+	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto":
 		return true
 	default:
 		return false

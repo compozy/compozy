@@ -1135,23 +1135,26 @@ provider = "codex"
 
 func TestWorkspaceCannotEnableProviderFullAccess(t *testing.T) {
 	t.Parallel()
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatal(err)
-	}
-	workspaceRoot := t.TempDir()
-	workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
-	if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, workspaceConfig, "[permissions]\nprovider_full_access = true\n")
-	_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
-	if err == nil || !strings.Contains(err.Error(), "only be enabled in the global config") {
-		t.Fatalf("LoadForHome() error = %v, want workspace privilege refusal", err)
-	}
+	t.Run("Should reject enabling provider full access from workspace config", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		workspaceRoot := t.TempDir()
+		workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
+		if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, workspaceConfig, "[permissions]\nprovider_full_access = true\n")
+		_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
+		if err == nil || !strings.Contains(err.Error(), "only be enabled in the global config") {
+			t.Fatalf("LoadForHome() error = %v, want workspace privilege refusal", err)
+		}
+	})
 }
 
 func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {

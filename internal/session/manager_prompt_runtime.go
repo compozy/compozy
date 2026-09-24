@@ -285,7 +285,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, false)
 	if err != nil {
 		return nil, err
 	}
