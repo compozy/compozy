@@ -1380,9 +1380,9 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field                  | Type    | Default       | Valid values                               | Description                                                                              |
-| ---------------------- | ------- | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
+| Field                  | Type    | Default       | Valid values                               | Description                                                                                                                  |
+| ---------------------- | ------- | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
 | `provider_full_access` | boolean | `false`       | `true`, `false`                            | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
