@@ -682,6 +682,8 @@ jobs:
 
       - name: Warm stamped runtime binary build cache
         run: go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.3.0-beta.1" -o "${{ runner.temp }}/compozy-e2e-stamped" ./cmd/compozy
+        env:
+          CGO_ENABLED: "1"
 
       - name: Run runtime E2E lane
         run: make test-e2e-runtime
