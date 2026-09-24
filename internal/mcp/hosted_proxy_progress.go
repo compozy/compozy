@@ -24,6 +24,7 @@ func startHostedToolProgress(ctx context.Context, req *sdkmcp.CallToolRequest) f
 	}
 	session := req.Session
 	token := req.Params.GetProgressToken()
+	progressCtx, cancel := context.WithCancel(ctx)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -42,11 +43,12 @@ func startHostedToolProgress(ctx context.Context, req *sdkmcp.CallToolRequest) f
 				Message:       "compozy: tool call still running",
 			}
 			// Delivery failures are advisory; the next tick retries.
-			_ = session.NotifyProgress(ctx, ping) //nolint:errcheck // delivery is advisory; next tick retries.
+			_ = session.NotifyProgress(progressCtx, ping) //nolint:errcheck // delivery is advisory; next tick retries.
 		}
 	}()
 	return func() {
 		close(stop)
+		cancel()
 		<-done
 	}
 }
