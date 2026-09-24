@@ -59,3 +59,11 @@ session from the generic New session action with that default, confirmed the ret
 destination route, and reached the destination composer. The earlier 2026-08-27 walk covered the
 Simple/Advanced launch controls and the separate first prompt. The 2026-09-23 default-agent
 launch-to-composer retest passed (`web/e2e/__tests__/session-onboarding.spec.ts`).
+
+QA impact 2026-09-24: Launching from a worktree while Global or another project is active must
+activate the worktree's owning workspace before the dialog resolves its agent catalog and
+destination. Verify the selected worktree, default agent, and resulting session-create request
+through the worktree browser journey (`web/e2e/__tests__/worktrees.spec.ts`).
+The isolated daemon-served Chromium replay passed: Global changed to the owning workspace,
+the dialog selected its default agent and ready worktree, and POST /api/sessions carried that
+workspace, worktree, and agent.

@@ -21,8 +21,13 @@ export function useSessionCreateStore(): SessionCreateStore {
 
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
-  const { registeredWorkspaces, runtimeWorkspace, runtimeWorkspaceId, scope } =
-    useActiveWorkspace();
+  const {
+    registeredWorkspaces,
+    runtimeWorkspace,
+    runtimeWorkspaceId,
+    scope,
+    setActiveWorkspaceId,
+  } = useActiveWorkspace();
   const scopeId = useWorktreeScopeId();
   const scopedWorktree = useScopedWorktreeFilter(
     scope === "workspace" ? runtimeWorkspaceId : null,
@@ -96,6 +101,9 @@ export function useSessionCreateActions() {
     }
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
+    if (scope !== "workspace" || runtimeWorkspaceId !== workspaceId) {
+      setActiveWorkspaceId(workspaceId);
+    }
     store.trigger.dialogOpened({
       agentName:
         registeredWorkspaces

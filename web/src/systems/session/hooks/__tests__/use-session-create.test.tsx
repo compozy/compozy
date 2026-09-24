@@ -40,9 +40,10 @@ const scopedWorktree = vi.hoisted(() => ({
   resolved: true,
 }));
 const toastError = vi.hoisted(() => vi.fn());
+const setActiveWorkspaceId = vi.hoisted(() => vi.fn());
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: null, ...workspace }),
+  useActiveWorkspace: () => ({ activeWorkspaceId: null, ...workspace, setActiveWorkspaceId }),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-worktree", async importOriginal => ({
@@ -74,6 +75,7 @@ describe("session create workspace binding", () => {
     scopedWorktree.id = undefined;
     scopedWorktree.resolved = true;
     toastError.mockReset();
+    setActiveWorkspaceId.mockReset();
     createSessionAsync.mockReset();
     notifyUser.mockReset();
     takePendingTerminalQuote();
@@ -161,6 +163,25 @@ describe("session create workspace binding", () => {
         environment: { kind: "worktree", worktreeId: "wt_other" },
       },
     });
+    expect(setActiveWorkspaceId).toHaveBeenCalledExactlyOnceWith("ws_other");
+  });
+
+  it("Should switch from another workspace for a worktree launch, but preserve its own selection", () => {
+    workspace.scope = "workspace";
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openForWorktree("ws_other", "wt_other"));
+    expect(setActiveWorkspaceId).toHaveBeenCalledExactlyOnceWith("ws_other");
+
+    setActiveWorkspaceId.mockClear();
+    workspace.runtimeWorkspaceId = "ws_other";
+    actions.rerender();
+    act(() => actions.result.current.openForWorktree("ws_other", "wt_other"));
+    expect(setActiveWorkspaceId).not.toHaveBeenCalled();
   });
 
   it("Should seed the environment from the acting scope's ready worktree", () => {
