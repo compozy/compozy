@@ -32,6 +32,7 @@ const (
 	webAssetsTokenEnvVar      = "COMPOZY_WEB_ASSETS_TOKEN"
 	releaseTokenEnvVar        = "RELEASE_TOKEN"
 	daemonBinaryEnvVar        = "COMPOZY_TEST_DAEMON_BIN"
+	stampedDaemonBinaryEnvVar = "COMPOZY_TEST_STAMPED_DAEMON_BIN"
 	driverBinaryEnvVar        = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
 	fontSizeSyncScriptPath    = "scripts/sync-font-size-classes.mjs"
