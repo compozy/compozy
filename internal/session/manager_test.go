@@ -380,6 +380,55 @@ func TestManagerPublishClarifyEvent(t *testing.T) {
 		if persisted.Answer == nil || persisted.Answer.Choice == nil || *persisted.Answer.Choice != 1 {
 			t.Fatalf("clarification answer = %#v, want choice 1", persisted.Answer)
 		}
+		if got, want := persisted.Request.Deadline, clarifyEvent.Request.Deadline; !got.Equal(want) {
+			t.Fatalf("clarification deadline = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should project an unbounded deadline as null in the durable payload", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		askedAt := time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC)
+		h.manager.attentionStore = &committingAttentionStore{at: askedAt}
+		clarifyEvent := toolspkg.ClarifyEvent{
+			Status: toolspkg.ClarifyStatusPending,
+			Request: toolspkg.ClarifyPending{
+				RequestID:   "clarify-request-unbounded",
+				WorkspaceID: h.workspaceID,
+				SessionID:   sess.ID,
+				AgentName:   sess.Info().AgentName,
+				Question:    "Which environment should deploy first?",
+				AskedAt:     askedAt,
+			},
+			At: askedAt,
+		}
+
+		if err := h.manager.PublishClarifyEvent(testutil.Context(t), clarifyEvent); err != nil {
+			t.Fatalf("PublishClarifyEvent() error = %v", err)
+		}
+		stored, err := sess.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+		decoded, err := transcript.UnmarshalAgentEvent(stored[0].Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if !strings.Contains(string(decoded.Raw), `"deadline":null`) {
+			t.Fatalf("durable clarify payload = %s, want a null deadline", decoded.Raw)
+		}
+		var persisted toolspkg.ClarifyEvent
+		if err := json.Unmarshal(decoded.Raw, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(raw clarify event) error = %v", err)
+		}
+		if !persisted.Request.Deadline.IsZero() {
+			t.Fatalf("clarification deadline = %s, want zero for unbounded", persisted.Request.Deadline)
+		}
 	})
 
 	t.Run(

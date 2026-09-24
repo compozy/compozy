@@ -7214,6 +7214,7 @@ type fakeSessionManager struct {
 	compactionHandler        session.CompactionHandler
 	workspaceAccessPolicy    workspaceaccess.Policy
 	turnEndNotifier          session.TurnEndNotifier
+	agentExtensionCalls      []fakeAgentExtensionCall
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)

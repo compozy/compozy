@@ -41,6 +41,8 @@ type clarifyBridge struct {
 	profileForSession func(context.Context, string) (string, error)
 	now               func() time.Time
 	newID             func() string
+	keepalive         ClarifyKeepalive
+	newPingTicker     func(time.Duration) (<-chan time.Time, func())
 	closed            bool
 	waiters           sync.WaitGroup
 }
@@ -53,6 +55,9 @@ type clarifyHandle struct {
 	ready        atomic.Bool
 	terminal     bool
 	profileID    string
+	timeout      time.Duration
+	// pingSeq counts keepalive attempts from 1 under completionMu.
+	pingSeq uint64
 }
 
 type clarifyResult struct {
@@ -79,6 +84,22 @@ func withClarifySessionProfileResolver(
 ) clarifyBridgeOption {
 	return func(bridge *clarifyBridge) {
 		bridge.profileForSession = resolve
+	}
+}
+
+func withClarifyKeepalive(keepalive ClarifyKeepalive) clarifyBridgeOption {
+	return func(bridge *clarifyBridge) {
+		bridge.keepalive = keepalive
+	}
+}
+
+// withClarifyPingTicker injects the keepalive tick source. Test-only: the
+// production bridge always ticks on clarifyKeepaliveInterval.
+func withClarifyPingTicker(
+	newTicker func(time.Duration) (<-chan time.Time, func()),
+) clarifyBridgeOption {
+	return func(bridge *clarifyBridge) {
+		bridge.newPingTicker = newTicker
 	}
 }
 
@@ -109,9 +130,8 @@ func newClarifyBridge(
 	logger *slog.Logger,
 	options ...clarifyBridgeOption,
 ) (*clarifyBridge, error) {
-	if timeout <= 0 {
-		return nil, errors.New("daemon: clarification timeout must be positive")
-	}
+	// Non-positive timeout selects unbounded waits: no automatic expiration.
+	// The per-request policy is pinned at Ask time; see clarifyHandle.timeout.
 	if publisher == nil {
 		return nil, errors.New("daemon: clarification event publisher is required")
 	}
@@ -157,8 +177,15 @@ func (b *clarifyBridge) Ask(
 		return toolspkg.ClarifyAnswer{}, err
 	}
 	now := b.now().UTC()
+	policy := b.timeout
+	unbounded := policy <= 0
+	var deadline time.Time
+	if !unbounded {
+		deadline = now.Add(policy)
+	}
 	handle := &clarifyHandle{
 		profileID: strings.TrimSpace(normalizedScope.ProfileID),
+		timeout:   policy,
 		pending: toolspkg.ClarifyPending{
 			RequestID:   strings.TrimSpace(b.newID()),
 			WorkspaceID: normalizedScope.WorkspaceID,
@@ -167,7 +194,7 @@ func (b *clarifyBridge) Ask(
 			Question:    normalizedQuestion.Question,
 			Choices:     append([]string(nil), normalizedQuestion.Choices...),
 			AskedAt:     now,
-			Deadline:    now.Add(b.timeout),
+			Deadline:    deadline,
 		},
 		result:    make(chan clarifyResult, 1),
 		published: make(chan struct{}),
@@ -193,13 +220,35 @@ func (b *clarifyBridge) Ask(
 	close(handle.published)
 	handle.completionMu.Unlock()
 
-	timer := time.NewTimer(time.Until(handle.pending.Deadline))
-	defer timer.Stop()
+	return b.awaitClarifyResolution(ctx, handle)
+}
+
+// awaitClarifyResolution blocks until answer, finite expiry, cancel, or
+// close. A dedicated sender goroutine owns the keepalive ticker and dies
+// with the wait, so a wedged send delays only later pings.
+func (b *clarifyBridge) awaitClarifyResolution(
+	ctx context.Context,
+	handle *clarifyHandle,
+) (toolspkg.ClarifyAnswer, error) {
+	// Unbounded waits arm no timer: a nil channel blocks forever, so the
+	// expiry case stays disabled and no timer goroutine leaks. The guard
+	// reads the pinned creation-time policy, never the live broker policy.
+	var timerC <-chan time.Time
+	if handle.timeout > 0 {
+		timer := time.NewTimer(time.Until(handle.pending.Deadline))
+		defer timer.Stop()
+		timerC = timer.C
+	}
+	done := make(chan struct{})
+	if b.keepalive != nil {
+		go b.runKeepalive(handle, done)
+	}
+	defer close(done)
 	for {
 		select {
 		case result := <-handle.result:
 			return result.answer, result.err
-		case <-timer.C:
+		case <-timerC:
 			fallback := toolspkg.ClarifyAnswer{Fallback: true}
 			b.completeAutomatic(handle, toolspkg.ClarifyStatusTimedOut, fallback, nil)
 		case <-ctx.Done():
@@ -210,6 +259,62 @@ func (b *clarifyBridge) Ask(
 				toolspkg.ErrClarifyCanceled,
 			)
 		}
+	}
+}
+
+// runKeepalive sends the immediate first ping, then one per tick until done
+// closes. At most one sender runs per wait; on a wedged write it stays parked
+// until the write resolves instead of stalling terminal handling.
+func (b *clarifyBridge) runKeepalive(handle *clarifyHandle, done <-chan struct{}) {
+	b.sendKeepalivePing(handle)
+	newTicker := b.newPingTicker
+	if newTicker == nil {
+		newTicker = realClarifyPingTicker
+	}
+	tick, stop := newTicker(clarifyKeepaliveInterval)
+	defer stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick:
+			b.sendKeepalivePing(handle)
+		}
+	}
+}
+
+// sendKeepalivePing delivers one fail-open ping for a live handle: terminal
+// gating under completionMu, the send on the sender goroutine, failures at
+// debug without touching the terminal transition.
+func (b *clarifyBridge) sendKeepalivePing(handle *clarifyHandle) {
+	if b.keepalive == nil || handle == nil {
+		return
+	}
+	handle.completionMu.Lock()
+	if handle.terminal {
+		handle.completionMu.Unlock()
+		return
+	}
+	handle.pingSeq++
+	ping := ClarifyPingParams{
+		SessionID: handle.pending.SessionID,
+		RequestID: handle.pending.RequestID,
+		Seq:       handle.pingSeq,
+		AskedAt:   handle.pending.AskedAt,
+		Deadline:  handle.pending.Deadline,
+	}
+	handle.completionMu.Unlock()
+	sendCtx, cancel := context.WithTimeout(context.Background(), clarifyKeepaliveSendTimeout)
+	defer cancel()
+	if err := b.keepalive.Ping(sendCtx, ping); err != nil {
+		b.logger.DebugContext(
+			sendCtx,
+			"clarification keepalive ping failed",
+			"session_id", ping.SessionID,
+			"request_id", ping.RequestID,
+			"seq", ping.Seq,
+			"error", err,
+		)
 	}
 }
 

@@ -152,6 +152,9 @@ the agents and skills discovered by the resolver.
 
 Workspace registration has one extra override: `default_agent`. When it is set on the workspace row,
 the resolver applies it after loading config by setting `defaults.agent` for the resolved snapshot.
+The Web **Start session** dialog preselects this registered default for the active workspace, or
+for the owning workspace when launched from a worktree. An agent-specific Start session action
+keeps its explicitly chosen agent.
 
 ```bash
 compozy workspace edit checkout-api --default-agent reviewer

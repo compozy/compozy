@@ -284,8 +284,8 @@ has no management surface at all.
 
 ## Clarification questions are not approvals
 
-`compozy__clarify` lets an active managed session ask one bounded question and wait for an operator.
-It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
+`compozy__clarify` lets an active managed session ask one question and wait for an operator
+(unbounded unless `[tools.clarify] timeout` is finite). It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
 requests, approval decisions, or remembered native-tool grants. One session can have at most one
 pending clarification.
 
@@ -304,7 +304,8 @@ HTTP and UDS use the same workspace-scoped routes:
 - `POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer`
 
 The live pending list is exact daemon truth. Durable `clarify` events preserve the pending,
-resolved, timed-out, and canceled transitions for timeline and audit. Timeout returns exactly
+resolved, timed-out, and canceled transitions for timeline and audit. Under a finite `[tools.clarify]
+timeout`, expiry returns exactly
 `{"choice":null,"text":"","fallback":true}`; stopping the session or daemon cancels the wait.
 
 ## Practical configuration example

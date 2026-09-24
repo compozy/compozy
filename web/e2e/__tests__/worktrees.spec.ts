@@ -703,6 +703,53 @@ test("operator runs the assisted exit from the worktree context", async ({ appPa
   await expect(progressSurface.getByRole("button", { name: "Remove worktree" })).toHaveCount(1);
 });
 
+test("operator starts a session in a worktree from Global scope", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  const worktree = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
+  await repo.dirtyWorktree(worktree.path);
+  await runtime.requestJSON(`/api/workspaces/${workspace.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ default_agent: worktreeSessionAgent }),
+  });
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+
+  const globalToggle = appPage.getByTestId("os-global-scope-toggle");
+  if ((await globalToggle.getAttribute("aria-pressed")) !== "true") await globalToggle.click();
+  await expect(globalToggle).toHaveAttribute("aria-pressed", "true");
+
+  await openWorkspaceNest(appPage, workspace.id);
+  await chooseNestRowAction(appPage, worktree.id, "context");
+  await appPage
+    .locator('[data-slot="worktree-exit-control"] [data-slot="split-button-action"]')
+    .click();
+  const commit = appPage.locator('[data-slot="worktree-commit-dialog"]');
+  await expect(commit).toBeVisible();
+  await commit.locator('[data-slot="worktree-commit-agent-start"]').click();
+
+  const dialog = appPage.getByTestId("session-create-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(globalToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
+    worktreeSessionAgent
+  );
+  await dialog.getByTestId("session-create-mode-advanced").click();
+  await expect(dialog.getByTestId("session-create-environment")).toContainText(worktree.name);
+
+  const createResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
+  await dialog.getByTestId("session-create-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBe(true);
+  expect(createResponse.request().postDataJSON()).toMatchObject({
+    agent_name: worktreeSessionAgent,
+    workspace: workspace.id,
+    worktree: worktree.id,
+  });
+});
+
 // E2E-015: merged / safe-to-clean evidence leads into the standard removal flow.
 test("operator reads cleanup evidence before removing a finished worktree", async ({
   appPage,
