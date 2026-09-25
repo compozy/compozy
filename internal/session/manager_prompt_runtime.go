@@ -285,9 +285,18 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
+	// The bound route records whether an unrestricted preference was already present at session start.
+	boundRoute := session.providerRoutingSnapshot()
+	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
+	}
+	if err := acp.ValidateACPModePermissions(
+		spec.acpOptions,
+		m.startPermissions(session.Type, startSpecPermissions(&spec, runtime.agent.Permissions)),
+	); err != nil {
+		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}
 	existingDefinition, manifest := session.startupDefinition()
 	runtime.startupManifest = manifest

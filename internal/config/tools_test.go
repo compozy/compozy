@@ -506,3 +506,132 @@ func defaultTestConfig(t *testing.T) Config {
 	}
 	return DefaultWithHome(homePaths)
 }
+
+// TestToolsClarifyUnboundedPolicy pins the unbounded clarification policy.
+func TestToolsClarifyUnboundedPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve omitted policy to unbounded", func(t *testing.T) {
+		t.Parallel()
+
+		if got := DefaultToolsConfig().Clarify.Timeout; got != 0 {
+			t.Fatalf("DefaultToolsConfig() Clarify.Timeout = %s, want 0s (unbounded)", got)
+		}
+		if err := (ToolsClarifyConfig{Timeout: 0}).Validate(); err != nil {
+			t.Fatalf("Validate() omitted/zero error = %v, want nil", err)
+		}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[[mcp_servers]]\nname = \"github\"\ncommand = \"npx\"\n")
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got := cfg.Tools.Clarify.Timeout; got != 0 {
+			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want 0s (unbounded)", got)
+		}
+		if err := cfg.Tools.Clarify.Validate(); err != nil {
+			t.Fatalf("Validate() loaded omission error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should resolve explicit zero to unbounded", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := defaultTestConfig(t)
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[tools.clarify]\ntimeout = \"0s\"\n")
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if got := cfg.Tools.Clarify.Timeout; got != 0 {
+			t.Fatalf("ApplyConfigOverlayFile() Clarify.Timeout = %s, want 0s (unbounded)", got)
+		}
+		if err := cfg.Tools.Clarify.Validate(); err != nil {
+			t.Fatalf("Validate() explicit 0s error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should reject out-of-band clarify timeouts", func(t *testing.T) {
+		t.Parallel()
+
+		const wantPrefix = "tools.clarify.timeout must be between 1s and 24h, or 0s for no expiration"
+		for _, timeout := range []time.Duration{-5 * time.Second, 500 * time.Millisecond, 25 * time.Hour} {
+			err := ToolsClarifyConfig{Timeout: timeout}.Validate()
+			if err == nil {
+				t.Fatalf("Validate() timeout = %s error = nil, want rejection", timeout)
+			}
+			if !strings.Contains(err.Error(), wantPrefix) {
+				t.Fatalf("Validate() timeout = %s error = %q, want prefix %q", timeout, err, wantPrefix)
+			}
+			if !strings.Contains(err.Error(), timeout.String()) {
+				t.Fatalf("Validate() timeout = %s error = %q, want it to name the value", timeout, err)
+			}
+		}
+	})
+
+	t.Run("Should reject malformed clarify timeout without replacing valid policy", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := defaultTestConfig(t)
+		cfg.Tools.Clarify.Timeout = 5 * time.Minute
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[tools.clarify]\ntimeout = \"soon\"\n")
+		err := ApplyConfigOverlayFile(overlayPath, &cfg)
+		if err == nil {
+			t.Fatal("ApplyConfigOverlayFile() error = nil, want malformed duration failure")
+		}
+		if !strings.Contains(err.Error(), "tools.clarify.timeout") || !strings.Contains(err.Error(), "soon") {
+			t.Fatalf("ApplyConfigOverlayFile() error = %q, want it to name tools.clarify.timeout and soon", err)
+		}
+		if got, want := cfg.Tools.Clarify.Timeout, 5*time.Minute; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Clarify.Timeout = %s, want retained %s", got, want)
+		}
+	})
+
+	t.Run("Should reject invalid file policy at load", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[tools.clarify]\ntimeout = \"25h\"\n")
+		_, err = LoadForHome(homePaths, withoutDotEnv())
+		if err == nil {
+			t.Fatal("LoadForHome() error = nil, want invalid policy failure")
+		}
+		const wantPrefix = "tools.clarify.timeout must be between 1s and 24h, or 0s for no expiration"
+		if !strings.Contains(err.Error(), wantPrefix) {
+			t.Fatalf("LoadForHome() error = %q, want prefix %q", err, wantPrefix)
+		}
+	})
+
+	t.Run("Should accept exact finite bounds and reject just outside", func(t *testing.T) {
+		t.Parallel()
+
+		for _, timeout := range []time.Duration{time.Second, 24 * time.Hour} {
+			if err := (ToolsClarifyConfig{Timeout: timeout}).Validate(); err != nil {
+				t.Fatalf("Validate() timeout = %s error = %v, want nil", timeout, err)
+			}
+		}
+		const wantPrefix = "tools.clarify.timeout must be between 1s and 24h, or 0s for no expiration"
+		for _, timeout := range []time.Duration{time.Second - time.Nanosecond, 24*time.Hour + time.Nanosecond} {
+			err := ToolsClarifyConfig{Timeout: timeout}.Validate()
+			if err == nil {
+				t.Fatalf("Validate() timeout = %s error = nil, want rejection", timeout)
+			}
+			if !strings.Contains(err.Error(), wantPrefix) {
+				t.Fatalf("Validate() timeout = %s error = %q, want prefix %q", timeout, err, wantPrefix)
+			}
+		}
+	})
+}

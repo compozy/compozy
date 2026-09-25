@@ -434,6 +434,12 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueStringSlice,
 		},
 		{
+			// The timeout policy is operated via `compozy config set tools.clarify.timeout`.
+			name: "Should allow clarify timeout mutation",
+			path: "tools.clarify.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -461,6 +467,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject provider command trust root",
 			path:   "providers.claude.command",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject agent mutation of provider full access preference",
+			path:   "permissions.provider_full_access",
 			denial: ConfigPathTrustForbidden,
 		},
 		{

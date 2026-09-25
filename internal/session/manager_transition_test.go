@@ -23,6 +23,91 @@ import (
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
 
+func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the launch-time full-access preference filtered during a runtime change", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		h.cfg.Permissions.ProviderFullAccess = true
+		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		workspace.Config = h.cfg
+		h.resolver.upsert(&workspace)
+		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if _, err := h.manager.ensurePromptRuntime(
+			testutil.Context(t), active, &selection, snapshot.process,
+		); err != nil {
+			t.Fatalf("ensurePromptRuntime() error = %v", err)
+		}
+		configs := driver.configSnapshots()
+		if len(configs) != 1 || len(configs[0].ACPOptions) != 1 ||
+			configs[0].ACPOptions[0].ID != "thinking" || configs[0].ACPOptions[0].BoolValue == nil ||
+			!*configs[0].ACPOptions[0].BoolValue {
+			t.Fatalf("ConfigureRuntime() configs = %#v, want thinking=true without unrestricted mode", configs)
+		}
+	})
+}
+
+func TestPromptRuntimeRejectsUnrestrictedModeForPersistedRestrictedSession(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	workspace.Config = h.cfg
+	h.resolver.upsert(&workspace)
+	active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID,
+		Permissions: compozyconfig.PermissionModeApproveReads,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+	if got := active.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+		t.Fatalf("effective permissions = %q, want approve-reads", got)
+	}
+
+	h.cfg.Permissions.ProviderFullAccess = true
+	workspace.Config = h.cfg
+	h.resolver.upsert(&workspace)
+	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+	h.manager.driver = driver
+	snapshot := active.runtimeBindingSnapshot()
+	selection := snapshot.selection
+	selection.Model = "claude-fable-5"
+	if _, err := h.manager.ensurePromptRuntime(
+		testutil.Context(t), active, &selection, snapshot.process,
+	); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+		t.Fatalf("ensurePromptRuntime() error = %v, want restricted-session refusal", err)
+	}
+	if got := len(driver.configSnapshots()); got != 0 {
+		t.Fatalf("ConfigureRuntime() calls = %d, want none", got)
+	}
+	if got := active.runtimeBindingSnapshot().process; got != snapshot.process {
+		t.Fatal("restricted-session refusal changed the bound process")
+	}
+}
+
 func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T) {
 	t.Parallel()
 

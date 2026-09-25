@@ -321,6 +321,7 @@ exit 0
 			{path: ".vscode/tasks.json", want: "no-lane"},
 			{path: ".repoclone.rc", want: "no-lane"},
 			{path: "skills-lock.json", want: "no-lane"},
+			{path: "skeeper.lock", want: "no-lane"},
 		}
 		for _, tc := range cases {
 			t.Run("Should classify "+tc.path, func(t *testing.T) {

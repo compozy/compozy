@@ -67,6 +67,7 @@ type configSeedFile struct {
 	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
 	Extensions  *compozyconfig.ExtensionsConfig         `toml:"extensions,omitempty"`
+	Log         *compozyconfig.LogConfig                `toml:"log,omitempty"`
 	Providers   map[string]compozyconfig.ProviderConfig `toml:"providers,omitempty"`
 	Sandboxes   map[string]compozyconfig.SandboxProfile `toml:"sandboxes,omitempty"`
 }
@@ -179,6 +180,7 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 		Tools:       cloneToolsConfig(&cfg.Tools),
 		Marketplace: &cfg.Marketplace,
 		Extensions:  &cfg.Extensions,
+		Log:         &cfg.Log,
 		Providers:   cloneProviders(cfg.Providers),
 		Sandboxes:   cloneSandboxProfiles(cfg.Sandboxes),
 	}

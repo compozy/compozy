@@ -50,6 +50,11 @@ against the declared input and output schemas — there is no silent empty-strin
 
 `nodes.<id>.output.*` only validates against a schema the referenced node declares — set
 `produces` (or a `run-agent` `output_schema`) on the source node so its output paths are known.
+For an awaited `run-loop`, `produces` must declare exactly `loop_run_id: string` and
+`status: string` to expose its terminal child result as an object. Without it, the existing
+terminal output is a scalar and child-result field paths are rejected during validation.
+These fields accept an unconstrained string type only; enum, pattern, and other restrictions
+cannot be guaranteed for every child run.
 
 In `{{ }}`, roots take a leading dot (`{{ .inputs.slug }}`, `{{ .item.title }}`); in CEL they do
 not (`inputs.slug`, `item.title`). Node IDs are identical in both.

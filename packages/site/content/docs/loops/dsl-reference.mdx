@@ -178,6 +178,21 @@ extension, and MCP tool is a Loop action for free.
 | `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`, `runtime?`; see the [Goal node reference](/docs/loops/goal-node) |
 | any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                              |
 
+A detached `run-loop` returns `{loop_run_id}`. An awaited `run-loop` without `produces` keeps
+the existing scalar terminal output (`child_loop_status:done` or `child_loop_status:no-op`). To
+use the child identity in a downstream node, declare its complete terminal result:
+
+```yaml
+produces:
+  loop_run_id: string
+  status: string
+```
+
+After the child ends successfully, `nodes.<id>.output.loop_run_id` is its exact Run ID and
+`nodes.<id>.output.status` is `done` or `no-op`. A detached node may declare only
+`loop_run_id: string`. Validation rejects other `run-loop` output declarations before execution.
+Existing runs keep their pinned definitions and stored results.
+
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
 The daemon validates the agent's exact structured result against that schema before it settles the

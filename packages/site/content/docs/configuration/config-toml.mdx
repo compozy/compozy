@@ -54,7 +54,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[worktrees]`                        | Managed placement, per-run branch namespace, bootstrap, and Git discovery freshness.   | `$COMPOZY_HOME/worktrees`, `run/`, no copy/setup, 10m setup, 30s discovery                            |
 | `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.            | enabled, hosted MCP enabled, 256 KiB result default                                                   |
 | `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                               | 30 seconds                                                                                            |
-| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                     | 5 minutes                                                                                             |
+| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                     | No automatic expiration (omitted or `0s`); `5m` restores the previous bound                           |
 | `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                  | external tools disabled, 120 second approval timeout, no trusted sources                              |
 | `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                                | CompozyOS public CIMD; loopback callback on port `2123`                                               |
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                                | empty list                                                                                            |
@@ -346,6 +346,8 @@ session_health_hook_min_interval = "1m"
 [permissions]
 # Valid values: deny-all, approve-reads, approve-all.
 mode = "approve-all"
+# Opt in to the provider's unrestricted ACP mode when available (Codex and Claude Code).
+provider_full_access = true
 
 [worktrees]
 # Empty uses $COMPOZY_HOME/worktrees/<workspace>/<name> for new managed checkouts.
@@ -380,8 +382,11 @@ max_age = "720h"
 bind_nonce_ttl_seconds = 30
 
 [tools.clarify]
-# Maximum wait for an operator answer before the caller receives the fallback sentinel.
-timeout = "5m"
+# Omitted entirely: no automatic expiration (the default).
+# timeout = "0s"  # explicit unbounded: identical to omitted.
+# timeout = "5m"  # finite: falls back after 5 minutes, as before.
+# Manage with `compozy config get|set|unset tools.clarify.timeout --scope user`
+# (or the `compozy__config_*` native tools); user scope only, restart-required.
 
 [tools.policy]
 # Valid values: disabled, ask, enabled.
@@ -1378,9 +1383,10 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field  | Type   | Default       | Valid values                               | Description                                                                              |
-| ------ | ------ | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `mode` | string | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
+| Field                  | Type    | Default       | Valid values                               | Description                                                                                                                  |
+| ---------------------- | ------- | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
+| `provider_full_access` | boolean | `false`       | `true`, `false`                            | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
@@ -1451,9 +1457,9 @@ snapshots these settings at boot; config changes require a restart.
 The daemon snapshots this global setting at boot. A structured config write records desired state
 with `lifecycle="restart-required"`; it does not change a question already waiting for an answer.
 
-| Field     | Type     | Default | Valid values       | Description                                                                  |
-| --------- | -------- | ------- | ------------------ | ---------------------------------------------------------------------------- |
-| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before CompozyOS returns `{choice:null,text:"",fallback:true}`. |
+| Field     | Type     | Default                    | Valid values               | Description                                                                                                                                                                                                            |
+| --------- | -------- | -------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeout` | duration | omitted / `0s` (unbounded) | `0s` or `1s` through `24h` | Omitted or `0s`: the question waits until answered, canceled, or stopped with its context. A finite value keeps the existing deadline, fallback answer `{choice:null,text:"",fallback:true}`, and `timed_out` outcome. |
 
 ## `[tools.policy]`
 

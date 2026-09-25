@@ -14,6 +14,81 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should start without a globally preferred unrestricted mode when session permissions narrow",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+			h.cfg.Permissions.ProviderFullAccess = true
+			workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			workspace.Config = h.cfg
+			h.resolver.upsert(&workspace)
+
+			created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName:   "coder",
+				Workspace:   h.workspaceID,
+				Permissions: compozyconfig.PermissionModeApproveReads,
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+			if got := h.driver.startCalls[0].ACPOptions; len(got) != 0 {
+				t.Fatalf("driver ACP options = %#v, want no unrestricted mode", got)
+			}
+		},
+	)
+	t.Run("Should start with restricted permissions and no inherited unrestricted mode", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range workspace.Agents {
+			if workspace.Agents[index].Name == "coder" {
+				workspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
+					{ID: "mode", ValueID: "bypassPermissions"},
+				})
+			}
+		}
+		h.resolver.upsert(&workspace)
+
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:   "coder",
+			Workspace:   h.workspaceID,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		if got := created.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+			t.Fatalf("effective permissions = %q, want approve-reads", got)
+		}
+		if len(h.driver.startCalls) != 1 {
+			t.Fatalf("driver start calls = %d, want 1", len(h.driver.startCalls))
+		}
+		if got := h.driver.startCalls[0].ACPOptions; len(got) != 0 {
+			t.Fatalf("driver ACP options = %#v, want no unrestricted mode", got)
+		}
+	})
+}
+
 // TestCreateAcceptedLogicalRuntimeLifecycle verifies deferred provider binding across creation, prompts, and resume.
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Parallel()

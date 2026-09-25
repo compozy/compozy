@@ -1953,6 +1953,26 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should discard full access mode when loop permissions are restricted", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name: "restricted-worker", Provider: "codex", Prompt: "Work.",
+			Permissions: string(compozyconfig.PermissionModeApproveReads),
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		gate := &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+		}}
+		opts := session.CreateOpts{Workspace: "ws-loop"}
+		if _, err := gate.applyResolved(t.Context(), &opts, agent.Name, nil); err != nil {
+			t.Fatalf("applyResolved() error = %v", err)
+		}
+		if opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.ACPOptions) != 0 {
+			t.Fatalf("restricted CreateOpts = %#v, want approve-reads without full access mode", opts)
+		}
+	})
+
 	t.Run("Should propagate agent default ACP options into session creation opts", func(t *testing.T) {
 		t.Parallel()
 		agent := compozyconfig.AgentDef{

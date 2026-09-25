@@ -528,6 +528,36 @@ Use the provider that already owns your credentials and preferred operating path
 Then keep provider-specific behavior in the provider command or provider config, and keep the
 agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.
 
+## Clarification keepalive
+
+While a `compozy__clarify` tool call waits for an operator answer, the daemon sends the ACP
+extension notification `_compozy/clarify_ping` to the session's live agent process: once immediately
+when the question becomes pending, then every 30s until the request is answered, times out, or is
+canceled. Providers that implement the handler reset the idle timer of the blocked tool call so the
+question survives past the ~60s agent-side idle limit; providers that do not implement it ignore the
+notification per the ACP extension rules, with zero behavior change.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "_compozy/clarify_ping",
+  "params": {
+    "session_id": "sess-9f2c",
+    "request_id": "req-clarify-01",
+    "seq": 7,
+    "asked_at": "2026-09-17T10:00:00Z",
+    "deadline": null
+  }
+}
+```
+
+- `deadline: null` marks a wait with no automatic expiration; a finite wait carries its RFC 3339
+  deadline. Agents must never invent a local expiry: the CompozyOS-side deadline stays authoritative.
+- `seq` counts pings for the request from 1; duplicates and gaps are normal liveness, never a state
+  transition. Unknown request IDs are ignored.
+- The notification carries identity only: no tokens, no answer, no question content. Delivery
+  failures never end the wait; the next tick retries.
+
 ## Related pages
 
 - [Agent Definitions](/docs/agents/definitions) explains the `AGENT.md` fields that reference providers.

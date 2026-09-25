@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -107,6 +108,9 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Model:           modelSource,
 		ReasoningEffort: reasoningSource,
 		Speed:           speedSource,
+	}
+	if err := applyProviderFullAccessPreference(&resolved, providerName, provider, permissions); err != nil {
+		return ResolvedAgent{}, err
 	}
 
 	if err := validateResolvedAgentRuntime(providerName, provider, resolved); err != nil {
@@ -247,6 +251,43 @@ func resolvedAgentFromProvider(
 	resolved.SetSpeed(speed)
 	resolved.SetACPOptions(agent.ACPOptionsValue())
 	return resolved
+}
+
+func applyProviderFullAccessPreference(
+	resolved *ResolvedAgent,
+	providerName string,
+	provider ProviderConfig,
+	permissions PermissionsConfig,
+) error {
+	if !permissions.ProviderFullAccess || resolved.Permissions != string(PermissionModeApproveAll) {
+		return nil
+	}
+	for _, option := range resolved.ACPOptionsValue() {
+		if option.ID == "mode" {
+			return nil // The agent explicitly chose its ACP mode.
+		}
+	}
+	if provider.EffectiveHarness() != ProviderHarnessACP {
+		return fmt.Errorf(
+			"permissions.provider_full_access requires an ACP provider; %q uses %q",
+			providerName,
+			provider.EffectiveHarness(),
+		)
+	}
+	var mode string
+	switch providerName {
+	case providerCodexKey:
+		mode = "agent-full-access"
+	case "claude":
+		mode = "bypassPermissions"
+	default:
+		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
+	}
+	options, _ := runtimeoption.MergeSelections(
+		[]ACPOptionSelection{{ID: "mode", ValueID: mode}}, resolved.ACPOptionsValue(),
+	)
+	resolved.SetACPOptions(options)
+	return nil
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.

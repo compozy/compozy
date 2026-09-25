@@ -134102,7 +134102,7 @@ export interface operations {
               asked_at: string;
               choices?: string[];
               /** Format: date-time */
-              deadline: string;
+              deadline: string | null;
               question: string;
               request_id: string;
               session_id: string;

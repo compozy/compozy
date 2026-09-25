@@ -17,6 +17,54 @@
 - **Verification:** transcript parser/projection regressions and the persisted version 1 upgrade
   regression cover exact Markdown bytes, unrelated data, identity, generation, and repeated open.
 
+## Issue 671 — Awaited child output matches its declared shape
+
+- **Native tools / CLI / HTTP / UDS:** Loop validate and publish reject unsupported `run-loop`
+  `produces` fields, types, or constraints. Existing run/status/result routes and IDs stay unchanged. Awaited
+  nodes with the exact declared `loop_run_id` and `status` strings persist those terminal values.
+- **Extensibility / hooks / config:** no new hook, extension capability, or configuration key.
+  The authored `produces` schema selects the structured result already allowed by the Loop DSL.
+- **Compatibility / isolation:** awaited nodes without `produces` retain their scalar terminal
+  output. Historical unsupported declarations retain that scalar too. Existing Run snapshots and
+  workspaces are unchanged; child identity still comes from the same-workspace parent-owned Run.
+- **Web / docs / official skill:** the shared validator supplies Web editor diagnostics without a
+  UI change. Site authoring references document both result forms. The official Loop skill already
+  directs operators to the persisted `child_loop_run_id`; no instruction change is needed.
+- **QA / verification:** `LP-run-loop-await-child-ordering` adds declared-output and validation
+  checks. Focused linter and coordinator tests cover rejection, child `done`/`no-op`, legacy scalar
+  output, and downstream template rendering. A live restart walk remains separate evidence.
+
+## PR 661 CI remediation — metadata-only session restart
+
+- **Native tools / CLI / HTTP / UDS / extensions / hooks / config / official skill:** no contract or configuration change. The existing restart action can reach ready when a concurrently accepted, unbound session has metadata but no event database.
+- **Workspace data isolation and compatibility:** the boot upgrade still verifies catalog ownership and migrates every existing retained event database. Only an owned session with no runtime transition or ACP identity and no database has nothing to upgrade; missing histories for previously bound sessions, even if now unbound, and incompatible existing databases still refuse boot. No state is deleted or migrated by this change.
+- **Web / Docs / QA:** no UI or public documentation shape changes. `TA-scheduled-session-restart-recovery` and its existing `jobs-hardening.spec.ts` browser journey own the restart evidence; the manager query suite covers metadata-only boot and the bound-session refusal.
+
+## Clarify keepalive — unbounded default plus ACP ping
+
+Owning spec: `.compozy/tasks/clarify-keepalive/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001 records the ping-transport decision; reuses `.compozy/tasks/clarify-timeout` ADR-001 for the unbounded default).
+
+- **Native tools / CLI / HTTP / UDS:** `compozy__clarify` keeps its ID, schemas, and risk; `session clarify pending|answer` keep their verbs and shapes except unbounded pending reports `deadline: null`. No route, DTO, or verb added or removed.
+- **Extensibility / hooks / config:** extension `clarify/ask` and both SDK `AskClarification` paths inherit the wait and keepalive with no manifest, permission, or SDK change. Config `tools.clarify.timeout` keeps its key and duration shape; omitted/`0s` becomes unbounded (default flips from 5m), `1s`–`24h` stays finite — SD-013 regime 2 with release-note migration block, explicit finite values auto-keep working. The key is agent-mutable at user scope only: workspace and profile writes are rejected (`--scope user` guidance). New ACP agent-facing notification `_compozy/clarify_ping` (identity-only, ignorable by non-supporting agents). Follow-up (2026-09-18): the ACP ping alone does not keep real agents alive — opencode's MCP client aborts any hosted tool call after its ~60s default request window, and the ACP notification never reaches that timer. The hosted stdio proxy now emits standard MCP `notifications/progress` (every 30s while a call blocks, token echoed from the request) so `resetTimeoutOnProgress` clients reset instead of canceling; clients without a progress token receive nothing.
+- **Workspace data isolation:** pings resolve session → own live agent process only; no cross-session or cross-workspace delivery. Pending waits stay broker-owned in memory; no stored-data change, no migration.
+- **Official skill:** `skills/compozy/references/runtime-operations.md` clarify section stays valid (same verbs); provider contract note for `_compozy/clarify_ping` co-shipped in `packages/site/content/docs/agents/providers.mdx` ("Clarification keepalive") alongside the spec's `_dx.md`.
+- **Web/Docs/QA:** no `web/` rendering change in this spec (zero-deadline display owned by `clarify-timeout`); the nullable wire deadline co-ships only the regenerated OpenAPI nullable flag, the generated TS type, and a matching `string | null` parameter widening. `packages/site` co-ships the config reference, the provider doc, and the stale-bounded-wording sweep (`tools/toolsets.mdx`, `sessions/permissions.mdx`, `extensions/develop.mdx`); the durable clarify transcript projects `deadline: null` for unbounded waits. QA: `J-answer-agent-requests` gains the unbounded branch, MS/RT scenarios and four charters carry the cycle. Verification owned by `_tests.md` (bridge/config/session/acp suites plus E2E-001/E2E-002).
+
+## Issue 667 — Start session workspace default agent
+
+- **Web:** unspecified Start session actions preselect the active workspace registration's
+  `default_agent`; worktree actions use their owning workspace registration. Agent-specific
+  actions preserve the explicitly selected agent. An absent default retains the existing
+  `general` fallback and still requires a valid agent before submission.
+- **Native tools / CLI / HTTP / UDS / extensibility / hooks / config / SDK / official skill:** no
+  contract, configuration key, or behavior change. The Web reads the existing workspace catalog.
+- **Workspace / profile isolation and compatibility:** the chosen agent comes from the exact
+  target workspace row; no other workspace default, session profile binding, or persisted session
+  data changes. Existing sessions retain their agent bindings.
+- **Docs / QA:** workspace configuration guidance and the Start session scenario describe the
+  preselection. The session-create hook suite covers ordinary and worktree launches; the
+  isolated daemon-served browser replay confirms the registered default in the dialog.
+
 ## Issue 655 — Claude model identity and effort discovery
 
 - **Native tools / CLI / HTTP / UDS:** routes and tool IDs are unchanged. Model payloads add
@@ -1001,3 +1049,22 @@ Windows CI also exposed missing `FILE_READ_ATTRIBUTES` on the existing removal h
 Gateway credential deletion and journal recovery now request that right for their existing
 handle-based type/reparse checks. The canonical atomic-removal suite runs in the Windows
 job alongside Gateway recovery; no safety check or test assertion was removed.
+
+## Issue 673 — ACP provider full-access preference
+
+- **Native tools / CLI / HTTP / UDS:** existing session and agent reads report the effective ACP
+  mode; no tool IDs, routes, commands, or DTO fields change. A narrower session permission policy
+  drops an inherited unrestricted agent mode at start and on later runtime changes; explicit
+  unrestricted session selections are refused. A preference newly enabled after session start is
+  also refused on a restricted prompt runtime change.
+- **Extensibility / hooks / config:** `[permissions] provider_full_access` is an opt-in, operator-owned
+  TOML setting. It maps to Codex `agent-full-access` and Claude Code `bypassPermissions` for new
+  `approve-all` sessions. Existing defaults remain when it is false; unsupported ACP providers
+  report a resolution error. Agent-authored ACP mode options retain precedence. Explicit `yolo`
+  and `auto` modes are also treated as unrestricted at the session permission boundary.
+- **Workspace isolation / compatibility:** no stored schema or migration changes. CompozyOS native
+  tool policy, workspace sandbox selection, and operating-system permissions still apply. The
+  provider-native command sandbox may be removed inside those boundaries when explicitly selected.
+- **Web / docs / official skill:** no new Web control or skill command. Site configuration and
+  permissions guides document the option and its limits. `RT-provider-full-access-mode` owns the
+  live Codex/Claude walk; the previous Codex-only probe and focused Go suites are recorded there.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -1049,6 +1050,111 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	if resolved.Model != "agent-model" {
 		t.Fatalf("ResolveAgent() Model = %q, want %q", resolved.Model, "agent-model")
 	}
+}
+
+func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Permissions.ProviderFullAccess = true
+
+	for _, tc := range []struct {
+		name        string
+		provider    string
+		agentMode   string
+		permissions string
+		wantMode    string
+	}{
+		{name: "Should select Codex full access", provider: "codex", wantMode: "agent-full-access"},
+		{name: "Should select Claude bypass permissions", provider: "claude", wantMode: "bypassPermissions"},
+		{name: "Should let an agent narrow the provider mode", provider: "codex", agentMode: "read-only", wantMode: "read-only"},
+		{name: "Should preserve stricter Compozy permissions", provider: "claude", permissions: "approve-reads"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			agent := AgentDef{Name: "qa", Provider: tc.provider, Permissions: tc.permissions, Prompt: "prompt"}
+			if tc.agentMode != "" {
+				agent.SetACPOptions([]ACPOptionSelection{{ID: "mode", ValueID: tc.agentMode}})
+			}
+			resolved, err := cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatalf("ResolveAgent() error = %v", err)
+			}
+			options := resolved.ACPOptionsValue()
+			if tc.wantMode == "" && len(options) == 0 {
+				return
+			}
+			if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != tc.wantMode {
+				t.Fatalf("ResolveAgent() ACPOptions = %#v, want mode %q", options, tc.wantMode)
+			}
+		})
+	}
+	t.Run("Should fail clearly for an unsupported provider", func(t *testing.T) {
+		t.Parallel()
+		_, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"})
+		if err == nil || !strings.Contains(err.Error(), "provider_full_access is unsupported") {
+			t.Fatalf("ResolveAgent() error = %v, want unsupported provider", err)
+		}
+	})
+}
+
+func TestLoadProviderFullAccessPreference(t *testing.T) {
+	t.Run("Should apply a provider mode to a resolved agent", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `[permissions]
+provider_full_access = true
+
+[defaults]
+provider = "codex"
+`)
+
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		options := resolved.ACPOptionsValue()
+		if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
+		}
+	})
+}
+
+func TestWorkspaceCannotEnableProviderFullAccess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject enabling provider full access from workspace config", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		workspaceRoot := t.TempDir()
+		workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
+		if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, workspaceConfig, "[permissions]\nprovider_full_access = true\n")
+		_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
+		if err == nil || !strings.Contains(err.Error(), "only be enabled in the global config") {
+			t.Fatalf("LoadForHome() error = %v, want workspace privilege refusal", err)
+		}
+	})
 }
 
 func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {

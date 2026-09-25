@@ -15,6 +15,7 @@ import (
 func (m *Manager) resolveSessionStartRuntime(
 	ctx context.Context,
 	spec *sessionStartSpec,
+	dropInheritedUnrestricted bool,
 ) (sessionStartRuntime, error) {
 	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
 	if err != nil {
@@ -38,7 +39,12 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
-	if err := spec.applyResolvedRuntimeDefaults(resolved); err != nil {
+	if err := spec.applyResolvedRuntimeDefaults(
+		resolved,
+		m.startPermissions(spec.sessionType, startSpecPermissions(spec, resolved.Permissions)),
+		agentDef.ACPOptionsValue(),
+		dropInheritedUnrestricted,
+	); err != nil {
 		return sessionStartRuntime{}, err
 	}
 	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {

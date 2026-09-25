@@ -19,3 +19,9 @@ overlaps: TA-schedule-catchup-overlap
 Added after the post-merge Web lane exposed a canceled session start whose terminal metadata could
 not finish binding the identityless provisional catalog row. The production recovery fence and the
 same public restart journey passed on 2026-08-12.
+
+The restart boundary also includes a job fire accepted just before shutdown: its owned session
+metadata may exist before the first event database. The replacement daemon must reach ready with
+that never-bound session, upgrade any retained histories, and still reject a missing database for a
+previously bound session even if it is now unbound. The existing `jobs-hardening.spec.ts` browser journey exercises the restart while
+the manager query suite owns the database distinction.

@@ -15,15 +15,15 @@ type ClarificationAnswerRequest struct {
 // ClarificationAnswerPayload is the exact public clarification result.
 type ClarificationAnswerPayload = toolspkg.ClarifyAnswerResult
 
-// ClarificationPendingPayload is the public live pending projection.
+// ClarificationPendingPayload is the public live pending projection (nil Deadline is unbounded).
 type ClarificationPendingPayload struct {
-	RequestID string    `json:"request_id"`
-	SessionID string    `json:"session_id"`
-	AgentName string    `json:"agent_name"`
-	Question  string    `json:"question"`
-	Choices   []string  `json:"choices,omitempty"`
-	AskedAt   time.Time `json:"asked_at"`
-	Deadline  time.Time `json:"deadline"`
+	RequestID string     `json:"request_id"`
+	SessionID string     `json:"session_id"`
+	AgentName string     `json:"agent_name"`
+	Question  string     `json:"question"`
+	Choices   []string   `json:"choices,omitempty"`
+	AskedAt   time.Time  `json:"asked_at"`
+	Deadline  *time.Time `json:"deadline"`
 }
 
 // ClarificationsResponse lists the complete live pending projection for one session.
@@ -33,13 +33,17 @@ type ClarificationsResponse struct {
 
 // ClarificationPendingPayloadFromDomain removes internal workspace ownership from the response body.
 func ClarificationPendingPayloadFromDomain(pending toolspkg.ClarifyPending) ClarificationPendingPayload {
-	return ClarificationPendingPayload{
+	payload := ClarificationPendingPayload{
 		RequestID: pending.RequestID,
 		SessionID: pending.SessionID,
 		AgentName: pending.AgentName,
 		Question:  pending.Question,
 		Choices:   append([]string(nil), pending.Choices...),
 		AskedAt:   pending.AskedAt,
-		Deadline:  pending.Deadline,
 	}
+	// A zero domain deadline is the unbounded marker and stays null on the wire.
+	if !pending.Deadline.IsZero() {
+		payload.Deadline = &pending.Deadline
+	}
+	return payload
 }
