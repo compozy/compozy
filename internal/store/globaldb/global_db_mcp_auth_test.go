@@ -763,6 +763,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			ctx = testutil.Context(t)
 			t.Cleanup(func() {
 				if err := migrated.Close(testutil.Context(t)); err != nil {
 					t.Error(err)
