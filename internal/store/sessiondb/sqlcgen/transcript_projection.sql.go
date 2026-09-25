@@ -407,6 +407,50 @@ func (q *Queries) ListTranscriptSearchCandidates(ctx context.Context, arg ListTr
 	return items, nil
 }
 
+const listTranscriptTextEventsForUpgrade = `-- name: ListTranscriptTextEventsForUpgrade :many
+SELECT sequence, transcript_entry_key, content
+FROM events
+WHERE sequence > ?1
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type IN ('agent_message', 'thought')
+ORDER BY sequence ASC
+LIMIT ?2
+`
+
+type ListTranscriptTextEventsForUpgradeParams struct {
+	AfterSequence int64 `json:"after_sequence"`
+	RowLimit      int64 `json:"row_limit"`
+}
+
+type ListTranscriptTextEventsForUpgradeRow struct {
+	Sequence           int64  `json:"sequence"`
+	TranscriptEntryKey string `json:"transcript_entry_key"`
+	Content            string `json:"content"`
+}
+
+func (q *Queries) ListTranscriptTextEventsForUpgrade(ctx context.Context, arg ListTranscriptTextEventsForUpgradeParams) ([]ListTranscriptTextEventsForUpgradeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptTextEventsForUpgrade, arg.AfterSequence, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptTextEventsForUpgradeRow{}
+	for rows.Next() {
+		var i ListTranscriptTextEventsForUpgradeRow
+		if err := rows.Scan(&i.Sequence, &i.TranscriptEntryKey, &i.Content); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTranscriptProjectionState = `-- name: UpdateTranscriptProjectionState :exec
 UPDATE transcript_projection_state
 SET projection_version = ?1,

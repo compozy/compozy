@@ -66,6 +66,15 @@ FROM events
 WHERE transcript_entry_key = sqlc.arg(transcript_entry_key)
 ORDER BY sequence ASC;
 
+-- name: ListTranscriptTextEventsForUpgrade :many
+SELECT sequence, transcript_entry_key, content
+FROM events
+WHERE sequence > sqlc.arg(after_sequence)
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type IN ('agent_message', 'thought')
+ORDER BY sequence ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: UpsertTranscriptToolRoute :exec
 INSERT INTO transcript_tool_routes (tool_key, entry_key)
 VALUES (sqlc.arg(tool_key), sqlc.arg(entry_key))

@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Issue 669 — Preserve whitespace in session transcripts
+
+- **Session transcript:** canonical, legacy, and raw agent text retain whitespace-only chunks between
+  nonblank chunks through projection; raw nonblank text also retains surrounding spaces. The existing
+  Web renderer keeps split Mermaid fences within their code block and renders subsequent Markdown
+  headings and paragraphs normally.
+- **Persisted sessions:** projection version 2 replays only assistant entries containing whitespace-only
+  chunks or padded raw text when a version 1 session database opens. It leaves the authoritative event
+  ledger, unrelated entries, message identity, sequence fences, active entry, and generation unchanged.
+  The upgrade is transactional and idempotent; no SQL schema migration is needed.
+- **Surfaces and isolation:** the session transcript REST and stream payloads inherit the corrected
+  text. Routes, SDK shapes, configuration, native tools, hooks, and workspace ownership are unchanged.
+  Inactive-session query opens upgrade version 1 through the owned writable path before returning a
+  read-only reader; direct read-only opens still never mutate a database.
+- **Verification:** transcript parser/projection regressions and the persisted version 1 upgrade
+  regression cover exact Markdown bytes, unrelated data, identity, generation, and repeated open.
+
 ## Issue 671 — Awaited child output matches its declared shape
 
 - **Native tools / CLI / HTTP / UDS:** Loop validate and publish reject unsupported `run-loop`

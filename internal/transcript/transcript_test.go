@@ -8,6 +8,90 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+func TestAssistantTranscriptPreservesWhitespaceOnlyChunks(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain split Markdown boundaries in assembled and projected text", func(t *testing.T) {
+		t.Parallel()
+
+		chunks := []string{
+			"Before\n\n```mermaid", "\n", "flowchart LR", "\n", "  A --> B", "\n",
+			"```\n\n## After", "\n\n", "The following paragraph.",
+		}
+		want := ""
+		events := make([]store.SessionEvent, 0, len(chunks))
+		for index, chunk := range chunks {
+			want += chunk
+			content, err := MarshalAgentEvent(acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: "sess-markdown",
+				TurnID: "turn-markdown", Text: chunk,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events = append(events, store.SessionEvent{
+				ID: "event-" + string(rune('a'+index)), Sequence: int64(index + 1),
+				SessionID: "sess-markdown", TurnID: "turn-markdown",
+				Type: acp.EventTypeAgentMessage, Content: content,
+			})
+		}
+
+		messages, err := Assemble(events)
+		if err != nil || len(messages) != 1 || messages[0].Content != want {
+			t.Fatalf("assembled content = %#v, %v; want %q", messages, err, want)
+		}
+		projection, err := BuildProjection(events, 0)
+		if err != nil || len(projection.Segments) != 1 || projection.Segments[0].Entry == nil {
+			t.Fatalf("projected entries = %#v, %v", projection.Segments, err)
+		}
+		if got := UIMessageText(projection.Segments[0].Entry.Message); got != want {
+			t.Fatalf("projected text = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestLegacyAssistantTranscriptPreservesWhitespaceOnlyChunk(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain a legacy newline chunk between text chunks", func(t *testing.T) {
+		t.Parallel()
+		events := []store.SessionEvent{
+			{
+				ID:       "legacy-a",
+				Sequence: 1,
+				TurnID:   "turn-legacy-whitespace",
+				Type:     acp.EventTypeAgentMessage,
+				Content:  "{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"```mermaid\"}}",
+			},
+			{ID: "legacy-b", Sequence: 2, TurnID: "turn-legacy-whitespace", Type: acp.EventTypeAgentMessage,
+				Content: `{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"\n"}}`},
+			{ID: "legacy-c", Sequence: 3, TurnID: "turn-legacy-whitespace", Type: acp.EventTypeAgentMessage,
+				Content: `{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"flowchart LR"}}`},
+		}
+		messages, err := Assemble(events)
+		if err != nil || len(messages) != 1 || messages[0].Content != "```mermaid\nflowchart LR" {
+			t.Fatalf("legacy assembled content = %#v, %v", messages, err)
+		}
+	})
+}
+
+func TestRawAssistantTranscriptPreservesWhitespaceOnlyChunk(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain a raw newline chunk between text chunks", func(t *testing.T) {
+		t.Parallel()
+		events := []store.SessionEvent{
+			{ID: "raw-a", Sequence: 1, TurnID: "turn-raw-whitespace", Type: acp.EventTypeAgentMessage,
+				Content: "```mermaid"},
+			{ID: "raw-b", Sequence: 2, TurnID: "turn-raw-whitespace", Type: acp.EventTypeAgentMessage,
+				Content: "\n"},
+			{ID: "raw-c", Sequence: 3, TurnID: "turn-raw-whitespace", Type: acp.EventTypeAgentMessage,
+				Content: "flowchart LR"},
+		}
+		messages, err := Assemble(events)
+		if err != nil || len(messages) != 1 || messages[0].Content != "```mermaid\nflowchart LR" {
+			t.Fatalf("raw assembled content = %#v, %v", messages, err)
+		}
+	})
+}
+
 func TestAssembleLegacyACPEvents(t *testing.T) {
 	t.Parallel()
 

@@ -25,7 +25,7 @@ func openSessionSQLiteForExistingOwnerWithVacuum(
 	if err != nil {
 		return nil, err
 	}
-	if err := initializeSessionSQLite(ctx, db, MigrationStream(), vacuumFn, path); err != nil {
+	if err := initializeSessionSQLite(ctx, db, MigrationStream(), owner.SessionID, vacuumFn, path); err != nil {
 		primaryErr := fmt.Errorf("store: initialize owned session sqlite database %q: %w", path, err)
 		if closeErr := db.Close(); closeErr != nil {
 			primaryErr = errors.Join(
@@ -65,6 +65,7 @@ func buildSessionSQLiteCandidate(
 		ctx,
 		db,
 		migrationStreamForOwner(owner),
+		owner.SessionID,
 		vacuumFn,
 		"in-memory candidate",
 	); err != nil {
@@ -108,6 +109,7 @@ func initializeSessionSQLite(
 	ctx context.Context,
 	db *sql.DB,
 	stream store.MigrationStream,
+	sessionID string,
 	vacuumFn sessionVacuumFunc,
 	path string,
 ) error {
@@ -115,6 +117,9 @@ func initializeSessionSQLite(
 		return err
 	}
 	if err := initializeTranscriptProjectionState(ctx, db); err != nil {
+		return err
+	}
+	if err := upgradeTranscriptWhitespaceProjection(ctx, db, sessionID); err != nil {
 		return err
 	}
 	if vacuumFn == nil {
