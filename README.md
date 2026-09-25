@@ -264,6 +264,34 @@ Vite HMR:
 make dev
 ```
 
+To populate the Northstar Pay demo and leave its daemon running in the background:
+
+```bash
+make demo-seed
+# Optional isolated home and secondary port:
+make demo-seed DEMO_HOME="$HOME/.compozy-demo-other" DEMO_PORT=2125
+```
+
+This builds the daemon and Web bundle, replaces the seed-owned scenario, and starts
+the demo at `http://localhost:2124` using `~/.compozy-demo` by default. The main
+instance is unchanged. To reseed a running demo, first stop its daemon with
+`COMPOZY_HOME="$HOME/.compozy-demo" ./bin/compozy daemon stop` (use your custom home
+if overridden). The raw `go run ./scripts/demo-seed --home <path>` command remains
+available for data-only seeding. Existing demos in `~/.agh` can still be selected
+explicitly with `DEMO_HOME`.
+
+To prepare the same demo and open it in the Electron desktop shell:
+
+```bash
+make demo-seed-desktop
+# The same overrides apply:
+make demo-seed-desktop DEMO_HOME="$HOME/.compozy-demo-other" DEMO_PORT=2125
+```
+
+The desktop shell uses the demo home for its runtime connection and Electron
+profile. Quitting Electron leaves the demo daemon running in the background.
+As with `demo-seed`, stop an already-running demo before reseeding it.
+
 Run the affected local gate before committing or pushing:
 
 ```bash

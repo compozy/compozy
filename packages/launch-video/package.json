@@ -9,7 +9,7 @@
         "render:all": "remotion render ReleaseAnnounce out/release-announce-16x9.mp4 && remotion render ReleaseAnnounceSquare out/release-announce-1x1.mp4 && remotion render ReleaseAnnounceVertical out/release-announce-9x16.mp4",
         "upgrade": "remotion upgrade",
         "typecheck": "tsc --noEmit",
-        "render:release": "remotion render ReleaseFilm out/compozyos-beta26-release.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --muted",
+        "render:release": "remotion render ReleaseFilm out/compozyos-beta27-release.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --muted",
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src remotion.config.ts"
     },
     "dependencies": {

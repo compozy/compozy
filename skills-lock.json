@@ -144,6 +144,12 @@
             "skillPath": "skills/productivity/handoff/SKILL.md",
             "computedHash": "20e5f4afdef502637510bc5c64d27645d3c85c88df9cb006824bbb0980166319"
         },
+        "herdr": {
+            "source": "herdrdev/herdr",
+            "sourceType": "github",
+            "skillPath": "skills/herdr/SKILL.md",
+            "computedHash": "c741134cc22372c08da2f469d49aac9f9bbddd4f5e1da0558cf1132836fa3287"
+        },
         "herdr-orchestration": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -296,6 +302,12 @@
             "sourceType": "github",
             "skillPath": "skills/turborepo/SKILL.md",
             "computedHash": "47a3efd6a45597eeff338b218183d4d67c2b99fa085ca255e970f5370dcd9dbd"
+        },
+        "typesafe-ai": {
+            "source": "typesafe-ai/skills",
+            "sourceType": "github",
+            "skillPath": "skills/typesafe-ai/SKILL.md",
+            "computedHash": "9cd84c5e535dec8dec59917c110f9c00b4a61faadb86b432ec7e41051170af12"
         },
         "typescript-advanced": {
             "source": "pedronauck/skills",
