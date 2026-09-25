@@ -1032,3 +1032,22 @@ Windows CI also exposed missing `FILE_READ_ATTRIBUTES` on the existing removal h
 Gateway credential deletion and journal recovery now request that right for their existing
 handle-based type/reparse checks. The canonical atomic-removal suite runs in the Windows
 job alongside Gateway recovery; no safety check or test assertion was removed.
+
+## Issue 673 — ACP provider full-access preference
+
+- **Native tools / CLI / HTTP / UDS:** existing session and agent reads report the effective ACP
+  mode; no tool IDs, routes, commands, or DTO fields change. A narrower session permission policy
+  drops an inherited unrestricted agent mode at start and on later runtime changes; explicit
+  unrestricted session selections are refused. A preference newly enabled after session start is
+  also refused on a restricted prompt runtime change.
+- **Extensibility / hooks / config:** `[permissions] provider_full_access` is an opt-in, operator-owned
+  TOML setting. It maps to Codex `agent-full-access` and Claude Code `bypassPermissions` for new
+  `approve-all` sessions. Existing defaults remain when it is false; unsupported ACP providers
+  report a resolution error. Agent-authored ACP mode options retain precedence. Explicit `yolo`
+  and `auto` modes are also treated as unrestricted at the session permission boundary.
+- **Workspace isolation / compatibility:** no stored schema or migration changes. CompozyOS native
+  tool policy, workspace sandbox selection, and operating-system permissions still apply. The
+  provider-native command sandbox may be removed inside those boundaries when explicitly selected.
+- **Web / docs / official skill:** no new Web control or skill command. Site configuration and
+  permissions guides document the option and its limits. `RT-provider-full-access-mode` owns the
+  live Codex/Claude walk; the previous Codex-only probe and focused Go suites are recorded there.

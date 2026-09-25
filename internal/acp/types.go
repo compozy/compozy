@@ -124,6 +124,21 @@ func (o StartOpts) Validate() error {
 	if err := validateSessionConfigOptionSelections(o.ACPOptions); err != nil {
 		return fmt.Errorf("acp: validate start ACP options: %w", err)
 	}
+	return ValidateACPModePermissions(o.ACPOptions, o.Permissions)
+}
+
+// ValidateACPModePermissions keeps unrestricted provider modes behind the effective
+// session permission policy at both start and live runtime changes.
+func ValidateACPModePermissions(
+	options []SessionConfigOptionSelection,
+	permissions compozyconfig.PermissionMode,
+) error {
+	for _, option := range options {
+		if option.ID == sessionConfigModeKey && compozyconfig.IsUnrestrictedACPMode(option.ValueID) &&
+			permissions != compozyconfig.PermissionModeApproveAll {
+			return fmt.Errorf("acp: unrestricted ACP mode %q requires approve-all permissions", option.ValueID)
+		}
+	}
 	return nil
 }
 

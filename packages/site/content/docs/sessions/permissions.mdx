@@ -8,7 +8,17 @@ CompozyOS applies permissions in two layers:
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
-Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
+Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
+unrestricted provider commands: the ACP provider also chooses an operating mode. Set
+`permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
+`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex and
+`bypassPermissions` for Claude Code. Unsupported providers fail session resolution clearly instead
+of silently accepting this preference. Existing mode selection is unchanged when the setting is
+false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
+when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
+permissions never permit an unrestricted mode. This setting does not bypass an outer CompozyOS
+workspace/container sandbox or operating-system permissions; unrestricted provider commands run
+with the daemon user's access within those boundaries.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway

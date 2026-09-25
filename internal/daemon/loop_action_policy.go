@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
@@ -95,7 +96,10 @@ func (g *loopSessionPolicyGate) applyResolved(
 	if opts.Speed == "" {
 		opts.Speed = resolvedAgent.SpeedValue()
 	}
-	agentOptions := session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue())
+	agentOptions := allowedLoopAgentACPOptions(
+		opts.Permissions,
+		session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue()),
+	)
 	mergedACPOptions, err := session.MergeRuntimeACPOptions(agentOptions, opts.ACPOptions)
 	if err != nil {
 		return loopSessionPolicyResolution{}, fmt.Errorf(
@@ -117,6 +121,18 @@ func (g *loopSessionPolicyGate) applyResolved(
 		resolvedAgent.Toolsets = nil
 	}
 	return loopSessionPolicyResolution{workspace: resolved, agent: resolvedAgent}, nil
+}
+
+func allowedLoopAgentACPOptions(
+	permissions compozyconfig.PermissionMode,
+	options []acp.SessionConfigOptionSelection,
+) []acp.SessionConfigOptionSelection {
+	if permissions == compozyconfig.PermissionModeApproveAll {
+		return options
+	}
+	return slices.DeleteFunc(options, func(option acp.SessionConfigOptionSelection) bool {
+		return option.ID == "mode" && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+	})
 }
 
 func loopActionTerminalTools() []string {

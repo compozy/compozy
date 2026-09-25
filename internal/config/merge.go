@@ -113,7 +113,8 @@ type sessionCompactionOverlay struct {
 }
 
 type permissionsOverlay struct {
-	Mode *PermissionMode `toml:"mode"`
+	Mode               *PermissionMode `toml:"mode"`
+	ProviderFullAccess *bool           `toml:"provider_full_access"`
 }
 
 type providerOverlay struct {
