@@ -102,7 +102,7 @@ is_no_lane() {
     */*.test) return 1 ;;
     *.test) [ ! -e "$1" ] && return 0; return 1 ;;
 		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
-		*.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json) return 0 ;;
+		*.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json | skeeper.lock) return 0 ;;
     *) return 1 ;;
   esac
 }

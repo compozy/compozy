@@ -30,6 +30,9 @@ func hydrateExecutedDefinitionSnapshot(
 		return resolved, nil
 	}
 	context := newLintContext(definition, &DefinitionLinter{})
+	// Persisted snapshots were compiled with the historical implicit run-loop schema.
+	// Keep that namespace while rebuilding their template manifest.
+	context.legacyRunLoopOutputSchema = true
 	context.indexGraphTrusted()
 	if err := compileContract(resolved, definition, context, context.namespace(false, false)); err != nil {
 		return nil, fmt.Errorf("loop: hydrate executed contract: %w", err)
@@ -43,7 +46,7 @@ func hydrateExecutedDefinitionSnapshot(
 			return nil, fmt.Errorf("loop: hydrate executed node %s: %w", node.ID, err)
 		}
 	}
-	if err := compileSubLoopBodies(resolved, definition, nil); err != nil {
+	if err := compileSubLoopBodies(resolved, definition, nil, true); err != nil {
 		return nil, fmt.Errorf("loop: hydrate executed sub-loops: %w", err)
 	}
 	return resolved, nil

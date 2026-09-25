@@ -141,7 +141,7 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 			}
 		}
 	}
-	if err := compileSubLoopBodies(resolved, definition, c.tools); err != nil {
+	if err := compileSubLoopBodies(resolved, definition, c.tools, false); err != nil {
 		return nil, err
 	}
 	return resolved, nil

@@ -2169,9 +2169,20 @@ func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.
 		name       string
 		status     Status
 		wantStatus string
+		produces   dsl.Schema
+		wantOutput any
 	}{
-		{name: "Should resolve a done child", status: StatusDone, wantStatus: generationOutputSucceeded},
-		{name: "Should resolve a no-op child", status: StatusNoOp, wantStatus: generationOutputSucceeded},
+		{name: "Should resolve a done child", status: StatusDone, wantStatus: generationOutputSucceeded, wantOutput: "child_loop_status:done"},
+		{name: "Should resolve a no-op child", status: StatusNoOp, wantStatus: generationOutputSucceeded, wantOutput: "child_loop_status:no-op"},
+		{name: "Should retain a declared done child result", status: StatusDone, wantStatus: generationOutputSucceeded,
+			produces:   dsl.Schema{"loop_run_id": "string", "status": "string"},
+			wantOutput: map[string]any{"loop_run_id": "looprun-completed-child", "status": "done"}},
+		{name: "Should retain a declared no-op child result", status: StatusNoOp, wantStatus: generationOutputSucceeded,
+			produces:   dsl.Schema{"loop_run_id": "string", "status": "string"},
+			wantOutput: map[string]any{"loop_run_id": "looprun-completed-child", "status": "no-op"}},
+		{name: "Should retain the scalar for a historical unsupported declaration", status: StatusDone,
+			wantStatus: generationOutputSucceeded, produces: dsl.Schema{"status": "string"},
+			wantOutput: "child_loop_status:done"},
 		{name: "Should resolve a failed child", status: StatusFailed, wantStatus: generationOutputFailed},
 		{name: "Should resolve a canceled child", status: StatusCanceled, wantStatus: generationOutputFailed},
 	} {
@@ -2193,9 +2204,10 @@ func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.
 				`{"loop_run_id":"looprun-completed-child","status":"awaiting_child"}`,
 			))
 			graph := dsl.Graph{Nodes: []dsl.Node{{
-				ID:    "child",
-				Class: dsl.NodeClassAction,
-				Kind:  string(dsl.ActionRunLoop),
+				ID:       "child",
+				Class:    dsl.NodeClassAction,
+				Kind:     string(dsl.ActionRunLoop),
+				Produces: testCase.produces,
 				Params: dsl.NodeParams{
 					"loop": "child-loop",
 					"mode": string(dsl.RunLoopAwait),
@@ -2237,6 +2249,28 @@ func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.
 			}
 			if got, want := output.ChildLoopRunID, string(child.ID); got != want {
 				t.Fatalf("child_loop_run_id = %q, want %q", got, want)
+			}
+			if testCase.wantOutput != nil &&
+				!reflect.DeepEqual(generationOutputRuntimeValue(output), testCase.wantOutput) {
+				t.Fatalf("output = %#v, want %#v", generationOutputRuntimeValue(output), testCase.wantOutput)
+			}
+			if declaresCompletedRunLoopResult(graph.Nodes[0]) {
+				generation := 1
+				if testCase.status == StatusNoOp {
+					generation = 2
+				}
+				namespace, namespaceErr := runtimeNamespace(
+					parent, generation, graph, newControlTopology(graph), []GenerationOutput{output}, "child", 0,
+				)
+				if namespaceErr != nil {
+					t.Fatal(namespaceErr)
+				}
+				rendered, renderErr := refs.RenderTemplateString(
+					"child-result", "{{ .nodes.child.output.loop_run_id }}", namespace,
+				)
+				if renderErr != nil || rendered != string(child.ID) {
+					t.Fatalf("rendered child id = %q, error=%v", rendered, renderErr)
+				}
 			}
 		})
 	}

@@ -2653,6 +2653,52 @@ func implicitReusedGoalHandleDefinition() dsl.Definition {
 	return def
 }
 
+// Invariant: an awaited child result declared by produces is exactly what downstream templates can read.
+// The Loop linter owns the authoring rejection before an expensive child run starts.
+func TestLinterShouldValidateRunLoopTerminalOutputShape(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name      string
+		mode      dsl.RunLoopMode
+		produces  dsl.Schema
+		wantCodes []string
+	}{
+		{name: "Should accept a declared awaited child result", produces: dsl.Schema{"loop_run_id": "string", "status": "string"}},
+		{name: "Should accept explicit string types", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string"}, "status": map[string]any{"type": "string"}}},
+		{name: "Should reject a constrained awaited status", produces: dsl.Schema{"loop_run_id": "string", "status": map[string]any{"type": "string", "enum": []any{"done"}}}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject a constrained awaited run ID", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string", "pattern": "^fixed$"}, "status": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject an unsupported awaited child field", produces: dsl.Schema{"loop_run_id": "string", "outputs": "object"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject a non-string child status", produces: dsl.Schema{"status": "number"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject an incomplete awaited child result", produces: dsl.Schema{"loop_run_id": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should accept a declared detached child result", mode: dsl.RunLoopDetach, produces: dsl.Schema{"loop_run_id": "string"}},
+		{name: "Should reject a constrained detached run ID", mode: dsl.RunLoopDetach, produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string", "minLength": 1000}}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject status in a detached child result", mode: dsl.RunLoopDetach, produces: dsl.Schema{"status": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			def := singleNodeDefinition(dsl.Node{
+				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				Params:   dsl.NodeParams{"loop": "nested", "mode": string(testCase.mode)},
+				Produces: testCase.produces,
+			})
+			requireLintCodes(t, loop.NewLinter().Lint(def), testCase.wantCodes...)
+		})
+	}
+	t.Run("Should reject object fields from an undeclared awaited child result", func(t *testing.T) {
+		t.Parallel()
+		def := singleNodeDefinition(dsl.Node{
+			ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopAwait)},
+		})
+		def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+			ID: "inspect", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "qa", "prompt": "{{ .nodes.child.output.status }}"},
+		})
+		def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "child", To: "inspect"})
+		requireLintCodes(t, loop.NewLinter().Lint(def), refs.CodeUnresolvablePath)
+	})
+}
+
 func singleNodeDefinition(node dsl.Node) dsl.Definition {
 	return dsl.Definition{
 		APIVersion: dsl.APIVersion,
