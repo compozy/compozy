@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-15
+## 0.3.0 - 2026-09-25
 
 ### ♻️ Refactoring
 
@@ -76,6 +76,9 @@
 - Show session context and confirmed prompt deliveries (#635)
 - Unify marketplace catalog and plugin sources (#636)
 - Add release video workspace and production skill
+- Give rendered Markdown a readable visual hierarchy (#660)
+- Add safe bulk worktree cleanup to workspace lists (#656)
+- Add provider-neutral ACP full-access preference (#674)
 
 ### 🐛 Bug Fixes
 
@@ -258,6 +261,13 @@
 - Recover marketplace sources and render catalog logos under CSP (#648)
 - Repair marketplace CI fixtures and evidence capture
 - Cancel unbound goals before deleting sessions (#647)
+- Preserve profile scope when deleting sessions (#652)
+- Discover Claude reasoning options for each exact model (#658)
+- Bootstrap pinned Bun with npm for Vercel builds
+- Honor workspace default in session launcher (#668)
+- Fixing clarify tool call timeout with keep-alive pings (#661)
+- Preserve declared awaited run-loop terminal output (#672)
+- Preserve whitespace in session transcripts (#670)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -284,6 +294,8 @@
 - Project escalation events in acknowledgement fixtures
 - Persist canonical escalation status in overview fixtures
 - Await completed automation run before daemon cleanup
+- Wait for terminal command output before detaching
+- Refresh credential assertions context after migration
 
 ### Release Notes
 
