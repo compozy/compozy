@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { FilePenLine, RefreshCw } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 
-import { Button, cn, Eyebrow, TranscriptDisclosure } from "@compozy/ui";
+import { cn, Eyebrow, TranscriptDisclosure } from "@compozy/ui";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
+import { SessionGoalStripBody } from "./session-goal-strip-body";
 
 export interface SessionGoalStripProps {
   snapshot: SessionGoalSnapshot;
@@ -39,60 +38,6 @@ const STATE_DOT: Record<GoalStripState, string> = {
   moved: "bg-faint",
 };
 
-function clampRatio(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(clampRatio(value) * 100)}%`;
-}
-
-function sentenceCase(value: string): string {
-  const normalized = value.replaceAll("_", " ").replaceAll("-", " ");
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
-function prefillCommand(affordance: GoalComposerAffordance): string {
-  if (affordance.kind === "replace") {
-    return `/goal replace ${affordance.expectedRunId} ${affordance.objective}`;
-  }
-  return `/goal ${affordance.expandedObjective}`;
-}
-
-/** Displays one expanded Goal field, allowing long values to wrap within the strip. */
-function StripRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2.5 text-transcript-body leading-normal">
-      <span className="w-20 shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
-      <span className="min-w-0 whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
-        {children}
-      </span>
-    </div>
-  );
-}
-
-function ContextRow({ context }: { context: SessionGoalSnapshot["context"] }) {
-  if (context.state === "pending") {
-    return <StripRow label="Context">Waiting for a newer usage report.</StripRow>;
-  }
-  if (context.state === "unknown") {
-    return <StripRow label="Context">This agent has not reported context usage.</StripRow>;
-  }
-  const threshold =
-    context.nudge_ratio === 0 ? "nudge disabled" : `nudge at ${formatPercent(context.nudge_ratio)}`;
-  const ratioLabel =
-    context.ratio !== null ? `${formatPercent(context.ratio)} used` : "usage known";
-  return (
-    <StripRow label="Context">
-      <span className="font-mono text-badge text-subtle tabular-nums">
-        {context.used !== null && context.size !== null
-          ? `${context.used.toLocaleString()} / ${context.size.toLocaleString()} tokens · ${threshold}`
-          : `${ratioLabel} · ${threshold}`}
-      </span>
-    </StripRow>
-  );
-}
-
 /**
  * The goal as one quiet line above the transcript (`.goalstrip`): state dot +
  * GOAL kicker + objective + a plain "Step a of b" fact + chevron, expanding to
@@ -110,7 +55,6 @@ export function SessionGoalStrip({
   const state = goalStripState(snapshot);
   const moved = state === "moved";
   const facts = `Step ${snapshot.turns_used} of ${snapshot.turn_limit}`;
-  const showActions = composerAffordance !== undefined && onPrefillComposer !== undefined;
 
   return (
     <section
@@ -156,72 +100,12 @@ export function SessionGoalStrip({
         }
       />
       {open ? (
-        <div data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
-          {/* The line truncates the objective; the body is where it reads in full. */}
-          <StripRow label="Objective">{snapshot.objective}</StripRow>
-          {snapshot.contract_summary ? (
-            <StripRow label="Contract">{snapshot.contract_summary}</StripRow>
-          ) : null}
-          <StripRow label="Run">
-            <Link
-              to="/loop-runs/$runId"
-              params={{ runId: snapshot.run_id }}
-              hash={`node-${snapshot.node_id}`}
-              className="text-info transition-colors hover:underline hover:underline-offset-2"
-            >
-              Open run
-            </Link>{" "}
-            · {sentenceCase(snapshot.run_status)} · {snapshot.live ? "live" : "settled"}
-          </StripRow>
-          <ContextRow context={snapshot.context} />
-          {snapshot.last_verdict ? (
-            <StripRow label="Last verdict">
-              {sentenceCase(snapshot.last_verdict.outcome)} ·{" "}
-              {snapshot.last_verdict.blocking_issues.length} blocking{" "}
-              {snapshot.last_verdict.blocking_issues.length === 1 ? "issue" : "issues"}
-              {snapshot.last_verdict.evidence_ref ? (
-                <>
-                  {" "}
-                  <span className="font-mono text-badge text-subtle">
-                    {snapshot.last_verdict.evidence_ref}
-                  </span>
-                </>
-              ) : null}
-            </StripRow>
-          ) : null}
-          {moved ? (
-            <StripRow label="Session">
-              Goal work moved to a new active session.{" "}
-              <Link
-                to="/session/$id"
-                params={{ id: snapshot.bound_session_id }}
-                data-testid="goal-strip-active-session"
-                className="text-info transition-colors hover:underline hover:underline-offset-2"
-              >
-                Active session
-              </Link>
-            </StripRow>
-          ) : null}
-          {showActions ? (
-            <StripRow label="Actions">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                data-testid="goal-strip-prefill"
-                onClick={() => onPrefillComposer(prefillCommand(composerAffordance))}
-                className="-ml-2 text-muted"
-              >
-                {composerAffordance.kind === "replace" ? (
-                  <RefreshCw aria-hidden="true" className="size-3 text-subtle" />
-                ) : (
-                  <FilePenLine aria-hidden="true" className="size-3 text-subtle" />
-                )}
-                {composerAffordance.kind === "replace" ? "Draft replacement" : "Draft goal command"}
-              </Button>
-            </StripRow>
-          ) : null}
-        </div>
+        <SessionGoalStripBody
+          snapshot={snapshot}
+          moved={moved}
+          composerAffordance={composerAffordance}
+          onPrefillComposer={onPrefillComposer}
+        />
       ) : null}
     </section>
   );
