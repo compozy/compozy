@@ -16,6 +16,7 @@ import {
   probeTone,
   probeToolLabel,
   runtimeTone,
+  summarizeMCPStatus,
 } from "../mcp-status-view-model";
 
 type AuthStatus = NonNullable<SettingsMCPServerEntry["auth_status"]>;
@@ -491,5 +492,64 @@ describe("composeMCPRowStatus", () => {
     expect(status.runtime.tone).toBe("neutral");
     expect(status.probe.tone).toBe("neutral");
     expect(status.probe.code).toBeUndefined();
+  });
+});
+
+describe("summarizeMCPStatus", () => {
+  // Invariant: the row's single status is the most severe signal, and only a ready runtime is green.
+  it.each([
+    [
+      "a runtime failure over a healthy sign-in",
+      {
+        authStatus: { status: "authenticated", token_present: true },
+        runtimeStatus: { state: "dead", probe: "skipped" },
+      },
+      { label: "Unavailable", tone: "danger" },
+    ],
+    [
+      "an invalid sign-in",
+      { authStatus: { status: "invalid" }, runtimeStatus: { state: "ready", probe: "skipped" } },
+      { label: "Sign-in failed", tone: "danger" },
+    ],
+    [
+      "a failed probe on a ready runtime",
+      { runtimeStatus: { state: "ready", probe: "failed" } },
+      { label: "Couldn't connect", tone: "danger" },
+    ],
+    [
+      "a server that needs sign-in",
+      {
+        authStatus: { status: "needs_login" },
+        runtimeStatus: { state: "auth_required", probe: "skipped" },
+      },
+      { label: "Needs sign-in", tone: "warning" },
+    ],
+    [
+      "an expired sign-in",
+      {
+        authStatus: { status: "expired" },
+        runtimeStatus: { state: "auth_expired", probe: "skipped" },
+      },
+      { label: "Sign-in expired", tone: "warning" },
+    ],
+    [
+      "a ready server",
+      { runtimeStatus: { state: "ready", probe: "succeeded", tool_count: 3 } },
+      { label: "Ready", tone: "success" },
+    ],
+    [
+      "a server with no runtime status",
+      { runtimeStatus: null },
+      { label: "Not checked yet", tone: "neutral" },
+    ],
+    [
+      "an unknown future runtime state",
+      { runtimeStatus: { state: "warming_up", probe: "skipped" } },
+      { label: "Warming up", tone: "neutral" },
+    ],
+  ] as const)("summarizes %s", (_name, overrides, expected) => {
+    const entry = makeEntry(overrides as EntryOverrides);
+    expect(summarizeMCPStatus(entry)).toEqual(expected);
+    expect(composeMCPRowStatus(entry).summary).toEqual(expected);
   });
 });
