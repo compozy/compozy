@@ -1,5 +1,7 @@
 import { Metric, MetricGrid, Time } from "@compozy/ui";
 
+import { AGENT_STAT_DASH, agentStatsView } from "../lib/agent-stats-view";
+
 export interface AgentStatsGridProps {
   active: number;
   /** Formatted runtime duration, or null when there is no elapsed runtime yet. */
@@ -19,6 +21,18 @@ export interface AgentStatsGridProps {
 
 const UNAVAILABLE_LABEL = "Not available right now.";
 
+function LastActivityValue({
+  showMetrics,
+  lastActivityAt,
+}: {
+  showMetrics: boolean;
+  lastActivityAt: string | null;
+}) {
+  if (!showMetrics) return AGENT_STAT_DASH;
+  if (!lastActivityAt) return "Never";
+  return <Time iso={lastActivityAt} mode="relative" />;
+}
+
 export function AgentStatsGrid({
   active,
   runtimeLabel,
@@ -29,48 +43,36 @@ export function AgentStatsGrid({
   metricsAvailable = true,
   unavailable = false,
 }: AgentStatsGridProps) {
-  const dash = "—";
   const showMetrics = metricsAvailable && !unavailable;
   const unavailableLabel = showMetrics ? undefined : UNAVAILABLE_LABEL;
+  const stats = agentStatsView({ active, runtimeLabel, failed, sessionsTotal, showMetrics });
 
   return (
     <MetricGrid data-testid="agent-stats-grid" className={className}>
       <Metric
         label="Active"
-        value={showMetrics ? active : dash}
-        tone={showMetrics && active > 0 ? "success" : "default"}
-        subtext={
-          showMetrics && typeof sessionsTotal === "number"
-            ? `of ${sessionsTotal} sessions`
-            : undefined
-        }
+        value={stats.active}
+        tone={stats.activeTone}
+        subtext={stats.activeSubtext}
         aria-label={unavailableLabel}
         data-testid="agent-stat-active"
       />
       <Metric
         label="Time working"
-        value={showMetrics && runtimeLabel !== null ? runtimeLabel : dash}
+        value={stats.runtime}
         aria-label={unavailableLabel}
         data-testid="agent-stat-runtime"
       />
       <Metric
         label="Failed"
-        value={showMetrics && failed !== null ? failed : dash}
-        tone={showMetrics && failed !== null && failed > 0 ? "danger" : "default"}
+        value={stats.failed}
+        tone={stats.failedTone}
         aria-label={unavailableLabel}
         data-testid="agent-stat-failed"
       />
       <Metric
         label="Last activity"
-        value={
-          !showMetrics ? (
-            dash
-          ) : lastActivityAt ? (
-            <Time iso={lastActivityAt} mode="relative" />
-          ) : (
-            "Never"
-          )
-        }
+        value={<LastActivityValue showMetrics={showMetrics} lastActivityAt={lastActivityAt} />}
         aria-label={unavailableLabel}
         data-testid="agent-stat-last-activity"
       />

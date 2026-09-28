@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 
 import type { HomeAgentRow } from "../../hooks/use-home-agents";
-import type { HomeSystemModel } from "../../hooks/use-home-system";
+import type { HomeSystemModel } from "../../lib/home-system";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../../types";
 import { makeHomeOverview } from "../../mocks/fixtures";
 import type { HomeActivityEvent } from "../../types";

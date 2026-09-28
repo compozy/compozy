@@ -7,9 +7,17 @@ import {
 } from "./agent-create-draft";
 import { AGENT_CREATE_PERMISSION_OPTIONS } from "./agent-permissions";
 import { joinAgentCategorySegments } from "./agent-category";
-import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-runtime";
+import {
+  normalizeRuntimeSpeed,
+  resolveAgentRuntimeValue,
+  runtimeACPSelections,
+} from "./agent-effective-runtime";
 import type { AgentPayload, UpdateAgentParams } from "../types";
-import { runtimeACPSelectionsEqual, type RuntimeACPOptionSelection } from "@/systems/runtime";
+import {
+  runtimeACPSelectionsEqual,
+  type RuntimeACPOptionSelection,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
 
 const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
   AGENT_CREATE_PERMISSION_OPTIONS.map(option => option.value).filter(
@@ -174,4 +182,47 @@ export function buildUpdateAgentParams(
 function sameList(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
+}
+
+type AgentEffectiveRuntime = AgentPayload["effective_runtime"];
+
+/** Effective reasoning applies only while the draft still points at the effective model. */
+function inheritedReasoningEffort(
+  effective: AgentEffectiveRuntime,
+  selectedModel: string,
+  providerMatchesEffective: boolean
+): string {
+  if (!providerMatchesEffective || selectedModel !== effective?.model?.trim()) return "";
+  return effective?.reasoning_effort ?? "";
+}
+
+/**
+ * Runtime selector value for the settings draft: draft overrides win, and the
+ * agent's effective runtime fills whatever the draft leaves blank.
+ */
+export function agentSettingsRuntimeValue(
+  agent: AgentPayload,
+  draft: AgentSettingsDraft
+): RuntimeSelectorValue {
+  const effective = agent.effective_runtime;
+  const effectiveProvider = effective?.provider?.trim() ?? "";
+  const provider = draft.provider.trim() || effectiveProvider;
+  const providerMatchesEffective = provider === effectiveProvider;
+  const inheritedModel = providerMatchesEffective ? (effective?.model?.trim() ?? "") : "";
+  const model = draft.model.trim() || inheritedModel;
+  const acpOptions = draft.acpOptions ?? resolveAgentRuntimeValue(agent).acp_options;
+  return {
+    provider,
+    model,
+    reasoning_effort:
+      draft.reasoningEffort || inheritedReasoningEffort(effective, model, providerMatchesEffective),
+    ...(acpOptions ? { acp_options: acpOptions } : {}),
+  };
+}
+
+export function agentSettingsRuntimeSpeed(
+  agent: AgentPayload,
+  draft: AgentSettingsDraft
+): RuntimeSpeed {
+  return draft.speed || agent.effective_runtime?.speed || "normal";
 }

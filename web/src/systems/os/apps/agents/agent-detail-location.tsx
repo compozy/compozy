@@ -8,23 +8,20 @@ import {
   PAGE_CONTENT_GUTTER,
   Skeleton,
   TabsContent,
-  useTopbarSlot,
-  type LaneTabsItem,
 } from "@compozy/ui";
 
-import { useAgentDetail } from "./use-agent-detail";
+import { agentDetailTabItems, agentSessionsStatus } from "./agent-detail-view";
+import { listPaginationStatus } from "./list-pagination-status";
+import { useAgentDetail, type UseAgentDetailResult } from "./use-agent-detail";
+import { useAgentDetailTopbar } from "./use-agent-detail-topbar";
 import {
   AgentConfigurationTab,
   AgentDetailHeader,
   type AgentDetailSearch,
-  type AgentDetailTab,
   AgentDiagnosticsBanner,
   type AgentInstructionFile,
   AgentInstructionsTab,
   AgentOverviewTab,
-  AgentPageActions,
-  AgentPageOverflow,
-  AgentPageStatusPill,
   type AgentPayload,
   AgentRuntimeControl,
   AgentSessionsTab,
@@ -65,104 +62,136 @@ function AgentInstructionsSection({
   );
 }
 
-interface AgentDetailContentProps {
-  name: string;
-  rawSearch: AgentDetailSearch;
+function AgentDetailLoading() {
+  return (
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
+      data-testid="agent-detail-loading"
+    >
+      <Skeleton className="h-10 w-64" />
+      <Skeleton className="h-8 w-80" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-20 rounded-md" />
+        ))}
+      </div>
+      <Skeleton className="h-48 rounded-md" />
+    </div>
+  );
 }
 
-/** Present an agent and its sessions, forwarding lifecycle results to the shared confirmation UI. */
-export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
-  const page = useAgentDetail(name, rawSearch);
-  const search = page.search;
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-
-  const metricsReady = !page.metricsLoading && !page.metricsUnavailable;
-  const tabItems: LaneTabsItem<AgentDetailTab>[] = [
-    { value: "overview", label: "Overview", testId: "agent-tab-overview" },
-    { value: "instructions", label: "Instructions", testId: "agent-tab-instructions" },
-    { value: "configuration", label: "Configuration", testId: "agent-tab-configuration" },
-    {
-      value: "sessions",
-      label: "Sessions",
-      // Omit count when metrics are loading/unavailable — never show an inferred zero.
-      ...(metricsReady ? { count: page.sessionsTotal } : {}),
-      liveLabel: metricsReady && page.activeSessionsTotal > 0 ? "Live" : undefined,
-      testId: "agent-tab-sessions",
-    },
-  ];
-
-  useTopbarSlot(
-    page.agent
-      ? {
-          onBack: () => page.onBackToAgents(),
-          crumbs: [{ id: "agents", label: "Agents", onSelect: () => page.onBackToAgents() }],
-          crumb: <span data-testid="agent-detail-header-name">{name}</span>,
-          status: metricsReady ? (
-            <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
-          ) : undefined,
-          actions: (
-            <AgentPageActions
-              onNewSession={page.onNewSession}
-              isCreatingSession={page.isCreatingForAgent}
-              newSessionDisabled={page.newSessionDisabled}
-            />
-          ),
-          overflow: (
-            <AgentPageOverflow
-              onDelete={page.onDelete}
-              onDuplicate={page.onDuplicate}
-              onEditSettings={() => page.onEditSettings()}
-            />
-          ),
+function AgentDetailNotFound({
+  name,
+  error,
+  onBack,
+}: {
+  name: string;
+  error: Error | null;
+  onBack: () => void;
+}) {
+  return (
+    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}>
+      <Empty
+        icon={AlertCircle}
+        title="Agent not found"
+        description={error?.message ?? `No agent named "${name}" was found in this project.`}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            data-testid="agent-detail-back-agents"
+          >
+            <Compass className="size-3" />
+            Back to agents
+          </Button>
         }
-      : null
+        data-testid="agent-detail-not-found"
+      />
+    </div>
   );
+}
 
-  if (page.agentLoading) {
-    return (
-      <div
-        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
-        data-testid="agent-detail-loading"
-      >
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-8 w-80" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-20 rounded-md" />
-          ))}
-        </div>
-        <Skeleton className="h-48 rounded-md" />
-      </div>
-    );
-  }
+function AgentDiagnosticsSlot({ agent }: { agent: AgentPayload }) {
+  if (!agent.diagnostics || agent.diagnostics.length === 0) return null;
+  return (
+    <div className="shrink-0 pt-5" data-testid="agent-diagnostics-slot">
+      <AgentDiagnosticsBanner diagnostics={agent.diagnostics} />
+    </div>
+  );
+}
 
-  if (page.agentError || !page.agent) {
-    return (
-      <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}>
-        <Empty
-          icon={AlertCircle}
-          title="Agent not found"
-          description={
-            page.agentError?.message ?? `No agent named "${name}" was found in this project.`
-          }
-          action={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={page.onBackToAgents}
-              data-testid="agent-detail-back-agents"
-            >
-              <Compass className="size-3" />
-              Back to agents
-            </Button>
-          }
-          data-testid="agent-detail-not-found"
+function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
+  const { sessionDeleteDialog: deleteDialog, sessionRenameDialog: renameDialog } = page;
+  return (
+    <>
+      {deleteDialog.session ? (
+        <SessionDeleteDialog
+          open={deleteDialog.open}
+          onOpenChange={deleteDialog.onOpenChange}
+          session={deleteDialog.session}
+          sessions={deleteDialog.sessions}
+          results={deleteDialog.results}
+          onRetry={deleteDialog.onRetry}
+          isDeleting={deleteDialog.isDeleting}
+          onConfirm={deleteDialog.onConfirm}
         />
-      </div>
-    );
-  }
+      ) : null}
+      {renameDialog.session ? (
+        <SessionRenameDialog
+          open={renameDialog.open}
+          onOpenChange={renameDialog.onOpenChange}
+          session={renameDialog.session}
+          isRenaming={renameDialog.isRenaming}
+          onConfirm={renameDialog.onConfirm}
+        />
+      ) : null}
+    </>
+  );
+}
 
+function AgentSessionsPanel({ page, name }: { page: UseAgentDetailResult; name: string }) {
+  return (
+    <>
+      <AgentSessionsTab
+        agentName={name}
+        sessions={page.sessions}
+        archivedSessions={page.archivedSessions}
+        archivedTotal={page.archivedSessionsTotal}
+        total={page.sessionsTotal}
+        active={page.activeSessionsTotal}
+        failed={page.failedSessionsTotal}
+        metricsUnavailable={page.metricsUnavailable}
+        metricsLoading={page.metricsLoading}
+        status={agentSessionsStatus(page)}
+        paginationStatus={listPaginationStatus(page.isLoadingMoreSessions, page.hasMoreSessions)}
+        onLoadMore={page.onLoadMoreSessions}
+        archivedPaginationStatus={listPaginationStatus(
+          page.isLoadingMoreArchivedSessions,
+          page.hasMoreArchivedSessions
+        )}
+        onLoadMoreArchived={page.onLoadMoreArchivedSessions}
+        sessionActions={page.sessionActions}
+        filter={page.search.filter}
+        onFilterChange={page.setFilter}
+        onNewSession={page.onNewSession}
+        onClearFilter={() => page.setFilter("all")}
+        onRetry={page.onRetrySessions}
+      />
+      <AgentSessionDialogs page={page} />
+    </>
+  );
+}
+
+interface AgentDetailBodyProps {
+  agent: AgentPayload;
+  name: string;
+  page: UseAgentDetailResult;
+  workspaceId: string | null;
+}
+
+function AgentDetailBody({ agent, name, page, workspaceId }: AgentDetailBodyProps) {
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
@@ -170,19 +199,15 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
     >
       {page.deleteDialog}
       <div className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}>
-        {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
-          <div className="shrink-0 pt-5" data-testid="agent-diagnostics-slot">
-            <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
-          </div>
-        ) : null}
-        <AgentDetailHeader agent={page.agent} />
+        <AgentDiagnosticsSlot agent={agent} />
+        <AgentDetailHeader agent={agent} />
         <LaneTabs
           ariaLabel="Agent detail panels"
           className="min-h-0 flex-1 gap-0"
-          items={tabItems}
+          items={agentDetailTabItems(page)}
           listClassName="w-full"
           onChange={page.setTab}
-          value={search.tab}
+          value={page.search.tab}
           data-testid="agent-detail-tabs"
         >
           <div
@@ -191,7 +216,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
           >
             <TabsContent value="overview" className="flex flex-col gap-6">
               <AgentOverviewTab
-                agent={page.agent}
+                agent={agent}
                 sessions={page.sessions}
                 sessionsTotal={page.sessionsTotal}
                 activeSessionsTotal={page.activeSessionsTotal}
@@ -204,9 +229,9 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 sessionsError={page.sessionsError}
                 runtimeControl={
                   <AgentRuntimeControl
-                    agent={page.agent}
+                    agent={agent}
                     labelledBy="agent-overview-model-label"
-                    workspaceId={runtimeWorkspaceId}
+                    workspaceId={workspaceId}
                   />
                 }
                 onEditRuntime={() => page.onEditSettings("runtime")}
@@ -216,11 +241,11 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
 
             <TabsContent value="instructions" className="flex flex-col gap-6">
               <AgentInstructionsSection
-                agent={page.agent}
-                file={search.file}
+                agent={agent}
+                file={page.search.file}
                 onFileChange={page.setFile}
                 onEditAgentPrompt={() => page.onEditSettings("instructions")}
-                workspaceId={runtimeWorkspaceId}
+                workspaceId={workspaceId}
                 sessions={page.sessions}
                 onNewSession={page.onNewSession}
               />
@@ -228,71 +253,41 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
 
             <TabsContent value="configuration" className="flex flex-col gap-6">
               <AgentConfigurationTab
-                agent={page.agent}
+                agent={agent}
                 onEditSection={section => page.onEditSettings(section)}
               />
             </TabsContent>
 
             <TabsContent value="sessions" className="flex flex-col gap-6">
-              <AgentSessionsTab
-                agentName={name}
-                sessions={page.sessions}
-                archivedSessions={page.archivedSessions}
-                archivedTotal={page.archivedSessionsTotal}
-                total={page.sessionsTotal}
-                active={page.activeSessionsTotal}
-                failed={page.failedSessionsTotal}
-                metricsUnavailable={page.metricsUnavailable}
-                metricsLoading={page.metricsLoading}
-                status={page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"}
-                paginationStatus={
-                  page.isLoadingMoreSessions
-                    ? "loading"
-                    : page.hasMoreSessions
-                      ? "available"
-                      : undefined
-                }
-                onLoadMore={page.onLoadMoreSessions}
-                archivedPaginationStatus={
-                  page.isLoadingMoreArchivedSessions
-                    ? "loading"
-                    : page.hasMoreArchivedSessions
-                      ? "available"
-                      : undefined
-                }
-                onLoadMoreArchived={page.onLoadMoreArchivedSessions}
-                sessionActions={page.sessionActions}
-                filter={search.filter}
-                onFilterChange={page.setFilter}
-                onNewSession={page.onNewSession}
-                onClearFilter={() => page.setFilter("all")}
-                onRetry={page.onRetrySessions}
-              />
-              {page.sessionDeleteDialog.session ? (
-                <SessionDeleteDialog
-                  open={page.sessionDeleteDialog.open}
-                  onOpenChange={page.sessionDeleteDialog.onOpenChange}
-                  session={page.sessionDeleteDialog.session}
-                  sessions={page.sessionDeleteDialog.sessions}
-                  results={page.sessionDeleteDialog.results}
-                  onRetry={page.sessionDeleteDialog.onRetry}
-                  isDeleting={page.sessionDeleteDialog.isDeleting}
-                  onConfirm={page.sessionDeleteDialog.onConfirm}
-                />
-              ) : null}
-              {page.sessionRenameDialog.session ? (
-                <SessionRenameDialog
-                  open={page.sessionRenameDialog.open}
-                  onOpenChange={page.sessionRenameDialog.onOpenChange}
-                  session={page.sessionRenameDialog.session}
-                  isRenaming={page.sessionRenameDialog.isRenaming}
-                  onConfirm={page.sessionRenameDialog.onConfirm}
-                />
-              ) : null}
+              <AgentSessionsPanel page={page} name={name} />
             </TabsContent>
           </div>
         </LaneTabs>
       </div>
     </div>
+  );
+}
+
+interface AgentDetailContentProps {
+  name: string;
+  rawSearch: AgentDetailSearch;
+}
+
+/** Present an agent and its sessions, forwarding lifecycle results to the shared confirmation UI. */
+export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
+  const page = useAgentDetail(name, rawSearch);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  useAgentDetailTopbar(page, name);
+
+  if (page.agentLoading) {
+    return <AgentDetailLoading />;
+  }
+
+  if (page.agentError || !page.agent) {
+    return <AgentDetailNotFound name={name} error={page.agentError} onBack={page.onBackToAgents} />;
+  }
+
+  return (
+    <AgentDetailBody agent={page.agent} name={name} page={page} workspaceId={runtimeWorkspaceId} />
   );
 }

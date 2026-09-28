@@ -9,7 +9,7 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import type { HomeSystemModel } from "../hooks/use-home-system";
+import type { HomeSystemModel } from "../lib/home-system";
 
 export interface HomeSystemPanelProps {
   system: HomeSystemModel;

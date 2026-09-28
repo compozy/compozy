@@ -1,52 +1,43 @@
-import { AlertCircle, Plus, RefreshCw, Users2 } from "lucide-react";
+import { AlertCircle, RefreshCw, Users2 } from "lucide-react";
 
-import { Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
+import { Button, Empty, ListingPage } from "@compozy/ui";
 
+import { agentFleetListStatus, isAgentsErrorEmpty } from "./agents-catalog-view";
+import { listPaginationStatus } from "./list-pagination-status";
 import { useAgentsFleetPage } from "./use-agents-catalog";
-import { AgentFleetList, AgentFleetToolbar, type AgentsFleetSearch } from "@/systems/agent";
+import { useAgentsCatalogTopbar } from "./use-agents-catalog-topbar";
+import { AgentFleetList, type AgentsFleetSearch } from "@/systems/agent";
+
+function AgentFleetErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="flex min-h-0 flex-1 items-center justify-center py-10"
+      data-testid="agent-fleet-error"
+    >
+      <Empty
+        action={
+          <Button
+            data-testid="agent-fleet-error-retry"
+            onClick={onRetry}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <RefreshCw aria-hidden="true" className="size-3" />
+            Retry
+          </Button>
+        }
+        description="Couldn't load your agents. Check that CompozyOS is running, then try again."
+        icon={AlertCircle}
+        title="Couldn't load agents"
+      />
+    </div>
+  );
+}
 
 export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch }) {
   const page = useAgentsFleetPage(search);
-
-  const agentsErrorEmpty = Boolean(page.agentsError) && page.agents.length === 0 && !page.isLoading;
-  const headCount =
-    page.isLoading || agentsErrorEmpty || page.isFirstRunEmpty || page.workspaceId === ""
-      ? undefined
-      : page.fleetTotal;
-
-  useTopbarSlot({
-    glyph: <Users2 />,
-    count: headCount,
-    actions:
-      page.isFirstRunEmpty || page.workspaceId === "" ? undefined : (
-        <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
-          <Button
-            data-testid="agents-topbar-create"
-            onClick={page.openCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            New agent
-          </Button>
-        </div>
-      ),
-    toolbar:
-      page.workspaceId === "" ? undefined : (
-        <AgentFleetToolbar
-          categoryOptions={page.categoryOptions}
-          draftQuery={page.draftQuery}
-          onDraftQueryChange={page.setDraftQuery}
-          onFiltersChange={page.setFilters}
-          onViewChange={page.setView}
-          search={page.search}
-          searchInputRef={page.searchInputRef}
-          showFacets={page.showFacets}
-          showViewToggle={page.showViewToggle}
-          view={page.view}
-        />
-      ),
-  });
+  useAgentsCatalogTopbar(page);
 
   if (page.workspaceId === "") {
     return (
@@ -65,45 +56,16 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
 
   return (
     <ListingPage data-testid="agent-fleet-page">
-      {agentsErrorEmpty ? (
-        <div
-          className="flex min-h-0 flex-1 items-center justify-center py-10"
-          data-testid="agent-fleet-error"
-        >
-          <Empty
-            action={
-              <Button
-                data-testid="agent-fleet-error-retry"
-                onClick={page.retryAgents}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <RefreshCw aria-hidden="true" className="size-3" />
-                Retry
-              </Button>
-            }
-            description="Couldn't load your agents. Check that CompozyOS is running, then try again."
-            icon={AlertCircle}
-            title="Couldn't load agents"
-          />
-        </div>
+      {isAgentsErrorEmpty(page) ? (
+        <AgentFleetErrorState onRetry={page.retryAgents} />
       ) : (
         <AgentFleetList
-          status={
-            page.isLoading
-              ? "loading"
-              : page.isFirstRunEmpty
-                ? "first-run-empty"
-                : page.isFilteredEmpty
-                  ? "filtered-empty"
-                  : "ready"
-          }
+          status={agentFleetListStatus(page)}
           newSessionStatus={page.newSessionDisabled ? "disabled" : "enabled"}
           onClearFilters={page.clearFilters}
           onCreateAgent={page.openCreate}
           onNewSession={page.openNewSession}
-          paginationStatus={page.isLoadingMore ? "loading" : page.hasMore ? "available" : undefined}
+          paginationStatus={listPaginationStatus(page.isLoadingMore, page.hasMore)}
           onLoadMore={page.loadMore}
           rows={page.rows}
           sessionDataStatus={page.sessionsPartial ? "partial" : "available"}

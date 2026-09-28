@@ -47,6 +47,111 @@ function UnknownAgentValue({ name }: { name: string }) {
   );
 }
 
+/** Catalog state rides beside a resolved selection: it stays usable while stale. */
+function CatalogStatus({
+  catalogError,
+  loading,
+}: {
+  catalogError: string | null;
+  loading: boolean;
+}) {
+  if (!catalogError && !loading) return null;
+  return (
+    <Eyebrow
+      className={catalogError ? "ml-auto text-danger" : "ml-auto text-muted"}
+      data-testid="agent-command-select-catalog-status"
+    >
+      {catalogError ? "Unavailable" : "Loading"}
+    </Eyebrow>
+  );
+}
+
+function SelectedAgentValue({
+  agent,
+  catalogError,
+  loading,
+}: {
+  agent: AgentPayload;
+  catalogError: string | null;
+  loading: boolean;
+}) {
+  const hasCategory = Boolean(agent.category_path && agent.category_path.length > 0);
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted" />
+      <span className="truncate text-small-body text-fg">{agent.name}</span>
+      <Eyebrow className="text-muted">{agent.provider}</Eyebrow>
+      {hasCategory ? (
+        <Eyebrow
+          className="text-muted ml-auto truncate"
+          data-testid="agent-command-select-trigger-category"
+        >
+          {formatCategoryLabel(agent.category_path)}
+        </Eyebrow>
+      ) : null}
+      <CatalogStatus catalogError={catalogError} loading={loading} />
+    </span>
+  );
+}
+
+function EmptySelectionLabel({
+  catalogError,
+  loading,
+  label,
+}: {
+  catalogError: string | null;
+  loading: boolean;
+  label: string;
+}) {
+  if (catalogError) return <span className="truncate text-danger">Unable to load agents</span>;
+  return <span className="truncate text-muted">{loading ? "Loading agents…" : label}</span>;
+}
+
+interface AgentCommandSelectValueProps {
+  selectedAgent: AgentPayload | null;
+  selectedName: string | null;
+  catalogError: string | null;
+  loading: boolean;
+  emptyLabel: string;
+}
+
+function AgentCommandSelectValue({
+  selectedAgent,
+  selectedName,
+  catalogError,
+  loading,
+  emptyLabel,
+}: AgentCommandSelectValueProps) {
+  if (selectedAgent) {
+    return (
+      <SelectedAgentValue agent={selectedAgent} catalogError={catalogError} loading={loading} />
+    );
+  }
+  if (selectedName) return <UnknownAgentValue name={selectedName} />;
+  return <EmptySelectionLabel catalogError={catalogError} loading={loading} label={emptyLabel} />;
+}
+
+function ClearAgentItem({
+  label,
+  checked,
+  onSelect,
+}: {
+  label: string;
+  checked: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <CommandItem
+      value={label}
+      onSelect={onSelect}
+      data-checked={checked ? "true" : "false"}
+      data-testid="agent-command-item-clear"
+    >
+      <span className="truncate text-small-body text-fg">{label}</span>
+    </CommandItem>
+  );
+}
+
 export function AgentCommandSelect({
   agents,
   value,
@@ -64,15 +169,10 @@ export function AgentCommandSelect({
   const selectedName = value?.trim() ? value : null;
   const selectedAgent = agents.find(agent => agent.name === selectedName) ?? null;
   const catalogError = error?.trim() || null;
-  const hasCatalogItems = agents.length > 0;
-  const catalogStatus = catalogError ? "Unavailable" : loading ? "Loading" : null;
+  const loadingFirstPage = loading && agents.length === 0;
   const isSelected = (agent: AgentPayload) => agent.name === selectedName;
-  const handleSelect = (agent: AgentPayload) => {
-    onChange(agent.name);
-    setOpen(false);
-  };
-  const handleClear = () => {
-    onChange(null);
+  const choose = (next: string | null) => {
+    onChange(next);
     setOpen(false);
   };
 
@@ -85,47 +185,17 @@ export function AgentCommandSelect({
         aria-busy={loading || undefined}
         aria-invalid={catalogError ? true : undefined}
         data-testid={triggerTestId}
-        disabled={disabled || (loading && !hasCatalogItems)}
+        disabled={disabled || loadingFirstPage}
         className={className}
-        selected={Boolean(selectedAgent)}
+        selected={selectedAgent !== null}
       >
-        {selectedAgent ? (
-          <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <AgentIcon
-              provider={selectedAgent.provider}
-              size="xs"
-              className="shrink-0 text-muted"
-            />
-            <span className="truncate text-small-body text-fg">{selectedAgent.name}</span>
-            <Eyebrow className="text-muted">{selectedAgent.provider}</Eyebrow>
-            {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
-              <Eyebrow
-                className="text-muted ml-auto truncate"
-                data-testid="agent-command-select-trigger-category"
-              >
-                {formatCategoryLabel(selectedAgent.category_path)}
-              </Eyebrow>
-            ) : null}
-            {catalogStatus ? (
-              <Eyebrow
-                className={catalogError ? "ml-auto text-danger" : "ml-auto text-muted"}
-                data-testid="agent-command-select-catalog-status"
-              >
-                {catalogStatus}
-              </Eyebrow>
-            ) : null}
-          </span>
-        ) : selectedName ? (
-          <UnknownAgentValue name={selectedName} />
-        ) : (
-          <span className={catalogError ? "truncate text-danger" : "truncate text-muted"}>
-            {catalogError
-              ? "Unable to load agents"
-              : loading
-                ? "Loading agents…"
-                : (clearLabel ?? placeholder)}
-          </span>
-        )}
+        <AgentCommandSelectValue
+          selectedAgent={selectedAgent}
+          selectedName={selectedName}
+          catalogError={catalogError}
+          loading={loading}
+          emptyLabel={clearLabel ?? placeholder}
+        />
       </CommandSelectTrigger>
       <CommandSelectShell
         className="min-w-64"
@@ -136,17 +206,14 @@ export function AgentCommandSelect({
           agents={agents}
           emptyState={catalogError ?? (loading ? "Loading agents…" : undefined)}
           isSelected={isSelected}
-          onSelect={handleSelect}
+          onSelect={agent => choose(agent.name)}
           leadingItems={
             clearLabel ? (
-              <CommandItem
-                value={clearLabel}
-                onSelect={handleClear}
-                data-checked={selectedName ? "false" : "true"}
-                data-testid="agent-command-item-clear"
-              >
-                <span className="truncate text-small-body text-fg">{clearLabel}</span>
-              </CommandItem>
+              <ClearAgentItem
+                label={clearLabel}
+                checked={selectedName === null}
+                onSelect={() => choose(null)}
+              />
             ) : null
           }
         />

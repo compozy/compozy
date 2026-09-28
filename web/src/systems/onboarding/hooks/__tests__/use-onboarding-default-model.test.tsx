@@ -253,6 +253,39 @@ describe("useOnboardingDefaultModel", () => {
     expect(onboardingDraftStore.getSnapshot().context.authModeTouched).toBe(false);
   });
 
+  it("Should block a key-bound provider until the credential target env is known", () => {
+    act(() =>
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "openrouter",
+        model: "",
+        reasoning: "",
+      })
+    );
+    mockSettingsProvider.data = {
+      settings: {
+        display_name: "OpenRouter",
+        harness: "pi_acp",
+        models: { default: "", curated: [] },
+        credential_slots: [],
+      },
+    };
+
+    const { result, rerender } = renderHook(() => useOnboardingDefaultModel());
+
+    expect(result.current.missingEnvVar).toBe(true);
+    expect(result.current.isValid).toBe(false);
+    expect(result.current.configurationError).toBe(
+      "Enter the environment variable the provider expects."
+    );
+
+    act(() => result.current.onEnvVarChange("OPENROUTER_API_KEY"));
+    rerender();
+
+    expect(result.current.missingEnvVar).toBe(false);
+    expect(result.current.isValid).toBe(true);
+    expect(result.current.configurationError).toBeNull();
+  });
+
   it("Should keep the operator's auth choice over the harness default", () => {
     act(() =>
       onboardingDraftStore.trigger.runtimeSelected({
