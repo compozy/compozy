@@ -108,8 +108,6 @@ function MarketplaceInstalledServerLeading({
   const published = Boolean(target?.runtime_name?.trim());
   const needsAuthorization = resolved?.status.key === "needs_authorization";
   const name = installedDisplayName(item);
-  const runtimeName = target?.runtime_name?.trim();
-  const allocated = runtimeName && target && runtimeName !== target.name ? runtimeName : null;
   const statusTestId =
     resolved?.status.key === "needs_configuration"
       ? `marketplace-installed-needs-configuration-${extension.name}`
@@ -118,15 +116,6 @@ function MarketplaceInstalledServerLeading({
     <>
       {resolved ? (
         <MarketplaceServerStatusWord data-testid={statusTestId} view={resolved.status} />
-      ) : null}
-      {allocated ? (
-        <span
-          className="font-mono text-mono-id text-faint"
-          data-testid={`marketplace-installed-runtime-name-${extension.name}`}
-          title={`Runtime name ${allocated}`}
-        >
-          {allocated}
-        </span>
       ) : null}
       {needsAuthorization && published && target ? (
         <Button

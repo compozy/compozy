@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  ActionResultBanner,
   Button,
   Checkbox,
   Dialog,
@@ -34,6 +35,7 @@ import {
   type ExtensionInstallForm,
   type ExtensionInstallSource,
 } from "./extension-install-model";
+import { MarketplaceDetailFold } from "./marketplace-detail-shell";
 import { useExtensionInputForm } from "./use-extension-input-form";
 
 export interface ExtensionInstallDialogProps {
@@ -114,31 +116,14 @@ export function ExtensionInstallDialog({
           <DialogHeader variant="ruled">
             <DialogTitle>Install an extension</DialogTitle>
             <DialogDescription>
-              Install from a local build, a GitHub release, or a git repository. CompozyOS validates
-              the source and records provenance.
+              Install from GitHub, a git link, or a folder on this computer.
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
             <ExtensionInstallSourceFields form={form} errors={fieldErrors} onChange={patch} />
 
-            <Field orientation="horizontal">
-              <Checkbox
-                aria-describedby="extension-install-unverified-hint"
-                checked={form.allowUnverified}
-                data-testid="extension-install-allow-unverified"
-                id="extension-install-unverified"
-                onCheckedChange={checked => patch({ allowUnverified: checked === true })}
-              />
-              <div className="grid gap-1">
-                <FieldLabel htmlFor="extension-install-unverified">
-                  Allow an unverified archive
-                </FieldLabel>
-                <FieldDescription id="extension-install-unverified-hint">
-                  Opens an explicit consent step before anything is installed.
-                </FieldDescription>
-              </div>
-            </Field>
+            <ExtensionInstallMoreOptions form={form} onChange={patch} />
 
             {preview ? <ExtensionInstallSummary preview={preview} /> : null}
             {preview && preview.inputs.length > 0 ? (
@@ -146,13 +131,12 @@ export function ExtensionInstallDialog({
             ) : null}
 
             {error ? (
-              <p
-                className="rounded-md bg-danger-tint px-3 py-2 text-small-body text-danger"
+              <ActionResultBanner
                 data-testid="extension-install-error"
                 role="alert"
-              >
-                {error}
-              </p>
+                title={error}
+                tone="danger"
+              />
             ) : null}
           </div>
 
@@ -177,6 +161,74 @@ export function ExtensionInstallDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Version, asset, and the unverified opt-in: rarely needed, so they start folded. */
+function ExtensionInstallMoreOptions({
+  form,
+  onChange: patch,
+}: {
+  form: ExtensionInstallForm;
+  onChange: (next: Partial<ExtensionInstallForm>) => void;
+}) {
+  return (
+    <MarketplaceDetailFold data-testid="extension-install-more-options" label="More options">
+      <div className="flex flex-col gap-4 pt-3">
+        {form.source !== "local_path" ? (
+          <Field>
+            <FieldHeader>
+              <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
+              <HelpTip label="About version">
+                Optional. Leave empty to take the latest release the source resolves.
+              </HelpTip>
+            </FieldHeader>
+            <Input
+              data-testid="extension-install-version"
+              id="extension-install-version"
+              onChange={event => patch({ version: event.target.value })}
+              placeholder="0.4.2"
+              value={form.version}
+            />
+          </Field>
+        ) : null}
+
+        {form.source === "github" ? (
+          <Field>
+            <FieldHeader>
+              <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
+              <HelpTip label="About asset">
+                Optional. Required only when a release publishes several archives.
+              </HelpTip>
+            </FieldHeader>
+            <Input
+              data-testid="extension-install-asset"
+              id="extension-install-asset"
+              onChange={event => patch({ asset: event.target.value })}
+              placeholder="hello_darwin_arm64.tar.gz"
+              value={form.asset}
+            />
+          </Field>
+        ) : null}
+        <Field orientation="horizontal">
+          <Checkbox
+            aria-describedby="extension-install-unverified-hint"
+            checked={form.allowUnverified}
+            data-testid="extension-install-allow-unverified"
+            id="extension-install-unverified"
+            onCheckedChange={checked => patch({ allowUnverified: checked === true })}
+          />
+          <div className="grid gap-1">
+            <FieldLabel htmlFor="extension-install-unverified">
+              Allow an unverified package
+            </FieldLabel>
+            <FieldDescription id="extension-install-unverified-hint">
+              You confirm the warnings before anything is installed.
+            </FieldDescription>
+          </div>
+        </Field>
+      </div>
+    </MarketplaceDetailFold>
   );
 }
 
@@ -264,42 +316,6 @@ function ExtensionInstallSourceFields({
           </FieldError>
         ) : null}
       </Field>
-
-      {form.source !== "local_path" ? (
-        <Field>
-          <FieldHeader>
-            <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
-            <HelpTip label="About version">
-              Optional. Leave empty to take the latest release the source resolves.
-            </HelpTip>
-          </FieldHeader>
-          <Input
-            data-testid="extension-install-version"
-            id="extension-install-version"
-            onChange={event => patch({ version: event.target.value })}
-            placeholder="0.4.2"
-            value={form.version}
-          />
-        </Field>
-      ) : null}
-
-      {form.source === "github" ? (
-        <Field>
-          <FieldHeader>
-            <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
-            <HelpTip label="About asset">
-              Optional. Required only when a release publishes several archives.
-            </HelpTip>
-          </FieldHeader>
-          <Input
-            data-testid="extension-install-asset"
-            id="extension-install-asset"
-            onChange={event => patch({ asset: event.target.value })}
-            placeholder="hello_darwin_arm64.tar.gz"
-            value={form.asset}
-          />
-        </Field>
-      ) : null}
     </>
   );
 }

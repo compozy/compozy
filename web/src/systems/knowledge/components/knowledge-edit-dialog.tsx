@@ -8,7 +8,6 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  Eyebrow,
   Field,
   FieldContent,
   FieldHeader,
@@ -17,9 +16,11 @@ import {
   HelpTip,
   ImmutableIdentity,
   Input,
+  RequiredMark,
   Textarea,
 } from "@compozy/ui";
 
+import { knowledgeTypeLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryType } from "@/systems/knowledge/types";
 
 interface KnowledgeEditDialogProps {
@@ -30,7 +31,6 @@ interface KnowledgeEditDialogProps {
   name: string;
   /** Locked identity — retrieval keys off the type, so it cannot change. */
   type: MemoryType;
-  scope: string;
   initialContent: string;
   initialDescription?: string;
   isPending: boolean;
@@ -48,7 +48,6 @@ function KnowledgeEditDialog({
   filename,
   name,
   type,
-  scope,
   initialContent,
   initialDescription,
   isPending,
@@ -91,8 +90,8 @@ function KnowledgeEditDialog({
         unframed
       >
         <EntityDialogHeader
-          description={`Refine the description or content in the ${scope} scope. Edits go through the controller and produce a new decision.`}
-          eyebrow="Catalog · Knowledge"
+          description="Update the summary or the content."
+          eyebrow="Knowledge"
           icon={BookOpen}
           onClose={() => onOpenChange(false)}
           title="Edit knowledge entry"
@@ -100,22 +99,21 @@ function KnowledgeEditDialog({
         <EntityDialogBody className="flex flex-col">
           <ImmutableIdentity
             data-testid="knowledge-edit-identity"
-            hint="Name and type are fixed so existing retrieval references keep resolving. Recreate the entry to change them."
+            hint="Name and kind can't change. Create a new entry to use different ones."
             rows={[
               { label: "Name", value: name, mono: true },
-              { label: "Type", value: type },
+              { label: "Kind", value: knowledgeTypeLabel(type) },
               { label: "File", value: filename, mono: true },
             ]}
           />
-          <FormSection
-            help="Only the description and content are saved — the runtime re-indexes on save."
-            title="The content"
-          >
+          <FormSection title="The content">
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldHeader>
                   <FieldLabel htmlFor="knowledge-edit-description">Description</FieldLabel>
-                  <HelpTip label="About description">What should retrieval match?</HelpTip>
+                  <HelpTip label="About description">
+                    A short summary agents use to find this.
+                  </HelpTip>
                 </FieldHeader>
                 <Input
                   data-testid="knowledge-edit-description"
@@ -129,7 +127,7 @@ function KnowledgeEditDialog({
                 <FieldContent>
                   <FieldLabel htmlFor="knowledge-edit-content">
                     Content
-                    <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+                    <RequiredMark />
                   </FieldLabel>
                 </FieldContent>
                 <Textarea

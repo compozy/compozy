@@ -1,4 +1,5 @@
 import { KeyRound } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { DataSurface, type ListingViewMode } from "@compozy/ui";
 
@@ -16,6 +17,7 @@ interface VaultSecretsListProps {
   onDelete?: (secret: VaultSecret) => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyAction?: ReactNode;
   "data-testid"?: string;
 }
 
@@ -27,8 +29,9 @@ export function VaultSecretsList({
   error = null,
   onSelect,
   onDelete,
-  emptyTitle = "No vault secrets",
-  emptyDescription = "Vault metadata appears here after a secret is stored.",
+  emptyTitle = "No secrets yet",
+  emptyDescription = "Secrets you save show up here.",
+  emptyAction,
   "data-testid": testId = "vault-secrets-list",
 }: VaultSecretsListProps) {
   return (
@@ -36,14 +39,15 @@ export function VaultSecretsList({
       className="flex min-h-0 flex-1 flex-col"
       state={isLoading ? "loading" : error ? "error" : secrets.length === 0 ? "empty" : "ready"}
     >
-      <DataSurface.Loading data-testid={`${testId}-loading`} label="Loading vault metadata" />
+      <DataSurface.Loading data-testid={`${testId}-loading`} label="Loading secrets" />
       <DataSurface.Error
         description={error?.message}
         icon={KeyRound}
-        title="Unable to load vault metadata"
+        title="Couldn't load your secrets"
         data-testid={`${testId}-error`}
       />
       <DataSurface.Empty
+        action={emptyAction}
         description={emptyDescription}
         icon={KeyRound}
         title={emptyTitle}

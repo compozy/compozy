@@ -2,7 +2,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 
 import { Button, ListingRow, Pill, Time } from "@compozy/ui";
 
-import { vaultNamespaceTone } from "../lib/vault-tones";
+import { vaultSecretLocation, vaultSecretTitle } from "../lib/vault-secret-title";
 import type { VaultSecret } from "../types";
 
 export interface VaultSecretsRowProps {
@@ -20,6 +20,7 @@ export function VaultSecretsRow({
 }: VaultSecretsRowProps) {
   const trimmedKind = secret.kind?.trim();
   const selectable = onSelect !== undefined;
+  const title = vaultSecretTitle(secret.ref);
 
   return (
     <ListingRow
@@ -32,9 +33,10 @@ export function VaultSecretsRow({
         <ListingRow.Link
           render={
             <button
-              aria-label={`Inspect ${secret.ref}`}
+              aria-label={`Open ${title}`}
               data-testid={`vault-secrets-select-${secret.ref}`}
               onClick={() => onSelect(secret)}
+              title={secret.ref}
               type="button"
             />
           }
@@ -49,17 +51,10 @@ export function VaultSecretsRow({
           <Pill mono data-testid={`vault-secrets-kind-${secret.ref}`} size="sm" tone="neutral">
             {trimmedKind}
           </Pill>
-        ) : (
-          <span
-            className="font-mono text-mono-id text-faint"
-            data-testid={`vault-secrets-kind-empty-${secret.ref}`}
-          >
-            --
-          </span>
-        )}
+        ) : null}
         {onDelete ? (
           <Button
-            aria-label={`Delete ${secret.ref}`}
+            aria-label={`Delete ${title}`}
             data-testid={`vault-secrets-delete-${secret.ref}`}
             onClick={event => {
               event.stopPropagation();
@@ -84,19 +79,14 @@ function VaultSecretsRowBody({ secret }: { secret: VaultSecret }) {
         <KeyRound aria-hidden="true" className="size-4" />
       </ListingRow.Icon>
       <ListingRow.Main>
-        <ListingRow.Name mono>
-          <ListingRow.Title>{secret.ref}</ListingRow.Title>
-          <Pill mono size="sm" tone={vaultNamespaceTone(secret.namespace)}>
-            {secret.namespace}
-          </Pill>
+        <ListingRow.Name>
+          <ListingRow.Title>{vaultSecretTitle(secret.ref)}</ListingRow.Title>
         </ListingRow.Name>
         <ListingRow.Meta>
+          <span>{vaultSecretLocation(secret.ref) || secret.namespace}</span>
+          <ListingRow.MetaDot />
           <span>updated</span>
-          <Time
-            className="font-mono text-mono-id text-faint"
-            data-testid={`vault-secrets-updated-${secret.ref}`}
-            iso={secret.updated_at}
-          />
+          <Time data-testid={`vault-secrets-updated-${secret.ref}`} iso={secret.updated_at} />
         </ListingRow.Meta>
       </ListingRow.Main>
     </>

@@ -114,7 +114,7 @@ export function skillExposeResultViews(
     const sentence =
       code === null
         ? "done"
-        : (RESULT_SENTENCE[code] ?? failure?.message?.trim() ?? "the daemon refused this target");
+        : (RESULT_SENTENCE[code] ?? failure?.message?.trim() ?? "CompozyOS couldn't apply this");
     return { target: result.target, ok: result.ok, sentence, code, rolledBack };
   });
 }

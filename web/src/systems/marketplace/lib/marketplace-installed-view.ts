@@ -45,8 +45,7 @@ export function installedOriginWord(item: InstalledExtensionView): string | null
 
 /** Scope word only when the instance is not global. */
 export function installedScopeWord(extension: ExtensionEntry): string | null {
-  const workspace = extension.workspace_id?.trim();
-  if (workspace) return `workspace · ${workspace}`;
+  if (extension.workspace_id?.trim()) return "This project";
   const profile = extension.installation_profile?.trim();
   if (profile) return `profile · ${profile}`;
   const hasProfileServer = extension.placements?.some(

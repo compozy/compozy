@@ -2,10 +2,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
 
-import type { ListingViewMode } from "@compozy/ui";
+import { toast, type ListingViewMode } from "@compozy/ui";
 
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { VaultApiError } from "../adapters/vault-api";
+import { vaultSecretTitle } from "../lib/vault-secret-title";
 import {
   normalizeVaultPrefixForNamespace,
   type VaultNamespaceFilter,
@@ -13,12 +14,7 @@ import {
 } from "../lib/vault-route-search";
 import { useDeleteVaultSecret, usePutVaultSecret } from "./use-vault-actions";
 import { useVaultSecrets } from "./use-vault";
-import {
-  VAULT_NAMESPACES,
-  type VaultListFilter,
-  type VaultNamespace,
-  type VaultSecret,
-} from "../types";
+import type { VaultListFilter, VaultSecret } from "../types";
 import { vaultPageLogic, type VaultDraft } from "./vault-page-logic";
 
 export type { VaultDraft, VaultEditorState, VaultLastAction } from "./vault-page-logic";
@@ -27,16 +23,23 @@ export type VaultDeleteState = { mode: "closed" } | { mode: "open"; secret: Vaul
 
 function emptyDraft(): VaultDraft {
   return {
-    ref: "vault:sessions/",
+    ref: "",
     kind: "",
     secretValue: "",
     overwriteConfirmed: false,
   };
 }
 
-/** Mirrors `vault.NormalizeRef` — the daemon compares refs after trimming only. */
+const VAULT_REF_PREFIX = "vault:";
+
+/**
+ * Mirrors `vault.NormalizeRef` (trim only) and adds the `vault:` prefix when
+ * the user typed a bare name, so the submitted ref keeps its wire shape.
+ */
 export function normalizeVaultRef(ref: string): string {
-  return ref.trim();
+  const trimmed = ref.trim();
+  if (trimmed === "" || trimmed.startsWith(VAULT_REF_PREFIX)) return trimmed;
+  return `${VAULT_REF_PREFIX}${trimmed}`;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -51,22 +54,6 @@ function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFi
   const normalizedPrefix = prefix.trim();
   if (normalizedPrefix) filter.prefix = normalizedPrefix;
   return filter;
-}
-
-function countVaultSecrets(secrets: VaultSecret[]) {
-  const byNamespace = Object.fromEntries(VAULT_NAMESPACES.map(item => [item, 0])) as Record<
-    VaultNamespace,
-    number
-  >;
-  for (const secret of secrets) {
-    if (secret.namespace in byNamespace) byNamespace[secret.namespace as VaultNamespace] += 1;
-  }
-  return {
-    total: secrets.length,
-    sessions: byNamespace.sessions,
-    providers: byNamespace.providers,
-    byNamespace,
-  };
 }
 
 export function useVaultPage(search: VaultRouteSearch = {}) {
@@ -93,11 +80,19 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const deleteMutation = useDeleteVaultSecret();
 
   const secrets = query.data ?? [];
-  const counts = countVaultSecrets(secrets);
+  const counts = { total: secrets.length };
   const secretInventory = allSecretsQuery.data ?? secrets;
   const selectedSecret = flow.selectedRef
     ? (secretInventory.find(secret => secret.ref === flow.selectedRef) ?? null)
     : null;
+  const lastAction = flow.lastAction;
+  useEffect(() => {
+    if (!lastAction) return;
+    const title = vaultSecretTitle(lastAction.ref);
+    if (lastAction.kind === "saved") toast.success(`Saved ${title}`);
+    else toast(`Deleted ${title}`);
+    pageStore.trigger.lastActionDismissed();
+  }, [lastAction, pageStore]);
   const previousRouteRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const previous = previousRouteRef.current;
@@ -123,7 +118,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     (!collisionInventoryReady || (editorRefExists && !flow.editor.draft.overwriteConfirmed));
   const editorIsValid =
     flow.editor.mode === "create" &&
-    flow.editor.draft.ref.trim().startsWith("vault:") &&
+    editorRef !== "" &&
     flow.editor.draft.secretValue.trim() !== "" &&
     !overwriteBlocked;
 
@@ -218,7 +213,6 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     deleteTarget: deleteTargetSecret
       ? { mode: "open" as const, secret: deleteTargetSecret }
       : { mode: "closed" as const },
-    dismissLastAction: () => pageStore.trigger.lastActionDismissed(),
     editor: flow.editor,
     editorError:
       flow.editor.mode === "create" ? (putError ?? errorMessage(allSecretsQuery.error)) : null,
@@ -228,7 +222,6 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     filter,
     isLoading: query.isLoading,
     isRefetching: query.isFetching && !query.isLoading,
-    lastAction: flow.lastAction,
     namespace,
     prefix,
     queryError: errorMessage(query.error),

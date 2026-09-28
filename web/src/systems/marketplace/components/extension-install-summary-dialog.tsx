@@ -15,6 +15,7 @@ import type { ExtensionInstallPreview, ExtensionInstallRequest } from "@/systems
 import type { MarketplaceCatalogListing } from "../types";
 
 import { ExtensionInputFields } from "./extension-input-fields";
+import { marketplaceTrustSentence } from "./marketplace-ui";
 import { useExtensionInputForm } from "./use-extension-input-form";
 import type { ExtensionInputDefinitions, ExtensionInputDraft } from "./extension-install-model";
 
@@ -124,9 +125,9 @@ function summaryDialogModel(props: SummaryDialogProps) {
         : null,
     destination: (
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
-        <dt className="text-muted">Scope</dt>
+        <dt className="text-muted">Installs in</dt>
         <dd data-testid="extension-install-destination">
-          {props.destination.scope === "workspace" ? "Current workspace" : "Everywhere (global)"}
+          {props.destination.scope === "workspace" ? "This project" : "All projects"}
           {" · "}
           {props.destination.profile}
         </dd>
@@ -134,8 +135,7 @@ function summaryDialogModel(props: SummaryDialogProps) {
     ),
     trust: (
       <span className="mr-auto text-form-hint text-muted">
-        {props.entry.tier === "official" ? "Official" : "Community"}
-        {props.entry.trust?.checksum_verified ? " · checksum verified" : ""}
+        {marketplaceTrustSentence(props.entry)}
       </span>
     ),
   };

@@ -5,12 +5,9 @@ import {
   decisionOpLabel,
   decisionSourceLabel,
   knowledgeAgentTierLabel,
-  knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
   knowledgeScopeLabel,
-  knowledgeScopeShortLabel,
-  memoryScopeTone,
-  memoryTypeTone,
+  knowledgeTypeLabel,
 } from "../knowledge-formatters";
 
 describe("knowledge-formatters", () => {
@@ -30,42 +27,31 @@ describe("knowledge-formatters", () => {
     expect(compareKnowledgeScope("profile", "profile")).toBe(0);
   });
 
-  it("Should expose sentence-case scope labels", () => {
+  it("Should expose plain-language scope labels with workspace aliased to project", () => {
     expect(knowledgeScopeLabel("profile")).toBe("Profile");
-    expect(knowledgeScopeLabel("workspace")).toBe("Workspace");
+    expect(knowledgeScopeLabel("workspace")).toBe("Project");
     expect(knowledgeScopeLabel("agent")).toBe("Agent");
-    expect(knowledgeScopeShortLabel("profile")).toBe("profile");
-    expect(knowledgeScopeShortLabel("workspace")).toBe("ws");
-    expect(knowledgeScopeShortLabel("agent")).toBe("agent");
   });
 
-  it("Should expose sentence-case agent tier labels", () => {
-    expect(knowledgeAgentTierLabel("global")).toBe("Agent · global");
-    expect(knowledgeAgentTierLabel("workspace")).toBe("Agent · workspace");
-    expect(knowledgeAgentTierShortLabel("global")).toBe("ag-global");
-    expect(knowledgeAgentTierShortLabel("workspace")).toBe("ag-ws");
+  it("Should expose plain-language agent tier labels", () => {
+    expect(knowledgeAgentTierLabel("global")).toBe("Agent · all projects");
+    expect(knowledgeAgentTierLabel("workspace")).toBe("Agent · this project");
   });
 
-  it("Should pass memory type tone through unchanged", () => {
-    expect(memoryTypeTone("user")).toBe("user");
-    expect(memoryTypeTone("feedback")).toBe("feedback");
-    expect(memoryTypeTone("project")).toBe("project");
-    expect(memoryTypeTone("reference")).toBe("reference");
-  });
-
-  it("Should pass memory scope tone through unchanged", () => {
-    expect(memoryScopeTone("profile")).toBe("profile");
-    expect(memoryScopeTone("workspace")).toBe("workspace");
-    expect(memoryScopeTone("agent")).toBe("agent");
+  it("Should map every memory type to a plain display label", () => {
+    expect(knowledgeTypeLabel("user")).toBe("About you");
+    expect(knowledgeTypeLabel("feedback")).toBe("Feedback");
+    expect(knowledgeTypeLabel("project")).toBe("Project decision");
+    expect(knowledgeTypeLabel("reference")).toBe("Reference");
   });
 
   it("Should expose sentence-case decision op and source labels", () => {
-    expect(decisionOpLabel("noop")).toBe("noop");
-    expect(decisionOpLabel("add")).toBe("add");
-    expect(decisionOpLabel("update")).toBe("update");
-    expect(decisionOpLabel("delete")).toBe("delete");
-    expect(decisionOpLabel("reject")).toBe("reject");
-    expect(decisionSourceLabel("rule")).toBe("rule");
-    expect(decisionSourceLabel("llm")).toBe("llm");
+    expect(decisionOpLabel("noop")).toBe("No change");
+    expect(decisionOpLabel("add")).toBe("Added");
+    expect(decisionOpLabel("update")).toBe("Updated");
+    expect(decisionOpLabel("delete")).toBe("Deleted");
+    expect(decisionOpLabel("reject")).toBe("Rejected");
+    expect(decisionSourceLabel("rule")).toBe("Rule");
+    expect(decisionSourceLabel("llm")).toBe("Automatic");
   });
 });

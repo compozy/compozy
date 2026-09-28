@@ -114,7 +114,7 @@ describe("captureRouteState", () => {
         <button data-testid="tab-workspace" aria-pressed="true"></button>
         <button data-testid="tab-agent" aria-pressed="false"></button>
         <aside data-testid="knowledge-list-panel">
-          <p data-testid="knowledge-search-info">Recall 1 of top-K</p>
+          <p data-testid="knowledge-search-info">1 match</p>
           <button data-testid="memory-item-workspace:launch-memory.md" data-state="selected">
             Launch Memory
           </button>

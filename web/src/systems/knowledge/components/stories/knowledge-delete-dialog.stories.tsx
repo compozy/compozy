@@ -18,7 +18,7 @@ export const Default: Story = {
   args: {},
   render: () => (
     <KnowledgeDeleteDialog
-      filename="project-context.md"
+      name="Project context"
       isPending={false}
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
@@ -32,7 +32,7 @@ export const PendingDelete: Story = {
   args: {},
   render: () => (
     <KnowledgeDeleteDialog
-      filename="user-role.md"
+      name="User role"
       isPending
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
@@ -49,7 +49,7 @@ export const ConfirmSubmits: Story = {
     const onConfirm = fn();
     return (
       <KnowledgeDeleteDialog
-        filename="project-context.md"
+        name="Project context"
         isPending={false}
         onConfirm={onConfirm}
         onOpenChange={() => undefined}
@@ -62,7 +62,7 @@ export const ConfirmSubmits: Story = {
     const canvas = within(canvasElement.ownerDocument.body);
     await userEvent.type(
       await canvas.findByTestId("knowledge-delete-confirm-typing"),
-      "project-context.md"
+      "Project context"
     );
     const confirm = await canvas.findByTestId("confirm-delete-memory-btn");
     await userEvent.click(confirm);

@@ -41,7 +41,7 @@ export const ExtensionUnionInstall: Story = {
   },
 };
 
-/** Add ▾ → GitHub preselects the release source with its version and asset selectors. */
+/** Add ▾ → GitHub preselects the release source; version and asset sit under More options. */
 export const ExtensionUnionInstallGitHub: Story = {
   parameters: appRouteParameters("/marketplace"),
   render: () => <StorybookWorkspaceSetup />,
@@ -50,6 +50,7 @@ export const ExtensionUnionInstallGitHub: Story = {
     await userEvent.click(await canvas.findByTestId("marketplace-add"));
     const body = within(document.body);
     await userEvent.click(await body.findByTestId("marketplace-add-github"));
+    await userEvent.click(await body.findByRole("button", { name: "More options" }));
     await expect(body.findByTestId("extension-install-asset")).resolves.toBeDefined();
   },
 };

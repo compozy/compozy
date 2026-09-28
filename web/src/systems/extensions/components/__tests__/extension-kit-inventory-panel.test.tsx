@@ -182,7 +182,7 @@ describe("ExtensionSkippedComponents", () => {
       screen.queryByText("This extension ships no static kit resources.")
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("extension-skipped-zero-resources")).toHaveTextContent(
-      "0 resources ingested"
+      "Nothing from this package could be loaded."
     );
   });
 
@@ -196,7 +196,7 @@ describe("ExtensionSkippedComponents", () => {
     );
 
     expect(screen.getByTestId("extension-skipped-zero-resources")).toHaveTextContent(
-      "0 resources ingested"
+      "Nothing from this package could be loaded."
     );
     expect(screen.getAllByTestId("extension-skipped-row")).toHaveLength(2);
   });

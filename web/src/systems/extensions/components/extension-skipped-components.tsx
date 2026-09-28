@@ -42,7 +42,7 @@ function ExtensionSkippedComponents({
           className="px-4 pb-2 text-small-body text-muted"
           data-testid="extension-skipped-zero-resources"
         >
-          0 resources ingested
+          Nothing from this package could be loaded.
         </p>
       ) : null}
       <div className="divide-y divide-line-soft">
