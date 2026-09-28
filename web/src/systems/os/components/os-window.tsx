@@ -255,7 +255,9 @@ function OsWindowMember({
       <OverlayContainerContext.Provider value={overlayHost}>
         {overlayHost ? (
           <OsWindowErrorBoundary title={app.title}>
-            <Suspense fallback={<SkeletonRows aria-hidden="true" className="gap-4 p-4" />}>
+            <Suspense
+              fallback={<SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />}
+            >
               <WindowLiveDataContext value={liveDataEnabled}>
                 {/* Scopes per-window selection (e.g. active worktree) without
                     threading windowId through every descendant hook. */}
