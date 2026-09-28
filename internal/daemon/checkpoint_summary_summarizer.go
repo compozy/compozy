@@ -81,13 +81,15 @@ func (s *daemonCheckpointSummarizer) Summarize(
 			ReasoningEffort:     route.ReasoningEffort,
 			Speed:               route.Speed,
 			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:             route.Command,
+			ChainOwner:          session.ChainOwnerCaller,
 			Name:                checkpointSummarySessionName,
 			Workspace:           strings.TrimSpace(request.WorkspaceRoot),
 			Type:                session.SessionTypeDream,
 			Lineage:             &store.SessionLineage{SpawnRole: session.SpawnRoleCheckpointSummary},
 			DiscardStartFailure: true,
 		})
-		return created, created != nil, createErr
+		return created, session.StartAccepted(createErr) || created != nil, createErr
 	})
 	if summarySession != nil {
 		defer s.stopCheckpointSummarySession(ctx, summarySession.ID, &err)

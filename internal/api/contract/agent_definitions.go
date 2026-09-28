@@ -107,6 +107,7 @@ type AgentPayload struct {
 	Layer            string                         `json:"layer,omitempty"`
 	Shadows          []AgentDefinitionShadowPayload `json:"shadows,omitempty"`
 	Skills           *CreateAgentSkillsConfig       `json:"skills,omitempty"`
+	FallbackChain    []RoleFallbackStatus           `json:"fallback_chain,omitempty"`
 	DefinitionDigest string                         `json:"definition_digest"`
 	Prompt           string                         `json:"prompt"`
 	Diagnostics      []AgentDiagnosticPayload       `json:"diagnostics,omitempty"`

@@ -1,6 +1,9 @@
 package acpmock
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const FixtureVersion = 2
 
@@ -53,6 +56,24 @@ type SessionConfigOptionFixture struct {
 type SessionConfigOptionValueFixture struct {
 	Value string `json:"value"`
 	Label string `json:"label,omitempty"`
+	// RejectSet makes session/set_config_option to this advertised value fail, which
+	// scripts a start that ACP accepted (session/new returned) and then failed.
+	RejectSet bool `json:"reject_set,omitempty"`
+}
+
+// RejectsConfigValue reports whether the fixture scripts a set_config_option failure.
+func (a AgentFixture) RejectsConfigValue(configID string, value string) bool {
+	for _, option := range a.ConfigOptions {
+		if strings.TrimSpace(option.ID) != strings.TrimSpace(configID) {
+			continue
+		}
+		for _, candidate := range option.Values {
+			if candidate.RejectSet && strings.TrimSpace(candidate.Value) == strings.TrimSpace(value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.

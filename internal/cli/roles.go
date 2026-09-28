@@ -48,7 +48,12 @@ func newRolesShowCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show <role>",
 		Short: "Show one effective background role",
-		Args:  exactOneNonBlankArg(),
+		Long: "Show one effective background role. The fallback_chain table lists each route's " +
+			"provider, model, reasoning_effort, and command (the route's account; empty inherits " +
+			"the agent or provider command). JSON output also carries command_fingerprint.",
+		Example: `  compozy roles show auto_title
+  compozy roles show auto_title -o json`,
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -154,7 +159,7 @@ func roleBundle(role RoleRecord) outputBundle {
 				summary,
 				renderHumanTable(
 					"Fallback Chain",
-					[]string{"Provider", "Model", "Reasoning Effort"},
+					[]string{"Provider", "Model", "Reasoning Effort", "Command"},
 					roleFallbackRows(role),
 				),
 				renderHumanTable(
@@ -191,7 +196,7 @@ func roleBundle(role RoleRecord) outputBundle {
 				roleHeader,
 				renderToonArray(
 					"fallback_chain",
-					[]string{cliProviderKey, agentKernelModelKey, "reasoning_effort"},
+					[]string{cliProviderKey, agentKernelModelKey, "reasoning_effort", agentCommandKey},
 					roleFallbackRows(role),
 				),
 				renderToonArray(
@@ -212,7 +217,7 @@ func roleBundle(role RoleRecord) outputBundle {
 func roleFallbackRows(role RoleRecord) [][]string {
 	rows := make([][]string, 0, len(role.FallbackChain))
 	for _, fallback := range role.FallbackChain {
-		rows = append(rows, []string{fallback.Provider, fallback.Model, fallback.ReasoningEffort})
+		rows = append(rows, []string{fallback.Provider, fallback.Model, fallback.ReasoningEffort, fallback.Command})
 	}
 	return rows
 }

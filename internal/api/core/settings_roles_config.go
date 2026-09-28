@@ -60,6 +60,7 @@ func settingsRoleFallbackPayloads(values []compozyconfig.RoleFallback) []contrac
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
 			Speed:           settingsRoleSpeedPayload(value.Speed),
 			ACPOptions:      settingsACPOptionPayloads(value.ACPOptions),
+			Command:         strings.TrimSpace(value.Command),
 		})
 	}
 	return payloads
@@ -128,6 +129,7 @@ func roleFallbacksFromSettingsPayload(values []contract.SettingsRoleFallbackPayl
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
 			Speed:           settingsRoleSpeedFromPayload(value.Speed),
 			ACPOptions:      settingsACPOptionsFromPayload(value.ACPOptions),
+			Command:         strings.TrimSpace(value.Command),
 		})
 	}
 	return fallbacks

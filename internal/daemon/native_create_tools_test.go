@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -216,6 +217,49 @@ func TestNativeAgentCreate(t *testing.T) {
 			agentOptions[0].ValueID != "1m" || agentOptions[1].ID != "thinking" ||
 			agentOptions[1].BoolValue == nil || !*agentOptions[1].BoolValue {
 			t.Fatalf("agent runtime defaults = speed %q options %#v", agent.SpeedValue(), agentOptions)
+		}
+	})
+
+	t.Run("Should write and project an ordered fallback chain", func(t *testing.T) { // UT-022
+		command := "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input: json.RawMessage(
+				`{"scope":"global","name":"reviewer","provider":"claude","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"claude","model":"opus-4-8","command":"` + command + `"},` +
+					`{"provider":"codex","model":"gpt-5.6-terra","reasoning_effort":"high"}]}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create fallback_chain) error = %v", err)
+		}
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"command_fingerprint":"`+compozyconfig.CommandFingerprint(command)+`"`),
+		)
+		agent, loadErr := compozyconfig.LoadAgentDefFile(filepath.Join(homePaths.AgentsDir, "reviewer", "AGENT.md"))
+		if loadErr != nil {
+			t.Fatalf("LoadAgentDefFile(reviewer) error = %v", loadErr)
+		}
+		if len(agent.FallbackChain) != 2 || agent.FallbackChain[0].Command != command ||
+			agent.FallbackChain[1].Provider != "codex" || agent.FallbackChain[1].ReasoningEffort != "high" {
+			t.Fatalf("agent.FallbackChain = %#v, want the two authored routes in order", agent.FallbackChain)
+		}
+	})
+
+	t.Run("Should reject a fallback route on an unknown provider", func(t *testing.T) {
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input: json.RawMessage(
+				`{"scope":"global","name":"grokker","provider":"claude","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"grokk","model":"grok-4.6"}]}`,
+			),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if err == nil || !strings.Contains(err.Error(), `agent "grokker" fallback_chain[0].provider: `) ||
+			!strings.Contains(err.Error(), `unknown provider "grokk"`) {
+			t.Fatalf("Registry.Call(agent_create unknown route provider) error = %v", err)
 		}
 	})
 

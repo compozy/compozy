@@ -19,6 +19,11 @@
                         {
                             "value": "fallback-title-model",
                             "label": "Fallback title model"
+                        },
+                        {
+                            "value": "rejected-title-model",
+                            "label": "Rejected title model",
+                            "reject_set": true
                         }
                     ]
                 }

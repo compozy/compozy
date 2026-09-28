@@ -848,6 +848,76 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 	})
 }
 
+func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
+	t.Parallel()
+
+	t.Run("Should carry the accepted session id through failed-start cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "helper",
+			Command:     helperCommand(t),
+			Cwd:         t.TempDir(),
+			Env:         helperEnv("config_options_reject_speed", ""),
+			Permissions: compozyconfig.PermissionModeApproveAll,
+			Speed:       speedpkg.SpeedFast,
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed setup cleanup")
+		}
+		accepted, ok := errors.AsType[*AcceptedStartError](err)
+		if !ok || accepted.SessionID != "sess-new" {
+			t.Fatalf("Start() error = %v, want AcceptedStartError for sess-new", err)
+		}
+		if _, negotiationMatched := errors.AsType[*NegotiationError](err); !negotiationMatched {
+			t.Fatalf("Start() error = %v, want the negotiation cause preserved", err)
+		}
+		if !strings.HasPrefix(err.Error(), "acp: start failed after session acceptance: ") {
+			t.Fatalf("Start() error text = %q, want the acceptance prefix", err.Error())
+		}
+	})
+
+	t.Run("Should report no acceptance when session negotiation fails", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnv("load_session_error", ""),
+			ResumeSessionID: "sess-missing",
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed load cleanup")
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want session/load failure")
+		}
+		if id, accepted := AcceptedSessionID(err); accepted || id != "" {
+			t.Fatalf("AcceptedSessionID() = (%q, %t), want (\"\", false)", id, accepted)
+		}
+	})
+
+	t.Run("Should find the acceptance fact through joined and wrapped errors", func(t *testing.T) {
+		t.Parallel()
+
+		base := WrapAcceptedStart("acp_1", errors.New("configure failed"))
+		for _, wrapped := range []error{
+			fmt.Errorf("session: start: %w", base),
+			errors.Join(errors.New("cleanup failed"), base),
+		} {
+			if id, ok := AcceptedSessionID(wrapped); !ok || id != "acp_1" {
+				t.Fatalf("AcceptedSessionID(%v) = (%q, %t), want (acp_1, true)", wrapped, id, ok)
+			}
+		}
+		if WrapAcceptedStart("acp_2", base) != base {
+			t.Fatal("WrapAcceptedStart() rewrapped an error that already carries acceptance")
+		}
+	})
+}
+
 func TestMatchSpeedConfigRejectsAmbiguity(t *testing.T) {
 	t.Parallel()
 

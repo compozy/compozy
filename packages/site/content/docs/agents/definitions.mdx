@@ -241,9 +241,11 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `category_path`    | string array                | no       | empty                                                | Ordered display-only path such as `["Marketing", "Sales"]`. Segments are trimmed and must not be blank, `.`, `..`, or contain `/` or `\`.                                                                                                                                                                               |
 | `mcp_servers`      | array of MCP server objects | no       | merged with config/provider servers                  | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                                                                                                                                                               |
 | `hooks`            | array of hook declarations  | no       | none                                                 | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                                                                                                                                                                     |
+| `fallback_chain`   | array of route objects      | no       | empty                                                | Ordered fallback routes with the same shape as `[[roles.<role>.fallback_chain]]`: `provider` and `model` are required; `reasoning_effort`, `speed`, `acp_options`, and `command` are optional. See [Fallback chain](#fallback-chain).                                                                                   |
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.
+
 `category_path` has one canonical shape: an array of path segments. CompozyOS rejects `categories` and
 slash-string values such as `"Marketing/Sales"`.
 
@@ -253,6 +255,55 @@ ID order while refreshing and revalidating after every response. Cursor compiles
 selection into a private launch alias and replaces the process when a launch-bound value changes.
 OpenClaw is provider-managed and rejects these runtime controls. Empty effort sends no RPC; explicit
 `none` does when advertised.
+
+### Fallback chain
+
+`fallback_chain` lists ordered routes to try when a provider refuses a session **before** ACP accepts
+it. A route's `command` names the account (seat) the same way `command` does for the agent: shell-style
+quoting, no shell, and leading `NAME=value` tokens become private environment forwarded literally — `~`
+and `$HOME` are not expanded, so write absolute paths. Empty `command` inherits the agent command on the
+agent's own provider, or the route provider's command on another provider.
+
+```yaml
+---
+name: reviewer
+provider: claude
+model: opus-4-8
+reasoning_effort: high
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+    command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" # other seat, same provider
+  - provider: cursor
+    model: grok-4.6
+    reasoning_effort: high # last resort: another provider
+---
+You review pull requests…
+```
+
+TOML frontmatter uses `[[fallback_chain]]` tables with the same keys. The chain is validated when the
+definition loads and on `compozy agent create|update` (`agent "reviewer" fallback_chain[0].command:
+command is missing an executable`, `agent "reviewer" fallback_chain[1].provider: … unknown provider
+"grokk"`), and it is projected by `compozy agent show` and `GET /api/agents/{name}` with a
+`command_fingerprint` (`sha256:`) for every route that sets `command`. There is no limit on the number of
+routes or on command length.
+
+Only one chain owns a launch. Sessions that a background role launches with this agent (an inherited
+`auto_title`, for example) always run the role's own `fallback_chain` from `config.toml`, never this one.
+
+Edit the chain from the CLI with the repeatable, ordered `--fallback-route` flag. Keys are `provider`,
+`model`, `reasoning_effort`, `speed`, and `command`; `command` must be the last key and takes the rest
+of the value verbatim, commas and quotes included:
+
+```bash
+compozy agent update reviewer --expected-digest <digest> \
+  --fallback-route 'provider=claude,model=opus-4-8,command=CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp' \
+  --fallback-route provider=cursor,model=grok-4.6,reasoning_effort=high
+
+compozy agent update reviewer --expected-digest <digest> --clear-fallback-chain
+```
+
+`--fallback-route` replaces the whole chain; omitting both flags keeps the current chain.
 
 ## MCP servers
 

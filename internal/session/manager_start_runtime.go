@@ -23,7 +23,7 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	agentDef := artifacts.Agent
 	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
-		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort,
+		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command,
 	})
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)

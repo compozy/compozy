@@ -13875,6 +13875,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];
@@ -13975,6 +13989,19 @@ export interface operations {
             category_path?: string[];
             command?: string;
             deny_tools?: string[];
+            fallback_chain?: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
+              command?: string;
+              model: string;
+              provider: string;
+              reasoning_effort?: string;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+            }[];
             model?: string;
             name: string;
             /** @enum {string} */
@@ -14037,6 +14064,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];
@@ -14361,6 +14402,20 @@ export interface operations {
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
+                fallback_chain?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
+                  command?: string;
+                  command_fingerprint?: string;
+                  model: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                }[];
                 layer?: string;
                 mcp_servers?: {
                   args?: string[];
@@ -14638,6 +14693,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];
@@ -14771,6 +14840,19 @@ export interface operations {
             category_path?: string[];
             command?: string;
             deny_tools?: string[];
+            fallback_chain?: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
+              command?: string;
+              model: string;
+              provider: string;
+              reasoning_effort?: string;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+            }[];
             model?: string;
             name: string;
             /** @enum {string} */
@@ -14832,6 +14914,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];
@@ -15363,6 +15459,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];
@@ -45191,6 +45301,8 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command?: string;
+                command_fingerprint?: string;
                 model: string;
                 provider: string;
                 reasoning_effort?: string;
@@ -45376,6 +45488,8 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command?: string;
+                command_fingerprint?: string;
                 model: string;
                 provider: string;
                 reasoning_effort?: string;
@@ -58828,6 +58942,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -58854,6 +58969,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -58880,6 +58996,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -58909,6 +59026,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -58934,6 +59052,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -58964,6 +59083,7 @@ export interface operations {
                     id: string;
                     value_id?: string;
                   }[];
+                  command: string;
                   model: string;
                   provider: string;
                   reasoning_effort: string;
@@ -59056,6 +59176,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -59082,6 +59203,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -59108,6 +59230,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -59137,6 +59260,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -59162,6 +59286,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -59192,6 +59317,7 @@ export interface operations {
                   id: string;
                   value_id?: string;
                 }[];
+                command: string;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
@@ -87635,6 +87761,20 @@ export interface operations {
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
+              fallback_chain?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                command?: string;
+                command_fingerprint?: string;
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              }[];
               layer?: string;
               mcp_servers?: {
                 args?: string[];

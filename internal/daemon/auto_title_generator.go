@@ -106,6 +106,8 @@ func (g *forkedAutoTitleGenerator) Generate(
 			ReasoningEffort:     route.ReasoningEffort,
 			Speed:               route.Speed,
 			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:             route.Command,
+			ChainOwner:          session.ChainOwnerCaller,
 			Name:                autoTitleSessionName,
 			PromptOverlay:       autoTitlePromptOverlay(),
 			SpawnRole:           session.SpawnRoleAutoTitle,
@@ -113,7 +115,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 			AutoStopOnParent:    true,
 			DiscardStartFailure: true,
 		})
-		return spawned, spawned != nil, spawnErr
+		return spawned, session.StartAccepted(spawnErr) || spawned != nil, spawnErr
 	})
 	if child != nil {
 		defer g.stopAutoTitleSession(ctx, child.ID, &title, &err)

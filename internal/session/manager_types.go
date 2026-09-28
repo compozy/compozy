@@ -55,6 +55,12 @@ type CreateOpts struct {
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool
+	// Command is an explicit launch command for this attempt (a fallback route's
+	// account). Empty keeps the provider-aware resolution and spawn inheritance.
+	Command string
+	// ChainOwner declares who owns the fallback chain for this launch; role-owned
+	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
+	ChainOwner ChainOwner
 }
 
 // CreateAcceptedOpts carries one logical user-session creation request.

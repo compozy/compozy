@@ -18,6 +18,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		CategoryPath:    normalizeAgentCategoryPath(agent.CategoryPath),
 		MCPServers:      cloneMCPServers(agent.MCPServers),
 		Hooks:           cloneHookDecls(agent.Hooks),
+		FallbackChain:   normalizeRoleFallbacks(agent.FallbackChain),
 		Capabilities:    agent.Capabilities.Clone(),
 		Prompt:          strings.TrimSpace(agent.Prompt),
 		SourcePath:      strings.TrimSpace(agent.SourcePath),

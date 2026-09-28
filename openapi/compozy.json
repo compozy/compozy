@@ -22108,6 +22108,61 @@
                             ],
                             "type": "object"
                           },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "command": {
+                                  "type": "string"
+                                },
+                                "command_fingerprint": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "layer": {
                             "type": "string"
                           },
@@ -22419,6 +22474,58 @@
                         },
                         "type": "array"
                       },
+                      "fallback_chain": {
+                        "items": {
+                          "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "command": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "model",
+                            "provider"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "model": {
                         "type": "string"
                       },
@@ -22639,6 +22746,61 @@
                             "sources"
                           ],
                           "type": "object"
+                        },
+                        "fallback_chain": {
+                          "items": {
+                            "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "command": {
+                                "type": "string"
+                              },
+                              "command_fingerprint": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "layer": {
                           "type": "string"
@@ -23564,6 +23726,61 @@
                                   "sources"
                                 ],
                                 "type": "object"
+                              },
+                              "fallback_chain": {
+                                "items": {
+                                  "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "command": {
+                                      "type": "string"
+                                    },
+                                    "command_fingerprint": {
+                                      "type": "string"
+                                    },
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning_effort": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "model",
+                                    "provider"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               },
                               "layer": {
                                 "type": "string"
@@ -24835,6 +25052,61 @@
                           ],
                           "type": "object"
                         },
+                        "fallback_chain": {
+                          "items": {
+                            "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "command": {
+                                "type": "string"
+                              },
+                              "command_fingerprint": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "layer": {
                           "type": "string"
                         },
@@ -25229,6 +25501,58 @@
                         },
                         "type": "array"
                       },
+                      "fallback_chain": {
+                        "items": {
+                          "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "command": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "model",
+                            "provider"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "model": {
                         "type": "string"
                       },
@@ -25445,6 +25769,61 @@
                             "sources"
                           ],
                           "type": "object"
+                        },
+                        "fallback_chain": {
+                          "items": {
+                            "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "command": {
+                                "type": "string"
+                              },
+                              "command_fingerprint": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "layer": {
                           "type": "string"
@@ -26444,6 +26823,61 @@
                             "sources"
                           ],
                           "type": "object"
+                        },
+                        "fallback_chain": {
+                          "items": {
+                            "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "command": {
+                                "type": "string"
+                              },
+                              "command_fingerprint": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "layer": {
                           "type": "string"
@@ -107626,6 +108060,12 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
+                                "command_fingerprint": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -108138,6 +108578,12 @@
                                   "type": "object"
                                 },
                                 "type": "array"
+                              },
+                              "command": {
+                                "type": "string"
+                              },
+                              "command_fingerprint": {
+                                "type": "string"
                               },
                               "model": {
                                 "type": "string"
@@ -143324,6 +143770,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143344,6 +143793,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -143436,6 +143886,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143456,6 +143909,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -143546,6 +144000,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143566,6 +144023,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -143670,6 +144128,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143690,6 +144151,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -143777,6 +144239,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143797,6 +144262,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -143904,6 +144370,9 @@
                                     },
                                     "type": "array"
                                   },
+                                  "command": {
+                                    "type": "string"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -143924,6 +144393,7 @@
                                 },
                                 "required": [
                                   "acp_options",
+                                  "command",
                                   "model",
                                   "provider",
                                   "reasoning_effort"
@@ -144163,6 +144633,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144183,6 +144656,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -144275,6 +144749,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144295,6 +144772,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -144385,6 +144863,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144405,6 +144886,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -144509,6 +144991,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144529,6 +145014,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -144616,6 +145102,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144636,6 +145125,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -144743,6 +145233,9 @@
                                   },
                                   "type": "array"
                                 },
+                                "command": {
+                                  "type": "string"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -144763,6 +145256,7 @@
                               },
                               "required": [
                                 "acp_options",
+                                "command",
                                 "model",
                                 "provider",
                                 "reasoning_effort"
@@ -212367,6 +212861,61 @@
                               "sources"
                             ],
                             "type": "object"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "command": {
+                                  "type": "string"
+                                },
+                                "command_fingerprint": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
                           },
                           "layer": {
                             "type": "string"

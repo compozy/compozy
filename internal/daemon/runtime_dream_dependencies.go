@@ -77,6 +77,7 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 					ReasoningEffort: fallback.ReasoningEffort,
 					Speed:           fallback.Speed,
 					ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
+					Command:         strings.TrimSpace(fallback.Command),
 				})
 			},
 		}, nil

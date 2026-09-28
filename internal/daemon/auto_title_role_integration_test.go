@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,16 @@ func TestAutoTitleRoleIntegration(t *testing.T) {
 			runAutoTitleRoleFallbackIntegration(t)
 		},
 	)
+
+	t.Run("Should launch a fallback route on its account command", func(t *testing.T) { // IT-001, IT-002, E2E-001
+		t.Parallel()
+		runAutoTitleRoleAccountRouteIntegration(t)
+	})
+
+	t.Run("Should stop the chain when ACP accepted the start and configuration failed", func(t *testing.T) { // IT-006
+		t.Parallel()
+		runAutoTitleRoleAcceptedStartFailureIntegration(t)
+	})
 
 	t.Run("Should clean up every exhausted pre-acceptance attempt", func(t *testing.T) {
 		t.Parallel()
@@ -408,5 +419,177 @@ func assertAutoTitlePromptCountRemains(
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+// runAutoTitleRoleAccountRouteIntegration proves the route account reaches the launch:
+// the fallback provider's own command is broken, so the title only arrives when the
+// route command is launched, and the ledger carries its fingerprint, never the command.
+func runAutoTitleRoleAccountRouteIntegration(t *testing.T) {
+	t.Helper()
+
+	const seatProvider = "acpmock-seat-two"
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
+		cfg.Providers["unreachable-role-provider"] = compozyconfig.ProviderConfig{
+			Command:      "/missing/compozy-role-provider",
+			Harness:      compozyconfig.ProviderHarnessACP,
+			AuthMode:     compozyconfig.ProviderAuthModeNone,
+			NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+		}
+		cfg.Providers[seatProvider] = acpmock.ProviderConfig("/missing/compozy-seat-one")
+		cfg.Roles.AutoTitle.Provider = "unreachable-role-provider"
+		cfg.Roles.AutoTitle.Model = "unreachable-model"
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+	routeCommand := registration.Command
+	fingerprint := compozyconfig.CommandFingerprint(routeCommand)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var settings compozycontract.SettingsRolesResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &settings); err != nil {
+		t.Fatalf("UDS GET settings roles error = %v", err)
+	}
+	settings.Config.AutoTitle.FallbackChain = []compozycontract.SettingsRoleFallbackPayload{{
+		Provider:   seatProvider,
+		Model:      "fallback-title-model",
+		ACPOptions: []compozycontract.AgentACPOptionSelection{},
+		Command:    routeCommand,
+	}}
+	var applied map[string]any
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPatch,
+		"/api/settings/roles",
+		map[string]any{"config": settings.Config},
+		&applied,
+	); err != nil {
+		t.Fatalf("UDS PATCH settings roles error = %v", err)
+	}
+	var persisted compozycontract.SettingsRolesResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &persisted); err != nil {
+		t.Fatalf("UDS GET settings roles after apply error = %v", err)
+	}
+	if chain := persisted.Config.AutoTitle.FallbackChain; len(chain) != 1 || chain[0].Command != routeCommand {
+		t.Fatalf("settings auto_title fallback chain = %#v, want the route command round-tripped", chain)
+	}
+	var roleResponse compozycontract.RoleStatusResponse
+	rolePath := "/api/roles/auto_title?workspace=" + url.QueryEscape(harness.WorkspaceRoot)
+	if err := harness.UDSJSON(ctx, http.MethodGet, rolePath, nil, &roleResponse); err != nil {
+		t.Fatalf("UDS auto_title role status error = %v", err)
+	}
+	if chain := roleResponse.Role.FallbackChain; len(chain) != 1 || chain[0].Command != routeCommand ||
+		chain[0].CommandFingerprint != fingerprint {
+		t.Fatalf("auto_title role fallback chain = %#v, want command and fingerprint", chain)
+	}
+
+	session := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
+	if _, err := harness.PromptSession(ctx, session.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(account route) error = %v", err)
+	}
+	waitForRuntimeCondition(t, "account route auto-title applied", 10*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, session.ID)
+		return err == nil && current.Name == "Checkout Retry Fencing"
+	})
+
+	var logs compozycontract.LogsListResponse
+	logsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
+		"&type=role.fallback.used&limit=10"
+	waitForRuntimeCondition(t, "account route fallback event", 10*time.Second, func() bool {
+		logs = compozycontract.LogsListResponse{}
+		return harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs) == nil && len(logs.Events) == 1
+	})
+	var content map[string]any
+	if err := json.Unmarshal(logs.Events[0].Content, &content); err != nil {
+		t.Fatalf("json.Unmarshal(account route event) error = %v", err)
+	}
+	if content["attempt"] != float64(1) || content["provider"] != seatProvider ||
+		content["provider_command_fingerprint"] != fingerprint {
+		t.Fatalf("account route event content = %#v, want attempt 1 with the route fingerprint", content)
+	}
+	if _, leaked := content["command"]; leaked ||
+		strings.Contains(string(logs.Events[0].Content), registration.FixturePath) {
+		t.Fatalf("account route event leaked the raw command: %s", logs.Events[0].Content)
+	}
+}
+
+// runAutoTitleRoleAcceptedStartFailureIntegration scripts acpmock to accept session/new
+// and then reject session/set_config_option: the driver reports acp.AcceptedStartError,
+// so the role must not launch its fallback route.
+func runAutoTitleRoleAcceptedStartFailureIntegration(t *testing.T) {
+	t.Helper()
+
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
+		cfg.Roles.AutoTitle.Provider = acpmock.ProviderName
+		cfg.Roles.AutoTitle.Model = "rejected-title-model"
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
+			Provider: acpmock.ProviderName,
+			Model:    "fallback-title-model",
+		}}
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	root := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
+	if _, err := harness.PromptSession(ctx, root.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(accepted start failure) error = %v", err)
+	}
+
+	waitForRuntimeCondition(t, "rejected configuration attempted", 10*time.Second, func() bool {
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			return false
+		}
+		for _, record := range acpmock.ProtocolDiagnostics(records) {
+			if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
+				record.ConfigOptionValue == "rejected-title-model" {
+				return true
+			}
+		}
+		return false
+	})
+	assertAutoTitlePromptCountRemains(t, registration.DiagnosticsPath, 1, 750*time.Millisecond)
+
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(accepted start failure) error = %v", err)
+	}
+	rejectedAttempts := 0
+	for _, record := range acpmock.ProtocolDiagnostics(records) {
+		if record.ProtocolMethod != acpsdk.AgentMethodSessionSetConfigOption {
+			continue
+		}
+		switch record.ConfigOptionValue {
+		case "rejected-title-model":
+			rejectedAttempts++
+		case "fallback-title-model":
+			t.Fatalf("fallback route configured after acceptance: %#v", record)
+		}
+	}
+	if rejectedAttempts != 1 {
+		t.Fatalf("accepted role attempts = %d, want exactly one", rejectedAttempts)
+	}
+	var logs compozycontract.LogsListResponse
+	logsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
+		"&type=role.fallback.used&limit=10"
+	if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil {
+		t.Fatalf("UDS accepted start failure logs error = %v", err)
+	}
+	if len(logs.Events) != 0 {
+		t.Fatalf("role fallback events = %#v, want none after acceptance", logs.Events)
+	}
+	current, err := harness.GetSession(ctx, root.ID)
+	if err != nil {
+		t.Fatalf("GetSession(accepted start failure root) error = %v", err)
+	}
+	if current.Name != "" {
+		t.Fatalf("root title = %q, want unchanged after the accepted failure", current.Name)
 	}
 }

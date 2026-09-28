@@ -15,12 +15,15 @@ import (
 )
 
 type sessionStartSpec struct {
-	sessionID                string
-	profileID                string
-	sessionName              string
-	agentName                string
-	provider                 string
-	commandFingerprint       string
+	sessionID          string
+	profileID          string
+	sessionName        string
+	agentName          string
+	provider           string
+	commandFingerprint string
+	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
+	command                  string
+	chainOwner               ChainOwner
 	model                    string
 	transportModel           string
 	reasoningEffort          string

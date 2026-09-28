@@ -108,6 +108,7 @@ func agentDefFromParsedFile(
 		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
+		FallbackChain:   normalizeRoleFallbacks(parsed.FallbackChain),
 		Prompt:          strings.TrimSpace(parts.Body),
 		SourcePath:      filepath.Clean(path),
 	}
@@ -147,6 +148,7 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
+	parsed.FallbackChain = normalizeRoleFallbacks(agent.FallbackChain)
 	hooks, err := parsedHookDeclarationsFromHookDecls(agent.Hooks, agent.Name)
 	if err != nil {
 		return err

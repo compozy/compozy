@@ -51,6 +51,8 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		agentName:               strings.TrimSpace(agentName),
 		provider:                strings.TrimSpace(opts.Provider),
 		model:                   strings.TrimSpace(opts.Model),
+		command:                 strings.TrimSpace(opts.Command),
+		chainOwner:              opts.ChainOwner,
 		reasoningEffort:         strings.TrimSpace(opts.ReasoningEffort),
 		speed:                   requestedSpeed,
 		acpOptions:              acpOptions,

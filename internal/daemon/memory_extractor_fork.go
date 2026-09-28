@@ -252,6 +252,8 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			ReasoningEffort:     route.ReasoningEffort,
 			Speed:               route.Speed,
 			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:             route.Command,
+			ChainOwner:          session.ChainOwnerCaller,
 			Name:                "Memory extractor",
 			PromptOverlay:       memoryExtractorOverlay(),
 			SpawnRole:           session.SpawnRoleMemoryExtractor,
@@ -261,7 +263,7 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			AllowStoppedParent:  true,
 			DiscardStartFailure: true,
 		})
-		return spawned, spawned != nil, err
+		return spawned, session.StartAccepted(err) || spawned != nil, err
 	})
 }
 

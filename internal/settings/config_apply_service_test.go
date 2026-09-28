@@ -510,6 +510,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium", Speed: "fast",
 			ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
+			Command:    "CODEX_HOME=/Users/ada/.codex-work codex acp",
 		}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
@@ -547,6 +548,28 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		if envelope.Scope != ScopeWorkspace ||
 			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeWorkspace}) {
 			t.Fatalf("GetSection(workspace roles) envelope = %#v", envelope)
+		}
+	})
+
+	t.Run("Should list the fallback chain when only a route command changes", func(t *testing.T) { // UT-019
+		t.Parallel()
+
+		current := compozyconfig.DefaultRolesConfig()
+		current.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{Provider: "claude", Model: "haiku-4-5"}}
+		desired := compozyconfig.CloneRolesConfig(&current)
+		desired.AutoTitle.FallbackChain[0].Command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		if changed := diffRolesSettings(&current, &desired); !reflect.DeepEqual(
+			changed,
+			[]string{"roles.auto_title.fallback_chain"},
+		) {
+			t.Fatalf("diffRolesSettings() = %#v, want only roles.auto_title.fallback_chain", changed)
+		}
+		tables := roleFallbackTables(desired.AutoTitle.FallbackChain)
+		if len(tables) != 1 || tables[0]["command"] != desired.AutoTitle.FallbackChain[0].Command {
+			t.Fatalf("roleFallbackTables() = %#v, want the route command persisted", tables)
+		}
+		if _, persisted := roleFallbackTables(current.AutoTitle.FallbackChain)[0]["command"]; persisted {
+			t.Fatal("roleFallbackTables() persisted an empty inherit command")
 		}
 	})
 

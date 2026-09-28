@@ -96,8 +96,9 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	if err != nil {
 		return fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	acceptedID := accepted.proc.SessionID
 	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
-		return startupFailure("session resume marker persistence failed", err)
+		return acp.WrapAcceptedStart(acceptedID, startupFailure("session resume marker persistence failed", err))
 	}
 
 	if !accepted.async {
@@ -113,10 +114,10 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
-		return startupFailure(
+		return acp.WrapAcceptedStart(acceptedID, startupFailure(
 			"session activation failed",
 			fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err),
-		)
+		))
 	}
 	if spec.resumeReplay {
 		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)

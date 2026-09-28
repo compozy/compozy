@@ -174,7 +174,8 @@ func (m *Manager) replacePromptRuntime(
 		defer cancel()
 		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
-		return nil, errors.Join(err, restoreErr, stopErr)
+		// ACP already accepted the candidate: report an accepted failure (ADR-005).
+		return nil, acp.WrapAcceptedStart(candidate.SessionID, errors.Join(err, restoreErr, stopErr))
 	}
 
 	session.setProviderRouting(runtime.agent)

@@ -303,10 +303,29 @@ type RuntimeOverrides struct {
 	Provider  string
 	Model     string
 	Reasoning string
+	// Command is an explicit launch command for this attempt (a fallback route's account).
+	// It is applied after the provider-aware resolution: when non-empty it replaces the
+	// resolved command on any provider; when empty the existing rule holds (the agent
+	// command is kept only for a same-provider selection, else the selected provider's).
+	Command string
 }
 
 // ResolveSessionAgentWithRuntime resolves one session agent with runtime-level overrides.
 func (c *Config) ResolveSessionAgentWithRuntime(
+	agent AgentDef,
+	overrides RuntimeOverrides,
+) (ResolvedAgent, error) {
+	resolved, err := c.resolveSessionAgentRuntime(agent, overrides)
+	if err != nil {
+		return ResolvedAgent{}, err
+	}
+	if command := strings.TrimSpace(overrides.Command); command != "" {
+		resolved.Command = command
+	}
+	return resolved, nil
+}
+
+func (c *Config) resolveSessionAgentRuntime(
 	agent AgentDef,
 	overrides RuntimeOverrides,
 ) (ResolvedAgent, error) {

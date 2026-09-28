@@ -9,13 +9,20 @@ const (
 	RoleResolutionModeInherit RoleResolutionMode = "inherit"
 )
 
-// RoleFallbackStatus is one configured fallback route in declaration order.
+// RoleFallbackStatus is one configured fallback route in declaration order. Agent
+// payloads reuse it for `fallback_chain` so both projections share one route shape.
 type RoleFallbackStatus struct {
 	Provider        string                    `json:"provider"`
 	Model           string                    `json:"model"`
 	ReasoningEffort string                    `json:"reasoning_effort,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	// Command is the configured route account (operator configuration surface).
+	Command string `json:"command,omitempty"`
+	// CommandFingerprint is `sha256:` over Command, the same value fallback events and
+	// transcript markers carry; present exactly when Command is set so clients can label
+	// a route without printing the command.
+	CommandFingerprint string `json:"command_fingerprint,omitempty"`
 }
 
 // RoleDiagnostic reports a current configuration-resolution problem without simulating an invocation.

@@ -40,7 +40,20 @@ type CreateAgentPayload struct {
 	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
 	CategoryPath    []string                  `json:"category_path,omitempty"`
 	Skills          *CreateAgentSkillsConfig  `json:"skills,omitempty"`
-	Prompt          string                    `json:"prompt"`
+	// FallbackChain declares ordered pre-acceptance routes; omitted keeps no chain on
+	// create and replaces the whole chain on update.
+	FallbackChain []AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
+	Prompt        string                      `json:"prompt"`
+}
+
+// AgentFallbackRoutePayload is one authored agent fallback route.
+type AgentFallbackRoutePayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	Command         string                    `json:"command,omitempty"`
 }
 
 // CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.

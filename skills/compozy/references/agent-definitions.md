@@ -112,6 +112,22 @@ providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clea
 They also accept `--speed`, repeatable `--acp-option id=value`, and repeatable
 `--acp-toggle id=true|false` for authored runtime defaults.
 
+Create and update accept a repeatable, ordered `--fallback-route` that replaces the agent's
+`fallback_chain`, and `--clear-fallback-chain` to empty it; omitting both keeps the current chain.
+Keys are `provider`, `model`, `reasoning_effort`, `speed`, and `command`; `command` must be the last
+key and takes the rest of the value verbatim (quote the whole flag value in the shell):
+
+    compozy agent update reviewer --expected-digest <digest> \
+      --fallback-route 'provider=claude,model=opus-4-8,command=CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp' \
+      --fallback-route provider=cursor,model=grok-4.6,reasoning_effort=high -o json
+
+The `fallback_chain` frontmatter key holds the same route tables as `[[roles.<role>.fallback_chain]]`
+(`provider` and `model` required; optional `reasoning_effort`, `speed`, `acp_options`, `command`).
+`compozy agent show` and `GET /api/agents/{name}` project it with `command_fingerprint` for routes that
+set `command`. Invalid routes fail with a path such as
+`agent "reviewer" fallback_chain[0].command: command is missing an executable`. Sessions a background
+role launches with this agent run the role's chain, never the agent's.
+
 `update` replaces the complete effective authored definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
 When `--provider` selects a different underlying provider, `update` clears an omitted command, model, reasoning effort, and ACP options; equivalent built-in aliases and case variants keep those settings.

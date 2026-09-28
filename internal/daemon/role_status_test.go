@@ -255,6 +255,31 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should project route commands with their fingerprint", func(t *testing.T) { // UT-018, IT-001
+		t.Parallel()
+
+		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		cfg := roleResolverConfig()
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{
+			{Provider: "claude", Model: "haiku-4-5", Command: command},
+			{Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "high"},
+		}
+		status, err := newRoleResolver(&cfg, nil, roleAgentResolverStub{}).RoleStatus(
+			t.Context(),
+			"",
+			string(compozyconfig.RoleAutoTitle),
+		)
+		if err != nil {
+			t.Fatalf("RoleStatus(auto_title) error = %v", err)
+		}
+		chain := status.FallbackChain
+		if len(chain) != 2 || chain[0].Command != command ||
+			chain[0].CommandFingerprint != compozyconfig.CommandFingerprint(command) ||
+			chain[1].Command != "" || chain[1].CommandFingerprint != "" {
+			t.Fatalf("RoleStatus(auto_title).FallbackChain = %#v, want command projected with fingerprint", chain)
+		}
+	})
+
 	t.Run("Should preserve global and workspace field provenance", func(t *testing.T) {
 		t.Parallel()
 

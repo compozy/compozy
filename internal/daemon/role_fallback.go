@@ -45,13 +45,17 @@ type roleAttemptRoute struct {
 	ReasoningEffort string
 	Speed           speedpkg.Speed
 	ACPOptions      []compozyconfig.ACPOptionSelection
+	// Command is the route's account; it is forwarded to the consumer's Command field
+	// and never written to events or logs (only its fingerprint is).
+	Command string
 }
 
 type roleFallbackEventPayload struct {
-	Role     string `json:"role"`
-	Attempt  int    `json:"attempt"`
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
+	Role                       string `json:"role"`
+	Attempt                    int    `json:"attempt"`
+	Provider                   string `json:"provider"`
+	Model                      string `json:"model"`
+	ProviderCommandFingerprint string `json:"provider_command_fingerprint,omitempty"`
 }
 
 type roleResolveErrorEventPayload struct {
@@ -77,6 +81,10 @@ func roleInvocationCorrelationFromContext(ctx context.Context, workspaceID strin
 	return stored
 }
 
+// invokeRoleWithFallback owns the role's chain (session.ChainOwnerCaller for every
+// launch it makes). Each callback reports acceptance as
+// session.StartAccepted(err) || value != nil; an accepted attempt ends the chain even
+// when it returned an error.
 func invokeRoleWithFallback[T any](
 	ctx context.Context,
 	role ResolvedRole,
@@ -108,6 +116,7 @@ func invokeRoleWithFallback[T any](
 			ReasoningEffort: strings.TrimSpace(fallback.ReasoningEffort),
 			Speed:           fallback.Speed,
 			ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
+			Command:         strings.TrimSpace(fallback.Command),
 		}
 		attempt := index + 1
 		if eventErr := recordRoleFallbackEvent(ctx, role, correlation, attempt, route); eventErr != nil {
@@ -146,6 +155,7 @@ func recordRoleFallbackEvent(
 	}
 	content, err := json.Marshal(roleFallbackEventPayload{
 		Role: string(role.Role), Attempt: attempt, Provider: route.Provider, Model: route.Model,
+		ProviderCommandFingerprint: compozyconfig.CommandFingerprint(route.Command),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: marshal role fallback event: %w", err)

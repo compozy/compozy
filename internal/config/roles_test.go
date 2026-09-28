@@ -2,7 +2,9 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +108,27 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 			t.Fatalf("CloneRolesConfig() mutated source fallbacks: %#v", source)
 		}
 	})
+
+	t.Run("Should clone and validate a memory-controller route command", func(t *testing.T) { // UT-002
+		t.Parallel()
+
+		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		source := DefaultRolesConfig()
+		source.MemoryController.FallbackChain = []RoleFallback{{
+			Provider: "claude", Model: "haiku-4-5", Command: command,
+		}}
+		if err := source.Validate("roles", &Config{}); err != nil {
+			t.Fatalf("Validate(memory controller route command) error = %v", err)
+		}
+		cloned := CloneRolesConfig(&source)
+		if got := cloned.MemoryController.FallbackChain[0].Command; got != command {
+			t.Fatalf("cloned route command = %q, want %q", got, command)
+		}
+		cloned.MemoryController.FallbackChain[0].Command = "changed"
+		if got := source.MemoryController.FallbackChain[0].Command; got != command {
+			t.Fatalf("source route command = %q after clone mutation, want %q", got, command)
+		}
+	})
 }
 
 func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
@@ -199,6 +222,79 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		err := cfg.Validate("roles", &Config{})
 		assertErrorContains(t, err, "roles.dream.fallback_chain[0].provider")
 		assertErrorContains(t, err, "missing")
+	})
+
+	t.Run("Should accept a route command and parse it with the launch grammar", func(t *testing.T) { // UT-001
+		t.Parallel()
+
+		cfg := DefaultRolesConfig()
+		cfg.AutoTitle.FallbackChain = []RoleFallback{{
+			Provider: "codex", Model: "gpt-5.6-terra", Command: "CODEX_HOME=/Users/ada/.codex-work codex acp",
+		}}
+		if err := cfg.Validate("roles", &Config{}); err != nil {
+			t.Fatalf("Validate(route command) error = %v", err)
+		}
+		parsed, err := ParseLaunchCommand(cfg.AutoTitle.FallbackChain[0].Command)
+		if err != nil {
+			t.Fatalf("ParseLaunchCommand() error = %v", err)
+		}
+		if parsed.Executable != "codex" || !reflect.DeepEqual(parsed.Args, []string{"acp"}) ||
+			!reflect.DeepEqual(parsed.Environment, []string{"CODEX_HOME=/Users/ada/.codex-work"}) {
+			t.Fatalf("ParseLaunchCommand() = %#v, want codex [acp] with CODEX_HOME env", parsed)
+		}
+		literal, err := ParseLaunchCommand("CODEX_HOME=~/.codex-work codex acp")
+		if err != nil {
+			t.Fatalf("ParseLaunchCommand(tilde) error = %v", err)
+		}
+		if !reflect.DeepEqual(literal.Environment, []string{"CODEX_HOME=~/.codex-work"}) {
+			t.Fatalf("ParseLaunchCommand(tilde) env = %#v, want the literal ~ value", literal.Environment)
+		}
+	})
+
+	t.Run("Should validate route commands by parsing only, with no count or length limit", func(t *testing.T) { // UT-003
+		t.Parallel()
+
+		longChain := make([]RoleFallback, 20)
+		for index := range longChain {
+			longChain[index] = RoleFallback{Provider: "claude", Model: "haiku-4-5"}
+		}
+		longChain[19].Command = "claude --acp " + strings.Repeat("x", 10*1024)
+		for _, testCase := range []struct {
+			name    string
+			chain   []RoleFallback
+			wantErr string
+		}{
+			{
+				name:    "missing executable",
+				chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "FOO=bar"}},
+				wantErr: "roles.auto_title.fallback_chain[0].command: command is missing an executable",
+			},
+			{
+				name:    "unterminated quote",
+				chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "claude 'unterminated"}},
+				wantErr: "roles.auto_title.fallback_chain[0].command: parse command: ",
+			},
+			{
+				name:  "whitespace inherits",
+				chain: []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "   "}},
+			},
+			{name: "twenty routes and a ten kilobyte command", chain: longChain},
+		} {
+			t.Run("Should handle "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := DefaultRolesConfig()
+				cfg.AutoTitle.FallbackChain = testCase.chain
+				err := cfg.Validate("roles", &Config{})
+				if testCase.wantErr == "" {
+					if err != nil {
+						t.Fatalf("Validate() error = %v, want accepted", err)
+					}
+					return
+				}
+				assertErrorContains(t, err, testCase.wantErr)
+			})
+		}
 	})
 
 	t.Run("Should reject an invalid reasoning effort", func(t *testing.T) {
@@ -301,6 +397,36 @@ func TestLoadAllowsDirectACPCoordinatorWithoutModel(t *testing.T) {
 		}
 		if got := cfg.Roles.Coordinator.Model; got != "" {
 			t.Fatalf("LoadForHome() coordinator model = %q, want empty for direct ACP", got)
+		}
+	})
+}
+
+func TestLoadKeepsPreReleaseFallbackChains(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should load a twelve-route chain written before route commands existed", func(t *testing.T) { // UT-003
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		var fixture strings.Builder
+		for index := range 12 {
+			fmt.Fprintf(&fixture, "[[roles.auto_title.fallback_chain]]\nprovider = \"claude\"\nmodel = \"model-%02d\"\n", index)
+		}
+		writeFile(t, homePaths.ConfigFile, fixture.String())
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(t.TempDir()))
+		if err != nil {
+			t.Fatalf("LoadForHome(pre-release chain) error = %v", err)
+		}
+		chain := cfg.Roles.AutoTitle.FallbackChain
+		if len(chain) != 12 || chain[0].Model != "model-00" || chain[11].Model != "model-11" || chain[11].Command != "" {
+			t.Fatalf("Roles.AutoTitle.FallbackChain = %#v, want 12 unchanged routes", chain)
 		}
 	})
 }

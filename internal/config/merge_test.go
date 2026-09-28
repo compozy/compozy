@@ -406,6 +406,44 @@ model = "three"
 		}
 	})
 
+	t.Run("Should replace a route command with a workspace overlay chain", func(t *testing.T) { // UT-004
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		globalPath := filepath.Join(t.TempDir(), "config.toml")
+		writeFile(t, globalPath, `
+[[roles.auto_title.fallback_chain]]
+provider = "claude"
+model = "haiku-4-5"
+command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+`)
+		if err := ApplyConfigOverlayFile(globalPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile(global) error = %v", err)
+		}
+		if got := cfg.Roles.AutoTitle.FallbackChain; len(got) != 1 ||
+			got[0].Command != "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" {
+			t.Fatalf("global Roles.AutoTitle.FallbackChain = %#v, want the route command", got)
+		}
+		overlay, err := loadConfigOverlayBytes([]byte(`
+[[roles.auto_title.fallback_chain]]
+provider = "codex"
+model = "gpt-5.6-terra"
+`), "workspace.toml")
+		if err != nil {
+			t.Fatalf("loadConfigOverlayBytes(workspace) error = %v", err)
+		}
+		if err := applyConfigOverlay(&cfg, &overlay, RoleFieldSourceWorkspace); err != nil {
+			t.Fatalf("applyConfigOverlay(workspace) error = %v", err)
+		}
+		want := []RoleFallback{{Provider: "codex", Model: "gpt-5.6-terra"}}
+		if got := cfg.Roles.AutoTitle.FallbackChain; !reflect.DeepEqual(got, want) {
+			t.Fatalf("effective Roles.AutoTitle.FallbackChain = %#v, want %#v", got, want)
+		}
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldFallbacks); got != RoleFieldSourceWorkspace {
+			t.Fatalf("RoleFieldSource(fallback_chain) = %q, want %q", got, RoleFieldSourceWorkspace)
+		}
+	})
+
 	t.Run("Should merge role speed and typed ACP options with provenance", func(t *testing.T) {
 		t.Parallel()
 

@@ -1481,6 +1481,59 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 	})
 }
 
+func TestFallbackRoutePayloadsJSONShape(t *testing.T) { // UT-018
+	t.Parallel()
+
+	t.Run("Should omit an empty role route command and its fingerprint", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.RoleFallbackStatus{Provider: "cursor", Model: "grok-4.6"}, &got)
+		for _, key := range []string{"command", "command_fingerprint"} {
+			if _, exists := got[key]; exists {
+				t.Fatalf("%s should be omitted for an inherit route: %#v", key, got)
+			}
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.RoleFallbackStatus{
+			Provider: "claude", Model: "haiku-4-5",
+			Command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp", CommandFingerprint: "sha256:abc",
+		}, &got)
+		if got["command"] != "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" ||
+			got["command_fingerprint"] != "sha256:abc" {
+			t.Fatalf("role route = %#v, want command and command_fingerprint", got)
+		}
+	})
+
+	t.Run("Should always marshal the settings route command", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.SettingsRoleFallbackPayload{Provider: "claude", Model: "haiku-4-5"}, &got)
+		if command, exists := got["command"]; !exists || command != "" {
+			t.Fatalf("settings route command = %#v (present %t), want empty string", command, exists)
+		}
+	})
+
+	t.Run("Should marshal the agent fallback chain", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.AgentPayload{
+			Name: "reviewer", FallbackChain: []contract.RoleFallbackStatus{{Provider: "cursor", Model: "grok-4.6"}},
+		}, &got)
+		chain, ok := got["fallback_chain"].([]any)
+		if !ok || len(chain) != 1 {
+			t.Fatalf("agent fallback_chain = %#v, want one route", got["fallback_chain"])
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.AgentPayload{Name: "reviewer"}, &got)
+		if _, exists := got["fallback_chain"]; exists {
+			t.Fatalf("agent fallback_chain should be omitted without routes: %#v", got)
+		}
+	})
+}
+
 func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
 

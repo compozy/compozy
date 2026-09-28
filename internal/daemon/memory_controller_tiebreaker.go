@@ -96,8 +96,10 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 				CWD:             prepared.cwd,
 				Prompt:          prepared.prompt,
 				MaxOutputBytes:  prepared.maxOutputBytes,
+				Command:         route.Command,
 			})
-			return memoryControllerInvocation{route: route, result: result}, result.Accepted, callErr
+			accepted := result.Accepted || session.StartAccepted(callErr)
+			return memoryControllerInvocation{route: route, result: result}, accepted, callErr
 		},
 	)
 	return memoryControllerResult(

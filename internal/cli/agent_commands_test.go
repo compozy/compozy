@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -265,6 +266,46 @@ func TestAgentCreateCommand(t *testing.T) {
 			},
 			want: "expected id=true|false",
 		},
+		{
+			name: "Should reject a fallback route command without an executable",
+			args: []string{
+				"agent", "create", "reviewer", "--provider", "claude", "--prompt", "Review.",
+				"--fallback-route", "provider=claude,model=opus-4-8,command=FOO=bar",
+			},
+			want: `agent "reviewer" fallback_chain[0].command: command is missing an executable`,
+		},
+		{
+			name: "Should reject a fallback route whose command is not the last key",
+			args: []string{
+				"agent", "create", "reviewer", "--provider", "claude", "--prompt", "Review.",
+				"--fallback-route", "command=claude --acp,provider=claude,model=opus-4-8",
+			},
+			want: `agent "reviewer" fallback_chain[0].provider is required`,
+		},
+		{
+			name: "Should reject an unknown fallback route key",
+			args: []string{
+				"agent", "create", "reviewer", "--provider", "claude", "--prompt", "Review.",
+				"--fallback-route", "provider=claude,model=opus-4-8,comand=claude",
+			},
+			want: `unknown key "comand"`,
+		},
+		{
+			name: "Should reject a duplicated fallback route key",
+			args: []string{
+				"agent", "create", "reviewer", "--provider", "claude", "--prompt", "Review.",
+				"--fallback-route", "provider=claude,provider=codex,model=opus-4-8",
+			},
+			want: `duplicate key "provider"`,
+		},
+		{
+			name: "Should reject combining fallback routes with clearing the chain",
+			args: []string{
+				"agent", "create", "reviewer", "--provider", "claude", "--prompt", "Review.",
+				"--fallback-route", "provider=claude,model=opus-4-8", "--clear-fallback-chain",
+			},
+			want: "use either --fallback-route or --clear-fallback-chain",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -504,6 +545,100 @@ func TestAgentUpdateCommand(t *testing.T) {
 			"--disable-skill", "",
 		); err != nil {
 			t.Fatalf("agent update clear disabled skills error = %v", err)
+		}
+	})
+
+	t.Run("Should replace, keep, and clear the fallback chain in declaration order", func(t *testing.T) {
+		t.Parallel()
+
+		seatTwo := "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		current := AgentRecord{
+			Name: "reviewer", Provider: "claude", Model: "opus-4-8", Prompt: "Review.",
+			DefinitionDigest: "digest-1",
+			FallbackChain: []contract.RoleFallbackStatus{{
+				Provider: "claude", Model: "opus-4-8", Command: "claude --acp", CommandFingerprint: "sha256:old",
+			}},
+		}
+		for _, tc := range []struct {
+			name string
+			args []string
+			want []contract.AgentFallbackRoutePayload
+		}{
+			{
+				name: "replace",
+				args: []string{
+					"--fallback-route", "provider=claude,model=opus-4-8,command=" + seatTwo + ",x='a, b'",
+					"--fallback-route", "provider=cursor,model=grok-4.6,reasoning_effort=high",
+				},
+				want: []contract.AgentFallbackRoutePayload{
+					{Provider: "claude", Model: "opus-4-8", Command: seatTwo + ",x='a, b'"},
+					{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+				},
+			},
+			{
+				name: "keep",
+				args: []string{"--model", "opus-4-8"},
+				want: []contract.AgentFallbackRoutePayload{
+					{Provider: "claude", Model: "opus-4-8", Command: "claude --acp"},
+				},
+			},
+			{name: "clear", args: []string{"--clear-fallback-chain"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var got []contract.AgentFallbackRoutePayload
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+						return current, nil
+					},
+					updateAgentFn: func(
+						_ context.Context,
+						_ string,
+						request contract.UpdateAgentRequest,
+					) (AgentRecord, error) {
+						got = request.Agent.FallbackChain
+						return current, nil
+					},
+				})
+				args := append([]string{"agent", "update", "reviewer", "--expected-digest", "digest-1"}, tc.args...)
+				if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+					t.Fatalf("agent update fallback chain error = %v", err)
+				}
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Fatalf("UpdateAgent() fallback_chain = %#v, want %#v", got, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should print the fallback chain in agent human output", func(t *testing.T) {
+		t.Parallel()
+
+		seatTwo := "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		record := AgentRecord{
+			Name: "reviewer", Provider: "claude", Prompt: "Review.", DefinitionDigest: "digest-1",
+			FallbackChain: []contract.RoleFallbackStatus{{Provider: "claude", Model: "opus-4-8", Command: seatTwo}},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return record, nil
+			},
+			updateAgentFn: func(context.Context, string, contract.UpdateAgentRequest) (AgentRecord, error) {
+				return record, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t, deps, "agent", "update", "reviewer", "--expected-digest", "digest-1",
+			"--fallback-route", "provider=claude,model=opus-4-8,command="+seatTwo,
+		)
+		if err != nil {
+			t.Fatalf("agent update human output error = %v", err)
+		}
+		for _, want := range []string{"Fallback Chain", "opus-4-8", seatTwo} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("agent human output missing %q:\n%s", want, stdout)
+			}
 		}
 	})
 

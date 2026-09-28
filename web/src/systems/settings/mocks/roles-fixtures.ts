@@ -199,8 +199,20 @@ export const settingsRolesConfigWithFallbackFixture: SettingsRolesSection["confi
   dream: {
     ...settingsRolesConfigFixture.dream,
     fallback_chain: [
-      { provider: "anthropic", model: "claude-sonnet-5", reasoning_effort: "", acp_options: [] },
-      { provider: "openai", model: "gpt-5", reasoning_effort: "high", acp_options: [] },
+      {
+        provider: "anthropic",
+        model: "claude-sonnet-5",
+        reasoning_effort: "",
+        acp_options: [],
+        command: "",
+      },
+      {
+        provider: "openai",
+        model: "gpt-5",
+        reasoning_effort: "high",
+        acp_options: [],
+        command: "",
+      },
     ],
   },
 };

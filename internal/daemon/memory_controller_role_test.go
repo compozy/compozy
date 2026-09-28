@@ -2,15 +2,19 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -145,6 +149,71 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 			}
 		},
 	)
+	t.Run("Should launch the fallback route account and fingerprint it", func(t *testing.T) { // IT-002
+		t.Parallel()
+
+		const seatTwo = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		cfg := memoryControllerFallbackConfig(seatTwo)
+		recorder := &roleEventRecorder{}
+		invoker := &memoryControllerInvokerStub{responses: []memoryControllerInvokerResponse{
+			{err: acp.WrapFailure(store.FailureStartup, "rate limited", errors.New("429"))},
+			{result: session.TransientModelResult{
+				Output:   `{"op":"noop","target_id":"","confidence":0.5,"reason":"ambiguous"}`,
+				Accepted: true,
+			}},
+		}}
+		tiebreaker := &daemonMemoryControllerTiebreaker{
+			invoker:   invoker,
+			roles:     newRoleResolver(&cfg, nil, nil, recorder),
+			globalCWD: t.TempDir(),
+		}
+		result, err := tiebreaker.BreakTie(t.Context(), controller.TiebreakerRequest{
+			Candidate: memcontract.Candidate{Scope: memcontract.ScopeProfile, Content: "candidate"},
+		})
+		if err != nil {
+			t.Fatalf("BreakTie() error = %v", err)
+		}
+		if result.Op != memcontract.OpNoop || len(invoker.calls) != 2 ||
+			invoker.calls[0].Command != "" || invoker.calls[1].Command != seatTwo {
+			t.Fatalf("BreakTie() = %#v calls = %#v, want the second call on the seat-two command", result, invoker.calls)
+		}
+		event := recorder.single(t)
+		var payload roleFallbackEventPayload
+		if err := json.Unmarshal(event.Content, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
+		}
+		if payload.Attempt != 1 || payload.ProviderCommandFingerprint != compozyconfig.CommandFingerprint(seatTwo) ||
+			strings.Contains(string(event.Content), "claude-work") {
+			t.Fatalf("memory controller fallback event = %s, want attempt 1 with fingerprint only", event.Content)
+		}
+	})
+
+	t.Run("Should stop when the transient start was accepted and then failed", func(t *testing.T) { // IT-006
+		t.Parallel()
+
+		cfg := memoryControllerFallbackConfig("CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp")
+		recorder := &roleEventRecorder{}
+		acceptedErr := acp.WrapAcceptedStart("acp_1", errors.New("configure failed"))
+		invoker := &memoryControllerInvokerStub{responses: []memoryControllerInvokerResponse{{err: acceptedErr}}}
+		tiebreaker := &daemonMemoryControllerTiebreaker{
+			invoker:   invoker,
+			roles:     newRoleResolver(&cfg, nil, nil, recorder),
+			globalCWD: t.TempDir(),
+		}
+		result, err := tiebreaker.BreakTie(t.Context(), controller.TiebreakerRequest{
+			Candidate: memcontract.Candidate{Scope: memcontract.ScopeProfile, Content: "candidate"},
+		})
+		if err != nil && !errors.Is(err, acceptedErr) {
+			t.Fatalf("BreakTie() error = %v, want the accepted failure or a rules fallback", err)
+		}
+		if result.Call != nil && result.Call.Model != "controller-model" {
+			t.Fatalf("BreakTie() call = %#v, want the accepted primary route", result.Call)
+		}
+		if len(invoker.calls) != 1 || recorder.count() != 0 {
+			t.Fatalf("calls/events = %d/%d, want one accepted attempt and no fallback", len(invoker.calls), recorder.count())
+		}
+	})
+
 	t.Run("Should invoke the configured live role with bounded targets", func(t *testing.T) {
 		t.Parallel()
 
@@ -209,6 +278,13 @@ type memoryControllerInvokerStub struct {
 	result session.TransientModelResult
 	err    error
 	calls  []session.TransientModelCall
+	// responses, when set, script one response per call in order.
+	responses []memoryControllerInvokerResponse
+}
+
+type memoryControllerInvokerResponse struct {
+	result session.TransientModelResult
+	err    error
 }
 
 func (s *memoryControllerInvokerStub) InvokeTransientModel(
@@ -216,5 +292,26 @@ func (s *memoryControllerInvokerStub) InvokeTransientModel(
 	call session.TransientModelCall,
 ) (session.TransientModelResult, error) {
 	s.calls = append(s.calls, call)
+	if index := len(s.calls) - 1; index < len(s.responses) {
+		return s.responses[index].result, s.responses[index].err
+	}
 	return s.result, s.err
+}
+
+func memoryControllerFallbackConfig(routeCommand string) compozyconfig.Config {
+	cfg := roleResolverConfig()
+	cfg.Providers = map[string]compozyconfig.ProviderConfig{"mock": {Command: "mock acp"}}
+	cfg.Roles.MemoryController = compozyconfig.MemoryControllerRoleConfig{
+		Enabled:       true,
+		Provider:      "mock",
+		Model:         "controller-model",
+		Timeout:       time.Second,
+		TopK:          2,
+		PromptVersion: "v1",
+		MaxTokensOut:  32,
+		FallbackChain: []compozyconfig.RoleFallback{{
+			Provider: "mock", Model: "backup-controller", Command: routeCommand,
+		}},
+	}
+	return cfg
 }

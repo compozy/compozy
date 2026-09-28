@@ -1103,6 +1103,7 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		childCommand     string
 		childProvider    string
 		override         string
+		attemptCommand   string
 		want             string
 		isolatedHome     bool
 		isolatedEnv      bool
@@ -1116,6 +1117,10 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		{name: "Should keep isolated child home routing", childProvider: "claude", isolatedHome: true, want: "account-a"},
 		{name: "Should keep changed child environment routing", childProvider: "claude", isolatedEnv: true, want: "account-a"},
 		{name: "Should keep an authorized foreign workspace routing", childProvider: "claude", foreignWorkspace: true, want: "account-a"},
+		// UT-034: an attempt command wins over inheritance and over the agent command.
+		{name: "Should launch an attempt command instead of inheriting", childProvider: "claude", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command over the child agent command", childProvider: "claude", childCommand: "account-c", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command on a different provider", childProvider: "claude", override: "codex", attemptCommand: "CODEX_HOME=/x codex acp", want: "CODEX_HOME=/x codex acp"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1170,6 +1175,8 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 					Provider:        tt.override,
 					Workspace:       workspace.ID,
 					TTL:             time.Minute,
+					Command:         tt.attemptCommand,
+					ChainOwner:      ChainOwnerCaller,
 				},
 			)
 			if err != nil {

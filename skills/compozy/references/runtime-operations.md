@@ -418,8 +418,11 @@ live `compozy__config_set` descriptor. Role writes are Live desired state at glo
 and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
 API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
 a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
-an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, CompozyOS
-emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
+an accepted ACP session is never silently rerouted, even when a later configuration step fails.
+Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the attempt,
+provider, model, and `provider_command_fingerprint` when the route sets `command`; the event records
+that the route was tried, not that it succeeded. The `memory_controller` chain is live through the
+write-controller tiebreaker unless `memory.controller.mode = "rules"`.
 
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
 `acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or

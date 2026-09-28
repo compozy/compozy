@@ -280,11 +280,19 @@ func agentBundle(item AgentRecord) outputBundle {
 				})
 			}
 			mcp := renderHumanTable("MCP Servers", []string{automationNameValue, cliCommandValue, "Args"}, servers)
+			fallbackChain := ""
+			if len(item.FallbackChain) > 0 {
+				fallbackChain = renderHumanTable(
+					"Fallback Chain",
+					[]string{agentKernelProviderValue, agentKernelModelValue, agentReasoningEffortValue, cliCommandValue},
+					agentFallbackChainRows(item.FallbackChain),
+				)
+			}
 			prompt := renderHumanSection(
 				"Prompt",
 				[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},
 			)
-			return renderHumanBlocks(base, mcp, prompt), nil
+			return renderHumanBlocks(base, mcp, fallbackChain, prompt), nil
 		},
 		toon: func() (string, error) {
 			// Detail output emits tool names; list output keeps the table dense with tool_count.

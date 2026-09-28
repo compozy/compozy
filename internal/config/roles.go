@@ -103,11 +103,15 @@ type RoleConfig struct {
 
 // RoleFallback is one ordered invocation fallback route.
 type RoleFallback struct {
-	Provider        string               `toml:"provider"`
-	Model           string               `toml:"model"`
-	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
-	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
+	Provider        string               `toml:"provider"                   json:"provider"                   yaml:"provider"`
+	Model           string               `toml:"model"                      json:"model"                      yaml:"model"`
+	ReasoningEffort string               `toml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed       `toml:"speed,omitempty"            json:"speed,omitempty"            yaml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"      json:"acp_options,omitempty"      yaml:"acp_options,omitempty"`
+	// Command selects the account for this route exactly like providers.<name>.command
+	// and agent.command: shell-style quoting, leading NAME=value assignments are private
+	// environment forwarded literally, and no shell is launched. Empty inherits.
+	Command string `toml:"command,omitempty" json:"command,omitempty" yaml:"command,omitempty"`
 }
 
 // CoordinatorRoleConfig combines routing with coordinator safety policy.
@@ -340,40 +344,7 @@ func validateRoleProvider(path, providerName string, resolver providerResolver) 
 }
 
 func validateRoleFallbacks(path string, fallbacks []RoleFallback, resolver providerResolver) error {
-	for i, fallback := range fallbacks {
-		fallbackPath := fmt.Sprintf("%s.fallback_chain[%d]", path, i)
-		providerName := strings.TrimSpace(fallback.Provider)
-		if providerName == "" {
-			return fmt.Errorf("%s.provider is required", fallbackPath)
-		}
-		if strings.TrimSpace(fallback.Model) == "" {
-			return fmt.Errorf("%s.model is required", fallbackPath)
-		}
-		if err := validateRoleReasoningEffort(fallbackPath+".reasoning_effort", fallback.ReasoningEffort); err != nil {
-			return err
-		}
-		if err := validateAgentSpeed(fallback.Speed, fallbackPath+".speed"); err != nil {
-			return err
-		}
-		if err := validateRoleACPOptions(fallbackPath+".acp_options", fallback.ACPOptions); err != nil {
-			return err
-		}
-		if err := validateRoleACPOptionConflicts(
-			fallbackPath+".acp_options",
-			fallback.ACPOptions,
-			fallback.Speed,
-			fallback.ReasoningEffort,
-		); err != nil {
-			return err
-		}
-		if resolver == nil {
-			return fmt.Errorf("%s.provider resolver is required", fallbackPath)
-		}
-		if _, err := resolver.ResolveProvider(providerName); err != nil {
-			return fmt.Errorf("%s.provider: %w", fallbackPath, err)
-		}
-	}
-	return nil
+	return validateFallbackChain(path+".fallback_chain", fallbacks, resolver, true)
 }
 
 func validateRoleACPOptions(path string, options []ACPOptionSelection) error {

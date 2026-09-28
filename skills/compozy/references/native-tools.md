@@ -182,7 +182,12 @@ Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy_
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
-target project runtime defaults.
+target project runtime defaults. Optional `fallback_chain` is an ordered array of routes
+(`provider` and `model` required; `reasoning_effort`, `speed`, `acp_options`, and `command`
+optional). A route `command` selects the account with the same grammar as `providers.<name>.command`
+(leading `NAME=value` assignments are forwarded literally; use absolute paths, no `~`). An unknown
+route provider or a command without an executable is rejected as invalid input. The returned agent
+payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on routes that set `command`.
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
 

@@ -142,6 +142,10 @@ func roleStatusFallbacks(fallbacks []compozyconfig.RoleFallback) []contract.Role
 			ReasoningEffort: strings.TrimSpace(fallback.ReasoningEffort),
 			Speed:           fallback.Speed,
 			ACPOptions:      roleStatusACPOptions(fallback.ACPOptions),
+			Command:         strings.TrimSpace(fallback.Command),
+			CommandFingerprint: compozyconfig.CommandFingerprint(
+				strings.TrimSpace(fallback.Command),
+			),
 		})
 	}
 	return result

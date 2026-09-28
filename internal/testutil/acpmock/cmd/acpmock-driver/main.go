@@ -253,6 +253,18 @@ func (a *mockAgent) SetSessionConfigOption(
 	sessionID := string(request.ValueId.SessionId)
 	configID := string(request.ValueId.ConfigId)
 	value := string(request.ValueId.Value)
+	if a.agent.RejectsConfigValue(configID, value) {
+		diagnosticsErr := a.writeProtocolDiagnostics(
+			acpsdk.AgentMethodSessionSetConfigOption,
+			sessionID,
+			configID,
+			value,
+		)
+		return acpsdk.SetSessionConfigOptionResponse{}, errors.Join(
+			fmt.Errorf("acpmock-driver: config option %q value %q rejected by fixture", configID, value),
+			diagnosticsErr,
+		)
+	}
 	if err := a.setConfigOptionValue(sessionID, configID, value); err != nil {
 		return acpsdk.SetSessionConfigOptionResponse{}, err
 	}
