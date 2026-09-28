@@ -5720,11 +5720,10 @@ describe("SessionThread thinking guard", () => {
   });
 });
 
-// Invariant: runtime projection retains canonical identity plus exact provider title,
-// and live/working summaries offer keyboard disclosure without losing the timer.
+// Invariant: runtime projection retains canonical identity plus exact provider title
+// (reachable on hover of the plain live line) without losing the timer.
 // Owner: session thread composition; canonical suite: session-thread.
-it("Should preserve provider titles through the runtime and disclose live and Working details", async () => {
-  const user = userEvent.setup();
+it("Should preserve provider titles through the runtime on a plain live line", async () => {
   const title = "Inspect layout\n" + "ação 👩🏽‍💻 ".repeat(100) + "provider-title-tail";
   const transcript = [
     {
@@ -5752,18 +5751,9 @@ it("Should preserve provider titles through the runtime and disclose live and Wo
   const live = await screen.findByTestId("live-tool-label");
   expect(live).toHaveTextContent("Running shell");
   expect(live).not.toHaveTextContent("provider-title-tail");
-  const trigger = within(live).getByRole("button", { name: "Tool details" });
-  trigger.focus();
-  await user.keyboard("{Enter}");
-  const details = await screen.findByRole("dialog", { name: "Tool details" });
-  expect(details.textContent).toContain(title);
-  expect(details).toHaveTextContent("input-tail");
-  await user.click(within(details).getByRole("button", { name: "Copy tool details" }));
-  expect(await navigator.clipboard.readText()).toBe(
-    `${title}\n\n${JSON.stringify({ tool: "Bash", title, input: { command: "printf 'input-tail'" } }, null, 2)}`
-  );
-  await user.keyboard("{Escape}");
-  expect(trigger).toHaveFocus();
+  // Plain text, not a popover; the exact provider title stays on hover.
+  expect(within(live).queryByRole("button")).toBeNull();
+  expect(live).toHaveAttribute("title", title);
   // The Working row no longer repeats the tool: the live row is its one owner.
   expect(screen.queryByRole("button", { name: "Activity details" })).not.toBeInTheDocument();
   expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
