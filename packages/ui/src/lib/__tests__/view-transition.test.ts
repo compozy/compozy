@@ -2,8 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runViewTransition, viewTransitionName } from "../view-transition";
 
-type Doc = Document & { startViewTransition?: unknown };
-
 function stubTransition() {
   const handle = {
     updateCallbackDone: Promise.resolve(),
@@ -15,13 +13,13 @@ function stubTransition() {
     else arg.update();
     return handle;
   });
-  (document as Doc).startViewTransition = start;
+  Reflect.set(document, "startViewTransition", start);
   vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
   return start;
 }
 
 afterEach(() => {
-  delete (document as Doc).startViewTransition;
+  Reflect.deleteProperty(document, "startViewTransition");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
