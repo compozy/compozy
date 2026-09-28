@@ -22,7 +22,7 @@ export function OsPaletteBreadcrumb({ breadcrumb }: OsPaletteBreadcrumbProps) {
   const last = breadcrumb.visible.length - 1;
   return (
     <nav
-      aria-label="Palette path"
+      aria-label="Location"
       data-testid="os-palette-breadcrumb"
       className={cn(
         "flex items-center gap-1.5 pt-2 pb-1.5 text-micro text-muted",

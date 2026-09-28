@@ -1,6 +1,6 @@
-import { LoaderCircle, RefreshCw, TriangleAlert, Unplug } from "lucide-react";
+import { RefreshCw, TriangleAlert, Unplug } from "lucide-react";
 
-import { Button } from "@compozy/ui";
+import { Button, Spinner } from "@compozy/ui";
 
 import type { CmdPaletteViewProgramPhase } from "../stores/cmd-palette-view-program-store";
 
@@ -18,8 +18,8 @@ export function OsPaletteProgramBand({
         data-program-band="busy"
         role="status"
       >
-        <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-        <span>updating</span>
+        <Spinner aria-hidden="true" className="size-3.5" />
+        <span>Updating…</span>
       </div>
     );
   }
@@ -30,7 +30,7 @@ export function OsPaletteProgramBand({
       role="status"
     >
       <TriangleAlert aria-hidden="true" className="size-3.5" />
-      <span>degraded</span>
+      <span>Some results may be out of date</span>
       <Button className="ml-auto" size="sm" variant="outline" onClick={onRetry}>
         Retry
       </Button>
@@ -59,9 +59,13 @@ export function OsPaletteProgramFailure({
         aria-hidden="true"
         className={broken ? "mb-2 size-5 text-muted" : "mb-2 size-5 text-warning"}
       />
-      <strong className="font-medium text-fg">{broken ? "view broken" : "view unavailable"}</strong>
+      <strong className="font-medium text-fg">
+        {broken ? "This view stopped working" : "This view isn't available"}
+      </strong>
       <span className="text-muted">{source}</span>
-      {broken ? <span className="text-faint">until reopen</span> : null}
+      {broken ? (
+        <span className="text-faint">Close and reopen the palette to try again</span>
+      ) : null}
       {!broken && error ? <span className="mt-1 text-faint">{error}</span> : null}
     </div>
   );
@@ -75,7 +79,7 @@ export function OsPaletteProgramReloaded() {
       role="status"
     >
       <RefreshCw aria-hidden="true" className="size-3.5" />
-      <span>view reloaded</span>
+      <span>View updated</span>
     </div>
   );
 }

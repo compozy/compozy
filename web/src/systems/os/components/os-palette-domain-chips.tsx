@@ -19,7 +19,7 @@ export function OsPaletteDomainChips({
     <PaletteChipToolbar
       activeId={active}
       chips={chips}
-      label="Domain filters"
+      label="Filter results"
       testIdPrefix="os-palette-domain-filter"
       onSelect={onChange}
     />

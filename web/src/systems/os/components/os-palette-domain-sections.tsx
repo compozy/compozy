@@ -1,6 +1,6 @@
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { CommandGroup, CommandItem } from "@compozy/ui";
+import { CommandGroup, CommandItem, Spinner } from "@compozy/ui";
 
 import { ProfileOwnerTag } from "@/systems/profiles";
 
@@ -39,7 +39,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
             forceMount
             value={`${section.title}:loading`}
           >
-            <LoaderCircle className="size-3.5 animate-spin" />
+            <Spinner className="size-3.5" />
             Loading…
           </CommandItem>
         ) : null}
@@ -83,7 +83,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
         })}
         {section.total > section.rows.length ? (
           <div className="px-3 py-1 text-micro text-faint">
-            showing {section.rows.length} of {section.total}
+            {section.rows.length} of {section.total} shown
           </div>
         ) : null}
       </CommandGroup>

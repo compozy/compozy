@@ -288,7 +288,8 @@ describe("OsWindowDeck", () => {
       "data-state",
       "needs-input"
     );
-    expect(within(sessionTab).getByText("1")).toHaveAttribute("data-slot", "os-window-tab-badge");
+    // The state dot alone carries needs-input; no second hard-coded count badge.
+    expect(within(sessionTab).queryByText("1")).toBeNull();
     expect(screen.getByTestId("os-window-tab-window:tasks")).not.toHaveClass("text-accent");
 
     deck = deckModel({

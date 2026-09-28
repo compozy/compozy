@@ -1712,7 +1712,7 @@ describe("palette nested views", () => {
     );
     expect(
       screen.getByText(
-        `showing ${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4}`
+        `${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4} shown`
       )
     ).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-domain-error-jobs")).toHaveTextContent(
@@ -2198,7 +2198,7 @@ describe("palette execution surfaces", () => {
     const row = screen.getByTestId("os-palette-command-ext.notes.capture");
     expect(row).toHaveAttribute("aria-busy", "true");
     expect(within(row).getByTestId("os-palette-pending-ext.notes.capture")).toHaveTextContent(
-      "pending"
+      "Running…"
     );
   });
 

@@ -66,7 +66,6 @@ export function OsWindowTab({
   const isSession = win.app === "session";
   const isNewTab = win.app === "new-tab";
   const state: OsWindowTabState = isSession ? sessionTabState(session) : null;
-  const needsInput = state === "needs-input";
   const sessionTitle = session ? getSessionDisplayTitle(session) : null;
   const label: React.ReactNode = isSession
     ? (sessionTitle ?? slot?.crumb ?? app.title)
@@ -104,7 +103,7 @@ export function OsWindowTab({
               role="tab"
               aria-selected={active}
               data-slot="os-window-tab-activate"
-              className="flex min-w-0 flex-1 cursor-pointer items-center gap-[7px] rounded-[inherit] px-2.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-traffic-light-gap rounded-[inherit] px-2.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
               onPointerDown={event => {
                 if (event.button === 0) onTabPointerDown?.(event);
               }}
@@ -129,14 +128,6 @@ export function OsWindowTab({
                   {label}
                 </span>
               ) : null}
-              {needsInput ? (
-                <span
-                  data-slot="os-window-tab-badge"
-                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] leading-none font-bold text-accent-ink"
-                >
-                  1
-                </span>
-              ) : null}
             </button>
             {!win.pinned ? (
               <button
@@ -144,7 +135,7 @@ export function OsWindowTab({
                 aria-label={`Close ${typeof label === "string" ? label : "tab"}`}
                 data-slot="os-window-tab-close"
                 className={cn(
-                  "grid size-4 shrink-0 place-items-center rounded-xs text-faint opacity-0 transition-opacity duration-base",
+                  "grid size-5 shrink-0 place-items-center rounded-xs text-faint opacity-0 transition-opacity duration-base",
                   "hover:bg-btn-default-fill hover:text-fg-strong focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
                   "group-hover/tab:opacity-100",
                   active && "opacity-100"
@@ -152,7 +143,7 @@ export function OsWindowTab({
                 onPointerDown={event => event.stopPropagation()}
                 onClick={closeTab}
               >
-                <X aria-hidden="true" className="size-[9px]" strokeWidth={1.4} />
+                <X aria-hidden="true" className="size-2.5" strokeWidth={1.4} />
               </button>
             ) : null}
           </div>

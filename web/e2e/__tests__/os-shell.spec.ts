@@ -2851,7 +2851,9 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
   await expect(sessionWindow.getByTestId("permission-dock")).toBeVisible();
-  await expect(shell.tab(sessionID).locator('[data-slot="os-window-tab-badge"]')).toBeVisible();
+  await expect(
+    shell.tab(sessionID).getByRole("img", { name: "Session needs input" })
+  ).toBeVisible();
 
   const snapshot = await windowManagerSnapshot(runtime, workspace.id);
   await runWindowManagerCLI(runtime, [

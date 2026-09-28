@@ -45,7 +45,7 @@ Walk (task_11 plan — stack semantics across all four kinds):
    and selection intact; Esc closes the whole stack from any depth; reopen starts at root.
 3. Drive the stack past depth 3 — the breadcrumb keeps ≤ 3 slots, left-truncating.
 4. Open a Grid view — ←→↑↓ navigate tiles without breaking the Esc/⌫ ladder.
-5. Disable the owning extension while its view is open — the frame renders "view unavailable"
+5. Disable the owning extension while its view is open — the frame renders "This view isn't available"
    naming the extension; popping still works.
 6. Set a new-tab destination intent with a stack present — the stack resets (mutual exclusion);
    zero eligible destinations render the honest empty state and Esc clears the intent.

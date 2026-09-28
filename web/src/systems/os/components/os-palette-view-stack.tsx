@@ -240,10 +240,10 @@ export function OsPaletteViewUnavailable({
 function unavailableDefinition(viewId: string) {
   return {
     id: viewId,
-    title: viewId,
+    title: "Unavailable",
     icon: OS_APP_DESCRIPTORS.session.icon,
     placeholder: "Search…",
     enterHint: "open",
-    description: "This view is not available in this client",
+    description: "This view isn't available here.",
   };
 }
