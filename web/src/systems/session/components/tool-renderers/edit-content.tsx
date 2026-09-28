@@ -45,7 +45,9 @@ export function EditContent({ message }: { message: UIMessage }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="edit-content">
-      {filePath ? <div className="font-mono text-[11px] text-subtle">{filePath}</div> : null}
+      {filePath ? (
+        <div className="font-mono text-transcript-caption text-subtle">{filePath}</div>
+      ) : null}
       {removed.length > 0 || added.length > 0 ? (
         <DetailPre>
           {removed.length > 0 ? (
@@ -65,7 +67,7 @@ export function EditContent({ message }: { message: UIMessage }) {
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="flex w-fit items-center gap-1 text-[11.5px] text-subtle transition-colors hover:text-fg"
+          className="flex w-fit items-center gap-1 text-transcript-meta text-subtle transition-colors hover:text-fg"
         >
           <ChevronsUpDown aria-hidden="true" className="size-3" />
           Show full content

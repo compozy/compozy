@@ -160,8 +160,8 @@ function SessionComposerEditor() {
       <SessionComposerDropRoot disabled={!meta.canPrompt}>
         <ComposerPrimitive.Root
           className={cn(
-            "tm-composer-stack flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
-            "pt-[11px] pr-2.5 pb-2 pl-3.5",
+            "tm-composer-stack flex flex-col gap-transcript-inline-gap rounded-lg border border-line bg-elevated shadow-highlight",
+            "pt-3 pr-2.5 pb-2 pl-3.5",
             "transition-colors duration-base ease-out",
             "hover:border-line-strong focus-within:border-accent-dim",
             "group-data-[dragging=true]/drop:border-accent-dim",

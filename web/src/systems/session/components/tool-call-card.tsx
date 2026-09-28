@@ -308,8 +308,10 @@ export function SessionToolCallRow({
             </span>
           ) : diffStat ? (
             <>
-              <span className="font-medium text-success">+{diffStat.additions}</span>
-              <span className="font-medium text-danger">−{diffStat.deletions}</span>
+              {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
+                  changed-files row is the one place additions/deletions take color. */}
+              <span className="font-medium text-subtle">+{diffStat.additions}</span>
+              <span className="font-medium text-subtle">−{diffStat.deletions}</span>
             </>
           ) : undefined
         }

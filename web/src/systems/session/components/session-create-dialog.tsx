@@ -115,7 +115,7 @@ function SessionCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          eyebrow="Operate · Session"
+          eyebrow="New session"
           icon={Play}
           onClose={isSubmitting ? undefined : () => handleOpenChange(false)}
           title="Start session"
@@ -171,7 +171,7 @@ function SessionCreateDialog({
                 data-testid="session-create-pending-status"
                 role="status"
               >
-                Starting the session. It opens as soon as CompozyOS durably accepts it.
+                Starting your session…
               </p>
             ) : null}
           </EntityDialogBody>
