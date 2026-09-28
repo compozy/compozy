@@ -276,9 +276,9 @@ export function SessionToolCallRow({
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
-      copyLabel="Copy tool payload"
-      copiedLabel="Tool payload copied"
-      copyFailedLabel="Tool payload copy failed"
+      copyLabel="Copy tool details"
+      copiedLabel="Tool details copied"
+      copyFailedLabel="Couldn't copy tool details"
       className="text-subtle hover:text-fg"
     />
   );
@@ -308,8 +308,10 @@ export function SessionToolCallRow({
             </span>
           ) : diffStat ? (
             <>
-              <span className="font-medium text-success">+{diffStat.additions}</span>
-              <span className="font-medium text-danger">−{diffStat.deletions}</span>
+              {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
+                  changed-files row is the one place additions/deletions take color. */}
+              <span className="font-medium text-subtle">+{diffStat.additions}</span>
+              <span className="font-medium text-subtle">−{diffStat.deletions}</span>
             </>
           ) : undefined
         }

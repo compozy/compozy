@@ -26,7 +26,7 @@ export function SessionRuntimeRecoveryNotice({
       variant="warning"
     >
       <Spinner aria-hidden="true" className="size-3.5" />
-      <AlertTitle>Recovering runtime</AlertTitle>
+      <AlertTitle>Reconnecting to the agent…</AlertTitle>
       {hasAttempt ? (
         <AlertMeta data-testid="session-runtime-recovery-attempt">
           Attempt {attempt} of {maxAttempts}

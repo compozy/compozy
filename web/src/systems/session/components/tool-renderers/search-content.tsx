@@ -24,14 +24,14 @@ export function SearchContent({ message }: { message: UIMessage }) {
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="search-content">
       {pattern ? (
-        <div className="font-mono text-[11px] text-subtle">
+        <div className="font-mono text-transcript-caption text-subtle">
           {pattern}
           {glob ? <span className="ms-1.5 text-muted">in {glob}</span> : null}
           {!glob && path ? <span className="ms-1.5 text-muted">in {shortenPath(path)}</span> : null}
         </div>
       ) : null}
       {lines.length > 0 ? (
-        <div className="flex min-w-0 flex-col gap-px font-mono text-[11px] text-subtle">
+        <div className="flex min-w-0 flex-col gap-px font-mono text-transcript-caption text-subtle">
           {lines.slice(0, VISIBLE_RESULT_LINES).map(line => (
             <span key={line} className="truncate" title={line}>
               {shortenPath(line)}
@@ -42,7 +42,7 @@ export function SearchContent({ message }: { message: UIMessage }) {
           ) : null}
         </div>
       ) : result ? (
-        <span className="text-[11px] text-muted italic">No matches</span>
+        <span className="text-transcript-caption text-muted italic">No matches</span>
       ) : null}
     </div>
   );

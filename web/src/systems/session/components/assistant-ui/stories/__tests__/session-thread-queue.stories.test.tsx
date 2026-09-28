@@ -130,7 +130,10 @@ describe("SessionThread queue stories", () => {
 
   it("Should refuse the edit of a dispatching head entry and hand the text to the composer (VC-03)", async () => {
     await mountStory(composed.DispatchingEditRefused);
-    expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent("entry_dispatching");
+    expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute(
+      "data-code",
+      "entry_dispatching"
+    );
     const rows = screen.getAllByTestId("composer-queued-prompt-row");
     expect(within(rows[0]!).getByTestId("composer-queued-state")).toHaveTextContent("Sending…");
     expect(within(rows[0]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();

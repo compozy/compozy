@@ -1,6 +1,8 @@
 import { useState } from "react";
 
-import { SearchInput } from "@compozy/ui";
+import { MessagesSquare, WifiOff } from "lucide-react";
+
+import { Alert, AlertDescription, Empty, SearchInput } from "@compozy/ui";
 
 import { isEditableTarget } from "../../lib/editable-target";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
@@ -206,12 +208,12 @@ export function SessionList({
         />
       </div>
       {disconnected ? (
-        <p
-          className="mx-3 my-1 rounded-md border border-warning/30 bg-warning-tint px-2.5 py-2 text-small-body text-warning"
-          role="status"
-        >
-          Session updates are unavailable. Cached sessions remain visible.
-        </p>
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <WifiOff aria-hidden="true" />
+          <AlertDescription>
+            Can&apos;t get session updates right now. The sessions below may be out of date.
+          </AlertDescription>
+        </Alert>
       ) : null}
       <div
         className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
@@ -249,7 +251,13 @@ export function SessionList({
               />
             ))}
             {threads.length === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">{emptyMessage}</p>
+              <Empty
+                className="px-3 py-8"
+                fill={false}
+                icon={MessagesSquare}
+                size="compact"
+                title={emptyMessage}
+              />
             ) : null}
           </>
         )}

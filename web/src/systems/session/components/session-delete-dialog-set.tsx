@@ -172,8 +172,8 @@ function SessionDeleteResultRow({
     >
       <SessionBadgeMark badge={session.badge} />
       <span className="truncate">{getSessionDisplayTitle(session)}</span>
-      <span className={`font-mono text-micro ${sessionBadgeWordClass(session.badge)}`}>
-        {sessionBadgeSignal(session.badge).label}
+      <span className={`text-micro ${sessionBadgeWordClass(session.badge)}`}>
+        {sessionBadgeSignal(session.badge).displayLabel}
       </span>
       <span className="grid size-3.5 place-items-center text-subtle">
         {result?.status === "done" ? (

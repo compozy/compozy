@@ -1,9 +1,15 @@
 import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
+import {
+  formatDuration as formatCanonicalDuration,
+  HelpTip,
+  Marker,
+  MarkerMeta,
+} from "@compozy/ui";
 
 import { formatMessageTimestamp } from "../lib/format-timestamp";
+import { getToolLabel, resolveRegisteredToolName } from "../lib/tool-labels";
 import { steerMarkerView } from "../lib/steer-marker";
 import { SteerMarkerRow } from "./steer-marker-notice";
 import { type ProviderErrorView, providerErrorView } from "../lib/provider-error";
@@ -34,33 +40,26 @@ function humanizeKind(kind: string | undefined): string | null {
 
 function describeActivity(activity: RuntimeActivityPayload | undefined): string {
   if (!activity) {
-    return "Waiting for runtime activity";
+    return "Waiting for the agent…";
   }
 
-  if (activity.current_tool?.trim()) {
-    return `Using ${activity.current_tool.trim()}`;
+  const tool = activity.current_tool?.trim();
+  if (tool) {
+    return getToolLabel(resolveRegisteredToolName(tool), "active");
   }
 
   if (activity.last_activity_detail?.trim()) {
     return activity.last_activity_detail.trim();
   }
 
-  return humanizeKind(activity.last_activity_kind) ?? "Runtime activity";
+  return humanizeKind(activity.last_activity_kind) ?? "Agent activity";
 }
 
+// One plain duration: how long the agent has been at it. Idle time is a
+// diagnostic the status row already owns.
 function activityMeta(activity: RuntimeActivityPayload | undefined): string | null {
   const elapsed = formatDuration(activity?.elapsed_seconds);
-  const idle = formatDuration(activity?.idle_seconds);
-  if (elapsed && idle) {
-    return `${elapsed} elapsed · ${idle} idle`;
-  }
-  if (elapsed) {
-    return `${elapsed} elapsed`;
-  }
-  if (idle) {
-    return `${idle} idle`;
-  }
-  return null;
+  return elapsed ? `for ${elapsed}` : null;
 }
 
 function normalizeErrorText(error: string | undefined): string | null {
@@ -121,11 +120,14 @@ const PROVIDER_STATUS_CLI_HINT = "compozy provider auth status <provider> --remo
 const PROVIDER_ERROR_NEXT_STEP: Record<ProviderErrorView["nextAction"], ReactNode> = {
   login: (
     <>
-      Sign in with the provider CLI, run{" "}
-      <code className="font-mono" data-testid="provider-error-command">
-        {PROVIDER_STATUS_CLI_HINT}
-      </code>{" "}
-      to confirm through the daemon, then send your message again.
+      Sign in to the provider again, then send your message again.{" "}
+      <HelpTip label="How to check sign-in" className="align-middle">
+        To check from a terminal, run{" "}
+        <code className="font-mono" data-testid="provider-error-command">
+          {PROVIDER_STATUS_CLI_HINT}
+        </code>
+        .
+      </HelpTip>
     </>
   ),
   bind_secret:
@@ -294,12 +296,13 @@ function QueueClearedMarkerNotice({
 // Late provider output after a verified stop: the daemon discards the event's
 // content and keeps only this marker, one per turn. Neutral — nothing failed and
 // the turn is not resurrected — the sentence names the consequence without
-// promising recoverable output; the kind stays as meta.
+// promising recoverable output; the raw kind stays off screen in `data-marker-kind`.
 function PostStopMarkerNotice({ label, count }: { label: string; count: number }) {
   return (
     <Marker
       role="status"
       data-testid="transcript-marker-notice"
+      data-marker-kind={label}
       data-marker-tone="neutral"
       tone="neutral"
       icon={<ScrollText strokeWidth={1.8} />}
@@ -308,7 +311,6 @@ function PostStopMarkerNotice({ label, count }: { label: string; count: number }
         <b>The agent sent more output after you stopped it</b> — discarded; the reply was not
         changed.
       </span>{" "}
-      <MarkerMeta data-testid="transcript-marker-kind">{label}</MarkerMeta>
       <ClusterCount count={count} />
     </Marker>
   );
@@ -326,17 +328,12 @@ function SessionErrorNotice({ event, count }: { event: AgentEventPayload; count:
     <Marker
       role="alert"
       data-testid="session-error-notice"
+      data-failure-kind={failureKind || undefined}
       tone="danger"
       icon={<AlertCircle strokeWidth={1.8} />}
     >
       <b>Session failed</b> —{" "}
       <span data-testid="session-error-detail">{sessionErrorDescription(event)}</span>
-      {failureKind ? (
-        <>
-          {" "}
-          <MarkerMeta data-testid="session-error-meta">{failureKind}</MarkerMeta>
-        </>
-      ) : null}
       <ClusterCount count={count} />
     </Marker>
   );
@@ -382,14 +379,14 @@ function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; co
     <Marker
       role={tone === "info" ? "status" : "alert"}
       data-testid="transcript-marker-notice"
+      data-marker-kind={markerLabel(marker, event)}
       data-marker-tone={tone}
       tone={tone}
       icon={<Icon strokeWidth={1.8} />}
     >
       <span data-testid="transcript-marker-summary">
-        {marker?.summary || event.text || "Runtime marker recorded."}
+        {marker?.summary || event.text || "Agent update"}
       </span>{" "}
-      <MarkerMeta data-testid="transcript-marker-kind">{markerLabel(marker, event)}</MarkerMeta>
       <ClusterCount count={count} />
     </Marker>
   );
@@ -436,9 +433,10 @@ function RuntimeActivityMarker({
 
 /**
  * Runtime events as one-line markers — the calm replacement for the old tinted
- * Alert cards. Tone lives in the 12px glyph; the raw kind string renders as
- * faint sans meta with tabular figures, never as a pill; consecutive same-kind
- * events arrive pre-clustered with a ×N count.
+ * Alert cards. Tone lives in the 12px glyph; raw kind strings never reach the
+ * screen (they ride on `data-marker-kind` / `data-failure-kind` for
+ * diagnostics); consecutive same-kind events arrive pre-clustered with a ×N
+ * count.
  */
 export function RuntimeActivityNotice({
   event,
@@ -464,7 +462,7 @@ export function RuntimeActivityNotice({
     return <RuntimeActivityMarker event={event} count={count} detail={detail} meta={meta} />;
   }
 
-  const title = event.text?.trim() || "Runtime warning";
+  const title = event.text?.trim() || "Warning";
 
   return (
     <Marker

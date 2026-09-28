@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
+  FieldLabel,
   RadioCard,
 } from "@compozy/ui";
 
@@ -52,17 +52,17 @@ export function ToolApprovalGrantSetDialog({
           }}
         >
           <DialogHeader variant="ruled">
-            <DialogTitle>Set a broader decision</DialogTitle>
+            <DialogTitle>Add a rule</DialogTitle>
             <DialogDescription>
-              Remember a native-tool decision beyond one exact input. The workspace tool policy
-              still decides whether a matching call is allowed.
+              Remember a decision for a tool beyond one exact request. Your project&apos;s tool
+              settings still decide what is allowed.
             </DialogDescription>
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto px-5 py-4">
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
-                <Label className="eyebrow text-muted">Scope</Label>
+                <FieldLabel>Applies to</FieldLabel>
                 <div
                   aria-label="Remembered decision scope"
                   className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -70,25 +70,23 @@ export function ToolApprovalGrantSetDialog({
                 >
                   <RadioCard
                     data-testid="tool-approval-grant-scope-agent"
-                    description="One named agent and tool, across every input"
+                    description="This tool, for one agent, on every request"
                     onSelect={() => onChange({ ...draft, scope: "agent" })}
                     selected={draft.scope === "agent"}
-                    title="Agent + tool"
+                    title="One agent"
                   />
                   <RadioCard
                     data-testid="tool-approval-grant-scope-tool"
-                    description="This tool for every agent and input in the workspace"
+                    description="This tool, for every agent in the project"
                     onSelect={() => onChange({ ...draft, scope: "tool" })}
                     selected={draft.scope === "tool"}
-                    title="Tool-wide"
+                    title="Every agent"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label className="eyebrow text-muted" htmlFor="tool-approval-grant-tool-id">
-                  Tool ID
-                </Label>
+                <FieldLabel htmlFor="tool-approval-grant-tool-id">Tool</FieldLabel>
                 <Input
                   autoComplete="off"
                   className="font-mono"
@@ -103,9 +101,7 @@ export function ToolApprovalGrantSetDialog({
 
               {draft.scope === "agent" ? (
                 <div className="flex flex-col gap-1.5">
-                  <Label className="eyebrow text-muted" htmlFor="tool-approval-grant-agent-name">
-                    Agent name
-                  </Label>
+                  <FieldLabel htmlFor="tool-approval-grant-agent-name">Agent</FieldLabel>
                   <Input
                     autoComplete="off"
                     className="font-mono"
@@ -120,7 +116,7 @@ export function ToolApprovalGrantSetDialog({
               ) : null}
 
               <div className="flex flex-col gap-2">
-                <Label className="eyebrow text-muted">Decision</Label>
+                <FieldLabel>Decision</FieldLabel>
                 <div
                   aria-label="Remembered decision"
                   className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -128,17 +124,17 @@ export function ToolApprovalGrantSetDialog({
                 >
                   <RadioCard
                     data-testid="tool-approval-grant-decision-allow"
-                    description="Skip future prompts when the workspace policy permits the call"
+                    description="Don't ask again when your project's settings permit it"
                     onSelect={() => onChange({ ...draft, decision: "allow" })}
                     selected={draft.decision === "allow"}
                     title="Allow"
                   />
                   <RadioCard
                     data-testid="tool-approval-grant-decision-reject"
-                    description="Reject matching calls without prompting"
+                    description="Block matching requests without asking"
                     onSelect={() => onChange({ ...draft, decision: "reject" })}
                     selected={draft.decision === "reject"}
-                    title="Reject"
+                    title="Block"
                   />
                 </div>
               </div>
@@ -174,7 +170,7 @@ export function ToolApprovalGrantSetDialog({
               type="submit"
             >
               <Plus aria-hidden="true" className="size-3" />
-              Set decision
+              Add rule
             </Button>
           </DialogFooter>
         </form>

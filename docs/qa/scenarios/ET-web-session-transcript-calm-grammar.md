@@ -34,6 +34,14 @@ changed: "Start a conversation. The assistant thread replays persisted history a
 over the daemon stream." → "Start the conversation. Everything you and the agent do here is saved.",
 and "Transcript unavailable" → "Couldn't load this conversation".
 
+QA impact 2026-09-28: reset by the session normie pass. Transcript markers no longer print raw kinds
+(`transcript_marker.*`, failure kinds, history-reset generations); they ride on `data-marker-kind`,
+`data-failure-kind`, and `data-reset-generation`. The empty thread now reads "Send {agent} a message
+to get started."; the error, starting, startup-failure, and sync-failed panes are `Empty` states
+("Couldn't load this conversation" + Try again, "Getting {agent} ready…", "{agent} couldn't start" +
+Check agent settings). The working row no longer repeats the running tool, and a stop/failure the
+turn fold already names adds no second status line.
+
 The calm grammar itself — summary collapse, the last-4 live tail, failures staying individually
 visible, "Worked for Ns" as the only border, interrupted turns never folding — is unchanged by the
 pass. What needs the walk is whether the transcript still reads as calm now that the system lines are

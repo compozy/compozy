@@ -1,9 +1,8 @@
-import { ChevronRight, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { createElement } from "react";
 
 import {
   SessionToolCallRow,
-  SessionSummaryDisclosure,
   liveToolLabel,
   parallelToolLabel,
   getToolIcon,
@@ -14,6 +13,7 @@ import { toolMessageFromPart } from "./session-timeline-tool-message";
 
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
+import { TranscriptDisclosure } from "./transcript-disclosure";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 
@@ -28,6 +28,8 @@ function LiveToolGlyph({ part }: { part: SessionTimelineToolPart }) {
 // The one live line: kind glyph in the 20px well, the sentence shimmering
 // (plain subtle text when still — under reduced motion, or while the window
 // is paused — the word "Running" carries the state), nothing on the right.
+// Plain text, not a popover: the raw input is one click away once the call
+// settles into its tool row; a truncated title keeps the full name on hover.
 function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: boolean }) {
   const label = liveToolLabel(part.toolName, part.args, part.toolTitle);
   return (
@@ -45,13 +47,9 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
           still ? "text-subtle" : "session-shimmer"
         )}
         data-testid="live-tool-label"
+        title={part.toolTitle ?? label.text}
       >
-        <SessionSummaryDisclosure
-          summary={label.text}
-          label="Tool details"
-          detail={`${part.toolTitle ?? part.toolName}\n\n${JSON.stringify({ tool: part.toolName, ...(part.toolTitle ? { title: part.toolTitle } : {}), input: part.args }, null, 2)}`}
-          className="max-w-full font-medium"
-        />
+        {label.text}
       </span>
     </div>
   );
@@ -112,38 +110,23 @@ export function SessionLiveToolRowView({
       data-still={still || undefined}
       className="flex min-w-0 flex-col"
     >
-      <button
-        type="button"
-        aria-expanded={row.expanded}
+      <TranscriptDisclosure
         aria-controls={detailsId}
         data-testid="live-tool-parallel"
-        onClick={onToggle}
-        className={cn(
-          "group/live inline-flex min-h-transcript-line w-full min-w-0 items-center gap-transcript-inline-gap rounded-md px-1 text-left text-small-body",
-          "transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <span className="flex size-5 shrink-0 items-center justify-center rounded-xs">
+        expanded={row.expanded}
+        icon={
           <Layers aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
-        </span>
-        <span
-          className={cn(
-            "min-w-0 max-w-sm flex-1 truncate font-medium",
-            still ? "text-subtle" : "session-shimmer"
-          )}
-          data-testid="live-tool-label"
-        >
-          {parallelToolLabel(row.entries.length)}
-        </span>
-        <ChevronRight
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 text-faint opacity-0 transition-[opacity,transform] duration-base ease-out group-hover/live:opacity-100 motion-reduce:transition-none",
-            row.expanded ? "rotate-90 opacity-100" : null
-          )}
-          strokeWidth={1.75}
-        />
-      </button>
+        }
+        label={
+          <span
+            className={cn("font-medium", still ? "text-subtle" : "session-shimmer")}
+            data-testid="live-tool-label"
+          >
+            {parallelToolLabel(row.entries.length)}
+          </span>
+        }
+        onToggle={onToggle}
+      />
       <div
         id={detailsId}
         data-testid="live-tool-entries"

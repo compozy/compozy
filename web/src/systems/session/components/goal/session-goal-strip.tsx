@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, FilePenLine, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { cn, Eyebrow } from "@compozy/ui";
+import { Button, cn, Eyebrow } from "@compozy/ui";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 
@@ -52,13 +52,6 @@ function sentenceCase(value: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function contextFact(context: SessionGoalSnapshot["context"]): string {
-  if (context.state === "known" && context.ratio !== null) {
-    return `ctx ${formatPercent(context.ratio)}`;
-  }
-  return "ctx —";
-}
-
 function prefillCommand(affordance: GoalComposerAffordance): string {
   if (affordance.kind === "replace") {
     return `/goal replace ${affordance.expectedRunId} ${affordance.objective}`;
@@ -70,7 +63,7 @@ function prefillCommand(affordance: GoalComposerAffordance): string {
 function StripRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2.5 text-transcript-body leading-normal">
-      <span className="w-[76px] shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
+      <span className="w-20 shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
       <span className="min-w-0 whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
         {children}
       </span>
@@ -102,8 +95,9 @@ function ContextRow({ context }: { context: SessionGoalSnapshot["context"] }) {
 
 /**
  * The goal as one quiet line above the transcript (`.goalstrip`): state dot +
- * GOAL kicker + objective + `turn a/b · ctx n%` mono facts + chevron, expanding
- * to key/value rows. No pills, no meters, no control bar — lifecycle actions
+ * GOAL kicker + objective + a plain "Step a of b" fact + chevron, expanding to
+ * key/value rows (context usage lives in the composer ring and the body; the
+ * node id and cause ride on data attributes). No pills, no meters, no control bar — lifecycle actions
  * live on the window head; the body's Actions row only stages `/goal` commands
  * into the composer, never sends.
  */
@@ -115,7 +109,7 @@ export function SessionGoalStrip({
   const [open, setOpen] = useState(false);
   const state = goalStripState(snapshot);
   const moved = state === "moved";
-  const facts = `turn ${snapshot.turns_used}/${snapshot.turn_limit} · ${contextFact(snapshot.context)}`;
+  const facts = `Step ${snapshot.turns_used} of ${snapshot.turn_limit}`;
   const showActions = composerAffordance !== undefined && onPrefillComposer !== undefined;
 
   return (
@@ -126,7 +120,9 @@ export function SessionGoalStrip({
       data-goal-status={snapshot.status}
       data-run-status={snapshot.run_status}
       data-live={snapshot.live ? "true" : "false"}
-      className="min-w-0 border-b border-line pt-[5px] pb-[7px]"
+      data-goal-node={snapshot.node_id}
+      data-goal-cause={snapshot.cause || undefined}
+      className="min-w-0 border-b border-line py-1.5"
     >
       <button
         type="button"
@@ -152,9 +148,9 @@ export function SessionGoalStrip({
           aria-atomic="true"
           aria-live="polite"
           data-testid="goal-strip-facts"
-          className="shrink-0 font-mono text-badge text-subtle tabular-nums"
+          className="shrink-0 text-transcript-meta text-subtle tabular-nums"
         >
-          {moved ? `moved · ${facts}` : facts}
+          {moved ? `Moved · ${facts}` : facts}
         </span>
         <ChevronDown
           aria-hidden="true"
@@ -166,7 +162,8 @@ export function SessionGoalStrip({
         />
       </button>
       {open ? (
-        <div data-testid="goal-strip-body" className="flex flex-col gap-[5px] px-1 pt-1.5 pb-0.5">
+        <div data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
+          {/* The line truncates the objective; the body is where it reads in full. */}
           <StripRow label="Objective">{snapshot.objective}</StripRow>
           {snapshot.contract_summary ? (
             <StripRow label="Contract">{snapshot.contract_summary}</StripRow>
@@ -198,15 +195,6 @@ export function SessionGoalStrip({
               ) : null}
             </StripRow>
           ) : null}
-          <StripRow label="Node">
-            <span className="font-mono text-badge text-subtle">{snapshot.node_id}</span>
-            {snapshot.cause ? (
-              <>
-                {" "}
-                · <span className="font-mono text-badge text-warning">{snapshot.cause}</span>
-              </>
-            ) : null}
-          </StripRow>
           {moved ? (
             <StripRow label="Session">
               Goal work moved to a new active session.{" "}
@@ -222,28 +210,21 @@ export function SessionGoalStrip({
           ) : null}
           {showActions ? (
             <StripRow label="Actions">
-              <span className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  data-testid="goal-strip-prefill"
-                  onClick={() => onPrefillComposer(prefillCommand(composerAffordance))}
-                  className={cn(
-                    "inline-flex min-h-[22px] items-center gap-[5px] rounded-xs border border-transparent px-2",
-                    "text-transcript-meta text-muted transition-colors duration-base ease-out",
-                    "hover:border-line hover:bg-hover hover:text-fg",
-                    "focus-visible:shadow-focus-ring focus-visible:outline-none"
-                  )}
-                >
-                  {composerAffordance.kind === "replace" ? (
-                    <RefreshCw aria-hidden="true" className="size-[11px] text-subtle" />
-                  ) : (
-                    <FilePenLine aria-hidden="true" className="size-[11px] text-subtle" />
-                  )}
-                  {composerAffordance.kind === "replace"
-                    ? "Draft replacement"
-                    : "Draft goal command"}
-                </button>
-              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                data-testid="goal-strip-prefill"
+                onClick={() => onPrefillComposer(prefillCommand(composerAffordance))}
+                className="-ml-2 text-muted"
+              >
+                {composerAffordance.kind === "replace" ? (
+                  <RefreshCw aria-hidden="true" className="size-3 text-subtle" />
+                ) : (
+                  <FilePenLine aria-hidden="true" className="size-3 text-subtle" />
+                )}
+                {composerAffordance.kind === "replace" ? "Draft replacement" : "Draft goal command"}
+              </Button>
             </StripRow>
           ) : null}
         </div>

@@ -122,7 +122,7 @@ export function describeSessionBusyInputRefusal(refusal: SessionBusyInputRefusal
     case "entry_dispatching":
       return "That one is already sending — your edit is here as a new message.";
     case "send_conflict":
-      return "Not sent — this identity was used with different text. Send it as a new message.";
+      return "Not sent — this message changed while it was sending. Send it again as a new message.";
     case "send_in_flight":
       return "Not sent — another send is still in flight. Your draft is back.";
     case "disconnected":

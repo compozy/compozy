@@ -544,7 +544,8 @@ test("operator sees the daemon-generated session title and the file-mutation ver
   const markerNotice = sessionWin.getByTestId("transcript-marker-notice");
   await expect(markerNotice).toBeVisible();
   await expect(markerNotice).toHaveAttribute("data-tone", "warning");
-  await expect(sessionWin.getByTestId("transcript-marker-kind")).toContainText(
+  await expect(markerNotice).toHaveAttribute(
+    "data-marker-kind",
     "transcript_marker.file_mutation_unverified"
   );
   await expect(sessionWin.getByTestId("transcript-marker-summary")).toContainText(
@@ -1306,7 +1307,9 @@ test.describe("session context E2E-001", () => {
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");
     await contextButton.hover();
-    await expect(appPage.getByRole("tooltip")).toContainText("Compaction runs at 85%");
+    await expect(appPage.getByRole("tooltip")).toContainText(
+      "CompozyOS summarizes older messages at 85% full"
+    );
     await expect(contextButton.locator("circle").last()).toHaveAttribute(
       "stroke",
       "var(--color-warning)"
