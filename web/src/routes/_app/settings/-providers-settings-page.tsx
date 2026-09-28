@@ -19,7 +19,6 @@ import {
 
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
-  const inspectorOpen = page.inspector.mode !== "closed";
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
   useSettingsTopbar("providers", {
     actions:
@@ -47,38 +46,9 @@ export function ProvidersSettingsPage() {
     );
   }
 
-  const inspectorEntry =
-    page.inspector.mode === "inspect" || page.inspector.mode === "edit"
-      ? page.inspector.entry
-      : null;
-  const inspectorDraft =
-    page.inspector.mode === "edit" || page.inspector.mode === "create"
-      ? page.inspector.draft
-      : null;
-  const readyCount = page.counts.installed;
-  const setupCount = page.counts.needsSetup;
-  const missingCount = page.counts.binaryMissing;
-
   return (
     <SettingsPageFrame
-      meta={[
-        {
-          key: "ready",
-          content: <span data-testid="settings-page-providers-ready">{readyCount} ready</span>,
-        },
-        {
-          key: "setup",
-          content: (
-            <span data-testid="settings-page-providers-needs-setup">{setupCount} needs setup</span>
-          ),
-        },
-        {
-          key: "missing",
-          content: (
-            <span data-testid="settings-page-providers-missing">{missingCount} not installed</span>
-          ),
-        },
-      ]}
+      meta={providerCountMeta(page.counts)}
       restart={page.restart}
       slug="providers"
       width="wide"
@@ -87,77 +57,9 @@ export function ProvidersSettingsPage() {
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
-      {page.providers.length === 0 ? (
-        <Empty
-          data-testid="settings-page-providers-empty"
-          description="Add one to start sessions."
-          icon={Database}
-          title="No providers yet"
-        />
-      ) : (
-        <>
-          <ProvidersToolbar
-            nameQuery={page.filters.nameQuery}
-            onNameQueryChange={page.setNameQuery}
-            onStatusChange={page.setStatusFilter}
-            statusFilter={page.filters.statusFilter}
-          />
-          {page.filteredProviders.length === 0 ? (
-            <Empty
-              action={
-                <Button
-                  onClick={() => {
-                    page.setNameQuery("");
-                    page.setStatusFilter(null);
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Clear filters
-                </Button>
-              }
-              data-testid="settings-page-providers-empty-filtered"
-              description="Try a different search or status."
-              framed
-              icon={SearchX}
-              title="No providers match"
-            />
-          ) : (
-            <section
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-              data-testid="settings-page-providers-list"
-            >
-              {page.filteredProviders.map(provider => (
-                <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
-              ))}
-            </section>
-          )}
-        </>
-      )}
+      <ProvidersCatalog page={page} />
 
-      <ProviderDetailDialog
-        open={inspectorOpen}
-        mode={page.inspector.mode === "closed" ? "inspect" : page.inspector.mode}
-        entry={inspectorEntry}
-        draft={inspectorDraft}
-        error={page.inspectorError}
-        warnings={page.inspectorWarnings}
-        canSave={page.inspectorIsValid}
-        isSaving={page.inspectorIsSaving}
-        isDeleting={page.deleteIsPending}
-        onOpenChange={next => {
-          if (!next) page.closeInspector();
-        }}
-        onDraftChange={page.updateDraft}
-        onSwitchToEdit={page.switchToEdit}
-        onCancelEdit={page.cancelEdit}
-        onSave={page.saveInspector}
-        onRequestDelete={() => {
-          if (inspectorEntry) page.openDelete(inspectorEntry);
-        }}
-        onRefreshCatalog={() => undefined}
-      />
+      <ProvidersInspector page={page} />
 
       <ProviderDeleteDialog
         target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
@@ -167,6 +69,120 @@ export function ProvidersSettingsPage() {
         onConfirm={page.confirmDelete}
       />
     </SettingsPageFrame>
+  );
+}
+
+type ProvidersPage = ReturnType<typeof useSettingsProvidersPage>;
+
+function providerCountMeta(counts: ProvidersPage["counts"]) {
+  return [
+    {
+      key: "ready",
+      content: <span data-testid="settings-page-providers-ready">{counts.installed} ready</span>,
+    },
+    {
+      key: "setup",
+      content: (
+        <span data-testid="settings-page-providers-needs-setup">
+          {counts.needsSetup} needs setup
+        </span>
+      ),
+    },
+    {
+      key: "missing",
+      content: (
+        <span data-testid="settings-page-providers-missing">
+          {counts.binaryMissing} not installed
+        </span>
+      ),
+    },
+  ];
+}
+
+function ProvidersCatalog({ page }: { page: ProvidersPage }) {
+  if (page.providers.length === 0) {
+    return (
+      <Empty
+        data-testid="settings-page-providers-empty"
+        description="Add one to start sessions."
+        icon={Database}
+        title="No providers yet"
+      />
+    );
+  }
+  return (
+    <>
+      <ProvidersToolbar
+        nameQuery={page.filters.nameQuery}
+        onNameQueryChange={page.setNameQuery}
+        onStatusChange={page.setStatusFilter}
+        statusFilter={page.filters.statusFilter}
+      />
+      {page.filteredProviders.length === 0 ? (
+        <Empty
+          action={
+            <Button
+              onClick={() => {
+                page.setNameQuery("");
+                page.setStatusFilter(null);
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Clear filters
+            </Button>
+          }
+          data-testid="settings-page-providers-empty-filtered"
+          description="Try a different search or status."
+          framed
+          icon={SearchX}
+          title="No providers match"
+        />
+      ) : (
+        <section
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="settings-page-providers-list"
+        >
+          {page.filteredProviders.map(provider => (
+            <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
+          ))}
+        </section>
+      )}
+    </>
+  );
+}
+
+function ProvidersInspector({ page }: { page: ProvidersPage }) {
+  const { inspector } = page;
+  const inspectorEntry =
+    inspector.mode === "inspect" || inspector.mode === "edit" ? inspector.entry : null;
+  const inspectorDraft =
+    inspector.mode === "edit" || inspector.mode === "create" ? inspector.draft : null;
+
+  return (
+    <ProviderDetailDialog
+      open={inspector.mode !== "closed"}
+      mode={inspector.mode === "closed" ? "inspect" : inspector.mode}
+      entry={inspectorEntry}
+      draft={inspectorDraft}
+      error={page.inspectorError}
+      warnings={page.inspectorWarnings}
+      canSave={page.inspectorIsValid}
+      isSaving={page.inspectorIsSaving}
+      isDeleting={page.deleteIsPending}
+      onOpenChange={next => {
+        if (!next) page.closeInspector();
+      }}
+      onDraftChange={page.updateDraft}
+      onSwitchToEdit={page.switchToEdit}
+      onCancelEdit={page.cancelEdit}
+      onSave={page.saveInspector}
+      onRequestDelete={() => {
+        if (inspectorEntry) page.openDelete(inspectorEntry);
+      }}
+      onRefreshCatalog={() => undefined}
+    />
   );
 }
 

@@ -104,96 +104,12 @@ function ProviderTechnicalDetails({
   provider: SettingsProviderEntry;
   showLogin: boolean;
 }) {
-  const credentials = provider.credentials ?? [];
-  const credentialSlots = provider.settings.credential_slots ?? [];
-  const curated = (provider.settings.models?.curated ?? []).flatMap(model =>
-    model.id ? [model.id] : []
-  );
-  const hasCredentials = credentials.length > 0 || credentialSlots.length > 0;
-  const harness = provider.settings.harness ?? null;
-  const runtime = provider.settings.runtime_provider ?? null;
-
   return (
     <div className="flex flex-col gap-5 pb-1">
-      <InspectSection id="runtime" label="How it runs">
-        <MetadataListRow label="Name">
-          <MonoId preserveCase value={provider.name} />
-        </MetadataListRow>
-        <MetadataListRow label="Command" valueProps={{ "data-testid": "inspect-command" }}>
-          {provider.settings.command ? (
-            <code className="font-mono text-mono-id break-all text-fg">
-              {provider.settings.command}
-            </code>
-          ) : (
-            "—"
-          )}
-        </MetadataListRow>
-        {harness ? (
-          <MetadataListRow label="Adapter" valueProps={{ "data-testid": "inspect-harness" }}>
-            <MonoId preserveCase value={harness} />
-            {runtime && runtime !== harness ? (
-              <span className="ml-2 text-subtle">
-                via <MonoId preserveCase value={runtime} />
-              </span>
-            ) : null}
-          </MetadataListRow>
-        ) : null}
-      </InspectSection>
-
-      {curated.length > 0 ? (
-        <InspectSection id="models" label="Models">
-          <MetadataListRow label="Available">
-            <ul className="flex flex-wrap gap-1.5" data-testid="inspect-curated-models">
-              {curated.map(id => (
-                <li key={id}>
-                  <Pill mono size="xs" tone="neutral">
-                    {id}
-                  </Pill>
-                </li>
-              ))}
-            </ul>
-          </MetadataListRow>
-        </InspectSection>
-      ) : null}
-
-      <InspectSection id="authentication" label="Sign-in">
-        <MetadataListRow label="Mode">
-          <code className="font-mono text-mono-id text-fg" data-testid="inspect-auth-mode">
-            {provider.settings.auth_mode ?? "—"}
-          </code>
-        </MetadataListRow>
-        <MetadataListRow label="Env policy">
-          <MonoId preserveCase value={provider.settings.env_policy ?? "—"} />
-        </MetadataListRow>
-        <MetadataListRow label="Home policy">
-          <MonoId preserveCase value={provider.settings.home_policy ?? "—"} />
-        </MetadataListRow>
-        {provider.auth_status?.state ? (
-          <MetadataListRow label="Status">
-            <span className="flex flex-col gap-1" data-testid="inspect-auth-status">
-              <span className="text-fg">{providerAuthStateLabel(provider.auth_status.state)}</span>
-              {provider.auth_status.message ? <span>{provider.auth_status.message}</span> : null}
-            </span>
-          </MetadataListRow>
-        ) : null}
-        {showLogin && provider.auth_status?.login ? (
-          <MetadataListRow label="Login app">
-            <ProviderLoginDescriptorView
-              login={provider.auth_status.login}
-              testId="inspect-login-descriptor"
-            />
-          </MetadataListRow>
-        ) : null}
-      </InspectSection>
-
-      {hasCredentials ? (
-        <InspectSection
-          id="credentials"
-          label={`Keys (${credentials.length || credentialSlots.length})`}
-        >
-          <CredentialList slots={credentialSlots} credentials={credentials} />
-        </InspectSection>
-      ) : null}
+      <RuntimeSection provider={provider} />
+      <CuratedModelsSection provider={provider} />
+      <AuthenticationSection provider={provider} showLogin={showLogin} />
+      <CredentialsSection provider={provider} />
 
       <InspectSection id="source" label="Defined in">
         <SettingsSourceBadge
@@ -207,6 +123,111 @@ function ProviderTechnicalDetails({
         <CatalogList providerId={provider.name} enabled={provider.command_available} />
       </InspectSection>
     </div>
+  );
+}
+
+function RuntimeSection({ provider }: { provider: SettingsProviderEntry }) {
+  const harness = provider.settings.harness ?? null;
+  const runtime = provider.settings.runtime_provider ?? null;
+  return (
+    <InspectSection id="runtime" label="How it runs">
+      <MetadataListRow label="Name">
+        <MonoId preserveCase value={provider.name} />
+      </MetadataListRow>
+      <MetadataListRow label="Command" valueProps={{ "data-testid": "inspect-command" }}>
+        {provider.settings.command ? (
+          <code className="font-mono text-mono-id break-all text-fg">
+            {provider.settings.command}
+          </code>
+        ) : (
+          "—"
+        )}
+      </MetadataListRow>
+      {harness ? (
+        <MetadataListRow label="Adapter" valueProps={{ "data-testid": "inspect-harness" }}>
+          <MonoId preserveCase value={harness} />
+          {runtime && runtime !== harness ? (
+            <span className="ml-2 text-subtle">
+              via <MonoId preserveCase value={runtime} />
+            </span>
+          ) : null}
+        </MetadataListRow>
+      ) : null}
+    </InspectSection>
+  );
+}
+
+function CuratedModelsSection({ provider }: { provider: SettingsProviderEntry }) {
+  const curated = (provider.settings.models?.curated ?? []).flatMap(model =>
+    model.id ? [model.id] : []
+  );
+  if (curated.length === 0) return null;
+  return (
+    <InspectSection id="models" label="Models">
+      <MetadataListRow label="Available">
+        <ul className="flex flex-wrap gap-1.5" data-testid="inspect-curated-models">
+          {curated.map(id => (
+            <li key={id}>
+              <Pill mono size="xs" tone="neutral">
+                {id}
+              </Pill>
+            </li>
+          ))}
+        </ul>
+      </MetadataListRow>
+    </InspectSection>
+  );
+}
+
+function AuthenticationSection({
+  provider,
+  showLogin,
+}: {
+  provider: SettingsProviderEntry;
+  showLogin: boolean;
+}) {
+  const authStatus = provider.auth_status;
+  return (
+    <InspectSection id="authentication" label="Sign-in">
+      <MetadataListRow label="Mode">
+        <code className="font-mono text-mono-id text-fg" data-testid="inspect-auth-mode">
+          {provider.settings.auth_mode ?? "—"}
+        </code>
+      </MetadataListRow>
+      <MetadataListRow label="Env policy">
+        <MonoId preserveCase value={provider.settings.env_policy ?? "—"} />
+      </MetadataListRow>
+      <MetadataListRow label="Home policy">
+        <MonoId preserveCase value={provider.settings.home_policy ?? "—"} />
+      </MetadataListRow>
+      {authStatus?.state ? (
+        <MetadataListRow label="Status">
+          <span className="flex flex-col gap-1" data-testid="inspect-auth-status">
+            <span className="text-fg">{providerAuthStateLabel(authStatus.state)}</span>
+            {authStatus.message ? <span>{authStatus.message}</span> : null}
+          </span>
+        </MetadataListRow>
+      ) : null}
+      {showLogin && authStatus?.login ? (
+        <MetadataListRow label="Login app">
+          <ProviderLoginDescriptorView login={authStatus.login} testId="inspect-login-descriptor" />
+        </MetadataListRow>
+      ) : null}
+    </InspectSection>
+  );
+}
+
+function CredentialsSection({ provider }: { provider: SettingsProviderEntry }) {
+  const credentials = provider.credentials ?? [];
+  const credentialSlots = provider.settings.credential_slots ?? [];
+  if (credentials.length === 0 && credentialSlots.length === 0) return null;
+  return (
+    <InspectSection
+      id="credentials"
+      label={`Keys (${credentials.length || credentialSlots.length})`}
+    >
+      <CredentialList slots={credentialSlots} credentials={credentials} />
+    </InspectSection>
   );
 }
 

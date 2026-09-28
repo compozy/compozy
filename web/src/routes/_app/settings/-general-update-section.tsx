@@ -1,4 +1,5 @@
 import { RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button, Pill, Spinner } from "@compozy/ui";
 import {
@@ -16,6 +17,7 @@ import type {
   SettingsUpdateHolder,
   SettingsUpdateStatus,
   SettingsUpdateTargetSet,
+  SettingsUpdateTrackView,
 } from "@/systems/settings";
 
 export interface GeneralUpdateActions {
@@ -76,151 +78,148 @@ function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
   );
 }
 
-/**
- * True when the Updates group carries something to act on — a failed check, a
- * failed refresh, or a track that is not settled — so the page can lead with it.
- */
-export function generalUpdateNeedsAttention(
-  props: Pick<GeneralUpdateSectionProps, "data" | "error" | "isError" | "isLoading">
-): boolean {
-  const view = settingsUpdateView(props);
-  if (view.kind === "error") return true;
-  if (view.kind !== "snapshot") return false;
-  if (view.refreshError) return true;
-  return settingsUpdateTracks(view.snapshot).some(
-    track => track.tone !== "success" && track.tone !== "neutral"
+function UpdatesGroup({
+  description,
+  action,
+  children,
+}: {
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <SettingsGroup
+      action={action}
+      data-testid="settings-page-general-updates"
+      description={description}
+      title="Updates"
+    >
+      {children}
+    </SettingsGroup>
   );
 }
 
-/**
- * Settings → General → Updates: one durable action applies every eligible track,
- * while each row keeps the track state the daemon reports (ADR-006). The section holds no shell
- * awareness — it reads the daemon like any browser client, so it renders
- * identically in the desktop app and in a plain browser.
- */
-export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
-  const view = settingsUpdateView(props);
-  if (view.kind === "checking") {
-    return (
-      <SettingsGroup data-testid="settings-page-general-updates" title="Updates">
-        <SettingRow
-          data-testid="settings-page-general-update-status"
-          description="Checking the install method and latest stable release."
-          label="CompozyOS version"
-          control={
-            <>
-              <Spinner className="size-3.5 text-info" />
-              <SettingValue>Checking…</SettingValue>
-            </>
-          }
-        />
-      </SettingsGroup>
-    );
-  }
-
-  if (view.kind === "error" || view.kind === "unavailable") {
-    return (
-      <SettingsGroup data-testid="settings-page-general-updates" title="Updates">
-        <SettingRow
-          data-testid="settings-page-general-update-status"
-          description={view.message}
-          label="CompozyOS version"
-          control={
-            <>
-              <Pill tone={view.kind === "error" ? "danger" : "warning"}>
-                {view.kind === "error" ? "Check failed" : "Unavailable"}
-              </Pill>
-              <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
-            </>
-          }
-        />
-      </SettingsGroup>
-    );
-  }
-
-  const snapshot = view.snapshot;
-  const tracks = settingsUpdateTracks(snapshot);
-  const applicableTargets = view.refreshError ? null : settingsUpdateApplicableTargets(tracks);
-  // A blocked apply is a 200 whose body refuses; it never reads as success.
-  const blocked = props.actions.result?.status === "blocked" ? props.actions.result : null;
-  const cancelResult = props.actions.cancelResult;
-
+function UpdateCheckingGroup() {
   return (
-    <SettingsGroup
-      data-testid="settings-page-general-updates"
-      title="Updates"
-      // A failed refresh is one event for the whole section, so it lives once in
-      // the header while every row keeps its last known truth.
-      description={
-        view.refreshError
-          ? `Showing the last known status. Refresh failed: ${view.refreshError}`
-          : undefined
-      }
-      action={
-        view.refreshError || applicableTargets ? (
+    <UpdatesGroup>
+      <SettingRow
+        data-testid="settings-page-general-update-status"
+        description="Checking the install method and latest stable release."
+        label="CompozyOS version"
+        control={
           <>
-            {applicableTargets ? (
-              <Button
-                data-testid="settings-page-general-update-apply"
-                disabled={props.actions.isApplying}
-                onClick={() => props.actions.apply(applicableTargets)}
-                size="sm"
-                type="button"
-                variant="neutral"
-              >
-                {props.actions.isApplying ? <Spinner className="size-3" /> : null}
-                Update CompozyOS
-              </Button>
-            ) : null}
-            {view.refreshError ? (
-              <>
-                <Pill tone="danger">Refresh failed</Pill>
-                <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
-              </>
-            ) : null}
+            <Spinner className="size-3.5 text-info" />
+            <SettingValue>Checking…</SettingValue>
           </>
-        ) : null
+        }
+      />
+    </UpdatesGroup>
+  );
+}
+
+function UpdateFailureGroup({
+  failed,
+  message,
+  isFetching,
+  onRetry,
+}: {
+  failed: boolean;
+  message: string;
+  isFetching: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <UpdatesGroup>
+      <SettingRow
+        data-testid="settings-page-general-update-status"
+        description={message}
+        label="CompozyOS version"
+        control={
+          <>
+            <Pill tone={failed ? "danger" : "warning"}>
+              {failed ? "Check failed" : "Unavailable"}
+            </Pill>
+            <RetryButton isFetching={isFetching} onRetry={onRetry} />
+          </>
+        }
+      />
+    </UpdatesGroup>
+  );
+}
+
+function UpdateGroupAction({
+  applicableTargets,
+  refreshError,
+  actions,
+  isFetching,
+  onRetry,
+}: {
+  applicableTargets: SettingsUpdateTargetSet | null;
+  refreshError: string | null;
+  actions: GeneralUpdateActions;
+  isFetching: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
+      {applicableTargets ? (
+        <Button
+          data-testid="settings-page-general-update-apply"
+          disabled={actions.isApplying}
+          onClick={() => actions.apply(applicableTargets)}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          {actions.isApplying ? <Spinner className="size-3" /> : null}
+          Update CompozyOS
+        </Button>
+      ) : null}
+      {refreshError ? (
+        <>
+          <Pill tone="danger">Refresh failed</Pill>
+          <RetryButton isFetching={isFetching} onRetry={onRetry} />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function UpdateBlockedRow({ result }: { result: SettingsUpdateApplyResult | null }) {
+  // A blocked apply is a 200 whose body refuses; it never reads as success.
+  if (result?.status !== "blocked") return null;
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-blocked"
+      description={result.message}
+      label="Update channel busy"
+      control={result.holder ? <UpdateHolderValue holder={result.holder} /> : undefined}
+    />
+  );
+}
+
+function UpdateCancelResultRow({ result }: { result: SettingsUpdateCancelResult | null }) {
+  if (!result) return null;
+  const canceled = result.status === "canceled";
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-cancel-result"
+      description={result.message}
+      label={canceled ? "Update canceled" : "Cancel declined"}
+      control={
+        result.holder ? (
+          <UpdateHolderValue holder={result.holder} />
+        ) : (
+          <Pill tone={canceled ? "neutral" : "warning"}>{canceled ? "Canceled" : "Declined"}</Pill>
+        )
       }
-    >
-      {tracks.map(track => (
-        <SettingsUpdateTrackRow
-          key={track.id}
-          isCanceling={props.actions.isCanceling}
-          onCancel={props.actions.cancel}
-          track={track}
-        />
-      ))}
-      {blocked ? (
-        <SettingRow
-          data-testid="settings-page-general-update-blocked"
-          description={blocked.message}
-          label="Update channel busy"
-          control={blocked.holder ? <UpdateHolderValue holder={blocked.holder} /> : undefined}
-        />
-      ) : null}
-      {cancelResult ? (
-        <SettingRow
-          data-testid="settings-page-general-update-cancel-result"
-          description={cancelResult.message}
-          label={cancelResult.status === "canceled" ? "Update canceled" : "Cancel declined"}
-          control={
-            cancelResult.holder ? (
-              <UpdateHolderValue holder={cancelResult.holder} />
-            ) : (
-              <Pill tone={cancelResult.status === "canceled" ? "neutral" : "warning"}>
-                {cancelResult.status === "canceled" ? "Canceled" : "Declined"}
-              </Pill>
-            )
-          }
-        />
-      ) : null}
-      {props.actions.error ? (
-        <SettingRow
-          data-testid="settings-page-general-update-action-error"
-          description={<span className="text-danger">{props.actions.error}</span>}
-          label="Update request failed"
-        />
-      ) : null}
+    />
+  );
+}
+
+function UpdateTrackFootnotes({ tracks }: { tracks: SettingsUpdateTrackView[] }) {
+  return (
+    <>
       {tracks.map(track =>
         track.restoredVersion ? (
           <SettingRow
@@ -241,6 +240,72 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
           />
         ) : null
       )}
-    </SettingsGroup>
+    </>
+  );
+}
+
+/**
+ * Settings → General → Updates: one durable action applies every eligible track,
+ * while each row keeps the track state the daemon reports (ADR-006). The section holds no shell
+ * awareness — it reads the daemon like any browser client, so it renders
+ * identically in the desktop app and in a plain browser.
+ */
+export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
+  const { actions, isFetching, onRetry } = props;
+  const view = settingsUpdateView(props);
+  if (view.kind === "checking") return <UpdateCheckingGroup />;
+  if (view.kind !== "snapshot") {
+    return (
+      <UpdateFailureGroup
+        failed={view.kind === "error"}
+        isFetching={isFetching}
+        message={view.message}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  const { refreshError } = view;
+  const tracks = settingsUpdateTracks(view.snapshot);
+  const applicableTargets = refreshError ? null : settingsUpdateApplicableTargets(tracks);
+
+  return (
+    <UpdatesGroup
+      // A failed refresh is one event for the whole section, so it lives once in
+      // the header while every row keeps its last known truth.
+      description={
+        refreshError ? `Showing the last known status. Refresh failed: ${refreshError}` : undefined
+      }
+      action={
+        refreshError || applicableTargets ? (
+          <UpdateGroupAction
+            actions={actions}
+            applicableTargets={applicableTargets}
+            isFetching={isFetching}
+            onRetry={onRetry}
+            refreshError={refreshError}
+          />
+        ) : null
+      }
+    >
+      {tracks.map(track => (
+        <SettingsUpdateTrackRow
+          key={track.id}
+          isCanceling={actions.isCanceling}
+          onCancel={actions.cancel}
+          track={track}
+        />
+      ))}
+      <UpdateBlockedRow result={actions.result} />
+      <UpdateCancelResultRow result={actions.cancelResult} />
+      {actions.error ? (
+        <SettingRow
+          data-testid="settings-page-general-update-action-error"
+          description={<span className="text-danger">{actions.error}</span>}
+          label="Update request failed"
+        />
+      ) : null}
+      <UpdateTrackFootnotes tracks={tracks} />
+    </UpdatesGroup>
   );
 }

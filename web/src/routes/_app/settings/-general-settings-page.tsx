@@ -31,7 +31,8 @@ import {
 } from "@compozy/ui";
 
 import { MemoryReportRow, RedactionSection } from "./-general-daemon-sections";
-import { GeneralUpdateSection, generalUpdateNeedsAttention } from "./-general-update-section";
+import { generalUpdateNeedsAttention } from "./-general-update-attention";
+import { GeneralUpdateSection } from "./-general-update-section";
 
 const PERMISSION_OPTIONS = [
   {
