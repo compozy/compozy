@@ -50,7 +50,6 @@ export function TaskNowTerminalState({
             : "Retry to queue a new attempt, or open the run to see what happened."
         }
         data-testid="tasks-detail-now-failed"
-        micro={failed ? `task.run_failed · ${failed.id}` : undefined}
         title={`Failed on ${attempts}`}
         tone="danger"
       />

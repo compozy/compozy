@@ -6,8 +6,7 @@ import type { TaskTimelineItem } from "../types";
 
 /**
  * One humanized activity row: plain-language title first, optional detail,
- * freshness right-aligned, and the raw `event_type · seq` kept as quiet mono
- * microtext for operators.
+ * and freshness right-aligned. Raw event types stay in the Inspect drawer.
  */
 export interface TaskActivityItemProps extends Omit<
   TimelineEventProps,
@@ -35,13 +34,8 @@ export function TaskActivityItem({
       data-testid={`tasks-activity-item-${item.event_id}`}
       description={view.detail}
       icon={visualFor(item.event_type).icon}
-      meta={
-        <span className="font-mono text-micro text-faint">
-          {item.event_type} · {item.sequence}
-        </span>
-      }
-      time={item.timestamp ? <Time iso={item.timestamp} mode="relative" /> : undefined}
       title={view.title}
+      time={item.timestamp ? <Time iso={item.timestamp} mode="relative" /> : undefined}
       tone={tone}
     />
   );

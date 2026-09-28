@@ -1,4 +1,6 @@
-import { MetadataTile, Sheet, SheetContent, Time } from "@compozy/ui";
+import { MetadataTile, MonoId, Sheet, SheetContent, Time } from "@compozy/ui";
+
+import { formatTaskRunMetric } from "../lib/task-run-presentation";
 
 import type { TaskRunDetailView, TaskRunInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
@@ -33,6 +35,8 @@ export function TaskRunInspectDrawer({
   const leaseUntil = inspectRun?.lease_until ?? null;
   const claimHash = inspectRun?.claim_token_hash_truncated ?? null;
   const idempotencyKey = record.idempotency_key ?? null;
+  const summary = run.summary ?? null;
+  const sessionId = record.session_id ?? run.session?.session_id ?? null;
 
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
@@ -42,15 +46,37 @@ export function TaskRunInspectDrawer({
         side="right"
       >
         <TaskOperatorSheetHeader
-          description={
-            <>
-              Claim and lease internals for{" "}
-              <span className="font-mono text-eyebrow">{record.id}</span>.
-            </>
-          }
+          description="Technical details about this run."
           title="Inspect run"
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div className="mb-4 grid grid-cols-2 gap-2.5" data-testid="tasks-run-inspect-usage">
+            <MetadataTile
+              className="border border-line-soft bg-input-fill"
+              label="Run ID"
+              value={<MonoId value={record.id} />}
+            />
+            <MetadataTile
+              className="border border-line-soft bg-input-fill"
+              label="Session ID"
+              value={sessionId ? <MonoId value={sessionId} /> : "—"}
+            />
+            <MetadataTile
+              className="border border-line-soft bg-input-fill"
+              label="Tool calls"
+              value={formatTaskRunMetric(summary?.tool_call_count)}
+            />
+            <MetadataTile
+              className="border border-line-soft bg-input-fill"
+              label="Turns"
+              value={formatTaskRunMetric(summary?.turn_count)}
+            />
+            <MetadataTile
+              className="border border-line-soft bg-input-fill"
+              label="Tokens"
+              value={formatTaskRunMetric(summary?.total_tokens)}
+            />
+          </div>
           {isLoading && !inspect ? (
             <TaskInspectLoadingSkeleton label="Loading run inspection" />
           ) : errorMessage && !inspect ? (
@@ -69,7 +95,7 @@ export function TaskRunInspectDrawer({
                 />
                 <MetadataTile
                   className="border border-line-soft bg-input-fill"
-                  label="Lease until"
+                  label="Reserved until"
                   value={leaseUntil ? <Time iso={leaseUntil} mode="absolute" /> : "—"}
                 />
                 <MetadataTile
@@ -84,8 +110,8 @@ export function TaskRunInspectDrawer({
                 />
               </div>
               <p className="mt-4 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
-                The claim lease renews on every heartbeat. If heartbeats stop, the scheduler
-                escalates this run for recovery.
+                The agent keeps this run reserved while it keeps checking in. If it stops, CompozyOS
+                flags the run so it can be tried again.
               </p>
             </>
           )}

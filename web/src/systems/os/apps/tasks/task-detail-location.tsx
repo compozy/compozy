@@ -225,17 +225,11 @@ export function TaskDetailLocation({
               </main>
               <aside className={TASK_DETAIL_RAIL_CLASS}>
                 <TaskPropertiesRail
-                  approvalPending={{
-                    approve: page.isApprovePending,
-                    reject: page.isRejectPending,
-                  }}
                   detail={detail}
-                  onApprove={() => void page.handleApproveTask()}
                   onAutoEnqueueChange={enabled => void controller.handleAutoEnqueueChange(enabled)}
                   onEditSetup={() => controller.setSetupOpen(true)}
                   onInspect={() => controller.setInspectOpen(true)}
                   onPriorityChange={priority => void controller.handlePriorityChange(priority)}
-                  onReject={() => void page.handleRejectTask()}
                   profile={page.profile}
                   runs={page.runs}
                   updatePending={controller.updatePending}

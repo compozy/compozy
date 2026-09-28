@@ -228,7 +228,7 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
   await tasksUI.taskCard(seeded.approvalTask.id).click();
   await expect(tasksUI.detailApprovalPill).toContainText(/approval pending/i);
   await expect(tasksUI.detailNowApproval).toContainText(/waiting for your approval/i);
-  await expect(tasksUI.detailNowApproval).toContainText(/manual check is required/i);
+  await expect(tasksUI.detailNowApproval).toContainText(/won't start until someone approves it/i);
   await tasksUI.detailTabRuns.click();
   await expect(tasksUI.detailRunsEmpty).toBeVisible();
 

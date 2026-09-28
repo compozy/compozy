@@ -1,4 +1,4 @@
-import { MonoId, Time } from "@compozy/ui";
+import { Time } from "@compozy/ui";
 
 import type { TaskRunDetailView } from "../types";
 
@@ -10,32 +10,15 @@ function MetaDot() {
   );
 }
 
-/** Demoted run meta line: mono ids, claimant, freshness, live-ticking elapsed. */
+/** Demoted run meta line: freshness and live-ticking elapsed; ids live behind Inspect. */
 export function TaskRunSubhead({ run, duration }: { run: TaskRunDetailView; duration?: string }) {
   const record = run.run;
-  const sessionId = record.session_id ?? run.session?.session_id ?? null;
 
   return (
     <div
-      className="mb-5 flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
+      className="mb-5 flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-4 text-form-label text-subtle"
       data-testid="tasks-run-subhead"
     >
-      <MonoId value={record.id} />
-      {sessionId ? (
-        <>
-          <MetaDot />
-          <MonoId value={sessionId} />
-        </>
-      ) : null}
-      {record.claimed_by?.ref ? (
-        <>
-          <MetaDot />
-          <span>
-            Claimed by <span className="font-medium text-muted">{record.claimed_by.ref}</span>
-          </span>
-        </>
-      ) : null}
-      <MetaDot />
       {record.ended_at ? (
         <span className="inline-flex items-center gap-1">
           Ended <Time iso={record.ended_at} mode="relative" />
@@ -52,7 +35,7 @@ export function TaskRunSubhead({ run, duration }: { run: TaskRunDetailView; dura
       {duration ? (
         <>
           <MetaDot />
-          <span className="font-mono text-eyebrow tabular-nums">{duration}</span>
+          <span className="tabular-nums">{duration}</span>
         </>
       ) : null}
     </div>
