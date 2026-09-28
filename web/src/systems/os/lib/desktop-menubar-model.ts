@@ -57,7 +57,7 @@ export function desktopMenubarScopeModel({
         : undefined;
   const fallback = globalOn ? null : (worktreeSelection?.fallback ?? null);
   const fallbackNotice = fallback
-    ? `${fallback.name ?? "The selected worktree"} is ${fallback.reason === "missing" ? "missing" : "unavailable"} — new work runs at the workspace root`
+    ? `${fallback.name ?? "The selected worktree"} isn't available, so new sessions start in the main project folder.`
     : null;
 
   return {

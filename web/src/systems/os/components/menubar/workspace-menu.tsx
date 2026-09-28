@@ -49,6 +49,8 @@ export interface WorkspaceMenuProps {
   removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  /** Scope fallback sentence, shown first so the chip's warning dot has its reason. */
+  notice?: string | null;
 }
 
 function WorkspaceRowLabel({
@@ -93,6 +95,7 @@ export function WorkspaceMenu({
   onRemoveWorktree,
   removalProfile,
   onRemoveWorktrees,
+  notice,
 }: WorkspaceMenuProps) {
   const tree = worktreesByWorkspace
     ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
@@ -106,6 +109,18 @@ export function WorkspaceMenu({
       <MenubarContent align="start" data-testid="os-workspace-menu">
         <MenubarCommandGroups
           groups={[
+            ...(notice
+              ? [
+                  {
+                    id: "notice",
+                    content: (
+                      <MenubarItem disabled data-testid="os-workspace-menu-notice">
+                        {notice}
+                      </MenubarItem>
+                    ),
+                  },
+                ]
+              : []),
             {
               id: "workspaces",
               content:
@@ -208,7 +223,7 @@ export function WorkspaceMenu({
                 <>
                   <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
                   <MenubarItem data-testid="os-workspace-add" onClick={onAddWorkspace}>
-                    Add workspace…
+                    Add project…
                   </MenubarItem>
                 </>
               ),

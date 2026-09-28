@@ -200,7 +200,7 @@ describe("OsWorkspacesOverview", () => {
     // ← from the first tile wraps to the trailing add tile — instantly.
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByTestId("os-workspace-tile-add")).toHaveFocus();
-    expect(caption()).toHaveTextContent("New workspace");
+    expect(caption()).toHaveTextContent("New project");
 
     await user.keyboard("{ArrowRight}");
     expect(tile(COMPOZY.id)).toHaveFocus();
@@ -661,8 +661,8 @@ describe("OsWorkspacesOverview", () => {
       screen.getByText("No project folders yet. Sessions run in Global until you add one.")
     ).toBeInTheDocument();
     expect(caption()).toHaveTextContent("Global");
-    expect(caption()).toHaveTextContent("visible to every workspace");
-    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 workspaces");
+    expect(caption()).toHaveTextContent("visible to every project");
+    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 projects");
 
     await user.click(screen.getByTestId("os-workspaces-new"));
     expect(callbacks.onNewWorkspace).toHaveBeenCalledTimes(1);
@@ -695,14 +695,12 @@ describe("OsWorkspacesOverview", () => {
     expect(tile(BRANAS.id)).toHaveFocus();
   });
 
-  it("Should count adopted worktrees only and singularize one workspace", () => {
+  it("Should count projects only and singularize one project", () => {
     renderOverview({
       workspaces: [COMPOZY],
       worktreesByWorkspace: { [COMPOZY.id]: worktreeListingFixture },
     });
-    // 7 adopted records — the discovered checkout never enters the count.
-    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent(
-      `1 workspace · ${worktreeListingFixture.worktrees.length} worktrees`
-    );
+    // Worktrees stay on the tile's own nest; the headline never counts them.
+    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent(/^1 project$/);
   });
 });

@@ -148,14 +148,12 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
-      workspace={scopeModel.workspace}
+      workspace={{ ...scopeModel.workspace, warning: scopeModel.fallbackNotice }}
+      // The sentence lives on the chip (warning dot) and atop the project menu;
+      // this live region only announces it.
       scopeNotice={
         scopeModel.fallback ? (
-          <span
-            role="status"
-            data-testid="os-worktree-fallback-notice"
-            className="inline-flex items-center gap-1.5 rounded-md bg-info-tint px-2 py-1 text-form-label text-info"
-          >
+          <span role="status" data-testid="os-worktree-fallback-notice" className="sr-only">
             {scopeModel.fallbackNotice}
           </span>
         ) : null
@@ -209,6 +207,7 @@ export function DesktopMenubar({
           onRemoveWorktree={onRemoveWorktree}
           removalProfile={removalProfile}
           onRemoveWorktrees={onRemoveWorktrees}
+          notice={scopeModel.fallbackNotice}
         />
       )}
       menus={
