@@ -50,13 +50,11 @@ export class OsWindowErrorBoundary extends Component<
       >
         <Empty
           className="max-w-md"
-          description={
-            error.message.trim().length > 0
-              ? error.message
-              : `The ${this.props.title} window could not be rendered.`
-          }
+          // Raw render errors may carry secrets or internals; the console keeps them.
+          cause="The window stopped before CompozyOS could show it."
+          description="Try again. If it keeps happening, close and reopen the window."
           icon={AlertTriangle}
-          title={`${this.props.title} failed to render`}
+          title={`${this.props.title} couldn't open`}
           action={
             <Button onClick={this.handleRetry} size="sm" type="button" variant="outline">
               <RefreshCw className="size-3" />

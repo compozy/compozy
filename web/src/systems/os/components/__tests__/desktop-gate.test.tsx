@@ -105,7 +105,10 @@ describe("DesktopGate", () => {
 
     renderGate();
 
-    expect(screen.getByTestId("onboarding-gate-error")).toHaveTextContent("daemon unreachable");
+    const gateError = screen.getByTestId("onboarding-gate-error");
+    expect(gateError).toHaveTextContent("CompozyOS isn't responding");
+    // Raw runtime messages may carry internals; they never reach the screen.
+    expect(gateError).not.toHaveTextContent("daemon unreachable");
     expect(screen.queryByTestId("os-desktop")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(mocks.status.refetch).toHaveBeenCalledOnce();

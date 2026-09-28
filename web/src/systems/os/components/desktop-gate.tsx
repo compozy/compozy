@@ -36,12 +36,10 @@ export function DesktopGate({ children }: { children: ReactNode }) {
       <GateFrame testId="onboarding-gate-error">
         <Empty
           className="max-w-xl"
-          description={describeGateError(
-            onboarding.error,
-            "CompozyOS could not confirm whether first-run setup is complete."
-          )}
+          cause={gateErrorCause(onboarding.error)}
+          description="Make sure CompozyOS is running, then try again."
           icon={AlertTriangle}
-          title="Unable to check onboarding"
+          title="CompozyOS isn't responding"
           titleAs="h1"
           action={
             <Button
@@ -78,9 +76,8 @@ function GateFrame({ children, testId }: { children: ReactNode; testId: string }
   );
 }
 
-function describeGateError(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
+/** Safe detail for the collapsed disclosure; runtime messages may contain secrets. */
+function gateErrorCause(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  return "CompozyOS couldn't confirm whether setup is complete.";
 }
