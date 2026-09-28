@@ -138,14 +138,14 @@ function SessionWindowNoticeContent({
       <SessionResumeFailure
         agentName={agentName}
         isRetrying={isForking}
-        message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+        message="This session can't continue. Start a copy to keep working — the history stays here."
         missingProvider={null}
         onDismiss={() => undefined}
         onRetry={onFork}
-        retryLabel="Fork into a new session"
+        retryLabel="Continue in a new session"
         sessionId={sessionId}
         showDismiss={false}
-        title="Runtime unavailable"
+        title="Session ended"
       />
     );
   }

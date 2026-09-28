@@ -1,9 +1,7 @@
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, TriangleAlert, X } from "lucide-react";
 import { useEffect, useEffectEvent } from "react";
 
-import { Button, Spinner } from "@compozy/ui";
-
-import { SessionDangerBanner } from "./session-danger-banner";
+import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@compozy/ui";
 
 export interface SessionResumeFailureProps {
   sessionId: string;
@@ -20,9 +18,9 @@ export interface SessionResumeFailureProps {
 
 /**
  * The ONE banner the transcript budget allows — a session-level failure above
- * the transcript: 28% danger hairline on a 4% wash, plain body sentences (the
- * session id, provider, and agent read as text, never id pills), and the
- * recovery actions on the right.
+ * the transcript, composed from the danger `Alert`: a plain sentence and the
+ * recovery actions. The session id and agent ride on data attributes (the id
+ * is in the URL, and copying it belongs to the window overflow menu).
  */
 export function SessionResumeFailure({
   sessionId,
@@ -32,15 +30,13 @@ export function SessionResumeFailure({
   isRetrying,
   onRetry,
   onDismiss,
-  title,
-  retryLabel = "Retry attach",
+  title = "Couldn't reconnect to this session",
+  retryLabel = "Try again",
   showDismiss = true,
 }: SessionResumeFailureProps) {
   const normalizedMissingProvider = missingProvider?.trim() ?? "";
   const normalizedAgentName = agentName?.trim() ?? "";
   const hasProviderDetail = normalizedMissingProvider.length > 0;
-  const resolvedTitle =
-    title ?? (hasProviderDetail ? "Attach failed: provider no longer available" : "Attach failed");
 
   const handleEscape = useEffectEvent((event: KeyboardEvent) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -53,21 +49,23 @@ export function SessionResumeFailure({
   }, []);
 
   return (
-    <SessionDangerBanner
-      data-testid="session-resume-failure"
+    <Alert
+      aria-live="assertive"
       className="my-3 w-full"
-      title={<span data-testid="session-resume-failure-title">{resolvedTitle}</span>}
+      data-agent={normalizedAgentName || undefined}
+      data-session-id={sessionId}
+      data-testid="session-resume-failure"
+      role="alert"
+      variant="danger"
     >
-      <p data-testid="session-resume-failure-message" className="text-transcript-body text-muted">
+      <TriangleAlert aria-hidden="true" className="size-3.5" />
+      <AlertTitle data-testid="session-resume-failure-title">{title}</AlertTitle>
+      <AlertDescription data-testid="session-resume-failure-message">
         {hasProviderDetail
-          ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
+          ? `This session used ${normalizedMissingProvider}, which isn't set up in this project anymore. Add it back in Settings → Providers, then try again.`
           : message}
-      </p>
-      <p className="font-mono text-badge text-subtle" data-testid="session-resume-failure-meta">
-        session {sessionId}
-        {normalizedAgentName ? ` · agent ${normalizedAgentName}` : ""}
-      </p>
-      <div className="mt-1 flex items-center gap-transcript-inline-gap">
+      </AlertDescription>
+      <AlertActions>
         <Button
           data-testid="session-resume-failure-retry"
           disabled={isRetrying}
@@ -95,7 +93,7 @@ export function SessionResumeFailure({
             Dismiss
           </Button>
         ) : null}
-      </div>
-    </SessionDangerBanner>
+      </AlertActions>
+    </Alert>
   );
 }
