@@ -10,6 +10,7 @@ describe("StatusDot", () => {
     ["danger", "solid"],
     ["warning", "ring"],
     ["accent", "solid"],
+    ["info", "solid"],
     ["faint", "ring"],
   ] as const)("Should expose data-tone/data-variant for %s/%s", (tone, variant) => {
     const { container } = render(<StatusDot tone={tone} variant={variant} />);
