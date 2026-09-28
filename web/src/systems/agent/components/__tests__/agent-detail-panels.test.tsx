@@ -372,7 +372,8 @@ describe("agent detail panels", () => {
     expect(onClearFilter).toHaveBeenCalledTimes(1);
   });
 
-  it("Should list every diagnostic with kind, message, and source path", () => {
+  it("Should lead with each message and keep kind and source path under Details", async () => {
+    const user = userEvent.setup();
     render(
       <AgentDiagnosticsBanner
         diagnostics={[
@@ -381,13 +382,15 @@ describe("agent detail panels", () => {
         ]}
       />
     );
+    const banner = screen.getByTestId("agent-diagnostics-banner");
+    expect(banner).toHaveTextContent("Unknown field");
+    expect(banner).toHaveTextContent("Provider is required");
+    expect(screen.queryByText(/frontmatter\.invalid/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("agent-diagnostics-details"));
     const [frontmatterDiagnostic, providerDiagnostic] =
       screen.getAllByTestId("agent-diagnostic-item");
-    expect(frontmatterDiagnostic).toHaveTextContent("frontmatter.invalid");
-    expect(frontmatterDiagnostic).toHaveTextContent("Unknown field");
-    expect(frontmatterDiagnostic).toHaveTextContent("AGENT.md:3");
-    expect(providerDiagnostic).toHaveTextContent("provider.missing");
-    expect(providerDiagnostic).toHaveTextContent("Provider is required");
-    expect(providerDiagnostic).toHaveTextContent("AGENT.md");
+    expect(frontmatterDiagnostic).toHaveTextContent("AGENT.md:3 · frontmatter.invalid");
+    expect(providerDiagnostic).toHaveTextContent("AGENT.md · provider.missing");
   });
 });
