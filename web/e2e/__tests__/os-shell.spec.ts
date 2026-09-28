@@ -4400,12 +4400,12 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   await expect(paletteRowReason(palette, "window.close")).toHaveText(
     "CompozyOS isn't reachable right now"
   );
-  await expect(closeRow).toHaveAccessibleDescription("runtime unavailable");
+  await expect(closeRow).toHaveAccessibleDescription("CompozyOS isn't reachable right now");
   await palette.getByPlaceholder("Search apps, sessions, and actions…").press("Home");
   await expect(closeRow).toHaveAttribute("data-selected", "true");
   await appPage.keyboard.press("Enter");
   await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
-    "Close window — runtime unavailable"
+    "Close window — CompozyOS isn't reachable right now"
   );
   await expect(palette).toBeVisible();
 
@@ -4414,7 +4414,7 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   await expect(unavailablePanel.getByTestId("os-palette-action-primary.run")).toHaveCount(0);
   await expect(unavailablePanel.getByTestId("os-palette-action-meta.pin")).toBeVisible();
   await expect(unavailablePanel.getByTestId("os-palette-action-reason")).toHaveText(
-    "runtime unavailable"
+    "CompozyOS isn't reachable right now"
   );
   await appPage.keyboard.press("Escape");
   // Availability-exempt commands survive the reconnect (US-001.EC-1).
