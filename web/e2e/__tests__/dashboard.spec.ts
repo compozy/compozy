@@ -288,11 +288,16 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   home = await ensureAppWindow(appPage, "Home", "dashboard");
 
   await expect(home.locator('[data-slot="home-page-meta"]')).toContainText(`project ${beta.name}`);
-  await expect(homeMetricValue(home, "Working now")).toHaveText("0");
+  // An empty project gets the first-run state instead of an all-zero KPI strip.
+  await expect(home.getByTestId("home-first-run")).toContainText(
+    `No agent work yet in ${beta.name}`
+  );
+  await expect(home.locator('[data-slot="home-kpi-strip"]')).toHaveCount(0);
 
   await setGlobalScope(appPage, true);
   home = await ensureAppWindow(appPage, "Home", "dashboard");
   await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("project");
+  await expect(home.getByTestId("home-first-run")).toHaveCount(0);
   await expect
     .poll(async () => Number(await homeMetricValue(home, "Working now").textContent()))
     .toBeGreaterThan(0);

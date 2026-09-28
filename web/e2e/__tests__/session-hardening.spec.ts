@@ -875,7 +875,11 @@ test("E2E-012: Enter during a turn steers by default, the modifier queues once, 
   expect(queued.prompt.queue_position).toBe(1);
   await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "queued");
   await expect(ui.composerFeedbackNote).toContainText("Queued #1 — runs after the current turn");
-  await expect(ui.composerFeedbackNote).toContainText(queued.prompt.entry_id ?? "");
+  // The entry id rides on data-detail, off screen (internal ids stay off session screens).
+  await expect(ui.composerFeedbackNote).toHaveAttribute(
+    "data-detail",
+    queued.prompt.entry_id ?? ""
+  );
   await expect(ui.composerTextarea).toHaveText("");
   await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
 
@@ -910,7 +914,10 @@ test("E2E-012: Enter during a turn steers by default, the modifier queues once, 
   );
   await expect(ui.composerFeedbackNote).toHaveAttribute("data-kind", "disposition");
   await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
-  await expect(ui.composerFeedbackNote).toContainText(steered.prompt.steer_delivery ?? "");
+  await expect(ui.composerFeedbackNote).toHaveAttribute(
+    "data-detail",
+    steered.prompt.steer_delivery ?? ""
+  );
   await expect(ui.composerTextarea).toHaveText("");
   await browserArtifacts.captureScreenshot("e2e-012-composer-enter-default-steer", appPage);
 });
@@ -953,7 +960,7 @@ test("E2E-013: a stale-fence refusal states the reason inline and gives the draf
   await expect(ui.composerFeedbackNote).toContainText(
     "Not sent — the turn changed before this went out. Your draft is back."
   );
-  await expect(ui.composerFeedbackNote).toContainText("active_turn_mismatch");
+  await expect(ui.composerFeedbackNote).toHaveAttribute("data-detail", "active_turn_mismatch");
   await expect(ui.composerTextarea).toHaveText(draft);
   // The turn is still live: nothing was interrupted by the refused send.
   await expect(ui.composerStopButton).toBeVisible();

@@ -386,7 +386,9 @@ test.describe("empty-fleet first-contact journey", () => {
     await expect(appPage.getByTestId("agent-fleet-empty")).toBeVisible();
     await expect(appPage.getByText("No agents yet")).toBeVisible();
     await expect(
-      appPage.getByText("Agents define the provider, model, and instructions a session runs with.")
+      appPage.getByText(
+        "An agent is an assistant with its own instructions and model. Create one to start working with it."
+      )
     ).toBeVisible();
     await expect(appPage.getByTestId("agents-topbar-create")).toHaveCount(0);
     await appPage.getByTestId("agent-fleet-empty-create").click();

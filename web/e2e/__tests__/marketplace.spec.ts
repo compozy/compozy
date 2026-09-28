@@ -947,7 +947,7 @@ test.describe("Extension marketplace runtime", () => {
     await expect(approvedUI.permissionPrompt).toBeVisible();
     await expect(approvedWin.getByRole("region", { name: "Permission required" })).toBeVisible();
     await expect(approvedWin.getByRole("button", { name: /always allow/i })).toBeVisible();
-    await expect(approvedWin.getByRole("button", { name: /^reject 3$/i })).toBeVisible();
+    await expect(approvedWin.getByRole("button", { name: /^don't allow 3$/i })).toBeVisible();
     await assertPermissionKeyboardPath(approvedWin);
 
     const approveResponsePromise = appPage.waitForResponse(
