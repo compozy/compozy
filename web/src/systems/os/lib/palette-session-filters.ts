@@ -36,7 +36,7 @@ export const PALETTE_SESSION_FILTERS = {
   all: {
     id: "all",
     label: "All",
-    emptyMessage: "No sessions in this workspace yet.",
+    emptyMessage: "No sessions in this project yet.",
     matches: () => true,
   },
   "needs-you": {

@@ -74,3 +74,5 @@ Walk (task_11 plan):
 Expected evidence: screenshots of the attention-first list, chip states with counts, the globe
 round-trip beside the sidebar and CLI value, and the foreign-session landing (workspace switch
 named); the config-get transcript.
+
+2026-09-28 qa-impact (ui-normie-pass/os-shell): the breadth globe's accessible name is now "All projects" (tooltips "Showing every project" / "Showing this project"), session rows show the plain state label (e.g. "Needs your answer") with the exact token in `data-session-state`, and the cross-project confirmation reads "Switch project?" / "Switch project". Reset to untested.

@@ -85,7 +85,7 @@ export function OsWorkspacesStrip({
       >
         <div
           role="listbox"
-          aria-label="Workspaces"
+          aria-label="Projects"
           aria-orientation="horizontal"
           data-slot="os-workspaces-row"
           className="flex w-max flex-nowrap items-start gap-workspaces-menu-gap"

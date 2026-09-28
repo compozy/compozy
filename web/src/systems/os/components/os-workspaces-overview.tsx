@@ -262,7 +262,7 @@ function OsWorkspacesStage({
         )}
         onKeyDown={switcher.onStageKeyDown}
       >
-        <DialogTitle className="sr-only">Workspaces</DialogTitle>
+        <DialogTitle className="sr-only">Projects</DialogTitle>
         <DialogDescription
           className="mb-3.5 text-center text-form-label text-muted"
           data-testid="os-workspaces-subtitle"

@@ -167,12 +167,12 @@ function emptySessionsMessage(input: {
   if (input.loading) return "Loading sessions…";
   if (input.query.trim() !== "") return `No sessions match “${input.query.trim()}”.`;
   if (input.filterId === "all" && input.archived) return "No archived sessions yet.";
-  if (input.filterId === "all" && input.allWorkspaces) return "No sessions across workspaces yet.";
+  if (input.filterId === "all" && input.allWorkspaces) return "No sessions across projects yet.";
   return paletteSessionFilter(input.filterId).emptyMessage;
 }
 
 function formatWorkspaceNames(names: readonly string[]): string {
-  if (names.length < 2) return names[0] ?? "A workspace";
+  if (names.length < 2) return names[0] ?? "A project";
   if (names.length === 2) return names.join(" and ");
   return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
 }
