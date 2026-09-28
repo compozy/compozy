@@ -38,7 +38,6 @@ export const Default: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="profile"
     />
   ),
 };
@@ -55,7 +54,6 @@ export const PendingSave: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="profile"
     />
   ),
 };
@@ -73,7 +71,6 @@ export const RejectedByPolicy: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="profile"
     />
   ),
 };
@@ -90,7 +87,6 @@ export const ImmutableIdentityLock: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="workspace"
     />
   ),
 };
@@ -109,7 +105,6 @@ export const ConfirmSubmits: Story = {
         onConfirm={onConfirm}
         onOpenChange={() => undefined}
         open
-        scope="profile"
       />
     );
   },

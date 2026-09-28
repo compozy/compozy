@@ -8,7 +8,6 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  Eyebrow,
   Field,
   FieldContent,
   FieldHeader,
@@ -17,9 +16,11 @@ import {
   HelpTip,
   Input,
   RadioCard,
+  RequiredMark,
   Textarea,
 } from "@compozy/ui";
 
+import { knowledgeTypeLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryType } from "@/systems/knowledge/types";
 import { WorkspaceScopeStatement } from "@/systems/workspace";
 
@@ -51,26 +52,26 @@ interface TypeOption {
 const TYPE_OPTIONS: ReadonlyArray<TypeOption> = [
   {
     value: "user",
-    title: "User",
-    description: "Operator preferences and identity guidance.",
+    title: knowledgeTypeLabel("user"),
+    description: "Your preferences and how you like to work.",
     icon: ClipboardList,
   },
   {
     value: "feedback",
-    title: "Feedback",
-    description: "Coaching notes captured from prior runs.",
+    title: knowledgeTypeLabel("feedback"),
+    description: "Corrections agents should remember.",
     icon: MessageSquare,
   },
   {
     value: "project",
-    title: "Project",
-    description: "Long-lived decisions with rationale.",
+    title: knowledgeTypeLabel("project"),
+    description: "Decisions about this work and why.",
     icon: BookOpen,
   },
   {
     value: "reference",
-    title: "Reference",
-    description: "Pointer to docs, code, or external systems.",
+    title: knowledgeTypeLabel("reference"),
+    description: "Links to docs, code, or other systems.",
     icon: Tag,
   },
 ];
@@ -130,7 +131,7 @@ function KnowledgeCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          eyebrow="Catalog · Knowledge"
+          eyebrow="Knowledge"
           icon={BookOpen}
           onClose={() => updateDialogOpen(false)}
           title="Create knowledge entry"
@@ -162,22 +163,23 @@ function KnowledgeCreateDialog({
                 <FieldContent>
                   <FieldLabel htmlFor="knowledge-create-name">
                     Name
-                    <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+                    <RequiredMark />
                   </FieldLabel>
                 </FieldContent>
                 <Input
-                  className="font-mono"
                   data-testid="knowledge-create-name"
                   id="knowledge-create-name"
                   onChange={event => setName(event.target.value)}
-                  placeholder="Canonical knowledge name"
+                  placeholder="e.g. Preferred test framework"
                   value={name}
                 />
               </Field>
               <Field>
                 <FieldHeader>
                   <FieldLabel htmlFor="knowledge-create-description">Description</FieldLabel>
-                  <HelpTip label="About description">What should retrieval match?</HelpTip>
+                  <HelpTip label="About description">
+                    A short summary agents use to find this.
+                  </HelpTip>
                 </FieldHeader>
                 <Input
                   data-testid="knowledge-create-description"
@@ -191,7 +193,7 @@ function KnowledgeCreateDialog({
                 <FieldContent>
                   <FieldLabel htmlFor="knowledge-create-content">
                     Content
-                    <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+                    <RequiredMark />
                   </FieldLabel>
                 </FieldContent>
                 <Textarea

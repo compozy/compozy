@@ -1,11 +1,12 @@
-import { AlertCircle, History, RotateCcw } from "lucide-react";
+import { AlertCircle, RotateCcw } from "lucide-react";
 
-import { Button, Empty, Pill, Section, Spinner, Time, TimelineEvent } from "@compozy/ui";
+import { Button, Empty, Spinner, Time, TimelineEvent } from "@compozy/ui";
 
 import { decisionOpLabel, decisionSourceLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryDecision } from "@/systems/knowledge/types";
 
-import { pillToneFromDecisionOp, pillToneFromDecisionSource } from "./knowledge-pill-tone";
+import { KnowledgeFold } from "./knowledge-fold";
+import { pillToneFromDecisionOp } from "./knowledge-pill-tone";
 
 interface KnowledgeDecisionsSectionProps {
   decisions: MemoryDecision[] | undefined;
@@ -33,40 +34,39 @@ function KnowledgeDecisionsSection({
     }
   };
 
+  if (!isLoading && !error && (!decisions || decisions.length === 0)) {
+    return null;
+  }
+
   return (
-    <Section data-testid="knowledge-decisions-section" label="Recent controller decisions">
+    <KnowledgeFold
+      data-testid="knowledge-decisions-section"
+      label="History"
+      toggleTestId="knowledge-decisions-toggle"
+    >
       {isLoading ? (
         <div
           className="flex items-center gap-2 px-1 py-3 text-xs text-subtle"
           data-testid="knowledge-decisions-loading"
         >
-          <Spinner /> Loading decisions…
+          <Spinner /> Loading history…
         </div>
       ) : error ? (
         <Empty
           className="max-w-md"
           data-testid="knowledge-decisions-error"
-          description={error.message ?? "Failed to load decisions"}
+          description={error.message ?? "Try again in a moment."}
           icon={AlertCircle}
-          title="Unable to load decisions"
-        />
-      ) : !decisions || decisions.length === 0 ? (
-        <Empty
-          className="max-w-md"
-          data-testid="knowledge-decisions-empty"
-          description="No controller decisions recorded for this memory yet."
-          icon={History}
-          title="No decisions"
+          title="Couldn't load history"
         />
       ) : (
         <ul
           className="flex flex-col gap-1"
           data-testid="knowledge-decisions-list"
-          aria-label="Controller decisions"
+          aria-label="Knowledge history"
         >
-          {decisions.map(decision => {
+          {(decisions ?? []).map(decision => {
             const opTone = pillToneFromDecisionOp(decision.op);
-            const sourceTone = pillToneFromDecisionSource(decision.source);
             const isReverting = revertingDecisionId === decision.id;
             const showRevert = Boolean(onRevertDecision) && Boolean(decision.applied_at);
             return (
@@ -75,18 +75,12 @@ function KnowledgeDecisionsSection({
                 key={decision.id}
                 tone={opTone}
                 title={
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <Pill mono data-testid={`knowledge-decision-op-${decision.id}`} tone={opTone}>
-                      {decisionOpLabel(decision.op)}
-                    </Pill>
-                    <Pill
-                      mono
-                      data-testid={`knowledge-decision-source-${decision.id}`}
-                      tone={sourceTone}
-                    >
-                      {decisionSourceLabel(decision.source)}
-                    </Pill>
-                  </div>
+                  <span
+                    className="text-small-body text-fg"
+                    data-testid={`knowledge-decision-op-${decision.id}`}
+                  >
+                    {decisionOpLabel(decision.op)}
+                  </span>
                 }
                 time={
                   <Time
@@ -97,8 +91,11 @@ function KnowledgeDecisionsSection({
                 description={decision.reason ?? undefined}
                 meta={
                   <>
+                    <span data-testid={`knowledge-decision-source-${decision.id}`}>
+                      {decisionSourceLabel(decision.source)}
+                    </span>
                     <span data-testid={`knowledge-decision-confidence-${decision.id}`}>
-                      Confidence {decision.confidence.toFixed(2)}
+                      {Math.round(decision.confidence * 100)}% confident
                     </span>
                     {decision.applied_at ? (
                       <span data-testid={`knowledge-decision-applied-${decision.id}`}>
@@ -111,7 +108,7 @@ function KnowledgeDecisionsSection({
                     )}
                     {decision.target_filename ? (
                       <span data-testid={`knowledge-decision-target-${decision.id}`}>
-                        Target {decision.target_filename}
+                        File {decision.target_filename}
                       </span>
                     ) : null}
                     {showRevert ? (
@@ -148,7 +145,7 @@ function KnowledgeDecisionsSection({
           })}
         </ul>
       )}
-    </Section>
+    </KnowledgeFold>
   );
 }
 
