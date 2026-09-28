@@ -243,7 +243,8 @@ that message as `draft_text`, and starts a fresh ACP context under the same Comp
 CLI reads the current transcript fences; pass all three `--expected-*` values only when retrying a
 previously fenced request. HTTP, UDS, and the native tool require the epoch, generation, and maximum
 sequence returned by the transcript API. Stale values return a conflict without changing the session.
-Rewind is available only for idle ordinary user sessions.
+Rewind is available only for idle ordinary user sessions; parented children (`lineage.kind`
+`provenance`, `recovery`, `continue`, `fork`) rewind too, and only `spawn` sessions are refused.
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
 saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
@@ -561,7 +562,7 @@ session ID, transcript, archive state, and lineage.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
-Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
+Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically.
 
 Governed children without an explicit agent command inherit the creator's resolved command only
 for the same native CLI provider, operator-home policy, compatible environment/runtime policies,

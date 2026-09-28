@@ -254,6 +254,7 @@ INSERT INTO sessions (
   state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
+  lineage_kind, origin_message_id, origin_agent_name,
   acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail, failure_kind, failure_summary, crash_bundle_path,
   subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
@@ -269,12 +270,13 @@ INSERT INTO sessions (
   ?24, ?25, ?26,
   ?27, ?28, ?29, ?30,
   ?31, ?32, ?33, ?34,
-  ?35, ?36, ?37, ?38, ?39, ?40,
-  ?41, ?42, ?43,
+  ?35, ?36, ?37,
+  ?38, ?39, ?40, ?41, ?42, ?43,
   ?44, ?45, ?46,
   ?47, ?48, ?49,
   ?50, ?51, ?52,
-  ?53, ?54
+  ?53, ?54, ?55,
+  ?56, ?57
 WHERE ?23 IS NULL
    OR EXISTS (
       SELECT 1
@@ -323,6 +325,9 @@ ON CONFLICT(id) DO UPDATE SET
   notify_creator = excluded.notify_creator,
   spawn_budget_json = excluded.spawn_budget_json,
   permission_policy_json = excluded.permission_policy_json,
+  lineage_kind = excluded.lineage_kind,
+  origin_message_id = excluded.origin_message_id,
+  origin_agent_name = excluded.origin_agent_name,
   acp_session_id = excluded.acp_session_id,
   stop_reason = excluded.stop_reason,
   stop_escalated = excluded.stop_escalated,
@@ -381,6 +386,9 @@ type UpsertSessionParams struct {
 	NotifyCreator            bool           `json:"notify_creator"`
 	SpawnBudgetJson          string         `json:"spawn_budget_json"`
 	PermissionPolicyJson     string         `json:"permission_policy_json"`
+	LineageKind              string         `json:"lineage_kind"`
+	OriginMessageID          sql.NullString `json:"origin_message_id"`
+	OriginAgentName          string         `json:"origin_agent_name"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
 	StopEscalated            bool           `json:"stop_escalated"`
@@ -439,6 +447,9 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.NotifyCreator,
 		arg.SpawnBudgetJson,
 		arg.PermissionPolicyJson,
+		arg.LineageKind,
+		arg.OriginMessageID,
+		arg.OriginAgentName,
 		arg.AcpSessionID,
 		arg.StopReason,
 		arg.StopEscalated,

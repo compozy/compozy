@@ -752,6 +752,47 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should forward the lineage kind with its parent", func(t *testing.T) {
+		t.Parallel()
+
+		var got CreateSessionRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+				got = request
+				return SessionRecord{ID: "sess-recovery", State: session.StateActive}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t, deps, "session", "new", "--workspace", "ws_abc",
+			"--parent", "sess-parent", "--lineage-kind", "recovery", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --lineage-kind) error = %v", err)
+		}
+		if got.ParentSessionID != "sess-parent" || got.LineageKind != "recovery" {
+			t.Fatalf("CreateSession() request = %#v, want parent sess-parent with recovery kind", got)
+		}
+	})
+
+	t.Run("Should reject a lineage kind without a parent", func(t *testing.T) {
+		t.Parallel()
+
+		createCalls := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				createCalls++
+				return SessionRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "new", "--lineage-kind", "recovery")
+		if err == nil || !strings.Contains(err.Error(), "--lineage-kind requires --parent") {
+			t.Fatalf("executeRootCommand(session new --lineage-kind) error = %v, want usage error", err)
+		}
+		if createCalls != 0 {
+			t.Fatalf("CreateSession() calls = %d, want 0", createCalls)
+		}
+	})
+
 	t.Run("Should defer a registered cross workspace cwd decision to the daemon", func(t *testing.T) {
 		t.Parallel()
 

@@ -936,6 +936,49 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			t.Fatalf("config option value JSON = %#v", firstValue)
 		}
 	})
+
+	t.Run("Should project lineage kind and origin only when the session carries them", func(t *testing.T) {
+		t.Parallel()
+
+		var forked map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{
+				ParentSessionID: "sess-source", RootSessionID: "sess-source", SpawnDepth: 1,
+				Kind: store.LineageKindFork, OriginMessageID: "msg_1", OriginAgentName: "codex",
+			}),
+			Derivation: &contract.SessionDerivationPayload{
+				Kind: store.LineageKindFork, SourceSessionID: "sess-source",
+				Seed: store.SessionDerivationSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
+			},
+		}, &forked)
+		lineage, ok := forked["lineage"].(map[string]any)
+		if !ok || lineage["kind"] != "fork" || lineage["origin_message_id"] != "msg_1" ||
+			lineage["origin_agent_name"] != "codex" {
+			t.Fatalf("fork lineage JSON = %#v, want kind and origin fields", forked["lineage"])
+		}
+		derivation, ok := forked["derivation"].(map[string]any)
+		if !ok || derivation["kind"] != "fork" || derivation["source_session_id"] != "sess-source" ||
+			derivation["seed"] != "replay" || derivation["first_prompt"] != "staged" {
+			t.Fatalf("fork derivation JSON = %#v, want the derivation summary", forked["derivation"])
+		}
+
+		var root map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{RootSessionID: "sess-root"}),
+		}, &root)
+		rootLineage, ok := root["lineage"].(map[string]any)
+		if !ok {
+			t.Fatalf("root lineage type = %T, want object", root["lineage"])
+		}
+		for _, field := range []string{"kind", "origin_message_id", "origin_agent_name"} {
+			if _, exists := rootLineage[field]; exists {
+				t.Fatalf("root lineage JSON = %#v, want %q omitted", rootLineage, field)
+			}
+		}
+		if _, exists := root["derivation"]; exists {
+			t.Fatalf("root session JSON = %#v, want derivation omitted", root)
+		}
+	})
 }
 
 func TestACPCapsPayloadFromACP(t *testing.T) {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -14,7 +15,10 @@ const sessionCreateExample = `  # Start a session in the current workspace using
   compozy session new --workspace checkout-api --agent reviewer --name review-api
 
   # Auto-register an absolute workspace path before creating the session
-  compozy session new --cwd "$PWD" --agent reviewer`
+  compozy session new --cwd "$PWD" --agent reviewer
+
+  # Start a recovery session for a failed parent session
+  compozy session new --agent codex --parent sess_01J9R2K7M4T1 --lineage-kind recovery`
 
 const sessionNewWorktreeAutoValue = "__compozy_auto__"
 
@@ -25,6 +29,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		name         string
 		workspaceRef string
 		parentID     string
+		lineageKind  string
 		worktreeRef  string
 		newWorktree  string
 	)
@@ -33,6 +38,9 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		Short:   "Create a new session",
 		Example: sessionCreateExample,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if strings.TrimSpace(lineageKind) != "" && strings.TrimSpace(parentID) == "" {
+				return errors.New("cli: --lineage-kind requires --parent")
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -48,6 +56,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				WorkspacePath:   workspacePath,
 				Worktree:        strings.TrimSpace(worktreeRef),
 				ParentSessionID: strings.TrimSpace(parentID),
+				LineageKind:     strings.TrimSpace(lineageKind),
 			}
 			if cmd.Flags().Changed("new-worktree") {
 				name := strings.TrimSpace(newWorktree)
@@ -73,6 +82,12 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().Lookup("new-worktree").NoOptDefVal = sessionNewWorktreeAutoValue
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
 	cmd.Flags().StringVar(&parentID, "parent", "", "Record a same-workspace parent session as creation provenance")
+	cmd.Flags().StringVar(
+		&lineageKind,
+		"lineage-kind",
+		"",
+		"Relation to --parent: provenance (default) or recovery",
+	)
 	cmd.MarkFlagsMutuallyExclusive("cwd", "worktree", "new-worktree")
 	return cmd
 }

@@ -10665,8 +10665,25 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
                                 "notify_creator": {
                                   "type": "boolean"
+                                },
+                                "origin_agent_name": {
+                                  "type": "string"
+                                },
+                                "origin_message_id": {
+                                  "type": "string"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -13289,8 +13306,25 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
                                 "notify_creator": {
                                   "type": "boolean"
+                                },
+                                "origin_agent_name": {
+                                  "type": "string"
+                                },
+                                "origin_message_id": {
+                                  "type": "string"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -15864,8 +15898,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -16151,6 +16202,44 @@
                               "format": "date-time",
                               "type": "string"
                             },
+                            "derivation": {
+                              "nullable": true,
+                              "properties": {
+                                "first_prompt": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
+                                "native_fork_error": {
+                                  "type": "string"
+                                },
+                                "native_state": {
+                                  "type": "string"
+                                },
+                                "seed": {
+                                  "type": "string"
+                                },
+                                "source_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "first_prompt",
+                                "kind",
+                                "seed",
+                                "source_session_id"
+                              ],
+                              "type": "object"
+                            },
                             "escalated": {
                               "nullable": true,
                               "type": "boolean"
@@ -16288,8 +16377,25 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
                                 "notify_creator": {
                                   "type": "boolean"
+                                },
+                                "origin_agent_name": {
+                                  "type": "string"
+                                },
+                                "origin_message_id": {
+                                  "type": "string"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -117907,6 +118013,44 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "derivation": {
+                            "nullable": true,
+                            "properties": {
+                              "first_prompt": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "",
+                                  "provenance",
+                                  "spawn",
+                                  "continue",
+                                  "fork",
+                                  "recovery"
+                                ],
+                                "type": "string"
+                              },
+                              "native_fork_error": {
+                                "type": "string"
+                              },
+                              "native_state": {
+                                "type": "string"
+                              },
+                              "seed": {
+                                "type": "string"
+                              },
+                              "source_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "first_prompt",
+                              "kind",
+                              "seed",
+                              "source_session_id"
+                            ],
+                            "type": "object"
+                          },
                           "escalated": {
                             "nullable": true,
                             "type": "boolean"
@@ -118044,8 +118188,25 @@
                               "auto_stop_on_parent": {
                                 "type": "boolean"
                               },
+                              "kind": {
+                                "enum": [
+                                  "",
+                                  "provenance",
+                                  "spawn",
+                                  "continue",
+                                  "fork",
+                                  "recovery"
+                                ],
+                                "type": "string"
+                              },
                               "notify_creator": {
                                 "type": "boolean"
+                              },
+                              "origin_agent_name": {
+                                "type": "string"
+                              },
+                              "origin_message_id": {
+                                "type": "string"
                               },
                               "parent_session_id": {
                                 "type": "string"
@@ -119126,6 +119287,9 @@
                     "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
+                  "lineage_kind": {
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -119329,6 +119493,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -119466,8 +119668,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -121347,6 +121566,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -121484,8 +121741,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -212485,6 +212759,44 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "derivation": {
+                            "nullable": true,
+                            "properties": {
+                              "first_prompt": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "",
+                                  "provenance",
+                                  "spawn",
+                                  "continue",
+                                  "fork",
+                                  "recovery"
+                                ],
+                                "type": "string"
+                              },
+                              "native_fork_error": {
+                                "type": "string"
+                              },
+                              "native_state": {
+                                "type": "string"
+                              },
+                              "seed": {
+                                "type": "string"
+                              },
+                              "source_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "first_prompt",
+                              "kind",
+                              "seed",
+                              "source_session_id"
+                            ],
+                            "type": "object"
+                          },
                           "escalated": {
                             "nullable": true,
                             "type": "boolean"
@@ -212622,8 +212934,25 @@
                               "auto_stop_on_parent": {
                                 "type": "boolean"
                               },
+                              "kind": {
+                                "enum": [
+                                  "",
+                                  "provenance",
+                                  "spawn",
+                                  "continue",
+                                  "fork",
+                                  "recovery"
+                                ],
+                                "type": "string"
+                              },
                               "notify_creator": {
                                 "type": "boolean"
+                              },
+                              "origin_agent_name": {
+                                "type": "string"
+                              },
+                              "origin_message_id": {
+                                "type": "string"
                               },
                               "parent_session_id": {
                                 "type": "string"
@@ -261855,6 +262184,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -261992,8 +262359,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -263032,6 +263416,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -263169,8 +263591,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -264666,6 +265105,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -264803,8 +265280,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -266022,6 +266516,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -266159,8 +266691,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -269333,6 +269882,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -269470,8 +270057,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -282675,6 +283279,44 @@
                               "format": "date-time",
                               "type": "string"
                             },
+                            "derivation": {
+                              "nullable": true,
+                              "properties": {
+                                "first_prompt": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
+                                "native_fork_error": {
+                                  "type": "string"
+                                },
+                                "native_state": {
+                                  "type": "string"
+                                },
+                                "seed": {
+                                  "type": "string"
+                                },
+                                "source_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "first_prompt",
+                                "kind",
+                                "seed",
+                                "source_session_id"
+                              ],
+                              "type": "object"
+                            },
                             "escalated": {
                               "nullable": true,
                               "type": "boolean"
@@ -282812,8 +283454,25 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "kind": {
+                                  "enum": [
+                                    "",
+                                    "provenance",
+                                    "spawn",
+                                    "continue",
+                                    "fork",
+                                    "recovery"
+                                  ],
+                                  "type": "string"
+                                },
                                 "notify_creator": {
                                   "type": "boolean"
+                                },
+                                "origin_agent_name": {
+                                  "type": "string"
+                                },
+                                "origin_message_id": {
+                                  "type": "string"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -284412,6 +285071,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -284549,8 +285246,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -285811,6 +286525,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -285948,8 +286700,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -287188,6 +287957,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -287325,8 +288132,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -295761,6 +296585,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -295898,8 +296760,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"
@@ -298515,6 +299394,44 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
                         "escalated": {
                           "nullable": true,
                           "type": "boolean"
@@ -298652,8 +299569,25 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
                             "notify_creator": {
                               "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
                             },
                             "parent_session_id": {
                               "type": "string"

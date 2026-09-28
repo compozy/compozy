@@ -108,6 +108,9 @@ func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *ses
 	params.NotifyCreator = lineage.NotifyCreator
 	params.SpawnBudgetJson = record.spawnBudgetJSON
 	params.PermissionPolicyJson = record.permissionPolicyJSON
+	params.LineageKind = string(lineage.Kind)
+	params.OriginMessageID = nullableSessionString(lineage.OriginMessageID)
+	params.OriginAgentName = lineage.OriginAgentName
 }
 
 func sessionCatalogRuntimeProjections(

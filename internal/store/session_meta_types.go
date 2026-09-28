@@ -260,6 +260,9 @@ func (m SessionMeta) Validate() error {
 	if err := ValidateSessionLineage(m.ID, m.Lineage); err != nil {
 		return err
 	}
+	if err := ValidateSessionLineageForType(m.SessionType, m.Lineage); err != nil {
+		return err
+	}
 	if m.Failure != nil {
 		if err := m.Failure.Validate(); err != nil {
 			return err

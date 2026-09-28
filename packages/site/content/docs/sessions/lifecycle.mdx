@@ -106,6 +106,36 @@ budget, or permission narrowing — governed children come only from
 (direct children) and `root=<id>` (the whole tree, root included), exposed as
 `compozy session list --parent/--root` and on `compozy__session_list`.
 
+### Lineage kind
+
+Every session read (`GET …/sessions/{id}`, `compozy session status`, and each row of
+`compozy session list -o json`) carries `lineage.kind`, which says how the session relates to its
+parent:
+
+| Kind | Meaning |
+| --- | --- |
+| `""` | A root session with no parent relation. |
+| `provenance` | A user session created with a parent (the default for `--parent`). |
+| `recovery` | A user session created to recover a failed parent. |
+| `spawn` | A governed spawned or spawn-role session. |
+| `continue` | A session continued from another session with another agent. |
+| `fork` | A session forked from another session. |
+
+`continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
+A plain create accepts only `provenance` or `recovery`, and only together with a parent:
+
+```bash
+compozy session new --agent codex --parent sess-1234 --lineage-kind recovery
+```
+
+The HTTP/UDS equivalent is `"lineage_kind": "recovery"` next to `parent_session_id`; any other value, or
+a kind without a parent, returns `400`.
+
+Sessions created before lineage kinds existed are upgraded automatically: spawned and spawn-role sessions
+read `spawn`, other parented sessions read `provenance`, and root sessions read `""`. The upgrade applies
+both to the session catalog and to each session's metadata file. Reading an older metadata file never
+rewrites it; the kind is saved the next time the session's lifecycle state changes.
+
 ## Running an active session
 
 Once a session is `active`, a prompt supplies an immutable runtime snapshot. The first prompt binds
@@ -369,6 +399,8 @@ HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/rewind
 same fences.
 An identical `idempotency_key` retry returns the original result. A stale fence, busy session, queued
 input, pending approval, or daemon-managed session returns `409` without cutting the transcript.
+Children created with `--parent` (`provenance`), `recovery` sessions, and continued or forked sessions
+rewind like any user session; only governed `spawn` sessions are refused as daemon-managed.
 
 Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
 saved memory, or external provider actions. Removed events remain archived for audit:

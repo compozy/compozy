@@ -9711,7 +9711,11 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  /** @enum {string} */
+                  kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                   notify_creator: boolean;
+                  origin_agent_name?: string;
+                  origin_message_id?: string;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -10598,7 +10602,11 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  /** @enum {string} */
+                  kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                   notify_creator: boolean;
+                  origin_agent_name?: string;
+                  origin_message_id?: string;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -11534,7 +11542,11 @@ export interface operations {
             spawn: {
               lineage: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -11613,6 +11625,15 @@ export interface operations {
                 } | null;
                 /** Format: date-time */
                 created_at: string;
+                derivation?: {
+                  first_prompt: string;
+                  /** @enum {string} */
+                  kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                  native_fork_error?: string;
+                  native_state?: string;
+                  seed: string;
+                  source_session_id: string;
+                } | null;
                 escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
@@ -11656,7 +11677,11 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  /** @enum {string} */
+                  kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                   notify_creator: boolean;
+                  origin_agent_name?: string;
+                  origin_message_id?: string;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -49099,6 +49124,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -49142,7 +49176,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -49508,6 +49546,7 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
+          lineage_kind?: string;
           name?: string;
           new_worktree?: {
             name?: string;
@@ -49579,6 +49618,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -49622,7 +49670,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -50290,6 +50342,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -50333,7 +50394,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -87681,6 +87746,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -87724,7 +87798,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -105230,6 +105308,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -105273,7 +105360,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -105700,6 +105791,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -105743,7 +105843,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -106267,6 +106371,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -106310,7 +106423,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -106720,6 +106837,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -106763,7 +106889,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -107962,6 +108092,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -108005,7 +108144,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -113503,6 +113646,15 @@ export interface operations {
                 } | null;
                 /** Format: date-time */
                 created_at: string;
+                derivation?: {
+                  first_prompt: string;
+                  /** @enum {string} */
+                  kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                  native_fork_error?: string;
+                  native_state?: string;
+                  seed: string;
+                  source_session_id: string;
+                } | null;
                 escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
@@ -113546,7 +113698,11 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  /** @enum {string} */
+                  kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                   notify_creator: boolean;
+                  origin_agent_name?: string;
+                  origin_message_id?: string;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -114093,6 +114249,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -114136,7 +114301,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -114580,6 +114749,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -114623,7 +114801,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -115020,6 +115202,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -115063,7 +115254,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -118748,6 +118943,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -118791,7 +118995,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -119737,6 +119945,15 @@ export interface operations {
               } | null;
               /** Format: date-time */
               created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
               escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
@@ -119780,7 +119997,11 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
                 notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];

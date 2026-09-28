@@ -27,6 +27,7 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 			RootSessionID:   " sess-root ",
 			SpawnDepth:      1,
 			SpawnRole:       " worker ",
+			Kind:            " spawn ",
 			TTLExpiresAt:    &ttl,
 			PermissionPolicy: SessionPermissionPolicy{
 				Tools: []string{" compozy__skill_view ", "compozy__task_update", "compozy__task_update"},
@@ -35,6 +36,7 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 		if child.ParentSessionID != "sess-root" ||
 			child.RootSessionID != "sess-root" ||
 			child.SpawnRole != "worker" ||
+			child.Kind != LineageKindSpawn ||
 			len(child.PermissionPolicy.Tools) != 2 ||
 			child.PermissionPolicy.Tools[0] != "compozy__skill_view" ||
 			child.PermissionPolicy.Tools[1] != "compozy__task_update" {
@@ -149,6 +151,82 @@ func TestSessionLineageValidationRejectsInvalidPolicyAndBudget(t *testing.T) {
 				SpawnDepth:      1,
 			},
 			want: "root cannot be the session itself",
+		},
+		{
+			name: "Should reject a parented lineage without a kind",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+			},
+			want: "requires a kind",
+		},
+		{
+			name: "Should reject an unsupported lineage kind",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            "clone",
+			},
+			want: "unsupported session lineage kind",
+		},
+		{
+			name: "Should reject a continue lineage without an origin agent",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindContinue,
+			},
+			want: "requires an origin agent name",
+		},
+		{
+			name: "Should reject a fork lineage without a parent",
+			id:   "sess-root",
+			lineage: &SessionLineage{
+				RootSessionID:   "sess-root",
+				Kind:            LineageKindFork,
+				OriginAgentName: "codex",
+			},
+			want: "requires a parent session id",
+		},
+		{
+			name: "Should reject a recovery lineage without a parent",
+			id:   "sess-root",
+			lineage: &SessionLineage{
+				RootSessionID: "sess-root",
+				Kind:          LineageKindRecovery,
+			},
+			want: "requires a parent session id",
+		},
+		{
+			name: "Should reject an origin message outside a fork",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindContinue,
+				OriginAgentName: "codex",
+				OriginMessageID: "msg-1",
+			},
+			want: "only fork session lineage may carry an origin message id",
+		},
+		{
+			name: "Should reject an origin agent outside continue or fork",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindProvenance,
+				OriginAgentName: "codex",
+			},
+			want: "only continue or fork session lineage may carry an origin agent name",
 		},
 		{
 			name: "Should reject negative max depth",

@@ -305,6 +305,9 @@ func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRe
 	if err := validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath); err != nil {
 		return err
 	}
+	if err := validateCreateSessionLineageKind(h.transportName(), req); err != nil {
+		return err
+	}
 	hasWorktree := strings.TrimSpace(req.Worktree) != ""
 	hasNewWorktree := req.NewWorktree != nil
 	switch {

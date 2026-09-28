@@ -142,6 +142,9 @@ func (s SessionInfo) Validate() error {
 	if err := ValidateSessionLineage(s.ID, s.Lineage); err != nil {
 		return err
 	}
+	if err := ValidateSessionLineageForType(s.SessionType, s.Lineage); err != nil {
+		return err
+	}
 	if err := validateSessionStopReason(s.StopReason); err != nil {
 		return err
 	}
@@ -191,6 +194,7 @@ type SessionListQuery struct {
 	ParentSessionID string
 	RootSessionID   string
 	SpawnRole       string
+	LineageKind     LineageKind
 	Resumable       bool
 	Archive         SessionArchiveFilter
 	Sort            string
@@ -221,6 +225,9 @@ func (q SessionListQuery) Validate() error {
 	}
 	if err := requirePositiveLimit(q.Limit, "session limit"); err != nil {
 		return err
+	}
+	if !q.LineageKind.Valid() {
+		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
 	return q.Archive.Validate()
 }

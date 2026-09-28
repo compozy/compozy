@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -896,4 +898,127 @@ func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
 	if err := h.manager.RecoverPendingStops(testutil.Context(t)); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// TestResumeUpgradesPreFeatureLineageMetadata owns IT-019: session directories whose
+// metadata predates lineage kinds resume with the kind the catalog backfill writes,
+// keep their history, and persist the kind only on the next lifecycle write.
+func TestResumeUpgradesPreFeatureLineageMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		lineage func(parentID string) *store.SessionLineage
+		want    store.LineageKind
+	}{
+		{
+			name:    "Should resume a parented session as provenance",
+			lineage: func(parentID string) *store.SessionLineage { return &store.SessionLineage{ParentSessionID: parentID} },
+			want:    store.LineageKindProvenance,
+		},
+		{
+			name:    "Should resume a spawn-role session as spawn",
+			lineage: func(string) *store.SessionLineage { return &store.SessionLineage{SpawnRole: "worker"} },
+			want:    store.LineageKindSpawn,
+		},
+		{
+			name:    "Should resume a root session without a kind",
+			lineage: func(string) *store.SessionLineage { return nil },
+			want:    store.LineageKindRoot,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			parent := createSession(t, h)
+			child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Name: "pre-feature", Workspace: h.workspaceID, Lineage: tt.lineage(parent.ID),
+			})
+			if err != nil {
+				t.Fatalf("Create(child) error = %v", err)
+			}
+			events, err := h.manager.Prompt(testutil.Context(t), child.ID, "history survives the upgrade")
+			if err != nil {
+				t.Fatalf("Prompt(child) error = %v", err)
+			}
+			collectEvents(t, events)
+			if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil {
+				t.Fatalf("Stop(child) error = %v", err)
+			}
+			metaPath := child.MetaPath()
+			stripLineageKind(t, metaPath)
+
+			resumed, err := h.manager.Resume(testutil.Context(t), child.ID)
+			if err != nil {
+				t.Fatalf("Resume(pre-feature child) error = %v", err)
+			}
+			if got := resumed.Info().Lineage; got == nil || got.Kind != tt.want {
+				t.Fatalf("resumed lineage = %#v, want kind %q", got, tt.want)
+			}
+			page, err := h.manager.TranscriptPage(testutil.Context(t), child.ID, transcript.PageQuery{Limit: 20})
+			if err != nil {
+				t.Fatalf("TranscriptPage(resumed) error = %v", err)
+			}
+			if !slices.ContainsFunc(page.Entries, func(entry transcript.Entry) bool {
+				return transcript.UIMessageText(entry.Message) == "history survives the upgrade"
+			}) {
+				t.Fatalf("resumed transcript = %#v, want the pre-upgrade user message", page.Entries)
+			}
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+			if got := readRawLineageKind(t, metaPath); got != string(tt.want) {
+				t.Fatalf("persisted lineage kind after lifecycle write = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func stripLineageKind(t *testing.T, metaPath string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if lineage, ok := document["lineage"].(map[string]any); ok {
+		delete(lineage, "kind")
+	}
+	stripped, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent(meta) error = %v", err)
+	}
+	if err := os.WriteFile(metaPath, stripped, 0o644); err != nil {
+		t.Fatalf("WriteFile(meta) error = %v", err)
+	}
+	if got := readRawLineageKind(t, metaPath); got != "" {
+		t.Fatalf("stripped lineage kind = %q, want absent", got)
+	}
+}
+
+func readRawLineageKind(t *testing.T, metaPath string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document struct {
+		Lineage *struct {
+			Kind string `json:"kind"`
+		} `json:"lineage"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if document.Lineage == nil {
+		return ""
+	}
+	return document.Lineage.Kind
 }

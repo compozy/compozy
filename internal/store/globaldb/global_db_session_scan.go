@@ -33,6 +33,9 @@ type sessionInfoRow struct {
 	notifyCreator          bool
 	spawnBudgetJSON        string
 	permissionPolicyJSON   string
+	lineageKind            string
+	originMessageID        sql.NullString
+	originAgentName        string
 	archivedAt             sql.NullString
 	acpSessionID           sql.NullString
 	stopReason             sql.NullString
@@ -91,18 +94,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		session.WorktreeID = *worktreeID
 	}
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
-	lineage, err := scanSessionLineage(
-		session.ID,
-		row.parentSessionID,
-		row.rootSessionID,
-		row.spawnDepth,
-		row.spawnRole,
-		row.ttlExpiresAt,
-		row.autoStopOnParent,
-		row.notifyCreator,
-		row.spawnBudgetJSON,
-		row.permissionPolicyJSON,
-	)
+	lineage, err := scanSessionLineage(session.ID, &row)
 	if err != nil {
 		return store.SessionInfo{}, err
 	}
@@ -275,6 +267,9 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.notifyCreator,
 		&row.spawnBudgetJSON,
 		&row.permissionPolicyJSON,
+		&row.lineageKind,
+		&row.originMessageID,
+		&row.originAgentName,
 		&row.session.State,
 		&row.archivedAt,
 		&row.acpSessionID,
@@ -309,38 +304,30 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	return row, nil
 }
 
-func scanSessionLineage(
-	sessionID string,
-	parentSessionID sql.NullString,
-	rootSessionID sql.NullString,
-	spawnDepth int,
-	spawnRole sql.NullString,
-	ttlExpiresAt sql.NullString,
-	autoStopOnParent bool,
-	notifyCreator bool,
-	spawnBudgetJSON string,
-	permissionPolicyJSON string,
-) (*store.SessionLineage, error) {
-	budget, err := store.DecodeSessionSpawnBudget(spawnBudgetJSON)
+func scanSessionLineage(sessionID string, row *sessionInfoRow) (*store.SessionLineage, error) {
+	budget, err := store.DecodeSessionSpawnBudget(row.spawnBudgetJSON)
 	if err != nil {
 		return nil, err
 	}
-	policy, err := store.DecodeSessionPermissionPolicy(permissionPolicyJSON)
+	policy, err := store.DecodeSessionPermissionPolicy(row.permissionPolicyJSON)
 	if err != nil {
 		return nil, err
 	}
 	lineage := &store.SessionLineage{
-		ParentSessionID:  sessionNullString(parentSessionID),
-		RootSessionID:    sessionNullString(rootSessionID),
-		SpawnDepth:       spawnDepth,
-		SpawnRole:        sessionNullString(spawnRole),
-		AutoStopOnParent: autoStopOnParent,
-		NotifyCreator:    notifyCreator,
+		ParentSessionID:  sessionNullString(row.parentSessionID),
+		RootSessionID:    sessionNullString(row.rootSessionID),
+		SpawnDepth:       row.spawnDepth,
+		SpawnRole:        sessionNullString(row.spawnRole),
+		Kind:             store.LineageKind(row.lineageKind),
+		OriginMessageID:  sessionNullString(row.originMessageID),
+		OriginAgentName:  row.originAgentName,
+		AutoStopOnParent: row.autoStopOnParent,
+		NotifyCreator:    row.notifyCreator,
 		SpawnBudget:      budget,
 		PermissionPolicy: policy,
 	}
-	if ttlExpiresAt.Valid && strings.TrimSpace(ttlExpiresAt.String) != "" {
-		parsed, parseErr := store.ParseTimestamp(ttlExpiresAt.String)
+	if row.ttlExpiresAt.Valid && strings.TrimSpace(row.ttlExpiresAt.String) != "" {
+		parsed, parseErr := store.ParseTimestamp(row.ttlExpiresAt.String)
 		if parseErr != nil {
 			return nil, fmt.Errorf("store: parse session ttl expires at: %w", parseErr)
 		}

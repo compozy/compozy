@@ -112,6 +112,7 @@ func (g *SessionRepo) ListSessions(
 		store.StringClause("parent_session_id", query.ParentSessionID),
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("spawn_role", query.SpawnRole),
+		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
 	if query.Resumable {
 		where = append(

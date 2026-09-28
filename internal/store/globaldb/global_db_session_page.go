@@ -25,6 +25,7 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
+	lineage_kind, origin_message_id, origin_agent_name,
 	state, archived_at, acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail,
 	failure_kind, failure_summary, crash_bundle_path,
 	subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
@@ -138,6 +139,7 @@ func sessionCatalogPageFilters(
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("parent_session_id", query.ParentSessionID),
 		store.StringClause("root_session_id", query.RootSessionID),
+		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		where = append(where, `(instr(lower(id), ?) > 0 OR

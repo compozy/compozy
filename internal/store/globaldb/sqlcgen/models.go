@@ -1405,12 +1405,28 @@ type Session struct {
 	CreationDigest           sql.NullString `json:"creation_digest"`
 	PolicySpecDigest         sql.NullString `json:"policy_spec_digest"`
 	CreationProfileRef       sql.NullString `json:"creation_profile_ref"`
+	LineageKind              string         `json:"lineage_kind"`
+	OriginMessageID          sql.NullString `json:"origin_message_id"`
+	OriginAgentName          string         `json:"origin_agent_name"`
 }
 
 type SessionCreationProfile struct {
 	ProfileRef  string `json:"profile_ref"`
 	ProfileJson string `json:"profile_json"`
 	CreatedAt   string `json:"created_at"`
+}
+
+type SessionDerivation struct {
+	WorkspaceID        string         `json:"workspace_id"`
+	IdempotencyKey     string         `json:"idempotency_key"`
+	ProfileID          string         `json:"profile_id"`
+	RequestFingerprint string         `json:"request_fingerprint"`
+	SourceSessionID    string         `json:"source_session_id"`
+	ChildSessionID     string         `json:"child_session_id"`
+	Kind               string         `json:"kind"`
+	OutcomeJson        string         `json:"outcome_json"`
+	CreatedAt          string         `json:"created_at"`
+	ChildDeletedAt     sql.NullString `json:"child_deleted_at"`
 }
 
 type SessionHealth struct {

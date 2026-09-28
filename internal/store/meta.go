@@ -32,6 +32,9 @@ func ReadSessionMeta(path string) (SessionMeta, error) {
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return SessionMeta{}, fmt.Errorf("store: decode session meta %q: %w", cleanPath, err)
 	}
+	// Boundary upgrade (SD-013): documents written before lineage kinds existed read
+	// the same kind the catalog backfill wrote. The next lifecycle write persists it.
+	UpgradeSessionLineageKind(meta.SessionType, meta.Lineage)
 	if err := meta.Validate(); err != nil {
 		return SessionMeta{}, err
 	}

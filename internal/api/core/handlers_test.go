@@ -5378,3 +5378,105 @@ func assertSessionContextGolden(t *testing.T, name string, actual []byte) {
 		t.Fatalf("wire contract %s mismatch\ngot: %s\nwant: %s", name, actual, expected)
 	}
 }
+
+func TestCreateSessionLineageKind(t *testing.T) {
+	t.Parallel()
+
+	newFixture := func(t *testing.T, captured *atomic.Pointer[session.CreateOpts]) handlerFixture {
+		t.Helper()
+		manager := testutil.StubSessionManager{
+			CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := acceptedOpts.Session
+				captured.Store(&opts)
+				created := testutil.NewSessionInfo("sess-created")
+				created.ProfileID = opts.ProfileID
+				created.State = session.StateActive
+				created.RuntimeStatus = session.RuntimeStatusUnbound
+				return created, nil
+			},
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				info := testutil.NewSessionInfo(id)
+				info.ProfileID = store.DefaultProfileID
+				return info, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		return fixture
+	}
+
+	t.Run("Should map an accepted lineage kind onto the create options", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			body string
+			want store.LineageKind
+		}{
+			{
+				name: "Should record recovery",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"recovery"}`,
+				want: store.LineageKindRecovery,
+			},
+			{
+				name: "Should default a parented create to provenance",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p"}`,
+				want: store.LineageKindProvenance,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var captured atomic.Pointer[session.CreateOpts]
+				fixture := newFixture(t, &captured)
+				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
+				if response.Code != http.StatusCreated {
+					t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+				}
+				opts := captured.Load()
+				if opts == nil || opts.Lineage == nil || opts.Lineage.ParentSessionID != "sess-p" ||
+					opts.Lineage.Kind != tt.want {
+					t.Fatalf("CreateAccepted opts = %#v, want parent sess-p with kind %q", opts, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject lineage kinds a plain create cannot record", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			body string
+		}{
+			{
+				name: "Should reject recovery without a parent",
+				body: `{"agent_name":"coder","workspace":"alpha","lineage_kind":"recovery"}`,
+			},
+			{
+				name: "Should reject fork",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"fork"}`,
+			},
+			{
+				name: "Should reject spawn",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"spawn"}`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var captured atomic.Pointer[session.CreateOpts]
+				fixture := newFixture(t, &captured)
+				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+				}
+				if captured.Load() != nil {
+					t.Fatal("CreateAccepted() called for a rejected lineage kind")
+				}
+			})
+		}
+	})
+}

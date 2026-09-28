@@ -29,6 +29,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[config.SteerCapability]():                  config.SteerCapabilityValues(),
 		reflect.TypeFor[session.Disposition]():                     session.DispositionValues(),
 		reflect.TypeFor[store.SteerDeliveryMode]():                 store.SteerDeliveryModeValues(),
+		reflect.TypeFor[store.LineageKind]():                       store.LineageKindValues(),
 		reflect.TypeFor[contract.TerminalMode]():                   contract.TerminalModeValues(),
 		reflect.TypeFor[contract.TerminalActorKind]():              contract.TerminalActorKindValues(),
 		reflect.TypeFor[contract.TerminalSignal]():                 contract.TerminalSignalValues(),

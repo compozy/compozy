@@ -49,6 +49,7 @@ type SessionCatalogPageQuery struct {
 	AgentName           string
 	ParentSessionID     string
 	RootSessionID       string
+	LineageKind         LineageKind
 	Search              string
 	Resumable           bool
 	Archive             SessionArchiveFilter
@@ -70,6 +71,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	}
 	if err := q.Archive.Validate(); err != nil {
 		return err
+	}
+	if !q.LineageKind.Valid() {
+		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
 	if q.After != nil {
 		if err := q.After.Validate(); err != nil {

@@ -178,6 +178,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					ParentSessionID: rootID,
 					RootSessionID:   rootID,
 					SpawnDepth:      1,
+					Kind:            store.LineageKindProvenance,
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -230,6 +231,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					RootSessionID:    rootID,
 					SpawnDepth:       2,
 					SpawnRole:        "delegate_task",
+					Kind:             store.LineageKindSpawn,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: true,
 					SpawnBudget: store.SessionSpawnBudget{

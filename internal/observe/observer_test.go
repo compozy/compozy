@@ -186,6 +186,7 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		ParentSessionID: "sess-parent",
 		RootSessionID:   "sess-root",
 		SpawnDepth:      1,
+		Kind:            store.LineageKindProvenance,
 	}
 	h.observeSessionCreated(t, sess)
 

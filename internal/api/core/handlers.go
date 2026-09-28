@@ -101,7 +101,10 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		if !h.requireSessionInProfile(c, parent, mutationScope) {
 			return
 		}
-		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
+		opts.Lineage = &store.SessionLineage{
+			ParentSessionID: parentSessionID,
+			Kind:            createSessionLineageKind(req.LineageKind),
+		}
 	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {

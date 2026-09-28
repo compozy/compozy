@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -57,6 +58,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 				RootSessionID:    "sess-root",
 				SpawnDepth:       1,
 				SpawnRole:        "worker",
+				Kind:             store.LineageKindSpawn,
 				TTLExpiresAt:     &ttl,
 				AutoStopOnParent: true,
 				NotifyCreator:    true,
@@ -99,6 +101,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			RootSessionID:   "sess-root",
 			ParentSessionID: "sess-root",
 			SpawnRole:       "worker",
+			LineageKind:     store.LineageKindSpawn,
 		})
 		if err != nil {
 			t.Fatalf("ListSessions(spawned filters) error = %v", err)
@@ -114,6 +117,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			lineage.RootSessionID != "sess-root" ||
 			lineage.SpawnDepth != 1 ||
 			lineage.SpawnRole != "worker" ||
+			lineage.Kind != store.LineageKindSpawn ||
 			!lineage.AutoStopOnParent ||
 			!lineage.NotifyCreator {
 			t.Fatalf("lineage = %#v", lineage)
@@ -240,6 +244,109 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		}
 		if len(children) != 1 || children[0].Lineage == nil || children[0].Lineage.NotifyCreator {
 			t.Fatalf("reopened child lineage = %#v, want notify_creator=false", children)
+		}
+	})
+}
+
+func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register a derived child with its receipt atomically and tombstone it on delete", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB, err := OpenGlobalDB(ctx, filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"derive-workspace",
+			filepath.Join(t.TempDir(), "workspace-derive"),
+		)
+		now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+		derivedInfo := func(id string) SessionInfo {
+			return SessionInfo{
+				ProfileID: store.DefaultProfileID, ID: id, AgentName: "claude-code", Provider: "claude",
+				RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, SessionType: "user",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-source", RootSessionID: "sess-source", SpawnDepth: 1,
+					Kind: store.LineageKindContinue, OriginAgentName: "codex",
+				},
+				State: "active", CreatedAt: now, UpdatedAt: now,
+			}
+		}
+		identity := store.SessionCreationIdentity{
+			CreationProfileRef: "profile:sha256:derive",
+			PolicySpecDigest:   "policy:sha256:derive",
+			CreationDigest:     "creation:sha256:derive",
+		}
+		receiptFor := func(childID string) store.SessionDerivationReceipt {
+			return store.SessionDerivationReceipt{
+				WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID, IdempotencyKey: "idem-derive",
+				RequestFingerprint: "sha256:request", SourceSessionID: "sess-source", ChildSessionID: childID,
+				Kind: store.LineageKindContinue,
+				Outcome: store.SessionDerivationOutcome{
+					Seed: store.SessionDerivationSeedReplay, ThroughTurnID: "turn-1", ReplayMessageCount: 4,
+					ReplayBytes: 512, SourceEpoch: 1, SourceGeneration: 2, SourceMaxSequence: 9,
+					FirstPrompt: store.SessionDerivationFirstPromptStaged,
+				},
+				CreatedAt: now,
+			}
+		}
+		if err := globalDB.RegisterSession(ctx, SessionInfo{
+			ProfileID: store.DefaultProfileID, ID: "sess-source", AgentName: "codex", Provider: "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, SessionType: "user",
+			State: "active", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(source) error = %v", err)
+		}
+
+		if err := globalDB.RegisterDerivedSession(
+			ctx, derivedInfo("sess-child"), identity, receiptFor("sess-child"),
+		); err != nil {
+			t.Fatalf("RegisterDerivedSession(first) error = %v", err)
+		}
+		receipt, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-derive")
+		if err != nil || !found {
+			t.Fatalf("SessionDerivationReceipt() = found %v, error %v; want recorded receipt", found, err)
+		}
+		if receipt.ChildSessionID != "sess-child" || receipt.Kind != store.LineageKindContinue ||
+			receipt.Outcome != receiptFor("sess-child").Outcome || receipt.ChildDeletedAt != nil {
+			t.Fatalf("SessionDerivationReceipt() = %#v, want the recorded continue outcome", receipt)
+		}
+		gotIdentity, err := globalDB.GetSessionCreationIdentity(ctx, "sess-child")
+		if err != nil || gotIdentity != identity {
+			t.Fatalf("GetSessionCreationIdentity(child) = %#v, %v; want committed identity", gotIdentity, err)
+		}
+
+		err = globalDB.RegisterDerivedSession(ctx, derivedInfo("sess-racer"), identity, receiptFor("sess-racer"))
+		if !errors.Is(err, store.ErrSessionDerivationExists) {
+			t.Fatalf("RegisterDerivedSession(duplicate key) error = %v, want ErrSessionDerivationExists", err)
+		}
+		racers, err := globalDB.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, ID: "sess-racer",
+		})
+		if err != nil || len(racers) != 0 {
+			t.Fatalf("ListSessions(racer) = %#v, %v; want no catalog row for the losing registration", racers, err)
+		}
+
+		if err := globalDB.DeleteSession(ctx, "sess-child"); err != nil {
+			t.Fatalf("DeleteSession(child) error = %v", err)
+		}
+		tombstoned, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-derive")
+		if err != nil || !found || tombstoned.ChildDeletedAt == nil ||
+			tombstoned.Outcome != receiptFor("sess-child").Outcome {
+			t.Fatalf("SessionDerivationReceipt(after child delete) = %#v, found %v, error %v", tombstoned, found, err)
+		}
+		if _, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-missing"); err != nil || found {
+			t.Fatalf("SessionDerivationReceipt(missing) = found %v, error %v; want not found", found, err)
 		}
 	})
 }
