@@ -7,11 +7,6 @@ export interface RunViewTransitionOptions {
   reduced?: boolean;
 }
 
-type TransitionHandle = { updateCallbackDone: Promise<void> };
-type StartViewTransition = (
-  arg: (() => void) | { update: () => void; types?: string[] }
-) => TransitionHandle & { finished: Promise<void>; ready: Promise<void> };
-
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -40,20 +35,22 @@ export function runViewTransition(
   update: () => void,
   options: RunViewTransitionOptions = {}
 ): Promise<void> {
-  const start =
-    typeof document === "undefined"
-      ? undefined
-      : (document as Document & { startViewTransition?: StartViewTransition }).startViewTransition;
-  if (typeof start !== "function" || options.reduced || prefersReducedMotion()) {
+  if (
+    typeof document === "undefined" ||
+    typeof document.startViewTransition !== "function" ||
+    options.reduced ||
+    prefersReducedMotion()
+  ) {
     update();
     return Promise.resolve();
   }
-  const flushed = () => flushSync(update);
   const types = options.types && options.types.length > 0 ? [...options.types] : undefined;
+  // flushSync stays lexically inside startViewTransition: React must commit the
+  // new DOM before the engine captures the "new" snapshot.
   const transition =
     types && supportsTransitionTypes()
-      ? start.call(document, { update: flushed, types })
-      : start.call(document, flushed);
+      ? document.startViewTransition({ update: () => flushSync(update), types })
+      : document.startViewTransition(() => flushSync(update));
   // Skipped/aborted transitions (duplicate names, rapid re-entry) still ran the update.
   transition.finished.catch(() => undefined);
   transition.ready.catch(() => undefined);
