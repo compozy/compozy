@@ -20,13 +20,13 @@ function formatUptime(uptimeSeconds: number): string {
   const days = Math.floor(uptimeSeconds / 86_400);
   const hours = Math.floor((uptimeSeconds % 86_400) / 3600);
   if (days > 0) {
-    return `up ${days}d ${hours}h`;
+    return `${days}d ${hours}h`;
   }
   const minutes = Math.floor((uptimeSeconds % 3600) / 60);
   if (hours > 0) {
-    return `up ${hours}h ${minutes}m`;
+    return `${hours}h ${minutes}m`;
   }
-  return `up ${minutes}m`;
+  return `${minutes}m`;
 }
 
 const HEALTHY_PROVIDER_STATES = new Set(["ok", "ready", "authenticated"]);
@@ -47,12 +47,12 @@ export function useHomeSystem(
     const uptime = formatUptime(status.health.uptime_seconds);
     tiles.push({
       key: "daemon",
-      label: "Runtime",
+      label: "CompozyOS",
       value: "Running",
-      detail: `v${status.daemon.version} · ${uptime}`,
+      detail: `Running for ${uptime}`,
       tone: "success",
     });
-    summaryParts.push(`v${status.daemon.version}`, uptime);
+    summaryParts.push(`Running for ${uptime}`);
 
     const providers = status.providers ?? [];
     if (providers.length > 0) {
@@ -72,29 +72,27 @@ export function useHomeSystem(
         detail: names,
         tone: allHealthy ? "success" : "warning",
       });
-      summaryParts.push(`providers ${healthy}/${providers.length}`);
+      summaryParts.push(`${healthy} of ${providers.length} providers ready`);
     }
 
     const nextFire = status.automation.next_fire;
     tiles.push({
       key: "scheduler",
-      label: "Scheduler",
-      value: status.automation.enabled ? "Running" : "Off",
+      label: "Automations",
+      value: status.automation.enabled ? "On" : "Off",
       detail: nextFire
-        ? `next wake ${new Date(nextFire).toLocaleTimeString(undefined, {
+        ? `Next run ${new Date(nextFire).toLocaleTimeString(undefined, {
             hour: "2-digit",
             minute: "2-digit",
           })}`
         : undefined,
       tone: status.automation.enabled ? "success" : undefined,
     });
-    summaryParts.push(`scheduler ${status.automation.enabled ? "running" : "off"}`);
 
     tiles.push({
       key: "memory",
       label: "Memory",
       value: status.memory.enabled ? "Enabled" : "Off",
-      detail: status.memory.dream_enabled ? "dream consolidation on" : undefined,
       tone: status.memory.enabled ? "success" : undefined,
     });
   }
@@ -106,16 +104,16 @@ export function useHomeSystem(
       key: "hooks",
       label: "Hooks",
       value: `${hookRunsToday} runs today`,
-      detail: `${failures} failed`,
+      detail: failures > 0 ? `${failures} failed` : "None failed",
       tone: failures > 0 ? "warning" : "success",
     });
   }
   if (retentionDays !== undefined) {
     tiles.push({
       key: "retention",
-      label: "Retention",
-      value: retentionDays === 0 ? "Keep forever" : `${retentionDays} days`,
-      detail: "events · usage · permissions",
+      label: "Data kept",
+      value: retentionDays === 0 ? "Forever" : `${retentionDays} days`,
+      detail: "Activity, usage, and approvals",
     });
   }
 

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 
-import { Button, Eyebrow, Panel, Section, StatusDot, Time } from "@compozy/ui";
+import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
 
 import type { AttentionNotificationScope } from "@/systems/notifications";
 
@@ -29,6 +29,17 @@ interface HomeAttentionRowProps {
 
 function attentionDotTone(kind: string): "warning" | "danger" {
   return kind === "failure" ? "danger" : "warning";
+}
+
+function attentionKindLabel(kind: string): string {
+  switch (kind) {
+    case "approval":
+      return "Waiting for approval";
+    case "failure":
+      return "Failed";
+    default:
+      return "Needs your answer";
+  }
 }
 
 function attentionSentence(item: HomeAttentionItem): string {
@@ -77,7 +88,7 @@ function HomeAttentionRow({
       className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-row-hover max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
       data-slot="home-attention-row"
     >
-      <StatusDot label={item.kind} tone={attentionDotTone(item.kind)} />
+      <StatusDot label={attentionKindLabel(item.kind)} tone={attentionDotTone(item.kind)} />
       <span className="truncate text-small-body text-muted max-[760px]:whitespace-normal">
         <span className="font-medium text-fg-strong">{item.title}</span> {attentionSentence(item)}
       </span>
@@ -176,22 +187,14 @@ export function HomeAttentionZone({
     </span>
   );
 
+  // Nothing waiting: the menubar bell stays the entry point, so Home shows no empty zone.
   if (attention.total === 0 && attention.items.length === 0) {
-    return (
-      <Section count={0} label="Needs you" right={inbox}>
-        <Panel bodyClassName="px-4 py-3.5">
-          <p className="text-small-body text-subtle">No unread notifications in this scope.</p>
-        </Panel>
-      </Section>
-    );
+    return null;
   }
 
   return (
-    <Section count={attention.total} label="Needs you" right={inbox}>
+    <Section count={attention.total} data-slot="home-attention" label="Needs you" right={inbox}>
       <Panel bodyClassName="p-0" className="overflow-hidden">
-        <Eyebrow variant="caps" className="px-4 py-2 text-subtle">
-          {scopeLabel} · notifications only
-        </Eyebrow>
         {acknowledgementError ? (
           <p role="alert" className="px-4 py-2 text-small-body text-danger">
             {acknowledgementError}

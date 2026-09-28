@@ -108,7 +108,7 @@ describe("DashboardWindow", () => {
   it("Should render the disconnect surface when the daemon is unreachable", () => {
     connection.status = "disconnected";
     renderWindow();
-    expect(screen.getByTestId("home-error")).toBeInTheDocument();
+    expect(screen.getByTestId("home-error")).toHaveTextContent("CompozyOS isn't running");
     expect(homeDashboardSpy).not.toHaveBeenCalled();
   });
 });

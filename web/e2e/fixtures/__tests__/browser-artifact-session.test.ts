@@ -306,7 +306,7 @@ describe("captureRouteState", () => {
             <span data-slot="metric-value">3</span>
           </article>
           <article data-slot="metric">
-            <span data-slot="metric-label">Usage · 30d</span>
+            <span data-slot="metric-label">Usage, last 30 days</span>
             <span data-slot="metric-value">4K</span>
           </article>
         </section>
