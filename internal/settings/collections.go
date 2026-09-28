@@ -57,12 +57,6 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 			return CollectionEnvelope{}, buildErr
 		}
 		envelope.MCPServers = items
-	case CollectionSandboxes:
-		items, buildErr := s.buildSandboxItems(ctx, &cfg)
-		if buildErr != nil {
-			return CollectionEnvelope{}, buildErr
-		}
-		envelope.Sandboxes = items
 	case CollectionHooks:
 		workspaceRoot := ""
 		if resolved != nil {
@@ -116,11 +110,6 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 	case CollectionMCPServers:
 		req.ProfileName = profileName
 		return finalize(s.putMCPCollectionItem(ctx, scope, workspaceID, name, req))
-	case CollectionSandboxes:
-		if req.Sandbox == nil {
-			return MutationResult{}, validationError(errors.New("settings: sandbox payload is required"))
-		}
-		return finalize(s.putSandbox(name, *req.Sandbox))
 	case CollectionHooks:
 		if req.Hook == nil {
 			return MutationResult{}, validationError(errors.New("settings: hook payload is required"))
@@ -157,8 +146,6 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 		return finalize(s.deleteProvider(name))
 	case CollectionMCPServers:
 		return finalize(s.deleteMCPCollectionItem(ctx, scope, workspaceID, profileName, name, req))
-	case CollectionSandboxes:
-		return finalize(s.deleteSandbox(name))
 	case CollectionHooks:
 		return finalize(s.deleteHook(ctx, scope, workspaceID, profileName, name))
 	default:

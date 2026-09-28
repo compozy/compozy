@@ -54,7 +54,7 @@ describe("docs tree completeness", () => {
 });
 
 describe("docs sidebar groups (D14)", () => {
-  it("Should declare the eight journey-ordered groups in the root meta", () => {
+  it("Should declare the journey-ordered groups in the root meta", () => {
     const groupLabels = rootMeta.pages
       .filter(id => id.startsWith("---") && id.endsWith("---"))
       .map(id => id.slice(3, -3));
@@ -63,7 +63,6 @@ describe("docs sidebar groups (D14)", () => {
       "Guides & examples",
       "Core concepts",
       "Automation",
-      "Compozy Network",
       "Extensibility",
       "Operations",
       "Reference",
@@ -75,7 +74,6 @@ describe("docs sidebar groups (D14)", () => {
     expect(DOCS_GROUP_BY_FOLDER.get("guides")).toBe("Guides & examples");
     expect(DOCS_GROUP_BY_FOLDER.get("sessions")).toBe("Core concepts");
     expect(DOCS_GROUP_BY_FOLDER.get("loops")).toBe("Automation");
-    expect(DOCS_GROUP_BY_FOLDER.get("network")).toBe("Compozy Network");
     expect(DOCS_GROUP_BY_FOLDER.get("marketplace")).toBe("Extensibility");
     expect(DOCS_GROUP_BY_FOLDER.get("configuration")).toBe("Operations");
     expect(DOCS_GROUP_BY_FOLDER.get("cli")).toBe("Reference");
@@ -86,7 +84,6 @@ describe("docs sidebar groups (D14)", () => {
     expect(docsGroupForUrl("/docs")).toBe("Docs");
     expect(docsGroupForUrl("/docs/how-to-use-these-docs")).toBe("Docs");
     expect(docsGroupForUrl("/docs/sessions/lifecycle")).toBe("Core concepts");
-    expect(docsGroupForUrl("/docs/network/protocol/envelope")).toBe("Compozy Network");
     expect(docsGroupForUrl("/docs/cli/session")).toBe("Reference");
   });
 });
@@ -113,20 +110,20 @@ function childNames(folder: Folder): string[] {
 describe("docs category overview", () => {
   it("Should expose the landing page as an Overview child when meta omits index", () => {
     const tree = buildCategoryTree([
-      meta("network/meta.json", { title: "Network", pages: ["protocol-model", "threads"] }),
-      page("network/index.mdx", "Network Overview", ["network"]),
-      page("network/protocol-model.mdx", "Protocol Model", ["network", "protocol-model"]),
-      page("network/threads.mdx", "Public Threads", ["network", "threads"]),
+      meta("sessions/meta.json", { title: "Sessions", pages: ["lifecycle", "resume"] }),
+      page("sessions/index.mdx", "Sessions Overview", ["sessions"]),
+      page("sessions/lifecycle.mdx", "Lifecycle", ["sessions", "lifecycle"]),
+      page("sessions/resume.mdx", "Resume", ["sessions", "resume"]),
     ]);
 
-    const network = findFolder(tree.children, "network");
-    if (!network) throw new Error("expected network folder");
+    const sessions = findFolder(tree.children, "sessions");
+    if (!sessions) throw new Error("expected sessions folder");
 
-    expect(network.index?.url).toBe("/docs/network");
-    expect(childNames(network)).toEqual(["Overview", "Protocol Model", "Public Threads"]);
-    const overview = network.children[0];
-    expect(overview).toBe(network.index);
-    expect(overview.type === "page" ? overview.url : "").toBe("/docs/network");
+    expect(sessions.index?.url).toBe("/docs/sessions");
+    expect(childNames(sessions)).toEqual(["Overview", "Lifecycle", "Resume"]);
+    const overview = sessions.children[0];
+    expect(overview).toBe(sessions.index);
+    expect(overview.type === "page" ? overview.url : "").toBe("/docs/sessions");
   });
 
   it("Should relabel and hoist the landing page when meta already lists index", () => {
@@ -155,15 +152,15 @@ describe("docs category overview", () => {
 
   it("Should leave a category without a landing page untouched", () => {
     const tree = buildCategoryTree([
-      meta("sandbox/meta.json", { title: "Sandbox", pages: ["profiles"] }),
-      page("sandbox/profiles.mdx", "Profiles", ["sandbox", "profiles"]),
+      meta("profiles/meta.json", { title: "Profiles", pages: ["profiles"] }),
+      page("profiles/profiles.mdx", "Profiles", ["profiles", "profiles"]),
     ]);
 
-    const sandbox = findFolder(tree.children, "sandbox");
-    if (!sandbox) throw new Error("expected sandbox folder");
+    const profiles = findFolder(tree.children, "profiles");
+    if (!profiles) throw new Error("expected profiles folder");
 
-    expect(sandbox.index).toBeUndefined();
-    expect(childNames(sandbox)).toEqual(["Profiles"]);
+    expect(profiles.index).toBeUndefined();
+    expect(childNames(profiles)).toEqual(["Profiles"]);
   });
 });
 

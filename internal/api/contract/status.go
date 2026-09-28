@@ -28,7 +28,6 @@ type DaemonStatusPayload struct {
 	TotalSessions  int                   `json:"total_sessions"`
 	Version        string                `json:"version,omitempty"`
 	MinAppVersion  string                `json:"min_app_version"`
-	Network        *NetworkStatusPayload `json:"network,omitempty"`
 	Gateway        *GatewayStatusPayload `json:"gateway,omitempty"`
 	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
 }
@@ -44,7 +43,6 @@ type StatusPayload struct {
 	Memory           MemoryHealthPayload              `json:"memory"`
 	Automation       AutomationHealthPayload          `json:"automation"`
 	Tasks            TaskHealthPayload                `json:"tasks"`
-	Bridges          BridgeAggregateHealthPayload     `json:"bridges"`
 	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`
 	MCPServers       []MCPServerStatusPayload         `json:"mcp_servers,omitempty"`
 	Skills           SkillRuntimeStatusPayload        `json:"skills"`
@@ -165,24 +163,21 @@ type SubprocessHealthSessionPayload struct {
 
 // TaskHealthPayload exposes observer-owned task health in the status surface.
 type TaskHealthPayload struct {
-	Status                     string                    `json:"status"`
-	QueueDepthTotal            int                       `json:"queue_depth_total"`
-	OldestQueuedAt             *time.Time                `json:"oldest_queued_at,omitempty"`
-	OldestQueueAgeMilli        int64                     `json:"oldest_queue_age_ms"`
-	QueueDepth                 []TaskQueueDepthPayload   `json:"queue_depth,omitempty"`
-	StuckRuns                  []StuckTaskRunPayload     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns           int                       `json:"active_orphan_runs"`
-	TaskTotals                 []TaskStatusTotalPayload  `json:"task_totals,omitempty"`
-	RunTotals                  []TaskRunTotalPayload     `json:"run_totals,omitempty"`
-	OwnerTotals                []TaskOwnerTotalPayload   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart      int                       `json:"forced_stops_since_start"`
-	DuplicateIngressSinceStart int                       `json:"duplicate_ingress_since_start"`
-	ChannelMismatchSinceStart  int                       `json:"channel_mismatch_since_start"`
-	RecoverySinceStart         TaskRecoveryTotalsPayload `json:"recovery_since_start"`
+	Status                string                    `json:"status"`
+	QueueDepthTotal       int                       `json:"queue_depth_total"`
+	OldestQueuedAt        *time.Time                `json:"oldest_queued_at,omitempty"`
+	OldestQueueAgeMilli   int64                     `json:"oldest_queue_age_ms"`
+	QueueDepth            []TaskQueueDepthPayload   `json:"queue_depth,omitempty"`
+	StuckRuns             []StuckTaskRunPayload     `json:"stuck_runs,omitempty"`
+	ActiveOrphanRuns      int                       `json:"active_orphan_runs"`
+	TaskTotals            []TaskStatusTotalPayload  `json:"task_totals,omitempty"`
+	RunTotals             []TaskRunTotalPayload     `json:"run_totals,omitempty"`
+	OwnerTotals           []TaskOwnerTotalPayload   `json:"owner_totals,omitempty"`
+	ForcedStopsSinceStart int                       `json:"forced_stops_since_start"`
+	RecoverySinceStart    TaskRecoveryTotalsPayload `json:"recovery_since_start"`
 }
 
 type TaskQueueDepthPayload struct {
-	ChannelID           string     `json:"channel_id,omitempty"`
 	Count               int        `json:"count"`
 	OldestQueuedAt      *time.Time `json:"oldest_queued_at,omitempty"`
 	OldestQueueAgeMilli int64      `json:"oldest_queue_age_ms"`
@@ -193,22 +188,19 @@ type StuckTaskRunPayload struct {
 	RunID      string `json:"run_id"`
 	Status     string `json:"status"`
 	OriginKind string `json:"origin_kind"`
-	ChannelID  string `json:"channel_id,omitempty"`
 	SessionID  string `json:"session_id,omitempty"`
 	AgeMillis  int64  `json:"age_ms"`
 }
 
 type TaskStatusTotalPayload struct {
-	Scope     string `json:"scope"`
-	Status    string `json:"status"`
-	ChannelID string `json:"channel_id,omitempty"`
-	Count     int    `json:"count"`
+	Scope  string `json:"scope"`
+	Status string `json:"status"`
+	Count  int    `json:"count"`
 }
 
 type TaskRunTotalPayload struct {
 	Status     string `json:"status"`
 	OriginKind string `json:"origin_kind"`
-	ChannelID  string `json:"channel_id,omitempty"`
 	Count      int    `json:"count"`
 }
 

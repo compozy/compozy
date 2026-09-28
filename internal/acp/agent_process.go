@@ -11,7 +11,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -31,9 +30,9 @@ type AgentProcess struct {
 	caps            Caps
 	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
-	handle          sandbox.Handle
+	handle          Handle
 	toolHostMu      sync.Mutex
-	toolHost        sandbox.ToolHost
+	toolHost        ToolHost
 	toolGateway     ToolExecutionGateway
 	cmd             *exec.Cmd
 	conn            *acpsdk.Connection
@@ -47,12 +46,10 @@ type AgentProcess struct {
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
 
-	terminalOwnershipMu sync.RWMutex
-	terminalOwnership   map[string]terminalOwnership
-	terminalProcessMu   sync.Mutex
-	terminalProcesses   map[string]*toolruntime.Handle
-	toolPrecheckMu      sync.Mutex
-	toolPrechecks       []providerNativeToolPrecheck
+	terminalProcessMu sync.Mutex
+	terminalProcesses map[string]*toolruntime.Handle
+	toolPrecheckMu    sync.Mutex
+	toolPrechecks     []providerNativeToolPrecheck
 
 	waitMu        sync.RWMutex
 	waitErr       error
@@ -83,9 +80,6 @@ type AgentProcess struct {
 	systemPromptDelivery SystemPromptDeliveryMode
 	startupManifest      StartupManifest
 	promptCacheControl   *promptCacheControl
-
-	turnSourceProviderMu sync.RWMutex
-	turnSourceProvider   func() string
 
 	childTasksMu      sync.Mutex
 	childTasks        map[*processChildTask]struct{}
@@ -191,8 +185,8 @@ func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
 	p.caps.SpeedResolution = speedpkg.CloneResolution(resolution)
 }
 
-// ToolHost returns the sandbox-owned tool host used by this process.
-func (p *AgentProcess) ToolHost() sandbox.ToolHost {
+// ToolHost returns the local tool host used by this process.
+func (p *AgentProcess) ToolHost() ToolHost {
 	if p == nil {
 		return nil
 	}

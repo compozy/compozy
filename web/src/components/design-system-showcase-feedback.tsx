@@ -246,9 +246,7 @@ export function OverlaysSection() {
           </AccordionItem>
           <AccordionItem value="item-2">
             <AccordionTrigger>Does it work offline?</AccordionTrigger>
-            <AccordionContent>
-              The runtime is local-first. The network protocol only activates for peer flows.
-            </AccordionContent>
+            <AccordionContent>The runtime manages agents and tasks locally.</AccordionContent>
           </AccordionItem>
         </Accordion>
         <Collapsible>

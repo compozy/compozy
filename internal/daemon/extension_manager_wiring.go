@@ -60,14 +60,8 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithCompozyExecutableResolver(deps.CompozyExecutable),
 		extensionpkg.WithExtensionToolCallTracker(hostAPI),
 	}
-	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
-		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
-	}
 	if deps.LifecycleEvents != nil {
 		opts = append(opts, extensionpkg.WithLifecycleEventSink(deps.LifecycleEvents))
-	}
-	if deps.BridgeRuntime != nil {
-		opts = append(opts, extensionpkg.WithBridgeRuntimeResolver(deps.BridgeRuntime))
 	}
 	if deps.SecretResolver != nil {
 		opts = append(opts, extensionpkg.WithSecretResolver(deps.SecretResolver))

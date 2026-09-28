@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
-  extensionNetworkConfirmationRequired: false,
-  extensionNetworkDigest: undefined as string | undefined,
+  extensionGatewayConfirmationRequired: false,
+  extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
     message: string;
     sequence: number;
@@ -79,11 +79,11 @@ function extensionPayload(): ExtensionEntry {
   return {
     ...extensionFixtures[0]!,
     trust: undefined,
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
     workspace_id: mocks.extensionWorkspaceId ?? undefined,
     bound_env_keys: mocks.extensionBoundEnvKeys,
-    network_confirmation_required: mocks.extensionNetworkConfirmationRequired,
-    network_requirement_digest: mocks.extensionNetworkDigest,
+    gateway_confirmation_required: mocks.extensionGatewayConfirmationRequired,
+    gateway_requirement_digest: mocks.extensionGatewayDigest,
     diagnostics: [
       {
         id: "healthy",
@@ -111,7 +111,7 @@ function extensionPayload(): ExtensionEntry {
     health_message: "Runtime handshake is healthy.",
     origin_path: mocks.extensionOriginPath,
     overrides_published: mocks.extensionDev,
-    permissions: ["network/send"],
+    permissions: ["gateway/status"],
     placements: mocks.extensionPlacements,
     pid: 4242,
     provenance: {
@@ -253,8 +253,8 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
     mocks.extensionInventoryDiagnostics = [];
-    mocks.extensionNetworkConfirmationRequired = false;
-    mocks.extensionNetworkDigest = undefined;
+    mocks.extensionGatewayConfirmationRequired = false;
+    mocks.extensionGatewayDigest = undefined;
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -268,7 +268,7 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("missing")).toBeInTheDocument();
     expect(screen.getByText("Runtime handshake passed.")).toBeInTheDocument();
     expect(screen.getByText("tool.provider")).toBeInTheDocument();
-    expect(screen.getByText("network/send")).toBeInTheDocument();
+    expect(screen.getByText("gateway/status")).toBeInTheDocument();
     expect(screen.getByText("Runtime handshake is healthy.")).toBeInTheDocument();
     expect(screen.getByText("4242")).toBeInTheDocument();
     expect(screen.getByText("1h 1m")).toBeInTheDocument();
@@ -359,12 +359,12 @@ describe("Marketplace installed-detail management", () => {
     expect(within(environment).getByText("bound · not declared")).toBeInTheDocument();
   });
 
-  it("Should surface the network digest and its consent state when participation is declared", async () => {
-    mocks.extensionNetworkDigest = "sha256:6f1c0a94d3b27e58";
-    mocks.extensionNetworkConfirmationRequired = true;
+  it("Should surface the gateway digest and its consent state when participation is declared", async () => {
+    mocks.extensionGatewayDigest = "sha256:6f1c0a94d3b27e58";
+    mocks.extensionGatewayConfirmationRequired = true;
     await renderDetail(extensionDetailData());
 
-    expect(screen.getByTestId("extension-network-consent")).toHaveTextContent(
+    expect(screen.getByTestId("extension-gateway-consent")).toHaveTextContent(
       "confirmation required"
     );
     expect(screen.getByText("sha256:6f1c0a94d3b27e58")).toBeInTheDocument();

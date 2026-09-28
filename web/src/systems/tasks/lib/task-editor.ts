@@ -1,16 +1,9 @@
-import {
-  networkParticipationDraftFromPayload,
-  networkParticipationDraftFromValues,
-  serializeNetworkParticipation,
-  type NetworkParticipationStrategy,
-} from "@/lib/network-participation";
 import type { UpdateTaskRequest } from "../types";
 import type { TaskTemplateId } from "./task-templates";
 import { applyTemplateToCreatePayload, getTaskTemplate } from "./task-templates";
 import type {
   CreateChildTaskRequest,
   CreateTaskRequest,
-  TaskExecutionProfile,
   TaskOwnerKind,
   TaskPriority,
   TaskRecord,
@@ -31,9 +24,6 @@ export interface TaskEditorDraft {
   identifier: string;
   autoEnqueueOnReady: boolean;
   saveAsDraft: boolean;
-  networkParticipationMode: "local" | "live";
-  networkChannelId: string;
-  networkChannelStrategy: NetworkParticipationStrategy | "";
 }
 
 export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
@@ -50,9 +40,6 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
   identifier: "",
   autoEnqueueOnReady: false,
   saveAsDraft: false,
-  networkParticipationMode: "local",
-  networkChannelId: "",
-  networkChannelStrategy: "",
 };
 
 type TaskTemplateDraftDefaults = Pick<
@@ -94,11 +81,7 @@ export function applyTaskTemplateToEditorDraft(
   };
 }
 
-export function taskEditorDraftFromTask(
-  task: TaskRecord,
-  profile: TaskExecutionProfile
-): TaskEditorDraft {
-  const participationDraft = networkParticipationDraftFromPayload(profile.network_participation);
+export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
   return {
     title: task.title,
     description: task.description ?? "",
@@ -113,9 +96,6 @@ export function taskEditorDraftFromTask(
     identifier: task.identifier ?? "",
     autoEnqueueOnReady: task.auto_enqueue_on_ready ?? false,
     saveAsDraft: task.draft ?? false,
-    networkParticipationMode: participationDraft.mode,
-    networkChannelId: participationDraft.channelId,
-    networkChannelStrategy: participationDraft.channelStrategy,
   };
 }
 
@@ -154,13 +134,6 @@ export function buildCreateTaskRequest(
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
     identifier: draft.identifier.trim() || undefined,
-    network_participation: serializeNetworkParticipation(
-      networkParticipationDraftFromValues(
-        draft.networkParticipationMode,
-        draft.networkChannelId,
-        draft.networkChannelStrategy
-      )
-    ),
   };
 
   return applyTemplateToCreatePayload(basePayload, options.templateId);
@@ -187,13 +160,6 @@ export function buildCreateChildTaskRequest(
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
     identifier: draft.identifier.trim() || undefined,
-    network_participation: serializeNetworkParticipation(
-      networkParticipationDraftFromValues(
-        draft.networkParticipationMode,
-        draft.networkChannelId,
-        draft.networkChannelStrategy
-      )
-    ),
   };
 
   return applyTemplateToCreatePayload(basePayload, options.templateId);
@@ -210,12 +176,5 @@ export function buildUpdateTaskRequest(draft: TaskEditorDraft): UpdateTaskReques
     max_attempts: draft.maxAttempts ?? null,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : "none",
     auto_enqueue_on_ready: draft.autoEnqueueOnReady,
-    network_participation: serializeNetworkParticipation(
-      networkParticipationDraftFromValues(
-        draft.networkParticipationMode,
-        draft.networkChannelId,
-        draft.networkChannelStrategy
-      )
-    ),
   };
 }

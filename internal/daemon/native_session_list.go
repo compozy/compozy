@@ -74,7 +74,7 @@ func (n *daemonNativeTools) sessionList(
 	})
 	if err != nil {
 		if errors.Is(err, session.ErrListQueryInvalid) || errors.Is(err, session.ErrListCursorInvalid) {
-			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 		}
 		return toolspkg.ToolResult{}, err
 	}

@@ -44,21 +44,20 @@ func (q *Queries) UpdateToolProcessRecordState(ctx context.Context, arg UpdateTo
 const upsertToolProcessRecord = `-- name: UpsertToolProcessRecord :exec
 INSERT INTO tool_processes (
   id, source, session_id, turn_id, tool_call_id, terminal_id, extension_name,
-  hook_name, sandbox_id, pid, process_group_id, command, args_json, cwd,
+  hook_name, pid, process_group_id, command, args_json, cwd,
   started_at, started_by_pid, state, exit_code, error, created_at, updated_at, completed_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14, ?15,
-  ?16, ?17, ?18, ?19,
-  ?20, ?21, ?22
+  ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14,
+  ?15, ?16, ?17, ?18,
+  ?19, ?20, ?21
 )
 ON CONFLICT(id) DO UPDATE SET
   source = excluded.source, session_id = excluded.session_id, turn_id = excluded.turn_id,
   tool_call_id = excluded.tool_call_id, terminal_id = excluded.terminal_id,
   extension_name = excluded.extension_name, hook_name = excluded.hook_name,
-  sandbox_id = excluded.sandbox_id, pid = excluded.pid,
   process_group_id = excluded.process_group_id, command = excluded.command,
   args_json = excluded.args_json, cwd = excluded.cwd, started_at = excluded.started_at,
   started_by_pid = excluded.started_by_pid, state = excluded.state,
@@ -75,7 +74,6 @@ type UpsertToolProcessRecordParams struct {
 	TerminalID     string         `json:"terminal_id"`
 	ExtensionName  string         `json:"extension_name"`
 	HookName       string         `json:"hook_name"`
-	SandboxID      string         `json:"sandbox_id"`
 	Pid            int64          `json:"pid"`
 	ProcessGroupID int64          `json:"process_group_id"`
 	Command        string         `json:"command"`
@@ -101,7 +99,6 @@ func (q *Queries) UpsertToolProcessRecord(ctx context.Context, arg UpsertToolPro
 		arg.TerminalID,
 		arg.ExtensionName,
 		arg.HookName,
-		arg.SandboxID,
 		arg.Pid,
 		arg.ProcessGroupID,
 		arg.Command,

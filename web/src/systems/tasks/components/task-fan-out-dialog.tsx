@@ -22,7 +22,6 @@ import { useTaskFanOutRunResults } from "../hooks/use-task-fan-out-run-results";
 import { useRetryTaskRun } from "../hooks/use-task-run-actions";
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 import type { WorktreePayload } from "@/systems/workspace";
-import { NetworkParticipationFields } from "@/systems/network";
 
 import { TaskFanOutIsolationRow } from "./task-fan-out-isolation-row";
 import { TaskFanOutRunResults } from "./task-fan-out-run-results";
@@ -116,13 +115,6 @@ export function TaskFanOutDialog({
                 worktrees={worktrees}
               />
             ) : null}
-
-            <NetworkParticipationFields
-              allowedStrategies={state.networkStrategies}
-              onChange={state.setNetworkParticipation}
-              testIdPrefix="tasks-fan-out-network"
-              value={state.networkParticipation}
-            />
           </div>
 
           <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">

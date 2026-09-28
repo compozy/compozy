@@ -13,7 +13,7 @@ const extensionLifecycleRollbackTimeout = 15 * time.Second
 
 type globalExtensionLifecycleSnapshot struct {
 	enabled      bool
-	confirmation extensionpkg.NetworkConfirmation
+	confirmation extensionpkg.GatewayConfirmation
 }
 
 func snapshotGlobalExtensionLifecycle(info *extensionpkg.ExtensionInfo) globalExtensionLifecycleSnapshot {
@@ -22,10 +22,10 @@ func snapshotGlobalExtensionLifecycle(info *extensionpkg.ExtensionInfo) globalEx
 	}
 	return globalExtensionLifecycleSnapshot{
 		enabled: info.Enabled,
-		confirmation: extensionpkg.NetworkConfirmation{
-			Digest:      info.NetworkRequirementDigest,
-			ConfirmedBy: info.NetworkConfirmedBy,
-			ConfirmedAt: info.NetworkConfirmedAt,
+		confirmation: extensionpkg.GatewayConfirmation{
+			Digest:      info.GatewayRequirementDigest,
+			ConfirmedBy: info.GatewayConfirmedBy,
+			ConfirmedAt: info.GatewayConfirmedAt,
 		},
 	}
 }
@@ -44,7 +44,7 @@ func (s *daemonExtensionService) rollbackGlobalExtensionLifecycle(
 	} else {
 		rollbackErr = errors.Join(rollbackErr, s.registry.Disable(name))
 	}
-	rollbackErr = errors.Join(rollbackErr, s.registry.RestoreNetworkConfirmation(
+	rollbackErr = errors.Join(rollbackErr, s.registry.RestoreGatewayConfirmation(
 		extensionpkg.GlobalInstanceKey(name),
 		snapshot.confirmation,
 	))

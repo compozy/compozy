@@ -123,7 +123,7 @@ func (m *Manager) runRecoveredStop(
 			RuntimeGeneration: meta.RuntimeGeneration, CreatedAt: meta.CreatedAt,
 		},
 	}
-	proc, target := m.recoveredTerminationTarget(meta)
+	proc, target := recoveredTerminationTarget(meta)
 	target.beforeAction = func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
 		outcome := StopOutcome{
 			FinalState: StateStopping, Escalated: true, Phase: phase, Cause: cause, Elapsed: elapsed,

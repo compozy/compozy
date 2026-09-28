@@ -102,7 +102,7 @@ async function completeFirstRunOnboarding(page: Page): Promise<void> {
         method: "PUT",
       });
       const persona = await requestJSON<{
-        config?: { agent?: string; provider?: string; sandbox?: string };
+        config?: { agent?: string; provider?: string };
       }>("/api/settings/persona?scope=user");
       if (!persona.config) {
         throw new Error("First-run E2E bootstrap could not load default profile settings.");

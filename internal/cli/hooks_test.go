@@ -241,38 +241,6 @@ func TestHooksInfoCommandReturnsAllMatchesAcrossFormats(t *testing.T) {
 	})
 }
 
-func TestHookMatcherRowsIncludesNetworkFields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include network matcher fields", func(t *testing.T) {
-		t.Parallel()
-
-		rows := hookMatcherRows(hookspkg.HookMatcher{
-			NetworkMatcher: &hookspkg.NetworkMatcher{
-				Channel:   "builders",
-				Surface:   "direct",
-				Kind:      "say",
-				Direction: "sent",
-				WorkState: "working",
-			},
-		})
-		got := map[string]string{}
-		for _, row := range rows {
-			if len(row) != 2 {
-				t.Fatalf("hookMatcherRows() row = %#v, want field/value pair", row)
-			}
-			got[row[0]] = row[1]
-		}
-		if got["channel"] != "builders" ||
-			got["surface"] != "direct" ||
-			got["kind"] != "say" ||
-			got["direction"] != "sent" ||
-			got["work_state"] != "working" {
-			t.Fatalf("hookMatcherRows() = %#v, want network matcher fields", got)
-		}
-	})
-}
-
 func TestHooksEventsCommandPassesFiltersAndRendersFormats(t *testing.T) {
 	t.Parallel()
 

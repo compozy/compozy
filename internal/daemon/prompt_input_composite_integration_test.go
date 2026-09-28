@@ -19,9 +19,9 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetworkTurns(t *testing.T) {
+func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserTurns(t *testing.T) {
 	t.Run(
-		"Should preserve stored messages while augmenting user and network turns",
+		"Should preserve stored messages while augmenting user turns",
 		testPromptInputCompositeIntegrationPreservesStoredMessages,
 	)
 }
@@ -45,8 +45,7 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	compositeResolver := &promptInputCompositeOverlayResolver{
 		base: daemonInstance.harnessResolver,
 		extra: map[TurnOrigin][]HarnessAugmenter{
-			TurnOriginUser:    {suffixAugmenter},
-			TurnOriginNetwork: {suffixAugmenter},
+			TurnOriginUser: {suffixAugmenter},
 		},
 	}
 
@@ -82,10 +81,9 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName:                    resolvedWorkspace.Agents[0].Name,
-		Name:                         "networked",
-		Workspace:                    resolvedWorkspace.ID,
-		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "worker",
+		Workspace: resolvedWorkspace.ID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -130,69 +128,17 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 		t.Fatalf("user prompt message = %q, want suffix augmenter output", got)
 	}
 
-	networkEvents, err := manager.PromptNetwork(
-		testutil.Context(t),
-		created.ID,
-		"network note",
-		acp.PromptNetworkMeta{
-			MessageID:   "msg-1",
-			Kind:        "say",
-			Channel:     "builders",
-			Surface:     "direct",
-			DirectID:    "direct_0123456789abcdef0123456789abcdef",
-			From:        "ops.peer",
-			To:          "networked.peer",
-			WorkID:      "work_patch_42",
-			ReplyTo:     "msg-root",
-			TraceID:     "trace_ops_patch_42",
-			CausationID: "msg-root",
-			Trust:       "untrusted",
-		},
-	)
+	followupEvents, err := manager.Prompt(testutil.Context(t), created.ID, "follow-up note")
 	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
+		t.Fatalf("Prompt(follow-up) error = %v", err)
 	}
-	drainHarnessIntegrationEvents(networkEvents)
-
-	if got := driver.promptCalls[1].Message; !strings.Contains(got, "<current-available-skills>") {
-		t.Fatalf("network prompt message = %q, want current skills catalog", got)
-	} else if !strings.HasSuffix(got, "network note\n\nSUFFIX CONTEXT") {
-		t.Fatalf("network prompt message = %q, want augmented network dispatch with preserved suffix", got)
-	}
-	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
-		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
+	drainHarnessIntegrationEvents(followupEvents)
+	if got := driver.promptCalls[1].Message; !strings.Contains(got, "<current-available-skills>") ||
+		!strings.Contains(got, "follow-up note") || !strings.Contains(got, "SUFFIX CONTEXT") {
+		t.Fatalf("follow-up prompt message = %q, want current skills and augmented input", got)
 	}
 	if got, want := len(compositeResolver.seenMeta), 2; got != want {
-		t.Fatalf("len(resolver seen meta) after network prompt = %d, want %d", got, want)
-	}
-	if got := compositeResolver.seenMeta[1].Network; got == nil {
-		t.Fatal("resolver network prompt meta = nil, want forwarded network metadata")
-	} else {
-		if got.MessageID != "msg-1" {
-			t.Fatalf("resolver network message_id = %q, want %q", got.MessageID, "msg-1")
-		}
-		if got.Channel != "builders" {
-			t.Fatalf("resolver network channel = %q, want %q", got.Channel, "builders")
-		}
-		if got.Surface != "direct" {
-			t.Fatalf("resolver network surface = %q, want direct", got.Surface)
-		}
-		if got.DirectID != "direct_0123456789abcdef0123456789abcdef" {
-			t.Fatalf("resolver network direct_id = %q, want final direct container", got.DirectID)
-		}
-		if got.WorkID != "work_patch_42" || got.ReplyTo != "msg-root" {
-			t.Fatalf("resolver network work/reply = %q/%q, want work_patch_42/msg-root", got.WorkID, got.ReplyTo)
-		}
-		if got.TraceID != "trace_ops_patch_42" || got.CausationID != "msg-root" {
-			t.Fatalf(
-				"resolver network trace/causation = %q/%q, want final correlation ids",
-				got.TraceID,
-				got.CausationID,
-			)
-		}
-		if got.Trust != "untrusted" {
-			t.Fatalf("resolver network trust = %q, want untrusted", got.Trust)
-		}
+		t.Fatalf("len(resolver seen meta) = %d, want %d", got, want)
 	}
 
 	storedMessages := loadStoredPromptMessages(t, created)
@@ -206,11 +152,11 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 		strings.Contains(storedMessages[0], "SUFFIX CONTEXT") {
 		t.Fatalf("stored user message = %q, want no augmenter content", storedMessages[0])
 	}
-	if !strings.Contains(storedMessages[1], `"text":"network note"`) {
-		t.Fatalf("stored network message = %q, want canonical network input", storedMessages[1])
+	if !strings.Contains(storedMessages[1], `"text":"follow-up note"`) {
+		t.Fatalf("stored follow-up message = %q, want canonical follow-up input", storedMessages[1])
 	}
 	if strings.Contains(storedMessages[1], "SUFFIX CONTEXT") {
-		t.Fatalf("stored network message = %q, want no augmenter content", storedMessages[1])
+		t.Fatalf("stored follow-up message = %q, want no augmenter content", storedMessages[1])
 	}
 }
 

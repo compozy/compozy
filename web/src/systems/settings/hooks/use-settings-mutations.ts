@@ -4,11 +4,9 @@ import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
 
 import {
-  deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
@@ -17,7 +15,6 @@ import {
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
-  updateSettingsNetwork,
   updateSettingsObservability,
   updateSettingsPersona,
   updateSettingsRoles,
@@ -31,7 +28,6 @@ import {
 } from "../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../lib/query-keys";
 import type {
-  SettingsSandboxRequest,
   SettingsHookRequest,
   SettingsHookDeleteFilter,
   SettingsHookPutFilter,
@@ -47,7 +43,6 @@ import type {
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
-  SettingsUpdateNetworkRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdatePersonaRequest,
@@ -89,19 +84,6 @@ function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, nam
 
   if (name) {
     tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.providerDetail(name) }));
-  }
-
-  return Promise.all(tasks);
-}
-
-function invalidateSandboxes(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
-  const tasks = [
-    queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() }),
-    invalidateSettingsApplyRecords(queryClient),
-  ];
-
-  if (name) {
-    tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxDetail(name) }));
   }
 
   return Promise.all(tasks);
@@ -228,16 +210,6 @@ export function useUpdateSettingsAutomation() {
   });
 }
 
-export function useUpdateSettingsNetwork() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (body: SettingsUpdateNetworkRequest) => updateSettingsNetwork(body),
-    onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateSection(queryClient, "network"),
-  });
-}
-
 export function useUpdateSettingsShell() {
   const queryClient = useQueryClient();
 
@@ -300,27 +272,6 @@ export function useDeleteSettingsProvider() {
     mutationFn: (name: string) => deleteSettingsProvider(name),
     onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, name) => invalidateProviders(queryClient, name),
-  });
-}
-
-export function usePutSettingsSandbox() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ name, body }: NameBodyParams<SettingsSandboxRequest>) =>
-      putSettingsSandbox(name, body),
-    onSuccess: recordSettingsMutation,
-    onSettled: (_result, _error, variables) => invalidateSandboxes(queryClient, variables?.name),
-  });
-}
-
-export function useDeleteSettingsSandbox() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (name: string) => deleteSettingsSandbox(name),
-    onSuccess: recordSettingsMutation,
-    onSettled: (_result, _error, name) => invalidateSandboxes(queryClient, name),
   });
 }
 
@@ -428,10 +379,4 @@ export function useLogoutMCPAuth() {
       invalidateMCPState(queryClient, variables.filter.owner),
   });
 }
-
-export {
-  useCreateSettingsNotificationPreset,
-  useDeleteSettingsNotificationPreset,
-  useUpdateSettingsNotificationPreset,
-} from "./use-settings-notification-mutations";
 export { useUpdateSettingsAttention } from "./use-settings-attention-mutation";

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -732,13 +732,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 				blocked.TaskContext,
 			)
 		}
-		if blocked.ResolvedNetworkParticipation == nil ||
-			*blocked.ResolvedNetworkParticipation != participation.LocalSpec() {
-			t.Fatalf(
-				"blocked.ResolvedNetworkParticipation = %#v, want canonical Local snapshot",
-				blocked.ResolvedNetworkParticipation,
-			)
-		}
+
 		if blocked.ClaimTokenHash == "" || !VerifyClaimToken(claim.ClaimToken, blocked.ClaimTokenHash) {
 			t.Fatalf("blocked.ClaimTokenHash = %q, want hash verifying raw token", blocked.ClaimTokenHash)
 		}
@@ -935,99 +929,6 @@ func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 		t.Parallel()
 		testTaskRunHookContextCarriesLoopFilterKeys(t)
 	})
-
-	t.Run("Should carry taskless wake correlation from the run snapshot", func(t *testing.T) {
-		t.Parallel()
-
-		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
-		run := Run{
-			ID:          "run-wake",
-			WorkspaceID: "ws-wake",
-			RunKind:     RunKindNetworkWake,
-			Status:      TaskRunStatusRunning,
-		}
-		liveSpec := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-wake",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "wake-channel",
-			Source:          participation.SourceExplicitRequest,
-		}
-		run.SetNetworkState(liveSpec, "wake-1", "sess-target", "owner-1")
-
-		payload := manager.taskRunHookContext(run, Task{}, validActorContext())
-		if payload.TaskID != "" || payload.WorkspaceID != "ws-wake" ||
-			payload.WakeID != "wake-1" || payload.TargetSessionID != "sess-target" ||
-			payload.OwnerKey != "owner-1" {
-			t.Fatalf("wake hook context = %#v, want taskless durable correlation", payload)
-		}
-		if payload.RunKind == nil || *payload.RunKind != RunKindNetworkWake.String() {
-			t.Fatalf("wake hook run kind = %#v, want %q", payload.RunKind, RunKindNetworkWake)
-		}
-		if payload.ResolvedNetworkParticipation == nil || *payload.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf("wake hook participation = %#v, want %#v", payload.ResolvedNetworkParticipation, liveSpec)
-		}
-	})
-}
-
-func TestTaskRunPreClaimCriteriaCarriesExactWakeIdentity(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should carry exact wake identity through pre-claim criteria", func(t *testing.T) {
-		t.Parallel()
-
-		var got hookspkg.TaskRunPreClaimPayload
-		manager := newTaskManagerForTestWithOptions(
-			t,
-			newInMemoryManagerStore(),
-			WithTaskRunHooks(recordingTaskRunHooks{
-				preClaim: func(
-					_ context.Context,
-					payload hookspkg.TaskRunPreClaimPayload,
-				) (hookspkg.TaskRunPreClaimPayload, error) {
-					got = payload
-					return payload, nil
-				},
-			}),
-		)
-		criteria := ClaimCriteria{
-			RunID: "run-wake", RunKind: RunKindNetworkWake, Scope: ScopeWorkspace,
-			WorkspaceID: "ws-wake", TargetSessionID: "sess-target", ClaimerSessionID: "sess-target",
-			CallerNetworkParticipation: participation.CloneSpec(participation.Spec{
-				Version: participation.SpecVersion, Mode: participation.ModeLive, WorkspaceID: "ws-wake",
-				ChannelStrategy: participation.StrategyNamed, ChannelID: "wake-channel",
-				Source: participation.SourceExplicitRequest, Bounds: participation.Bounds{
-					MaxWakes: 1, MaxWakeWallTime: "1s", MaxTotalWallTime: "1s",
-					MaxInputTokens: 10, MaxOutputTokens: 10, MaxWakeDepth: 1, CoalesceWindow: "100ms",
-				},
-			}),
-			Now: time.Date(2026, 7, 13, 23, 0, 0, 0, time.UTC),
-		}
-		if _, err := manager.dispatchTaskRunPreClaimCriteria(
-			context.Background(),
-			criteria,
-			validActorContext(),
-		); err != nil {
-			t.Fatalf("dispatchTaskRunPreClaimCriteria() error = %v", err)
-		}
-		if got.TaskRunContext == nil || got.RunID != "run-wake" || got.RunKind == nil ||
-			*got.RunKind != RunKindNetworkWake.String() || got.TargetSessionID != "sess-target" {
-			t.Fatalf("pre-claim wake context = %#v, want exact wake identity", got.TaskRunContext)
-		}
-		if got.Criteria.RunID != "run-wake" || got.Criteria.RunKind != RunKindNetworkWake.String() ||
-			got.Criteria.TargetSessionID != "sess-target" {
-			t.Fatalf("pre-claim wake criteria = %#v, want exact wake identity", got.Criteria)
-		}
-		if got.ResolvedNetworkParticipation == nil ||
-			*got.ResolvedNetworkParticipation != *criteria.CallerNetworkParticipation {
-			t.Fatalf(
-				"pre-claim participation = %#v, want trusted caller snapshot %#v",
-				got.ResolvedNetworkParticipation,
-				criteria.CallerNetworkParticipation,
-			)
-		}
-	})
 }
 
 func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
@@ -1042,15 +943,7 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 		LoopRunID: "loop-run-1",
 		Status:    TaskRunStatusCompleted,
 	}
-	liveSpec := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     "ws-1",
-		ChannelStrategy: participation.StrategyLoopRun,
-		ChannelID:       "loop-run-1",
-		Source:          participation.SourceLoopDefinition,
-	}
-	run.SetNetworkState(liveSpec, "", "", "")
+
 	taskRecord := Task{
 		ID:           "task-node",
 		ParentTaskID: "task-coordinator",
@@ -1067,17 +960,6 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	}
 	if got, want := *payload.RunKind, RunKindWorker.String(); got != want {
 		t.Fatalf("RunKind = %q, want %q", got, want)
-	}
-	if got := payload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-		t.Fatalf("ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
-	}
-
-	taskPayload := manager.taskHookContext(taskRecord, actor, &BlockTaskAndReleaseRunResult{
-		Run:           run,
-		ReleaseReason: "blocked",
-	})
-	if got := taskPayload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-		t.Fatalf("TaskContext.ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
 	}
 }
 

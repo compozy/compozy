@@ -32,13 +32,13 @@ func seedDaemonTaskRunLifecycle(t *testing.T, store taskpkg.Store, target taskpk
 	var current taskpkg.Run
 	err = store.WithTaskExecutionTransaction(ctx, func(tx taskpkg.ExecutionMutationStore) error {
 		_, reserved, existing, reserveErr := tx.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
-			TaskID:             target.TaskID,
-			RunID:              target.ID,
-			RunKind:            target.RunKind,
-			LoopRunID:          target.LoopRunID,
-			IdempotencyKey:     target.IdempotencyKey,
-			Origin:             target.Origin,
-			NetworkSpec:        target.NetworkSpecSnapshot(),
+			TaskID:         target.TaskID,
+			RunID:          target.ID,
+			RunKind:        target.RunKind,
+			LoopRunID:      target.LoopRunID,
+			IdempotencyKey: target.IdempotencyKey,
+			Origin:         target.Origin,
+
 			DesignationGroupID: target.DesignationGroupID,
 			Metadata:           target.Metadata,
 			QueuedAt:           timeline.queuedAt,

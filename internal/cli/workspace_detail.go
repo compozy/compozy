@@ -84,7 +84,7 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 		),
 		renderToonArray(
 			"profile_hints",
-			[]string{profileFlagName, bridgeMessageKey, authoredContextActionKey},
+			[]string{profileFlagName, cliOutputMessageKey, authoredContextActionKey},
 			workspaceProfileHintRows(detail.ProfileHints, false),
 		),
 	), nil

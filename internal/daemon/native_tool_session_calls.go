@@ -31,7 +31,7 @@ func (n *daemonNativeTools) sessionStatus(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID)
 	if err != nil {
@@ -63,7 +63,7 @@ func (n *daemonNativeTools) commandList(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -109,7 +109,7 @@ func (n *daemonNativeTools) sessionHealth(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -249,7 +249,7 @@ func (n *daemonNativeTools) sessionEvents(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
@@ -281,7 +281,7 @@ func (n *daemonNativeTools) sessionHistory(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
@@ -320,7 +320,7 @@ func (n *daemonNativeTools) sessionDescribe(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {

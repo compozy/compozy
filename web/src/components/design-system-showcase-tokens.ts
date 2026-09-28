@@ -376,7 +376,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       {
         token: "--width-modal-lg",
         value: "880px",
-        role: "Bridges wizard / knowledge create dialog",
+        role: "Knowledge create dialog",
         kind: "radius",
       },
       {
@@ -394,42 +394,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     ],
   },
   {
-    id: "protocol-kinds",
-    label: "Protocol Kind Colors",
-    caption:
-      "Kind-dot colors map onto the new palette: say/whois → neutral, greet/trace → info, direct → accent, receipt → success, capability → warning.",
-    swatches: [
-      { token: "--color-kind-say", value: "var(--color-neutral)", role: "say", kind: "color" },
-      { token: "--color-kind-greet", value: "var(--color-info)", role: "greet", kind: "color" },
-      {
-        token: "--color-kind-direct",
-        value: "var(--color-accent)",
-        role: "direct",
-        kind: "color",
-      },
-      {
-        token: "--color-kind-receipt",
-        value: "var(--color-success)",
-        role: "receipt",
-        kind: "color",
-      },
-      {
-        token: "--color-kind-capability",
-        value: "var(--color-warning)",
-        role: "capability",
-        kind: "color",
-      },
-      { token: "--color-kind-trace", value: "var(--color-info)", role: "trace", kind: "color" },
-      { token: "--color-kind-whois", value: "var(--color-neutral)", role: "whois", kind: "color" },
-    ],
-  },
-  {
     id: "radii",
     label: "Radii",
     caption: "Ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill.",
     swatches: [
       { token: "--radius-xs", value: "4px", role: "Tightest chip", kind: "radius" },
-      { token: "--radius-sm", value: "5px", role: "Kind chip", kind: "radius" },
+      { token: "--radius-sm", value: "5px", role: "Compact chip", kind: "radius" },
       { token: "--radius", value: "6px", role: "Default", kind: "radius" },
       { token: "--radius-md", value: "8px", role: "Inputs / buttons", kind: "radius" },
       { token: "--radius-lg", value: "10px", role: "Cards / panels", kind: "radius" },

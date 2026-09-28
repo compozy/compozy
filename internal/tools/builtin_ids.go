@@ -28,42 +28,6 @@ const (
 	ToolIDSkillView ToolID = "compozy__skill_view"
 	// ToolIDCommandList lists the unified command catalog for one session.
 	ToolIDCommandList ToolID = "compozy__command_list"
-	// ToolIDNetworkPeers lists visible network peers.
-	ToolIDNetworkPeers ToolID = "compozy__network_peers"
-	// ToolIDNetworkStatus reads daemon-owned network runtime status.
-	ToolIDNetworkStatus ToolID = "compozy__network_status"
-	// ToolIDNetworkUsage reads bounded workspace-scoped network wake usage.
-	ToolIDNetworkUsage ToolID = "compozy__network_usage"
-	// ToolIDNetworkChannels lists active Compozy network channels.
-	ToolIDNetworkChannels ToolID = "compozy__network_channels"
-	// ToolIDNetworkInbox reads queued inbound network messages for one local session.
-	ToolIDNetworkInbox ToolID = "compozy__network_inbox"
-	// ToolIDNetworkSend sends one network message through the existing network manager.
-	ToolIDNetworkSend ToolID = "compozy__network_send"
-	// ToolIDNetworkChannelCreate registers one Compozy network channel with a stated purpose.
-	ToolIDNetworkChannelCreate ToolID = "compozy__network_channel_create"
-	// ToolIDNetworkChannelUpdate updates one Compozy network channel delivery policy.
-	ToolIDNetworkChannelUpdate ToolID = "compozy__network_channel_update"
-	// ToolIDNetworkSubscriptions lists Compozy network delivery preferences.
-	ToolIDNetworkSubscriptions ToolID = "compozy__network_subscriptions"
-	// ToolIDNetworkSubscribe sets one Compozy network delivery preference to full delivery.
-	ToolIDNetworkSubscribe ToolID = "compozy__network_subscribe"
-	// ToolIDNetworkMute mutes one Compozy network delivery preference.
-	ToolIDNetworkMute ToolID = "compozy__network_mute"
-	// ToolIDNetworkUnmute removes one Compozy network delivery preference.
-	ToolIDNetworkUnmute ToolID = "compozy__network_unmute"
-	// ToolIDNetworkThreads lists public network thread summaries.
-	ToolIDNetworkThreads ToolID = "compozy__network_threads"
-	// ToolIDNetworkThreadMessages reads messages in one public network thread.
-	ToolIDNetworkThreadMessages ToolID = "compozy__network_thread_messages"
-	// ToolIDNetworkDirects lists direct-room summaries.
-	ToolIDNetworkDirects ToolID = "compozy__network_directs"
-	// ToolIDNetworkDirectResolve creates or returns one deterministic direct room.
-	ToolIDNetworkDirectResolve ToolID = "compozy__network_direct_resolve"
-	// ToolIDNetworkDirectMessages reads messages in one direct room.
-	ToolIDNetworkDirectMessages ToolID = "compozy__network_direct_messages"
-	// ToolIDNetworkWork reads one network work lifecycle row.
-	ToolIDNetworkWork ToolID = "compozy__network_work"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
 	// ToolIDSessionArchive archives one stopped runtime session.
@@ -233,10 +197,6 @@ const (
 	ToolIDObserveMetrics ToolID = "compozy__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.
 	ToolIDObserveSearch ToolID = "compozy__observe_search"
-	// ToolIDBridgesList lists bridge instances without secret bindings.
-	ToolIDBridgesList ToolID = "compozy__bridges_list"
-	// ToolIDBridgesStatus reads bridge status and health without credentials.
-	ToolIDBridgesStatus ToolID = "compozy__bridges_status"
 	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
 	ToolIDGateway ToolID = "compozy__gateway"
 	// ToolIDTaskList lists task summaries through the task service.
@@ -277,16 +237,6 @@ const (
 	ToolIDTaskWorktreePolicySet ToolID = "compozy__task_worktree_policy_set"
 	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
 	ToolIDTaskExecutionProfileDelete ToolID = "compozy__task_execution_profile_delete"
-	// ToolIDTaskNotificationSubscribe creates one bridge notification subscription for a task.
-	ToolIDTaskNotificationSubscribe ToolID = "compozy__task_notification_subscribe"
-	// ToolIDTaskNotificationList lists bridge notification subscriptions for a task.
-	ToolIDTaskNotificationList ToolID = "compozy__task_notification_list"
-	// ToolIDTaskNotificationShow reads one bridge notification subscription for a task.
-	ToolIDTaskNotificationShow ToolID = "compozy__task_notification_show"
-	// ToolIDTaskNotificationDelete deletes one bridge notification subscription for a task.
-	ToolIDTaskNotificationDelete ToolID = "compozy__task_notification_delete"
-	// ToolIDTaskPromoteFromThread promotes one network thread message into a durable task.
-	ToolIDTaskPromoteFromThread ToolID = "compozy__task_promote_from_thread"
 	// ToolIDTaskFanOutRuns creates designated sibling task runs.
 	ToolIDTaskFanOutRuns ToolID = "compozy__task_fanout_runs"
 	// ToolIDTaskRunClaimNext claims the next run for the caller session.
@@ -410,8 +360,6 @@ const (
 	ToolsetIDToolApprovals ToolsetID = "compozy__tool_approvals"
 	// ToolsetIDClarify exposes the session-scoped human clarification tool.
 	ToolsetIDClarify ToolsetID = "compozy__clarify"
-	// ToolsetIDCoordination groups network coordination tools.
-	ToolsetIDCoordination ToolsetID = "compozy__coordination"
 	// ToolsetIDTasks groups bounded task tools.
 	ToolsetIDTasks ToolsetID = "compozy__tasks"
 	// ToolsetIDAutonomy groups session-bound task-run autonomy tools.
@@ -432,8 +380,6 @@ const (
 	ToolsetIDMemoryAdmin ToolsetID = "compozy__memory_admin"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "compozy__observe"
-	// ToolsetIDBridges groups read-only bridge inspection tools.
-	ToolsetIDBridges ToolsetID = "compozy__bridges"
 	// ToolsetIDGateway groups gateway inspection and permission-gated management.
 	ToolsetIDGateway ToolsetID = "compozy__gateway"
 	// ToolsetIDConfig groups validated config tools.

@@ -45,12 +45,12 @@ describe("loop dsl view", () => {
   });
 
   it("Should render empty object/array fields as flow leaves, never [object Object]", () => {
-    // Palette seeds (Channel post / Call tool / Gate / Transform) emit empty objects.
+    // Palette seeds (Call tool / Gate / Transform) emit empty objects.
     const seeded = {
       apiVersion: "compozy.loop/v1",
       graph: {
         nodes: [
-          { id: "post", class: "action", kind: "compozy__network_send", params: {} },
+          { id: "post", class: "action", kind: "compozy__task_list", params: {} },
           { id: "gate", class: "control", kind: "gate", criteria: [], on_result: {} },
           { id: "shape", class: "action", kind: "transform", params: { map: {} } },
         ],

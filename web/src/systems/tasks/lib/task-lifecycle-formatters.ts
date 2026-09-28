@@ -46,8 +46,7 @@ const ACTIVE_RUN_STATUSES = new Set<TaskRunStatus>(["running", "starting", "clai
  * The lifecycle is a UI-only narrative built from the canonical task status,
  * approval state, and the task list `active_run` summary so creation
  * (saved_intent) reads as separate from publish/start/approval handoff
- * (queued/running). Channel availability is a separate concern — see
- * `runIsCoordinated` and `runCoordinationChannelLabel`.
+ * (queued/running).
  */
 export function taskLifecyclePhase(task: TaskLifecycleInput): TaskLifecyclePhase {
   if (task.status === "completed") {
@@ -121,12 +120,11 @@ const TASK_LIFECYCLE_PHASE_DESCRIPTIONS: Record<TaskLifecyclePhase, string> = {
   ready_to_start:
     "Task is ready. Start enqueues a coordinator-handoff run; manual workers may also claim it.",
   queued: "Coordinator handoff is in flight. A worker session will claim this queued run.",
-  running:
-    "A worker session is executing the active run. Channel messages support coordination only.",
+  running: "A worker session is executing the active run.",
   needs_attention:
     "Task is escalated for operator recovery. Recover it before any new run can be enqueued or claimed.",
   completed: "The latest run completed. Task ownership and terminal status are durable.",
-  failed: "The latest run failed. Retry, cancel, or follow up — channel chatter never owns status.",
+  failed: "The latest run failed. Retry, cancel, or follow up.",
   canceled: "The task or its run was canceled.",
   blocked: "Blocked by a dependency or policy. Resolve the blocker before the run can be enqueued.",
 };
@@ -195,71 +193,6 @@ export function taskHandoffActionCopy(
   action: keyof typeof TASK_HANDOFF_ACTION_COPY
 ): TaskHandoffActionLabel {
   return TASK_HANDOFF_ACTION_COPY[action];
-}
-
-type CoordinationCarrier = {
-  resolved_network_participation?: {
-    mode?: string | null;
-    channel_id?: string | null;
-    source?: string | null;
-  } | null;
-  coordination_channel?: {
-    id?: string | null;
-    display_name?: string | null;
-    purpose?: string | null;
-  } | null;
-};
-
-/**
- * Returns true when the run participates live or carries a coordination conversation
- * binding. Channel presence supports operator/agent conversation; it never replaces
- * task-run ownership or terminal status.
- */
-export function runIsCoordinated<T extends CoordinationCarrier | null | undefined>(
-  run: T
-): boolean {
-  if (!run) {
-    return false;
-  }
-
-  const participation = run.resolved_network_participation;
-  if (participation?.mode === "live") {
-    return true;
-  }
-  if (typeof participation?.channel_id === "string" && participation.channel_id.trim() !== "") {
-    return true;
-  }
-
-  return Boolean(run.coordination_channel?.id);
-}
-
-/**
- * Resolves a short human label for a coordination / live participation channel.
- * Prefers the embedded conversation display name, then resolved channel id.
- */
-export function runCoordinationChannelLabel<T extends CoordinationCarrier | null | undefined>(
-  run: T
-): string {
-  if (!run) {
-    return "";
-  }
-
-  const display = run.coordination_channel?.display_name?.trim();
-  if (display) {
-    return display;
-  }
-
-  const embeddedId = run.coordination_channel?.id?.trim();
-  if (embeddedId) {
-    return embeddedId;
-  }
-
-  const channelId = run.resolved_network_participation?.channel_id?.trim();
-  if (channelId) {
-    return channelId;
-  }
-
-  return "Coordination channel";
 }
 
 /**

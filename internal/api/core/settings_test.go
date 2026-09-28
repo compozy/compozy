@@ -573,8 +573,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/skills", handlers.UpdateSettingsSkills)
 	settings.GET("/automation", handlers.GetSettingsAutomation)
 	settings.PATCH("/automation", handlers.UpdateSettingsAutomation)
-	settings.GET("/network", handlers.GetSettingsNetwork)
-	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
+
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
 	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
@@ -597,10 +596,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/mcp-servers/:name/auth/logout", handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
-	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
-	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
-	settings.PUT("/sandboxes/:name", handlers.PutSettingsSandbox)
-	settings.DELETE("/sandboxes/:name", handlers.DeleteSettingsSandbox)
+
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", handlers.DeleteSettingsHook)
@@ -1158,7 +1154,7 @@ func TestStatusForSettingsError(t *testing.T) {
 			err: fmt.Errorf(
 				"%w: %s",
 				settingspkg.ErrValidation,
-				"settings: decode network settings request: bad json",
+				"settings: decode automation settings request: bad json",
 			),
 			want: http.StatusBadRequest,
 		},
@@ -1466,7 +1462,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				settingspkg.ScopeWorkspace,
 			},
 			Persona: &settingspkg.PersonaSection{
-				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
+				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai"},
 			},
 		},
 		{
@@ -1539,29 +1535,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					LastSyncedAt:     &lastSyncedAt,
 				},
 				Links: []settingspkg.OperationalLink{{Label: "automation", Path: "/automation"}},
-			},
-		},
-		{
-			Section:         settingspkg.SectionNetwork,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Network: &settingspkg.NetworkSection{
-				Config: compozyconfig.NetworkConfig{
-					Enabled:      true,
-					MaxReplayAge: 10,
-					Live:         compozyconfig.DefaultNetworkConfig().Live,
-				},
-				Runtime: settingspkg.NetworkRuntimeStatus{
-					Available:         true,
-					Enabled:           true,
-					Status:            "active",
-					LocalPeers:        1,
-					Channels:          3,
-					MessagesReceived:  4,
-					MessagesDelivered: 2,
-					MessagesRejected:  1,
-				},
-				Links: []settingspkg.OperationalLink{{Label: "network", Path: "/network"}},
 			},
 		},
 		{
@@ -1931,30 +1904,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			}},
 		},
 		{
-			Collection:      settingspkg.CollectionSandboxes,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Sandboxes: []settingspkg.SandboxItem{{
-				Name: "local",
-				Profile: compozyconfig.SandboxProfile{
-					Backend:     "local",
-					SyncMode:    "session-bidirectional",
-					Persistence: "reuse",
-					RuntimeRoot: "/workspace",
-				},
-				WorkspaceUsageCount: 2,
-				SourceMetadata: settingspkg.SourceMetadata{
-					EffectiveSource: settingspkg.SourceRef{
-						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeUser,
-					},
-					AvailableTargets: []settingspkg.WriteTargetKind{
-						settingspkg.WriteTargetGlobalConfig,
-					},
-				},
-			}},
-		},
-		{
 			Collection:      settingspkg.CollectionHooks,
 			Scope:           settingspkg.ScopeUser,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
@@ -2130,7 +2079,7 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		{name: "Should require roles config", path: "/api/settings/roles", want: "roles.config is required"},
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
-		{name: "network", path: "/api/settings/network", want: "network.config is required"},
+
 		{
 			name: "Should require window-manager config",
 			path: "/api/settings/window-manager",
@@ -2189,28 +2138,6 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			)
 		}
 	})
-	for _, field := range []string{"default_channel", "port"} {
-		t.Run("Should reject removed network field "+field, func(t *testing.T) {
-			t.Parallel()
-
-			service := &stubSettingsService{}
-			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-			body := fmt.Appendf(nil, `{"config":{%q:"removed"}}`, field)
-
-			resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/network", body)
-			if got, want := resp.Code, http.StatusBadRequest; got != want {
-				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-			}
-			if service.UpdateSectionCalls != 0 {
-				t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-			}
-			var payload contract.ErrorPayload
-			decodeJSON(t, resp.Body.Bytes(), &payload)
-			if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
-				t.Fatalf("payload.Error = %q, want unknown_field naming %q", payload.Error, field)
-			}
-		})
-	}
 
 	t.Run("Should reject removed memory signal metrics field", func(t *testing.T) {
 		t.Parallel()
@@ -2806,7 +2733,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			name: "Should forward a profile-scoped persona request",
 			path: "/api/settings/persona?scope=profile&profile=marketing",
 			body: contract.UpdateSettingsPersonaRequest{Config: contract.SettingsDefaultsPayload{
-				Agent: "coder", Provider: "openai", Sandbox: "local",
+				Agent: "coder", Provider: "openai",
 			}},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
@@ -2878,43 +2805,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "network",
-			path: "/api/settings/network",
-			body: contract.UpdateSettingsNetworkRequest{
-				Config: contract.SettingsNetworkConfigPayload{
-					Enabled:      true,
-					MaxReplayAge: 10,
-					Live: contract.SettingsNetworkLiveConfigPayload{
-						Defaults: contract.SettingsNetworkLiveDefaultsPayload{
-							MaxWakes:         8,
-							MaxWakeWallTime:  "5m",
-							MaxTotalWallTime: "30m",
-							MaxInputTokens:   200_000,
-							MaxOutputTokens:  50_000,
-							MaxWakeDepth:     3,
-							CoalesceWindow:   "500ms",
-						},
-						Limits: contract.SettingsNetworkLiveLimitsPayload{
-							MaxWakes:          64,
-							MaxWakeWallTime:   "15m",
-							MaxTotalWallTime:  "2h",
-							MaxInputTokens:    1_000_000,
-							MaxOutputTokens:   200_000,
-							MaxWakeDepth:      5,
-							MinCoalesceWindow: "100ms",
-							MaxCoalesceWindow: "5s",
-						},
-					},
-				},
-			},
-			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
-				t.Helper()
-				if req.Network == nil || req.Network.MaxReplayAge != 10 {
-					t.Fatalf("req.Network = %#v, want populated network config", req.Network)
-				}
-			},
-		},
+
 		{
 			name: "Should delegate window-manager config",
 			path: "/api/settings/window-manager",
@@ -3387,25 +3278,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:   "get sandbox",
-			method: http.MethodGet,
-			path:   "/api/settings/sandboxes/local",
-			assert: func(t *testing.T, service *stubSettingsService) {
-				t.Helper()
-				if service.LastListCollectionRequest.Collection != settingspkg.CollectionSandboxes {
-					t.Fatalf("Collection = %q, want sandboxes", service.LastListCollectionRequest.Collection)
-				}
-			},
-			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				t.Helper()
-				var payload contract.SettingsSandboxResponse
-				testutil.DecodeJSONResponse(t, resp, &payload)
-				if payload.Sandbox.Name != "local" || payload.Sandbox.Profile.Backend != "local" {
-					t.Fatalf("sandbox payload = %#v, want local sandbox profile", payload)
-				}
-			},
-		},
+
 		{
 			name:   "list hooks",
 			method: http.MethodGet,
@@ -3516,27 +3389,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assertResponse: assertAppliedSettingsMutation,
 		},
-		{
-			name:   "put sandbox",
-			method: http.MethodPut,
-			path:   "/api/settings/sandboxes/local",
-			body: contract.PutSettingsSandboxRequest{
-				Profile: contract.SettingsSandboxProfilePayload{
-					Backend:     "local",
-					SyncMode:    "session-bidirectional",
-					Persistence: "reuse",
-					RuntimeRoot: "/workspace",
-				},
-			},
-			assert: func(t *testing.T, service *stubSettingsService) {
-				t.Helper()
-				if service.LastPutCollectionRequest.Sandbox == nil ||
-					service.LastPutCollectionRequest.Sandbox.Backend != "local" {
-					t.Fatalf("LastPutCollectionRequest.Sandbox = %#v", service.LastPutCollectionRequest.Sandbox)
-				}
-			},
-			assertResponse: assertAppliedSettingsMutation,
-		},
+
 		{
 			name:   "put hook",
 			method: http.MethodPut,
@@ -3631,22 +3484,6 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetWorkspaceMCPSidecar,
-								},
-							},
-						}}
-					case settingspkg.CollectionSandboxes:
-						envelope.Sandboxes = []settingspkg.SandboxItem{{
-							Name: "local",
-							Profile: compozyconfig.SandboxProfile{
-								Backend: "local",
-							},
-							SourceMetadata: settingspkg.SourceMetadata{
-								EffectiveSource: settingspkg.SourceRef{
-									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeUser,
-								},
-								AvailableTargets: []settingspkg.WriteTargetKind{
-									settingspkg.WriteTargetGlobalConfig,
 								},
 							},
 						}}
@@ -3796,13 +3633,7 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 			body:   []byte(`{}`),
 			want:   "mcp-servers.server is required",
 		},
-		{
-			name:   "sandbox missing profile",
-			method: http.MethodPut,
-			path:   "/api/settings/sandboxes/local",
-			body:   []byte(`{}`),
-			want:   "sandboxes.profile is required",
-		},
+
 		{
 			name:   "hook missing declaration",
 			method: http.MethodPut,
@@ -3981,12 +3812,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 						DefaultFireLimit:  automationmodel.FireLimitConfig{Max: 1, Window: "1m"},
 					},
 				}
-			case settingspkg.SectionNetwork:
-				envelope.Network = &settingspkg.NetworkSection{
-					Config: compozyconfig.NetworkConfig{
-						Enabled: true,
-					},
-				}
 			case settingspkg.SectionHooksExtensions:
 				envelope.HooksExtensions = &settingspkg.HooksExtensionsSection{
 					Extensions: compozyconfig.ExtensionsConfig{
@@ -4004,34 +3829,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			}
 			return envelope, nil
 		},
-		ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-			envelope := settingspkg.CollectionEnvelope{
-				Collection:      req.Collection,
-				Scope:           req.Scope,
-				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			}
-			switch req.Collection {
-			case settingspkg.CollectionSandboxes:
-				envelope.Sandboxes = []settingspkg.SandboxItem{{
-					Name: "local",
-					Profile: compozyconfig.SandboxProfile{
-						Backend: "local",
-					},
-					SourceMetadata: settingspkg.SourceMetadata{
-						EffectiveSource: settingspkg.SourceRef{
-							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeUser,
-						},
-						AvailableTargets: []settingspkg.WriteTargetKind{
-							settingspkg.WriteTargetGlobalConfig,
-						},
-					},
-				}}
-			default:
-				return settingspkg.CollectionEnvelope{}, errors.New("unexpected collection")
-			}
-			return envelope, nil
+		ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+			return settingspkg.CollectionEnvelope{}, errors.New("unexpected collection")
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
@@ -4042,6 +3841,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			}, nil
 		},
 	}
+
 	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 
 	for _, path := range []string{
@@ -4049,9 +3849,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		"/api/settings/roles",
 		"/api/settings/skills",
 		"/api/settings/automation",
-		"/api/settings/network",
 		"/api/settings/hooks-extensions",
-		"/api/settings/sandboxes",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
 		if got, want := resp.Code, http.StatusOK; got != want {
@@ -4071,7 +3869,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 
 	for _, path := range []string{
 		"/api/settings/providers/openai",
-		"/api/settings/sandboxes/local",
 		"/api/settings/hooks/capture",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodDelete, path, nil)

@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 // TestCensusUpdate folds gotestsum JSON files (`--jsonfile`, one test2json
 // event per line) from jsonDir into the committed shard census. Values observed
 // in the input replace existing entries; entries not observed keep their
-// record, and the defaults become the medians of the merged maps.
+// record while their source exists, and defaults become the medians of the merged maps.
 func TestCensusUpdate(jsonDir string) error {
 	census, err := loadGoTestCensus(goTestCensusPath)
 	if err != nil {
@@ -40,6 +41,9 @@ func TestCensusUpdate(jsonDir string) error {
 		}
 	}
 	observed.applyTo(census)
+	if err := census.pruneMissingSource("."); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(census, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode go test census: %w", err)
@@ -153,4 +157,44 @@ func censusMedian(values map[string]float64, fallback float64) float64 {
 
 func roundCensusSeconds(seconds float64) float64 {
 	return math.Round(seconds*100) / 100
+}
+
+// pruneMissingSource checks source files across build tags so platform-specific
+// packages retain their measured weights when the updater runs on another OS.
+func (c *goTestCensus) pruneMissingSource(root string) error {
+	for packagePath := range c.Packages {
+		relative, local := strings.CutPrefix(packagePath, compozyModulePath)
+		if !local {
+			continue
+		}
+		files, err := filepath.Glob(filepath.Join(root, relative, "*.go"))
+		if err != nil {
+			return fmt.Errorf("find census package sources %q: %w", packagePath, err)
+		}
+		if len(files) == 0 {
+			delete(c.Packages, packagePath)
+		}
+	}
+	splitDir := strings.TrimPrefix(goSplitTestPackage, compozyModulePath)
+	files, err := filepath.Glob(filepath.Join(root, splitDir, "*_test.go"))
+	if err != nil {
+		return fmt.Errorf("find census split-test sources: %w", err)
+	}
+	tests := make(map[string]struct{})
+	for _, file := range files {
+		names, err := topLevelTestsInFile(file)
+		if err != nil {
+			return err
+		}
+		for _, name := range names {
+			tests[name] = struct{}{}
+		}
+	}
+	maps.DeleteFunc(c.SplitTests, func(name string, _ float64) bool {
+		_, exists := tests[name]
+		return !exists
+	})
+	c.DefaultPackageSeconds = censusMedian(c.Packages, c.DefaultPackageSeconds)
+	c.DefaultSplitTestSeconds = censusMedian(c.SplitTests, c.DefaultSplitTestSeconds)
+	return nil
 }

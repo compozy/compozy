@@ -130,10 +130,6 @@ timeout = "5s"
 [hooks.declarations.executor]
 command = "/bin/global"
 
-[network]
-enabled = true
-max_replay_age = 600
-
 [memory]
 enabled = true
 [memory.dream]
@@ -171,8 +167,6 @@ mode = "sync"
 [hooks.declarations.executor]
 command = "/bin/workspace"
 
-[network]
-max_replay_age = 900
 [memory.dream]
 min_sessions = 6
 [skills]
@@ -201,8 +195,8 @@ max_children = 2
 	if err != nil {
 		t.Fatalf("HookDeclarations() error = %v", err)
 	}
-	if len(decls) != 2 || !cfg.Network.Enabled || cfg.Network.MaxReplayAge != 900 {
-		t.Fatalf("Load() hooks/network = %d/%#v, want two hooks and layered network", len(decls), cfg.Network)
+	if len(decls) != 2 {
+		t.Fatalf("HookDeclarations() count = %d, want 2", len(decls))
 	}
 	if cfg.Memory.Dream.MinHours != 36 || cfg.Memory.Dream.MinSessions != 6 {
 		t.Fatalf("Load() Memory.Dream = %#v, want layered dream policy", cfg.Memory.Dream)

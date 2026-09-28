@@ -2,10 +2,8 @@ package cli
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -67,7 +65,6 @@ func newTaskExecutionCommand(
 		},
 	}
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional idempotency key")
-	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional run metadata JSON")
 	return cmd
 }
@@ -76,13 +73,8 @@ func buildTaskExecutionRequest(
 	cmd *cobra.Command,
 	input taskExecutionInput,
 ) (TaskExecutionRequest, error) {
-	participationRequest, err := input.NetworkFlags.request()
-	if err != nil {
-		return TaskExecutionRequest{}, err
-	}
 	request := TaskExecutionRequest{
-		IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
-		NetworkParticipation: participationRequest,
+		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
 	}
 	if cmd.Flags().Changed("metadata") {
 		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
@@ -138,7 +130,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 		reason      string
 		metadataRaw string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "cancel <id>",
 		Short: "Cancel a task tree",
@@ -148,7 +139,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := CancelTaskRequest{Reason: strings.TrimSpace(reason)}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
@@ -156,7 +146,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			canceled, err := client.CancelTask(cmd.Context(), args[0], request)
 			if err != nil {
 				return err

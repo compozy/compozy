@@ -225,68 +225,6 @@ func taskExecutionProfilePath(id string) string {
 	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/execution-profile"
 }
 
-func (c *daemonClient) CreateTaskBridgeNotificationSubscription(
-	ctx context.Context,
-	taskID string,
-	request *TaskBridgeNotificationSubscriptionRequest,
-) (TaskBridgeNotificationSubscriptionRecord, error) {
-	if request == nil {
-		return TaskBridgeNotificationSubscriptionRecord{}, errors.New(
-			"cli: task bridge notification subscription request is required",
-		)
-	}
-	var response contract.TaskBridgeNotificationSubscriptionResponse
-	path := taskBridgeNotificationSubscriptionsPath(taskID)
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
-		return TaskBridgeNotificationSubscriptionRecord{}, err
-	}
-	return response.Subscription, nil
-}
-
-func (c *daemonClient) ListTaskBridgeNotificationSubscriptions(
-	ctx context.Context,
-	taskID string,
-	query TaskBridgeNotificationSubscriptionQuery,
-) ([]TaskBridgeNotificationSubscriptionRecord, error) {
-	var response contract.TaskBridgeNotificationSubscriptionsResponse
-	path := taskBridgeNotificationSubscriptionsPath(taskID)
-	values := taskBridgeNotificationSubscriptionValues(query)
-	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Subscriptions, nil
-}
-
-func (c *daemonClient) GetTaskBridgeNotificationSubscription(
-	ctx context.Context,
-	taskID string,
-	subscriptionID string,
-) (TaskBridgeNotificationSubscriptionRecord, error) {
-	var response contract.TaskBridgeNotificationSubscriptionResponse
-	path := taskBridgeNotificationSubscriptionPath(taskID, subscriptionID)
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
-		return TaskBridgeNotificationSubscriptionRecord{}, err
-	}
-	return response.Subscription, nil
-}
-
-func (c *daemonClient) DeleteTaskBridgeNotificationSubscription(
-	ctx context.Context,
-	taskID string,
-	subscriptionID string,
-) error {
-	path := taskBridgeNotificationSubscriptionPath(taskID, subscriptionID)
-	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
-}
-
-func taskBridgeNotificationSubscriptionsPath(taskID string) string {
-	return "/api/tasks/" + url.PathEscape(taskID) + "/notifications/bridges"
-}
-
-func taskBridgeNotificationSubscriptionPath(taskID string, subscriptionID string) string {
-	return taskBridgeNotificationSubscriptionsPath(taskID) + "/" + url.PathEscape(subscriptionID)
-}
-
 func (c *daemonClient) RequestTaskRunReview(
 	ctx context.Context,
 	runID string,

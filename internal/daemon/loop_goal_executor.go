@@ -146,7 +146,6 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 			Text:       req.Result.Text,
 			Structured: append([]byte(nil), req.Result.Structured...),
 		},
-		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 	})
 	if err != nil {
 		return goalpkg.JudgeResult{}, err

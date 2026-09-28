@@ -23,16 +23,6 @@ type Story = StoryObj<typeof meta>;
 const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
 const SIZES: PillSize[] = ["xs", "sm", "md"];
 
-const KIND_DOT_COLORS: Record<string, string> = {
-  say: "var(--color-kind-say)",
-  greet: "var(--color-kind-greet)",
-  direct: "var(--color-kind-direct)",
-  receipt: "var(--color-kind-receipt)",
-  capability: "var(--color-kind-capability)",
-  trace: "var(--color-kind-trace)",
-  whois: "var(--color-kind-whois)",
-};
-
 export const Default: Story = {
   args: { children: "label" },
 };
@@ -51,7 +41,7 @@ export const SansAndMono: Story = {
       <Pill tone="success">Completed</Pill>
       <Pill tone="info">Running</Pill>
       <Pill mono tone="neutral">
-        compozy-network/v0
+        task-102
       </Pill>
     </div>
   ),
@@ -174,7 +164,7 @@ export const TonesBySizeMatrix: Story = {
 
 export const MonoIdentifier: Story = {
   args: {},
-  render: () => <Pill mono>compozy-network/v0</Pill>,
+  render: () => <Pill mono>task-102</Pill>,
   parameters: {
     docs: {
       description: {
@@ -205,27 +195,6 @@ export const WithDot: Story = {
   ),
 };
 
-export const KindChipReplacement: Story = {
-  args: {},
-  render: () => (
-    <div className="flex flex-wrap items-center gap-2">
-      {Object.keys(KIND_DOT_COLORS).map(kind => (
-        <Pill key={kind} mono size="sm" tone="neutral">
-          <Pill.Dot color={KIND_DOT_COLORS[kind]} size="sm" />
-          {kind}
-        </Pill>
-      ))}
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: "Protocol kind markers, leading dot keyed off the kind, label preserved.",
-      },
-    },
-  },
-};
-
 export const ToggleInteractive: Story = {
   args: {},
   render: () => (
@@ -234,18 +203,17 @@ export const ToggleInteractive: Story = {
         all
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        say
+        running
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        direct
+        completed
       </Pill>
     </div>
   ),
   parameters: {
     docs: {
       description: {
-        story:
-          "Pass `render={<button />}` and `active` to render a stand-alone toggle chip (replaces `WireChip`).",
+        story: "Pass `render={<button />}` and `active` to render a stand-alone toggle chip.",
       },
     },
   },

@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -702,75 +701,6 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 	})
 }
 
-func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
-	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
-		t.Parallel()
-
-		mode := participation.ModeLive
-		strategy := participation.StrategyNamed
-		channelID := "release-room"
-		definition := dsl.Definition{
-			APIVersion: dsl.APIVersion,
-			Kind:       dsl.KindLoop,
-			Meta:       dsl.Meta{Name: "network-contract"},
-			DefinitionExtensionState: &dsl.DefinitionExtensionState{
-				NetworkParticipation: &participation.Request{
-					Mode:            &mode,
-					ChannelStrategy: &strategy,
-					ChannelID:       &channelID,
-				},
-			},
-		}
-
-		document, err := contract.NewLoopDefinitionDocument(definition)
-		if err != nil {
-			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
-		}
-		if document.NetworkParticipation == nil {
-			t.Fatal("document.NetworkParticipation = nil, want authored Live request")
-		}
-		if document.NetworkParticipation.Mode == nil || *document.NetworkParticipation.Mode != mode {
-			t.Fatalf("document.NetworkParticipation.Mode = %v, want %q", document.NetworkParticipation.Mode, mode)
-		}
-		if document.NetworkParticipation.ChannelStrategy == nil ||
-			*document.NetworkParticipation.ChannelStrategy != strategy {
-			t.Fatalf(
-				"document.NetworkParticipation.ChannelStrategy = %v, want %q",
-				document.NetworkParticipation.ChannelStrategy,
-				strategy,
-			)
-		}
-		if document.NetworkParticipation.ChannelID == nil || *document.NetworkParticipation.ChannelID != channelID {
-			t.Fatalf(
-				"document.NetworkParticipation.ChannelID = %v, want %q",
-				document.NetworkParticipation.ChannelID,
-				channelID,
-			)
-		}
-
-		var decoded dsl.Definition
-		if err := document.Decode(&decoded); err != nil {
-			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
-		}
-		if decoded.NetworkParticipation == nil || decoded.NetworkParticipation.ChannelID == nil ||
-			*decoded.NetworkParticipation.ChannelID != channelID {
-			t.Fatalf("decoded.NetworkParticipation = %#v, want channel %q", decoded.NetworkParticipation, channelID)
-		}
-
-		encoded, err := json.Marshal(document)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		var publicShape map[string]json.RawMessage
-		if err := json.Unmarshal(encoded, &publicShape); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if _, ok := publicShape["network_participation"]; !ok {
-			t.Fatalf("encoded document keys = %v, want network_participation", publicShape)
-		}
-	})
-}
-
 func TestLoopDefinitionDocumentPreservesGraphAuthoring(t *testing.T) {
 	t.Run("Should preserve every authored graph value across the public document boundary", func(t *testing.T) {
 		t.Parallel()
@@ -901,13 +831,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SpawnBudget:      store.SessionSpawnBudget{TTLSeconds: 3600},
 				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
 			},
-			Sandbox: &store.SessionSandboxMeta{
-				SandboxID:  "env-json",
-				Backend:    "local",
-				Profile:    "local",
-				State:      "prepared",
-				InstanceID: "instance-json",
-			},
+
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			ACPCapsKnown: true,
@@ -1011,15 +935,6 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if firstValue["value"] != "gpt-test" || firstValue["label"] != "GPT Test" {
 			t.Fatalf("config option value JSON = %#v", firstValue)
 		}
-		sandboxPayload, ok := got["sandbox"].(map[string]any)
-		if !ok {
-			t.Fatalf("sandbox type = %T, want object", got["sandbox"])
-		}
-		if sandboxPayload["sandbox_id"] != "env-json" ||
-			sandboxPayload["backend"] != "local" ||
-			sandboxPayload["instance_id"] != "instance-json" {
-			t.Fatalf("sandbox JSON = %#v", sandboxPayload)
-		}
 	})
 }
 
@@ -1060,96 +975,6 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 			got := contract.ACPCapsPayloadFromACP(test.caps, test.known)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("ACPCapsPayloadFromACP() = %#v, want %#v", got, test.want)
-			}
-		})
-	}
-}
-
-func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		raw  string
-		want string
-	}{
-		{
-			name: "Should reject unknown fields",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"legacy":true,
-				"body":{"text":"hello"}
-			}`,
-			want: "unknown field",
-		},
-		{
-			name: "Should reject interaction id",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"interaction_id":"legacy",
-				"body":{"text":"hello"}
-			}`,
-			want: "interaction_id",
-		},
-		{
-			name: "Should reject direct kind",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"direct",
-				"direct_id":"direct_99401d24bee62651d189e5a561785466",
-				"kind":"direct",
-				"body":{"text":"hello"}
-			}`,
-			want: "kind direct",
-		},
-		{
-			name: "Should reject caller supplied verified-format identity",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"from":"alice@39f713d0a644253f04529421b9f51b9b",
-				"body":{"text":"hello"}
-			}`,
-			want: "sender identity and proof are daemon-derived",
-		},
-		{
-			name: "Should reject caller supplied proof",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"proof":{"profile":"compozy-network.trust.ed25519-jcs/v1"},
-				"body":{"text":"hello"}
-			}`,
-			want: "sender identity and proof are daemon-derived",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var req contract.NetworkSendRequest
-			err := json.Unmarshal([]byte(tt.raw), &req)
-			if err == nil {
-				t.Fatalf("json.Unmarshal() error = nil, want rejection containing %q", tt.want)
-			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("json.Unmarshal() error = %v, want %q", err, tt.want)
 			}
 		})
 	}
@@ -1584,47 +1409,6 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 	})
 }
 
-func TestWorkspaceSandboxRefJSONFields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize create workspace sandbox_ref", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.CreateWorkspaceRequest{
-			RootDir:    "/workspace",
-			SandboxRef: "daytona-dev",
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-
-		if got["sandbox_ref"] != "daytona-dev" {
-			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
-		}
-	})
-
-	t.Run("Should include workspace payload sandbox_ref", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.WorkspacePayload{
-			ID:         "ws_alpha",
-			RootDir:    "/workspace",
-			AddDirs:    []string{},
-			Name:       "alpha",
-			SandboxRef: "daytona-dev",
-			CreatedAt:  time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-			UpdatedAt:  time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-
-		if got["sandbox_ref"] != "daytona-dev" {
-			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
-		}
-	})
-}
-
 func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
 
@@ -1684,9 +1468,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
-		liveMode := participation.ModeLive
-		namedStrategy := participation.StrategyNamed
-		channelID := "ops-automation"
 		payload := contract.JobPayload{
 			ID:          "job-1",
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -1705,11 +1486,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "rule:nightly-review",
-				},
-				NetworkParticipation: &participation.Request{
-					Mode:            &liveMode,
-					ChannelStrategy: &namedStrategy,
-					ChannelID:       &channelID,
 				},
 			},
 			Enabled: true,
@@ -1749,16 +1525,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		taskValue, ok := got["task"].(map[string]any)
 		if !ok || taskValue["title"] != "Review findings" {
 			t.Fatalf("task = %#v, want populated task config", got["task"])
-		}
-		participationValue, ok := taskValue["network_participation"].(map[string]any)
-		if !ok ||
-			participationValue["mode"] != string(participation.ModeLive) ||
-			participationValue["channel_strategy"] != string(participation.StrategyNamed) ||
-			participationValue["channel_id"] != channelID {
-			t.Fatalf("task.network_participation = %#v, want live named channel %q", participationValue, channelID)
-		}
-		if _, exists := taskValue["network_channel"]; exists {
-			t.Fatalf("task contains removed network_channel: %#v", taskValue)
 		}
 		if _, exists := got["next_run"]; !exists {
 			t.Fatalf("job payload missing next_run: %#v", got)
@@ -2031,12 +1797,7 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 			Scope:        taskpkg.ScopeWorkspace,
 			WorkspaceID:  "ws-alpha",
 			ParentTaskID: "task-root",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "builders",
-				Source:    participation.SourceExplicitRequest,
-			},
+
 			Title:       "Review task",
 			Description: "Check the API layer",
 			Status:      taskpkg.TaskStatusInProgress,
@@ -2051,7 +1812,7 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["workspace_id"] != "ws-alpha" || resolvedChannelFromJSON(got) != "builders" {
+		if got["workspace_id"] != "ws-alpha" {
 			t.Fatalf("task JSON = %#v", got)
 		}
 		createdBy, ok := got["created_by"].(map[string]any)
@@ -2112,12 +1873,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 			ResolvedWorktreeMode: contract.ResolvedWorktreeModePerRun,
 			Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			IdempotencyKey:       "key-1",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "builders",
-				Source:    participation.SourceExplicitRequest,
-			},
+
 			QueuedAt:  time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
 			StartedAt: &startedAt,
 			Result:    json.RawMessage(`{"ok":true}`),
@@ -2132,7 +1888,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 		if got["worktree_id"] != "wt-run-1" || got["resolved_worktree_mode"] != "per_run" {
 			t.Fatalf("task run worktree JSON = %#v", got)
 		}
-		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
+		if got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)
 		}
 	})
@@ -2164,7 +1920,6 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 	t.Parallel()
 
 	title := "updated"
-	channel := "builders"
 	owner := &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"}
 	metadata := json.RawMessage(`{"priority":"high"}`)
 
@@ -2175,15 +1930,7 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 	}{
 		{name: "Should return false when no task changes are set", req: contract.UpdateTaskRequest{}, want: false},
 		{name: "Should return true when title is set", req: contract.UpdateTaskRequest{Title: &title}, want: true},
-		{
-			name: "Should return true when network participation is set",
-			req: contract.UpdateTaskRequest{
-				NetworkParticipation: &participation.Request{
-					ChannelID: &channel,
-				},
-			},
-			want: true,
-		},
+
 		{name: "Should return true when owner is set", req: contract.UpdateTaskRequest{Owner: owner}, want: true},
 		{
 			name: "Should return true when metadata is set",
@@ -2206,128 +1953,6 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestNetworkPeerPayloadJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize peer-card capabilities as typed brief objects", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.NetworkPeerPayload{
-			PeerID:        "reviewer.sess-a",
-			DisplayName:   "Reviewer",
-			Channel:       "builders",
-			Local:         true,
-			PresenceState: contract.NetworkPresenceLocal,
-			PeerCard: contract.NetworkPeerCardPayload{
-				PeerID: "reviewer.sess-a",
-				Capabilities: []contract.NetworkCapabilityBriefPayload{{
-					ID:      "review-pr",
-					Summary: "Review pull requests",
-				}},
-				ProfilesSupported:   []string{"compozy-network/v0"},
-				ArtifactsSupported:  []string{"capability"},
-				TrustModesSupported: []string{"untrusted"},
-				Ext: map[string]json.RawMessage{
-					"compozy.workflow_id": json.RawMessage(`"wf-1"`),
-				},
-			},
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceLocal {
-			t.Fatalf("presence_state = %#v, want local", got["presence_state"])
-		}
-
-		peerCard, ok := got["peer_card"].(map[string]any)
-		if !ok {
-			t.Fatalf("peer_card type = %T, want object", got["peer_card"])
-		}
-		capabilities, ok := peerCard["capabilities"].([]any)
-		if !ok || len(capabilities) != 1 {
-			t.Fatalf("peer_card.capabilities = %#v, want one object entry", peerCard["capabilities"])
-		}
-		firstCapability, ok := capabilities[0].(map[string]any)
-		if !ok {
-			t.Fatalf("capability entry type = %T, want object", capabilities[0])
-		}
-		if firstCapability["id"] != "review-pr" || firstCapability["summary"] != "Review pull requests" {
-			t.Fatalf("capability brief JSON = %#v", firstCapability)
-		}
-		if _, isString := capabilities[0].(string); isString {
-			t.Fatalf("capability brief JSON should be object, got string: %#v", capabilities[0])
-		}
-	})
-}
-
-func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize rich capability catalogs as structured payloads", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.NetworkPeerDetailPayload{
-			PeerID:        "reviewer.sess-a",
-			DisplayName:   "Reviewer",
-			Channel:       "builders",
-			Local:         true,
-			PresenceState: contract.NetworkPresenceLocal,
-			PeerCard: contract.NetworkPeerCardPayload{
-				PeerID: "reviewer.sess-a",
-				Capabilities: []contract.NetworkCapabilityBriefPayload{{
-					ID:      "review-pr",
-					Summary: "Review pull requests",
-				}},
-				ProfilesSupported:   []string{"compozy-network/v0"},
-				ArtifactsSupported:  []string{"capability"},
-				TrustModesSupported: []string{"untrusted"},
-			},
-			CapabilityCatalog: &contract.NetworkCapabilityCatalogPayload{
-				Capabilities: []contract.NetworkCapabilityPayload{{
-					ID:                "review-pr",
-					Summary:           "Review pull requests",
-					Outcome:           "Actionable review findings",
-					Version:           "1.0.0",
-					Digest:            "sha256:review-pr-v1",
-					ContextNeeded:     []string{"pull request link"},
-					ArtifactsExpected: []string{"review summary"},
-					Requirements:      []string{"workspace-read"},
-				}},
-			},
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceLocal {
-			t.Fatalf("detail presence_state = %#v, want local", got["presence_state"])
-		}
-		if _, exists := got["last_seen_age_seconds"]; exists {
-			t.Fatalf("detail should omit local last_seen_age_seconds: %#v", got)
-		}
-
-		catalog, ok := got["capability_catalog"].(map[string]any)
-		if !ok {
-			t.Fatalf("capability_catalog type = %T, want object", got["capability_catalog"])
-		}
-		capabilities, ok := catalog["capabilities"].([]any)
-		if !ok || len(capabilities) != 1 {
-			t.Fatalf("capability_catalog.capabilities = %#v, want one object entry", catalog["capabilities"])
-		}
-		firstCapability, ok := capabilities[0].(map[string]any)
-		if !ok {
-			t.Fatalf("rich capability entry type = %T, want object", capabilities[0])
-		}
-		if firstCapability["digest"] != "sha256:review-pr-v1" ||
-			firstCapability["outcome"] != "Actionable review findings" {
-			t.Fatalf("rich capability JSON = %#v", firstCapability)
-		}
-		requirements, ok := firstCapability["requirements"].([]any)
-		if !ok || len(requirements) != 1 || requirements[0] != "workspace-read" {
-			t.Fatalf("requirements JSON = %#v, want workspace-read", firstCapability["requirements"])
-		}
-	})
 }
 
 func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testing.T) {

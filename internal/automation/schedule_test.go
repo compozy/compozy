@@ -301,7 +301,6 @@ func TestSchedulerAdvancesDurableCursorBeforeDispatch(t *testing.T) {
 			if state.NextRunAt == nil || !state.NextRunAt.After(*req.ReservedRun.ScheduledAt) {
 				t.Fatalf("durable cursor was not advanced before dispatch: state=%#v run=%#v", state, req.ReservedRun)
 			}
-			assertNamedParticipation(t, req.ReservedRun.NetworkParticipation, "scheduled-task")
 		}
 		scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
 
@@ -310,8 +309,7 @@ func TestSchedulerAdvancesDurableCursorBeforeDispatch(t *testing.T) {
 		job.AgentName = ""
 		job.Prompt = ""
 		job.Task = &JobTaskConfig{
-			Title:                "Run scheduled task",
-			NetworkParticipation: testNamedParticipation("scheduled-task"),
+			Title: "Run scheduled task",
 		}
 		if _, err := scheduler.Register(context.Background(), job); err != nil {
 			t.Fatalf("Register() error = %v", err)
@@ -1441,14 +1439,13 @@ func (s *memorySchedulerStore) ClaimScheduledRun(
 	}
 	next.UpdatedAt = claim.ClaimedAt
 	run := Run{
-		ID:                   claim.RunID,
-		JobID:                claim.JobID,
-		FireID:               claim.FireID,
-		Status:               RunScheduled,
-		Attempt:              1,
-		ScheduledAt:          timePointer(claim.ScheduledAt),
-		StartedAt:            timePointer(claim.ClaimedAt),
-		NetworkParticipation: cloneParticipationRequest(claim.NetworkParticipation),
+		ID:          claim.RunID,
+		JobID:       claim.JobID,
+		FireID:      claim.FireID,
+		Status:      RunScheduled,
+		Attempt:     1,
+		ScheduledAt: timePointer(claim.ScheduledAt),
+		StartedAt:   timePointer(claim.ClaimedAt),
 	}
 	if skipped {
 		run.Status = RunCancelled

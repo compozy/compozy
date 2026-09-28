@@ -96,11 +96,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	job, err := jobFromCreateRequest(req)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
-		return
-	}
+	job := jobFromCreateRequest(req)
 	job.ProfileID = mutationScope.ProfileID
 	if err := job.Validate("job"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))

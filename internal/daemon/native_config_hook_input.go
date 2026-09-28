@@ -173,11 +173,7 @@ func (i hookMutationInput) apply(decl hookspkg.HookDecl) (hookspkg.HookDecl, err
 }
 
 func hookMatcherHasUnsupportedConfigFields(matcher hookspkg.HookMatcher) bool {
-	return strings.TrimSpace(matcher.SandboxID) != "" ||
-		strings.TrimSpace(matcher.SandboxBackend) != "" ||
-		strings.TrimSpace(matcher.SandboxProfile) != "" ||
-		strings.TrimSpace(matcher.SyncDirection) != "" ||
-		matcher.Autonomy != nil
+	return matcher.Autonomy != nil
 }
 
 type hookNameMutationInput struct {

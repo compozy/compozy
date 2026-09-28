@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
 )
@@ -68,74 +67,6 @@ func TestCodecShouldRoundTripStrategyThresholds(t *testing.T) {
 				t.Fatalf("yaml.Unmarshal(%q) error = nil, want rejection", authored)
 			}
 		})
-	}
-}
-
-func TestCodecShouldRoundTripNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	body := minimalDefinition(`network_participation:
-  mode: live
-  channel_strategy: named
-  channel_id: builders
-  bounds:
-    max_wakes: 3
-    max_wake_wall_time: 30s
-    max_total_wall_time: 2m
-    max_input_tokens: 4096
-    max_output_tokens: 2048
-    max_wake_depth: 2
-    coalesce_window: 250ms
-contract:
-  goal: Ship safely
-  definition_of_done: Tests pass
-  verification: []
-  terminal_states: [done, failed]
-  iteration_cap: 3
-  no_progress: { window: 2 }
-  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
-`)
-
-	definition, err := dsl.Parse([]byte(body))
-	if err != nil {
-		t.Fatalf("Parse(network participation) error = %v", err)
-	}
-	want := testNetworkParticipationRequest()
-	if !reflect.DeepEqual(definition.NetworkParticipation, want) {
-		t.Fatalf("NetworkParticipation = %#v, want %#v", definition.NetworkParticipation, want)
-	}
-
-	serialized, err := dsl.Serialize(definition)
-	if err != nil {
-		t.Fatalf("Serialize(network participation) error = %v", err)
-	}
-	serializedText := string(serialized)
-	for _, field := range []string{
-		"network_participation:",
-		"channel_strategy: named",
-		"channel_id: builders",
-		"max_wakes: 3",
-		"max_wake_wall_time: 30s",
-		"max_total_wall_time: 2m",
-		"max_input_tokens: 4096",
-		"max_output_tokens: 2048",
-		"max_wake_depth: 2",
-		"coalesce_window: 250ms",
-	} {
-		if !strings.Contains(serializedText, field) {
-			t.Fatalf("serialized Network participation missing %q:\n%s", field, serializedText)
-		}
-	}
-	if strings.Contains(serializedText, "channelstrategy") || strings.Contains(serializedText, "maxwakes") {
-		t.Fatalf("serialized Network participation contains non-contract field names:\n%s", serializedText)
-	}
-
-	reparsed, err := dsl.Parse(serialized)
-	if err != nil {
-		t.Fatalf("Parse(serialized network participation) error = %v", err)
-	}
-	if !reflect.DeepEqual(reparsed.NetworkParticipation, want) {
-		t.Fatalf("round-trip NetworkParticipation = %#v, want %#v", reparsed.NetworkParticipation, want)
 	}
 }
 
@@ -302,33 +233,6 @@ graph:
 	gateRoute, ok := reparsed.Graph.Nodes[1].OnResult["fail"].(map[string]any)
 	if !ok || gateRoute["route"] != "review" {
 		t.Fatalf("round-trip gate route = %#v", reparsed.Graph.Nodes[1].OnResult["fail"])
-	}
-}
-
-func testNetworkParticipationRequest() *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	channelID := "builders"
-	maxWakes := 3
-	maxWakeWallTime := "30s"
-	maxTotalWallTime := "2m"
-	maxInputTokens := int64(4096)
-	maxOutputTokens := int64(2048)
-	maxWakeDepth := 2
-	coalesceWindow := "250ms"
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channelID,
-		Bounds: &participation.BoundsRequest{
-			MaxWakes:         &maxWakes,
-			MaxWakeWallTime:  &maxWakeWallTime,
-			MaxTotalWallTime: &maxTotalWallTime,
-			MaxInputTokens:   &maxInputTokens,
-			MaxOutputTokens:  &maxOutputTokens,
-			MaxWakeDepth:     &maxWakeDepth,
-			CoalesceWindow:   &coalesceWindow,
-		},
 	}
 }
 

@@ -24,7 +24,6 @@ describe("settings sections metadata", () => {
       "skills",
       "mcp",
       "automation",
-      "network",
       "gateway",
       "attention",
       "observability",

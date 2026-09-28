@@ -68,7 +68,6 @@ const (
 	cliUptimeValue           = "Uptime"
 	completionCommandKey     = "completion"
 	extensionSecretsKey      = "secrets"
-	networkWorkKey           = "work"
 	profileCurrentKey        = "current"
 	profileNameOutputKey     = "profile_name"
 	profileOpsKey            = "ops"
@@ -480,4 +479,11 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func formatTimePtr(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return formatTime(*value)
 }

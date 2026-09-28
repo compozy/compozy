@@ -24,8 +24,7 @@ func (q *Queries) DeleteWorkspaceDeletionIntent(ctx context.Context, workspaceID
 
 const getWorkspaceDeletionIntent = `-- name: GetWorkspaceDeletionIntent :one
 SELECT
-  workspace_id, root_dir, add_dirs, name, default_agent, sandbox_ref,
-  created_at, updated_at, requested_at
+  workspace_id, root_dir, add_dirs, name, default_agent, created_at, updated_at, requested_at
 FROM workspace_deletion_intents
 WHERE workspace_id = ?1
 `
@@ -39,7 +38,6 @@ func (q *Queries) GetWorkspaceDeletionIntent(ctx context.Context, workspaceID st
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
-		&i.SandboxRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RequestedAt,
@@ -49,12 +47,10 @@ func (q *Queries) GetWorkspaceDeletionIntent(ctx context.Context, workspaceID st
 
 const insertWorkspaceDeletionIntent = `-- name: InsertWorkspaceDeletionIntent :execrows
 INSERT INTO workspace_deletion_intents (
-  workspace_id, root_dir, add_dirs, name, default_agent, sandbox_ref,
-  created_at, updated_at, requested_at
+  workspace_id, root_dir, add_dirs, name, default_agent, created_at, updated_at, requested_at
 )
 SELECT
-  id, root_dir, add_dirs, name, default_agent, sandbox_ref,
-  created_at, updated_at, ?1
+  id, root_dir, add_dirs, name, default_agent, created_at, updated_at, ?1
 FROM workspaces
 WHERE id = ?2
 `
@@ -74,8 +70,7 @@ func (q *Queries) InsertWorkspaceDeletionIntent(ctx context.Context, arg InsertW
 
 const listWorkspaceDeletionIntents = `-- name: ListWorkspaceDeletionIntents :many
 SELECT
-  workspace_id, root_dir, add_dirs, name, default_agent, sandbox_ref,
-  created_at, updated_at, requested_at
+  workspace_id, root_dir, add_dirs, name, default_agent, created_at, updated_at, requested_at
 FROM workspace_deletion_intents
 ORDER BY requested_at, workspace_id
 `
@@ -95,7 +90,6 @@ func (q *Queries) ListWorkspaceDeletionIntents(ctx context.Context) ([]Workspace
 			&i.AddDirs,
 			&i.Name,
 			&i.DefaultAgent,
-			&i.SandboxRef,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RequestedAt,

@@ -99,7 +99,7 @@ func (m *Manifest) PlacementMatrix() []ManifestPlacement {
 // DormantPlacements returns name-bound declarations whose profile is absent.
 func (m *Manifest) DormantPlacements(profileNames []string) []ManifestPlacement {
 	known := make(map[string]struct{}, len(profileNames)+1)
-	known[hostAPIBridgesDefaultKey] = struct{}{}
+	known[hostAPIDefaultProfileID] = struct{}{}
 	for _, name := range profileNames {
 		known[strings.TrimSpace(name)] = struct{}{}
 	}

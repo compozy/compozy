@@ -20,11 +20,11 @@ Set the home path used by the commands below:
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 ```
 
-| Path                                            | Purpose                                                                                                                                                                               |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                                           |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
+| Path                                            | Purpose                                                                                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, extensions, tasks, tool process checkpoints, and task projections. |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                             |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                             |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.

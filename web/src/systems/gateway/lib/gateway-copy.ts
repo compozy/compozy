@@ -18,7 +18,7 @@ export const EXPOSURE_ROW_COPY: Record<GatewayExposureRowId, { title: string; ri
   },
   "public-webhook-ingress": {
     title: "Public delivery ingress",
-    risk: "A public address accepts signed webhook and bridge deliveries only. Each delivery still has to pass its own signature and freshness checks.",
+    risk: "A public address accepts signed webhook deliveries only. Each delivery still has to pass its own signature and freshness checks.",
   },
   "public-operator-ui": {
     title: "Public operator access",
@@ -31,7 +31,7 @@ export const EXPOSURE_ROW_COPY: Record<GatewayExposureRowId, { title: string; ri
  * line names something that actually becomes reachable — no summaries.
  */
 export const PUBLIC_OPERATOR_CONSENT_DISCLOSURE: readonly string[] = [
-  "Your public address starts serving the operator UI and the whole management API — sessions, tasks, loops, memory, settings, bridges and extensions.",
+  "Your public address starts serving the operator UI and the whole management API — sessions, tasks, loops, memory, settings and extensions.",
   "Anyone who reaches that address sees the pairing gate. Only a device you paired from the private overlay or this machine gets past it.",
   "Pairing codes are never minted or redeemed on the public address.",
   "Turning this off takes effect immediately, and a restart never turns it back on.",
@@ -48,7 +48,7 @@ export const TIER_LABEL: Record<GatewayTier, string> = {
 
 export const SURFACE_LABEL: Record<GatewaySurface, string> = {
   operator_ui: "Operator UI and management API",
-  webhook_ingress: "Webhook and bridge delivery",
+  webhook_ingress: "Webhook delivery",
 };
 
 /** Status chip tones map to the signal palette: information, never decoration. */

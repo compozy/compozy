@@ -15,19 +15,16 @@ This rewrite anchors every Compozy-side claim on a code reference. Adaptations t
 | Primitive | Where | Notes |
 |---|---|---|
 | Hero hook | `COPY.md § 2 — Positioning Snapshot` | "An open workplace for AI agents." |
-| One-liner | `COPY.md § 2` | "Compozy is a local-first agent operating system: one daemon for durable agent sessions, one control surface for humans and agents, and one open network for agent-to-agent coordination." |
+| One-liner | `COPY.md § 2` | "Compozy is a local-first agent operating system: one daemon for durable agent sessions, one control surface for humans and agents, and shared tools and inspectable local work." |
 | Latest tag | `git tag` | `v0.0.4`, 0 commits since on `main`. |
 | Hosted ACP agents (featured trio) | `packages/site/components/landing/hero.tsx:7` | `["Claude Code", "OpenClaw", "Hermes"]` |
 | Providers wired | `internal/config/provider.go` | claude, anthropic, openrouter, xai (grok), qwen, openai, blackbox, codex, mistral, groq, hermes, openclaw, opencode, gemini |
-| Workspaces | `internal/workspace/workspace.go:36–77` | RootDir, AdditionalDirs, Name, DefaultAgent, SandboxRef; RuntimeResolver with Resolve/ResolveOrRegister |
-| `workspace_id` propagation | `internal/network/envelope.go:200, 260` | Required field on network envelopes; ConversationRef validation enforces it |
+| Workspaces | `internal/workspace/workspace.go:36–77` | RootDir, AdditionalDirs, Name, DefaultAgent; RuntimeResolver with Resolve/ResolveOrRegister |
 | MCP integration | `internal/mcp/hosted.go:29–60+` | `compozy-hosted-tools` session-scoped MCP service, nonce-authed bind, tool invocation via canonical ToolID registry |
 | Autonomy kernel | `internal/task/lease_manager.go:14–53` | `ClaimNextRun` atomic claim with pre/post hooks, lease TTL, `HeartbeatRunLease` |
 | Hook taxonomy | `internal/hooks/events.go:6–143` | 16 families, 60+ events |
-| Peer card | `internal/network/envelope.go:347–355` | PeerID, DisplayName, ProfilesSupported, Capabilities, ArtifactsSupported, TrustModesSupported, Ext |
-| `compozy-network/v0` | `internal/network/envelope.go:12` | 6 message kinds: greet, whois, say, capability, receipt, trace |
 | Skills vs Extensions | `internal/registry/types.go:8–11, 38–46` | PackageType enum: `skill` vs `extension`; bundles not a separate registry type |
-| CLI verbs (real) | `internal/cli/*.go` | agent, workspace, automation, network, catalog, mcp, hooks, bundle, claim/heartbeat/complete, plus more |
+| CLI verbs (real) | `internal/cli/*.go` | agent, workspace, automation, catalog, mcp, hooks, bundle, claim/heartbeat/complete, plus more |
 
 Anything below that cites a primitive not on this table is fabricated. If you spot one, treat it as a bug in this file.
 
@@ -170,23 +167,6 @@ URL: https://x.com/Teknium/status/2059701141483782334
 
 ---
 
-### 8. question — founder ops register
-
-**Source** (@steipete, 2026-05-26 · 339 ❤ · 11 🔁 · ID 2059421603268608302)
-URL: https://x.com/steipete/status/2059421603268608302
-
-> What do people use for SSO/SCIM/Endpoint Security in 2026.
-
-**SHIPPABLE TODAY** — peer cards are real (`internal/network/envelope.go:347–355`) and carry identity-equivalent fields, so the audit question is grounded:
-
-> honest question for folks running agent fleets in 2026.
->
-> what's your audit story when a peer card gets compromised? compozy peer cards carry PeerID + Capabilities + TrustModesSupported, so revocation has surface area, but the operator playbook still feels open. open to wrong answers.
-
-**Voice check**: format=`question`. No fabricated feature, just a real ops question rooted in the verified envelope schema.
-
----
-
 ### 9. build-in-public-story — extract & open-source
 
 **Source** (@steipete, 2026-05-26 · 134 ❤ · 4 🔁 · ID 2059423344961671290)
@@ -208,11 +188,11 @@ URL: https://x.com/i/web/status/2059678950436282539
 **Hype mechanic**: time-bound prediction + accessibility manifesto + product reveal.
 
 **SHIPPABLE TODAY** (anchor every claim on a verified primitive):
-> teams of agents running on one laptop, coordinating over `compozy-network/v0`, closing work with receipts.
+> teams of agents running on one laptop, claiming Tasks, closing work with recorded results.
 >
 > compozy ships the runtime piece. workspaces hold the state. ClaimNextRun moves work between agents. one go binary, no infrastructure to babysit. start with a fleet of two.
 
-**Voice check**: format=`technical-insight`. Cites `compozy-network/v0`, workspaces, ClaimNextRun — all verified. No em-dash. 0 emojis.
+**Voice check**: format=`technical-insight`. Cites workspaces and ClaimNextRun — all verified. No em-dash. 0 emojis.
 
 ---
 
@@ -355,7 +335,7 @@ URL: https://x.com/i/web/status/2059804459841245521
 
 > the LLM picks the next step. the runtime owns the durability.
 >
-> compozy is the runtime piece. workspaces hold state. ClaimNextRun moves work. hooks observe everything. compozy-network/v0 lets sessions become peers.
+> compozy is the runtime piece. workspaces hold state. ClaimNextRun moves work. hooks observe everything. sessions keep local work inspectable.
 
 **Voice check**: format=`technical-insight`. ⚠️ "workspaces hold state. ClaimNextRun moves work. hooks observe everything." — 3 short parallel sentences, rule-of-three risk. Tighten before shipping. Suggested cut: "workspaces hold state. ClaimNextRun moves work between agents. hooks observe the whole thing."
 

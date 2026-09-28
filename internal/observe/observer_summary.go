@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-
-	"github.com/compozy/compozy/internal/store"
 )
 
 func summarizeEvent(event acp.AgentEvent) string {
@@ -79,26 +77,6 @@ func sanitizeHookSessionID(sessionID string) (string, error) {
 		return "", fmt.Errorf("observe: invalid session id %q", sessionID)
 	}
 	return target, nil
-}
-
-func cloneSessionSandboxMeta(meta *store.SessionSandboxMeta) *store.SessionSandboxMeta {
-	if meta == nil {
-		return nil
-	}
-	cloned := *meta
-	cloned.RuntimeAdditionalDirs = append([]string(nil), meta.RuntimeAdditionalDirs...)
-	if meta.ProviderState != nil {
-		cloned.ProviderState = append([]byte(nil), meta.ProviderState...)
-	}
-	if meta.SSHAccessExpiresAt != nil {
-		expiresAt := *meta.SSHAccessExpiresAt
-		cloned.SSHAccessExpiresAt = &expiresAt
-	}
-	if meta.LastSyncAt != nil {
-		lastSyncAt := *meta.LastSyncAt
-		cloned.LastSyncAt = &lastSyncAt
-	}
-	return &cloned
 }
 
 func shouldAggregateUsage(event acp.AgentEvent) bool {

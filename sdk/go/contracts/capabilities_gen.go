@@ -3,7 +3,6 @@
 package contracts
 
 var requiredMethodsByProvide = map[string][]string{
-	"bridge.adapter":        []string{"bridges/deliver", "bridges/targets/snapshot"},
 	"connectivity.provider": []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"},
 	"forge.provider":        []string{"forge/capabilities", "forge/pr_create", "forge/status"},
 	"loop.watch_source":     []string{"watch/poll"},

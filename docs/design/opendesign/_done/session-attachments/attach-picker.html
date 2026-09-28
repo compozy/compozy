@@ -41,7 +41,7 @@
       <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Bar placement</h2>
         <span class="lab-sec__gist">runtime · paperclip · ⏎ · spacer · send</span></div>
       <div class="spec">
-        <div class="spec__note"><b>After runtime</b>The attach button is a sibling of the runtime chip, not a second primary. Click opens the OS picker via a hidden <code>input[type=file]</code>. <code>multiple</code> is on. Accept is images plus PDF, Markdown, and text. Network <code>/attach</code> is a different product.</div>
+        <div class="spec__note"><b>After runtime</b>The attach button is a sibling of the runtime chip, not a second primary. Click opens the OS picker via a hidden <code>input[type=file]</code>. <code>multiple</code> is on. Accept is images plus PDF, Markdown, and text. </div>
         <div class="spec__demo composer-wrap">
           <!-- gating: accept=image/png,image/jpeg,image/webp,application/pdf,text/markdown,text/plain,.md,.txt,.pdf multiple -->
           <div class="composer" data-od-id="composer-picker">
@@ -138,7 +138,7 @@
       <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Not a slash command</h2>
         <span class="lab-sec__gist"><code>/</code> stays skills</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Rejected path</b><code>/image</code> and <code>/attach</code> would collide with the skill catalog. Network’s <code>/attach</code> is post-MVP and means “file, URL, capability ref” — a different product. Documented so it is not reintroduced.</div>
+        <div class="spec__note"><b>Rejected path</b><code>/image</code> and <code>/attach</code> would collide with the skill catalog.  Documented so it is not reintroduced.</div>
         <div class="spec__demo">
           <div class="cmd-pop" data-od-id="cmd-not-image">
             <button class="cmd-item" type="button" data-highlighted>

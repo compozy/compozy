@@ -130,7 +130,7 @@ svg.ic--logo{fill:currentColor;stroke:none}
 .sec--soft{background:var(--canvas-soft)}
 .sec--rule::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--line-strong) 18%,var(--line-strong) 82%,transparent);pointer-events:none}
 .g12{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
-.g12>*,.fpanel>*,.step>*,.loop__foot>*,.bridges__foot>*{min-width:0}
+.g12>*,.fpanel>*,.step>*,.loop__foot>*{min-width:0}
 .head{max-width:680px}
 .head--center{margin:0 auto;text-align:center}
 .head--center .lead{margin-inline:auto}
@@ -496,19 +496,7 @@ svg.ic--logo{fill:currentColor;stroke:none}
 .ext__grant{margin-top:12px;font-size:var(--text-small-body);line-height:1.6;color:var(--subtle);max-width:60ch}
 .ext__cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 
-/* ============================================================
-   09 · bridges
-   ============================================================ */
-.bridges__canvas{position:relative;min-height:400px;border-radius:var(--radius-xl);overflow:hidden;border:1px solid var(--line-strong);background:var(--canvas) url("assets/bridges-inflow.webp") right center/cover no-repeat;box-shadow:var(--tray);display:flex;align-items:flex-end}
-.bridges__canvas::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--rail) 94%,transparent) 0%,color-mix(in srgb,var(--rail) 78%,transparent) 42%,transparent 72%),linear-gradient(180deg,transparent 40%,color-mix(in srgb,var(--rail) 60%,transparent));pointer-events:none}
-.bridges__copy{position:relative;max-width:520px;padding:clamp(28px,4vw,48px)}
-.bridges__body{margin-top:16px;font-size:16px;line-height:1.62;color:var(--muted);max-width:44ch}
-.bridges__tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:20px}
-.bridges__tiles li{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 8px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:linear-gradient(180deg,var(--surface-glaze),transparent 50%),var(--canvas-soft);font-size:var(--text-eyebrow);font-weight:510;color:var(--muted);text-align:center;box-shadow:var(--highlight);transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease),transform var(--dur) var(--ease)}
-.bridges__tiles li:hover{border-color:var(--line-focus);color:var(--fg);transform:translateY(-2px)}
-.bridges__tiles svg{width:26px;height:26px}
-.bridges__foot{display:flex;align-items:flex-start;justify-content:space-between;gap:32px;flex-wrap:wrap;margin-top:22px}
-.bridges__caveat{max-width:62ch}
+
 
 /* ============================================================
    10 · comparison
@@ -597,7 +585,6 @@ svg.ic--logo{fill:currentColor;stroke:none}
   .uc{grid-column:span 3}
   .uc--wide{grid-column:span 3}
   .uc--wide .uc__art{aspect-ratio:16/9}
-  .bridges__tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
   .ft__grid{grid-template-columns:1fr 1fr}
   .ext__art{position:relative;inset:auto;width:auto;grid-column:1/13;aspect-ratio:4/3;margin:-24px -24px 0;background-position:center 42%;
     -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 70%,transparent 100%),linear-gradient(90deg,transparent 0%,#000 10%,#000 90%,transparent 100%);
@@ -623,8 +610,6 @@ svg.ic--logo{fill:currentColor;stroke:none}
   .demo__controls{justify-content:flex-end}
   .demo__foot{flex-direction:column;align-items:flex-start;gap:6px}
   .proofs{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .bridges__canvas{min-height:340px;background-position:70% center}
-  .bridges__foot{flex-direction:column}
 }
 @media (max-width:640px){
   .wrap{padding:0 18px}
@@ -639,9 +624,6 @@ svg.ic--logo{fill:currentColor;stroke:none}
   .tcol:nth-child(2){display:none}
   .fpanel__title{align-items:flex-start}
   .fpanel__title .mark--sm{margin-top:2px}
-  .bridges__canvas{min-height:460px;background-size:auto 58%;background-position:72% 0}
-  .bridges__canvas::before{background:linear-gradient(180deg,transparent 30%,color-mix(in srgb,var(--rail) 92%,transparent) 58%)}
-  .bridges__copy{padding:24px 22px 26px}
   .cta{padding-bottom:0}
   .cta__inner{padding-bottom:260px}
   .hero{padding-top:40px}
@@ -649,7 +631,6 @@ svg.ic--logo{fill:currentColor;stroke:none}
   .hero__actions .cmd{width:100%;margin-left:0}
   .cmd__text{overflow-x:auto}
   .uc,.uc--wide{grid-column:span 6}
-  .bridges__tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ft__grid{grid-template-columns:1fr}
   .step{grid-template-columns:1fr;gap:8px}
   .parts{grid-template-columns:repeat(2,minmax(0,1fr))}

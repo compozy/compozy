@@ -12,12 +12,11 @@ type IngressSubjectKind string
 
 const (
 	IngressSubjectWebhookTrigger IngressSubjectKind = "webhook_trigger"
-	IngressSubjectBridgeInstance IngressSubjectKind = "bridge_instance"
 )
 
 func (k IngressSubjectKind) Validate() error {
 	switch k {
-	case IngressSubjectWebhookTrigger, IngressSubjectBridgeInstance:
+	case IngressSubjectWebhookTrigger:
 		return nil
 	default:
 		return fmt.Errorf("gateway: invalid ingress subject kind %q", k)
@@ -32,7 +31,7 @@ const (
 	IngressScopeWorkspace IngressScopeKind = "workspace"
 )
 
-// IngressSubjectRef identifies one bindable webhook trigger or bridge instance.
+// IngressSubjectRef identifies one bindable webhook trigger.
 type IngressSubjectRef struct {
 	Kind IngressSubjectKind
 	ID   string
@@ -120,7 +119,7 @@ const (
 	IngressReachabilityReconfirmation IngressReachability = "reconfirmation_required"
 )
 
-// IngressProjection is safe to expose through trigger, bridge, and status APIs.
+// IngressProjection is safe to expose through trigger and status APIs.
 type IngressProjection struct {
 	Subject                     IngressSubjectRef
 	Scope                       IngressScopeKind

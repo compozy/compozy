@@ -31,8 +31,6 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders 
 		daemonDiagnosticItem(status),
 		configDiagnosticItem(status.Config),
 		automationDiagnosticItem(status.Automation),
-		bridgeDiagnosticItem(status.Bridges),
-		networkDiagnosticItem(status.Daemon.Network),
 		skillDiagnosticItem(status.Skills),
 		logTailDiagnosticItem(status.LogTail),
 		taskDiagnosticItem(status.Tasks),

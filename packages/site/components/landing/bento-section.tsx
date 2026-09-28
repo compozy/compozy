@@ -1,4 +1,4 @@
-import { FileCode2, Layers, MonitorCog, Network, Plug } from "lucide-react";
+import { FileCode2, Layers, MonitorCog } from "lucide-react";
 import Image from "next/image";
 
 const cardBase =
@@ -17,11 +17,9 @@ export function BentoSection() {
     >
       <div
         data-testid="bento-grid"
-        className="mx-auto grid w-full max-w-300 gap-4 md:grid-cols-2 lg:aspect-1536/1320 lg:grid-cols-6 lg:grid-rows-2"
+        className="mx-auto grid w-full max-w-300 gap-4 md:grid-cols-2 lg:grid-cols-3"
       >
         <RuntimeCard />
-        <NetworkCard />
-        <BridgesCard />
         <MemoryCard />
         <ExtensibilityCard />
       </div>
@@ -33,7 +31,7 @@ function RuntimeCard() {
   return (
     <article
       data-testid="bento-runtime"
-      className={`${cardBase} min-h-135 md:min-h-140 lg:col-span-3 lg:col-start-1 lg:row-start-1 lg:min-h-0`}
+      className={`${cardBase} min-h-135 md:min-h-140 lg:col-span-1`}
     >
       <div className="absolute inset-x-0 bottom-0 top-[0%] pointer-events-none">
         <Image
@@ -68,87 +66,9 @@ function RuntimeCard() {
   );
 }
 
-function NetworkCard() {
-  return (
-    <article
-      data-testid="bento-network"
-      className={`${cardBase} min-h-105 md:col-span-2 md:min-h-125 lg:col-span-3 lg:col-start-4 lg:row-start-1 lg:min-h-0`}
-    >
-      <div className="absolute inset-0 pointer-events-none">
-        <Image
-          src="/images/bento-illustrations/network-v2.png"
-          alt="CompozyOS network diagram showing discovery, delegation, receipt, and peers."
-          fill
-          loading="lazy"
-          decoding="async"
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          quality={90}
-          className={`${imageBase} object-contain object-[40%_100%]`}
-        />
-      </div>
-      <div className="site-bento-overlay-network pointer-events-none absolute inset-0" />
-
-      <div className="relative z-10 max-w-120">
-        <div className={labelBase}>
-          <Network className="size-4" />
-          <span>Network</span>
-        </div>
-        <h2
-          aria-label="Built-in network. Delegate. Deliver. Done."
-          className="font-display text-site-bento-md font-normal leading-tight text-fg sm:text-4xl xl:text-site-bento-2xl"
-        >
-          Built-in network.
-          <br />
-          <span className="text-accent">Delegate. Deliver.</span> Done.
-        </h2>
-      </div>
-    </article>
-  );
-}
-
-function BridgesCard() {
-  return (
-    <article
-      data-testid="bento-bridges"
-      className={`${cardBase} min-h-90 md:min-h-97.5 lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:min-h-0`}
-    >
-      <div className="absolute inset-0 pointer-events-none">
-        <Image
-          src="/images/bento-illustrations/bridges-v2.png"
-          alt="Bridge events from Slack, Discord, and Telegram entering an CompozyOS device."
-          fill
-          decoding="async"
-          sizes="(min-width: 1024px) 33vw, 100vw"
-          quality={90}
-          className={`${imageBase} object-cover object-[10%_20%]`}
-        />
-      </div>
-      <div className="site-bento-overlay-bridges pointer-events-none absolute inset-0" />
-
-      <div className="relative z-10 max-w-72">
-        <div className={labelBase}>
-          <Plug className="size-4" />
-          <span>Bridges</span>
-        </div>
-        <h2
-          aria-label="From anywhere. Into a session."
-          className="font-display text-site-bento-xs font-normal leading-tight text-fg sm:text-site-bento-md xl:text-site-bento-lg"
-        >
-          From anywhere.
-          <br />
-          <span className="text-accent">Into a session.</span>
-        </h2>
-      </div>
-    </article>
-  );
-}
-
 function MemoryCard() {
   return (
-    <article
-      data-testid="bento-memory"
-      className={`${cardBase} min-h-97.5 lg:col-span-2 lg:col-start-3 lg:row-start-2 lg:min-h-0`}
-    >
+    <article data-testid="bento-memory" className={`${cardBase} min-h-97.5 lg:col-span-1`}>
       <div className="absolute inset-x-0 bottom-0 top-[18%] pointer-events-none">
         <Image
           src="/images/bento-illustrations/memory-v2.png"
@@ -182,10 +102,7 @@ function MemoryCard() {
 
 function ExtensibilityCard() {
   return (
-    <article
-      data-testid="bento-extensibility"
-      className={`${cardBase} min-h-97.5 lg:col-span-2 lg:col-start-5 lg:row-start-2 lg:min-h-0`}
-    >
+    <article data-testid="bento-extensibility" className={`${cardBase} min-h-97.5 lg:col-span-1`}>
       <div className="absolute inset-0 -bottom-30 pointer-events-none">
         <Image
           src="/images/bento-illustrations/extensibility-v2.png"

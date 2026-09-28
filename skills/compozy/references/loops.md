@@ -12,7 +12,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 - Terminal outcomes, failure handling, approvals, and succession semantics
 - Reference grammar, metric criteria, and runtime selection
 - Hooks, SSE, watch sources, and watch events
-- Agent-authored review/fix and channel-result harvesting
+- Agent-authored review and repair
 
 ## The Tool Set And CLI Verbs
 
@@ -234,7 +234,7 @@ Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed gra
 | `/goal clear`                                 | Revoke live work when needed, then hide the newest projection without deleting its audit.     |
 | `/goal draft <text>`                          | Run one idle-only ordinary streaming turn that proposes objective/clauses without activation. |
 
-Internal, automation, network, extension, and synthetic prompts treat `/goal` text literally.
+Internal, automation, extension, and synthetic prompts treat `/goal` text literally.
 Draft never queues, steers, interrupts, or consumes a Goal turn; busy admission returns
 `goal_draft_requires_idle`. Lowercase line-oriented `verify:` and `constraints:` clauses become the
 synthetic agent-judge rubric. `verify:` text is never executed as a command.
@@ -243,7 +243,7 @@ Agents can control a Goal without composing prompt text. `compozy__goal_control`
 `operation` (`set`, `replace`, `status`, `pause`, `resume`, or `clear`), a required target
 `session_id`, and an optional `runtime` selection for `set` or `replace`. Its caller is the
 authenticated agent session: the target must be that session or a descendant in the same workspace.
-The daemon preserves the Goal's immutable creation identity and resolved network participation while
+The daemon preserves the Goal's immutable creation identity while
 applying the per-run worker runtime. `session goal set|replace|status|pause|resume|clear` and
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal` expose the same typed contract over
 CLI, HTTP, and UDS. Invalid runtime, stale replacement, and unauthorized lineage return stable
@@ -760,9 +760,7 @@ are subscribable — sync-eligible `pre_*` hooks are rejected. Supported familie
 (`task_events`); `task.run.completed`, `task.run.failed` (`task_events`); `loop.terminal`,
 `loop.node.terminal` (`loop_run_events`); `automation.run.completed`, `automation.run.failed`
 (`automation_watch_events`, whose terminal snapshots outlive `automation_runs` deletion);
-`network.message.persisted`, `network.thread.opened`,
-`network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`,
-`network.work.closed` (`network_timeline_log`); `coordinator.spawned`, `coordinator.decision`,
+`coordinator.spawned`, `coordinator.decision`,
 `coordinator.stopped`, `coordinator.failed` (`event_summaries`); `event.post_record`
 (`session_events:<session_id>`). `event.post_record` must constrain `event.session_id` with equality
 or lint returns `watch_events_filter_too_broad`; its output excludes record content and exposes only
@@ -774,13 +772,3 @@ definition sets `0`; only `watch-source` selects the unbounded watch default. Th
 parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
 detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
 on events.
-
-## Harvesting A Channel Decision
-
-To let agents converse and act on the result, post with a `compozy__network_send` action carrying a
-`harvest: { kind: channel_result, window, responder?, content_rule? }`. The retired `channel-post`
-kind does not exist. After the send, the node waits `window` for the designated result — a `say`
-with `intent: result` or a `trace` with `state: completed` — and exposes it as
-`nodes.<id>.output.*`. Silence past `window` ends the run `stalled`. `content_rule` narrows the
-match: `any`, `json`, `non_empty`, `contains:<needle>`, or `json_path:<a.b.c>`. This capability is a
-documented example, not a packaged default Loop.

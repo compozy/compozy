@@ -4,12 +4,12 @@ area: RT
 title: Home dashboard renders seven truthful zones
 persona: Cora
 journey: J-operate-home-dashboard
-expected: On a workspace that has recorded any work, Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now | Network → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/network/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; a workspace with no recorded work at all renders the zero-inventory start instead of the seven zones (`RT-home-zero-inventory-first-run` owns that read); the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
+expected: On a workspace that has recorded any work, Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; a workspace with no recorded work at all renders the zero-inventory start instead of the seven zones (`RT-home-zero-inventory-first-run` owns that read); the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
 entry_points: web `/` (dashboard OS window); `GET /api/observe/overview` (HTTP+UDS)
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260813-retry-leaves-blank-route
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: a97e07f
 evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-project-normal.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-daemon-unavailable.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-retry-recovered.png; docs/qa/reports/2026-08-20-ui-normies-retry.md
 last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
@@ -56,3 +56,5 @@ includes every current occurrence, even beyond the 12-row display and inbox page
 bell/Home receipt consistency, exact counts, reload, failed acknowledgement, and a new failed run
 reappearing. Source task decisions remain available in Open inbox. Local QA is deferred by explicit
 user instruction; the existing SQLite/overview tests and CI own validation for this change.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

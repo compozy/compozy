@@ -44,30 +44,6 @@ type RuntimeRecoveryHooks interface {
 	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
 }
 
-// SandboxHooks groups execution-sandbox lifecycle hook dispatch.
-type SandboxHooks interface {
-	DispatchSandboxPrepare(
-		context.Context,
-		*hookspkg.SandboxPreparePayload,
-	) (*hookspkg.SandboxPreparePayload, error)
-	DispatchSandboxReady(
-		context.Context,
-		hookspkg.SandboxReadyPayload,
-	) (hookspkg.SandboxReadyPayload, error)
-	DispatchSandboxSyncBefore(
-		context.Context,
-		hookspkg.SandboxSyncBeforePayload,
-	) (hookspkg.SandboxSyncBeforePayload, error)
-	DispatchSandboxSyncAfter(
-		context.Context,
-		hookspkg.SandboxSyncAfterPayload,
-	) (hookspkg.SandboxSyncAfterPayload, error)
-	DispatchSandboxStop(
-		context.Context,
-		hookspkg.SandboxStopPayload,
-	) (hookspkg.SandboxStopPayload, error)
-}
-
 // PromptHooks groups prompt assembly and user-input hook dispatch.
 type PromptHooks interface {
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
@@ -159,7 +135,6 @@ type AttentionHooks interface {
 type HookSet struct {
 	Session         LifecycleHooks
 	RuntimeRecovery RuntimeRecoveryHooks
-	Sandbox         SandboxHooks
 	Prompt          PromptHooks
 	Events          EventHooks
 	Agent           AgentHooks
@@ -173,7 +148,6 @@ type HookSet struct {
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
 var _ RuntimeRecoveryHooks = noopRuntimeRecoveryHooks{}
-var _ SandboxHooks = noopSandboxHooks{}
 var _ PromptHooks = noopPromptHooks{}
 var _ EventHooks = noopEventHooks{}
 var _ AgentHooks = noopAgentHooks{}
@@ -196,13 +170,6 @@ func (h HookSet) runtimeRecovery() RuntimeRecoveryHooks {
 		return h.RuntimeRecovery
 	}
 	return noopRuntimeRecoveryHooks{}
-}
-
-func (h HookSet) sandbox() SandboxHooks {
-	if h.Sandbox != nil {
-		return h.Sandbox
-	}
-	return noopSandboxHooks{}
 }
 
 func (h HookSet) prompt() PromptHooks {

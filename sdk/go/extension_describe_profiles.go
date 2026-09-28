@@ -71,7 +71,6 @@ func normalizeDescribeProfiles(profiles []contracts.DescribeProfile) []contracts
 					profile.Defaults.Agent,
 				),
 				Provider: strings.TrimSpace(profile.Defaults.Provider),
-				Sandbox:  strings.TrimSpace(profile.Defaults.Sandbox),
 			},
 			Credentials: slices.Compact(credentials),
 		})

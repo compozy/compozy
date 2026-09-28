@@ -8,7 +8,6 @@ import (
 	"time"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -53,9 +52,9 @@ func (g *TaskRunRepo) ListAutonomyLeaseHandles(
 func autonomyLeaseHandleFromGenerated(row sqlcgen.ListAutonomyLeaseHandlesRow) (taskpkg.AutonomyLeaseHandle, error) {
 	workspaceID := strings.TrimSpace(row.WorkspaceID)
 	handle := taskpkg.AutonomyLeaseHandle{
-		RunID: row.ID, TaskID: taskNullStringValue(row.TaskID), RunKind: taskpkg.ParseRunKind(row.RunKind).Normalize(),
-		WorkspaceID: workspaceID, TargetSessionID: row.TargetSessionID, OwnerKey: row.OwnerKey,
-		Status: taskpkg.ParseRunStatus(row.Status).Normalize(), SessionID: row.SessionID,
+		RunID: row.ID, TaskID: row.TaskID, RunKind: taskpkg.ParseRunKind(row.RunKind).Normalize(),
+		WorkspaceID: workspaceID,
+		Status:      taskpkg.ParseRunStatus(row.Status).Normalize(), SessionID: row.SessionID,
 		ClaimToken: row.ClaimToken, ClaimTokenHash: row.ClaimTokenHash,
 	}
 	if row.ClaimedByKind.Valid || row.ClaimedByRef.Valid {
@@ -136,31 +135,27 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 				if err != nil {
 					return err
 				}
-				if current.IsTaskAnchored() {
-					if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-						return err
-					}
+				if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+					return err
 				}
 				updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 				if err != nil {
 					return err
 				}
 				result := newExpiredLeaseRecoveryResult(&updated, snapshot, normalized.Reason, exhausted)
-				if current.IsTaskAnchored() {
-					taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, current.TaskID)
-					if err != nil {
-						return err
-					}
-					if err := appendExpiredLeaseRecoveryEvents(
-						ctx,
-						exec,
-						&result,
-						taskRecord.Status,
-						normalized.Actor,
-						normalized.Now,
-					); err != nil {
-						return err
-					}
+				taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, current.TaskID)
+				if err != nil {
+					return err
+				}
+				if err := appendExpiredLeaseRecoveryEvents(
+					ctx,
+					exec,
+					&result,
+					taskRecord.Status,
+					normalized.Actor,
+					normalized.Now,
+				); err != nil {
+					return err
 				}
 				recovered = append(recovered, result)
 			}
@@ -208,14 +203,13 @@ func appendExpiredLeaseRecoveryEvents(
 		actor,
 		at,
 		taskpkg.ExpiredLeaseEventPayload{
-			PreviousStatus:               result.PreviousRunStatus,
-			Status:                       result.Run.Status,
-			TaskStatus:                   taskStatus,
-			Reason:                       result.Reason,
-			SessionID:                    result.PreviousSessionID,
-			LeaseUntil:                   result.PreviousLeaseUntil,
-			PreviousTokenHash:            result.PreviousClaimTokenHash,
-			ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
+			PreviousStatus:    result.PreviousRunStatus,
+			Status:            result.Run.Status,
+			TaskStatus:        taskStatus,
+			Reason:            result.Reason,
+			SessionID:         result.PreviousSessionID,
+			LeaseUntil:        result.PreviousLeaseUntil,
+			PreviousTokenHash: result.PreviousClaimTokenHash,
 		},
 	); err != nil {
 		return err
@@ -232,12 +226,11 @@ func appendExpiredLeaseRecoveryEvents(
 		actor,
 		at,
 		taskpkg.RunNeedsAttentionEventPayload{
-			PreviousStatus:               result.PreviousRunStatus,
-			Status:                       result.Run.Status,
-			SessionID:                    result.PreviousSessionID,
-			Diagnostic:                   result.Run.Error,
-			QueuedAt:                     result.Run.QueuedAt,
-			ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
+			PreviousStatus: result.PreviousRunStatus,
+			Status:         result.Run.Status,
+			SessionID:      result.PreviousSessionID,
+			Diagnostic:     result.Run.Error,
+			QueuedAt:       result.Run.QueuedAt,
 		},
 	)
 }

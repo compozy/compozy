@@ -85,10 +85,10 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	}
 }
 
-func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
+func TestDriverSupportsUserCommandExpectations(t *testing.T) {
 	root := t.TempDir()
 	fakeCompozy := filepath.Join(root, "compozy")
-	if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
+	if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf command-ok\n"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", fakeCompozy, err)
 	}
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -121,15 +121,14 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
 	}
-	proc.SetTurnSourceProvider(func() string { return "network" })
 	defer stopDriverProcess(t, driver, proc)
 
 	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-		TurnID:     "turn-network-sandbox",
-		RunID:      "run-network-sandbox",
+		TurnID:     "turn-command",
+		RunID:      "run-command",
 		Generation: 1,
-		Message:    "run sandbox",
-		Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
+		Message:    "run command",
+		Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	})
 	if err != nil {
 		t.Fatalf("driver.Prompt() error = %v", err)
@@ -138,23 +137,23 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	events := collectPromptEvents(t, eventsCh, nil)
 	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
 		"type":         acp.EventTypeToolCall,
-		"title":        "Run fake network status",
+		"title":        "Run fake task status",
 		"tool_call_id": "cmd-1",
 	}) {
-		t.Fatalf("events = %#v, want tool_call for network status", events)
+		t.Fatalf("events = %#v, want tool_call for task status", events)
 	}
 	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
 		"type":         acp.EventTypeToolResult,
-		"title":        "Run fake network status",
+		"title":        "Run fake task status",
 		"tool_call_id": "cmd-1",
 	}) {
-		t.Fatalf("events = %#v, want tool_result for network status", events)
+		t.Fatalf("events = %#v, want tool_result for task status", events)
 	}
 	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
 		"type": acp.EventTypeAgentMessage,
-		"text": "network-ok",
+		"text": "command-ok",
 	}) {
-		t.Fatalf("events = %#v, want network-ok assistant output", events)
+		t.Fatalf("events = %#v, want command-ok assistant output", events)
 	}
 }
 

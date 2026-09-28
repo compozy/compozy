@@ -16,11 +16,10 @@ export interface WorkspaceSetupDraft {
   name: string;
   addDirs: string[];
   defaultAgent: string;
-  sandboxRef: string;
 }
 
 function emptyDraft(): WorkspaceSetupDraft {
-  return { rootDir: "", name: "", addDirs: [], defaultAgent: "", sandboxRef: "" };
+  return { rootDir: "", name: "", addDirs: [], defaultAgent: "" };
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -73,7 +72,6 @@ export function useWorkspaceSetupContent({
   const setName = (name: string) => setDraft(current => ({ ...current, name }));
   const setDefaultAgent = (defaultAgent: string) =>
     setDraft(current => ({ ...current, defaultAgent }));
-  const setSandboxRef = (sandboxRef: string) => setDraft(current => ({ ...current, sandboxRef }));
 
   const addDir = (dir: string) => {
     const trimmed = dir.trim();
@@ -109,13 +107,11 @@ export function useWorkspaceSetupContent({
     try {
       const name = draft.name.trim();
       const defaultAgent = draft.defaultAgent.trim();
-      const sandboxRef = draft.sandboxRef.trim();
       const workspace = await createWorkspace.mutateAsync({
         root_dir: rootDir,
         ...(name !== "" ? { name } : {}),
         ...(draft.addDirs.length > 0 ? { add_dirs: draft.addDirs } : {}),
         ...(defaultAgent !== "" ? { default_agent: defaultAgent } : {}),
-        ...(sandboxRef !== "" ? { sandbox_ref: sandboxRef } : {}),
       });
       onWorkspaceResolved(workspace.id);
       resetDraft();
@@ -157,7 +153,6 @@ export function useWorkspaceSetupContent({
     selectRoot,
     setDefaultAgent,
     setName,
-    setSandboxRef,
     submissionMode,
   };
 }

@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: f54e62b;acbbb25;current-pr-head;current-working-tree
 evidence: docs/qa/evidence/2026-08-26-release-ci-composer/CH-session-composer-text-entry-goal.png;docs/qa/evidence/2026-08-26-release-ci-composer/CH-session-composer-text-entry-deep-link.png
 last_report: docs/qa/reports/2026-08-26-release-ci-composer.md
-overlaps: ET-web-session-prompt-runtime-and-create-navigation;ET-web-runtime-selector-minimal-slider
+overlaps: ET-web-session-prompt-runtime-and-create-navigation; ET-web-runtime-selector-minimal-slider
 ---
 
 QA impact 2026-08-02: the assistant-ui store notification owner was corrected after sequential keyboard input dropped spaces in React StrictMode. This scenario owns exact composer text entry; runtime snapshot and dispatch behavior remain owned by the overlapping scenarios.

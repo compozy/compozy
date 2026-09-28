@@ -34,7 +34,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       : [];
   const marketplacePaths = [
     "/marketplace",
-    "/marketplace/bridges",
     ...bundledExtensions.map(extension => extension.path),
     ...extensionEntries.map(marketplaceEntryPath),
   ];

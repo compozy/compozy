@@ -119,20 +119,20 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforcePermissions(t *testing.T) {
 		},
 		{
 			name:        "Should allow a declared write permission",
-			permissions: []string{"bridges/instances/report_state"},
-			method:      "bridges/instances/report_state",
+			permissions: []string{"sessions/create"},
+			method:      "sessions/create",
 		},
 		{
 			name:        "Should allow a declared execution permission",
-			permissions: []string{"sandbox/exec"},
-			method:      "sandbox/exec",
+			permissions: []string{"sessions/prompt"},
+			method:      "sessions/prompt",
 		},
 		{
 			name:         "Should reject an undeclared write permission",
-			permissions:  []string{"bridges/instances/get"},
-			method:       "bridges/instances/report_state",
-			wantRequired: []string{"bridges/instances/report_state"},
-			wantGranted:  []string{"bridges/instances/get"},
+			permissions:  []string{"sessions/list"},
+			method:       "sessions/create",
+			wantRequired: []string{"sessions/create"},
+			wantGranted:  []string{"sessions/list"},
 			wantErr:      true,
 		},
 		{
@@ -199,39 +199,6 @@ func TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities(t *testing.
 		{method: "automation/triggers/runs", capability: "automation.read"},
 		{method: "automation/triggers/fire", capability: "automation.write"},
 		{method: "automation/runs", capability: "automation.read"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.method, func(t *testing.T) {
-			t.Parallel()
-
-			checker := newTestCapabilityChecker("ext", SourceUser, []string{tt.method}, []string{tt.capability})
-			if err := checker.CheckHostAPI("ext", tt.method); err != nil {
-				t.Fatalf("CheckHostAPI(%q) error = %v, want nil", tt.method, err)
-			}
-		})
-	}
-}
-
-func TestCapabilityCheckerNetworkMethodsShouldMapToExpectedCapabilities(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		method     string
-		capability string
-	}{
-		{method: "network/status", capability: "network.read"},
-		{method: "network/usage", capability: "network.read"},
-		{method: "network/channels", capability: "network.read"},
-		{method: "network/peers", capability: "network.read"},
-		{method: "network/threads", capability: "network.read"},
-		{method: "network/thread/get", capability: "network.read"},
-		{method: "network/thread/messages", capability: "network.read"},
-		{method: "network/directs", capability: "network.read"},
-		{method: "network/direct/resolve", capability: "network.write"},
-		{method: "network/direct/messages", capability: "network.read"},
-		{method: "network/work/get", capability: "network.read"},
-		{method: "network/send", capability: "network.write"},
 	}
 
 	for _, tt := range tests {
@@ -485,7 +452,7 @@ func TestCapabilityCheckerRegisterForSessionRejectsInvalidManifestResourceReques
 	_, err := checker.RegisterForSession("ext", SourceUser, &Manifest{
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
-				Families: []string{"bridge_instances"},
+				Families: []string{"unknown_family"},
 				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
@@ -644,10 +611,10 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 	t.Run("Should enforce wildcard grant ceilings", func(t *testing.T) {
 		t.Parallel()
 
-		if !capabilityGranted([]string{"network.*"}, "network.http") {
+		if !capabilityGranted([]string{"service.*"}, "service.http") {
 			t.Fatalf("capabilityGranted() = false, want true for wildcard superset")
 		}
-		if capabilityGranted([]string{"network.http"}, "network.*") {
+		if capabilityGranted([]string{"service.http"}, "service.*") {
 			t.Fatalf("capabilityGranted() = true, want false when request exceeds ceiling")
 		}
 	})

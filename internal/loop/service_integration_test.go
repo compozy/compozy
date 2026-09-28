@@ -5,47 +5,16 @@ package loop_test
 import (
 	"context"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-type observingParticipationResolver struct {
-	inner        participation.Resolver
-	mu           sync.Mutex
-	observations []participation.ResolvedObservation
-}
-
-func (r *observingParticipationResolver) Resolve(
-	ctx context.Context,
-	in participation.ResolveInput,
-) (participation.Spec, error) {
-	return r.inner.Resolve(ctx, in)
-}
-
-func (r *observingParticipationResolver) ObserveParticipationResolved(
-	_ context.Context,
-	observation participation.ResolvedObservation,
-) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.observations = append(r.observations, observation)
-	return nil
-}
-
-func (r *observingParticipationResolver) snapshot() []participation.ResolvedObservation {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]participation.ResolvedObservation(nil), r.observations...)
-}
 
 func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *testing.T) {
 	t.Parallel()
@@ -208,102 +177,6 @@ func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
 			if hydrated.Templates[key] == nil {
 				t.Fatalf("hydrated template %q is nil", key)
 			}
-		}
-	})
-}
-
-func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should keep a local multi-node run and dry-run free of network artifacts", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openLoopServiceGlobalDB(t)
-		insertLoopServiceWorkspace(t, globalDB, "ws-1")
-		svc := newIntegrationService(t, globalDB, validDefinition())
-		ctx := testutil.Context(t)
-		inputs := loop.Inputs{ProfileID: store.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
-		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs)
-		if err != nil {
-			t.Fatalf("DryRun() error = %v", err)
-		}
-		if got := preview.ResolvedNetworkParticipation; got != participation.LocalSpec() {
-			t.Fatalf("DryRun participation = %#v, want canonical Local", got)
-		}
-		run, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
-		if err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		if got := run.NetworkSpecSnapshot(); got != participation.LocalSpec() {
-			t.Fatalf("Run participation = %#v, want canonical Local", got)
-		}
-		for _, table := range []string{"network_channels", "network_channel_participants"} {
-			if got := countRows(ctx, t, globalDB, table); got != 0 {
-				t.Fatalf("%s rows = %d, want 0 for Local loop", table, got)
-			}
-		}
-	})
-
-	t.Run("Should isolate concurrent live loop-run snapshots", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openLoopServiceGlobalDB(t)
-		insertLoopServiceWorkspace(t, globalDB, "ws-1")
-		definition := validDefinition()
-		definition.Concurrency = dsl.ConcurrencyAllow
-		live := participation.ModeLive
-		loopRunStrategy := participation.StrategyLoopRun
-		definition.NetworkParticipation = &participation.Request{
-			Mode:            &live,
-			ChannelStrategy: &loopRunStrategy,
-		}
-		resolver := &observingParticipationResolver{inner: loopTestParticipationResolver(t, true)}
-		svc := newIntegrationService(
-			t,
-			globalDB,
-			definition,
-			loop.WithParticipationResolver(resolver),
-		)
-		ctx := testutil.Context(t)
-		inputs := loop.Inputs{ProfileID: store.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
-		if _, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs); err != nil {
-			t.Fatalf("DryRun() error = %v", err)
-		}
-		if got := len(resolver.snapshot()); got != 0 {
-			t.Fatalf("resolved observations after DryRun = %d, want 0", got)
-		}
-		first, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
-		if err != nil {
-			t.Fatalf("Start(first) error = %v", err)
-		}
-		second, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
-		if err != nil {
-			t.Fatalf("Start(second) error = %v", err)
-		}
-		firstSpec := first.NetworkSpecSnapshot()
-		secondSpec := second.NetworkSpecSnapshot()
-		if firstSpec.Mode != participation.ModeLive || secondSpec.Mode != participation.ModeLive ||
-			firstSpec.ChannelID == secondSpec.ChannelID {
-			t.Fatalf("live specs = %#v / %#v, want distinct per-run conversations", firstSpec, secondSpec)
-		}
-		storedFirst, err := globalDB.GetLoopRun(ctx, "ws-1", first.ID)
-		if err != nil {
-			t.Fatalf("GetLoopRun(first) error = %v", err)
-		}
-		storedSecond, err := globalDB.GetLoopRun(ctx, "ws-1", second.ID)
-		if err != nil {
-			t.Fatalf("GetLoopRun(second) error = %v", err)
-		}
-		if storedFirst.NetworkSpecSnapshot() != firstSpec || storedSecond.NetworkSpecSnapshot() != secondSpec {
-			t.Fatalf("stored specs = %#v / %#v, want immutable start snapshots", storedFirst, storedSecond)
-		}
-		observations := resolver.snapshot()
-		if got, want := len(observations), 2; got != want {
-			t.Fatalf("resolved observations after committed starts = %d, want %d", got, want)
-		}
-		if observations[0].Owner.ID != string(first.ID) || observations[0].Spec != firstSpec ||
-			observations[1].Owner.ID != string(second.ID) || observations[1].Spec != secondSpec {
-			t.Fatalf("resolved observations = %#v, want committed loop-run snapshots", observations)
 		}
 	})
 }

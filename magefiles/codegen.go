@@ -18,9 +18,6 @@ func Codegen() error {
 	if err := storeschema.GenerateSQLC(ctx, "."); err != nil {
 		return err
 	}
-	if err := DaytonaSidecars(); err != nil {
-		return err
-	}
 	if err := OpenDesignGenerate(); err != nil {
 		return err
 	}
@@ -63,9 +60,6 @@ func CodegenCheck() error {
 		return err
 	}
 	if err := storeschema.CheckSQLC(ctx, "."); err != nil {
-		return err
-	}
-	if err := daytonaSidecarsCheckStamped(); err != nil {
 		return err
 	}
 	if err := OpenDesignCheck(); err != nil {

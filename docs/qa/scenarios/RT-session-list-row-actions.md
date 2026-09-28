@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: PR-309-coderabbit-remediation
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/session-catalog-desktop.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/agent-sessions-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-review-20260805-060247-848289-lab/qa-artifacts/qa/journey-log.jsonl;docs/qa/evidence/2026-08-05-session-archive-coderabbit/CH-archive-session-catalog-delete-pending-fixed.png;docs/qa/evidence/2026-08-05-session-archive-coderabbit/session-catalog-visual.png
 last_report: docs/qa/reports/2026-08-05-session-archive-coderabbit.md
-overlaps: RT-014;RT-082;ET-web-sessions-catalog-modal
+overlaps: RT-014; RT-082; ET-web-sessions-catalog-modal
 ---
 
 The menu must use the shared UI primitives and keep Archive unavailable when runtime truth says the

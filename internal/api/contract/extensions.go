@@ -32,7 +32,7 @@ type InstallExtensionRequest struct {
 	Version              string                          `json:"version,omitempty"`
 	Asset                string                          `json:"asset,omitempty"`
 	AllowUnverified      bool                            `json:"allow_unverified,omitempty"`
-	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
 }
 
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
@@ -69,7 +69,7 @@ type UpdateExtensionRequest struct {
 	Version              string                          `json:"version,omitempty"`
 	CheckOnly            bool                            `json:"check_only,omitempty"`
 	AllowUnverified      bool                            `json:"allow_unverified,omitempty"`
-	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
 }
 
 // UpdateExtensionsRequest selects one or more managed extension updates.
@@ -89,18 +89,18 @@ type UpdateExtensionsRequest struct {
 type DevLinkExtensionRequest struct {
 	OriginPath           string `json:"origin_path"`
 	GenerationHash       string `json:"generation_hash"`
-	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
 // ReloadExtensionRequest swaps one dev-linked extension to an immutable generation.
 type ReloadExtensionRequest struct {
 	GenerationHash       string `json:"generation_hash"`
-	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
-// EnableExtensionRequest carries digest-exact network participation consent.
+// EnableExtensionRequest carries digest-exact gateway permission consent.
 type EnableExtensionRequest struct {
-	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
 // ExtensionSecretBindingInput is one write-only value or existing Vault binding.
@@ -198,8 +198,8 @@ type ExtensionPayload struct {
 	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
 	MissingEnv                  []string                          `json:"missing_env,omitempty"`
 	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
-	NetworkRequirementDigest    string                            `json:"network_requirement_digest,omitempty"`
-	NetworkConfirmationRequired bool                              `json:"network_confirmation_required"`
+	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
+	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
 	PID                         int                               `json:"pid,omitempty"`
 	UptimeSeconds               int64                             `json:"uptime_seconds,omitempty"`
 	Health                      string                            `json:"health,omitempty"`
@@ -291,8 +291,8 @@ type ExtensionEnablePreviewPayload struct {
 	AgentConflicts              []string                    `json:"agent_conflicts"`
 	MissingEnv                  []string                    `json:"missing_env"`
 	AutomationStarting          []string                    `json:"automation_starting"`
-	NetworkRequirementDigest    string                      `json:"network_requirement_digest"`
-	NetworkConfirmationRequired bool                        `json:"network_confirmation_required"`
+	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
+	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
 }
 
 // ExtensionCommandPayload is one executable command leaf projected from an active extension tool.

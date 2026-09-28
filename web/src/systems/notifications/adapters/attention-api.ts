@@ -4,12 +4,22 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
-import { NotificationsApiError } from "./notifications-api";
+
 import type {
   AttentionNotifications,
   AcknowledgeAttentionRequest,
   AttentionNotificationScope,
 } from "../types";
+
+export class NotificationsApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "NotificationsApiError";
+  }
+}
 
 export async function listAttentionNotifications(
   profile: string,

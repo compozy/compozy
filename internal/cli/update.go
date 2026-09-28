@@ -305,7 +305,7 @@ func updateCancelBundle(record updateCancelRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				updateUpdateKey,
-				[]string{automationStatusKey, "operation_id", bridgeMessageKey},
+				[]string{automationStatusKey, "operation_id", cliOutputMessageKey},
 				[]string{
 					string(record.Status), record.OperationID, record.Message,
 				},

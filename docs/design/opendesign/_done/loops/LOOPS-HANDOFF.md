@@ -20,9 +20,8 @@
 > **Round-5 spec pass (ADR-020..023, 2026-07-03):** the DSL pinned one reference grammar
 > (Go-template `{{ }}` values + CEL boolean conditions over a single validated namespace;
 > snake_case node IDs, kebab kinds). The action model is now 3 reserved kinds (`run-agent`,
-> `run-loop`, `transform`) plus any literal ToolID; `call-tool` and `channel-post` do not
-> exist as kinds (channel posting = `compozy__network_send` + `channel_result` harvest, kept as
-> a palette shortcut). The run status enum grew to 11 states (adds terminal `no_op` and
+> `run-loop`, `transform`) plus any literal ToolID; `call-tool` does not
+> exist as a kind. The run status enum grew to 11 states (adds terminal `no_op` and
 > `blocked`; `queued` is a live status for deferred starts under `concurrency: queue`,
 > ADR-021); gates became `criteria[]` + `verdict_policy`; set budgets are enforced with
 > `on_exceeded: halt | escalate`; the write surface gained `POST /loops/:name/validate` and
@@ -86,12 +85,9 @@ Each screen is one standalone `.html`, previewable on its own.
   state only, never a run status.
 - **Node classes (ADR-003/021):** `action` = 3 reserved kinds (`run-agent`, `run-loop`,
   `transform`) plus any literal ToolID (`compozy__*`/`ext__*`/`mcp__*`; params = the tool's
-  input schema, 181 native tools) · `control` (fan-out, collect, branch, gate, sub-loop) ·
-  `source` (watch-source, file-import, input). `call-tool` and `channel-post` do NOT
-  exist as kinds: channel posting is `kind: compozy__network_send` + optional
-  `harvest: {kind: channel_result, window, responder?, content_rule?}` (the
-  converse-and-decide result convention), with a "Channel post" palette shortcut that
-  inserts the pre-filled tool node. `run-agent` params: `{agent (REQUIRED, interpolable),
+  input schema) · `control` (fan-out, collect, branch, gate, sub-loop) ·
+  `source` (watch-source, file-import, input). `call-tool` does not
+  exist as a kind. `run-agent` params: `{agent (REQUIRED, interpolable),
   prompt (REQUIRED template), output_schema?, cwd?, model?, allowed_tools?, max_turns?}`.
   Node IDs are snake_case (`load_tasks`, `fetch_issues`); kinds stay kebab-case.
 - **Verification (ADR-005/022):** a gate (and `contract.verification[]`) declares
@@ -121,7 +117,7 @@ Each screen is one standalone `.html`, previewable on its own.
   `graph { nodes[], edges[] }`, `start[]`. Declared-input types:
   `string/number/boolean/file/agent/ref`.
 - **Start bindings (ADR-007):** the `start[]` allowlist
-  (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`) declares how
+  (`manual|cli|http|uds|trigger|schedule|webhook|extension|native_tool`) declares how
   a Loop may be initiated. Event-driven starts (trigger/schedule/webhook) ride CompozyOS's EXISTING
   automation primitives: a Trigger or Job gains a discriminated target, `Run agent` (today) or
   `Run loop` `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only,
@@ -173,7 +169,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
   `flex:1;min-height:0`). NO workspace rail, NO nav panel. The in-page right rails that
   carry per-loop/per-run info (`run-detail` events/facts column, `loop-detail` inputs/limits
   column) ARE content — keep them.
-- **Header (topbar):** 48px, `border-bottom:1px solid --line`. Inventory pages (catalog, vault-style) use **icon + title + count** on the left (Vault/Bridges shell) — not a breadcrumb. Detail/editor pages keep breadcrumb (`Loops › software-delivery`). Trailing actions: **ghost secondary + primary CTA** (`btn--ghost btn--sm` + `btn--primary`); listing search lives in the page toolbar, not the topbar.
+- **Header (topbar):** 48px, `border-bottom:1px solid --line`. Inventory pages (catalog, vault-style) use **icon + title + count** on the left (Vault shell) — not a breadcrumb. Detail/editor pages keep breadcrumb (`Loops › software-delivery`). Trailing actions: **ghost secondary + primary CTA** (`btn--ghost btn--sm` + `btn--primary`); listing search lives in the page toolbar, not the topbar.
 - **Page head (in body):** H1 at `detail-h1` (22px, weight 560), a mono count-chip, and a
   thin muted meta line. No marketing lead paragraphs, no glowing eyebrow dots.
 - **Status → visual (shared `.pill--*` vocabulary, tint + text):** running = accent + pulse ·
@@ -203,7 +199,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
 | `loops-index.html`   | Overview / launcher             | Calm 2-noun explainer + a neutral grid of screen cards (Built/Planned tags), design-system note. This one is a standalone launcher (no app shell by nature); links to the screens below.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `loops-catalog.html` | Loops catalog                   | Vault-style topbar (icon + Loops + count · Runs ghost + New primary). Listing toolbar: compact **SearchInput** before **reui Filters** (kind / category / status / mode / name) + **PillGroup Rows\|Cards** (no “Sorted by”). Default = rows; cards = `CatalogCard` grid. Empty state, binding badge, Run → run-form. Listing standard in `LISTING-STANDARD.md` (also applied on `vault-redesign.html` — flat list, `Pill mono` type in trail/footer, date under card title, delete always visible). |
 | `loop-detail.html`   | Loop definition page            | DetailHeader (Run = the one accent CTA · Configure · Fork & edit). Section pattern (label + hairlines): Contract (goal/DoD/verification kinds/terminal chips), read-only body DAG (neutral nodes; 8 nodes for software-delivery), recent runs. Right rail (content): declared inputs, start bindings (declared kinds + attached automations + Add trigger / Add schedule CTAs), limits vs ceilings, versions, 30d stats.                                                                                                                                                                                                                                                                                               |
-| `run-detail.html`    | **Live run monitor** (heaviest) | Sticky contract header (goal + running pill) + 5 neutral live meters (attempts/tokens/wall/cost/breadth; warn color only near ceiling). Generation timeline on a flat node spine: G1 revised (slug → load_tasks file-import → implement fan-out over the authored tasks in dependency order as batch branches, batch_size 1 so each branch is one task e.g. `task_01 · schema migration`, 1 failed branch → collect → review agent-judge → request_changes → revise; node IDs snake_case); G2 running (carry-forward, execute_task re-running only the failed task via run-agent, embedded channel (`compozy__network_send` + `channel_result` harvest, the converse-and-decide convention) with desaturated avatars, pending verify, human approval gate). Right info rail (content): live events, run facts (automation-started runs name their trigger: `schedule · nightly · 0 3 * * * (job)`; bare kinds for web/cli/agent), terminal-outcome legend. Gates are flat tint cards (no side-stripe/gradient). JS ticks meters/events + collapsibles, guarded by reduced-motion. |
+| `run-detail.html`    | **Live run monitor** (heaviest) | Sticky contract header (goal + running pill) + 5 neutral live meters (attempts/tokens/wall/cost/breadth; warn color only near ceiling). Generation timeline on a flat node spine: G1 revised (slug → load_tasks file-import → implement fan-out over the authored tasks in dependency order as batch branches, batch_size 1 so each branch is one task e.g. `task_01 · schema migration`, 1 failed branch → collect → review agent-judge → request_changes → revise; node IDs snake_case); G2 running (carry-forward, execute_task re-running only the failed task via run-agent, pending verify, human approval gate). Right info rail (content): live events, run facts (automation-started runs name their trigger: `schedule · nightly · 0 3 * * * (job)`; bare kinds for web/cli/agent), terminal-outcome legend. Gates are flat tint cards (no side-stripe/gradient). JS ticks meters/events + collapsibles, guarded by reduced-motion. |
 | `runs.html`          | Runs history                    | KPI strip (CompozyOS metric scale), outcome filter segment (JS) + Loop/date selects, Active vs Past tables across the full outcome spectrum, neutral budget mini-bars (warn/danger only near limit), → run-detail.                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Cross-screen consistency is locked: identical `:root` token block, shell, `.pill--*`
@@ -214,8 +210,8 @@ software-delivery, sidebar "Runs" count = 3 active).
 
 1. **`loop-editor.html` — Visual DAG builder (fork & edit; the other heavy screen).**
    Canvas of action/control/source nodes (neutral, class as mono label) + edges; node palette
-   (reserved run-agent / run-loop / transform, curated tool shortcuts incl. "Channel post" →
-   pre-filled `compozy__network_send`, and a searchable "Call tool..." picker over the 181-tool
+   (reserved run-agent / run-loop / transform, curated tool shortcuts, and a searchable
+   "Call tool..." picker over the tool
    registry); right node-inspector rendered FROM the DSL types + registry tool schemas
    (ADR-023; run-agent: `params.agent`/`params.prompt`/`output_schema`/`cwd`/`model`/
    `allowed_tools`/`max_turns` + envelope `session`/`timeout`/`retry`/`harvest`; ToolID

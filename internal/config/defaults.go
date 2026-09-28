@@ -50,7 +50,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Providers:     map[string]ProviderConfig{},
 		ModelCatalog:  DefaultModelCatalogConfig(),
 		Marketplace:   DefaultMarketplaceRuntimeConfig(),
-		Sandboxes:     map[string]SandboxProfile{},
 		Observability: defaultObservabilityConfig(),
 		Log:           defaultLogConfig(),
 		Redact:        RedactConfig{Enabled: true},
@@ -79,7 +78,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Loops:   DefaultLoopsConfig(),
 		Goals:   DefaultGoalsConfig(),
 		Task:    DefaultTaskConfig(),
-		Network: DefaultNetworkConfig(),
 		Gateway: defaultGatewayConfig(homePaths),
 		Autonomy: AutonomyConfig{
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,

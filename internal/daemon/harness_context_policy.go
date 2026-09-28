@@ -19,9 +19,6 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	if r.runtime.ToolsPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionTools)
 	}
-	if sessionCtx.NetworkLive {
-		sections = append(sections, HarnessPromptSectionNetwork)
-	}
 	return sections
 }
 
@@ -39,9 +36,6 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	}
 	if r.runtime.SkillsAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSkills)
-	}
-	if turnCtx.Origin == TurnOriginNetwork {
-		return augmenters
 	}
 	if turnCtx.Origin != TurnOriginUser {
 		return augmenters

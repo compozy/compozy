@@ -15,11 +15,7 @@ func loopRunInsertParams(
 	run looppkg.Run,
 	inputsJSON []byte,
 	metadataJSON []byte,
-) (sqlcgen.InsertLoopRunParams, error) {
-	network, err := encodeParticipationSnapshot(string(run.WorkspaceID), run.NetworkSpecSnapshot())
-	if err != nil {
-		return sqlcgen.InsertLoopRunParams{}, err
-	}
+) sqlcgen.InsertLoopRunParams {
 	return sqlcgen.InsertLoopRunParams{
 		ProfileID:               run.ProfileID,
 		ID:                      string(run.ID),
@@ -60,11 +56,7 @@ func loopRunInsertParams(
 			run.Origin.PolicySpecDigest,
 		),
 		OriginCreationDigest: nullString(run.Origin.CreationDigest),
-		NetworkSpecJson:      network.JSON,
-		NetworkMode:          network.Mode,
-		NetworkChannel:       network.Channel,
-		NetworkSource:        network.Source,
-	}, nil
+	}
 }
 
 func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
@@ -99,9 +91,8 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		startedOriginKind: row.StartedOriginKind, startedOriginRef: row.StartedOriginRef,
 		originKind: row.OriginKind, originSessionID: row.OriginSessionID,
 		originProfileRef: row.OriginCreationProfileRef, originPolicy: row.OriginPolicySpecDigest,
-		originCreation:  row.OriginCreationDigest,
-		networkSpecJSON: row.NetworkSpecJson, networkMode: row.NetworkMode,
-		networkChannel: row.NetworkChannel, networkSource: row.NetworkSource,
+		originCreation: row.OriginCreationDigest,
+
 		forkedFromRunID: row.ForkedFromRunID, forkedFromGen: row.ForkedFromGeneration,
 	}
 	run, err := values.toRun()

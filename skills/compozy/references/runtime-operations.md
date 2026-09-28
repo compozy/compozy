@@ -11,11 +11,10 @@
 - Gateway exposure and device authentication
 - Remote CLI profiles and SSH forwards
 - Automation suggestions
-- Messaging bridge delivery, diagnostics, and runtime boundaries
 
 ## Operating Model
 
-CompozyOS is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
+CompozyOS is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, memory, skills, and extension resources.
 
 Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public CompozyOS surfaces with structured output.
 
@@ -131,7 +130,7 @@ The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta
 ### Workspace knowledge on live turns
 
 Markdown files under `<workspace>/knowledge/` are current workspace data. On each accepted user,
-Network, or synthetic turn, CompozyOS reopens the tree and supplies a bounded
+or synthetic turn, CompozyOS reopens the tree and supplies a bounded
 `<workspace-knowledge-snapshot>` with workspace-relative paths, current bytes, a revision digest,
 and omission metadata. Treat the newest snapshot as authoritative over earlier copies of the same
 file.
@@ -498,27 +497,7 @@ uses the shared stop ladder and signals only a process matching its recorded PID
 Boot orphan recovery records canonical escalation and terminal events while preserving crash attribution;
 a repeated recovery does not notify the same verified terminal stop again. When recorded PID/start
 identity proves the process already exited before inventory, recovery still commits the terminal
-event and cleanup through the shared settlement path, without another escalation. A remote sandbox requires remote
-exit proof; a missing or reused local PID does not prove that its remote agent stopped. A remote stop
-error remains a failure on repeated requests; do not interpret a failed cleanup as confirmed exit.
-Daytona's internal process-status lookup distinguishes command completion from verified
-process-group exit. A missing process record is unknown, including after deletion or sidecar
-restart; HTTP 404 is never remote exit proof.
-New Daytona preparations reserve a launcher process ID in provider state before agent launch.
-Diagnostic commands do not consume this identity. Identified launch requires explicit sidecar
-support; it must not fall back to anonymous process creation on an older sidecar.
-Recovered Daytona stops use the stored sandbox and launcher identities through the provider.
-The daemon owns the bounded close-input/terminate/kill sequence; remote signals retain the
-process record for verification. Recovery lookup opens the existing control connection without
-starting a replacement sidecar. Unknown or mismatched identity retains verification-failed attention.
-The launcher sidecar version is persisted with new process identities. The v2 rollout uses a
-separate endpoint and executable so existing v1 processes stay intact; recovery follows the
-saved version. Older identified records without a version belong to v1. Unsupported versions
-remain explicit errors rather than being redirected to a newer empty process store.
-The sidecar's forced-stop exit-observer wait is bounded. If it expires, the stop retains its
-deadline failure and process record; do not interpret that timeout as successful termination.
-A failed sidecar stop with a known process and unfinished exit observation can be retried.
-Concurrent requests share that attempt. Completed outcomes are reused without signaling again.
+event and cleanup through the shared settlement path, without another escalation.
 If an active session's stop classification cannot persist, it remains `stopping` even after
 process exit is verified. Restore persistence and retry stop: the original termination phase
 is retained, process signals are not repeated, and the post-stop hook runs only once.
@@ -534,9 +513,6 @@ receipt, including restart before the startup metadata update. If its process is
 still alive, the intermediate stopping state retains startup attribution across another restart.
 The shared ladder then verifies exit before clearing the incomplete ACP ID; existing provider
 diagnostics remain available.
-After verified recovered exit, sandbox finalization uses the stored profile and existing sync/destroy
-policy. Sync failures remain in sandbox diagnostics; terminal state and session creation metadata
-are preserved, and the catalog receives the resulting sandbox state.
 If terminal metadata or catalog persistence fails after a recovered process exits, retry stop on
 the same session. A durable settlement receipt preserves the original exit proof and cause
 across daemon restart; boot finishes pending terminal writes before admitting new work.
@@ -548,7 +524,7 @@ or `wait:true` (settled outcome). Always send the explicit boolean. Omitted `wai
 synchronous shape with a deprecation warning through v0.4, removed in v0.5.0. Native stop still requires
 a same-workspace target other than the caller and follows the existing approval policy.
 
-Ledger and network cleanup failures after verified stop are retained as redacted
+Ledger cleanup failures after verified stop are retained as redacted
 `runtime_warning` events in session history. Cleanup diagnostics do not reopen the stopped
 runtime. If persisting the warning fails, the stop operation reports that persistence error.
 If the final stopped-state metadata or catalog write fails after verified exit, the session
@@ -612,7 +588,7 @@ stdio. It infers the workspace through the shared context chain; pass
 `--workspace <id|name|path>` only when the client's launch directory is not the intended workspace.
 The command is a foreground relay to the running daemon; it does not start another daemon or open
 stores directly. Published names use `compozy_host__<family>__<verb>`, not the native `compozy__*`
-namespace. Sessions, workspace-safe task operations, Network, memory, and resources are included;
+namespace. Sessions, workspace-safe task operations, memory, and resources are included;
 target-only task mutations and unrelated Host API families are excluded.
 
 The resolved workspace binding is injected into every call. Conflicting caller workspace fields are
@@ -714,8 +690,8 @@ operator management and the full operator surface. The public tier exposes only 
 operator and ingress surface union, never pairing mint or redeem and never ingress-binding
 management.
 
-Webhook triggers and bridge instances expose honest public-ingress projections. Read the trigger's
-`ingress` or the bridge's `gateway_ingress`; use its URL only when `reachability=live`. Confirm one
+Webhook triggers expose public-ingress projections. Read the trigger's `ingress`; use its URL only
+when `reachability=live`. Confirm one
 subject through the private listener or UDS with `POST /api/gateway/ingress-bindings` and
 `{subject_kind, subject_id, confirmed:true}`. Remove it with
 `DELETE /api/gateway/ingress-bindings/{subject_kind}/{subject_id}`. Subject scope and workspace are
@@ -747,7 +723,7 @@ protect it like a key. Copying `config.toml` alone never transfers an identity.
 When a remote profile is active, commands report the selected target on stderr while structured
 stdout remains parseable. `compozy open` uses the selected HTTPS origin.
 
-Direct profiles can operate sessions; read tasks; and use Loops, memory, settings, bridges,
+Direct profiles can operate sessions; read tasks; and use Loops, memory, settings,
 extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
 agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
 local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
@@ -779,48 +755,6 @@ owner `workspace_id`. The workspace pending queue defaults to five entries. Chan
 restart-required limit with `compozy config set automation.suggestions.pending_cap <value>`; the store
 applies that configured cap inside the serialized insert transaction.
 
-## Messaging Bridge Delivery and Progress
-
-Bridge instances own their delivery behavior. Manage them through `compozy bridge`, `/api/bridges`, or the equivalent UDS endpoints; do not edit extension state or storage directly. Tool progress is presentation-only bridge delivery data and never becomes session transcript or ACP history.
-
-Use `compozy bridge manifest slack --instance <id>` for Slack app setup and `compozy bridge setup whatsapp|telegram|discord` for guided, write-only secret binding. Teams, Google Chat, GitHub, and Linear have no setup subcommand: use `compozy bridge create --enabled=false`, bind exact slots with `compozy bridge secret-bindings put`, verify, enable, then verify public reachability. Generic binding accepts secret contents through `--secret-value-stdin` or `--secret-value-file <path>` and rejects inline secret arguments. The setup commands accept strict headless JSON through the global `--json` flag; supplied and existing secrets are never echoed. WhatsApp verify tokens and Telegram `--print-only` webhook secrets must be supplied or generated with the explicit one-run `--reveal-generated-secrets` JSON disclosure, so an operator-needed value never becomes irretrievable. Telegram setup otherwise registers `setWebhook` through the daemon.
-
-An empty bridge `dm_policy` normalizes to permissive `open`. The current create/update CLI has no DM-policy flag; keep the bridge disabled and use the Web editor or `PATCH /api/bridges/:id` to set `allowlist` or `pairing` plus the complete `provider_config.dm` lists. `pairing` consumes pre-populated `paired_user_ids`/`paired_usernames` with allowlist fallback; it does not enroll or approve senders interactively. DM policy does not govern groups, channels, spaces, repositories, or issues.
-
-`compozy bridge verify <id> --json` asks the owning adapter for typed `pass|warn|fail|skipped` checks without changing instance lifecycle state; GitHub and Linear currently skip identity, so enabled runtime health owns their live auth result. Any failed check makes the command nonzero after it writes the records. `compozy doctor --only bridge --json` aggregates the same checks. After enablement, `compozy bridge send-test <id> --message ...` makes a real provider delivery. `compozy bridge test-delivery` remains a target-resolution dry run and sends nothing. HTTP and UDS expose `GET /api/bridges/providers/slack/manifest?instance=<id>` plus `POST /api/bridges/:id/verify`, `/send-test`, and `/webhook/register`; there is no `/api/bridges/setup` route.
-
-For `send-test` and `test-delivery`, preserve valid UTF-8 bridge, peer, thread, and group IDs exactly across CLI, HTTP, and UDS; URL-encode path IDs that contain `/`. Delivery mode is the literal `direct-send` or `reply`; aliases, case changes, surrounding whitespace, explicit empty strings, and `null` are invalid. Omitting mode uses the bridge instance default, then `direct-send` when no default exists.
-
-Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
-
-For gateway-managed callbacks, set `provider_config.webhook.listen_addr` to a fixed literal loopback
-IP and port and set `provider_config.webhook.path` to the adapter path. After explicit bridge binding,
-the platform callback uses `/api/bridge-callbacks/{bridge_id}` on the verified public gateway and is
-proxied only to that loopback target. Webhook registration uses the live `gateway_ingress.url` when
-available. A bridge without a gateway binding keeps its validated `webhook_public_url` and external
-proxy unchanged; its health omits gateway ingress.
-
-Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. CompozyOS measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
-
-Configure the typed `delivery_defaults.progress` block with `tool_progress` (`off`, `new`, `all`, or `verbose`), `grouping` (`accumulate` or `separate`), `typing`, and `reactions`. Slack, Telegram, and Discord default to `new` plus `accumulate` with typing and reactions enabled; other platforms default to `off` plus `accumulate` with both affordances disabled unless the instance overrides them. `new` deduplicates consecutive starts but still emits completed and failed phases.
-
-Slack, Telegram, Discord, Teams, and Google Chat can update an accumulated progress bubble; Slack and Telegram apply their platform dialects to the daemon-rendered line. WhatsApp is append-only, so prefer `new` plus `separate` when enabling its sparse one-line statuses. GitHub and Linear acknowledge progress without writing to issues.
-
-The CLI exposes the same fields on `bridge create` and `bridge update`:
-
-    --delivery-progress <off|new|all|verbose>
-    --delivery-progress-grouping <accumulate|separate>
-    --delivery-progress-typing[=true|false]
-    --delivery-progress-reactions[=true|false]
-
-Use structured output to inspect the saved resource after mutation. An adapter that has not registered a progress handler acknowledges these events without a provider-side effect; final answer delivery remains independent. Progress previews are daemon-rendered and redacted before they cross the extension boundary.
-
-Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, CompozyOS reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sent/acknowledged sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. A sequence sent but not acknowledged is terminalized locally as indeterminate with no provider replay. An unfinished row without an unmatched send intent gets one write-ahead terminal error post, including on append-only providers or when its old remote anchor no longer exists.
-
-A bridge route reuses its active CompozyOS session. If that session is busy, ingress retries admission locally up to three times within roughly five seconds; it does not automatically queue, interrupt, or steer the turn. Stop the route's `session_id` with `compozy session stop` when the next accepted provider event must start a clean session; the old transcript remains history and the route rebinds to a replacement.
-
-Distinguish restart recovery from a remotely committed mutation whose required result was unavailable. After a provider accepts a mutation but its response or required ID cannot be materialized, adapters return `CommittedMutationError`; bridgesdk emits `committed_result_unavailable`, and the broker records a terminal error without replay or a fabricated remote ID. `compozy bridge send-test --json` reports that status, omits `remote_message_id`, and returns a redacted error; it is a direct control probe, so branch on `status` rather than command success and do not expect a broker ledger row or health-failure metric. Inspect the provider conversation before any manual resend because the remote artifact may already exist. An indeterminate progress mutation drops only that progress bubble; later final text remains eligible.
-
 ## Diagnostics Order
 
 When a session behaves unexpectedly:
@@ -843,7 +777,7 @@ another active profile or `--all-profiles` for an intentional aggregate; combine
 `profile=<name>` or `all_profiles=true` query parameters on `GET /api/observe/overview`. The payload
 contains attention items with only accepted verbs (`approve`, `reject`, `retry`, `open`), today's
 terminal counters, 14-day run outcomes, retention-bounded daily token usage with estimated cost and
-per-agent share (`--usage-window 7|30|90`), an hour-by-weekday event pulse, today's network and hook
+per-agent share (`--usage-window 7|30|90`), an hour-by-weekday event pulse, today's hook
 counters, and freshness. Aggregate usage includes owner-labeled `usage.profiles` rows. The same
 payload backs the web home dashboard.
 
@@ -861,7 +795,7 @@ Terminal runs stay terminal. After repairing the provider or command, use
 `compozy task run recover <run-id> --reason <reason> -o json`; CompozyOS never restarts the subprocess
 automatically. Set the threshold to `0` and restart to keep diagnostics without task mutation.
 
-For workspace-scoped MCP servers and bridges, `compozy doctor -o json` also reports durable dead-runtime
+For workspace-scoped MCP servers, `compozy doctor -o json` also reports durable dead-runtime
 marks with the workspace, entity, redacted reason, and mark time. A mark follows five consecutive
 confirmed permanent failures. Ordinary attempts are suppressed until the 60-second recovery window
 opens; then a runtime probe may try once, and success clears the mark without a daemon restart.
@@ -931,7 +865,7 @@ After verified process-tree exit, the durable stop receipt settles authoritative
 session reuse. Each owned run settles independently, so replay can finish remaining candidates
 without duplicating successors already committed. A remaining task attempt queues one linked run
 with `previous_run_id`, preserving
-profile, workspace, worktree, participation, capabilities, and metadata. Existing lease recovery
+profile, workspace, worktree, capabilities, and metadata. Existing lease recovery
 counts remain charged. `max_attempts = 1` disables retry; exhaustion leaves `needs_attention` with
 `supervised_silence_exhausted`. Recovery emits `task.run_recovered` with reason `supervised_silence`
 and action `requeue`, contributing to the existing Requeued total without a daemon-boot label.

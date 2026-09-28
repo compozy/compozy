@@ -69,7 +69,7 @@ export const Inline: Story = {
 
 /**
  * Drawer — forces drawer mode by raising the breakpoint above the preview viewport. Pair with the
- * sandbox toggle below to open the Sheet drawer.
+ * example toggle below to open the Sheet drawer.
  */
 export const Drawer: Story = {
   render: () => {

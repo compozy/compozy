@@ -13,7 +13,6 @@ import { useHomeAttentionActions } from "../../hooks/use-home-attention-actions"
 import { HomeAttentionZone } from "../home-attention-zone";
 import { HomeFirstRun } from "../home-first-run";
 import { HomeKpiStrip } from "../home-kpi-strip";
-import { HomeNetworkPanel } from "../home-network-panel";
 import { HomeOutcomesChart } from "../home-outcomes-chart";
 import { HomePageMeta } from "../home-page-meta";
 import { HomePulseHeatmap } from "../home-pulse-heatmap";
@@ -125,14 +124,6 @@ const workingNowCards: HomeRunCardModel[] = [
     baseAtMs: NOW,
     runLink: { taskId: "task-pub", runId: "run-1" },
   },
-];
-
-const networkRows = [
-  { key: "peers", label: "Peers online", value: "2", tone: "success" as const },
-  { key: "work", label: "Open work", value: "3" },
-  { key: "messages", label: "Messages today", value: "128", mono: true },
-  { key: "channels", label: "Channels", value: "3", mono: true },
-  { key: "wakes", label: "Wakes used", value: "12", mono: true },
 ];
 
 const agentRows: HomeAgentRow[] = [
@@ -275,15 +266,13 @@ function HomeDashboardStory({
             workingNowDetail="2 sessions · 1 task run"
             workingNowTotal={3}
           />
-          <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-            <HomeWorkingNow
-              cards={visibleWorkingNowCards}
-              errorMessage={workingNowErrorMessage}
-              status={workingNowStatus}
-              total={visibleWorkingNowCards.length}
-            />
-            <HomeNetworkPanel rows={networkRows} />
-          </div>
+
+          <HomeWorkingNow
+            cards={visibleWorkingNowCards}
+            errorMessage={workingNowErrorMessage}
+            status={workingNowStatus}
+            total={visibleWorkingNowCards.length}
+          />
           <HomePulseHeatmap pulse={overview.pulse} />
           <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
             <HomeOutcomesChart outcomes={overview.outcomes} />
@@ -308,7 +297,7 @@ const meta: Meta<typeof HomeDashboardStory> = {
     docs: {
       description: {
         component:
-          "The 7-zone end-user home: needs-you, KPI strip, working-now | network, pulse heatmap, outcomes | usage, agents | activity, and the folded system row.",
+          "The 7-zone end-user home: needs-you, KPI strip, working-now, pulse heatmap, outcomes | usage, agents | activity, and the folded system row.",
       },
     },
   },

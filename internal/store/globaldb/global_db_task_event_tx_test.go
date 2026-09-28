@@ -16,12 +16,10 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type recordingTaskEventCommitObserver struct {
@@ -659,7 +657,7 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should roll back every run and network ledger when a later task event fails", func(t *testing.T) {
+	t.Run("Should roll back every run when a later task event fails", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -688,24 +686,6 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 			sessionID,
 			now.Add(time.Second),
 		)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, sessionID)
-		wake := networkWakeRunForClaimTest(
-			"run-session-release-rollback-wake",
-			"wake-session-release-rollback",
-			sessionID,
-			"session:"+sessionID,
-			now.Add(2*time.Second),
-		)
-		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
-		leasedWake := leaseNetworkWakeForSessionReleaseTest(
-			t,
-			globalDB,
-			wake,
-			sessionID,
-			daemon,
-			now.Add(3*time.Minute),
-		)
-
 		installTaskEventInsertFailureTriggerForTaskAndType(
 			t,
 			globalDB,
@@ -719,20 +699,12 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 		}, daemon)
 		assertForcedTaskEventInsertError(t, err, "ReleaseSessionRunLeases()")
 
-		for _, want := range []taskpkg.Run{firstRun, secondRun, leasedWake} {
+		for _, want := range []taskpkg.Run{firstRun, secondRun} {
 			got, getErr := globalDB.GetTaskRun(ctx, want.ID)
 			if getErr != nil {
 				t.Fatalf("GetTaskRun(%q) error = %v", want.ID, getErr)
 			}
 			assertTaskRunLeaseRollbackState(t, got, want)
-		}
-		if got := networkWakeEventCount(
-			t,
-			globalDB,
-			"wake-session-release-rollback",
-			networkWakeEventReleased,
-		); got != 0 {
-			t.Fatalf("released network wake events = %d, want 0 after rollback", got)
 		}
 		for _, taskID := range []string{firstTask.ID, "task-session-release-rollback-second"} {
 			events, listErr := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskID})
@@ -745,7 +717,7 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 		}
 	})
 
-	t.Run("Should commit all task and network release ledgers together", func(t *testing.T) {
+	t.Run("Should commit all task release ledgers together", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -774,24 +746,6 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 			sessionID,
 			now.Add(time.Second),
 		)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, sessionID)
-		wake := networkWakeRunForClaimTest(
-			"run-session-release-commit-wake",
-			"wake-session-release-commit",
-			sessionID,
-			"session:"+sessionID,
-			now.Add(2*time.Second),
-		)
-		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
-		leasedWake := leaseNetworkWakeForSessionReleaseTest(
-			t,
-			globalDB,
-			wake,
-			sessionID,
-			daemon,
-			now.Add(3*time.Minute),
-		)
-
 		results, err := manager.ReleaseSessionRunLeases(ctx, taskpkg.SessionLeaseRelease{
 			SessionID: sessionID,
 			Reason:    "runtime cleanup",
@@ -800,10 +754,10 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 		if err != nil {
 			t.Fatalf("ReleaseSessionRunLeases() error = %v", err)
 		}
-		if got, want := len(results), 3; got != want {
+		if got, want := len(results), 2; got != want {
 			t.Fatalf("len(ReleaseSessionRunLeases()) = %d, want %d", got, want)
 		}
-		for _, previous := range []taskpkg.Run{firstRun, secondRun, leasedWake} {
+		for _, previous := range []taskpkg.Run{firstRun, secondRun} {
 			got, getErr := globalDB.GetTaskRun(ctx, previous.ID)
 			if getErr != nil {
 				t.Fatalf("GetTaskRun(%q) error = %v", previous.ID, getErr)
@@ -823,14 +777,6 @@ func TestGlobalDBSessionLeaseReleaseShouldSettleOneSessionAtomically(t *testing.
 			if len(events) != 1 {
 				t.Fatalf("released task events for %q = %#v, want one", taskID, events)
 			}
-		}
-		if got := networkWakeEventCount(
-			t,
-			globalDB,
-			"wake-session-release-commit",
-			networkWakeEventReleased,
-		); got != 1 {
-			t.Fatalf("released network wake events = %d, want 1", got)
 		}
 	})
 
@@ -913,37 +859,6 @@ func seedLeasedSessionRunForEventTransaction(
 		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
 	}
 	return taskRecord, run
-}
-
-func leaseNetworkWakeForSessionReleaseTest(
-	t *testing.T,
-	globalDB *GlobalDB,
-	wake taskpkg.Run,
-	sessionID string,
-	actor taskpkg.ActorContext,
-	leaseUntil time.Time,
-) taskpkg.Run {
-	t.Helper()
-
-	rawToken, err := taskpkg.NewClaimToken()
-	if err != nil {
-		t.Fatalf("NewClaimToken() error = %v", err)
-	}
-	claimTokenHash, err := taskpkg.ClaimTokenHash(rawToken)
-	if err != nil {
-		t.Fatalf("ClaimTokenHash() error = %v", err)
-	}
-	wake.Status = taskpkg.TaskRunStatusClaimed
-	wake.ClaimedBy = &actor.Actor
-	wake.SessionID = sessionID
-	wake.ClaimTokenHash = claimTokenHash
-	wake.ClaimedAt = leaseUntil.Add(-time.Minute)
-	wake.HeartbeatAt = leaseUntil.Add(-30 * time.Second)
-	wake.LeaseUntil = leaseUntil
-	if err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), wake); err != nil {
-		t.Fatalf("UpdateTaskRun(%q) error = %v", wake.ID, err)
-	}
-	return wake
 }
 
 func seedTaskRunLeaseSettlementForTest(
@@ -1238,200 +1153,6 @@ func TestGlobalDBCompleteRunLeaseShouldAppendRunCompletedWatchEvent(t *testing.T
 	}
 }
 
-func TestGlobalDBTaskStatusProjectionShouldCommitWithTransition(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should freeze transition state and exact recipients in one transaction", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		taskRecord, transitionAt := seedTaskStatusProjectionForTest(ctx, t, globalDB, "snapshot")
-
-		if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
-			Origin: coordinatorActorContextForTest().Origin, TaskID: taskRecord.ID,
-			Reason:   "operator input required",
-			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			MarkedAt: transitionAt.Add(-time.Minute),
-		}); err != nil {
-			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
-		}
-		if _, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
-			TaskID: taskRecord.ID, Note: "operator reviewed escalation",
-			Actor: operatorActorContextForTest("operator"), ClearedAt: transitionAt,
-		}); err != nil {
-			t.Fatalf("ClearTaskNeedsAttention() error = %v", err)
-		}
-
-		projections, err := globalDB.ListNetworkTaskStatusProjections(ctx, store.NetworkTaskStatusProjectionQuery{
-			WorkspaceID: taskRecord.WorkspaceID, TaskID: taskRecord.ID, Limit: 10,
-		})
-		if err != nil {
-			t.Fatalf("ListNetworkTaskStatusProjections() error = %v", err)
-		}
-		if got, want := len(projections), 1; got != want {
-			t.Fatalf("len(projections) = %d, want %d exact full recipient", got, want)
-		}
-		projection := projections[0]
-		if got, want := projection.RecipientSessionID, "sess-full-snapshot"; got != want {
-			t.Fatalf("recipient = %q, want %q", got, want)
-		}
-		if !projection.ProjectedAt.Equal(transitionAt) {
-			t.Fatalf("projected_at = %s, want transition time %s", projection.ProjectedAt, transitionAt)
-		}
-		var payload store.NetworkTaskStatusProjectionPayload
-		if err := json.Unmarshal(projection.ProjectionJSON, &payload); err != nil {
-			t.Fatalf("Unmarshal(projection) error = %v", err)
-		}
-		if got, want := payload.TaskStatus, string(taskpkg.TaskStatusReady); got != want {
-			t.Fatalf("projection task_status = %q, want %q", got, want)
-		}
-
-		for _, subscription := range []store.NetworkSubscriptionEntry{
-			{
-				WorkspaceID: taskRecord.WorkspaceID, Channel: "builders", ThreadID: "thread_snapshot",
-				SessionID: "sess-full-snapshot", Mode: store.NetworkSubscriptionModeMute,
-				CreatedAt: transitionAt, UpdatedAt: transitionAt.Add(time.Minute),
-			},
-			{
-				WorkspaceID: taskRecord.WorkspaceID, Channel: "builders", ThreadID: "thread_snapshot",
-				SessionID: "sess-muted-snapshot", Mode: store.NetworkSubscriptionModeFull,
-				CreatedAt: transitionAt, UpdatedAt: transitionAt.Add(time.Minute),
-			},
-		} {
-			if err := globalDB.PutNetworkSubscription(ctx, subscription); err != nil {
-				t.Fatalf("PutNetworkSubscription(%q) error = %v", subscription.SessionID, err)
-			}
-		}
-		projections, err = globalDB.ListNetworkTaskStatusProjections(ctx, store.NetworkTaskStatusProjectionQuery{
-			WorkspaceID: taskRecord.WorkspaceID, TaskID: taskRecord.ID, Limit: 10,
-		})
-		if err != nil {
-			t.Fatalf("ListNetworkTaskStatusProjections(after subscription change) error = %v", err)
-		}
-		if got, want := projections[0].RecipientSessionID, "sess-full-snapshot"; got != want {
-			t.Fatalf("frozen recipient = %q, want original %q", got, want)
-		}
-	})
-
-	t.Run("Should roll back the transition when projection persistence fails", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		taskRecord, transitionAt := seedTaskStatusProjectionForTest(ctx, t, globalDB, "rollback")
-		if _, err := globalDB.db.ExecContext(ctx, `CREATE TRIGGER fail_task_status_projection
-			BEFORE INSERT ON network_task_status_projections
-			BEGIN SELECT RAISE(FAIL, 'forced projection failure'); END`); err != nil {
-			t.Fatalf("install projection failure trigger error = %v", err)
-		}
-
-		if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
-			Origin: coordinatorActorContextForTest().Origin, TaskID: taskRecord.ID,
-			Reason:   "must roll back",
-			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			MarkedAt: transitionAt.Add(-time.Minute),
-		}); err != nil {
-			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
-		}
-		_, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
-			TaskID: taskRecord.ID, Note: "must fail",
-			Actor: operatorActorContextForTest("operator"), ClearedAt: transitionAt,
-		})
-		if err == nil || !strings.Contains(err.Error(), "forced projection failure") {
-			t.Fatalf("ClearTaskNeedsAttention() error = %v, want forced projection failure", err)
-		}
-		stored, err := globalDB.GetTask(ctx, taskRecord.ID)
-		if err != nil {
-			t.Fatalf("GetTask() error = %v", err)
-		}
-		if stored.NeedsAttention == nil || stored.Status != taskRecord.Status {
-			t.Fatalf("stored task = %#v, want uncleared attention state", stored)
-		}
-		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{
-			TaskID: taskRecord.ID, EventType: string(hookspkg.HookTaskRecovered),
-		})
-		if err != nil {
-			t.Fatalf("ListTaskEvents() error = %v", err)
-		}
-		if len(events) != 0 {
-			t.Fatalf("needs-attention events = %#v, want rollback", events)
-		}
-	})
-}
-
-func seedTaskStatusProjectionForTest(
-	ctx context.Context,
-	t *testing.T,
-	globalDB *GlobalDB,
-	suffix string,
-) (taskpkg.Task, time.Time) {
-	t.Helper()
-	now := time.Date(2026, 7, 17, 16, 0, 0, 0, time.UTC)
-	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "projection-"+suffix, t.TempDir())
-	for _, sessionID := range []string{"sess-origin-" + suffix, "sess-full-" + suffix, "sess-muted-" + suffix} {
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ProfileID: store.DefaultProfileID,
-			ID:        sessionID, AgentName: "agent-" + sessionID, WorkspaceID: workspaceID,
-			RuntimeStatus:       store.SessionRuntimeUnbound,
-			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-			SessionType:         "agent", State: "running", CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
-			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
-		}
-	}
-	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		WorkspaceID: workspaceID, Channel: "builders", Purpose: "Task projection",
-		ProfileID: store.DefaultProfileID,
-		CreatedBy: "test", CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("WriteNetworkChannel() error = %v", err)
-	}
-	threadID := "thread_" + suffix
-	messageID := "msg-origin-" + suffix
-	if _, err := globalDB.WriteConversationMessage(ctx, store.NetworkConversationMessage{
-		MessageID: messageID, SessionID: "sess-origin-" + suffix, WorkspaceID: workspaceID,
-		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: threadID,
-		Direction: "received", PeerFrom: "agent.origin", Kind: store.NetworkKindSay,
-		Text: "promote this thread", Body: json.RawMessage(`{"text":"promote this thread"}`),
-		ProfileID: store.DefaultProfileID,
-		SizeBytes: 20, Timestamp: now,
-	}); err != nil {
-		t.Fatalf("WriteConversationMessage() error = %v", err)
-	}
-	taskRecord := taskRecordForTest("task-projection-" + suffix)
-	taskRecord.Scope = taskpkg.ScopeWorkspace
-	taskRecord.WorkspaceID = workspaceID
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	if err := globalDB.PutNetworkTaskThreadOrigin(ctx, store.NetworkTaskThreadOrigin{
-		TaskID: taskRecord.ID, WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
-		OriginMessageID: messageID, Digest: "sha256:projection-" + suffix,
-		SourceMessageIDs: []string{messageID}, CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("PutNetworkTaskThreadOrigin() error = %v", err)
-	}
-	for _, subscription := range []store.NetworkSubscriptionEntry{
-		{
-			WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
-			SessionID: "sess-full-" + suffix, Mode: store.NetworkSubscriptionModeFull,
-			CreatedAt: now, UpdatedAt: now,
-		},
-		{
-			WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
-			SessionID: "sess-muted-" + suffix, Mode: store.NetworkSubscriptionModeMute,
-			CreatedAt: now, UpdatedAt: now,
-		},
-	} {
-		if err := globalDB.PutNetworkSubscription(ctx, subscription); err != nil {
-			t.Fatalf("PutNetworkSubscription(%q) error = %v", subscription.SessionID, err)
-		}
-	}
-	return taskRecord, now.Add(time.Minute)
-}
-
 func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 	t.Parallel()
 
@@ -1473,7 +1194,7 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 	})
 
-	t.Run("Should roll back task and profile updates when task.updated append fails", func(t *testing.T) {
+	t.Run("Should roll back task updates when task.updated append fails", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -1489,29 +1210,22 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		updated := taskRecord
 		updated.Title = "This title must roll back"
 		updated.UpdatedAt = taskRecord.UpdatedAt.Add(time.Minute)
-		updatedParticipation := &participation.Request{
-			Mode:            new(participation.ModeLive),
-			ChannelStrategy: new(participation.StrategyNamed),
-			ChannelID:       new("ops"),
-		}
 		event := taskpkg.Event{
 			ID:        "event-definition-update-rollback",
 			TaskID:    taskRecord.ID,
 			EventType: "task.updated",
 			Actor:     taskRecord.CreatedBy,
 			Origin:    taskRecord.Origin,
-			Payload:   json.RawMessage(`{"changed_fields":["title","network_participation"]}`),
+			Payload:   json.RawMessage(`{"changed_fields":["title"]}`),
 			Timestamp: updated.UpdatedAt,
 		}
 		installTaskEventInsertFailureTriggerForType(t, globalDB, event.EventType)
 
 		_, err := globalDB.UpdateTaskDefinition(ctx, &taskpkg.UpdateTaskDefinitionMutation{
-			Task:                      updated,
-			UpdateTaskRow:             true,
-			PatchNetworkParticipation: true,
-			NetworkParticipation:      updatedParticipation,
-			Actor:                     operatorActorContextForTest("operator"),
-			Events:                    []taskpkg.Event{event},
+			Task:          updated,
+			UpdateTaskRow: true,
+			Actor:         operatorActorContextForTest("operator"),
+			Events:        []taskpkg.Event{event},
 		})
 		assertForcedTaskEventInsertError(t, err, "UpdateTaskDefinition()")
 		storedTask, err := globalDB.GetTask(ctx, taskRecord.ID)
@@ -1520,13 +1234,6 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 		if got, want := storedTask.Title, taskRecord.Title; got != want {
 			t.Fatalf("stored task title = %q, want rollback to %q", got, want)
-		}
-		storedProfile, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID)
-		if err != nil {
-			t.Fatalf("GetExecutionProfile() error = %v", err)
-		}
-		if storedProfile.NetworkParticipation != nil {
-			t.Fatalf("stored network participation = %#v, want rollback to nil", storedProfile.NetworkParticipation)
 		}
 	})
 
@@ -3906,214 +3613,6 @@ func TestGlobalDBRunMutationTransactionsShouldEnforceContract(t *testing.T) {
 	}
 }
 
-func TestGlobalDBFailTasklessRunOnBootShouldEnforceDedicatedBoundary(t *testing.T) {
-	t.Parallel()
-
-	// Invariant: boot recovery may fail a durable taskless network wake through
-	// its explicit full-fence boundary, but it cannot use that boundary to
-	// terminalize a task-anchored run. Owning layer: GlobalDB task-run lifecycle.
-	// Canonical suite: global_db_task_event_tx_test.go.
-	t.Run("Should fail a taskless network wake using its exact ownership fence", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-taskless-boot")
-		wake := networkWakeRunForClaimTest(
-			"run-taskless-boot-failure",
-			"wake-taskless-boot-failure",
-			"sess-taskless-boot",
-			"owner-taskless-boot",
-			now,
-		)
-		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID:                 wake.ID,
-			RunKind:               taskpkg.RunKindNetworkWake,
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           wake.WorkspaceID,
-			TargetSessionID:       "sess-taskless-boot",
-			ClaimerSessionID:      "sess-taskless-boot",
-			LeaseDuration:         time.Minute,
-			Now:                   now,
-			WorkspaceActiveRunCap: 1,
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun(taskless wake) error = %v", err)
-		}
-		daemonActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "boot-recovery")
-		if err != nil {
-			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-		}
-		runningResult, err := recoverNetworkWakeOnBootForTest(
-			ctx,
-			globalDB,
-			claim.Run,
-			taskpkg.RunBootRecovery{Action: taskpkg.RunBootRecoveryMarkRunning},
-			daemonActor,
-			now.Add(time.Second),
-		)
-		if err != nil {
-			t.Fatalf("RecoverNetworkWakeOnBoot(mark running) error = %v", err)
-		}
-		failureReason := "orphaned taskless wake on boot"
-		expectedFailure := `orphaned on boot: session "sess-taskless-boot" is missing`
-		failedResult, err := recoverNetworkWakeOnBootForTest(
-			ctx,
-			globalDB,
-			runningResult.Run,
-			taskpkg.RunBootRecovery{
-				Action:       taskpkg.RunBootRecoveryFail,
-				Reason:       failureReason,
-				SessionState: "missing",
-			},
-			daemonActor,
-			now.Add(2*time.Second),
-		)
-		if err != nil {
-			t.Fatalf("RecoverNetworkWakeOnBoot(fail) error = %v", err)
-		}
-		updated := failedResult.Run
-		if updated.Status.Normalize() != taskpkg.TaskRunStatusFailed ||
-			updated.TaskID != "" ||
-			!updated.IsNetworkWake() ||
-			updated.WorkspaceID != wake.WorkspaceID ||
-			updated.Error != expectedFailure ||
-			!updated.LeaseUntil.IsZero() ||
-			!updated.HeartbeatAt.IsZero() {
-			t.Fatalf("updated taskless wake = %#v, want failed wake with released lease", updated)
-		}
-		if got := networkWakeEventCount(t, globalDB, wake.NetworkWakeID, networkWakeEventRecovered); got != 2 {
-			t.Fatalf("recovered event count = %d, want 2", got)
-		}
-	})
-
-	t.Run("Should reject a task-anchored run at the taskless recovery boundary", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		running := seedLeasedRunningRunForMutationFenceTest(ctx, t, globalDB, "task-anchored-boot-failure")
-		daemonActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "boot-recovery")
-		if err != nil {
-			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-		}
-		_, err = recoverNetworkWakeOnBootForTest(
-			ctx,
-			globalDB,
-			running,
-			taskpkg.RunBootRecovery{
-				Action: taskpkg.RunBootRecoveryFail,
-				Reason: "forged taskless recovery",
-			},
-			daemonActor,
-			running.StartedAt.Add(time.Minute),
-		)
-		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
-			t.Fatalf(
-				"RecoverNetworkWakeOnBoot(task anchored) error = %v, want %v",
-				err,
-				taskpkg.ErrInvalidStatusTransition,
-			)
-		}
-		stored, err := globalDB.GetTaskRun(ctx, running.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(task anchored) error = %v", err)
-		}
-		if stored.Status.Normalize() != taskpkg.TaskRunStatusRunning ||
-			stored.RunKind.Normalize() != running.RunKind.Normalize() ||
-			stored.Error != running.Error ||
-			!stored.LeaseUntil.Equal(running.LeaseUntil) {
-			t.Fatalf("stored task-anchored run = %#v, want unchanged running snapshot", stored)
-		}
-	})
-
-	t.Run("Should roll back the taskless run when its recovered ledger event fails", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		now := time.Date(2026, 8, 2, 14, 0, 0, 0, time.UTC)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-taskless-rollback")
-		wake := networkWakeRunForClaimTest(
-			"run-taskless-rollback",
-			"wake-taskless-rollback",
-			"sess-taskless-rollback",
-			"owner-taskless-rollback",
-			now,
-		)
-		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID:                 wake.ID,
-			RunKind:               taskpkg.RunKindNetworkWake,
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           wake.WorkspaceID,
-			TargetSessionID:       "sess-taskless-rollback",
-			ClaimerSessionID:      "sess-taskless-rollback",
-			LeaseDuration:         time.Minute,
-			Now:                   now,
-			WorkspaceActiveRunCap: 1,
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun(taskless wake) error = %v", err)
-		}
-		daemonActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "boot-recovery")
-		if err != nil {
-			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-		}
-		installNetworkWakeEventInsertFailureTriggerForType(t, globalDB, networkWakeEventRecovered)
-
-		_, err = recoverNetworkWakeOnBootForTest(
-			ctx,
-			globalDB,
-			claim.Run,
-			taskpkg.RunBootRecovery{Action: taskpkg.RunBootRecoveryMarkRunning},
-			daemonActor,
-			now.Add(time.Second),
-		)
-		if err == nil {
-			t.Fatal("RecoverNetworkWakeOnBoot() error = nil, want recovered ledger failure")
-		}
-		stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun() error = %v", err)
-		}
-		if stored.Status.Normalize() != claim.Run.Status.Normalize() ||
-			stored.SessionID != claim.Run.SessionID ||
-			stored.ClaimTokenHash != claim.Run.ClaimTokenHash ||
-			!stored.LeaseUntil.Equal(claim.Run.LeaseUntil) ||
-			!stored.StartedAt.Equal(claim.Run.StartedAt) {
-			t.Fatalf("stored taskless wake = %#v, want exact claimed snapshot %#v", stored, claim.Run)
-		}
-		if got := networkWakeEventCount(t, globalDB, wake.NetworkWakeID, networkWakeEventRecovered); got != 0 {
-			t.Fatalf("recovered event count = %d, want 0", got)
-		}
-	})
-}
-
-func recoverNetworkWakeOnBootForTest(
-	ctx context.Context,
-	globalDB *GlobalDB,
-	previous taskpkg.Run,
-	recovery taskpkg.RunBootRecovery,
-	actor taskpkg.ActorContext,
-	now time.Time,
-) (result taskpkg.NominalRunMutationResult, err error) {
-	err = globalDB.withTaskMutationTransactionForTest(
-		ctx,
-		"test recover network wake on boot",
-		func(store *taskMutationTxStore) error {
-			result, err = store.RecoverNetworkWakeOnBoot(
-				ctx,
-				taskpkg.NewNetworkWakeBootRecoveryMutation(previous, recovery, actor, now),
-			)
-			return err
-		},
-	)
-	return result, err
-}
-
 type terminalRunCommandForCrossHandleTest struct {
 	name         string
 	status       taskpkg.RunStatus
@@ -4366,173 +3865,6 @@ func terminalRunCommandForEventTransactionTest(
 	return command
 }
 
-func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should commit task coordination profile events and preserve the active run snapshot", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-task", t.TempDir())
-		taskRecord := workspaceTaskRecordForTest("task-coordination-atomic", workspaceID)
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		run := taskRunForTest("run-coordination-active", taskRecord.ID)
-		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-			t.Fatalf("CreateTaskRun() error = %v", err)
-		}
-		observer := &recordingTaskEventCommitObserver{db: globalDB}
-		globalDB.SetTaskEventCommitObserver(observer)
-		ref := workspacepkg.CoordinationRef{
-			WorkspaceID: workspaceID,
-			ScopeKind:   workspacepkg.InvitationScopeTask,
-			TaskID:      taskRecord.ID,
-			RunID:       run.ID,
-		}
-		commands := workspacepkg.NewCoordinationService(globalDB, nil)
-		view, err := commands.Set(ctx, workspacepkg.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 0,
-		}, operatorActorContextForTest("operator:coordination"))
-		if err != nil {
-			t.Fatalf("Set(task coordination) error = %v", err)
-		}
-		if !view.Setting.Enabled || view.Setting.Revision != 1 ||
-			view.Setting.UpdatedBy != "operator:coordination" {
-			t.Fatalf("coordination setting = %#v, want enabled revision one", view.Setting)
-		}
-		profile, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID)
-		if err != nil {
-			t.Fatalf("GetExecutionProfile() error = %v", err)
-		}
-		if profile.NetworkParticipation == nil || profile.NetworkParticipation.Mode == nil ||
-			*profile.NetworkParticipation.Mode != participation.ModeLive ||
-			profile.NetworkParticipation.ChannelStrategy == nil ||
-			*profile.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
-			t.Fatalf(
-				"task network participation = %#v, want explicit Live/run future intent",
-				profile.NetworkParticipation,
-			)
-		}
-		storedRun, err := globalDB.GetTaskRun(ctx, run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun() error = %v", err)
-		}
-		if storedRun.RunNetworkState == nil || storedRun.NetworkSpec.Mode != participation.ModeLocal {
-			t.Fatalf("active run network state = %#v, want immutable Local snapshot", storedRun.RunNetworkState)
-		}
-		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
-		if err != nil {
-			t.Fatalf("ListTaskEvents() error = %v", err)
-		}
-		if len(events) != 1 || events[0].EventType != eventspkg.TaskExecutionProfileUpdated {
-			t.Fatalf("task events = %#v, want one execution profile event", events)
-		}
-		summaries, err := globalDB.ListEventSummaries(
-			ctx,
-			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
-				WorkspaceID: workspaceID,
-				TaskID:      taskRecord.ID,
-				Type:        eventspkg.NetworkCoordinationSettingChanged,
-			},
-		)
-		if err != nil {
-			t.Fatalf("ListEventSummaries() error = %v", err)
-		}
-		if len(summaries) != 1 || summaries[0].ActorID != "operator:coordination" {
-			t.Fatalf("coordination summaries = %#v, want committed operator event", summaries)
-		}
-		if len(observer.records) != 1 || observer.err != nil {
-			t.Fatalf("post-commit observer = %#v err=%v, want one committed event", observer.records, observer.err)
-		}
-	})
-
-	t.Run("Should reject a task from another workspace without writes", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		ownerWorkspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-owner", t.TempDir())
-		otherWorkspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-other", t.TempDir())
-		taskRecord := workspaceTaskRecordForTest("task-coordination-scope", ownerWorkspaceID)
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		commands := workspacepkg.NewCoordinationService(globalDB, nil)
-		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
-			Ref: workspacepkg.CoordinationRef{
-				WorkspaceID: otherWorkspaceID,
-				ScopeKind:   workspacepkg.InvitationScopeTask,
-				TaskID:      taskRecord.ID,
-			},
-			Enabled:          true,
-			ExpectedRevision: 0,
-		}, operatorActorContextForTest("operator:scope"))
-		if !errors.Is(err, workspacepkg.ErrCoordinationScopeInvalid) {
-			t.Fatalf("Set(wrong workspace) error = %v, want %v", err, workspacepkg.ErrCoordinationScopeInvalid)
-		}
-		if _, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID); !errors.Is(
-			err,
-			taskpkg.ErrExecutionProfileNotFound,
-		) {
-			t.Fatalf("GetExecutionProfile() error = %v, want no profile write", err)
-		}
-	})
-
-	t.Run("Should roll back setting profile and summaries when task event append fails", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-rollback", t.TempDir())
-		taskRecord := workspaceTaskRecordForTest("task-coordination-rollback", workspaceID)
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		observer := &recordingTaskEventCommitObserver{db: globalDB}
-		globalDB.SetTaskEventCommitObserver(observer)
-		installTaskEventInsertFailureTriggerForType(t, globalDB, eventspkg.TaskExecutionProfileUpdated)
-		ref := workspacepkg.CoordinationRef{
-			WorkspaceID: workspaceID,
-			ScopeKind:   workspacepkg.InvitationScopeTask,
-			TaskID:      taskRecord.ID,
-		}
-		commands := workspacepkg.NewCoordinationService(globalDB, nil)
-		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 0,
-		}, operatorActorContextForTest("operator:rollback"))
-		assertForcedTaskEventInsertError(t, err, "SetCoordination(task)")
-		view, err := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if err != nil {
-			t.Fatalf("GetCoordination() error = %v", err)
-		}
-		if view.Setting.Revision != 0 || view.Setting.Enabled {
-			t.Fatalf("coordination setting = %#v, want rolled-back absent row", view.Setting)
-		}
-		if _, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID); !errors.Is(
-			err,
-			taskpkg.ErrExecutionProfileNotFound,
-		) {
-			t.Fatalf("GetExecutionProfile() error = %v, want rolled-back profile", err)
-		}
-		summaries, err := globalDB.ListEventSummaries(
-			ctx,
-			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
-				WorkspaceID: workspaceID,
-				TaskID:      taskRecord.ID,
-				Type:        eventspkg.NetworkCoordinationSettingChanged,
-			},
-		)
-		if err != nil {
-			t.Fatalf("ListEventSummaries() error = %v", err)
-		}
-		if len(summaries) != 0 || len(observer.records) != 0 {
-			t.Fatalf("summaries/observer = %d/%d, want no rolled-back events", len(summaries), len(observer.records))
-		}
-	})
-}
-
 func clearTaskBlockForRollbackTest(
 	ctx context.Context,
 	globalDB *GlobalDB,
@@ -4565,27 +3897,6 @@ func installTaskEventInsertFailureTriggerForType(t *testing.T, globalDB *GlobalD
 	)
 	if err != nil {
 		t.Fatalf("install task_event insert failure trigger error = %v", err)
-	}
-}
-
-func installNetworkWakeEventInsertFailureTriggerForType(
-	t *testing.T,
-	globalDB *GlobalDB,
-	eventType string,
-) {
-	t.Helper()
-
-	_, err := globalDB.db.ExecContext(
-		testutil.Context(t),
-		`CREATE TRIGGER fail_network_wake_event_insert
-		 BEFORE INSERT ON network_wake_events
-		 WHEN NEW.event_type = '`+strings.ReplaceAll(eventType, "'", "''")+`'
-		 BEGIN
-		   SELECT RAISE(ABORT, 'forced network wake event insert failure');
-		 END;`,
-	)
-	if err != nil {
-		t.Fatalf("install network_wake_event insert failure trigger error = %v", err)
 	}
 }
 

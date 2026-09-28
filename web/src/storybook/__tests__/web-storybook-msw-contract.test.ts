@@ -51,12 +51,6 @@ describe("web Storybook MSW contract", () => {
     expect(signatures).toContain("GET /api/fs/browse");
   });
 
-  it("registers the bridge health stream handler required by bridge route stories", () => {
-    const signatures = storybookSystemHandlers.map(handlerSignature);
-
-    expect(signatures).toContain("GET /api/bridges/health/stream");
-  });
-
   it("registers the canonical catalog handler required by marketplace route stories", () => {
     const signatures = storybookSystemHandlers.map(handlerSignature);
 

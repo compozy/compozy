@@ -84,7 +84,7 @@ changed_files() {
 # narrow. The local gate records the reason and runs the affected lane only.
 is_ci_full_trigger() {
   case "$1" in
-    go.mod | go.sum | bun.lock* | Makefile | turbo.json | mise.toml | .tool-versions | DESIGN.md | config.toml) return 0 ;;
+    go.mod | go.sum | bun.lock* | Makefile | turbo.json | mise.toml | .tool-versions | DESIGN.md | config.toml | .goreleaser.yml) return 0 ;;
     package.json | */package.json) return 0 ;;
     magefiles/* | scripts/*) return 0 ;;
     tsconfig*.json | vitest.config.* | knip.json | electron-builder.yml | .bun-version | .golangci* | .oxlintrc* | .oxfmt* | oxfmt*) return 0 ;;
@@ -95,12 +95,13 @@ is_ci_full_trigger() {
   esac
 }
 
-# Docs and agent instructions exercise no verify lane; extension and skill resource manifests do.
+# Docs, static diagrams, and agent instructions exercise no verify lane; extension and skill resource manifests do.
 is_no_lane() {
   case "$1" in
     catalog/* | extensions/* | skills/*) return 1 ;;
     */*.test) return 1 ;;
     *.test) [ ! -e "$1" ] && return 0; return 1 ;;
+    imgs/*.svg) return 0 ;;
 		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
 		*.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json | skeeper.lock) return 0 ;;
     *) return 1 ;;
@@ -112,7 +113,7 @@ classify() {
 	if is_ci_full_trigger "$path"; then
 		CI_FULL_REASONS="${CI_FULL_REASONS}${path}"$'\n'
 		case "$path" in
-			go.mod | go.sum | config.toml | .golangci*) GO_SCOPES="${GO_SCOPES}./..."$'\n' ;;
+			go.mod | go.sum | config.toml | .golangci* | .goreleaser.yml) GO_SCOPES="${GO_SCOPES}./..."$'\n' ;;
 			bun.lock* | turbo.json | tsconfig*.json | vitest.config.* | knip.json | electron-builder.yml | .bun-version | .oxlintrc* | .oxfmt* | oxfmt* | package.json | */package.json)
 				JS_ALL=1
 				;;
@@ -282,7 +283,7 @@ go_race_gcflags() {
 }
 
 normalized_go_scopes() {
-	if printf '%s' "$GO_SCOPES" | grep -Fxq './...'; then
+	if printf '%s' "$GO_SCOPES" | grep -Fx './...' >/dev/null; then
 		printf './...\n'
 		return
 	fi

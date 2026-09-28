@@ -17,7 +17,7 @@ describe("LinkedRecordTable", () => {
             </LinkedRecordTable.Cell>
             <LinkedRecordTable.Cell>
               <LinkedRecordTable.Title>
-                <span>Provision bridge credentials</span>
+                <span>Provision extension credentials</span>
                 <span>
                   <Pill mono>TASK-004</Pill>
                   <Pill tone="success">done</Pill>
@@ -41,7 +41,7 @@ describe("LinkedRecordTable", () => {
       "data-slot",
       "linked-record-table-row"
     );
-    expect(screen.getByText("Provision bridge credentials")).toBeInTheDocument();
+    expect(screen.getByText("Provision extension credentials")).toBeInTheDocument();
     expect(screen.getByText("TASK-004")).toHaveAttribute("data-slot", "pill");
     expect(screen.getByRole("link", { name: /open/i })).toHaveAttribute("href", "/tasks/task-004");
   });

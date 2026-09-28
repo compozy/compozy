@@ -9,8 +9,6 @@ import (
 
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -55,10 +53,8 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(
 	}
 
 	taskRun, err := d.tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
-		TaskID:                     taskRecord.ID,
-		IdempotencyKey:             automationTaskRunIdempotencyKey(scheduledRun.ID),
-		NetworkParticipation:       cloneParticipationRequest(req.Job.Task.NetworkParticipation),
-		NetworkParticipationSource: participation.SourceAutomationJob,
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: automationTaskRunIdempotencyKey(scheduledRun.ID),
 	}, actor)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)

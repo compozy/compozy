@@ -16,8 +16,7 @@ describe("loop palette", () => {
     expect(actionKinds).toContain("run-agent");
     expect(actionKinds).toContain("run-loop");
     expect(actionKinds).toContain("transform");
-    // The Channel post shortcut is a pre-filled compozy__network_send, not a bespoke kind.
-    expect(actionKinds).toContain("compozy__network_send");
+    expect(actionKinds).toContain("tool…");
   });
 
   it("Should offer both source watch kinds with valid-shaped seeds", () => {
@@ -110,9 +109,7 @@ describe("filterPaletteItems", () => {
     expect(filterPaletteItems(items, "watch events").map(item => item.kindLabel)).toEqual([
       "watch-events",
     ]);
-    expect(filterPaletteItems(items, "compozy__network_send").map(item => item.label)).toEqual([
-      "Channel post",
-    ]);
+    expect(filterPaletteItems(items, "run-loop").map(item => item.label)).toEqual(["Run loop"]);
 
     expect(filterPaletteItems(items, "question").map(item => item.kindLabel)).toEqual(["ask"]);
     expect(filterPaletteItems(items, "switch").map(item => item.kindLabel)).toEqual(["route"]);

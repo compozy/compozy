@@ -22,15 +22,11 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
-	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -349,11 +345,6 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
 	cancelUser()
 
-	networkCtx, cancelNetwork := context.WithTimeout(context.Background(), promptTimeout)
-	networkEvents, networkErr := runtime.manager.PromptNetwork(networkCtx, sessionID, "network hello")
-	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, networkEvents, networkErr), promptTimeout)
-	cancelNetwork()
-
 	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
 	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(
 		syntheticCtx,
@@ -386,8 +377,8 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
 	messages := transcript.MessagesFromEntries(payload.Entries)
-	if len(messages) != 7 {
-		t.Fatalf("len(messages) = %d, want 7", len(messages))
+	if len(messages) != 5 {
+		t.Fatalf("len(messages) = %d, want 5", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -398,23 +389,14 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	if got := messages[1].Role; got != transcript.UIRoleAssistant {
 		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if got := messages[2].Role; got != transcript.UIRoleUser {
-		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleUser)
+	if got := messages[2].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := transcript.UIMessageText(messages[2]); got != "network hello" {
-		t.Fatalf("messages[2] text = %q, want %q", got, "network hello")
-	}
-	if got := messages[3].Role; got != transcript.UIRoleAssistant {
-		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.UIRoleAssistant)
-	}
-	if got := messages[4].Role; got != transcript.UIRoleSystem {
-		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.UIRoleSystem)
-	}
-	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
-		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
+	if got := transcript.UIMessageText(messages[2]); got != "daemon wake-up" {
+		t.Fatalf("messages[2] text = %q, want %q", got, "daemon wake-up")
 	}
 	// Dispatch acknowledgment and agent output are persisted by independent owners.
-	dispatchReceipt, syntheticReply := messages[5], messages[6]
+	dispatchReceipt, syntheticReply := messages[3], messages[4]
 	if len(dispatchReceipt.Parts) != 1 || dispatchReceipt.Parts[0].Type != "data-compozy-event" {
 		dispatchReceipt, syntheticReply = syntheticReply, dispatchReceipt
 	}
@@ -1534,120 +1516,6 @@ func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
 	})
 }
 
-func TestUDSSessionParticipationRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
-
-	createResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/sessions",
-		[]byte(
-			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
-		),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf(
-			"create session status = %d, want %d; body=%s",
-			createResp.StatusCode,
-			http.StatusCreated,
-			string(body),
-		)
-	}
-	var created struct {
-		Session sessionPayload `json:"session"`
-	}
-	decodeHTTPJSON(t, createResp, &created)
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		created.Session.ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-	if created.Session.WorkspaceID == "" {
-		t.Fatal("expected created session workspace id")
-	}
-	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
-
-	listResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		"http://unix/api/sessions?all_workspaces=true&profile=default",
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listed struct {
-		Sessions []sessionPayload `json:"sessions"`
-	}
-	decodeHTTPJSON(t, listResp, &listed)
-	if got, want := len(listed.Sessions), 1; got != want {
-		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
-	}
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		listed.Sessions[0].ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-
-	stopIntegrationSession(t, runtime, created.Session.WorkspaceID, created.Session.ID)
-
-	statusResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, ""),
-		nil,
-		nil,
-	)
-	if statusResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, statusResp)
-		t.Fatalf("status after stop = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
-	}
-	var stopped struct {
-		Session sessionPayload `json:"session"`
-	}
-	decodeHTTPJSON(t, statusResp, &stopped)
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		stopped.Session.ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-	if stopped.Session.State != session.StateStopped {
-		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
-	}
-
-	resumeResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, "/attach"),
-		nil,
-		nil,
-	)
-	if resumeResp.StatusCode != http.StatusConflict {
-		body := readAndCloseHTTPBody(t, resumeResp)
-		t.Fatalf(
-			"attach stopped session status = %d, want %d; body=%s",
-			resumeResp.StatusCode,
-			http.StatusConflict,
-			string(body),
-		)
-	}
-}
-
 func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
@@ -1664,12 +1532,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	if created.ResolvedNetworkParticipation != nil {
-		t.Fatalf(
-			"created resolved_network_participation = %#v, want nil without an active run",
-			created.ResolvedNetworkParticipation,
-		)
-	}
+
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
 	}
@@ -1732,12 +1595,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	if updated.Task.ResolvedNetworkParticipation != nil {
-		t.Fatalf(
-			"updated resolved_network_participation = %#v, want nil without an active run",
-			updated.Task.ResolvedNetworkParticipation,
-		)
-	}
+
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
@@ -1766,189 +1624,6 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	}
 }
 
-func TestUDSTaskParticipationRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-	workspaceID := createIntegrationSessionPayload(t, runtime).WorkspaceID
-	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
-
-	created := createIntegrationTask(t, runtime, fmt.Appendf(nil, `{
-		"id":"task-uds-live",
-		"scope":"workspace",
-		"workspace":%q,
-		"title":"Verify UDS participation",
-		"network_participation":{
-			"mode":"live",
-			"channel_strategy":"named",
-			"channel_id":"builders"
-		}
-	}`, workspaceID))
-	if created.WorkspaceID != workspaceID {
-		t.Fatalf("created workspace_id = %q, want %q", created.WorkspaceID, workspaceID)
-	}
-	if created.ResolvedNetworkParticipation != nil {
-		t.Fatalf(
-			"created resolved_network_participation = %#v, want nil before a run",
-			created.ResolvedNetworkParticipation,
-		)
-	}
-
-	getProfile := func() taskpkg.ExecutionProfile {
-		t.Helper()
-		resp := mustUnixRequest(
-			t,
-			runtime.client,
-			http.MethodGet,
-			"http://unix/api/tasks/"+created.ID+"/execution-profile",
-			nil,
-			nil,
-		)
-		if resp.StatusCode != http.StatusOK {
-			body := readAndCloseHTTPBody(t, resp)
-			t.Fatalf("get execution profile status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
-		}
-		var payload contract.TaskExecutionProfileResponse
-		decodeHTTPJSON(t, resp, &payload)
-		return payload.Profile
-	}
-	assertProfileChannel := func(wantChannel string) {
-		t.Helper()
-		profile := getProfile()
-		request := profile.NetworkParticipation
-		if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive ||
-			request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed ||
-			request.ChannelID == nil || *request.ChannelID != wantChannel {
-			t.Fatalf("profile network_participation = %#v, want named Live channel %q", request, wantChannel)
-		}
-	}
-	assertProfileChannel("builders")
-
-	invalidUpdate := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPatch,
-		"http://unix/api/tasks/"+created.ID,
-		[]byte(`{"title":"Must not persist","network_participation":{"mode":"live"}}`),
-		nil,
-	)
-	if invalidUpdate.StatusCode != http.StatusBadRequest {
-		body := readAndCloseHTTPBody(t, invalidUpdate)
-		t.Fatalf("invalid update status = %d, want %d; body=%s", invalidUpdate.StatusCode, http.StatusBadRequest, body)
-	}
-	closeHTTPBody(t, invalidUpdate.Body)
-
-	detailResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		"http://unix/api/tasks/"+created.ID,
-		nil,
-		nil,
-	)
-	if detailResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, detailResp)
-		t.Fatalf(
-			"get task after invalid update status = %d, want %d; body=%s",
-			detailResp.StatusCode,
-			http.StatusOK,
-			body,
-		)
-	}
-	var unchanged contract.TaskDetailResponse
-	decodeHTTPJSON(t, detailResp, &unchanged)
-	if unchanged.Task.Task.Title != created.Title {
-		t.Fatalf("title after invalid update = %q, want %q", unchanged.Task.Task.Title, created.Title)
-	}
-	assertProfileChannel("builders")
-
-	validUpdate := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPatch,
-		"http://unix/api/tasks/"+created.ID,
-		[]byte(`{"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"reviewers"}}`),
-		nil,
-	)
-	if validUpdate.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, validUpdate)
-		t.Fatalf("valid update status = %d, want %d; body=%s", validUpdate.StatusCode, http.StatusOK, body)
-	}
-	closeHTTPBody(t, validUpdate.Body)
-	assertProfileChannel("reviewers")
-
-	queued := enqueueIntegrationTaskRun(t, runtime, created.ID, `{
-		"idempotency_key":"uds-live-enqueue",
-		"network_participation":{
-			"mode":"live",
-			"channel_strategy":"named",
-			"channel_id":"builders"
-		}
-	}`)
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		queued.ResolvedNetworkParticipation,
-		workspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-
-	assertTaskAbsent := func(id string) {
-		t.Helper()
-		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+id, nil, nil)
-		if resp.StatusCode != http.StatusNotFound {
-			body := readAndCloseHTTPBody(t, resp)
-			t.Fatalf(
-				"get rejected task %q status = %d, want %d; body=%s",
-				id,
-				resp.StatusCode,
-				http.StatusNotFound,
-				body,
-			)
-		}
-		closeHTTPBody(t, resp.Body)
-	}
-	for _, rejected := range []struct {
-		name string
-		id   string
-		body []byte
-	}{
-		{
-			name: "Should reject an invalid participation request atomically",
-			id:   "task-uds-invalid-participation",
-			body: fmt.Appendf(
-				nil,
-				`{"id":"task-uds-invalid-participation","scope":"workspace","workspace":%q,"title":"Invalid participation","network_participation":{"mode":"live"}}`,
-				workspaceID,
-			),
-		},
-		{
-			name: "Should reject a removed flat channel field atomically",
-			id:   "task-uds-legacy-channel",
-			body: fmt.Appendf(
-				nil,
-				`{"id":"task-uds-legacy-channel","scope":"workspace","workspace":%q,"title":"Legacy channel","channel":"builders"}`,
-				workspaceID,
-			),
-		},
-	} {
-		t.Run(rejected.name, func(t *testing.T) {
-			resp := mustUnixRequest(
-				t,
-				runtime.client,
-				http.MethodPost,
-				"http://unix/api/tasks",
-				rejected.body,
-				nil,
-			)
-			if resp.StatusCode != http.StatusBadRequest {
-				body := readAndCloseHTTPBody(t, resp)
-				t.Fatalf("rejected create status = %d, want %d; body=%s", resp.StatusCode, http.StatusBadRequest, body)
-			}
-			closeHTTPBody(t, resp.Body)
-			assertTaskAbsent(rejected.id)
-		})
-	}
-}
-
 func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	workspaceID := createIntegrationSessionPayload(t, runtime).WorkspaceID
@@ -1967,7 +1642,6 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	if queued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("queued status = %q, want %q", queued.Status, taskpkg.TaskRunStatusQueued)
 	}
-	apitestutil.AssertLocalResolvedParticipation(t, queued.ResolvedNetworkParticipation)
 
 	listQueuedResp := mustUnixRequest(
 		t,
@@ -2519,13 +2193,13 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client          *http.Client
-	server          *Server
-	manager         *session.Manager
-	tasks           *taskpkg.Service
-	observer        *observe.Observer
-	registry        *globaldb.GlobalDB
-	bridges         *integrationBridgeService
+	client   *http.Client
+	server   *Server
+	manager  *session.Manager
+	tasks    *taskpkg.Service
+	observer *observe.Observer
+	registry *globaldb.GlobalDB
+
 	memory          *memory.Store
 	dream           *integrationDreamTrigger
 	resourceDriver  resources.ReconcileDriver
@@ -2900,214 +2574,6 @@ type integrationDreamTrigger struct {
 	calls     int
 }
 
-type integrationBridgeSecretStore interface {
-	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
-	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
-	DeleteBridgeSecretBinding(context.Context, string, string) error
-}
-
-type integrationBridgeCatalogStore interface {
-	CountBridgeRoutes(context.Context, []string) (map[string]int, error)
-	ListBridgeSecretBindingsForInstances(
-		context.Context,
-		[]string,
-	) (map[string][]bridgepkg.BridgeSecretBinding, error)
-}
-
-type integrationBridgeService struct {
-	*bridgepkg.Service
-	store             integrationBridgeSecretStore
-	catalogStore      integrationBridgeCatalogStore
-	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
-	providers         []bridgepkg.BridgeProvider
-}
-
-var _ core.BridgeService = (*integrationBridgeService)(nil)
-
-func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
-	secretStore, _ := store.(integrationBridgeSecretStore)
-	catalogStore, _ := store.(integrationBridgeCatalogStore)
-	taskSubscriptions, _ := store.(bridgepkg.BridgeTaskSubscriptionStore)
-	return &integrationBridgeService{
-		Service:           bridgepkg.NewRegistry(store),
-		store:             secretStore,
-		catalogStore:      catalogStore,
-		taskSubscriptions: taskSubscriptions,
-	}
-}
-
-func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	}); err != nil {
-		return nil, fmt.Errorf("start bridge instance %q: %w", id, err)
-	}
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusReady,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mark bridge instance %q ready: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: false,
-		Status:  bridgepkg.BridgeStatusDisabled,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("stop bridge instance %q: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	}); err != nil {
-		return nil, fmt.Errorf("restart bridge instance %q: %w", id, err)
-	}
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusReady,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mark restarted bridge instance %q ready: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	providers := make([]bridgepkg.BridgeProvider, 0, len(s.providers))
-	providers = append(providers, s.providers...)
-	return providers, nil
-}
-
-func (s *integrationBridgeService) CheckBridge(
-	context.Context,
-	string,
-	bridgepkg.BridgeCheckRequest,
-) (bridgepkg.BridgeCheckResponse, error) {
-	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) RegisterBridgeWebhook(
-	context.Context,
-	string,
-	bridgepkg.BridgeWebhookRegistrationRequest,
-) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
-	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) DeliverBridge(
-	context.Context,
-	string,
-	bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
-}
-
-func (s *integrationBridgeService) ListSecretBindings(
-	ctx context.Context,
-	bridgeInstanceID string,
-) ([]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
-}
-
-func (s *integrationBridgeService) PutSecretBinding(
-	ctx context.Context,
-	binding bridgepkg.BridgeSecretBinding,
-	_ *string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.PutBridgeSecretBinding(ctx, binding)
-}
-
-func (s *integrationBridgeService) DeleteSecretBinding(
-	ctx context.Context,
-	bridgeInstanceID string,
-	bindingName string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.DeleteBridgeSecretBinding(ctx, bridgeInstanceID, bindingName)
-}
-
-func (s *integrationBridgeService) PutBridgeTaskSubscription(
-	ctx context.Context,
-	subscription bridgepkg.BridgeTaskSubscription,
-) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.PutBridgeTaskSubscription(ctx, subscription)
-}
-
-func (s *integrationBridgeService) GetBridgeTaskSubscription(
-	ctx context.Context,
-	readScope store.ReadScope,
-	subscriptionID string,
-) (bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return bridgepkg.BridgeTaskSubscription{}, errors.New(
-			"integration bridge task subscription store is not configured",
-		)
-	}
-	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, readScope, subscriptionID)
-}
-
-func (s *integrationBridgeService) ListBridgeTaskSubscriptions(
-	ctx context.Context,
-	query bridgepkg.BridgeTaskSubscriptionQuery,
-) ([]bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return nil, errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.ListBridgeTaskSubscriptions(ctx, query)
-}
-
-func (s *integrationBridgeService) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.DeleteBridgeTaskSubscription(ctx, subscriptionID)
-}
-
-func (s *integrationBridgeService) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.CountBridgeRoutes(ctx, bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) ListSecretBindingsForInstances(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string][]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.ListBridgeSecretBindingsForInstances(ctx, bridgeInstanceIDs)
-}
-
 func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
 	t.calls++
 	return t.triggered, t.reason, nil
@@ -3258,14 +2724,13 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	workspace := t.TempDir()
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
-	cfg.Network.Enabled = false
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
 	// Profile-aware resolution reads the fixture's actual home configuration.
 	if err := os.WriteFile(
 		homePaths.ConfigFile,
-		[]byte("[providers.fake]\ncommand = \"fake-agent\"\n[network]\nenabled = false\n"),
+		[]byte("[providers.fake]\ncommand = \"fake-agent\"\n"),
 		0o600,
 	); err != nil {
 		t.Fatalf("write integration provider config: %v", err)
@@ -3396,22 +2861,16 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 			t.Errorf("terminalManager.Shutdown() error = %v", err)
 		}
 	})
-	sandboxRegistry, err := sandboxlocal.NewRegistry()
-	if err != nil {
-		t.Fatalf("local.NewRegistry() error = %v", err)
-	}
-	participationResolver := apitestutil.NewIntegrationParticipationResolver(t, registry)
+
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(newIntegrationDriver()),
 		session.WithNotifier(fanout),
-		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
 		session.WithSessionPromptAdmissionStore(registry),
 		session.WithSessionInputQueueStore(registry),
-		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
@@ -3465,7 +2924,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
 		}
 	})
-	bridgeService := newIntegrationBridgeService(registry)
+
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -3500,7 +2959,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(taskExecutor),
-		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -3564,7 +3022,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithObserver(observer),
 		WithResourceService(resourceService),
 		WithAutomation(automationManager),
-		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
@@ -3593,7 +3050,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		tasks:           taskManager,
 		observer:        observer,
 		registry:        registry,
-		bridges:         bridgeService,
 		memory:          memoryStore,
 		dream:           dreamTrigger,
 		resourceDriver:  resourceDriver,
@@ -3623,11 +3079,6 @@ func createLiveIntegrationSessionPayload(t *testing.T, runtime integrationRuntim
 	return createIntegrationSessionPayloadFromRequest(t, runtime, map[string]any{
 		"agent_name":     "coder",
 		"workspace_path": runtime.workspace,
-		"network_participation": map[string]any{
-			"mode":             "live",
-			"channel_strategy": "named",
-			"channel_id":       "builders",
-		},
 	})
 }
 

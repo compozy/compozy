@@ -90,7 +90,7 @@ compozy tool invoke <tool-id> \
   -o json
 ```
 
-Do not persist approval tokens in memory, docs, logs, bridge messages, or task descriptions. Treat
+Do not persist approval tokens in memory, docs, logs, or task descriptions. Treat
 them as short-lived credentials.
 
 ### Remembered native-tool decisions
@@ -108,7 +108,7 @@ prompt-origin decision.
 CompozyOS checks a supplied single-use approval token first. Without one, it checks the remembered
 decision before opening another prompt. A remembered allow continues to dispatch; a remembered
 reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
-They do not broaden sandbox, ACP, or workspace policy.
+They do not broaden ACP or workspace policy.
 
 Set, list, or revoke remembered decisions from any management surface:
 
@@ -136,7 +136,7 @@ for agent scope and forbidden for tool scope. Managed agents can use `compozy__t
 same wider set, workspace list, and revoke actions.
 
 An explicit wider allow only skips the prompt when the workspace tool policy already permits the
-invocation. It does not change the configured tool mode or broaden sandbox, ACP, capability, or
+invocation. It does not change the configured tool mode or broaden ACP, capability, or
 workspace boundaries.
 
 ## Sensitive input fields

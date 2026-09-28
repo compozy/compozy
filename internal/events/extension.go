@@ -10,7 +10,7 @@ const (
 	ExtensionDisabled            = "extension.disabled"
 	ExtensionEnablementChanged   = "extension.enablement_changed"
 	ExtensionProfileCreated      = "extension.profile_created"
-	ExtensionNetworkConfirmed    = "extension.network.confirmed"
+	ExtensionGatewayConfirmed    = "extension.gateway.confirmed"
 	ExtensionSecretsUpdated      = "extension.secrets.updated"
 	ExtensionSecretsUpdateFailed = "extension.secrets.update_failed"
 	ExtensionDigestVerify        = "extension.digest.verify"

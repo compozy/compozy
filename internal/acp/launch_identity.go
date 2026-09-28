@@ -7,14 +7,13 @@ import (
 	"strings"
 
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
 type preparedLaunchIdentity struct {
 	prepared   bool
-	spec       sandbox.LaunchSpec
+	spec       LaunchSpec
 	resolution subprocess.ExecutableResolution
 }
 
@@ -73,7 +72,7 @@ func (d *Driver) prepareLaunchIdentity(
 		return next, nil
 	}
 	baseSpec := launchSpecFromStartOpts(next)
-	preparer, ok := next.Launcher.(sandbox.LaunchPreparer)
+	preparer, ok := next.Launcher.(LaunchPreparer)
 	if !ok {
 		next.launchIdentity = &preparedLaunchIdentity{prepared: true, spec: baseSpec}
 		next = applyProviderLaunchIdentity(next)
@@ -106,8 +105,8 @@ func (d *Driver) prepareLaunchIdentity(
 	return next, nil
 }
 
-func launchSpecFromStartOpts(opts StartOpts) sandbox.LaunchSpec {
-	return sandbox.LaunchSpec{
+func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {
+	return LaunchSpec{
 		Command:        opts.Command,
 		Cwd:            opts.Cwd,
 		AdditionalDirs: append([]string(nil), opts.AdditionalDirs...),
@@ -115,7 +114,7 @@ func launchSpecFromStartOpts(opts StartOpts) sandbox.LaunchSpec {
 	}
 }
 
-func applyLaunchSpecToStartOpts(opts StartOpts, spec sandbox.LaunchSpec) StartOpts {
+func applyLaunchSpecToStartOpts(opts StartOpts, spec LaunchSpec) StartOpts {
 	next := opts
 	next.Command = spec.Command
 	next.Cwd = spec.Cwd
@@ -124,7 +123,7 @@ func applyLaunchSpecToStartOpts(opts StartOpts, spec sandbox.LaunchSpec) StartOp
 	return next
 }
 
-func cloneLaunchSpec(spec sandbox.LaunchSpec) sandbox.LaunchSpec {
+func cloneLaunchSpec(spec LaunchSpec) LaunchSpec {
 	clone := spec
 	clone.Args = append([]string(nil), spec.Args...)
 	clone.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
@@ -132,7 +131,7 @@ func cloneLaunchSpec(spec sandbox.LaunchSpec) sandbox.LaunchSpec {
 	return clone
 }
 
-func (d *Driver) launcherForStart(opts StartOpts) sandbox.Launcher {
+func (d *Driver) launcherForStart(opts StartOpts) Launcher {
 	if opts.Launcher != nil {
 		return opts.Launcher
 	}
@@ -144,8 +143,8 @@ func (d *Driver) launcherForStart(opts StartOpts) sandbox.Launcher {
 
 func (l *localLauncher) PrepareLaunch(
 	ctx context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.LaunchSpec, error) {
+	spec LaunchSpec,
+) (LaunchSpec, error) {
 	if ctx == nil {
 		return spec, errors.New("acp: prepare launch context is required")
 	}

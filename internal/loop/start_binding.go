@@ -176,8 +176,6 @@ func DeriveStartActor(
 		return task.DeriveHumanActorContextForWorkspace(actorRef, workspaceID, task.OriginKindUDS, originRef)
 	case dsl.StartTrigger, dsl.StartSchedule, dsl.StartWebhook:
 		return task.DeriveAutomationActorContext(actorRef, originRef)
-	case dsl.StartNetwork:
-		return task.DeriveNetworkPeerActorContext(actorRef, originRef)
 	case dsl.StartExtension:
 		return task.DeriveExtensionActorContext(actorRef, originRef)
 	case dsl.StartNativeTool:
@@ -355,7 +353,6 @@ func normalizeStartKind(kind dsl.StartKind) (dsl.StartKind, error) {
 		dsl.StartTrigger,
 		dsl.StartSchedule,
 		dsl.StartWebhook,
-		dsl.StartNetwork,
 		dsl.StartExtension,
 		dsl.StartNativeTool:
 		return normalized, nil

@@ -79,7 +79,7 @@ func managedDevExtension(
 			Capabilities:             manifest.Capabilities,
 			Permissions:              manifest.Permissions,
 			Checksum:                 verified.GenerationHash,
-			NetworkRequirementDigest: verified.NetworkRequirementDigest,
+			GatewayRequirementDigest: verified.GatewayRequirementDigest,
 			Provenance: ExtensionProvenance{
 				InstalledFrom: ExtensionInstalledFromLocalPath,
 				Layout:        manifest.Layout,

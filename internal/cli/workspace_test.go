@@ -37,7 +37,7 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 				"--add-dir", "/workspace/shared-a",
 				"--add-dir", "/workspace/shared-b",
 				"--default-agent", "coder",
-				"--sandbox", "daytona-dev",
+
 				"-o", "json",
 			},
 			request: WorkspaceCreateRequest{
@@ -45,7 +45,6 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 				Name:         "alpha",
 				AddDirs:      []string{"/workspace/shared-a", "/workspace/shared-b"},
 				DefaultAgent: "coder",
-				SandboxRef:   "daytona-dev",
 			},
 		},
 	}
@@ -57,8 +56,7 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 			deps := newTestDeps(t, &stubClient{
 				createWorkspaceFn: func(_ context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error) {
 					if request.RootDir != tt.request.RootDir || request.Name != tt.request.Name ||
-						request.DefaultAgent != tt.request.DefaultAgent ||
-						request.SandboxRef != tt.request.SandboxRef {
+						request.DefaultAgent != tt.request.DefaultAgent {
 						t.Fatalf("CreateWorkspace() request = %#v, want %#v", request, tt.request)
 					}
 					if strings.Join(request.AddDirs, ",") != strings.Join(tt.request.AddDirs, ",") {
@@ -70,9 +68,9 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 						AddDirs:      request.AddDirs,
 						Name:         firstNonEmpty(request.Name, "alpha"),
 						DefaultAgent: request.DefaultAgent,
-						SandboxRef:   request.SandboxRef,
-						CreatedAt:    fixedTestNow,
-						UpdatedAt:    fixedTestNow,
+
+						CreatedAt: fixedTestNow,
+						UpdatedAt: fixedTestNow,
 					}, nil
 				},
 			})
@@ -124,9 +122,9 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 					AddDirs:      derefStringSlice(request.AddDirs),
 					Name:         derefString(request.Name),
 					DefaultAgent: derefString(request.DefaultAgent),
-					SandboxRef:   derefString(request.SandboxRef),
-					CreatedAt:    fixedTestNow,
-					UpdatedAt:    fixedTestNow,
+
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
 				}, nil
 			},
 		})
@@ -137,7 +135,7 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 			"--add-dir", "/workspace/shared-c",
 			"--remove-dir", "/workspace/shared-a",
 			"--default-agent", "reviewer",
-			"--sandbox", "local-dev",
+
 			"-o", "json",
 		)
 		if err != nil {
@@ -155,9 +153,6 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 		}
 		if seenRequest.DefaultAgent == nil || *seenRequest.DefaultAgent != "reviewer" {
 			t.Fatalf("UpdateWorkspace() DefaultAgent = %#v, want reviewer", seenRequest.DefaultAgent)
-		}
-		if seenRequest.SandboxRef == nil || *seenRequest.SandboxRef != "local-dev" {
-			t.Fatalf("UpdateWorkspace() SandboxRef = %#v, want local-dev", seenRequest.SandboxRef)
 		}
 
 		var decoded WorkspaceRecord
@@ -653,7 +648,7 @@ func TestWorkspaceOutputFormats(t *testing.T) {
 		}
 		if !strings.Contains(
 			listToon,
-			"workspaces[1]{id,name,root_dir,add_dir_count,default_agent,sandbox_ref,updated_at}:",
+			"workspaces[1]{id,name,root_dir,add_dir_count,default_agent,updated_at}:",
 		) {
 			t.Fatalf("list toon output = %q, want TOON header", listToon)
 		}

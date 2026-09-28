@@ -60,7 +60,7 @@ const envelope: SettingsGeneralSection = {
   config: {
     daemon: {
       memory_report_interval: "5m",
-      reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+      reload_timeouts: { mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
     http: { host: "127.0.0.1", port: 2123 },

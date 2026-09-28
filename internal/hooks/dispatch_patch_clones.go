@@ -35,18 +35,6 @@ func sessionCreatePatchDenied(patch SessionCreatePatch) bool {
 	return patch.Deny
 }
 
-func sandboxPreparePatchDenied(patch SandboxPreparePatch) bool {
-	return patch.Deny
-}
-
-func sandboxSyncBeforePatchDenied(patch SandboxSyncBeforePatch) bool {
-	return patch.Deny
-}
-
-func sandboxStopPatchDenied(patch SandboxStopPatch) bool {
-	return patch.Deny
-}
-
 func inputPreSubmitPatchDenied(patch InputPreSubmitPatch) bool {
 	return patch.Deny
 }

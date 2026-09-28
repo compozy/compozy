@@ -9,7 +9,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (m *Service) dispatchTaskBlocked(
@@ -128,9 +127,6 @@ func (m *Service) taskHookContext(
 		contextPayload.RunID = strings.TrimSpace(release.Run.ID)
 		contextPayload.ReleaseReason = strings.TrimSpace(release.ReleaseReason)
 		contextPayload.ClaimTokenHash = strings.TrimSpace(release.ClaimTokenHash)
-		contextPayload.ResolvedNetworkParticipation = participation.CloneSpec(
-			release.Run.NetworkSpecSnapshot(),
-		)
 	}
 	return contextPayload
 }

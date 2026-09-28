@@ -2,13 +2,8 @@ package cli
 
 import (
 	"encoding/json"
-
 	"fmt"
-	"strconv"
 	"strings"
-	"time"
-
-	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func renderJSONPreview(value any) (string, error) {
@@ -19,13 +14,6 @@ func renderJSONPreview(value any) (string, error) {
 	return string(content), nil
 }
 
-func formatAgentTime(value time.Time) string {
-	if value.IsZero() {
-		return "-"
-	}
-	return strconv.FormatInt(value.UTC().Unix(), 10)
-}
-
 func firstCLIValue(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
@@ -33,14 +21,4 @@ func firstCLIValue(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func zeroCLIAgentCoordinationMetadata(metadata contract.CoordinationMessageMetadataPayload) bool {
-	return strings.TrimSpace(metadata.TaskID) == "" &&
-		strings.TrimSpace(metadata.RunID) == "" &&
-		strings.TrimSpace(metadata.WorkflowID) == "" &&
-		strings.TrimSpace(metadata.ChannelID) == "" &&
-		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
-		strings.TrimSpace(metadata.CorrelationID) == "" &&
-		len(metadata.Ext) == 0
 }

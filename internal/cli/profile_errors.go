@@ -47,7 +47,7 @@ func marshalProfileExecutionError(args []string, payload contract.ProfileErrorPa
 		return append(encoded, '\n'), err == nil
 	case OutputToon:
 		return []byte(renderToonObject(automationErrorKey, []string{
-			cliCodeKey, bridgeMessageKey, authoredContextActionKey,
+			cliCodeKey, cliOutputMessageKey, authoredContextActionKey,
 		}, []string{
 			payload.Error.Code, payload.Error.Message, payload.Error.Action,
 		})), true

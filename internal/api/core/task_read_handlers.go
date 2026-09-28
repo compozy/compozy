@@ -94,11 +94,6 @@ func (h *BaseHandlers) GetTaskRun(c *gin.Context) {
 		return
 	}
 	payload.Run = runPayloads[0]
-	payload.Network, err = h.taskRunNetworkPayload(c.Request.Context(), view.Run)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
 	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: payload})
 }
 

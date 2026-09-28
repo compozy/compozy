@@ -2,7 +2,6 @@ package corecmds
 
 const (
 	coreAppAgents         = "agents"
-	coreAppBridges        = "bridges"
 	coreAppExtensions     = "extensions"
 	coreAppJobs           = "jobs"
 	coreAppKnowledge      = "knowledge"
@@ -11,7 +10,6 @@ const (
 	coreAppTasks          = "tasks"
 	coreAppTriggers       = "triggers"
 	coreAppVault          = "vault"
-	coreNetworkKey        = "network"
 	coreSettingsKey       = "settings"
 	coreIconGlobe         = "globe"
 	coreIconTerminal      = "square-terminal"

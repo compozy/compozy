@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-inspect-schema-streams;MS-011
+overlaps: RT-inspect-schema-streams; MS-011
 ---
 
 Peer-review round 5 added the mandatory shared-file branch: schema durability is independent of the optional memory

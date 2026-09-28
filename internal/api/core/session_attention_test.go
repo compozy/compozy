@@ -14,8 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -504,7 +504,7 @@ func attentionRouteSessionManager() testutil.StubSessionManager {
 // Source I/O is stubbed; acknowledgement uses real SQLite and source attention is never mutated.
 type notificationRouteObserver struct {
 	testutil.StubObserver
-	notifications.AttentionStore
+	attention.Store
 }
 
 func (notificationRouteObserver) TaskAttentionItems(
@@ -582,7 +582,7 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				return page, nil
 			}
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
-			fixture.Handlers.Observer = notificationRouteObserver{AttentionStore: db}
+			fixture.Handlers.Observer = notificationRouteObserver{Store: db}
 			fixture.Handlers.Loops = &stubLoopService{
 				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
 					return contract.LoopNodeInventoryResponse{}, nil

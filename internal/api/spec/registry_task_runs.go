@@ -49,7 +49,7 @@ func fanOutTaskRunsOperationSpec() OperationSpec {
 		Path:        specAPITasksIDRunsFanOutPath,
 		OperationID: "fanOutTaskRuns",
 		Summary:     "Enqueue designated sibling runs for one task",
-		Tags:        []string{specTasksKey, specNetworkKey},
+		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Task id"),

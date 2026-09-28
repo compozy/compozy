@@ -62,13 +62,6 @@ func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 		MessageRole:      strings.TrimSpace(cfg.MessageRole),
 		MessageDeltaType: strings.TrimSpace(cfg.MessageDeltaType),
 	}
-	matcher.NetworkMatcher = &hookspkg.NetworkMatcher{
-		Channel:   strings.TrimSpace(cfg.Channel),
-		Surface:   strings.TrimSpace(cfg.Surface),
-		Kind:      strings.TrimSpace(cfg.Kind),
-		Direction: strings.TrimSpace(cfg.Direction),
-		WorkState: strings.TrimSpace(cfg.WorkState),
-	}
 	matcher.CompactionMatcher = &hookspkg.CompactionMatcher{
 		Reason:   strings.TrimSpace(cfg.CompactionReason),
 		Strategy: strings.TrimSpace(cfg.CompactionStrategy),

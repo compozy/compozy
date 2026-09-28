@@ -145,7 +145,7 @@ Breaking changes list their **delete targets** — code, storage, APIs, CLI, ext
 
 ## Extensibility Integration Plan
 
-Extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed — or explicitly unaffected, naming the surfaces checked and why.
+Extension manifests, hooks, skills/capabilities, tools/resources, registries, extension SDKs, MCP sidecars, and protocol docs that are added/changed/removed — or explicitly unaffected, naming the surfaces checked and why.
 
 ## Agent Manageability Plan
 

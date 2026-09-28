@@ -3,7 +3,6 @@ package settings
 import (
 	"context"
 	"errors"
-	"maps"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -51,11 +50,6 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
 	switch req.Section {
-	case SectionNetwork:
-		if req.Network == nil {
-			return lifecycle.RestartRequired
-		}
-		return s.classifyNetworkRequest(ctx, req)
 	case SectionGateway:
 		if req.Gateway == nil {
 			return lifecycle.RestartRequired
@@ -135,12 +129,6 @@ func (s *service) collectionItemExistsBeforeMutation(
 				return true, nil
 			}
 		}
-	case CollectionSandboxes:
-		for _, item := range envelope.Sandboxes {
-			if item.Name == trimmedName {
-				return true, nil
-			}
-		}
 	case CollectionHooks:
 		for i := range envelope.Hooks {
 			item := &envelope.Hooks[i]
@@ -164,7 +152,6 @@ func automationSettingsFromConfig(cfg *compozyconfig.Config) AutomationSettings 
 func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned := *cfg
 	cloned.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
-	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]compozyconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)
 	cloned.Roles = compozyconfig.CloneRolesConfig(&cfg.Roles)
@@ -173,8 +160,4 @@ func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned.CmdPalette = compozyconfig.CloneCmdPaletteConfig(cfg.CmdPalette)
 	cloned.Attention = cloneAttentionConfig(cfg.Attention)
 	return cloned
-}
-
-func mapsClone[K comparable, V any](source map[K]V) map[K]V {
-	return maps.Clone(source)
 }

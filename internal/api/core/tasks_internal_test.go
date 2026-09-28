@@ -328,7 +328,6 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	}
 	if runQuery.Status != taskpkg.TaskRunStatusRunning ||
 		runQuery.SessionID != "sess-1" ||
-		runQuery.ParticipationChannel != "builders" ||
 		runQuery.Limit != 1 {
 		t.Fatalf("parseTaskRunListQuery() = %#v", runQuery)
 	}
@@ -368,11 +367,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	} else {
 		assertTaskValidationError(t, err, "run_failure.error is required")
 	}
-	if err := validateParticipationChannel("task.participation_channel", "bad.channel"); err == nil {
-		t.Fatal("validateParticipationChannel(invalid) error = nil, want non-nil")
-	} else {
-		assertTaskValidationError(t, err, `task.participation_channel: network: invalid field: channel="bad.channel"`)
-	}
+
 	if _, err := enqueueTaskRunFromRequest(
 		"task-1",
 		contract.EnqueueTaskRunRequest{},
@@ -431,20 +426,6 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
 
-	invalidChannelRecorder := httptest.NewRecorder()
-	invalidChannelCtx, _ := gin.CreateTestContext(invalidChannelRecorder)
-	invalidChannelCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/tasks/task-1/runs?participation_channel=invalid%20channel",
-		http.NoBody,
-	)
-	if _, err := parseTaskRunListQuery(invalidChannelCtx); err == nil {
-		t.Fatal("parseTaskRunListQuery(invalid participation channel) error = nil, want non-nil")
-	} else {
-		assertTaskValidationError(t, err, "task_run_query.participation_channel")
-	}
-
 	decodeRecorder := httptest.NewRecorder()
 	decodeCtx, _ := gin.CreateTestContext(decodeRecorder)
 	decodeCtx.Request = httptest.NewRequestWithContext(
@@ -467,13 +448,13 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		context.Background(),
 		http.MethodPost,
 		"/tasks/task-1/runs",
-		bytes.NewBufferString(`{"network_channel":"builders"}`),
+		bytes.NewBufferString(`{"unsupported_field":"builders"}`),
 	)
 	unknownCtx.Request.Header.Set("Content-Type", "application/json")
 	var enqueuePayload contract.EnqueueTaskRunRequest
 	if err := decodeOptionalJSON(unknownCtx, &enqueuePayload); err == nil {
 		t.Fatal("decodeOptionalJSON(unknown field) error = nil, want non-nil")
-	} else if !errors.Is(err, ErrUnknownJSONField) || !strings.Contains(err.Error(), "network_channel") {
+	} else if !errors.Is(err, ErrUnknownJSONField) || !strings.Contains(err.Error(), "unsupported_field") {
 		t.Fatalf("decodeOptionalJSON(unknown field) error = %q, want unknown_field with field named", err.Error())
 	}
 }
@@ -535,9 +516,7 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			ClaimTokenHash: "sha256:" + strings.Repeat("c", 64),
 			LeaseUntil:     claimedAt.Add(15 * time.Minute),
 			HeartbeatAt:    claimedAt.Add(time.Minute),
-			RunNetworkState: &taskpkg.RunNetworkState{
-				NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease"),
-			},
+
 			QueuedAt:           claimedAt.Add(-time.Minute),
 			ClaimedAt:          claimedAt,
 			StartedAt:          claimedAt.Add(time.Minute),
@@ -567,14 +546,6 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			payload.ResolvedWorktreeMode != contract.ResolvedWorktreeMode(run.ResolvedWorktreeModeValue()) ||
 			payload.ResolvedWorktreeRef != run.ResolvedWorktreeRefValue() {
 			t.Fatalf("worktree projection = %#v, want run snapshot %#v", payload, run)
-		}
-		if payload.ResolvedNetworkParticipation == nil ||
-			payload.ResolvedNetworkParticipation.ChannelID != run.NetworkSpecSnapshot().ChannelID {
-			t.Fatalf(
-				"ResolvedNetworkParticipation = %#v, want channel %q",
-				payload.ResolvedNetworkParticipation,
-				run.NetworkSpecSnapshot().ChannelID,
-			)
 		}
 
 		content, err := json.Marshal(payload)

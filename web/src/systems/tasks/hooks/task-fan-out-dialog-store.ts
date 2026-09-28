@@ -1,22 +1,12 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-import {
-  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
-
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
-
-const strategies = ["named", "run"] as const;
 
 interface FanOutDialogState {
   attemptId: number;
   designationsText: string;
   formError: string | null;
   idempotencyKey: string | null;
-  networkParticipation: NetworkParticipationDraft;
   phase: "editing" | "submitting";
   /** One fresh worktree per designated run. Off by default — isolation is opt-in. */
   worktreePerRun: boolean;
@@ -31,7 +21,6 @@ interface FanOutDialogState {
 type FanOutDialogEvents = {
   designationsChanged: { value: string };
   worktreePerRunChanged: { value: boolean };
-  networkParticipationChanged: { value: NetworkParticipationDraft };
   openChanged: { open: boolean; setOpen: (open: boolean) => void };
   submitFailed: { attemptId: number; error: string };
   submitRequested: {
@@ -55,12 +44,6 @@ export function createTaskFanOutDialogLogic() {
         designationsText: event.value,
         formError: null,
         idempotencyKey: null,
-      }),
-      networkParticipationChanged: (context, event) => ({
-        ...context,
-        formError: null,
-        idempotencyKey: null,
-        networkParticipation: event.value,
       }),
       worktreePerRunChanged: (context, event) => ({
         ...context,
@@ -126,7 +109,6 @@ function initialState(): Omit<FanOutDialogState, "attemptId"> {
     designationsText: "",
     formError: null,
     idempotencyKey: null,
-    networkParticipation: { ...DEFAULT_NETWORK_PARTICIPATION_DRAFT },
     phase: "editing",
     result: null,
     worktreePerRun: false,
@@ -149,12 +131,9 @@ function toPayload(
     .filter(Boolean)
     .map(brief => ({ brief }));
   if (designations.length === 0) return new Error("Add at least one assignment.");
-  const error = networkParticipationValidationMessage(context.networkParticipation, strategies);
-  if (error) return new Error(error);
   return {
     designations,
     idempotency_key: idempotencyKey,
-    network_participation: serializeNetworkParticipation(context.networkParticipation),
     // Sent only when requested: the daemon's default is shared-root execution,
     // and an explicit `false` would read as a policy the operator never set.
     ...(context.worktreePerRun ? { worktree_per_run: true } : {}),

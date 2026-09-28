@@ -9,14 +9,12 @@ import (
 	"strings"
 	"time"
 
-	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
 var _ compozyworkspace.Store = (*WorkspaceRepo)(nil)
-var _ compozyworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
 var _ worktree.Store = (*WorktreeRepo)(nil)
 
 // OpenGlobalDB opens or creates the global Compozy index database.
@@ -43,18 +41,6 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		},
 	}
 	globalDB.initializeRepositories(config)
-	defaults := presetspkg.BuiltInPresets(globalDB.now())
-	defaultsCurrent, err := builtInPresetDefaultsCurrent(ctx, db, defaults)
-	if err != nil {
-		closeErr := db.Close()
-		return nil, errors.Join(err, closeErr)
-	}
-	if !defaultsCurrent {
-		if err := globalDB.EnsureBuiltInPresets(ctx, defaults); err != nil {
-			closeErr := db.Close()
-			return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)
-		}
-	}
 	return globalDB, nil
 }
 

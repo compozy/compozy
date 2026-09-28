@@ -15,7 +15,6 @@ export interface HelpMenuProps {
 
 const EXTERNAL_LINKS = [
   { id: "documentation", label: "Documentation", href: "https://compozy.com/docs/" },
-  { id: "protocol", label: "Protocol", href: "https://compozy.com/docs/network/protocol/" },
   { id: "marketplace", label: "Marketplace", href: "https://compozy.com/marketplace/" },
   { id: "changelog", label: "What's new", href: "https://compozy.com/changelog/" },
 ] as const;

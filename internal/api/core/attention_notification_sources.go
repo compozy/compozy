@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -148,7 +148,7 @@ func sessionNotificationQueryItems(
 				}
 			}
 			items = append(items, contract.AttentionNotificationPayload{
-				ID: notifications.AttentionIdentity(
+				ID: attention.Identity(
 					"session", info.ProfileID, info.WorkspaceID, info.ID, string(badge),
 					strconv.FormatInt(sessionNotificationRevision(info), 10),
 				),
@@ -168,7 +168,7 @@ func sessionNotificationQueryItems(
 }
 
 func loopNotificationKey(workspace, run, node string, generation, item int) string {
-	return notifications.AttentionIdentity(workspace, run, node, strconv.Itoa(generation), strconv.Itoa(item))
+	return attention.Identity(workspace, run, node, strconv.Itoa(generation), strconv.Itoa(item))
 }
 
 func (h *BaseHandlers) loopNotificationItems(
@@ -192,7 +192,7 @@ func (h *BaseHandlers) loopNotificationItems(
 			)
 			requests[key] = true
 			items = append(items, contract.AttentionNotificationPayload{
-				ID: notifications.AttentionIdentity(
+				ID: attention.Identity(
 					"loop-request",
 					key,
 					request.OpenedAt.UTC().Format(time.RFC3339Nano),
@@ -242,7 +242,7 @@ func (h *BaseHandlers) terminalNotificationItems(
 			title = "Private terminal input requested"
 		}
 		items = append(items, contract.AttentionNotificationPayload{
-			ID: notifications.AttentionIdentity(
+			ID: attention.Identity(
 				"terminal-input",
 				request.ProfileID,
 				workspace,
@@ -280,7 +280,7 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 					continue
 				}
 				items = append(items, contract.AttentionNotificationPayload{
-					ID: notifications.AttentionIdentity(
+					ID: attention.Identity(
 						"loop-node",
 						key,
 						state,

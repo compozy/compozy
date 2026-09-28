@@ -253,7 +253,7 @@ func newSupportBundleTestEngine(t *testing.T, service supportBundleServiceStub) 
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:      "api-core-test",
 		MaskInternalErrors: false,

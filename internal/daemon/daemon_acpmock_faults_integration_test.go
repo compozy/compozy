@@ -346,7 +346,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		defer cancel()
 
 		taskRecord := createFaultyProfiledTask(t, ctx, harness)
-		run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
+		run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID)
 		claimant := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-claimant")
 		var claimResponse compozycontract.AgentTaskClaimResponse
 		agentUDSJSON(
@@ -590,9 +590,6 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 		}
 		if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
 			t.Fatalf("CaptureSessionEvents() error = %v", err)
-		}
-		if err := harness.CaptureSessionSandbox(ctx, session.ID); err != nil {
-			t.Fatalf("CaptureSessionSandbox() error = %v", err)
 		}
 	})
 }
@@ -959,13 +956,9 @@ func assertFaultPromptProjection(
 	if err := harness.CaptureSessionEvents(ctx, sessionID); err != nil {
 		t.Fatalf("CaptureSessionEvents() error = %v", err)
 	}
-	if err := harness.CaptureSessionSandbox(ctx, sessionID); err != nil {
-		t.Fatalf("CaptureSessionSandbox() error = %v", err)
-	}
 
 	assertArtifactExists(t, harness, e2etest.ArtifactKindTranscript)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindEvents)
-	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
 }
 
 func assertRawProcessFailureTerminal(

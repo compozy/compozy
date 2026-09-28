@@ -95,8 +95,6 @@ func sectionLabel(key string) string {
 		return "Skills catalog"
 	case "tools":
 		return "Tool manuals"
-	case "network":
-		return "Network"
 	case "knowledge":
 		return "Workspace knowledge"
 	case "attachment":

@@ -291,29 +291,6 @@ func parseUpdateSettingsAutomationRequest(c *gin.Context) (settingspkg.SectionUp
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Automation: &config}, nil
 }
 
-func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
-	var body struct {
-		Config *contract.SettingsNetworkConfigPayload `json:"config"`
-	}
-	if err := decodeStrictJSONBody(c, &body); err != nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode network settings request: %w", err),
-		)
-	}
-	if body.Config == nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("network.config is required"))
-	}
-	req, err := parseSettingsSectionRequest(c, settingspkg.SectionNetwork)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	config, err := networkConfigFromPayload(*body.Config)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	return settingspkg.SectionUpdateRequest{SectionRequest: req, Network: &config}, nil
-}
-
 // parseUpdateSettingsWindowManagerRequest decodes the scope and preserves the opt-in shortcut merge policy.
 func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	var body contract.UpdateSettingsWindowManagerRequest

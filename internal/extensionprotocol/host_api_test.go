@@ -26,9 +26,6 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodSessionsSoulRefresh,
 			HostAPIMethodSessionsHealthGet,
 			HostAPIMethodSessionsStatusGet,
-			HostAPIMethodSandboxList,
-			HostAPIMethodSandboxInfo,
-			HostAPIMethodSandboxExec,
 			HostAPIMethodMemoryRecall,
 			HostAPIMethodMemoryStore,
 			HostAPIMethodMemoryForget,
@@ -86,25 +83,9 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodTasksRunsComplete,
 			HostAPIMethodTasksRunsFail,
 			HostAPIMethodTasksRunsCancel,
-			HostAPIMethodNetworkStatus,
-			HostAPIMethodNetworkUsage,
-			HostAPIMethodNetworkChannels,
-			HostAPIMethodNetworkPeers,
-			HostAPIMethodNetworkThreads,
-			HostAPIMethodNetworkThreadGet,
-			HostAPIMethodNetworkThreadMessages,
-			HostAPIMethodNetworkDirects,
-			HostAPIMethodNetworkDirectResolve,
-			HostAPIMethodNetworkDirectMessages,
-			HostAPIMethodNetworkWorkGet,
-			HostAPIMethodNetworkSend,
 			HostAPIMethodResourcesList,
 			HostAPIMethodResourcesGet,
 			HostAPIMethodResourcesSnapshot,
-			HostAPIMethodBridgesInstancesList,
-			HostAPIMethodBridgesMessagesIngest,
-			HostAPIMethodBridgesInstancesGet,
-			HostAPIMethodBridgesInstancesReportState,
 			HostAPIMethodClarifyAsk,
 		}
 
@@ -153,28 +134,6 @@ func TestCapabilityServiceMethodsShouldIncludeWatchPollMethod(t *testing.T) {
 		for idx := range want {
 			if got[idx] != want[idx] {
 				t.Fatalf("CapabilityServiceMethods(loop.watch_source)[%d] = %q, want %q", idx, got[idx], want[idx])
-			}
-		}
-	})
-}
-
-func TestCapabilityServiceMethodsShouldIncludeBridgeTargetSnapshotMethod(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include bridge delivery and target snapshot methods", func(t *testing.T) {
-		t.Parallel()
-
-		got := CapabilityServiceMethods([]string{CapabilityProvideBridgeAdapter})
-		want := []string{
-			string(ExtensionServiceMethodBridgesDeliver),
-			string(ExtensionServiceMethodBridgeTargets),
-		}
-		if len(got) != len(want) {
-			t.Fatalf("len(CapabilityServiceMethods(bridge.adapter)) = %d, want %d", len(got), len(want))
-		}
-		for idx := range want {
-			if got[idx] != want[idx] {
-				t.Fatalf("CapabilityServiceMethods(bridge.adapter)[%d] = %q, want %q", idx, got[idx], want[idx])
 			}
 		}
 	})

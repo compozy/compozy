@@ -62,9 +62,8 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
-		agent:               resolved,
-		agentDef:            compozyconfig.CloneAgentDef(agentDef),
-		networkCapabilities: networkPeerCapabilities(agentDef.Capabilities),
+		agent:    resolved,
+		agentDef: compozyconfig.CloneAgentDef(agentDef),
 	}, nil
 }
 

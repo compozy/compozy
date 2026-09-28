@@ -56,11 +56,6 @@ export interface JobRunDigest {
   task: {
     title: string;
     owner: string;
-    participation: {
-      channelId: string | null;
-      channelStrategy: string | null;
-      mode: "local" | "live";
-    };
     description: string;
     runStatus: "delegated";
   } | null;
@@ -247,7 +242,6 @@ function buildRunDigest(draft: Draft): JobRunDigest {
   const target = projectAutomationTarget(draft);
   if (output === "task" && draft.task) {
     const task = draft.task;
-    const participation = task.network_participation;
     return {
       output: "task",
       agentName: null,
@@ -256,14 +250,6 @@ function buildRunDigest(draft: Draft): JobRunDigest {
       task: {
         title: task.title?.trim() ? task.title : draft.name,
         owner: ownerLabel(task.owner) ?? "unassigned",
-        participation: {
-          mode: participation?.mode === "live" ? "live" : "local",
-          channelStrategy: participation?.mode === "live" ? participation.channel_strategy : null,
-          channelId:
-            participation?.mode === "live" && participation.channel_strategy === "named"
-              ? participation.channel_id
-              : null,
-        },
         description: task.description?.trim() ? task.description : draft.prompt,
         runStatus: "delegated",
       },

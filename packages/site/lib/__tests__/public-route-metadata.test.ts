@@ -19,8 +19,8 @@ const mockedDocs = vi.hoisted(() => ({
   protocolPages: [
     {
       data: { description: "Implemented protocol surface.", title: "Implementation Status" },
-      slugs: ["network", "protocol", "implementation-status"],
-      url: "/docs/network/protocol/implementation-status",
+      slugs: ["loops", "reference", "grammar"],
+      url: "/docs/loops/reference/grammar",
     },
   ],
   runtimePages: [
@@ -135,8 +135,8 @@ describe("public route metadata", () => {
     expect(urls).toContain(absoluteUrl("/"));
     expect(urls).toContain(absoluteUrl("/docs/how-to-use-these-docs/"));
     expect(urls).toContain(absoluteUrl("/docs/use-cases/prepare-a-project-workspace/"));
-    expect(urls).toContain(absoluteUrl("/docs/network/protocol/implementation-status/"));
-    expect(urls).toContain(absoluteUrl("/marketplace/bridges/"));
+    expect(urls).toContain(absoluteUrl("/docs/loops/reference/grammar/"));
+    expect(urls).not.toContain(absoluteUrl("/marketplace/bridges/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bundled/spec-cycle/"));
     expect(urls).toContain(absoluteUrl("/marketplace/example-extension/"));
     expect(urls.filter(url => url.includes("/changelog"))).toEqual([
@@ -175,12 +175,7 @@ describe("public route metadata", () => {
     const headings = body.match(/^#{1,2} .+$/gm) ?? [];
 
     expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
-    for (const heading of [
-      "# CompozyOS Documentation",
-      "## Docs",
-      "## Guides & examples",
-      "## Compozy Network",
-    ]) {
+    for (const heading of ["# CompozyOS Documentation", "## Docs", "## Guides & examples"]) {
       expect(headings.filter(candidate => candidate === heading)).toHaveLength(1);
     }
   });
@@ -189,7 +184,7 @@ describe("public route metadata", () => {
     expect(generateLLMMarkdownStaticParams()).toEqual([
       { slug: ["docs", "how-to-use-these-docs"] },
       { slug: ["docs", "use-cases", "prepare-a-project-workspace"] },
-      { slug: ["docs", "network", "protocol", "implementation-status"] },
+      { slug: ["docs", "loops", "reference", "grammar"] },
     ]);
 
     const response = await llmsMarkdownGET(new NextRequest("https://compozy.com/llms.mdx"), {
@@ -211,7 +206,7 @@ describe("public route metadata", () => {
     expect(generateOGStaticParams()).toEqual(
       expect.arrayContaining([
         { slug: ["docs", "how-to-use-these-docs", "image.png"] },
-        { slug: ["docs", "network", "protocol", "implementation-status", "image.png"] },
+        { slug: ["docs", "loops", "reference", "grammar", "image.png"] },
       ])
     );
 

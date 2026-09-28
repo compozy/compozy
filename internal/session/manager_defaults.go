@@ -75,9 +75,6 @@ func (m *Manager) applyRuntimeGeneratorDefaults() {
 	if m.newSessionID == nil {
 		m.newSessionID = newIDGenerator("sess")
 	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = newIDGenerator("env")
-	}
 	if m.newTurnID == nil {
 		m.newTurnID = newIDGenerator("turn")
 	}

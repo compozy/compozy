@@ -15,7 +15,6 @@ const ALLOW_FILE_SUFFIXES = [".test.tsx", ".test.ts", ".stories.tsx", ".stories.
 // rendered glyph happens to use mono uppercase, custom site eyebrows, etc.).
 // New consumers go through `<Eyebrow>` from `@compozy/ui`; these declare it.
 const ALLOW_FILE_PATHS = [
-  "/web/src/systems/network/components/timeline/message-avatar.tsx",
   "/packages/site/components/blog/mono-eyebrow.tsx",
   "/packages/site/components/blog/date-stamp.tsx",
   "/packages/site/components/blog/kind-chip.tsx",

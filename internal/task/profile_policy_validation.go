@@ -113,20 +113,6 @@ func validateReviewProfile(profile ReviewProfile, options ExecutionProfileValida
 	); err != nil {
 		return err
 	}
-	if err := validateChannelSelectors(
-		profile.AllowedChannelIDs,
-		profile.PreferredChannelIDs,
-		"review",
-	); err != nil {
-		return err
-	}
-	if err := validatePeerSelectors(
-		profile.AllowedPeerIDs,
-		profile.PreferredPeerIDs,
-		"review",
-	); err != nil {
-		return err
-	}
 	return validateCapabilitySelectors(profile.RequiredCapabilities, profile.PreferredCapabilities, "review")
 }
 
@@ -139,58 +125,11 @@ func validateParticipantPolicy(policy ParticipantPolicy) error {
 	); err != nil {
 		return err
 	}
-	if err := validateChannelSelectors(
-		policy.AllowedChannelIDs,
-		policy.PreferredChannelIDs,
-		"participants",
-	); err != nil {
-		return err
-	}
-	if err := validatePeerSelectors(
-		policy.AllowedPeerIDs,
-		policy.PreferredPeerIDs,
-		"participants",
-	); err != nil {
-		return err
-	}
 	return validateCapabilitySelectors(
 		policy.RequiredCapabilities,
 		policy.PreferredCapabilities,
 		"participants",
 	)
-}
-
-func validateSandboxPolicy(policy SandboxPolicy, options ExecutionProfileValidationOptions) error {
-	switch policy.Mode.Normalize() {
-	case SandboxModeInherit:
-		if policy.SandboxRef != "" {
-			return fmt.Errorf("%w: task_execution_profile.sandbox.sandbox_ref must be empty for inherit", ErrValidation)
-		}
-	case SandboxModeNone:
-		if !options.AllowSandboxNone {
-			return fmt.Errorf("%w: task_execution_profile.sandbox.mode none is disabled by config", ErrValidation)
-		}
-		if policy.SandboxRef != "" {
-			return fmt.Errorf("%w: task_execution_profile.sandbox.sandbox_ref must be empty for none", ErrValidation)
-		}
-	case SandboxModeRef:
-		if !options.AllowSandboxRef {
-			return fmt.Errorf("%w: task_execution_profile.sandbox.mode ref is disabled by config", ErrValidation)
-		}
-		if policy.SandboxRef == "" {
-			return fmt.Errorf("%w: task_execution_profile.sandbox.sandbox_ref is required for ref", ErrValidation)
-		}
-	default:
-		return fmt.Errorf(
-			"%w: task_execution_profile.sandbox.mode must be %q, %q, or %q: %q",
-			ErrValidation,
-			SandboxModeInherit,
-			SandboxModeNone,
-			SandboxModeRef,
-			policy.Mode,
-		)
-	}
-	return validateSelectorAtom(policy.SandboxRef, "task_execution_profile.sandbox.sandbox_ref", true)
 }
 
 func validateRuntimePolicy(policy RuntimePolicy) error {

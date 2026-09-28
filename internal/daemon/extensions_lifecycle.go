@@ -52,8 +52,8 @@ func (s *daemonExtensionService) Install(
 				return readErr
 			}
 		}
-		confirmation, confirmErr := s.prepareInstallNetworkConfirmation(
-			prepared.manifest, strings.TrimSpace(req.ConfirmNetworkDigest), actor,
+		confirmation, confirmErr := s.prepareInstallGatewayConfirmation(
+			prepared.manifest, strings.TrimSpace(req.ConfirmGatewayDigest), actor,
 		)
 		if confirmErr != nil {
 			return confirmErr
@@ -78,7 +78,7 @@ func (s *daemonExtensionService) Install(
 func (s *daemonExtensionService) commitPreparedInstall(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
@@ -91,13 +91,13 @@ func (s *daemonExtensionService) commitPreparedInstall(
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	if confirmation != nil {
-		if err := s.registry.ConfirmNetworkRequirement(
+		if err := s.registry.ConfirmGatewayRequirement(
 			extensionpkg.GlobalInstanceKey(prepared.name), confirmation.Digest,
 			confirmation.ConfirmedBy, confirmation.ConfirmedAt,
 		); err != nil {
 			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
-		if err := s.recordExtensionNetworkConfirmedEvent(
+		if err := s.recordExtensionGatewayConfirmedEvent(
 			ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
 		); err != nil {
 			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
@@ -183,7 +183,7 @@ func (s *daemonExtensionService) Update(
 			CheckOnly:       req.CheckOnly,
 			AllowUnverified: req.AllowUnverified,
 			Inputs:          req.Inputs,
-		}, actor, strings.TrimSpace(req.ConfirmNetworkDigest), target)
+		}, actor, strings.TrimSpace(req.ConfirmGatewayDigest), target)
 		return updateErr
 	})
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
 	actor taskpkg.ActorContext,
-	confirmNetworkDigest string,
+	confirmGatewayDigest string,
 	target extensionMutationTarget,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
 	if len(req.Inputs) > 0 && (req.All || len(req.Names) != 1) {
@@ -263,7 +263,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	) {
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
-	confirmed := s.configureUpdateNetworkGate(&domainReq, confirmNetworkDigest, actor)
+	confirmed := s.configureUpdateGatewayGate(&domainReq, confirmGatewayDigest, actor)
 	s.configureUpdateProfileGate(ctx, &domainReq, actor)
 	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs, target)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
@@ -277,7 +277,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	payloads, finalizeErr := s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
 	return payloads, errors.Join(
 		finalizeErr,
-		s.recordCommittedUpdateNetworkConfirmations(ctx, actor, payloads, confirmed),
+		s.recordCommittedUpdateGatewayConfirmations(ctx, actor, payloads, confirmed),
 	)
 }
 
@@ -408,10 +408,10 @@ func (s *daemonExtensionService) Enable(
 		if len(preview.AgentConflicts) > 0 {
 			return &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
 		}
-		confirmation, confirmErr := s.confirmNetworkForEnable(
+		confirmation, confirmErr := s.confirmGatewayForEnable(
 			extensionpkg.GlobalInstanceKey(name),
-			preview.NetworkRequirementDigest,
-			strings.TrimSpace(req.ConfirmNetworkDigest),
+			preview.GatewayRequirementDigest,
+			strings.TrimSpace(req.ConfirmGatewayDigest),
 			actor,
 		)
 		if confirmErr != nil {

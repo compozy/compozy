@@ -181,14 +181,6 @@ jobs:
         with:
           install-playwright: "false"
 
-      - name: Restore Daytona sidecar proof
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/compozy-dev/daytona-check.stamp
-          key: ${{ runner.os }}-daytona-proof-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-daytona-proof-
-
       - name: Verify generated artifacts
         run: make codegen-check
 

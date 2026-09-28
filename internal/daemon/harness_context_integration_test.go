@@ -109,10 +109,9 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName:                    resolvedWorkspace.Agents[0].Name,
-		Name:                         "networked",
-		Workspace:                    resolvedWorkspace.ID,
-		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "user session",
+		Workspace: resolvedWorkspace.ID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -143,17 +142,13 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	})
 
 	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{
-		SessionType:          created.Info().Type,
-		NetworkParticipation: created.Info().NetworkParticipation,
-		WorkspaceID:          created.Info().WorkspaceID,
-		Workspace:            created.Info().Workspace,
-		AgentName:            created.Info().AgentName,
+		SessionType: created.Info().Type,
+		WorkspaceID: created.Info().WorkspaceID,
+		Workspace:   created.Info().Workspace,
+		AgentName:   created.Info().AgentName,
 	})
 	if err != nil {
 		t.Fatalf("ResolveStartup() error = %v", err)
-	}
-	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
-		t.Fatalf("startup IncludeSections = %#v, want network section", startupResolved.Policy.IncludeSections)
 	}
 	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionTools) {
 		t.Fatalf("startup IncludeSections = %#v, want tools section", startupResolved.Policy.IncludeSections)
@@ -162,27 +157,13 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("startup IncludeSections = %#v, want runtime identity section", startupResolved.Policy.IncludeSections)
 	}
 
-	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
 	toolRouter, err := skillbundled.LoadContent(bundledCompozySkillName)
 	if err != nil {
 		t.Fatalf("LoadContent(%q) error = %v", bundledCompozySkillName, err)
 	}
 	toolRouter = strings.TrimSpace(toolRouter)
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "# Compozy Network Response Register") {
-		t.Fatalf("start system prompt = %q, want compact network response register section", got)
-	}
-	if got := driver.startCalls[0].SystemPrompt; strings.Contains(got, networkSkill) {
-		t.Fatalf("start system prompt = %q, want compact register, not full network skill", got)
-	}
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, toolRouter) {
 		t.Fatalf("start system prompt = %q, want bundled tool router content", got)
-	}
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, "# Compozy Network Response Register"); got != 1 {
-		t.Fatalf("network response register occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, toolRouter); got != 1 {
 		t.Fatalf("tool router occurrences = %d, want 1", got)
@@ -220,7 +201,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolRouter,
-		"# Compozy Network Response Register",
 	)
 
 	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
@@ -265,9 +245,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<compozy-situation-context>") {
 		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
 	}
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"channel_id":"coord-run-1"`) {
-		t.Fatalf("user prompt message = %q, want resolved task participation channel", got)
-	}
 	if got := strings.Count(driver.promptCalls[0].Message, "<compozy-situation-context>"); got != 1 {
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
 	}
@@ -275,46 +252,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("user prompt advertised gated skill %q", gatedSkillName)
 	}
 
-	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
-		created.Info(),
-		session.TurnSourceNetwork,
-		acp.PromptMeta{},
-	)
-	if err != nil {
-		t.Fatalf("ResolvePrompt(network) error = %v", err)
-	}
-	if !slices.Equal(
-		networkResolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterWorkspaceKnowledge, HarnessAugmenterSkills},
-	) {
-		t.Fatalf(
-			"network EnableAugmenters = %#v, want workspace knowledge and skills",
-			networkResolved.Policy.EnableAugmenters,
-		)
-	}
-
-	networkEvents, err := manager.PromptNetwork(
-		testutil.Context(t),
-		created.ID,
-		"workspace note",
-		acp.PromptNetworkMeta{Channel: "builders", From: "ops.peer"},
-	)
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
-	}
-	drainHarnessIntegrationEvents(networkEvents)
-	if got := driver.promptCalls[1].Message; !strings.Contains(got, "<current-available-skills>") {
-		t.Fatalf("network prompt message = %q, want current skills augmentation", got)
-	}
-	if got := driver.promptCalls[1].Message; !strings.HasSuffix(got, "workspace note") {
-		t.Fatalf("network prompt message = %q, want original network input preserved", got)
-	}
-	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
-		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
-	}
-	if got := driver.promptCalls[1].Message; strings.Contains(got, gatedCatalogEntry) {
-		t.Fatalf("network prompt advertised gated skill %q", gatedSkillName)
-	}
 }
 
 func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact string) {
@@ -372,10 +309,9 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName:                    resolvedWorkspace.Agents[0].Name,
-		Name:                         "networked",
-		Workspace:                    resolvedWorkspace.ID,
-		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "user session",
+		Workspace: resolvedWorkspace.ID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -383,7 +319,7 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 
 	beforeResume, err := daemonInstance.harnessResolver.ResolvePrompt(
 		created.Info(),
-		session.TurnSourceNetwork,
+		session.TurnSourceUser,
 		acp.PromptMeta{},
 	)
 	if err != nil {
@@ -406,7 +342,7 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 
 	afterResume, err := daemonInstance.harnessResolver.ResolvePrompt(
 		resumed.Info(),
-		session.TurnSourceNetwork,
+		session.TurnSourceUser,
 		acp.PromptMeta{},
 	)
 	if err != nil {
@@ -432,97 +368,17 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		)
 	}
 
-	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
 	toolRouter, err := skillbundled.LoadContent(bundledCompozySkillName)
 	if err != nil {
 		t.Fatalf("LoadContent(%q) error = %v", bundledCompozySkillName, err)
 	}
 	toolRouter = strings.TrimSpace(toolRouter)
-	if got := strings.Count(driver.startCalls[1].SystemPrompt, "# Compozy Network Response Register"); got != 1 {
-		t.Fatalf("resume prompt network response register occurrences = %d, want 1", got)
-	}
-	if got := driver.startCalls[1].SystemPrompt; strings.Contains(got, networkSkill) {
-		t.Fatalf("resume prompt = %q, want compact register, not full network skill", got)
-	}
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, toolRouter); got != 1 {
 		t.Fatalf("resume prompt tool router occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, compozyRuntimeEnvelopeStart); got != 1 {
 		t.Fatalf("resume prompt Compozy runtime envelope occurrences = %d, want 1", got)
 	}
-}
-
-func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
-	t.Run(
-		"Should omit the startup network section for a non-channel session",
-		testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession,
-	)
-}
-
-func testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = true
-	workspaceRoot := homePaths.HomeDir + "/workspace"
-	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
-	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
-
-	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
-	t.Cleanup(func() {
-		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-			t.Errorf("Shutdown() error = %v", err)
-		}
-	})
-
-	driver := newHarnessIntegrationDriver()
-	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
-
-	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "interactive",
-		Workspace: resolvedWorkspace.ID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
-			t.Errorf("Stop() error = %v", err)
-		}
-	})
-
-	networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
-		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
-	}
-	toolRouter, err := skillbundled.LoadContent(bundledCompozySkillName)
-	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledCompozySkillName, err)
-	}
-	toolRouter = strings.TrimSpace(toolRouter)
-	if !strings.Contains(driver.startCalls[0].SystemPrompt, toolRouter) {
-		t.Fatalf("start system prompt missing bundled tool router")
-	}
-	assertPromptContainsInOrder(
-		t,
-		driver.startCalls[0].SystemPrompt,
-		compozyRuntimeEnvelopeStart,
-		"# Compozy Runtime",
-		"canonical registry IDs",
-		"<compozy-situation-context>",
-		"# Persistent Memory",
-		"You are a coding assistant.",
-		"<available-skills>",
-		toolRouter,
-	)
 }
 
 func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testing.T) {
@@ -1023,9 +879,6 @@ func seedHarnessSituationTaskRun(
 		Attempt:   1,
 		SessionID: sessionID,
 		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
-		RunNetworkState: &taskpkg.RunNetworkState{
-			NetworkSpec: daemonTestLiveParticipation(workspaceID, "coord-run-1"),
-		},
 		Metadata:  json.RawMessage(`{"workflow_id":"wf-run-1"}`),
 		QueuedAt:  now,
 		StartedAt: now.Add(time.Minute),
@@ -1090,7 +943,6 @@ func newHarnessIntegrationManager(
 			},
 		),
 		session.WithLogger(discardLogger()),
-		session.WithSandboxRegistry(deps.SandboxRegistry),
 		session.WithPromptAssembler(deps.PromptAssembler),
 		session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
 		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
@@ -1148,11 +1000,6 @@ func newHarnessIntegrationWorkspace(
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	resolvedSandbox, err := cfg.ResolveSandbox(cfg.Defaults.Sandbox)
-	if err != nil {
-		t.Fatalf("ResolveSandbox() error = %v", err)
-	}
-
 	return workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      "ws-harness",
@@ -1168,7 +1015,6 @@ func newHarnessIntegrationWorkspace(
 				Prompt:   "You are a coding assistant.",
 			},
 		},
-		Sandbox: resolvedSandbox,
 	}
 }
 
@@ -1411,7 +1257,6 @@ func newHarnessIntegrationProcess(
 			<-proc.done
 			return nil
 		},
-		ConfigureRuntime: func(func() session.TurnSource) {},
 	})
 	return proc
 }

@@ -117,14 +117,11 @@ func (h *HostAPIHandler) handleListLogs(ctx context.Context, raw json.RawMessage
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
-	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
+	workspaceID, err := h.resolveRequiredWorkspaceID(ctx, params.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 
 	events, err := h.observer.QueryEvents(ctx, store.EventSummaryQuery{
 		ReadScope:     store.ReadScope{ProfileID: profileID},

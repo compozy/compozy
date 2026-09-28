@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
-  deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
@@ -18,12 +17,10 @@ import {
   getSettingsRestartStatus,
   getSettingsRoles,
   getSettingsSkills,
-  listSettingsSandboxes,
   listSettingsApplyRecords,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
-  putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
@@ -196,7 +193,7 @@ describe("section reads and updates", () => {
       config: {
         daemon: {
           memory_report_interval: "10m",
-          reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+          reload_timeouts: { mcp: "10s", providers: "5s" },
           socket: "/tmp/next.sock",
         },
         http: { host: "127.0.0.1", port: 2123 },
@@ -236,7 +233,7 @@ describe("section reads and updates", () => {
       scope: "profile" as const,
       profile: "marketing",
       available_scopes: ["user", "profile", "workspace"] as const,
-      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+      config: { agent: "campaigns", provider: "openai" },
     };
     mockJsonResponse(persona);
 
@@ -257,7 +254,7 @@ describe("section reads and updates", () => {
       write_target: "profile-config",
     });
     const body = {
-      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+      config: { agent: "campaigns", provider: "openai" },
     };
 
     const result = await updateSettingsPersona(body, {
@@ -543,56 +540,6 @@ describe("collection endpoints", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(deleteSettingsProvider("missing")).rejects.toThrow("Provider not found: missing");
-  });
-
-  it("lists sandboxes", async () => {
-    const sandboxes = {
-      collection: "sandboxes" as const,
-      scope: "user" as const,
-      available_scopes: ["user" as const],
-      sandboxes: [
-        {
-          name: "local",
-          profile: { backend: "host" },
-          workspace_usage_count: 2,
-          source_metadata: {
-            available_targets: ["global-config" as const],
-            effective_source: { kind: "global-config" as const, scope: "user" as const },
-          },
-        },
-      ],
-    };
-
-    mockJsonResponse(sandboxes);
-    const result = await listSettingsSandboxes();
-
-    expect(result.sandboxes[0]?.workspace_usage_count).toBe(2);
-    await expectFetchRequest({ path: "/api/settings/sandboxes" });
-  });
-
-  it("deletes sandboxes and propagates mutation responses", async () => {
-    mockJsonResponse({ ...mutationFixture, section: "general" as const });
-
-    const result = await deleteSettingsSandbox("local");
-
-    expect(result.applied).toBe(true);
-    await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/settings/sandboxes/local",
-    });
-  });
-
-  it("puts sandboxes", async () => {
-    mockJsonResponse({ ...mutationFixture, section: "general" as const });
-
-    const body = { profile: { backend: "daytona" } };
-    await putSettingsSandbox("cloud", body);
-
-    await expectFetchRequest({
-      body,
-      method: "PUT",
-      path: "/api/settings/sandboxes/cloud",
-    });
   });
 
   it("lists hooks", async () => {

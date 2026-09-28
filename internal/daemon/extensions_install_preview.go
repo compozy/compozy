@@ -49,12 +49,12 @@ func (s *daemonExtensionService) PreviewInstall(
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(prepared.manifest.NetworkParticipation)
+	digest, err := extensionpkg.GatewayRequirementDigest(prepared.manifest.Gateway)
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
 	result := contract.ExtensionInstallPreviewPayload{
-		Name: prepared.name, NetworkRequirementDigest: digest,
+		Name: prepared.name, GatewayRequirementDigest: digest,
 		DigestSHA256:     prepared.digest,
 		Inputs:           make([]contract.MarketplaceInputPayload, 0, len(prepared.manifest.Inputs)),
 		DeclaredProfiles: make([]contract.ExtensionInstallDeclaredProfilePayload, 0, len(plan.Profiles)),
@@ -88,12 +88,12 @@ func (s *daemonExtensionService) PreviewInstall(
 	return result, nil
 }
 
-func (s *daemonExtensionService) prepareInstallNetworkConfirmation(
+func (s *daemonExtensionService) prepareInstallGatewayConfirmation(
 	manifest *extensionpkg.Manifest,
 	expectedDigest string,
 	actor taskpkg.ActorContext,
-) (*extensionpkg.NetworkConfirmation, error) {
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+) (*extensionpkg.GatewayConfirmation, error) {
+	digest, err := extensionpkg.GatewayRequirementDigest(manifest.Gateway)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +101,13 @@ func (s *daemonExtensionService) prepareInstallNetworkConfirmation(
 		return nil, nil
 	}
 	if expectedDigest != digest {
-		return nil, &extensionpkg.NetworkConfirmationRequiredError{CurrentDigest: digest}
+		return nil, &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: digest}
 	}
-	confirmedBy, err := extensionNetworkConfirmationActor(actor)
+	confirmedBy, err := extensionGatewayConfirmationActor(actor)
 	if err != nil {
 		return nil, err
 	}
-	return &extensionpkg.NetworkConfirmation{
+	return &extensionpkg.GatewayConfirmation{
 		Digest: digest, ConfirmedBy: confirmedBy, ConfirmedAt: s.now().UTC(),
 	}, nil
 }

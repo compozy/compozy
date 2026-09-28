@@ -11,11 +11,10 @@
 - Window management tools
 - Terminal tools
 - Skills and memory tools
-- Network tools
 - Task and autonomy tools
 - Loop tools
 - Config, hooks, automation, marketplace, extensions, resources, and MCP tools
-- Observability and bridge tools
+- Observability tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
 
@@ -25,7 +24,7 @@ Inside CompozyOS, prefer callable daemon-native tools over shelling out. They ar
 
 Never guess a tool schema from this reference. Resolve canonical `compozy__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.
 
-Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
+Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, config apply history, and some session repair/recap/approval flows.
 
 `workspace` is optional and defaults to the bound session's workspace. Naming another workspace is a cross-workspace request governed by the session permission mode; see Workspace Boundary below. Bound sessions still cannot use `global`/`all`; operators can.
 
@@ -313,34 +312,9 @@ Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_s
 
 Memory admin tools include health, scope, reindex, promote, reset, reload, decisions, recall traces, dreams, daily logs, extractor, provider, and session-ledger operations under the `compozy__memory_*` namespace. Inspect descriptors before using admin tools because they are broader than normal memory reads.
 
-## Network Tools
-
-Coordination tools: `compozy__network_status`, `compozy__network_channels`, `compozy__network_channel_create`, `compozy__network_channel_update`, `compozy__network_inbox`, `compozy__network_peers`, `compozy__network_send`, `compozy__network_threads`, `compozy__network_thread_messages`, `compozy__task_promote_from_thread`, `compozy__network_subscriptions`, `compozy__network_subscribe`, `compozy__network_mute`, `compozy__network_unmute`, `compozy__network_directs`, `compozy__network_direct_resolve`, `compozy__network_direct_messages`, `compozy__network_work`.
-
-Channel create/update are mutating. Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`;
-coordinator routing metadata requires `coordinator_peer_id`. Routing metadata never enrolls or wakes
-an execution.
-
-The coordination toolset is projected only when the caller's immutable participation snapshot is
-Live, then narrowed by policy and dependency gates. Daemon availability alone never exposes it. A
-Local caller receives `not_participating`; create a new explicitly Live execution instead of
-retrying.
-
-Read references/network.md before sending or interpreting messages. Direct/mention `say` is the
-only current model-wake path; other messages may persist without activation. Use `compozy network usage
--o json` through CLI/HTTP/UDS for usage because it is a management read, not a native coordination
-tool ID.
-
 ## Task And Autonomy Tools
 
-Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
-
-Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
-closed to `global` or `workspace`. Subscribe and list currently use the `workspace_id` input; do not
-send the removed `workspace` field. Preserve task, subscription, bridge, workspace, peer, group,
-thread, and delivery IDs byte for byte as non-empty valid UTF-8 where required. Never trim,
-case-fold, prefix, split, or reconstruct them. A bridge terminal cursor's `consumer_id` is exactly
-its `subscription_id`, and a bridge acknowledgment must echo the exact `delivery_id`.
+Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`.
 
 Session-bound autonomy tools: `compozy__task_run_claim_next`, `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release`, `compozy__task_run_review_submit`.
 
@@ -408,24 +382,14 @@ Acquire Marketplace MCP capabilities through extension installation. Manage manu
 through Settings MCP APIs; extension-owned management and diagnostics require the explicit
 extension owner. Browser/OAuth login remains a management operation.
 
-## Observability And Bridge Tools
+## Observability Tools
 
 Runtime log inspection is available through `compozy__logs`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
 
-Bridge list/status uses CLI, HTTP/UDS, and `compozy__bridges_list` / `compozy__bridges_status` for counted,
-filtered, redacted pages. The health stream accepts at most 200 current-page IDs in the same scope.
-Lifecycle, routes, secrets, `manifest`, `setup`, `verify`, real `send-test`, and webhooks stay on
-CLI/HTTP/UDS unless the live descriptor exposes a scoped native tool.
-
 ## CLI/HTTP-Only Management Surfaces
 
-CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair/recap/approval/inspect/soul
-refresh, task inspection/control, schedulers, config reload/history, notification presets, and support
-bundles. Task notification subscriptions are native; presets are not. Preset definitions are shared,
-while enablement is per profile and an absent profile row means enabled. Use
-`compozy --profile <profile> notifications preset enable|disable <name> -o json`,
-`GET /api/notifications/presets?profile=<profile>`, and
-`PUT /api/notifications/presets/{name}/enablement` over HTTP or UDS for profile control.
+CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair, recap, approval,
+inspection, SOUL refresh, task controls, schedulers, config reload/history, and support bundles.
 
 ## Descriptor Discipline
 
@@ -456,4 +420,4 @@ Acknowledgement never approves, rejects, retries, cancels, deletes or completes 
 requests remain reachable in their owning app. Session badges and attention-summary still represent
 runtime state; bell/title counts represent unread notifications. Task candidates honor existing inbox
 triage. An acknowledged occurrence stays hidden across reconnects; a new source revision/run/request
-can notify again. Notification presets, bridge fanout and delivery cursors are unchanged.
+can notify again.

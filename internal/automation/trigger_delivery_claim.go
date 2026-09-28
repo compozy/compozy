@@ -80,14 +80,13 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 	now := e.now()
 	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
 	run := Run{
-		ProfileID:            strings.TrimSpace(trigger.ProfileID),
-		ID:                   runID,
-		TriggerID:            strings.TrimSpace(trigger.ID),
-		FireID:               webhookDeliveryFireID(trigger.ID, deliveryID),
-		Status:               RunScheduled,
-		Attempt:              1,
-		StartedAt:            timePointer(now),
-		NetworkParticipation: (DispatchRequest{Trigger: &trigger}).networkParticipation(),
+		ProfileID: strings.TrimSpace(trigger.ProfileID),
+		ID:        runID,
+		TriggerID: strings.TrimSpace(trigger.ID),
+		FireID:    webhookDeliveryFireID(trigger.ID, deliveryID),
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: timePointer(now),
 		Metadata: map[string]any{
 			triggerDeliveryIDKey: strings.TrimSpace(deliveryID),
 		},

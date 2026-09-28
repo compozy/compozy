@@ -50,8 +50,7 @@ type Resolved = ResolvedDoc | ResolvedBlog;
 function resolveDoc(rest: string[]): ResolvedDoc | null {
   const page = docsSource.getPage(rest);
   if (!page) return null;
-  const variant: DocsOGVariant =
-    rest[0] === "network" && rest[1] === "protocol" ? "protocol" : "docs";
+  const variant: DocsOGVariant = "docs";
   return {
     kind: "doc",
     variant,

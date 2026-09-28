@@ -850,7 +850,7 @@ describe("Marketplace page and cards", () => {
 
   // Invariant: Installed is a flat name-ordered inventory, including sideloads and scope metadata.
   it("Should show sideload descriptions and exact installation or server scope", async () => {
-    const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0, bridges: 0 };
+    const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0 };
     extensions = [
       {
         ...extensionFixtures[0]!,
@@ -946,7 +946,7 @@ describe("Extension source installation", () => {
       ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
-      network_requirement_digest: "sha256:local-network",
+      gateway_requirement_digest: "sha256:local-network",
       placements: [],
     });
     renderInstaller();
@@ -981,7 +981,7 @@ describe("Extension source installation", () => {
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: true,
         expected_digest: "a".repeat(64),
-        confirm_network_digest: "sha256:local-network",
+        confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",

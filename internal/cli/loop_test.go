@@ -18,7 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
@@ -328,10 +328,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			"--runtime", "worker=codex/gpt-5.4@high",
 			"--runtime", "id=task_06:codex/openai/gpt-5.4@medium",
 			"--runtime", "type=feature:-/claude-sonnet-4-5",
-			"--network", "live",
-			"--network-channel-strategy", "named",
-			"--network-channel", "builders",
-			"--network-bounds", `{"max_wakes":3}`,
+
 			"--dry-run",
 			"-o", "json",
 		)
@@ -367,16 +364,6 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			overrides.RuntimeRules[1].Runtime.Provider != "" ||
 			overrides.RuntimeRules[1].Runtime.Model != "claude-sonnet-4-5" {
 			t.Fatalf("RunLoop runtime rules = %#v, want ordered ID then type rules", overrides.RuntimeRules)
-		}
-		participationRequest := capturedRequest.NetworkParticipation
-		if participationRequest == nil ||
-			participationRequest.Mode == nil || *participationRequest.Mode != participation.ModeLive ||
-			participationRequest.ChannelStrategy == nil ||
-			*participationRequest.ChannelStrategy != participation.StrategyNamed ||
-			participationRequest.ChannelID == nil || *participationRequest.ChannelID != "builders" ||
-			participationRequest.Bounds == nil || participationRequest.Bounds.MaxWakes == nil ||
-			*participationRequest.Bounds.MaxWakes != 3 {
-			t.Fatalf("RunLoop network participation = %#v, want bounded Live builders request", participationRequest)
 		}
 		var response contract.RunLoopResponse
 		if err := json.Unmarshal([]byte(stdout), &response); err != nil {

@@ -231,16 +231,15 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		return nil
 	}
 	content, err := json.Marshal(map[string]any{
-		watchEventsPayloadAgentNameKey:                    strings.TrimSpace(payload.AgentName),
-		watchEventsPayloadCoordinatorSessionIDKey:         strings.TrimSpace(payload.CoordinatorSessionID),
-		watchEventsPayloadResolvedNetworkParticipationKey: payload.ResolvedNetworkParticipation,
-		watchEventsPayloadWorkflowIDKey:                   strings.TrimSpace(payload.WorkflowID),
-		watchEventsPayloadProviderKey:                     strings.TrimSpace(payload.Provider),
-		watchEventsPayloadModelKey:                        strings.TrimSpace(payload.Model),
-		watchEventsPayloadDecisionKindKey:                 strings.TrimSpace(payload.DecisionKind),
-		watchEventsPayloadDecisionKey:                     strings.TrimSpace(payload.Decision),
-		watchEventsPayloadStopReasonKey:                   strings.TrimSpace(payload.StopReason),
-		watchEventsPayloadErrorKey:                        strings.TrimSpace(payload.Error),
+		watchEventsPayloadAgentNameKey:            strings.TrimSpace(payload.AgentName),
+		watchEventsPayloadCoordinatorSessionIDKey: strings.TrimSpace(payload.CoordinatorSessionID),
+		watchEventsPayloadWorkflowIDKey:           strings.TrimSpace(payload.WorkflowID),
+		watchEventsPayloadProviderKey:             strings.TrimSpace(payload.Provider),
+		watchEventsPayloadModelKey:                strings.TrimSpace(payload.Model),
+		watchEventsPayloadDecisionKindKey:         strings.TrimSpace(payload.DecisionKind),
+		watchEventsPayloadDecisionKey:             strings.TrimSpace(payload.Decision),
+		watchEventsPayloadStopReasonKey:           strings.TrimSpace(payload.StopReason),
+		watchEventsPayloadErrorKey:                strings.TrimSpace(payload.Error),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: marshal coordinator watch event: %w", err)

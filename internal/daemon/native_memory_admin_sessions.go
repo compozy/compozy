@@ -25,7 +25,7 @@ func (n *daemonNativeTools) memoryAdminSessionLedger(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -52,7 +52,7 @@ func (n *daemonNativeTools) memoryAdminSessionReplay(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

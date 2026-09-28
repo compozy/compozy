@@ -2,9 +2,7 @@ package cli
 
 import (
 	"errors"
-
 	"net/url"
-
 	"strconv"
 	"strings"
 )
@@ -44,9 +42,6 @@ func taskValues(query TaskListQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
 		values.Set("worktree", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
-		values.Set("participation_channel", trimmed)
-	}
 	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
 		values.Set("query", trimmed)
 	}
@@ -69,9 +64,6 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
-		values.Set("participation_channel", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
@@ -115,23 +107,6 @@ func taskRunReviewValues(query TaskRunReviewListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.ReviewerSessionID); trimmed != "" {
 		values.Set("reviewer_session_id", trimmed)
-	}
-	if query.Limit > 0 {
-		values.Set("limit", strconv.Itoa(query.Limit))
-	}
-	return values
-}
-
-func taskBridgeNotificationSubscriptionValues(query TaskBridgeNotificationSubscriptionQuery) url.Values {
-	values := url.Values{}
-	if query.BridgeInstanceID != "" {
-		values.Set("bridge_instance_id", query.BridgeInstanceID)
-	}
-	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
-		values.Set("scope", trimmed)
-	}
-	if query.WorkspaceID != "" {
-		values.Set("workspace_id", query.WorkspaceID)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

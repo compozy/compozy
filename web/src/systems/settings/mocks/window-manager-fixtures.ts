@@ -172,7 +172,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-side",
           frame: { x: 0.63, y: 0, width: 0.37, height: 1 },
-          root: { id: "leaf-network", kind: "leaf", window_id: "app:network" },
+          root: { id: "leaf-skills", kind: "leaf", window_id: "app:skills" },
         },
       ],
       floating: ["app:vault"],
@@ -249,12 +249,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       "/",
       settingsWindowManagerDesktopIds.build
     ),
-    "app:network": tiled(
-      "app:network",
-      "network",
-      "/network",
-      settingsWindowManagerDesktopIds.build
-    ),
+    "app:skills": tiled("app:skills", "skills", "/skills", settingsWindowManagerDesktopIds.build),
     "app:vault": {
       ...tiled("app:vault", "vault", "/vault", settingsWindowManagerDesktopIds.build),
       placement: "floating",

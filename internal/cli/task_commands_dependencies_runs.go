@@ -13,7 +13,6 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		identifier   string
 		scopeRaw     string
 		workspaceRef string
-		networkFlags networkParticipationFlags
 		title        string
 		description  string
 		priorityRaw  string
@@ -22,7 +21,6 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		metadataRaw  string
 		autoEnqueue  bool
 	)
-
 	cmd := &cobra.Command{
 		Use:   "create <parent-id>",
 		Short: "Create a child task beneath a parent",
@@ -32,13 +30,11 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			baseRequest, err := buildTaskCreateRequest(cmd, deps, client, taskCreateInput{
 				ID:                 id,
 				Identifier:         identifier,
 				ScopeRaw:           scopeRaw,
 				WorkspaceRef:       workspaceRef,
-				NetworkFlags:       networkFlags,
 				Title:              title,
 				Description:        description,
 				PriorityRaw:        priorityRaw,
@@ -51,7 +47,6 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			request := CreateTaskChildRequest(baseRequest)
-
 			created, err := client.CreateChildTask(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -65,7 +60,6 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
-	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Child task title")
 	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Child task description")
 	cmd.Flags().
@@ -95,7 +89,6 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 		dependsOnID string
 		kindRaw     string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "add <task-id>",
 		Short: "Add a dependency edge to a task",
@@ -105,7 +98,6 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := AddTaskDependencyRequest{DependsOnTaskID: strings.TrimSpace(dependsOnID)}
 			if request.DependsOnTaskID == "" {
 				return errors.New("cli: --depends-on is required")
@@ -117,7 +109,6 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 				}
 				request.Kind = kind
 			}
-
 			updated, err := client.AddTaskDependency(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -141,7 +132,6 @@ func newTaskDependencyRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			updated, err := client.RemoveTaskDependency(cmd.Context(), args[0], args[1])
 			if err != nil {
 				return err
@@ -171,12 +161,10 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 
 func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	var (
-		statusRaw               string
-		sessionID               string
-		participationChannelRaw string
-		last                    int
+		statusRaw string
+		sessionID string
+		last      int
 	)
-
 	cmd := &cobra.Command{
 		Use:   "list <task-id>",
 		Short: "List runs for a task",
@@ -186,17 +174,14 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			query, err := parseTaskRunListFilters(
 				statusRaw,
 				sessionID,
-				participationChannelRaw,
 				last,
 			)
 			if err != nil {
 				return err
 			}
-
 			runs, err := client.ListTaskRuns(cmd.Context(), args[0], query)
 			if err != nil {
 				return err
@@ -206,12 +191,6 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by run status")
 	cmd.Flags().StringVar(&sessionID, "session", "", "Filter by attached session ID")
-	cmd.Flags().StringVar(
-		&participationChannelRaw,
-		"participation-channel",
-		"",
-		"Filter by resolved Network participation channel",
-	)
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
@@ -227,7 +206,6 @@ func newTaskRunShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			detail, err := client.GetTaskRun(cmd.Context(), args[0])
 			if err != nil {
 				return err
@@ -242,10 +220,8 @@ func newTaskRunShowCommand(deps commandDeps) *cobra.Command {
 func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	var (
 		idempotencyKey string
-		networkFlags   networkParticipationFlags
 		metadataRaw    string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "enqueue <task-id>",
 		Short: "Enqueue a task run",
@@ -255,14 +231,8 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			participationRequest, err := networkFlags.request()
-			if err != nil {
-				return err
-			}
-
 			request := EnqueueTaskRunRequest{
-				IdempotencyKey:       strings.TrimSpace(idempotencyKey),
-				NetworkParticipation: participationRequest,
+				IdempotencyKey: strings.TrimSpace(idempotencyKey),
 			}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
@@ -270,7 +240,6 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			run, err := client.EnqueueTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -279,14 +248,12 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
-	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
 	return cmd
 }
 
 func newTaskRunStartCommand(deps commandDeps) *cobra.Command {
 	var idempotencyKey string
-
 	cmd := &cobra.Command{
 		Use:   "start <run-id>",
 		Short: "Start a claimed task run",
@@ -296,7 +263,6 @@ func newTaskRunStartCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			run, err := client.StartTaskRun(cmd.Context(), args[0], StartTaskRunRequest{
 				IdempotencyKey: strings.TrimSpace(idempotencyKey),
 			})
@@ -312,7 +278,6 @@ func newTaskRunStartCommand(deps commandDeps) *cobra.Command {
 
 func newTaskRunAttachSessionCommand(deps commandDeps) *cobra.Command {
 	var sessionID string
-
 	cmd := &cobra.Command{
 		Use:   "attach-session <run-id>",
 		Short: "Attach an existing session to a claimed or starting run",
@@ -325,7 +290,6 @@ func newTaskRunAttachSessionCommand(deps commandDeps) *cobra.Command {
 			if strings.TrimSpace(sessionID) == "" {
 				return errors.New("cli: --session is required")
 			}
-
 			run, err := client.AttachTaskRunSession(
 				cmd.Context(),
 				args[0],
@@ -346,7 +310,6 @@ func newTaskRunAttachSessionCommand(deps commandDeps) *cobra.Command {
 
 func newTaskRunCompleteCommand(deps commandDeps) *cobra.Command {
 	var resultRaw string
-
 	cmd := &cobra.Command{
 		Use:   "complete <run-id>",
 		Short: "Complete a running task run",
@@ -356,7 +319,6 @@ func newTaskRunCompleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := CompleteTaskRunRequest{}
 			if cmd.Flags().Changed("result") {
 				request.Result, err = parseJSONFlag("result", resultRaw)
@@ -364,7 +326,6 @@ func newTaskRunCompleteCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			run, err := client.CompleteTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -381,7 +342,6 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 		errorMessage string
 		metadataRaw  string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "fail <run-id>",
 		Short: "Fail a task run",
@@ -391,7 +351,6 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := FailTaskRunRequest{Error: strings.TrimSpace(errorMessage)}
 			if request.Error == "" {
 				return errors.New("cli: --error is required")
@@ -402,7 +361,6 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			run, err := client.FailTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -421,7 +379,6 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 		reason      string
 		metadataRaw string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "cancel <run-id>",
 		Short: "Cancel a task run",
@@ -431,7 +388,6 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := CancelTaskRunRequest{Reason: strings.TrimSpace(reason)}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
@@ -439,7 +395,6 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			run, err := client.CancelTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -455,7 +410,6 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 func parseTaskRunListFilters(
 	statusRaw string,
 	sessionID string,
-	participationChannelRaw string,
 	last int,
 ) (TaskRunListQuery, error) {
 	status, err := parseOptionalTaskRunStatus(statusRaw)
@@ -465,13 +419,9 @@ func parseTaskRunListFilters(
 	if err := validateTaskLast(last); err != nil {
 		return TaskRunListQuery{}, err
 	}
-	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
-		return TaskRunListQuery{}, err
-	}
 	return TaskRunListQuery{
-		Status:               status,
-		SessionID:            strings.TrimSpace(sessionID),
-		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
-		Limit:                last,
+		Status:    status,
+		SessionID: strings.TrimSpace(sessionID),
+		Limit:     last,
 	}, nil
 }

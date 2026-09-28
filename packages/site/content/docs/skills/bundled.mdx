@@ -13,9 +13,9 @@ runtime.
 
 ## Catalog
 
-| Skill     | Description                          | Use when                                                                                                                                                                              |
-| --------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy` | Agent guide for operating CompozyOS. | You are working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. |
+| Skill     | Description                          | Use when                                                                                                                                                            |
+| --------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy` | Agent guide for operating CompozyOS. | You are working with CompozyOS sessions, agents, native tools, skills, memory, tasks, Loops, Goals, desktops and windows, automation, extensions, or configuration. |
 
 The current runtime does not ship aliases for previous alpha `compozy-*` bundled skill names. A caller
 that needs CompozyOS guidance should load `compozy` and then read the reference file selected by its router.
@@ -27,11 +27,10 @@ reference files:
 
 | Reference                               | Covers                                                                                                          |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `references/runtime-operations.md`      | Daemon state, session lifecycle, session CLI, background roles, bridges, and runtime troubleshooting.           |
+| `references/runtime-operations.md`      | Daemon state, session lifecycle, session CLI, background roles and runtime troubleshooting.                     |
 | `references/agent-definitions.md`       | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                        |
 | `references/tools-and-skills.md`        | Tool-first operating model, skill search/view, marketplace and MCP install flows, and management exceptions.    |
 | `references/native-tools.md`            | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.                 |
-| `references/network.md`                 | Compozy Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
 | `references/memory.md`                  | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                                  |
 | `references/tasks-and-orchestration.md` | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.         |
 | `references/loops.md`                   | Loop and Goal authoring/operation, `/goal` commands, run states, approvals, and watch behavior.                 |
@@ -80,11 +79,11 @@ Agents and operators read a focused resource file instead of the whole manual wh
 one:
 
 ```json
-{ "name": "compozy", "file": "references/network.md" }
+{ "name": "compozy", "file": "references/tasks-and-orchestration.md" }
 ```
 
 ```bash
-compozy skill view compozy --file references/network.md
+compozy skill view compozy --file references/tasks-and-orchestration.md
 ```
 
 With tools and skills enabled, startup includes the `compozy` router. The complete
@@ -109,7 +108,6 @@ instructions remain present. These prompt choices do not change permissions or e
 | ------------------------------ | ---------------------------------------------------- |
 | Tools and skills enabled       | `compozy` router; matching references load on demand |
 | Tools enabled, skills disabled | Both complete tool manuals inline                    |
-| Network channel session        | Compact network response-register guidance           |
 | Task reviewer routing prompt   | `references/tasks-and-orchestration.md`              |
 
 These selections provide contextual prompt help only. Tool registration, discovery, authorization, MCP,

@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
@@ -47,17 +46,14 @@ type Server struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	sessionCatalog        core.SessionCatalog
+	taskDesignations      core.TaskDesignationStore
+	skillExposureStore    store.SkillExposureRepository
+	skillExposureEvents   store.EventSummaryStore
 	tasks                 core.TaskService
-	network               core.NetworkService
-	networkStore          core.NetworkStore
-	networkUsage          store.NetworkUsageStore
-	coordination          workspacepkg.CoordinationCommands
 	observer              core.Observer
 	schemaStreams         core.SchemaStreamStatusReader
 	automation            core.AutomationManager
 	loops                 core.LoopService
-	bridges               core.BridgeService
-	notifications         core.NotificationPresetService
 	profiles              core.ProfileService
 	supportBundles        core.SupportBundleService
 	tools                 core.ToolRegistry
@@ -115,27 +111,6 @@ type Server struct {
 	actualPort   int
 
 	onProviderAuthSuccess func()
-}
-
-// WithNetworkService injects the runtime network manager.
-func WithNetworkService(service core.NetworkService) Option {
-	return func(server *Server) {
-		server.network = service
-	}
-}
-
-// WithBridgeService injects the daemon-owned bridge runtime.
-func WithBridgeService(bridges core.BridgeService) Option {
-	return func(server *Server) {
-		server.bridges = bridges
-	}
-}
-
-// WithNotificationPresetService injects the daemon-owned notification preset runtime.
-func WithNotificationPresetService(service core.NotificationPresetService) Option {
-	return func(server *Server) {
-		server.notifications = service
-	}
 }
 
 // WithSupportBundleService injects the daemon-owned support bundle operation service.
@@ -250,52 +225,10 @@ func WithRolesStatusProvider(provider core.RolesStatusProvider) Option {
 	}
 }
 
-// WithSoulAuthoring injects the managed Soul authoring surface.
-func WithSoulAuthoring(service core.SoulAuthoringService) Option {
-	return func(server *Server) {
-		server.soulAuthoring = service
-	}
-}
-
-// WithSoulRefresher injects the session Soul refresh surface.
-func WithSoulRefresher(service core.SoulRefresher) Option {
-	return func(server *Server) {
-		server.soulRefresher = service
-	}
-}
-
-// WithHeartbeatAuthoring injects the managed Heartbeat authoring surface.
-func WithHeartbeatAuthoring(service core.HeartbeatAuthoringService) Option {
-	return func(server *Server) {
-		server.heartbeatAuthor = service
-	}
-}
-
-// WithHeartbeatStatus injects the Heartbeat status/read surface.
-func WithHeartbeatStatus(service core.HeartbeatStatusService) Option {
-	return func(server *Server) {
-		server.heartbeatStatus = service
-	}
-}
-
-// WithHeartbeatWake injects the manual Heartbeat wake surface.
-func WithHeartbeatWake(service core.HeartbeatWakeService) Option {
-	return func(server *Server) {
-		server.heartbeatWake = service
-	}
-}
-
 // WithSessionHealthReader injects the metadata-only session health reader.
 func WithSessionHealthReader(reader core.SessionHealthReader) Option {
 	return func(server *Server) {
 		server.sessionHealth = reader
-	}
-}
-
-// WithHeartbeatWakeEventReader injects the retained Heartbeat wake audit reader.
-func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
-	return func(server *Server) {
-		server.wakeEvents = reader
 	}
 }
 
@@ -371,5 +304,57 @@ func New(opts ...Option) (*Server, error) {
 func WithProviderAuthSuccess(callback func()) Option {
 	return func(server *Server) {
 		server.onProviderAuthSuccess = callback
+	}
+}
+
+// WithTaskDesignationStore injects persisted task fan-out summaries.
+func WithTaskDesignationStore(value core.TaskDesignationStore) Option {
+	return func(server *Server) { server.taskDesignations = value }
+}
+
+// WithSkillExposureStore injects the durable skill exposure projection and ledger.
+func WithSkillExposureStore(repository store.SkillExposureRepository, events store.EventSummaryStore) Option {
+	return func(server *Server) { server.skillExposureStore = repository; server.skillExposureEvents = events }
+}
+
+// WithSoulAuthoring injects the managed Soul authoring surface.
+func WithSoulAuthoring(service core.SoulAuthoringService) Option {
+	return func(server *Server) {
+		server.soulAuthoring = service
+	}
+}
+
+// WithSoulRefresher injects the session Soul refresh surface.
+func WithSoulRefresher(service core.SoulRefresher) Option {
+	return func(server *Server) {
+		server.soulRefresher = service
+	}
+}
+
+// WithHeartbeatAuthoring injects the managed Heartbeat authoring surface.
+func WithHeartbeatAuthoring(service core.HeartbeatAuthoringService) Option {
+	return func(server *Server) {
+		server.heartbeatAuthor = service
+	}
+}
+
+// WithHeartbeatStatus injects the Heartbeat status/read surface.
+func WithHeartbeatStatus(service core.HeartbeatStatusService) Option {
+	return func(server *Server) {
+		server.heartbeatStatus = service
+	}
+}
+
+// WithHeartbeatWake injects the manual Heartbeat wake surface.
+func WithHeartbeatWake(service core.HeartbeatWakeService) Option {
+	return func(server *Server) {
+		server.heartbeatWake = service
+	}
+}
+
+// WithHeartbeatWakeEventReader injects the retained Heartbeat wake audit reader.
+func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
+	return func(server *Server) {
+		server.wakeEvents = reader
 	}
 }

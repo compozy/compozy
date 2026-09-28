@@ -77,9 +77,9 @@ type OverviewView struct {
 	Outcomes    OverviewOutcomes
 	Usage       OverviewUsage
 	Pulse       OverviewPulse
-	Network     OverviewNetwork
-	System      OverviewSystem
-	Freshness   TaskDashboardFreshness
+
+	System    OverviewSystem
+	Freshness TaskDashboardFreshness
 }
 
 // OverviewAttention lists everything currently waiting on the user.
@@ -167,11 +167,6 @@ type OverviewLongestSession struct {
 	AgentName       string
 	DurationSeconds int64
 	Date            string
-}
-
-// OverviewNetwork carries today-windowed network counters.
-type OverviewNetwork struct {
-	MessagesToday int
 }
 
 // OverviewSystem carries today-windowed system counters plus retention truth.

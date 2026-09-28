@@ -32,7 +32,6 @@ type RuntimeDeps struct {
 	Sessions            SessionManager
 	DrainController     core.DaemonDrainController
 	Tasks               taskpkg.Manager
-	Network             core.NetworkService
 	ToolRegistry        toolspkg.Registry
 	Toolsets            core.ToolsetRegistry
 	ToolArtifacts       toolspkg.ToolArtifactStore
@@ -48,8 +47,6 @@ type RuntimeDeps struct {
 	SchemaStreams       core.SchemaStreamStatusReader
 	Automation          core.AutomationManager
 	Loops               core.LoopService
-	Bridges             core.BridgeService
-	Notifications       core.NotificationPresetService
 	Registry            Registry
 	Profiles            *profile.Manager
 	MemoryStore         *memory.Store

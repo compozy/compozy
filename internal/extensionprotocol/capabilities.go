@@ -8,8 +8,6 @@ import (
 const (
 	// CapabilityProvideMemoryBackend is the provide surface for daemon-managed memory backends.
 	CapabilityProvideMemoryBackend = "memory.backend"
-	// CapabilityProvideBridgeAdapter is the provide surface for bridge-capable adapter extensions.
-	CapabilityProvideBridgeAdapter = "bridge.adapter"
 	// CapabilityToolProvider is the provide surface for executable extension-host tools.
 	CapabilityToolProvider = "tool.provider"
 	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
@@ -31,8 +29,6 @@ const (
 	ExtensionServiceMethodMemoryStore           ExtensionServiceMethod = "memory/store"
 	ExtensionServiceMethodMemoryRecall          ExtensionServiceMethod = "memory/recall"
 	ExtensionServiceMethodMemoryForget          ExtensionServiceMethod = "memory/forget"
-	ExtensionServiceMethodBridgesDeliver        ExtensionServiceMethod = "bridges/deliver"
-	ExtensionServiceMethodBridgeTargets         ExtensionServiceMethod = "bridges/targets/snapshot"
 	ExtensionServiceMethodProvideTools          ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
@@ -53,10 +49,6 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 		ExtensionServiceMethodMemoryStore,
 		ExtensionServiceMethodMemoryRecall,
 		ExtensionServiceMethodMemoryForget,
-	},
-	CapabilityProvideBridgeAdapter: {
-		ExtensionServiceMethodBridgesDeliver,
-		ExtensionServiceMethodBridgeTargets,
 	},
 	CapabilityToolProvider: {
 		ExtensionServiceMethodProvideTools,

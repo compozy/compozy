@@ -19,11 +19,6 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return err
 	}
 	state.ledgerMaterializer = ledgerMaterializer
-	resolver, err := ensureDaemonParticipationResolver(state, state.registry)
-	if err != nil {
-		return err
-	}
-	state.participationResolver = resolver
 	sessionWakeBridge, err := newSessionWakeBridge(ctx, func() sessionWakeSessionManager {
 		if state == nil || state.sessions == nil {
 			return nil

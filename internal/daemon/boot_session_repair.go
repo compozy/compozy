@@ -7,13 +7,8 @@ import (
 
 	"strings"
 
-	extensionpkg "github.com/compozy/compozy/internal/extension"
-
 	"github.com/compozy/compozy/internal/memory/consolidation"
 
-	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/sandbox/daytona"
-	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
 	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
 
@@ -320,36 +315,12 @@ func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) erro
 	return nil
 }
 
-func (d *Daemon) buildSandboxRegistry(state *bootState) (*sandbox.Registry, error) {
-	if state == nil {
-		return nil, errors.New("daemon: sandbox registry state is required")
-	}
-	registry, err := local.NewRegistry(
-		local.WithLogger(state.logger),
-		local.WithTerminalManager(state.terminals),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create sandbox registry: %w", err)
-	}
-	if err := registry.Register(daytona.NewProvider(
-		daytona.WithLogger(state.logger),
-		daytona.WithProcessRegistry(state.processRegistry),
-	)); err != nil {
-		return nil, fmt.Errorf("daemon: register daytona sandbox provider: %w", err)
-	}
-	return registry, nil
-}
-
 func (d *Daemon) sessionNotifier(state *bootState) session.Notifier {
 	if state == nil {
 		return nil
 	}
 
-	notifier := session.Notifier(state.notifier)
-	if state.bridges != nil {
-		notifier = extensionpkg.NewBridgeDeliveryNotifier(state.bridges.Broker(), state.notifier)
-	}
-	return notifier
+	return state.notifier
 }
 
 func skillRegistryDependency(registry *skills.Registry) session.SkillRegistry {

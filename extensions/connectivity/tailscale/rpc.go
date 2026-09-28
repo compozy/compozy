@@ -92,10 +92,8 @@ func providerDefinition() compozysdk.ExtensionDefinition {
 			Args:    []string{"__internal", "extension-provider", Name},
 			Env:     map[string]string{"COMPOZY_HOME": "{{env:COMPOZY_HOME}}"},
 		},
-		NetworkParticipation: &compozysdk.NetworkParticipationRequirement{
-			Required:      true,
-			Mode:          "live",
-			ChannelScopes: []string{"gateway.private", "gateway.public"},
+		Gateway: &compozysdk.GatewayRequirement{
+			Permissions: []string{"gateway.private", "gateway.public"},
 		},
 	}
 }

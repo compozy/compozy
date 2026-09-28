@@ -34,8 +34,8 @@ agent = "legacy"
 provider = "claude"
 
 # untouched section
-[network]
-enabled = true
+[observability]
+enabled = false
 `)
 
 	cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
@@ -53,17 +53,9 @@ enabled = true
 		t.Fatalf("ReadFile(config) error = %v", err)
 	}
 	text := string(contents)
-	for _, want := range []string{
-		"# defaults block",
-		"# keep this comment",
-		"# untouched section",
-		`provider = "claude"`,
-		"[network]",
-		"enabled = true",
-		`agent = "general"`,
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("config contents missing %q\n%s", want, text)
+	for _, fragment := range []string{"# defaults block", "# keep this comment", "# untouched section", "[observability]", "enabled = false", `provider = "claude"`, `agent = "general"`} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("edited config lacks preserved %q: %s", fragment, text)
 		}
 	}
 }
@@ -1004,9 +996,6 @@ provider = "openai"
 	}
 	if err := editor.Delete([]string{"providers", "openai"}); err != nil {
 		t.Fatalf("editor.Delete(providers.openai) error = %v", err)
-	}
-	if err := editor.Delete([]string{"network"}); err != nil {
-		t.Fatalf("editor.Delete(network) error = %v", err)
 	}
 
 	if editor.HasPath([]string{"defaults", "provider"}) {

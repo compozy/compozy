@@ -22,7 +22,7 @@ func terminalExecBundle(result terminalpkg.ExecResult) outputBundle {
 
 func terminalSignalBundle(id, signal string) outputBundle {
 	return outputBundle{
-		jsonValue: map[string]any{networkDeliveredKey: true},
+		jsonValue: map[string]any{cliOutputDeliveredKey: true},
 		human: func() (string, error) {
 			return fmt.Sprintf("SIG%s delivered to %s.", signal, id), nil
 		},

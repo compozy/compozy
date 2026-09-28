@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
@@ -16,18 +15,15 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func TestNewDisabledNetworkHomeConfig(t *testing.T) {
+func TestNewHomeConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should create one home layout and derive config from it", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, cfg := NewDisabledNetworkHomeConfig(t)
-		want := ConfigWithDisabledNetwork(homePaths)
+		homePaths, cfg := NewHomeConfig(t)
+		want := ConfigForTest(homePaths)
 
-		if cfg.Network.Enabled {
-			t.Fatal("config network enabled = true, want false")
-		}
 		if cfg.Daemon != want.Daemon {
 			t.Fatalf("daemon config = %#v, want %#v", cfg.Daemon, want.Daemon)
 		}
@@ -36,9 +32,6 @@ func TestNewDisabledNetworkHomeConfig(t *testing.T) {
 		}
 		if cfg.Memory.GlobalDir != homePaths.MemoryDir {
 			t.Fatalf("memory global dir = %q, want %q", cfg.Memory.GlobalDir, homePaths.MemoryDir)
-		}
-		if cfg.Network != want.Network {
-			t.Fatalf("network config = %#v, want %#v", cfg.Network, want.Network)
 		}
 	})
 }
@@ -204,19 +197,6 @@ func TestParseSSE(t *testing.T) {
 	})
 }
 
-func TestStubNetworkServiceWaitInboxFallback(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return the sentinel wait-inbox error", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := StubNetworkService{}.WaitInbox(context.Background(), "sess-1", "builders")
-		if !errors.Is(err, ErrStubNetworkServiceWaitInboxNotImplemented) {
-			t.Fatalf("WaitInbox() error = %v, want %v", err, ErrStubNetworkServiceWaitInboxNotImplemented)
-		}
-	})
-}
-
 func TestStubTaskManagerFallbacks(t *testing.T) {
 	t.Parallel()
 
@@ -236,23 +216,6 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 	t.Run("Should preserve filtered catalog continuation metadata", func(t *testing.T) {
 		t.Parallel()
 
-		liveSpec := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-catalog",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "builders",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         1,
-				MaxWakeWallTime:  "30s",
-				MaxTotalWallTime: "1m",
-				MaxInputTokens:   1024,
-				MaxOutputTokens:  512,
-				MaxWakeDepth:     1,
-				CoalesceWindow:   "250ms",
-			},
-		}
 		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 		stub := &StubTaskManager{ListTasksFn: func(
 			_ context.Context,
@@ -265,20 +228,19 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 			return []taskpkg.Summary{
 				{
 					ID: "task-1", Priority: taskpkg.PriorityHigh, LastActivityAt: now,
-					ActiveRun: &taskpkg.RunSummary{ResolvedNetworkParticipation: &liveSpec},
+					ActiveRun: &taskpkg.RunSummary{},
 				},
 				{
 					ID: "task-2", Priority: taskpkg.PriorityMedium, LastActivityAt: now.Add(-time.Minute),
-					ActiveRun: &taskpkg.RunSummary{ResolvedNetworkParticipation: &liveSpec},
+					ActiveRun: &taskpkg.RunSummary{},
 				},
 			}, nil
 		}}
 		query := taskpkg.CatalogQuery{
-			ReadScope:            storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
-			Scope:                taskpkg.CatalogScopeGlobal,
-			Sort:                 taskpkg.CatalogSortRecent,
-			Limit:                1,
-			ParticipationChannel: "builders",
+			ReadScope: storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeGlobal,
+			Sort:      taskpkg.CatalogSortRecent,
+			Limit:     1,
 		}
 		page, err := stub.ListTaskCatalog(context.Background(), query, taskpkg.ActorContext{})
 		if err != nil {

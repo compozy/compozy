@@ -7,18 +7,9 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-// WithSandboxRegistry injects the runtime sandbox provider registry.
-func WithSandboxRegistry(registry *sandbox.Registry) Option {
-	return func(manager *Manager) {
-		manager.sandbox = registry
-	}
-}
 
 // WithDriver injects the runtime driver used for session lifecycle operations.
 func WithDriver(driver AgentDriver) Option {
@@ -258,13 +249,6 @@ func WithWorktreeResolver(resolver WorktreeResolver) Option {
 	}
 }
 
-// WithParticipationResolver injects the shared resolver used before session creation writes.
-func WithParticipationResolver(resolver participation.Resolver) Option {
-	return func(manager *Manager) {
-		manager.participationResolver = resolver
-	}
-}
-
 // WithPromptInputAugmenter injects a bounded pre-dispatch message augmenter.
 func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 	return func(manager *Manager) {
@@ -347,13 +331,6 @@ func WithInteractionIDGenerator(generator IDGenerator) Option {
 func WithPresenceLeaseIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
 		manager.newPresenceLeaseID = generator
-	}
-}
-
-// WithSandboxIDGenerator overrides sandbox id allocation.
-func WithSandboxIDGenerator(generator IDGenerator) Option {
-	return func(manager *Manager) {
-		manager.newSandboxID = generator
 	}
 }
 

@@ -3,7 +3,6 @@ package cli
 import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 // AutomationJobQuery captures CLI filters for automation job list calls.
@@ -120,23 +119,6 @@ type TaskExecutionProfileRequest = contract.SetTaskExecutionProfileRequest
 // TaskWorktreePolicyRequest captures a worktree-only execution profile patch.
 type TaskWorktreePolicyRequest = contract.SetTaskWorktreePolicyRequest
 
-// TaskBridgeNotificationSubscriptionRecord is one task terminal bridge
-// notification subscription payload.
-type TaskBridgeNotificationSubscriptionRecord = contract.TaskBridgeNotificationSubscriptionPayload
-
-// TaskBridgeNotificationSubscriptionRequest captures one task terminal bridge
-// notification subscription request.
-type TaskBridgeNotificationSubscriptionRequest = contract.CreateTaskBridgeNotificationSubscriptionRequest
-
-// TaskBridgeNotificationSubscriptionQuery captures CLI filters for bridge
-// terminal notification subscriptions.
-type TaskBridgeNotificationSubscriptionQuery struct {
-	BridgeInstanceID string
-	Scope            bridgepkg.Scope
-	WorkspaceID      string
-	Limit            int
-}
-
 // TaskRunReviewRecord is the shared task-run review payload.
 type TaskRunReviewRecord = contract.TaskRunReviewPayload
 
@@ -167,18 +149,6 @@ type AgentSpawnRecord = contract.AgentSpawnPayload
 // SpawnPermissionPolicyRecord captures concrete spawn permission atoms.
 type SpawnPermissionPolicyRecord = contract.SpawnPermissionPolicyPayload
 
-// AgentChannelRecord is one discoverable coordination channel payload.
-type AgentChannelRecord = contract.CoordinationChannelPayload
-
-// AgentChannelMessageRecord is one safe agent channel message payload.
-type AgentChannelMessageRecord = contract.AgentChannelMessagePayload
-
-// AgentChannelSendRequest captures one agent channel send payload.
-type AgentChannelSendRequest = contract.AgentChannelSendRequest
-
-// AgentChannelReplyRequest captures one agent channel reply payload.
-type AgentChannelReplyRequest = contract.AgentChannelReplyRequest
-
 // AgentTaskClaimNextRequest captures one agent next-work request.
 type AgentTaskClaimNextRequest = contract.AgentTaskClaimNextRequest
 
@@ -204,12 +174,6 @@ type AgentTaskLeaseRecord = contract.TaskRunLeaseSummaryPayload
 type AgentTaskNextRecord struct {
 	Claimed bool                  `json:"claimed"`
 	Claim   *AgentTaskClaimRecord `json:"claim,omitempty"`
-}
-
-// AgentChannelRecvQuery captures receive options for agent channel messages.
-type AgentChannelRecvQuery struct {
-	Wait  bool
-	Limit int
 }
 
 // TaskEventRecord is the shared task audit-event payload.

@@ -410,7 +410,7 @@ func streamSessionEvents(
 				extensionTypeKey,
 				sessionAgentNameKey,
 				sessionTurnIDKey,
-				networkTimestampKey,
+				cliOutputTimestampKey,
 				memoryContentKey,
 			}, []string{
 				strconv.FormatInt(payload.Sequence, 10),

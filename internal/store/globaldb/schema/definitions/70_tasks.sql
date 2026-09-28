@@ -56,13 +56,13 @@ CREATE TABLE task_events (
 		event_type  TEXT NOT NULL,
 		actor_kind  TEXT NOT NULL CHECK (
 			actor_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		actor_id    TEXT NOT NULL,
 		origin_kind TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref  TEXT NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE task_triage_state (
 		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		actor_kind            TEXT NOT NULL CHECK (
 			actor_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		actor_id              TEXT NOT NULL,
@@ -108,19 +108,19 @@ CREATE TABLE "tasks" (
 		),
 		owner_kind      TEXT CHECK (
 			owner_kind IS NULL OR owner_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'pool'
+				'human', 'agent_session', 'automation', 'extension', 'pool'
 			)
 		),
 		owner_ref       TEXT,
 		created_by_kind TEXT NOT NULL CHECK (
 			created_by_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		created_by_ref  TEXT NOT NULL,
 		origin_kind     TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref      TEXT NOT NULL,

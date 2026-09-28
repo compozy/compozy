@@ -166,7 +166,7 @@
     <div class="head" data-reveal>
       <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-plug"/></svg></span>
       <h2 class="title title--feature" id="prov-title">Runs the agents you already use.</h2>
-      <p class="lead">CompozyOS launches built-in CLI and provider integrations as durable sessions. Local is the default; choose Live when a session should discover peers, share capabilities, and coordinate through Compozy Network.</p>
+      <p class="lead">CompozyOS launches built-in CLI and provider integrations as durable sessions.</p>
       <p class="prov__support">Provider subscriptions and API keys stay yours. CompozyOS resells no model access.</p>
       <div class="prov__meta">
         <!-- count derived from BUILTIN_PROVIDER_COUNT (provider-data.ts) in production, never hardcoded -->
@@ -447,7 +447,7 @@
             <circle class="dot" cx="256" cy="242" r="3"/>
             <text class="t" x="440" y="146">Private overlay</text><text class="m m--faint" x="440" y="166">Tailscale</text>
             <rect class="track" x="640" y="138" width="46" height="24" rx="12"/><circle class="knob" cx="652" cy="150" r="8"/><text class="m" x="700" y="154">off</text>
-            <text class="t" x="440" y="246">Public delivery</text><text class="m m--faint" x="440" y="266">webhooks and bridges</text>
+            <text class="t" x="440" y="246">Public delivery</text><text class="m m--faint" x="440" y="266">webhooks</text>
             <rect class="track" x="640" y="238" width="46" height="24" rx="12"/><circle class="knob" cx="652" cy="250" r="8"/><text class="m" x="700" y="254">off</text>
             <text class="t" x="440" y="346">Public operator access</text><text class="m m--faint" x="440" y="366">web and API from outside</text>
             <rect class="track" x="640" y="338" width="46" height="24" rx="12"/><circle class="knob" cx="652" cy="350" r="8"/><text class="m" x="700" y="354">off</text>
@@ -562,32 +562,8 @@
   </div>
 </section>
 
-<!-- ================= 09 · BRIDGES ================= -->
-<section class="sec sec--soft sec--rule" data-od-id="bridges" aria-labelledby="bridges-title">
-  <div class="wrap">
-    <div class="bridges__canvas" data-reveal>
-      <div class="bridges__copy">
-        <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-waypoints"/></svg></span>
-        <h2 class="title title--feature" id="bridges-title">From anywhere. Into a session.</h2>
-        <p class="bridges__body">One platform message maps to one durable session; replies stream back to the original thread.</p>
-      </div>
-    </div>
-    <ul class="bridges__tiles" aria-label="Bridge providers" data-od-id="bridges-grid" data-reveal style="--d:1">
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-slack"/></svg>Slack</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-discord"/></svg>Discord</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-telegram"/></svg>Telegram</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-whatsapp"/></svg>WhatsApp</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-teams"/></svg>Microsoft Teams</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-google-chat"/></svg>Google Chat</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-github"/></svg>GitHub</li>
-      <li class="spot"><svg aria-hidden="true"><use href="#lg-linear"/></svg>Linear</li>
-    </ul>
-    <div class="bridges__foot" data-reveal style="--d:2">
-      <p class="caption bridges__caveat">All eight providers ship in-tree. They are not embedded in the released binary: build and install the provider from a trusted source checkout before configuring a bridge instance.</p>
-      <a class="btn btn--outline" href="#" data-od-id="bridges-cta">Set up a bridge<span class="btn__ico" aria-hidden="true"><svg class="ic"><use href="#i-arrow-up-right"/></svg></span></a>
-    </div>
-  </div>
-</section>
+
+
 
 <!-- ================= 10 · COMPARISON ================= -->
 <section class="sec sec--rule" id="comparison" data-od-id="comparison" aria-labelledby="cmp-title">
@@ -683,7 +659,7 @@
         <a class="ft__gh" href="https://github.com/compozy/compozy" aria-label="CompozyOS on GitHub"><svg class="ic ic--logo" aria-hidden="true"><use href="#lg-github"/></svg></a>
       </div>
       <nav class="ft__col" aria-label="CompozyOS"><h2>CompozyOS</h2><ul><li><a href="#">Overview</a></li><li><a href="#">Getting started</a></li><li><a href="#install" class="is-new">Download</a></li><li><a href="#">Migrate from v0.2</a></li><li><a href="#">API reference</a></li><li><a href="#">CLI reference</a></li></ul></nav>
-      <nav class="ft__col" aria-label="Compozy Network"><h2>Compozy Network</h2><ul><li><a href="#">Overview</a></li><li><a href="#">Protocol spec</a></li><li><a href="#">Envelope</a></li><li><a href="#">Conformance</a></li></ul></nav>
+
       <nav class="ft__col" aria-label="Resources"><h2>Resources</h2><ul><li><a href="#">Marketplace</a></li><li><a href="#">Blog</a></li><li><a href="#">Changelog</a></li><li><a href="https://github.com/compozy/compozy">GitHub</a></li><li><a href="#">RSS</a></li></ul></nav>
     </div>
     <div class="ft__bar"><p>© 2026 CompozyOS.</p><a href="https://github.com/compozy/compozy">Beta · CompozyOS on GitHub<svg class="ic ic--xs" aria-hidden="true"><use href="#i-arrow-right"/></svg></a></div>

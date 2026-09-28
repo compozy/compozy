@@ -35,20 +35,20 @@
             "prompt": "You are runner.",
             "turns": [
                 {
-                    "name": "sandbox-turn",
+                    "name": "command-turn",
                     "match": {
-                        "turn_source": "network",
-                        "user_text": "run sandbox"
+                        "turn_source": "user",
+                        "user_text": "run command"
                     },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "cmd-1",
-                            "title": "Run fake network status",
+                            "title": "Run fake task status",
                             "command": "compozy",
-                            "args": ["network", "status"],
+                            "args": ["task", "list"],
                             "expect_exit_code": 0,
-                            "expect_output_contains": "network-ok",
+                            "expect_output_contains": "command-ok",
                             "emit_output": true
                         }
                     ]

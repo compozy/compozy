@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
 import { hasNoRecordedWork } from "../lib/home-overview-empty";
@@ -14,7 +14,6 @@ import type {
 import { useHomeAttentionActions, type HomeAttentionActions } from "./use-home-attention-actions";
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
-import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
@@ -42,7 +41,6 @@ export interface HomeDashboardModel {
   activityErrorMessage: string | null;
   activeWorkspaceName: string | null;
   workingNow: HomeWorkingNowModel;
-  network: HomeNetworkModel;
   agents: HomeAgentsModel;
   system: HomeSystemModel;
   systemOpen: boolean;
@@ -110,8 +108,9 @@ export function useHomeDashboard({
   });
 
   const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
+  const overviewPresentation = queryPresentation(overviewQuery, scopeSettled);
+  const activityPresentation = queryPresentation(activityQuery, scopeSettled);
   const overview = overviewQuery.data;
-  const network = useHomeNetwork(overview?.network.messages_today);
   const agents = useHomeAgents();
   const system = useHomeSystem(
     overview?.system.hook_runs_today,
@@ -139,23 +138,14 @@ export function useHomeDashboard({
     usageWindow,
     setUsageWindow: usageWindow => homePrefsStore.trigger.usageWindowSelected({ usageWindow }),
     overview,
-    overviewStatus: surfaceStatus(
-      overviewQuery.isLoading || !scopeSettled,
-      overviewQuery.isError,
-      overviewQuery.data !== undefined
-    ),
-    overviewErrorMessage: overviewQuery.error instanceof Error ? overviewQuery.error.message : null,
+    overviewStatus: overviewPresentation.status,
+    overviewErrorMessage: overviewPresentation.errorMessage,
     hasNoWork: overview !== undefined && hasNoRecordedWork(overview),
     activity: activityQuery.data,
-    activityStatus: surfaceStatus(
-      activityQuery.isLoading || !scopeSettled,
-      activityQuery.isError,
-      activityQuery.data !== undefined
-    ),
-    activityErrorMessage: activityQuery.error instanceof Error ? activityQuery.error.message : null,
+    activityStatus: activityPresentation.status,
+    activityErrorMessage: activityPresentation.errorMessage,
     activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
     workingNow,
-    network,
     agents,
     system,
     systemOpen,
@@ -166,5 +156,19 @@ export function useHomeDashboard({
       }
       homePrefsStore.trigger.systemPanelClosed();
     },
+  };
+}
+
+function queryPresentation(
+  query: Pick<UseQueryResult, "isLoading" | "isError" | "data" | "error">,
+  scopeSettled: boolean
+) {
+  return {
+    status: surfaceStatus(
+      query.isLoading || !scopeSettled,
+      query.isError,
+      query.data !== undefined
+    ),
+    errorMessage: query.error instanceof Error ? query.error.message : null,
   };
 }

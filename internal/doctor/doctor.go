@@ -201,9 +201,6 @@ func (f runFilters) allows(probe Probe) bool {
 	category := probe.Category()
 	_, idSelected := f.only[id]
 	_, categorySelected := f.only[category]
-	if category == contract.CategoryBridge && !idSelected && !categorySelected {
-		return false
-	}
 	if len(f.only) > 0 {
 		if !idSelected && !categorySelected {
 			return false

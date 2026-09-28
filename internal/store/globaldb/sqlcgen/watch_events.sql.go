@@ -10,19 +10,6 @@ import (
 	"database/sql"
 )
 
-const getNetworkWatchEventsCursor = `-- name: GetNetworkWatchEventsCursor :one
-SELECT COALESCE(MAX(sequence), 0)
-FROM network_timeline_log
-WHERE workspace_id = ?1
-`
-
-func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID string) (any, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkWatchEventsCursor, workspaceID)
-	var coalesce any
-	err := row.Scan(&coalesce)
-	return coalesce, err
-}
-
 const listParkedWatchEventSubscriptions = `-- name: ListParkedWatchEventSubscriptions :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,

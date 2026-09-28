@@ -2,8 +2,6 @@ package hooks
 
 import (
 	"testing"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestHookMatcherMatchesSession(t *testing.T) {
@@ -256,66 +254,6 @@ func TestHookMatcherMatchesAutomation(t *testing.T) {
 	}
 }
 
-func TestHookMatcherMatchesSandbox(t *testing.T) {
-	t.Parallel()
-
-	prepareMatcher := HookMatcher{
-		AgentName:      "codex",
-		WorkspaceID:    "ws-1",
-		SandboxID:      "env-1",
-		SandboxBackend: "daytona",
-		SandboxProfile: "daytona-dev",
-	}
-	if !prepareMatcher.MatchesSandboxPrepare(&SandboxPreparePayload{
-		SessionContext: SessionContext{
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-		},
-		SandboxID: "env-1",
-		Backend:   "daytona",
-		Profile:   SandboxProfilePayload{Profile: "daytona-dev"},
-	}) {
-		t.Fatal("MatchesSandboxPrepare() = false, want true")
-	}
-	syncMatcher := prepareMatcher
-	syncMatcher.SyncDirection = "to_runtime"
-	if !syncMatcher.MatchesSandboxSyncBefore(SandboxSyncBeforePayload{
-		SessionContext: SessionContext{
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-		},
-		SandboxID: "env-1",
-		Backend:   "daytona",
-		Profile:   "daytona-dev",
-		Direction: "to_runtime",
-	}) {
-		t.Fatal("MatchesSandboxSyncBefore() = false, want true")
-	}
-	if syncMatcher.MatchesSandboxSyncAfter(SandboxSyncAfterPayload{
-		SessionContext: SessionContext{
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-		},
-		SandboxID: "env-1",
-		Backend:   "daytona",
-		Profile:   "daytona-dev",
-		Direction: "from_runtime",
-	}) {
-		t.Fatal("MatchesSandboxSyncAfter() = true, want false for direction mismatch")
-	}
-	if prepareMatcher.MatchesSandboxStop(SandboxStopPayload{
-		SessionContext: SessionContext{
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-		},
-		SandboxID: "env-2",
-		Backend:   "daytona",
-		Profile:   "daytona-dev",
-	}) {
-		t.Fatal("MatchesSandboxStop() = true, want false for sandbox id mismatch")
-	}
-}
-
 func TestHookMatcherMatchesToolResponses(t *testing.T) {
 	t.Parallel()
 
@@ -361,7 +299,6 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 			TaskID:               "task-1",
 			RunID:                "run-1",
 			WorkflowID:           "wf-1",
-			ParticipationChannel: "coord-ch-1",
 			CoordinatorSessionID: "coord-sess-1",
 		},
 	}
@@ -372,53 +309,30 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		RunID:                "run-1",
 		WorkflowID:           "wf-1",
 		CoordinatorSessionID: "coord-sess-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-1",
-		}),
 	}) {
 		t.Fatal("MatchesCoordinator() = false, want true")
-	}
-	if coordinatorMatcher.MatchesCoordinator(CoordinatorContext{
-		AgentName:            "coordinator",
-		WorkspaceID:          "ws-1",
-		TaskID:               "task-1",
-		RunID:                "run-1",
-		WorkflowID:           "wf-1",
-		CoordinatorSessionID: "coord-sess-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-2",
-		}),
-	}) {
-		t.Fatal("MatchesCoordinator() = true, want false for coordination channel mismatch")
 	}
 
 	taskRunMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			TaskID:               "task-1",
-			RunID:                "run-1",
-			ParticipationChannel: "coord-*",
-			ReleaseReason:        "timeout",
+			TaskID:        "task-1",
+			RunID:         "run-1",
+			ReleaseReason: "timeout",
 		},
 	}
 	if !taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID: "ws-1",
-		TaskID:      "task-1",
-		RunID:       "run-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-1",
-		}),
+		WorkspaceID:   "ws-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
 		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = false, want true")
 	}
 	if taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID: "ws-1",
-		TaskID:      "task-1",
-		RunID:       "run-2",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-1",
-		}),
+		WorkspaceID:   "ws-1",
+		TaskID:        "task-1",
+		RunID:         "run-2",
 		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = true, want false for run mismatch")
@@ -427,25 +341,18 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	taskMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			TaskID:               "task-1",
-			RunID:                "run-1",
-			ParticipationChannel: "coord-*",
-			ReleaseReason:        "blocked",
+			TaskID:        "task-1",
+			RunID:         "run-1",
+			ReleaseReason: "blocked",
 		},
 	}
 	t.Run("Should match task contexts with autonomy fields", func(t *testing.T) {
 		t.Parallel()
 
 		if !taskMatcher.MatchesTask(TaskContext{
-			WorkspaceID: "ws-1",
-			TaskID:      "task-1",
-			RunID:       "run-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "coord-ch-1",
-				Source:    participation.SourceExplicitRequest,
-			}),
+			WorkspaceID:   "ws-1",
+			TaskID:        "task-1",
+			RunID:         "run-1",
 			ReleaseReason: "blocked",
 		}) {
 			t.Fatal("MatchesTask() = false, want true")
@@ -455,15 +362,9 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		t.Parallel()
 
 		if taskMatcher.MatchesTask(TaskContext{
-			WorkspaceID: "ws-1",
-			TaskID:      "task-2",
-			RunID:       "run-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "coord-ch-1",
-				Source:    participation.SourceExplicitRequest,
-			}),
+			WorkspaceID:   "ws-1",
+			TaskID:        "task-2",
+			RunID:         "run-1",
 			ReleaseReason: "blocked",
 		}) {
 			t.Fatal("MatchesTask() = true, want false for task mismatch")
@@ -473,11 +374,10 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	spawnMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			ParentSessionID:      "parent-1",
-			RootSessionID:        "root-1",
-			ChildSessionID:       "child-*",
-			SpawnRole:            "reviewer",
-			ParticipationChannel: "coord-ch-1",
+			ParentSessionID: "parent-1",
+			RootSessionID:   "root-1",
+			ChildSessionID:  "child-*",
+			SpawnRole:       "reviewer",
 		},
 	}
 	if !spawnMatcher.MatchesSpawn(SpawnContext{
@@ -486,9 +386,6 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		RootSessionID:   "root-1",
 		ChildSessionID:  "child-1",
 		SpawnRole:       "reviewer",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-1",
-		}),
 	}) {
 		t.Fatal("MatchesSpawn() = false, want true")
 	}
@@ -498,41 +395,8 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		RootSessionID:   "root-1",
 		ChildSessionID:  "child-1",
 		SpawnRole:       "coder",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			ChannelID: "coord-ch-1",
-		}),
 	}) {
 		t.Fatal("MatchesSpawn() = true, want false for spawn role mismatch")
-	}
-}
-
-func TestHookMatcherMatchesNetwork(t *testing.T) {
-	t.Parallel()
-
-	matcher := HookMatcher{
-		NetworkMatcher: &NetworkMatcher{
-			Channel:   "builders",
-			Surface:   "thread",
-			Kind:      "trace",
-			Direction: "received",
-			WorkState: "completed",
-		},
-	}
-	payload := NetworkPayload{
-		Channel:   "builders",
-		Surface:   "thread",
-		Kind:      "trace",
-		Direction: "received",
-		WorkState: "completed",
-		MessageID: "msg_01",
-		WorkID:    "work_01",
-	}
-	if !matcher.MatchesNetwork(payload) {
-		t.Fatal("MatchesNetwork() = false, want true")
-	}
-	payload.WorkState = "working"
-	if matcher.MatchesNetwork(payload) {
-		t.Fatal("MatchesNetwork() = true, want false for work state mismatch")
 	}
 }
 
@@ -579,24 +443,6 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 			name:  "Should deny workspace id for message delta hook",
 			event: HookMessageDelta,
 			field: "workspace_id",
-			want:  false,
-		},
-		{
-			name:  "Should allow channel for network hook",
-			event: HookNetworkMessagePersisted,
-			field: "channel",
-			want:  true,
-		},
-		{
-			name:  "Should allow work state for network hook",
-			event: HookNetworkWorkTransitioned,
-			field: "work_state",
-			want:  true,
-		},
-		{
-			name:  "Should deny message id for network hook",
-			event: HookNetworkMessagePersisted,
-			field: "message_id",
 			want:  false,
 		},
 		{name: "Should deny invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},

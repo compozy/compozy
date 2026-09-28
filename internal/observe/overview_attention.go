@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -46,10 +46,10 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 }
 
 // OverviewAttentionScope binds Home's snapshot to its selected read population.
-func OverviewAttentionScope(query OverviewQuery) notifications.AttentionScope {
-	return notifications.AttentionScope{
+func OverviewAttentionScope(query OverviewQuery) attention.Scope {
+	return attention.Scope{
 		ProfileID: query.AcknowledgementProfileID, ActorKind: string(query.Actor.Kind), ActorID: query.Actor.Ref,
-		Population: notifications.AttentionIdentity(
+		Population: attention.Identity(
 			"home", string(query.TaskScope), query.WorkspaceID, query.ReadScope.ProfileID,
 			strconv.FormatBool(query.ReadScope.AllProfiles),
 		),
@@ -94,7 +94,7 @@ func (o *Observer) TaskAttentionItems(ctx context.Context, query OverviewQuery) 
 							return nil, err
 						}
 					}
-					item.NotificationID = notifications.AttentionIdentity(
+					item.NotificationID = attention.Identity(
 						"task", source.Task.WorkspaceID, source.Task.ID, item.Kind, occurrence,
 					)
 					items = appendAttentionItem(items, seen, item)

@@ -303,13 +303,13 @@ The prompt catalog has this shape:
 
 ```xml
 <available-skills>
-  <skill name="compozy">Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops...</skill>
+  <skill name="compozy">Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, tasks, Loops...</skill>
 </available-skills>
 
 Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool
 reference with `{ "name": "compozy" }` to load full instructions for any skill.
 Use the returned tool reference for canonical `compozy__skill_view` with
-`{ "name": "compozy", "file": "references/network.md" }` to read a specific skill resource file.
+`{ "name": "compozy", "file": "references/tasks-and-orchestration.md" }` to read a specific skill resource file.
 ```
 
 Managed sessions do not fall back to the CLI or direct file reads. When policy denies
@@ -337,7 +337,6 @@ Important details:
 | Inactive skills     | Retained by management surfaces with reasons, but omitted from startup and current-turn catalogs.          |
 | Catalog order       | Sorted by skill name after resolution.                                                                     |
 | Prompt position     | Memory context is prepended, the `AGENT.md` prompt stays in the middle, and the skill catalog is appended. |
-| Network sessions    | Sessions with a network channel also receive `compozy` `references/network.md`.                            |
 
 Disabled and activation-gated skills are hidden from the prompt catalog. Activation is an
 offer-time filter: explicit skill reads still work, and management surfaces retain inactive skills

@@ -31,7 +31,6 @@ import {
   HomeIcon,
   SettingsIcon,
   SquareTerminalIcon,
-  WaypointsIcon,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -125,7 +124,6 @@ export function LayoutSection() {
                 <SidebarRow icon={HomeIcon} label="Home" active />
                 <SidebarRow icon={SquareTerminalIcon} label="Sessions" />
                 <SidebarRow icon={BoxesIcon} label="Tasks" />
-                <SidebarRow icon={WaypointsIcon} label="Network" />
                 <SidebarRow icon={BellIcon} label="Automation" />
               </div>
             }

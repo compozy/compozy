@@ -210,7 +210,7 @@ describe("loop node schema", () => {
     const raw: RawLoopNode = {
       id: "post",
       class: "action",
-      kind: "compozy__network_send",
+      kind: "compozy__task_list",
       params: {},
     };
     const fields = buildNodeFields(raw);
@@ -512,7 +512,7 @@ describe("graph completion node schema", () => {
   });
 
   it("Should give every action node the review composite", () => {
-    for (const kind of ["run-agent", "goal", "run-loop", "transform", "compozy__network_send"]) {
+    for (const kind of ["run-agent", "goal", "run-loop", "transform", "compozy__task_list"]) {
       const fields = buildNodeFields({ id: "x", class: "action", kind, params: {} });
       expect(fieldByType(fields, "review")).toMatchObject({
         key: "review",

@@ -83,11 +83,6 @@ const SECTION_PAGES = {
       default: m.AutomationSettingsPage,
     }))
   ),
-  network: lazy(() =>
-    import("@/routes/_app/settings/-network-settings-page").then(m => ({
-      default: m.NetworkSettingsPage,
-    }))
-  ),
   gateway: lazy(() =>
     import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
       default: m.GatewaySettingsPage,

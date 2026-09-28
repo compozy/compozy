@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/coordinator"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -28,7 +27,7 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	run := coordinatorRuntimeRun()
-	run.SetNetworkState(participation.LocalSpec(), "", "", "")
+
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), run)
 	store.runs["run-worker-z"] = taskpkg.Run{
 		ID: "run-worker-z", TaskID: "task-z", WorkspaceID: "ws-1",
@@ -94,13 +93,9 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			call.Model,
 		)
 	}
-	if call.Workspace != "ws-1" || call.ResolvedNetworkParticipation == nil ||
-		call.ResolvedNetworkParticipation.Mode != participation.ModeLocal {
-		t.Fatalf(
-			"CreateOpts workspace/participation = %q/%#v, want ws-1/local",
-			call.Workspace,
-			call.ResolvedNetworkParticipation,
-		)
+
+	if call.Workspace != "ws-1" {
+		t.Fatalf("CreateOpts.Workspace = %q, want ws-1", call.Workspace)
 	}
 	if call.CWD != "" || call.Worktree != "" {
 		t.Fatalf(
@@ -118,25 +113,9 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if call.Lineage.TTLExpiresAt == nil || !call.Lineage.TTLExpiresAt.Equal(now.Add(2*time.Hour)) {
 		t.Fatalf("Lineage.TTLExpiresAt = %#v, want %s", call.Lineage.TTLExpiresAt, now.Add(2*time.Hour))
 	}
-	if !coordinator.ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskRunClaimNext.String()) ||
-		coordinator.ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskCancel.String()) {
+	if !coordinator.ToolAllowed(toolspkg.ToolIDTaskRunClaimNext.String()) ||
+		coordinator.ToolAllowed(toolspkg.ToolIDTaskCancel.String()) {
 		t.Fatal("coordinator tool allowlist is not restricted as expected")
-	}
-	for _, networkTool := range []string{
-		toolspkg.ToolIDNetworkChannels.String(),
-		toolspkg.ToolIDNetworkInbox.String(),
-		toolspkg.ToolIDNetworkSend.String(),
-	} {
-		if slices.Contains(call.Lineage.PermissionPolicy.Tools, networkTool) {
-			t.Fatalf(
-				"Lineage.PermissionPolicy.Tools = %#v, want no %q",
-				call.Lineage.PermissionPolicy.Tools,
-				networkTool,
-			)
-		}
-	}
-	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 0 {
-		t.Fatalf("Lineage.PermissionPolicy.NetworkChannels = %#v, want empty", got)
 	}
 	for _, required := range []string{
 		toolspkg.ToolIDSessionDescribe.String(),
@@ -152,11 +131,6 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	for _, excluded := range []string{"wt-loop", "wt-coordinator", "wt-other", "run-root-worker"} {
 		if contains(call.PromptOverlay, excluded) {
 			t.Fatalf("PromptOverlay contains excluded worker binding %q:\n%s", excluded, call.PromptOverlay)
-		}
-	}
-	for _, forbidden := range []string{"compozy ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {
-		if contains(call.PromptOverlay, forbidden) {
-			t.Fatalf("PromptOverlay contains local coordinator guidance %q:\n%s", forbidden, call.PromptOverlay)
 		}
 	}
 	if got := sessions.promptCount(); got != 1 {
@@ -217,7 +191,6 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 			t.Context(),
 			coordinator.Decision{WorkspaceID: "ws-1"},
 			cfg,
-			participation.LocalSpec(),
 		)
 		if err != nil {
 			t.Fatalf("startCoordinatorSession() error = %v", err)
@@ -240,130 +213,6 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 		if payload.Role != string(compozyconfig.RoleCoordinator) || payload.Attempt != 1 ||
 			payload.Provider != "claude" || payload.Model != "sonnet" {
 			t.Fatalf("coordinator fallback payload = %#v", payload)
-		}
-	})
-}
-
-func TestCoordinatorRuntimeBindsLiveParticipationToCoordinatorLifecycle(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should preserve the coordinator snapshot when a Local run wakes the existing session", func(t *testing.T) {
-		t.Parallel()
-
-		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		liveRun := coordinatorRuntimeRun()
-		liveSpec := liveRun.NetworkSpecSnapshot()
-		store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), liveRun)
-		sessions := &coordinatorRuntimeSessions{}
-		hooks := &recordingCoordinatorHooks{}
-		runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
-
-		info, created, err := runtime.bootstrapRun(
-			context.Background(),
-			store.tasks["task-1"],
-			store.runs["run-1"],
-			coordinator.ReasonRunEnqueued,
-		)
-		if err != nil {
-			t.Fatalf("bootstrapRun(Live) error = %v", err)
-		}
-		if !created || info == nil {
-			t.Fatalf("bootstrapRun(Live) created/info = %t/%#v, want created coordinator", created, info)
-		}
-		if got := info.NetworkParticipation; got != liveSpec {
-			t.Fatalf("coordinator NetworkParticipation = %#v, want %#v", got, liveSpec)
-		}
-
-		call := sessions.createCall(0)
-		if call.ResolvedNetworkParticipation == nil || *call.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf(
-				"CreateOpts.ResolvedNetworkParticipation = %#v, want %#v",
-				call.ResolvedNetworkParticipation,
-				liveSpec,
-			)
-		}
-		if call.Lineage == nil ||
-			!slices.Equal(call.Lineage.PermissionPolicy.NetworkChannels, []string{liveSpec.ChannelID}) {
-			t.Fatalf(
-				"Lineage.PermissionPolicy.NetworkChannels = %#v, want [%q]",
-				call.Lineage,
-				liveSpec.ChannelID,
-			)
-		}
-		if !slices.Contains(call.Lineage.PermissionPolicy.Tools, toolspkg.ToolIDNetworkSend.String()) {
-			t.Fatalf("Lineage.PermissionPolicy.Tools = %#v, want Network send", call.Lineage.PermissionPolicy.Tools)
-		}
-		for _, required := range []string{
-			"participation_channel: " + liveSpec.ChannelID,
-			toolspkg.ToolIDNetworkChannels.String(),
-			toolspkg.ToolIDNetworkInbox.String(),
-			toolspkg.ToolIDNetworkSend.String(),
-		} {
-			if !contains(call.PromptOverlay, required) {
-				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
-			}
-		}
-		if contains(call.PromptOverlay, "compozy ch") {
-			t.Fatalf("PromptOverlay contains CLI network guidance:\n%s", call.PromptOverlay)
-		}
-
-		preSpawn := hooks.preSpawnPayload(0)
-		spawned := hooks.spawnedPayload(0)
-		if preSpawn.ResolvedNetworkParticipation == nil ||
-			*preSpawn.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf(
-				"pre-spawn participation = %#v, want %#v",
-				preSpawn.ResolvedNetworkParticipation,
-				liveSpec,
-			)
-		}
-		if spawned.ResolvedNetworkParticipation == nil ||
-			*spawned.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf(
-				"spawned participation = %#v, want %#v",
-				spawned.ResolvedNetworkParticipation,
-				liveSpec,
-			)
-		}
-
-		localRun := coordinatorRuntimeRun()
-		localRun.ID = "run-2"
-		localRun.SetNetworkState(participation.LocalSpec(), "", "", "")
-		store.runs[localRun.ID] = localRun
-		sessions.promptErr = fmt.Errorf("synthetic prompt failed")
-		_, created, err = runtime.bootstrapRun(
-			context.Background(),
-			store.tasks["task-1"],
-			store.runs[localRun.ID],
-			coordinator.ReasonRunEnqueued,
-		)
-		if err == nil {
-			t.Fatal("bootstrapRun(existing Local wake) error = nil, want prompt failure")
-		}
-		if created {
-			t.Fatal("bootstrapRun(existing Local wake) created = true, want existing coordinator")
-		}
-		if got := sessions.createCount(); got != 1 {
-			t.Fatalf("Create count = %d, want original coordinator only", got)
-		}
-
-		decisionPayload := hooks.lastDecisionPayload()
-		failedPayload := hooks.lastFailedPayload()
-		if decisionPayload.ResolvedNetworkParticipation == nil ||
-			*decisionPayload.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf(
-				"existing decision participation = %#v, want coordinator %#v",
-				decisionPayload.ResolvedNetworkParticipation,
-				liveSpec,
-			)
-		}
-		if failedPayload.ResolvedNetworkParticipation == nil ||
-			*failedPayload.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf(
-				"failed wake participation = %#v, want coordinator %#v",
-				failedPayload.ResolvedNetworkParticipation,
-				liveSpec,
-			)
 		}
 	})
 }
@@ -747,6 +596,28 @@ func TestCoordinatorRuntimePromptsExistingCoordinatorForQueuedRun(t *testing.T) 
 	if got := prompt.opts.Metadata.TaskRunID; got != "run-1" {
 		t.Fatalf("PromptSynthetic run id = %q, want run-1", got)
 	}
+
+	promptErr := errors.New("synthetic prompt failed")
+	sessions.promptErr = promptErr
+	nextRun := coordinatorRuntimeRun()
+	nextRun.ID = "run-2"
+	store.runs[nextRun.ID] = nextRun
+	_, created, err = runtime.bootstrapRun(
+		context.Background(),
+		store.tasks["task-1"],
+		nextRun,
+		coordinator.ReasonRunEnqueued,
+	)
+	if !errors.Is(err, promptErr) {
+		t.Fatalf("bootstrapRun(existing prompt failure) error = %v, want %v", err, promptErr)
+	}
+	if created || sessions.createCount() != 0 {
+		t.Fatalf(
+			"bootstrapRun(existing prompt failure) created = %t, count = %d, want existing coordinator",
+			created,
+			sessions.createCount(),
+		)
+	}
 }
 
 func TestCoordinatorRuntimeRecoversWhenCoordinatorStopsWithExecutableWork(t *testing.T) {
@@ -846,14 +717,6 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 			TaskID:      "task-1",
 			RunID:       "run-1",
 			WorkspaceID: "ws-1",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:         participation.SpecVersion,
-				Mode:            participation.ModeLive,
-				WorkspaceID:     "ws-1",
-				ChannelStrategy: participation.StrategyNamed,
-				ChannelID:       "ch-run-1",
-				Source:          participation.SourceExplicitRequest,
-			},
 		},
 	})
 	if err != nil {
@@ -863,12 +726,8 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 		t.Fatalf("observer count = %d, want 1", got)
 	}
 	last := observer.last()
-	if last.ResolvedNetworkParticipation == nil ||
-		last.ResolvedNetworkParticipation.ChannelID != "ch-run-1" {
-		t.Fatalf(
-			"observer resolved participation = %#v, want channel ch-run-1",
-			last.ResolvedNetworkParticipation,
-		)
+	if last.TaskID != "task-1" || last.RunID != "run-1" || last.WorkspaceID != "ws-1" {
+		t.Fatalf("observer task context = %#v, want task/run/workspace identity", last)
 	}
 }
 
@@ -925,7 +784,7 @@ func coordinatorRuntimeRun() taskpkg.Run {
 		Status:   taskpkg.TaskRunStatusQueued,
 		Metadata: json.RawMessage(`{"workflow_id":"wf-1"}`),
 	}
-	run.SetNetworkState(daemonTestLiveParticipation("ws-1", "ch-run-1"), "", "", "")
+
 	return run
 }
 
@@ -1081,33 +940,33 @@ func (s *coordinatorRuntimeSessions) Create(ctx context.Context, opts session.Cr
 	s.createCalls = append(s.createCalls, opts)
 	id := fmt.Sprintf("coord-%d", len(s.createCalls))
 	info := &session.Info{
-		ID:                   id,
-		Name:                 opts.Name,
-		AgentName:            opts.AgentName,
-		Provider:             opts.Provider,
-		Model:                opts.Model,
-		WorkspaceID:          opts.Workspace,
-		Workspace:            opts.Workspace,
-		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
-		Type:                 opts.Type,
-		Lineage:              opts.Lineage,
-		State:                session.StateActive,
-		CreatedAt:            time.Now().UTC(),
+		ID:          id,
+		Name:        opts.Name,
+		AgentName:   opts.AgentName,
+		Provider:    opts.Provider,
+		Model:       opts.Model,
+		WorkspaceID: opts.Workspace,
+		Workspace:   opts.Workspace,
+
+		Type:      opts.Type,
+		Lineage:   opts.Lineage,
+		State:     session.StateActive,
+		CreatedAt: time.Now().UTC(),
 	}
 	s.infos = append(s.infos, info)
 	return &session.Session{
-		ID:                   info.ID,
-		Name:                 info.Name,
-		AgentName:            info.AgentName,
-		Provider:             info.Provider,
-		Model:                info.Model,
-		WorkspaceID:          info.WorkspaceID,
-		Workspace:            info.Workspace,
-		NetworkParticipation: info.NetworkParticipation,
-		Type:                 info.Type,
-		Lineage:              info.Lineage,
-		State:                info.State,
-		CreatedAt:            info.CreatedAt,
+		ID:          info.ID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		Provider:    info.Provider,
+		Model:       info.Model,
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+
+		Type:      info.Type,
+		Lineage:   info.Lineage,
+		State:     info.State,
+		CreatedAt: info.CreatedAt,
 	}, nil
 }
 
@@ -1379,33 +1238,6 @@ func (h *recordingCoordinatorHooks) spawnedPayload(index int) hookspkg.Coordinat
 		return hookspkg.CoordinatorSpawnedPayload{}
 	}
 	return h.spawned[index]
-}
-
-func (h *recordingCoordinatorHooks) preSpawnPayload(index int) hookspkg.CoordinatorPreSpawnPayload {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if index < 0 || index >= len(h.preSpawn) {
-		return hookspkg.CoordinatorPreSpawnPayload{}
-	}
-	return h.preSpawn[index]
-}
-
-func (h *recordingCoordinatorHooks) lastDecisionPayload() hookspkg.CoordinatorDecisionPayload {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if len(h.decisions) == 0 {
-		return hookspkg.CoordinatorDecisionPayload{}
-	}
-	return h.decisions[len(h.decisions)-1]
-}
-
-func (h *recordingCoordinatorHooks) lastFailedPayload() hookspkg.CoordinatorFailedPayload {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if len(h.failed) == 0 {
-		return hookspkg.CoordinatorFailedPayload{}
-	}
-	return h.failed[len(h.failed)-1]
 }
 
 func (h *recordingCoordinatorHooks) lastDecision() string {

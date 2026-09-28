@@ -246,13 +246,13 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				}, nil
 			},
 		}
-		handlers := newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+		handlers := newTestHandlersWithAutomationTasksAndWorkspace(
 			t,
 			manager,
 			stubObserver{},
 			nil,
 			tasks,
-			nil,
+
 			workspaces,
 			newTestHomePaths(t),
 		)
@@ -283,32 +283,6 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 			t.Fatalf("task policy requests = %#v, want identity seam", policyRequests)
 		}
 
-		coordinationDenied := performRequestWithHeaders(
-			t,
-			engine,
-			http.MethodGet,
-			"/api/workspaces/"+targetWorkspaceID+"/network-coordination",
-			nil,
-			map[string]string{
-				agentidentity.HeaderSessionID: "sess-approve-reads",
-				agentidentity.HeaderAgent:     "coder",
-			},
-		)
-		if coordinationDenied.Code != http.StatusForbidden {
-			t.Fatalf(
-				"coordination status = %d, want %d; body=%s",
-				coordinationDenied.Code,
-				http.StatusForbidden,
-				coordinationDenied.Body.String(),
-			)
-		}
-		if !strings.Contains(coordinationDenied.Body.String(), workspaceaccess.DenialHint) {
-			t.Fatalf("coordination body = %s, want denial hint", coordinationDenied.Body.String())
-		}
-		if len(policyRequests) != 2 || policyRequests[1].Seam != workspaceaccess.SeamCoordination {
-			t.Fatalf("coordination policy requests = %#v, want coordination seam", policyRequests)
-		}
-
 		allowed := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
 			agentidentity.HeaderSessionID: "sess-approve-all",
 			agentidentity.HeaderAgent:     "coder",
@@ -321,8 +295,8 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				allowed.Body.String(),
 			)
 		}
-		if created != 1 || len(policyRequests) != 3 {
-			t.Fatalf("created=%d policy_requests=%d, want 1 and 3", created, len(policyRequests))
+		if created != 1 || len(policyRequests) != 2 {
+			t.Fatalf("created=%d policy_requests=%d, want 1 and 2", created, len(policyRequests))
 		}
 	})
 }

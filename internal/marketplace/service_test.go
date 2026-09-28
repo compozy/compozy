@@ -375,7 +375,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Browse() error = %v", err)
 		}
-		if got, want := result.Entries[0].EntryID, "bridge-github"; got != want {
+		if got, want := result.Entries[0].EntryID, "github-tools"; got != want {
 			t.Fatalf("Browse() entry id = %q, want checkout entry %q", got, want)
 		}
 	})

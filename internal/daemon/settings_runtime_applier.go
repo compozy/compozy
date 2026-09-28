@@ -8,16 +8,11 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type daemonSettingsRuntimeApplier struct {
-	daemon              *Daemon
-	state               *bootState
-	networkAvailability store.NetworkAvailabilityStore
-	networkWakeRunner   interface {
-		SetEnabled(context.Context, bool) error
-	}
+	daemon *Daemon
+	state  *bootState
 }
 
 func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
@@ -41,27 +36,24 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if failure != nil {
 		return a.rollbackRuntimeDependencies(ctx, &previous, &next, []settingspkg.ApplyFailure{*failure})
 	}
-	if failures := a.applyNetworkAvailabilityChange(ctx, &previous, &next); len(failures) > 0 {
-		return a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
-	}
 	if failures := a.applyGatewayTuningChange(&previous, &next); len(failures) > 0 {
 		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
-		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+		return a.rollbackGateway(ctx, &previous, &next, failures)
 	}
 	if failures := a.applyGatewayCeilingChange(ctx, &previous, &next); len(failures) > 0 {
 		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
-		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+		return a.rollbackGateway(ctx, &previous, &next, failures)
 	}
 	if failure := a.applyAttentionConfigChange(&previous, &next); failure != nil {
 		failures := a.rollbackRuntimeDependencies(ctx, &previous, &next, []settingspkg.ApplyFailure{*failure})
-		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+		return a.rollbackGateway(ctx, &previous, &next, failures)
 	}
 	if failures := a.applySkillSourceConfigChange(ctx, &previous, &next); len(failures) > 0 {
 		if rollback := a.applyAttentionConfigChange(&next, &previous); rollback != nil {
 			failures = append(failures, *rollback)
 		}
 		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
-		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+		return a.rollbackGateway(ctx, &previous, &next, failures)
 	}
 
 	a.daemon.mu.Lock()
@@ -152,7 +144,7 @@ func gatewayTuningChanged(previous compozyconfig.GatewayConfig, next compozyconf
 		previous.Verify != next.Verify
 }
 
-func (a daemonSettingsRuntimeApplier) rollbackGatewayAndNetwork(
+func (a daemonSettingsRuntimeApplier) rollbackGateway(
 	ctx context.Context,
 	previous *compozyconfig.Config,
 	next *compozyconfig.Config,
@@ -160,7 +152,7 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayAndNetwork(
 ) []settingspkg.ApplyFailure {
 	failures = a.rollbackGatewayTuning(previous, next, failures)
 	failures = a.rollbackGatewayCeiling(ctx, previous, next, failures)
-	return a.rollbackNetworkAvailability(ctx, previous, next, failures)
+	return failures
 }
 
 func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
@@ -233,39 +225,6 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayCeiling(
 	return failures
 }
 
-func (a daemonSettingsRuntimeApplier) rollbackNetworkAvailability(
-	ctx context.Context,
-	previous *compozyconfig.Config,
-	next *compozyconfig.Config,
-	failures []settingspkg.ApplyFailure,
-) []settingspkg.ApplyFailure {
-	if a.networkAvailability != nil && previous.Network.Enabled != next.Network.Enabled {
-		if failure := a.persistNetworkAvailability(
-			ctx,
-			previous.Network.Enabled,
-			"config.rollback",
-			"network_availability_rollback",
-			"Network availability rollback failed",
-		); failure != nil {
-			failures = append(failures, *failure)
-		}
-		if a.networkWakeRunner != nil {
-			if err := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); err != nil {
-				failures = append(failures, configApplyFailure(
-					"network_wake_runner_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Network wake runner rollback failed",
-					err,
-				))
-			}
-		}
-		if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
-			networkRuntime.SetEnabled(previous.Network.Enabled)
-		}
-	}
-	return failures
-}
-
 func (a daemonSettingsRuntimeApplier) applyGatewayCeilingChange(
 	ctx context.Context,
 	previous *compozyconfig.Config,
@@ -281,57 +240,6 @@ func (a daemonSettingsRuntimeApplier) applyGatewayCeilingChange(
 			"Gateway ceiling sync failed",
 			err,
 		)}
-	}
-	return nil
-}
-
-func (a daemonSettingsRuntimeApplier) applyNetworkAvailabilityChange(
-	ctx context.Context,
-	previous *compozyconfig.Config,
-	next *compozyconfig.Config,
-) []settingspkg.ApplyFailure {
-	if a.networkAvailability == nil || previous.Network.Enabled == next.Network.Enabled {
-		return nil
-	}
-	if failure := a.persistNetworkAvailability(
-		ctx,
-		next.Network.Enabled,
-		"config.apply",
-		"network_availability",
-		"Network availability sync failed",
-	); failure != nil {
-		return []settingspkg.ApplyFailure{*failure}
-	}
-	if a.networkWakeRunner != nil {
-		if err := a.networkWakeRunner.SetEnabled(ctx, next.Network.Enabled); err != nil {
-			failures := []settingspkg.ApplyFailure{configApplyFailure(
-				"network_wake_runner",
-				diagnosticcontract.CategoryConfig,
-				"Network wake runner sync failed",
-				err,
-			)}
-			if rollbackErr := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); rollbackErr != nil {
-				failures = append(failures, configApplyFailure(
-					"network_wake_runner_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Network wake runner rollback failed",
-					rollbackErr,
-				))
-			}
-			if failure := a.persistNetworkAvailability(
-				ctx,
-				previous.Network.Enabled,
-				"config.rollback",
-				"network_availability_rollback",
-				"Network availability rollback failed",
-			); failure != nil {
-				failures = append(failures, *failure)
-			}
-			return failures
-		}
-	}
-	if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
-		networkRuntime.SetEnabled(next.Network.Enabled)
 	}
 	return nil
 }
@@ -379,23 +287,4 @@ func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *compozy
 		return
 	}
 	service.reconcileMarketplaceConfig(cfg.Extensions)
-}
-
-func (a daemonSettingsRuntimeApplier) persistNetworkAvailability(
-	ctx context.Context,
-	enabled bool,
-	updatedBy string,
-	subsystem string,
-	summary string,
-) *settingspkg.ApplyFailure {
-	if _, err := a.networkAvailability.SetNetworkAvailability(ctx, enabled, updatedBy); err != nil {
-		failure := configApplyFailure(
-			subsystem,
-			diagnosticcontract.CategoryConfig,
-			summary,
-			err,
-		)
-		return &failure
-	}
-	return nil
 }

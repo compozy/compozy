@@ -941,145 +941,6 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should read network work transitions with workspace-column scoping", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
-		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "builders")
-		registerNetworkChannelForGlobalTests(t, globalDB, "ws-b", "builders")
-		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
-		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
-		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
-		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-b", "ws-b", "reviewer")
-		base := time.Date(2026, 7, 8, 20, 30, 0, 0, time.UTC)
-		opening := networkWatchThreadMessageForTest(
-			"ws-a",
-			"msg-work-open",
-			"thread_watch",
-			"coder.sess-a",
-			"please review",
-			base,
-		)
-		opening.PeerTo = "reviewer.sess-a"
-		opening.WorkID = "work-watch"
-		if _, err := globalDB.WriteConversationMessage(ctx, opening); err != nil {
-			t.Fatalf("WriteConversationMessage(opening) error = %v", err)
-		}
-		transition := networkWatchTraceMessageForTest(
-			"ws-a",
-			"msg-work-transition",
-			"thread_watch",
-			"reviewer.sess-a",
-			"work-watch",
-			store.NetworkWorkStateWorking,
-			base.Add(time.Minute),
-		)
-		if _, err := globalDB.WriteConversationMessage(ctx, transition); err != nil {
-			t.Fatalf("WriteConversationMessage(transition) error = %v", err)
-		}
-		foreign := networkWatchThreadMessageForTest(
-			"ws-b",
-			"msg-work-open-foreign",
-			"thread_watch_foreign",
-			"coder.sess-b",
-			"please review",
-			base,
-		)
-		foreign.PeerTo = "reviewer.sess-b"
-		foreign.WorkID = "work-foreign"
-		if _, err := globalDB.WriteConversationMessage(ctx, foreign); err != nil {
-			t.Fatalf("WriteConversationMessage(foreign opening) error = %v", err)
-		}
-
-		threadEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
-			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
-			WorkspaceID: "ws-a",
-			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
-			Kinds:       []string{string(hookspkg.HookNetworkThreadOpened)},
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ReadMatches(thread opened) error = %v", err)
-		}
-		if got, want := len(threadEvents), 1; got != want {
-			t.Fatalf("thread opened events len = %d, want %d: %#v", got, want, threadEvents)
-		}
-		if got, want := threadEvents[0].Payload[watchEventsPayloadThreadIDKey], "thread_watch"; got != want {
-			t.Fatalf("thread_id = %v, want %q", got, want)
-		}
-
-		directID, err := networkWatchDirectIDForTest("ws-a", "builders", "coder.sess-a", "reviewer.sess-a")
-		if err != nil {
-			t.Fatalf("networkWatchDirectIDForTest() error = %v", err)
-		}
-		directMessage := networkWatchDirectMessageForTest(
-			"ws-a",
-			"msg-direct-open",
-			directID,
-			"coder.sess-a",
-			"reviewer.sess-a",
-			"open direct",
-			base.Add(2*time.Minute),
-		)
-		if _, err := globalDB.WriteConversationMessage(ctx, directMessage); err != nil {
-			t.Fatalf("WriteConversationMessage(direct) error = %v", err)
-		}
-		directEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
-			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
-			WorkspaceID: "ws-a",
-			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
-			Kinds:       []string{string(hookspkg.HookNetworkDirectRoomOpened)},
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ReadMatches(direct opened) error = %v", err)
-		}
-		if got, want := len(directEvents), 1; got != want {
-			t.Fatalf("direct opened events len = %d, want %d: %#v", got, want, directEvents)
-		}
-		if got, want := directEvents[0].Payload[watchEventsPayloadDirectIDKey], directID; got != want {
-			t.Fatalf("direct_id = %v, want %q", got, want)
-		}
-
-		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
-			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
-			WorkspaceID: "ws-a",
-			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
-			Kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ReadMatches(network) error = %v", err)
-		}
-		if got, want := len(events), 1; got != want {
-			t.Fatalf("network events len = %d, want %d: %#v", got, want, events)
-		}
-		event := events[0]
-		if event.WorkspaceID != "ws-a" || event.Channel != "builders" || event.WorkID != "work-watch" {
-			t.Fatalf("network event projection = %#v", event)
-		}
-		if got, want := event.Payload[watchEventsPayloadWorkStateKey], store.NetworkWorkStateWorking; got != want {
-			t.Fatalf("network work_state = %v, want %q", got, want)
-		}
-		if got, want := event.Payload[taskRunResultKindKey], store.NetworkKindTrace; got != want {
-			t.Fatalf("network payload kind = %v, want %q", got, want)
-		}
-		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
-			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
-			WorkspaceID: "ws-a",
-			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
-			Kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ReadCursors(network) error = %v", err)
-		}
-		if got, want := cursors[looppkg.WatchEventsNetworkStream], event.Seq; got != want {
-			t.Fatalf("network cursor = %d, want event seq %d", got, want)
-		}
-	})
-
 	t.Run("Should replay coordinator observe rows monotonically across restart", func(t *testing.T) {
 		t.Parallel()
 
@@ -1376,39 +1237,6 @@ func TestGlobalDBWatchEventsProfileIsolation(t *testing.T) {
 		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsObserveStream,
 			[]string{"profile.observe"},
 			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-observe-marketing" })
-
-		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "watch-default")
-		if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-			ProfileID:   marketingProfileID,
-			WorkspaceID: "ws-a", Channel: "watch-marketing",
-			Purpose: "Watch profile isolation", CreatedBy: "test", CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
-			t.Fatalf("WriteNetworkChannel(marketing) error = %v", err)
-		}
-		for _, message := range []store.NetworkMessageEntry{
-			{ProfileID: store.DefaultProfileID,
-				MessageID:   "watch-profile-network-default",
-				WorkspaceID: "ws-a", Channel: "watch-default", Direction: "received",
-				PeerFrom: "default.peer", Kind: store.NetworkKindGreet, Body: []byte(`{}`), Timestamp: now.Add(7 * time.Second)},
-			{ProfileID: marketingProfileID,
-				MessageID:   "watch-profile-network-marketing",
-				WorkspaceID: "ws-a", Channel: "watch-marketing", Direction: "received",
-				PeerFrom: "marketing.peer", Kind: store.NetworkKindGreet, Body: []byte(`{}`), Timestamp: now.Add(8 * time.Second)},
-		} {
-			if err := globalDB.WriteNetworkMessage(ctx, message); err != nil {
-				t.Fatalf("WriteNetworkMessage(%s) error = %v", message.ProfileID, err)
-			}
-		}
-		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsNetworkStream,
-			[]string{string(hookspkg.HookNetworkMessagePersisted)},
-			func(event looppkg.WatchEvent) bool {
-				return event.Payload[watchEventsPayloadMessageIDKey] == "watch-profile-network-default"
-			})
-		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsNetworkStream,
-			[]string{string(hookspkg.HookNetworkMessagePersisted)},
-			func(event looppkg.WatchEvent) bool {
-				return event.Payload[watchEventsPayloadMessageIDKey] == "watch-profile-network-marketing"
-			})
 
 		registerWatchSessionForTest(ctx, t, globalDB, "watch-profile-session-default", "ws-a", "coder")
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
@@ -2332,100 +2160,6 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reconcile network message subscriptions from rows written while down", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 8, 21, 30, 0, 0, time.UTC)
-		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
-		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "builders")
-		registerNetworkChannelForGlobalTests(t, globalDB, "ws-b", "builders")
-		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
-		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
-		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
-		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-b", "ws-b", "reviewer")
-		created := parkWatchEventsLoopWithDefinitionForTest(
-			ctx,
-			t,
-			globalDB,
-			now,
-			"watch-events-network-recovery",
-			map[string]any{
-				watchEventsPayloadChannelKey: "builders",
-				watchEventsPayloadWorkIDKey:  "work-watch",
-			},
-			compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t),
-		)
-		message := networkWatchThreadMessageForTest(
-			"ws-a",
-			"msg-network-recovery",
-			"thread_network_recovery",
-			"coder.sess-a",
-			"please inspect this work",
-			now.Add(time.Second),
-		)
-		message.PeerTo = "reviewer.sess-a"
-		message.WorkID = "work-watch"
-		if _, err := globalDB.WriteConversationMessage(ctx, message); err != nil {
-			t.Fatalf("WriteConversationMessage(network) error = %v", err)
-		}
-		foreign := networkWatchThreadMessageForTest(
-			"ws-b",
-			"msg-network-foreign",
-			"thread_network_foreign",
-			"coder.sess-b",
-			"cross workspace work",
-			now.Add(2*time.Second),
-		)
-		foreign.PeerTo = "reviewer.sess-b"
-		foreign.WorkID = "work-watch"
-		if _, err := globalDB.WriteConversationMessage(ctx, foreign); err != nil {
-			t.Fatalf("WriteConversationMessage(foreign network) error = %v", err)
-		}
-		actor := coordinatorActorContextForTest()
-		runs, err := globalDB.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now.Add(3*time.Second))
-		if err != nil {
-			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(network) error = %v", err)
-		}
-		if got, want := len(runs), 1; got != want {
-			t.Fatalf("network boot reconcile runs = %d, want %d", got, want)
-		}
-		if got, want := runs[0].LoopRunID, string(created.ID); got != want {
-			t.Fatalf("network boot reconcile loop_run_id = %q, want %q", got, want)
-		}
-
-		events, byNode := claimAndRunWatchEventsWakeForTest(
-			ctx,
-			t,
-			globalDB,
-			created,
-			runs[0],
-			now.Add(4*time.Second),
-			"watch_network_messages",
-		)
-		if got, want := len(events), 1; got != want {
-			t.Fatalf("network confirmed events len = %d, want %d: %#v", got, want, events)
-		}
-		event := events[0]
-		if event.Kind != string(hookspkg.HookNetworkMessagePersisted) ||
-			event.WorkspaceID != "ws-a" ||
-			event.Channel != "builders" ||
-			event.WorkID != "work-watch" ||
-			event.Stream != looppkg.WatchEventsNetworkStream {
-			t.Fatalf("network confirmed event = %#v", event)
-		}
-		if got, want := event.Payload[watchEventsPayloadMessageIDKey], "msg-network-recovery"; got != want {
-			t.Fatalf("network message_id = %v, want %q", got, want)
-		}
-		if got, want := event.Payload[watchEventsPayloadWorkIDKey], "work-watch"; got != want {
-			t.Fatalf("network work_id = %v, want %q", got, want)
-		}
-		downstream := byNode["summarize"]
-		if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
-			t.Fatalf("network downstream output = %#v, want enqueued", downstream)
-		}
-	})
-
 	t.Run(
 		"Should reconcile coordinator stopped subscriptions from observe rows written while down",
 		func(t *testing.T) {
@@ -2912,18 +2646,12 @@ func appendCoordinatorWatchSummaryForTest(
 	content, err := json.Marshal(map[string]any{
 		watchEventsPayloadAgentNameKey:            "coordinator-agent",
 		watchEventsPayloadCoordinatorSessionIDKey: coordinatorSessionID,
-		"resolved_network_participation": map[string]any{
-			"version":    "network-participation/v1",
-			"mode":       "live",
-			"channel_id": "default",
-			"source":     "explicit_request",
-		},
-		watchEventsPayloadWorkflowIDKey:   "wf-watch",
-		watchEventsPayloadProviderKey:     "mock",
-		watchEventsPayloadModelKey:        "mock-model",
-		watchEventsPayloadDecisionKindKey: "stop",
-		watchEventsPayloadDecisionKey:     "stop after verification",
-		watchEventsPayloadStopReasonKey:   "completed",
+		watchEventsPayloadWorkflowIDKey:           "wf-watch",
+		watchEventsPayloadProviderKey:             "mock",
+		watchEventsPayloadModelKey:                "mock-model",
+		watchEventsPayloadDecisionKindKey:         "stop",
+		watchEventsPayloadDecisionKey:             "stop after verification",
+		watchEventsPayloadStopReasonKey:           "completed",
 	})
 	if err != nil {
 		t.Fatalf("Marshal(coordinator watch content) error = %v", err)
@@ -3015,95 +2743,6 @@ func appendSessionWatchEventForTest(
 		t.Fatalf("Close(session %s) error = %v", sessionID, closeErr)
 	}
 	return persisted
-}
-
-func networkWatchThreadMessageForTest(
-	workspaceID string,
-	messageID string,
-	threadID string,
-	peerFrom string,
-	text string,
-	timestamp time.Time,
-) store.NetworkConversationMessage {
-	return store.NetworkConversationMessage{
-		MessageID:   messageID,
-		SessionID:   peerFrom,
-		WorkspaceID: workspaceID,
-		Channel:     "builders",
-		Surface:     store.NetworkSurfaceThread,
-		ThreadID:    threadID,
-		Direction:   "sent",
-		PeerFrom:    peerFrom,
-		Kind:        store.NetworkKindSay,
-		Text:        text,
-		PreviewText: text,
-		Body:        []byte(`{"text":"` + text + `"}`),
-		ProfileID:   store.DefaultProfileID,
-		Timestamp:   timestamp,
-	}
-}
-
-func networkWatchDirectIDForTest(workspaceID, channel, peerA, peerB string) (string, error) {
-	directID, _, _, err := store.NetworkDirectRoomIdentity(workspaceID, channel, peerA, peerB)
-	if err != nil {
-		return "", fmt.Errorf("derive network direct room identity: %w", err)
-	}
-	return directID, nil
-}
-
-func networkWatchDirectMessageForTest(
-	workspaceID string,
-	messageID string,
-	directID string,
-	peerFrom string,
-	peerTo string,
-	text string,
-	timestamp time.Time,
-) store.NetworkConversationMessage {
-	return store.NetworkConversationMessage{
-		MessageID:   messageID,
-		SessionID:   peerFrom,
-		WorkspaceID: workspaceID,
-		Channel:     "builders",
-		Surface:     store.NetworkSurfaceDirect,
-		DirectID:    directID,
-		Direction:   "sent",
-		PeerFrom:    peerFrom,
-		PeerTo:      peerTo,
-		Kind:        store.NetworkKindSay,
-		Text:        text,
-		PreviewText: text,
-		Body:        []byte(`{"text":"` + text + `"}`),
-		ProfileID:   store.DefaultProfileID,
-		Timestamp:   timestamp,
-	}
-}
-
-func networkWatchTraceMessageForTest(
-	workspaceID string,
-	messageID string,
-	threadID string,
-	peerFrom string,
-	workID string,
-	state string,
-	timestamp time.Time,
-) store.NetworkConversationMessage {
-	return store.NetworkConversationMessage{
-		MessageID:   messageID,
-		SessionID:   peerFrom,
-		WorkspaceID: workspaceID,
-		Channel:     "builders",
-		Surface:     store.NetworkSurfaceThread,
-		ThreadID:    threadID,
-		Direction:   "received",
-		PeerFrom:    peerFrom,
-		Kind:        store.NetworkKindTrace,
-		WorkID:      workID,
-		PreviewText: state,
-		Body:        []byte(`{"state":"` + state + `"}`),
-		ProfileID:   store.DefaultProfileID,
-		Timestamp:   timestamp,
-	}
 }
 
 func compileWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
@@ -3284,45 +2923,6 @@ func compileAutomationWatchEventsIntegrationDefinitionForTest(t *testing.T) *loo
 	})
 	if err != nil {
 		t.Fatalf("Compile(automation watch-events integration) error = %v", err)
-	}
-	return resolved
-}
-
-func compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
-	t.Helper()
-	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
-		APIVersion: dsl.APIVersion,
-		Kind:       dsl.KindLoop,
-		Inputs: map[string]dsl.Input{
-			watchEventsPayloadChannelKey: {Type: dsl.InputTypeString},
-			watchEventsPayloadWorkIDKey:  {Type: dsl.InputTypeString},
-		},
-		Graph: dsl.Graph{
-			Nodes: []dsl.Node{
-				{
-					ID:    "watch_network_messages",
-					Class: dsl.NodeClassSource,
-					Kind:  string(dsl.SourceWatchEvents),
-					Events: []dsl.EventSubscription{{
-						Kind: string(hookspkg.HookNetworkMessagePersisted),
-						Filter: "event.channel == inputs.channel" +
-							" && " + "event.payload.work_id == inputs.work_id",
-					}},
-				},
-				{
-					ID:    "summarize",
-					Class: dsl.NodeClassAction,
-					Kind:  string(dsl.ActionTransform),
-					Params: dsl.NodeParams{
-						"map": map[string]any{"ok": map[string]any{"value": true}},
-					},
-				},
-			},
-			Edges: []dsl.Edge{{From: "watch_network_messages", To: "summarize"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Compile(network watch-events integration) error = %v", err)
 	}
 	return resolved
 }

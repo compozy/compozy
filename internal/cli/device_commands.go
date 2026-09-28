@@ -16,7 +16,7 @@ func newDeviceCommand(deps commandDeps) *cobra.Command {
 
 func newDeviceListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   bridgeListKey,
+		Use:   cliOutputListKey,
 		Short: "List paired devices",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -211,9 +211,7 @@ func sessionPermissionPolicyIsEmpty(policy store.SessionPermissionPolicy) bool {
 	return len(normalized.Tools) == 0 &&
 		len(normalized.Skills) == 0 &&
 		len(normalized.MCPServers) == 0 &&
-		len(normalized.WorkspacePaths) == 0 &&
-		len(normalized.NetworkChannels) == 0 &&
-		len(normalized.SandboxProfiles) == 0
+		len(normalized.WorkspacePaths) == 0
 }
 
 func (m *Manager) validateCreateLineageReferences(ctx context.Context, lineage *store.SessionLineage) error {

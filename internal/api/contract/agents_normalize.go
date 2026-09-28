@@ -3,30 +3,15 @@ package contract
 import (
 	"encoding/json"
 
+	"errors"
 	"fmt"
-
-	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-// CoordinationMessageKinds returns the accepted MVP coordination message kinds.
-func CoordinationMessageKinds() []CoordinationMessageKind {
-	return []CoordinationMessageKind{
-		CoordinationMessageStatus,
-		CoordinationMessageRequest,
-		CoordinationMessageReply,
-		CoordinationMessageBlocker,
-		CoordinationMessageHandoff,
-		CoordinationMessageResult,
-		CoordinationMessageReviewRequest,
-	}
-}
-
 // NormalizeAgentMePayload returns a payload with nil list sections converted to empty arrays.
 func NormalizeAgentMePayload(payload AgentMePayload) AgentMePayload {
 	payload.Capabilities = normalizeAgentCapabilities(payload.Capabilities)
-	payload.Channels = normalizeCoordinationChannels(payload.Channels)
 	payload.ActiveTaskLeases = normalizeTaskRunLeases(payload.ActiveTaskLeases)
 	payload.Session = NormalizeAgentSessionPayload(payload.Session)
 	return payload
@@ -49,14 +34,6 @@ func NormalizeAgentContextPayload(source *AgentContextPayload) AgentContextPaylo
 		bundle := taskpkg.NormalizeContextBundle(*payload.Task.Bundle)
 		payload.Task.Bundle = &bundle
 	}
-	if payload.CoordinationChannel.Channel != nil {
-		channel := NormalizeCoordinationChannelPayload(*payload.CoordinationChannel.Channel)
-		payload.CoordinationChannel.Channel = &channel
-	}
-	payload.InboxSummary.Items = normalizeInboxItems(payload.InboxSummary.Items)
-	payload.InboxSummary.Section.Returned = len(payload.InboxSummary.Items)
-	payload.PeerRoster.Peers = normalizePeers(payload.PeerRoster.Peers)
-	payload.PeerRoster.Section.Returned = len(payload.PeerRoster.Peers)
 	payload.Capabilities.Capabilities = normalizeAgentCapabilities(payload.Capabilities.Capabilities)
 	payload.Capabilities.Section.Returned = len(payload.Capabilities.Capabilities)
 	return payload
@@ -78,65 +55,16 @@ func NormalizeSpawnPermissionPolicyPayload(payload SpawnPermissionPolicyPayload)
 	payload.Skills = normalizeStrings(payload.Skills)
 	payload.MCPServers = normalizeStrings(payload.MCPServers)
 	payload.WorkspacePaths = normalizeStrings(payload.WorkspacePaths)
-	payload.NetworkChannels = normalizeStrings(payload.NetworkChannels)
-	payload.SandboxProfiles = normalizeStrings(payload.SandboxProfiles)
-	return payload
-}
-
-// NormalizeCoordinationChannelPayload returns a channel payload with stable message-kind arrays.
-func NormalizeCoordinationChannelPayload(payload CoordinationChannelPayload) CoordinationChannelPayload {
-	if payload.AllowedMessageKinds == nil {
-		payload.AllowedMessageKinds = CoordinationMessageKinds()
-	}
 	return payload
 }
 
 // NormalizeTaskRunLeaseSummaryPayload returns a lease summary with normalized nested channel metadata.
 func NormalizeTaskRunLeaseSummaryPayload(payload TaskRunLeaseSummaryPayload) TaskRunLeaseSummaryPayload {
-	if payload.CoordinationChannel != nil {
-		channel := NormalizeCoordinationChannelPayload(*payload.CoordinationChannel)
-		payload.CoordinationChannel = &channel
-	}
 	return payload
 }
 
-// Validate rejects missing correlation fields, unknown message kinds, and raw claim token metadata.
-func (p CoordinationMessageMetadataPayload) Validate() error {
-	if strings.TrimSpace(p.TaskID) == "" {
-		return fmt.Errorf("%w: task_id is required", ErrInvalidCoordinationMessageMetadata)
-	}
-	if strings.TrimSpace(p.RunID) == "" {
-		return fmt.Errorf("%w: run_id is required", ErrInvalidCoordinationMessageMetadata)
-	}
-	if strings.TrimSpace(p.ChannelID) == "" {
-		return fmt.Errorf("%w: channel_id is required", ErrInvalidCoordinationMessageMetadata)
-	}
-	if strings.TrimSpace(p.CorrelationID) == "" {
-		return fmt.Errorf("%w: correlation_id is required", ErrInvalidCoordinationMessageMetadata)
-	}
-	if !validCoordinationMessageKind(p.MessageKind) {
-		return fmt.Errorf("%w: unsupported message_kind %q", ErrInvalidCoordinationMessageMetadata, p.MessageKind)
-	}
-	if containsRawClaimTokenMap(p.Ext) {
-		return ErrRawClaimTokenMetadata
-	}
-	return nil
-}
-
-// UnmarshalJSON rejects raw claim tokens in typed channel message metadata.
-func (p *CoordinationMessageMetadataPayload) UnmarshalJSON(data []byte) error {
-	if containsRawClaimTokenJSON(data) {
-		return ErrRawClaimTokenMetadata
-	}
-
-	type metadataAlias CoordinationMessageMetadataPayload
-	var decoded metadataAlias
-	if err := decodeStrictContractJSON(data, &decoded); err != nil {
-		return err
-	}
-	*p = CoordinationMessageMetadataPayload(decoded)
-	return p.Validate()
-}
+// ErrRawClaimTokenMetadata reports raw lease credentials in a public payload.
+var ErrRawClaimTokenMetadata = errors.New("contract: public payload must not contain raw lease credentials")
 
 // ContainsRawClaimTokenField reports whether a JSON payload includes a raw claim_token field.
 func ContainsRawClaimTokenField(payload any) (bool, error) {

@@ -14,9 +14,9 @@ import type { InstalledExtensionView } from "../../types";
 
 const CURRENT_DIGEST = "sha256:6f1c0a94d3b27e58";
 
-function networkConfirmationRefusal() {
-  return new ExtensionsApiError("network confirmation required", 409, "daemon", {
-    code: "extension_network_confirmation_required",
+function gatewayConfirmationRefusal() {
+  return new ExtensionsApiError("gateway confirmation required", 409, "daemon", {
+    code: "extension_gateway_confirmation_required",
     currentDigest: CURRENT_DIGEST,
   });
 }
@@ -180,7 +180,7 @@ describe("useExtensionDetailState", () => {
     expect(result.current.activeDialog).toBeNull();
   });
 
-  it("Should toggle the displayed profile without opening a network confirmation", async () => {
+  it("Should toggle the displayed profile without opening a gateway confirmation", async () => {
     mocks.detail.data = installedView({
       name: "dep-kit-ops",
       profile: "captured",
@@ -198,7 +198,7 @@ describe("useExtensionDetailState", () => {
       profileName: "captured",
       workspaceId: "ws_captured",
     });
-    expect(result.current.networkConfirm).toBeNull();
+    expect(result.current.gatewayConfirm).toBeNull();
   });
 
   it("Should resume a refused unverified update with its original variables plus the digest", async () => {
@@ -213,7 +213,7 @@ describe("useExtensionDetailState", () => {
         registry_tier: "community",
       },
     });
-    mocks.update.mutateAsync.mockRejectedValueOnce(networkConfirmationRefusal());
+    mocks.update.mutateAsync.mockRejectedValueOnce(gatewayConfirmationRefusal());
     const { result } = renderHook(() =>
       useExtensionDetailState("dep-kit-ops", { updateVersion: "1.2.0" })
     );
@@ -226,7 +226,7 @@ describe("useExtensionDetailState", () => {
     });
 
     // The consent decision and the resolved target survive the refusal.
-    expect(result.current.networkConfirm).toEqual({
+    expect(result.current.gatewayConfirm).toEqual({
       digest: CURRENT_DIGEST,
       variables: {
         profileName: "default",
@@ -239,36 +239,36 @@ describe("useExtensionDetailState", () => {
     expect(result.current.activeDialog).toBeNull();
 
     await act(async () => {
-      await result.current.submitNetworkConfirm();
+      await result.current.submitGatewayConfirm();
     });
 
     expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
       profileName: "default",
       scope: "global",
       allowUnverified: true,
-      confirmNetworkDigest: CURRENT_DIGEST,
+      confirmGatewayDigest: CURRENT_DIGEST,
       name: "dep-kit-ops",
       version: "1.2.0",
     });
-    expect(result.current.networkConfirm).toBeNull();
+    expect(result.current.gatewayConfirm).toBeNull();
     expect(result.current.activeDialog).toBeNull();
   });
 
   it("Should clear the pending confirmation when the operator dismisses it", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
-    mocks.update.mutateAsync.mockRejectedValueOnce(networkConfirmationRefusal());
+    mocks.update.mutateAsync.mockRejectedValueOnce(gatewayConfirmationRefusal());
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
       await result.current.requestUpdate();
     });
-    expect(result.current.networkConfirm).not.toBeNull();
+    expect(result.current.gatewayConfirm).not.toBeNull();
 
     act(() => {
-      result.current.dismissNetworkConfirm();
+      result.current.dismissGatewayConfirm();
     });
 
-    expect(result.current.networkConfirm).toBeNull();
+    expect(result.current.gatewayConfirm).toBeNull();
   });
 
   it("Should not open confirmation for an unrelated lifecycle failure", async () => {
@@ -289,6 +289,6 @@ describe("useExtensionDetailState", () => {
       name: "dep-kit-ops",
       version: "0.6.0",
     });
-    expect(result.current.networkConfirm).toBeNull();
+    expect(result.current.gatewayConfirm).toBeNull();
   });
 });

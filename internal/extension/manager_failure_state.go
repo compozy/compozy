@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 )
@@ -105,7 +104,6 @@ func (m *Manager) recordOwnedInstanceFailure(
 	ext.redactionCleanups = nil
 	capabilityGrantID := ext.capabilityGrantID
 	ext.capabilityGrantID = ""
-	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
 	name := key.runtimeID()
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
@@ -121,7 +119,6 @@ func (m *Manager) recordOwnedInstanceFailure(
 			m.capChecker.Unregister(capabilityGrantID)
 		}
 		runExtensionRedactionCleanups(cleanups)
-		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, errors.New(safeReason))
 		m.logger.Error(
 			"extension.lifecycle.failed",
 			managerExtensionKey,
@@ -143,7 +140,6 @@ func (m *Manager) recordOwnedInstanceFailure(
 		m.capChecker.Unregister(capabilityGrantID)
 	}
 	runExtensionRedactionCleanups(cleanups)
-	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, errors.New(safeReason))
 	if eventErr := recordExtensionLifecycleEvent(m.lifecycleContext(), m.lifecycleEventSink, LifecycleEvent{
 		Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: key.Name,
 		WorkspaceID: key.WorkspaceID,
@@ -200,7 +196,6 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 	}
 	ext := identity.owner
 	capabilityGrantID := ext.capabilityGrantID
-	instanceIDs := managedBridgeInstanceIDs(ext)
 	m.mu.RUnlock()
 
 	if capabilityGrantID != "" {
@@ -249,8 +244,6 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 			m.mu.Unlock()
 		}
 	}
-
-	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, errors.New(safeReason))
 }
 
 func (m *Manager) matchesInstanceIdentityLocked(identity managedInstanceIdentity) bool {
@@ -301,12 +294,10 @@ func (m *Manager) markInstanceStable(key InstanceKey, generation int64) {
 		m.mu.Unlock()
 		return
 	}
-	instanceIDs := managedBridgeInstanceIDs(ext)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
 	m.mu.Unlock()
-	m.clearBridgeRuntimeIssues(instanceIDs)
 }
 
 func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {

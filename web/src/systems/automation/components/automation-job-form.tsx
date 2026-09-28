@@ -203,106 +203,16 @@ export function AutomationJobForm({
               />
             </Field>
 
-            <FormSection
-              help="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
-              icon={Bot}
-              title="What fires on each tick"
-            >
-              <div className="space-y-4">
-                <PillGroup
-                  aria-label="Target"
-                  className="max-w-full flex-wrap"
-                  items={JOB_TARGET_ITEMS.map(item => ({ ...item, disabled: mode === "edit" }))}
-                  onChange={form.onTargetChange}
-                  size="sm"
-                  value={form.targetMode}
-                />
-                {form.targetMode === "loop" ? (
-                  <LoopTargetFields
-                    catalog={form.loopCatalog}
-                    identityDisabled={mode === "edit"}
-                    mode={mode}
-                    value={form.loopTarget}
-                    workspaceId={form.loopWorkspaceId}
-                    onChange={form.onLoopTargetChange}
-                  />
-                ) : form.targetMode === "task" && draft.task ? (
-                  <TaskRunStep
-                    disabled={isPending}
-                    jobName={draft.name}
-                    onOwnerKind={form.onOwnerKind}
-                    onOwnerRef={form.onOwnerRef}
-                    onNetworkParticipationChange={form.onTaskNetworkParticipation}
-                    onTaskDescription={form.onTaskDescription}
-                    onTaskTitle={form.onTaskTitle}
-                    task={draft.task}
-                  />
-                ) : (
-                  <AgentRunStep
-                    agent={draft.agent_name}
-                    agentDisabled={mode === "edit"}
-                    agents={form.agents}
-                    agentsError={agentsError}
-                    agentsLoading={agentsLoading}
-                    onAgentChange={form.onAgentChange}
-                    onPromptChange={form.onPromptChange}
-                    prompt={draft.prompt}
-                  />
-                )}
-              </div>
-            </FormSection>
+            <JobTargetSection
+              form={form}
+              draft={draft}
+              mode={mode}
+              isPending={isPending}
+              agentsError={agentsError}
+              agentsLoading={agentsLoading}
+            />
 
-            <FormSection
-              help="All times evaluate in UTC, the runtime's automation timezone."
-              icon={Clock}
-              title="On this schedule"
-            >
-              <div className="space-y-4">
-                <PillGroup
-                  aria-label="Schedule mode"
-                  className="max-w-full flex-wrap"
-                  items={SCHEDULE_MODE_ITEMS}
-                  onChange={form.onScheduleMode}
-                  value={form.scheduleMode}
-                />
-                {form.scheduleMode === "cron" ? (
-                  <CronBuilder
-                    expr={draft.schedule.expr ?? ""}
-                    model={form.cronModel}
-                    onDailyTime={form.onDailyTime}
-                    onEveryMinutes={form.onEveryMinutes}
-                    onExpr={form.onCronExpr}
-                    onFrequency={form.onCronFrequency}
-                    onHourlyMinute={form.onHourlyMinute}
-                    onMonthDay={form.onMonthDay}
-                    onMonthlyTime={form.onMonthlyTime}
-                    onPreset={form.onCronPreset}
-                    onToggleWeekday={form.onToggleWeekday}
-                    onWeeklyTime={form.onWeeklyTime}
-                    onWeekdayPreset={form.onWeekdayPreset}
-                    readout={form.preview.scheduleReadout}
-                    valid={form.preview.scheduleValid}
-                  />
-                ) : null}
-                {form.scheduleMode === "every" ? (
-                  <ScheduleEvery
-                    interval={draft.schedule.interval ?? ""}
-                    onInterval={form.onEveryInterval}
-                    onPreset={form.onEveryPreset}
-                    readout={form.preview.scheduleReadout}
-                    valid={form.preview.scheduleValid}
-                  />
-                ) : null}
-                {form.scheduleMode === "at" ? (
-                  <ScheduleAt
-                    onTime={form.onAtTime}
-                    readout={form.preview.scheduleReadout}
-                    time={draft.schedule.time ?? ""}
-                    valid={form.preview.scheduleValid}
-                  />
-                ) : null}
-              </div>
-            </FormSection>
+            <JobScheduleSection form={form} schedule={draft.schedule} />
 
             <ReliabilitySection
               badge={reliabilityBadge(
@@ -365,5 +275,129 @@ export function AutomationJobForm({
         primaryType="submit"
       />
     </form>
+  );
+}
+
+function JobScheduleSection({
+  form,
+  schedule,
+}: {
+  form: ReturnType<typeof useAutomationJobForm>;
+  schedule: CreateAutomationJobRequest["schedule"];
+}) {
+  return (
+    <FormSection
+      help="All times evaluate in UTC, the runtime's automation timezone."
+      icon={Clock}
+      title="On this schedule"
+    >
+      <div className="space-y-4">
+        <PillGroup
+          aria-label="Schedule mode"
+          className="max-w-full flex-wrap"
+          items={SCHEDULE_MODE_ITEMS}
+          onChange={form.onScheduleMode}
+          value={form.scheduleMode}
+        />
+        {form.scheduleMode === "cron" ? (
+          <CronBuilder
+            expr={schedule.expr ?? ""}
+            model={form.cronModel}
+            onDailyTime={form.onDailyTime}
+            onEveryMinutes={form.onEveryMinutes}
+            onExpr={form.onCronExpr}
+            onFrequency={form.onCronFrequency}
+            onHourlyMinute={form.onHourlyMinute}
+            onMonthDay={form.onMonthDay}
+            onMonthlyTime={form.onMonthlyTime}
+            onPreset={form.onCronPreset}
+            onToggleWeekday={form.onToggleWeekday}
+            onWeeklyTime={form.onWeeklyTime}
+            onWeekdayPreset={form.onWeekdayPreset}
+            readout={form.preview.scheduleReadout}
+            valid={form.preview.scheduleValid}
+          />
+        ) : null}
+        {form.scheduleMode === "every" ? (
+          <ScheduleEvery
+            interval={schedule.interval ?? ""}
+            onInterval={form.onEveryInterval}
+            onPreset={form.onEveryPreset}
+            readout={form.preview.scheduleReadout}
+            valid={form.preview.scheduleValid}
+          />
+        ) : null}
+        {form.scheduleMode === "at" ? (
+          <ScheduleAt
+            onTime={form.onAtTime}
+            readout={form.preview.scheduleReadout}
+            time={schedule.time ?? ""}
+            valid={form.preview.scheduleValid}
+          />
+        ) : null}
+      </div>
+    </FormSection>
+  );
+}
+
+function JobTargetSection({
+  form,
+  draft,
+  mode,
+  isPending,
+  agentsError,
+  agentsLoading,
+}: Pick<
+  AutomationJobFormProps,
+  "draft" | "mode" | "isPending" | "agentsError" | "agentsLoading"
+> & { form: ReturnType<typeof useAutomationJobForm> }) {
+  return (
+    <FormSection
+      help="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
+      icon={Bot}
+      title="What fires on each tick"
+    >
+      <div className="space-y-4">
+        <PillGroup
+          aria-label="Target"
+          className="max-w-full flex-wrap"
+          items={JOB_TARGET_ITEMS.map(item => ({ ...item, disabled: mode === "edit" }))}
+          onChange={form.onTargetChange}
+          size="sm"
+          value={form.targetMode}
+        />
+        {form.targetMode === "loop" ? (
+          <LoopTargetFields
+            catalog={form.loopCatalog}
+            identityDisabled={mode === "edit"}
+            mode={mode}
+            value={form.loopTarget}
+            workspaceId={form.loopWorkspaceId}
+            onChange={form.onLoopTargetChange}
+          />
+        ) : form.targetMode === "task" && draft.task ? (
+          <TaskRunStep
+            disabled={isPending}
+            jobName={draft.name}
+            onOwnerKind={form.onOwnerKind}
+            onOwnerRef={form.onOwnerRef}
+            onTaskDescription={form.onTaskDescription}
+            onTaskTitle={form.onTaskTitle}
+            task={draft.task}
+          />
+        ) : (
+          <AgentRunStep
+            agent={draft.agent_name}
+            agentDisabled={mode === "edit"}
+            agents={form.agents}
+            agentsError={agentsError}
+            agentsLoading={agentsLoading}
+            onAgentChange={form.onAgentChange}
+            onPromptChange={form.onPromptChange}
+            prompt={draft.prompt}
+          />
+        )}
+      </div>
+    </FormSection>
   );
 }

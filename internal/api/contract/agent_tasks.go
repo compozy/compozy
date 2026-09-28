@@ -15,10 +15,9 @@ type AgentTaskClaimNextRequest struct {
 
 // AgentTaskClaimPayload is the synchronous claim response for the session-bound lease.
 type AgentTaskClaimPayload struct {
-	Task                TaskReferencePayload        `json:"task"`
-	Run                 TaskRunPayload              `json:"run"`
-	Lease               TaskRunLeaseSummaryPayload  `json:"lease"`
-	CoordinationChannel *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
+	Task  TaskReferencePayload       `json:"task"`
+	Run   TaskRunPayload             `json:"run"`
+	Lease TaskRunLeaseSummaryPayload `json:"lease"`
 }
 
 // AgentTaskHeartbeatRequest extends the caller session's task-run lease.

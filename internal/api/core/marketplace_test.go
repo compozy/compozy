@@ -175,7 +175,7 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 		},
 	}
 	homePaths := testutil.NewTestHomePaths(t)
-	config := testConfigWithDisabledNetwork(homePaths)
+	config := testConfigForTest(homePaths)
 	installedSlug := fixture.extensionInstalledSlug
 	if installedSlug == "" && fixture.extensionCatalogEntryID == "" {
 		installedSlug = "acme/extension"

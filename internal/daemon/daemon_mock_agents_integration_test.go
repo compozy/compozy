@@ -27,7 +27,6 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -71,8 +70,8 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 		t.Fatalf("SessionTranscript() error = %v", err)
 	}
 	gotTranscript := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
-	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "bridge-alpha") {
-		t.Fatalf("transcript = %q, want alpha assistant and bridge content", gotTranscript)
+	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "alpha follow-up") {
+		t.Fatalf("transcript = %q, want both alpha assistant messages", gotTranscript)
 	}
 
 	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
@@ -770,7 +769,6 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		t.Parallel()
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{
 					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
@@ -788,31 +786,13 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		channelID := "hostednative"
-		if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
-			Channel:      channelID,
-			WorkspaceID:  harness.WorkspaceID,
-			Purpose:      "Hosted MCP native tool projection",
-			FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-			AgentNames:   []string{"mock-hosted-native"},
-		}); err != nil {
-			t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
-		}
 		session, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-			AgentName:            "mock-hosted-native",
-			Name:                 "hosted-native-session",
-			WorkspacePath:        harness.WorkspaceRoot,
-			NetworkParticipation: daemonTestNamedParticipationRequest(channelID),
+			AgentName:     "mock-hosted-native",
+			Name:          "hosted-native-session",
+			WorkspacePath: harness.WorkspaceRoot,
 		})
 		if err != nil {
-			t.Fatalf("CreateSession(hosted-native Live) error = %v", err)
-		}
-		if got := resolvedParticipationChannelID(session.ResolvedNetworkParticipation); got != channelID {
-			t.Fatalf(
-				"hosted session ResolvedNetworkParticipation.ChannelID = %q, want %q",
-				got,
-				channelID,
-			)
+			t.Fatalf("CreateSession(hosted-native) error = %v", err)
 		}
 		waitForRuntimeCondition(t, "hosted-native session visible", 5*time.Second, func() bool {
 			current, getErr := harness.GetSession(ctx, session.ID)
@@ -835,44 +815,26 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		if err != nil {
 			t.Fatalf("ListTools(hosted MCP) error = %v", err)
 		}
-		networkToolID := toolspkg.ToolIDNetworkChannelCreate.String()
-		if !sdkToolListContains(list.Tools, networkToolID) {
-			t.Fatalf("hosted MCP tools = %#v, want non-bootstrap tool %s", sdkToolNames(list.Tools), networkToolID)
+		taskToolID := toolspkg.ToolIDTaskCreate.String()
+		if !sdkToolListContains(list.Tools, taskToolID) {
+			t.Fatalf("hosted MCP tools = %#v, want non-bootstrap tool %s", sdkToolNames(list.Tools), taskToolID)
 		}
-
-		channelName := "hostednative-created"
-		call := &sdkmcp.CallToolParams{Name: networkToolID, Arguments: map[string]any{
-			"workspace": harness.WorkspaceID,
-			"channel":   channelName,
-			"purpose":   "Runtime E2E hosted native tool access",
-		}}
-		result, err := client.CallTool(ctx, call)
+		taskID := createHostedTaskForWakeE2E(
+			t,
+			ctx,
+			client,
+			"hostednative-created",
+			"Runtime E2E hosted native tool access",
+		)
+		task, err := harness.GetTask(ctx, taskID)
 		if err != nil {
-			t.Fatalf("CallTool(%s) error = %v", networkToolID, err)
+			t.Fatalf("GetTask(%q) error = %v", taskID, err)
 		}
-		if result == nil || result.IsError {
-			t.Fatalf("CallTool(%s) result = %#v, want successful result", networkToolID, result)
-		}
-		structured, err := json.Marshal(result.StructuredContent)
-		if err != nil {
-			t.Fatalf("Marshal(CallTool structuredContent) error = %v", err)
-		}
-		if !strings.Contains(string(structured), channelName) {
-			t.Fatalf("CallTool structuredContent = %s, want channel %q", structured, channelName)
-		}
-
-		channel, err := harness.NetworkChannel(ctx, channelName)
-		if err != nil {
-			t.Fatalf("NetworkChannel(%q) error = %v", channelName, err)
-		}
-		if channel.Channel != channelName || channel.Purpose != "Runtime E2E hosted native tool access" {
-			t.Fatalf("NetworkChannel(%q) = %#v, want hosted native purpose", channelName, channel)
+		if task.Task.ID != taskID || task.Task.Title != "Runtime E2E hosted native tool access" {
+			t.Fatalf("GetTask(%q) = %#v, want hosted native task", taskID, task)
 		}
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
-		}
-		if err := harness.CaptureNetworkArtifacts(ctx, channelName); err != nil {
-			t.Fatalf("CaptureNetworkArtifacts(%q) error = %v", channelName, err)
 		}
 	})
 

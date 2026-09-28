@@ -5,8 +5,8 @@ title: Settings takeover shell with srow pages and save models
 persona: Dora
 journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (Back to app closes the window; search with `/` shortcut filters sections; Workspace/Runtime/Personal/System groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
-entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Network, Diagnostics, Notifications, Remote access)
-qa_status: skipped
+entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -34,3 +34,5 @@ Also re-read the restart/apply surfaces and the operator-verb error copy in this
 (`lib/restart-presentation.ts`, `settings-apply-records-panel.tsx`): the humanized-error sweep
 rewrote raw failure strings into plain sentences, so a settings failure should now name what did not
 happen and what to do, without a Go error string as the primary text.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

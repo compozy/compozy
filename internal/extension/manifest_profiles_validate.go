@@ -52,7 +52,7 @@ func validateManifestProfiles(manifest *Manifest) error {
 func validateManifestPlacements(manifest *Manifest) error {
 	for _, placement := range manifestPlacements(manifest) {
 		name := strings.TrimSpace(placement.profile)
-		if name == "" || name == hostAPIBridgesDefaultKey {
+		if name == "" || name == hostAPIDefaultProfileID {
 			continue
 		}
 		if _, err := profilepkg.NormalizeName(name); err != nil {

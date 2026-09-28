@@ -34,10 +34,9 @@ const faq = [
       "The dream consolidator runs on a cron plus idle triggers, any quiet window over 30 minutes kicks off a pass.",
   },
   {
-    value: "network",
+    value: "remote",
     question: "Can agents talk across workspaces?",
-    answer:
-      "Only when the Phase 3 network layer is enabled and both peers trust the shared channel certificate.",
+    answer: "Remote access requires an active Gateway provider and the configured access policy.",
   },
 ] as const;
 

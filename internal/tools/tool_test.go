@@ -201,9 +201,9 @@ func TestDescriptorValidation(t *testing.T) {
 			reason: ReasonPolicyDenied,
 		},
 		{
-			name: "Should reject bridge backend descriptors",
+			name: "Should reject unsupported backend descriptors",
 			mutate: func(d *Descriptor) {
-				d.Backend = BackendRef{Kind: BackendBridge}
+				d.Backend = BackendRef{Kind: "unsupported"}
 			},
 			reason: ReasonBackendNotExecutable,
 		},
@@ -706,7 +706,7 @@ func TestToolErrorReasonExtraction(t *testing.T) {
 		cause := errors.New("permission source")
 		err := NewToolError(
 			ErrorCodeDenied,
-			"compozy__network_send",
+			"compozy__session_prompt",
 			"denied",
 			cause,
 			ReasonPolicyDenied,

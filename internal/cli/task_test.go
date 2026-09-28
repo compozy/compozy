@@ -9,8 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -54,24 +52,6 @@ func TestTaskCommandsRejectInvalidFlagCombos(t *testing.T) {
 				"triage",
 			},
 			wantErr: "--clear-owner cannot be combined with --owner-kind or --owner-ref",
-		},
-		{
-			name: "Should reject unknown network bounds fields",
-			args: []string{
-				"task", "create", "--scope", "global", "--title", "Investigate",
-				"--network", "live", "--network-channel-strategy", "named",
-				"--network-channel", "builders", "--network-bounds", `{"max_waks":1}`,
-			},
-			wantErr: `json: unknown field "max_waks"`,
-		},
-		{
-			name: "Should reject trailing network bounds values",
-			args: []string{
-				"task", "create", "--scope", "global", "--title", "Investigate",
-				"--network", "live", "--network-channel-strategy", "named",
-				"--network-channel", "builders", "--network-bounds", `{"max_wakes":1} {}`,
-			},
-			wantErr: "expected exactly one JSON object",
 		},
 	}
 
@@ -308,9 +288,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--identifier", "OPS-42",
 					"--scope", "workspace",
 					"--workspace", "alpha",
-					"--network", "live",
-					"--network-channel-strategy", "named",
-					"--network-channel", "builders",
+
 					"--title", "Investigate flaky task runs",
 					"--description", "Capture root cause",
 					"--priority", "high",
@@ -323,7 +301,6 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					t.Fatalf("task create error = %v", err)
 				}
 
-				assertLiveNamedParticipationRequest(t, createRequest.NetworkParticipation, "builders")
 				if createRequest.Scope != taskpkg.ScopeWorkspace ||
 					createRequest.Workspace != "alpha" ||
 					createRequest.Title != "Investigate flaky task runs" ||
@@ -405,7 +382,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--worktree", "wt-alpha",
 					"--include-loop",
 					"--loop-run", "looprun-alpha",
-					"--participation-channel", "builders",
+
 					"--limit", "3",
 					"-o", "json",
 				)
@@ -422,7 +399,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					listQuery.Worktree != "wt-alpha" ||
 					!listQuery.IncludeLoop ||
 					listQuery.LoopRunID != "looprun-alpha" ||
-					listQuery.ParticipationChannel != "builders" ||
+
 					listQuery.Limit != 3 {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
 				}
@@ -835,9 +812,7 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-publish",
-				"--network", "live",
-				"--network-channel-strategy", "named",
-				"--network-channel", "builders",
+
 				"-o",
 				"json",
 			},
@@ -861,9 +836,7 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-start",
-				"--network", "live",
-				"--network-channel-strategy", "named",
-				"--network-channel", "builders",
+
 				"-o",
 				"json",
 			},
@@ -887,9 +860,7 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-approve",
-				"--network", "live",
-				"--network-channel-strategy", "named",
-				"--network-channel", "builders",
+
 				"-o",
 				"json",
 			},
@@ -917,7 +888,7 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 			if _, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), tt.args...); err != nil {
 				t.Fatalf("task %s error = %v", tt.wantAction, err)
 			}
-			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+
 			if request.IdempotencyKey != "idem-"+tt.wantAction {
 				t.Fatalf("request = %#v, want idempotency key for %s", request, tt.wantAction)
 			}
@@ -956,8 +927,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"running",
 					"--session",
 					"sess-1",
-					"--participation-channel",
-					"builders",
+
 					"--last",
 					"2",
 					"-o",
@@ -967,7 +937,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				}
 				if runListQuery.Status != taskpkg.TaskRunStatusRunning ||
 					runListQuery.SessionID != "sess-1" ||
-					runListQuery.ParticipationChannel != "builders" ||
+
 					runListQuery.Limit != 2 {
 					t.Fatalf("runListQuery = %#v, want parsed run filters", runListQuery)
 				}
@@ -1065,9 +1035,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"task-1",
 					"--idempotency-key",
 					"idem-1",
-					"--network", "live",
-					"--network-channel-strategy", "named",
-					"--network-channel", "builders",
+
 					"--metadata",
 					`{"schema":"compozy.harness.detached.v1"}`,
 					"-o",
@@ -1075,7 +1043,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task run enqueue error = %v", err)
 				}
-				assertLiveNamedParticipationRequest(t, enqueueRequest.NetworkParticipation, "builders")
+
 				if enqueueRequest.IdempotencyKey != "idem-1" {
 					t.Fatalf("enqueueRequest = %#v, want idempotency key", enqueueRequest)
 				}
@@ -1825,9 +1793,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--metadata", `{"priority":"low"}`,
-					"--network", "live",
-					"--network-channel-strategy", "named",
-					"--network-channel", "builders",
+
 					"-o", "json",
 				); err != nil {
 					t.Fatalf("task update error = %v", err)
@@ -1840,29 +1806,6 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					updateRequest.ClearOwner ||
 					updateRequest.Metadata == nil || string(*updateRequest.Metadata) != `{"priority":"low"}` {
 					t.Fatalf("update request = %#v, want parsed task mutation payload", updateRequest)
-				}
-				assertLiveNamedParticipationRequest(t, updateRequest.NetworkParticipation, "builders")
-			},
-		},
-		{
-			name: "Should reject removed --channel on task update",
-			run: func(t *testing.T) {
-				t.Helper()
-
-				deps := newWorkspaceTestDeps(t, &stubClient{})
-				_, stderr, err := executeRootCommand(
-					t,
-					deps,
-					"task", "update", "task-1",
-					"--title", "Retitle triage task",
-					"--channel", "builders",
-				)
-				if err == nil {
-					t.Fatal("task update --channel error = nil, want rejection")
-				}
-				if !strings.Contains(err.Error(), "unknown flag: --channel") &&
-					!strings.Contains(stderr, "unknown flag: --channel") {
-					t.Fatalf("task update --channel error = %v stderr=%q, want removed flag rejection", err, stderr)
 				}
 			},
 		},
@@ -2005,9 +1948,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--identifier", "OPS-43",
 					"--scope", "workspace",
 					"--workspace", "alpha",
-					"--network", "live",
-					"--network-channel-strategy", "named",
-					"--network-channel", "builders",
+
 					"--title", "Check runtime logs",
 					"--description", "Focus on worker output",
 					"--priority", "urgent",
@@ -2018,7 +1959,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task child create error = %v", err)
 				}
-				assertLiveNamedParticipationRequest(t, childCreateRequest.NetworkParticipation, "builders")
+
 				if childParentID != "task-root" ||
 					childCreateRequest.ID != "task-child" ||
 					childCreateRequest.Identifier != "OPS-43" ||
@@ -2196,7 +2137,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			"update",
 			"task-1",
 			"--profile",
-			`{"worker":{"mode":"select","agent_name":"worker-b"},"sandbox":{"mode":"none"}}`,
+			`{"worker":{"mode":"select","agent_name":"worker-b"}}`,
 			"-o",
 			"json",
 		)
@@ -2206,8 +2147,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 		if updateID != "task-1" ||
 			updateRequest.TaskID != "task-1" ||
 			updateRequest.Worker.Mode != taskpkg.WorkerModeSelect ||
-			updateRequest.Worker.AgentName != "worker-b" ||
-			updateRequest.Sandbox.Mode != taskpkg.SandboxModeNone {
+			updateRequest.Worker.AgentName != "worker-b" {
 			t.Fatalf("update request = %#v", updateRequest)
 		}
 		var updated TaskExecutionProfileRecord
@@ -2284,408 +2224,6 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), `profile.task_id must match task id "task-1"`) {
 			t.Fatalf("task profile update mismatch error = %v", err)
-		}
-	})
-}
-
-func TestTaskNotificationCommandsMapRequests(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should subscribe list and delete bridge task notifications", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			subscribeTaskID string
-			subscribeBody   TaskBridgeNotificationSubscriptionRequest
-			listTaskID      string
-			listQuery       TaskBridgeNotificationSubscriptionQuery
-			showTaskID      string
-			showID          string
-			deleteTaskID    string
-			deleteID        string
-		)
-		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
-			createTaskBridgeNotificationSubscriptionFn: func(
-				_ context.Context,
-				taskID string,
-				request *TaskBridgeNotificationSubscriptionRequest,
-			) (TaskBridgeNotificationSubscriptionRecord, error) {
-				if request == nil {
-					t.Fatal("request is nil")
-					return TaskBridgeNotificationSubscriptionRecord{}, nil
-				}
-				subscribeTaskID = taskID
-				subscribeBody = *request
-				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
-			},
-			listTaskBridgeNotificationSubscriptionsFn: func(
-				_ context.Context,
-				taskID string,
-				query TaskBridgeNotificationSubscriptionQuery,
-			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
-				listTaskID = taskID
-				listQuery = query
-				return []TaskBridgeNotificationSubscriptionRecord{sampleTaskBridgeNotificationSubscriptionRecord()}, nil
-			},
-			getTaskBridgeNotificationSubscriptionFn: func(
-				_ context.Context,
-				taskID string,
-				subscriptionID string,
-			) (TaskBridgeNotificationSubscriptionRecord, error) {
-				showTaskID = taskID
-				showID = subscriptionID
-				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
-			},
-			deleteTaskBridgeNotificationSubscriptionFn: func(
-				_ context.Context,
-				taskID string,
-				subscriptionID string,
-			) error {
-				deleteTaskID = taskID
-				deleteID = subscriptionID
-				return nil
-			},
-		})
-
-		stdout, _, err := executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"subscribe",
-			"task-1",
-			"--subscription-id",
-			"sub-1",
-			"--bridge",
-			"brg-1",
-			"--scope",
-			"workspace",
-			"--workspace",
-			"ws-1",
-			"--peer",
-			"peer-1",
-			"--thread",
-			"thread-1",
-			"--mode",
-			"reply",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("task notification subscribe error = %v", err)
-		}
-		if subscribeTaskID != "task-1" ||
-			subscribeBody.SubscriptionID != "sub-1" ||
-			subscribeBody.BridgeInstanceID != "brg-1" ||
-			subscribeBody.Scope != bridgepkg.ScopeWorkspace ||
-			subscribeBody.WorkspaceID != "ws-1" ||
-			subscribeBody.PeerID != "peer-1" ||
-			subscribeBody.ThreadID != "thread-1" ||
-			subscribeBody.DeliveryMode != bridgepkg.DeliveryModeReply {
-			t.Fatalf("subscribe body = %#v for task %q", subscribeBody, subscribeTaskID)
-		}
-		var subscribed TaskBridgeNotificationSubscriptionRecord
-		if err := json.Unmarshal([]byte(stdout), &subscribed); err != nil {
-			t.Fatalf("json.Unmarshal(notification subscribe) error = %v", err)
-		}
-		if subscribed.SubscriptionID != "sub-1" ||
-			subscribed.Cursor.ConsumerID == "" ||
-			subscribed.Cursor.Scope.Kind != notifications.ScopeKindWorkspace ||
-			subscribed.Cursor.Scope.WorkspaceID != "ws-1" ||
-			subscribed.Cursor.LastSequence != 7 ||
-			subscribed.Cursor.LastDeliveryID != "nd1_test_delivery_7" {
-			t.Fatalf("subscribed = %#v", subscribed)
-		}
-
-		stdout, _, err = executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"list",
-			"task-1",
-			"--bridge",
-			"brg-1",
-			"--scope",
-			"workspace",
-			"--workspace",
-			"ws-1",
-			"--last",
-			"5",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("task notification list error = %v", err)
-		}
-		if listTaskID != "task-1" ||
-			listQuery.BridgeInstanceID != "brg-1" ||
-			listQuery.Scope != bridgepkg.ScopeWorkspace ||
-			listQuery.WorkspaceID != "ws-1" ||
-			listQuery.Limit != 5 {
-			t.Fatalf("list query = %#v for task %q", listQuery, listTaskID)
-		}
-		if !strings.Contains(stdout, `"subscription_id": "sub-1"`) ||
-			!strings.Contains(stdout, `"profile_name": "default"`) ||
-			!strings.Contains(stdout, `"last_sequence": 7`) ||
-			!strings.Contains(stdout, `"last_error": "bridge adapter rejected send"`) {
-			t.Fatalf("notification list stdout = %s", stdout)
-		}
-
-		stdout, _, err = executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"show",
-			"task-1",
-			"sub-1",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("task notification show error = %v", err)
-		}
-		if showTaskID != "task-1" || showID != "sub-1" {
-			t.Fatalf("show task/id = %q/%q", showTaskID, showID)
-		}
-		if !strings.Contains(stdout, `"cursor"`) ||
-			!strings.Contains(stdout, `"last_delivery_id": "nd1_test_delivery_7"`) ||
-			!strings.Contains(stdout, `"scope": {`) ||
-			!strings.Contains(stdout, `"workspace_id": "ws-1"`) {
-			t.Fatalf("notification show stdout = %s", stdout)
-		}
-
-		stdout, _, err = executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"show",
-			"task-1",
-			"sub-1",
-		)
-		if err != nil {
-			t.Fatalf("task notification show human error = %v", err)
-		}
-		if !strings.Contains(stdout, "Cursor Last Sequence") ||
-			!strings.Contains(stdout, "Profile") ||
-			!strings.Contains(stdout, "default") ||
-			!strings.Contains(stdout, "bridge adapter rejected send") {
-			t.Fatalf("notification show human stdout = %s", stdout)
-		}
-
-		stdout, _, err = executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"delete",
-			"task-1",
-			"sub-1",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("task notification delete error = %v", err)
-		}
-		if deleteTaskID != "task-1" || deleteID != "sub-1" {
-			t.Fatalf("delete task/id = %q/%q", deleteTaskID, deleteID)
-		}
-		if !strings.Contains(stdout, `"status": "deleted"`) {
-			t.Fatalf("notification delete stdout = %s", stdout)
-		}
-	})
-
-	t.Run("Should preserve opaque notification subscription identifiers", func(t *testing.T) {
-		t.Parallel()
-
-		var capturedTaskID string
-		var capturedRequest TaskBridgeNotificationSubscriptionRequest
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			createTaskBridgeNotificationSubscriptionFn: func(
-				_ context.Context,
-				taskID string,
-				request *TaskBridgeNotificationSubscriptionRequest,
-			) (TaskBridgeNotificationSubscriptionRecord, error) {
-				if request == nil {
-					t.Fatal("request is nil")
-					return TaskBridgeNotificationSubscriptionRecord{}, nil
-				}
-				capturedTaskID = taskID
-				capturedRequest = *request
-				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
-			},
-		})
-
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"task", "notification", "subscribe", " task-opaque ",
-			"--subscription-id", " sub-opaque ",
-			"--bridge", " brg-opaque ",
-			"--peer", " peer-opaque ",
-			"--thread", " thread-opaque ",
-			"--group", " group-opaque ",
-			"--mode", "reply",
-		)
-		if err != nil {
-			t.Fatalf("task notification subscribe error = %v", err)
-		}
-		if capturedTaskID != " task-opaque " ||
-			capturedRequest.SubscriptionID != " sub-opaque " ||
-			capturedRequest.BridgeInstanceID != " brg-opaque " ||
-			capturedRequest.PeerID != " peer-opaque " ||
-			capturedRequest.ThreadID != " thread-opaque " ||
-			capturedRequest.GroupID != " group-opaque " {
-			t.Fatalf("captured opaque notification subscription = task %q request %#v", capturedTaskID, capturedRequest)
-		}
-	})
-
-	t.Run("Should reject notification subscriptions without a delivery target", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			createTaskBridgeNotificationSubscriptionFn: func(
-				context.Context,
-				string,
-				*TaskBridgeNotificationSubscriptionRequest,
-			) (TaskBridgeNotificationSubscriptionRecord, error) {
-				t.Fatal("CreateTaskBridgeNotificationSubscription should not be called")
-				return TaskBridgeNotificationSubscriptionRecord{}, nil
-			},
-		})
-
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"subscribe",
-			"task-1",
-			"--bridge",
-			"brg-1",
-		)
-		if err == nil || !strings.Contains(err.Error(), "requires --peer or --group") {
-			t.Fatalf("task notification subscribe target error = %v", err)
-		}
-	})
-
-	t.Run("Should reject negative notification list limits before calling client", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
-			listTaskBridgeNotificationSubscriptionsFn: func(
-				context.Context,
-				string,
-				TaskBridgeNotificationSubscriptionQuery,
-			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
-				t.Fatal("ListTaskBridgeNotificationSubscriptions should not be called")
-				return nil, nil
-			},
-		})
-
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"task",
-			"notification",
-			"list",
-			"task-1",
-			"--last",
-			"-1",
-		)
-		if err == nil || !strings.Contains(err.Error(), "--last must be zero or positive") {
-			t.Fatalf("task notification list error = %v", err)
-		}
-	})
-
-	t.Run("Should reject noncanonical notification enums before calling client", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
-			createTaskBridgeNotificationSubscriptionFn: func(
-				context.Context,
-				string,
-				*TaskBridgeNotificationSubscriptionRequest,
-			) (TaskBridgeNotificationSubscriptionRecord, error) {
-				t.Fatal("CreateTaskBridgeNotificationSubscription should not be called")
-				return TaskBridgeNotificationSubscriptionRecord{}, nil
-			},
-			listTaskBridgeNotificationSubscriptionsFn: func(
-				context.Context,
-				string,
-				TaskBridgeNotificationSubscriptionQuery,
-			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
-				t.Fatal("ListTaskBridgeNotificationSubscriptions should not be called")
-				return nil, nil
-			},
-		})
-		subscribeArgs := func(flag string, value string) []string {
-			return []string{
-				"task", taskNotificationCommandName, "subscribe", "task-1",
-				"--bridge", "brg-1", "--peer", "peer-1", flag, value,
-			}
-		}
-		listArgs := func(scope string) []string {
-			return []string{"task", taskNotificationCommandName, "list", "task-1", "--scope", scope}
-		}
-
-		tests := []struct {
-			name    string
-			args    []string
-			wantErr string
-		}{
-			{
-				name:    "subscribe scope with whitespace",
-				args:    subscribeArgs("--scope", " global "),
-				wantErr: "invalid notification scope",
-			},
-			{
-				name:    "subscribe scope with noncanonical case",
-				args:    subscribeArgs("--scope", "GLOBAL"),
-				wantErr: "invalid notification scope",
-			},
-			{
-				name:    "subscribe scope alias",
-				args:    subscribeArgs("--scope", "project"),
-				wantErr: "invalid notification scope",
-			},
-			{
-				name:    "list whitespace-only scope",
-				args:    listArgs("   "),
-				wantErr: "invalid notification scope",
-			},
-			{
-				name:    "list scope with whitespace",
-				args:    listArgs(" workspace "),
-				wantErr: "invalid notification scope",
-			},
-			{
-				name:    "subscribe delivery mode with whitespace",
-				args:    subscribeArgs("--mode", " reply "),
-				wantErr: "invalid delivery mode",
-			},
-			{
-				name:    "subscribe delivery mode with noncanonical case",
-				args:    subscribeArgs("--mode", "REPLY"),
-				wantErr: "invalid delivery mode",
-			},
-			{
-				name:    "subscribe delivery mode alias",
-				args:    subscribeArgs("--mode", "direct"),
-				wantErr: "invalid delivery mode",
-			},
-		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				_, _, err := executeRootCommand(t, deps, test.args...)
-				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-					t.Fatalf("task notification enum error = %v, want %q", err, test.wantErr)
-				}
-			})
 		}
 	})
 }
@@ -3064,9 +2602,9 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		}
 		if !strings.Contains(
 			toonOut,
-			"tasks[1]{id,profile_name,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,loop,title}:",
-		) || !strings.Contains(toonOut, "builders") {
-			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
+			"tasks[1]{id,profile_name,identifier,scope,workspace_id,parent_task_id,status,owner,loop,title}:",
+		) || !strings.Contains(toonOut, "OPS-42") {
+			t.Fatalf("task list toon output = %q, want tasks TOON array with task identifier", toonOut)
 		}
 	})
 
@@ -3113,11 +2651,14 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 			!strings.Contains(detailToon, "marketing") ||
 			!strings.Contains(
 				detailToon,
-				"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+				"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,queued_at,started_at,ended_at,error}:",
 			) ||
 			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") ||
-			!strings.Contains(detailToon, "builders") {
-			t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections with builders", detailToon)
+			!strings.Contains(detailToon, "task-child") {
+			t.Fatalf(
+				"task detail toon output = %q, want child/dependency/run/event sections with child identifier",
+				detailToon,
+			)
 		}
 	})
 
@@ -3183,30 +2724,9 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 		if !strings.Contains(
 			runToon,
-			"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
-		) || !strings.Contains(runToon, "completed") || !strings.Contains(runToon, "builders") {
-			t.Fatalf("task run toon output = %q, want completed task run TOON array with builders", runToon)
-		}
-	})
-
-	t.Run("Should render taskless network wake detail without a fabricated task", func(t *testing.T) {
-		t.Parallel()
-
-		detail := sampleTaskRunDetailRecord(taskpkg.TaskRunStatusRunning)
-		detail.Task = nil
-		detail.Run.TaskID = ""
-		humanOut, err := taskRunDetailBundle(&detail).human()
-		if err != nil {
-			t.Fatalf("taskRunDetailBundle(taskless).human() error = %v", err)
-		}
-		toonOut, err := taskRunDetailBundle(&detail).toon()
-		if err != nil {
-			t.Fatalf("taskRunDetailBundle(taskless).toon() error = %v", err)
-		}
-		for format, output := range map[string]string{"human": humanOut, "toon": toonOut} {
-			if !strings.Contains(output, "run-1") || strings.Contains(output, "Investigate flaky task runs") {
-				t.Fatalf("taskless %s output = %q, want run without fabricated Task section", format, output)
-			}
+			"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,queued_at,started_at,ended_at,error}:",
+		) || !strings.Contains(runToon, "completed") || !strings.Contains(runToon, "run-1") {
+			t.Fatalf("task run toon output = %q, want completed task run TOON array with run identifier", runToon)
 		}
 	})
 
@@ -3245,28 +2765,13 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 				nil,
 				commandDeps{},
 				nil,
-				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", false, "", "", "", "", "", 0,
+				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", false, "", "", "", "", 0,
 			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
 				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
 			}
 		})
 	}
-
-	t.Run("Should name the participation channel flag in validation errors", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := parseTaskListFilters(
-			nil,
-			commandDeps{},
-			nil,
-			"", "", "", "", "", "", "", "", false, "", "invalid channel!", "", "", "", 0,
-		)
-		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
-			strings.Contains(err.Error(), "invalid --channel value") {
-			t.Fatalf("parseTaskListFilters() error = %v, want current participation-channel diagnostic", err)
-		}
-	})
 
 	t.Run("Should reject a worktree filter without a workspace boundary", func(t *testing.T) {
 		t.Parallel()
@@ -3275,7 +2780,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			nil,
 			commandDeps{},
 			nil,
-			"all", "", "", "", "", "", "", "wt-alpha", false, "", "", "", "", "", 0,
+			"all", "", "", "", "", "", "", "wt-alpha", false, "", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "--worktree requires a workspace") {
 			t.Fatalf("parseTaskListFilters() error = %v, want workspace boundary diagnostic", err)
@@ -3285,57 +2790,57 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 
 func sampleTaskSummaryRecord() TaskSummaryRecord {
 	return TaskSummaryRecord{
-		ID:                           "task-1",
-		Identifier:                   "OPS-42",
-		Scope:                        taskpkg.ScopeWorkspace,
-		WorkspaceID:                  "ws-alpha",
-		ParentTaskID:                 "task-root",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-		Title:                        "Investigate flaky task runs",
-		Status:                       taskpkg.TaskStatusReady,
-		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:                    fixedTestNow,
-		UpdatedAt:                    fixedTestNow,
+		ID:           "task-1",
+		Identifier:   "OPS-42",
+		Scope:        taskpkg.ScopeWorkspace,
+		WorkspaceID:  "ws-alpha",
+		ParentTaskID: "task-root",
+
+		Title:     "Investigate flaky task runs",
+		Status:    taskpkg.TaskStatusReady,
+		Owner:     &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt: fixedTestNow,
+		UpdatedAt: fixedTestNow,
 	}
 }
 
 func sampleTaskCatalogItemRecord() TaskCatalogItemRecord {
 	return TaskCatalogItemRecord{
-		ID:                           "task-1",
-		Identifier:                   "OPS-42",
-		Scope:                        taskpkg.ScopeWorkspace,
-		WorkspaceID:                  "ws-alpha",
-		ParentTaskID:                 "task-root",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-		Title:                        "Investigate flaky task runs",
-		Status:                       taskpkg.TaskStatusReady,
-		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:                    fixedTestNow,
-		UpdatedAt:                    fixedTestNow,
+		ID:           "task-1",
+		Identifier:   "OPS-42",
+		Scope:        taskpkg.ScopeWorkspace,
+		WorkspaceID:  "ws-alpha",
+		ParentTaskID: "task-root",
+
+		Title:     "Investigate flaky task runs",
+		Status:    taskpkg.TaskStatusReady,
+		Owner:     &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt: fixedTestNow,
+		UpdatedAt: fixedTestNow,
 	}
 }
 
 func sampleTaskRecord() TaskRecord {
 	return TaskRecord{
-		ID:                           "task-1",
-		Identifier:                   "OPS-42",
-		Scope:                        taskpkg.ScopeWorkspace,
-		WorkspaceID:                  "ws-alpha",
-		ParentTaskID:                 "task-root",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-		Title:                        "Investigate flaky task runs",
-		Description:                  "Capture root cause",
-		Status:                       taskpkg.TaskStatusReady,
-		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:                    fixedTestNow,
-		UpdatedAt:                    fixedTestNow,
-		Metadata:                     json.RawMessage(`{"priority":"high"}`),
+		ID:           "task-1",
+		Identifier:   "OPS-42",
+		Scope:        taskpkg.ScopeWorkspace,
+		WorkspaceID:  "ws-alpha",
+		ParentTaskID: "task-root",
+
+		Title:       "Investigate flaky task runs",
+		Description: "Capture root cause",
+		Status:      taskpkg.TaskStatusReady,
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt:   fixedTestNow,
+		UpdatedAt:   fixedTestNow,
+		Metadata:    json.RawMessage(`{"priority":"high"}`),
 	}
 }
 
@@ -3398,44 +2903,6 @@ func sampleTaskExecutionProfileRecord() TaskExecutionProfileRecord {
 		Review: taskpkg.ReviewProfile{
 			AgentName: "reviewer-a",
 		},
-		Sandbox: taskpkg.SandboxPolicy{
-			Mode:       taskpkg.SandboxModeRef,
-			SandboxRef: "macos-lab",
-		},
-		CreatedAt: fixedTestNow,
-		UpdatedAt: fixedTestNow,
-	}
-}
-
-func sampleTaskBridgeNotificationSubscriptionRecord() TaskBridgeNotificationSubscriptionRecord {
-	lastDeliveredAt := fixedTestNow.Add(time.Minute)
-	cursorUpdatedAt := fixedTestNow.Add(2 * time.Minute)
-	return TaskBridgeNotificationSubscriptionRecord{
-		SubscriptionID:   "sub-1",
-		ProfileID:        store.DefaultProfileID,
-		ProfileName:      "default",
-		TaskID:           "task-1",
-		BridgeInstanceID: "brg-1",
-		Scope:            bridgepkg.ScopeWorkspace,
-		WorkspaceID:      "ws-1",
-		PeerID:           "peer-1",
-		ThreadID:         "thread-1",
-		DeliveryMode:     bridgepkg.DeliveryModeReply,
-		Cursor: contract.TaskBridgeNotificationCursorPayload{
-			Scope: notifications.ScopeRef{
-				Kind:        notifications.ScopeKindWorkspace,
-				WorkspaceID: "ws-1",
-			},
-			ConsumerID:      "sub-1",
-			StreamName:      "task_events",
-			SubjectID:       "task-1",
-			LastSequence:    7,
-			LastDeliveryID:  "nd1_test_delivery_7",
-			LastDeliveredAt: &lastDeliveredAt,
-			LastError:       "bridge adapter rejected send",
-			UpdatedAt:       &cursorUpdatedAt,
-		},
-		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
 		CreatedAt: fixedTestNow,
 		UpdatedAt: fixedTestNow,
 	}
@@ -3470,15 +2937,15 @@ func timePointer(value time.Time) *time.Time {
 
 func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	record := TaskRunRecord{
-		ID:                           "run-1",
-		ProfileName:                  "default",
-		TaskID:                       "task-1",
-		Status:                       status,
-		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},
-		Attempt:                      1,
-		IdempotencyKey:               "idem-run",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-		QueuedAt:                     fixedTestNow,
+		ID:             "run-1",
+		ProfileName:    "default",
+		TaskID:         "task-1",
+		Status:         status,
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},
+		Attempt:        1,
+		IdempotencyKey: "idem-run",
+
+		QueuedAt: fixedTestNow,
 	}
 
 	claimedAt := fixedTestNow.Add(time.Minute)
@@ -3581,14 +3048,6 @@ func agentTaskClaimRecord() AgentTaskClaimRecord {
 		},
 		Run:   sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed),
 		Lease: lease,
-		CoordinationChannel: &contract.CoordinationChannelPayload{
-			ID:                  "builders",
-			DisplayName:         "Builders",
-			WorkspaceID:         "ws-1",
-			TaskID:              "task-1",
-			RunID:               "run-1",
-			AllowedMessageKinds: contract.CoordinationMessageKinds(),
-		},
 	}
 }
 
@@ -3596,15 +3055,14 @@ func agentTaskLeaseRecord(status taskpkg.RunStatus) AgentTaskLeaseRecord {
 	leaseUntil := fixedTestNow.Add(5 * time.Minute)
 	heartbeatAt := fixedTestNow.Add(time.Minute)
 	return AgentTaskLeaseRecord{
-		TaskID:                       "task-1",
-		RunID:                        "run-1",
-		Status:                       status,
-		SessionID:                    "sess-agent",
-		ClaimedBy:                    &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
-		ClaimTokenHash:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		LeaseUntil:                   &leaseUntil,
-		HeartbeatAt:                  &heartbeatAt,
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		TaskID:         "task-1",
+		RunID:          "run-1",
+		Status:         status,
+		SessionID:      "sess-agent",
+		ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		LeaseUntil:     &leaseUntil,
+		HeartbeatAt:    &heartbeatAt,
 	}
 }
 

@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
-  cp,
   mkdir,
   mkdtemp,
   readdir,
@@ -16,7 +15,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import {} from "node:url";
 import { promisify } from "node:util";
 
 import type {
@@ -27,20 +26,11 @@ import type {
   CreateAutomationTriggerRequest,
 } from "@/systems/automation";
 import type {
-  BridgeDetailResponse,
-  BridgeHealth,
-  BridgeProvider,
-  BridgeRoute,
-  BridgeSummary,
-} from "@/systems/bridges";
-import type {
   SettingsHookRequest,
   SettingsMCPServerRequest,
   SettingsMCPServerTarget,
   SettingsMutationResult,
   SettingsProviderRequest,
-  SettingsSandboxEntry,
-  SettingsSandboxRequest,
   SettingsSkillsSection,
 } from "@/systems/settings";
 import type {
@@ -141,7 +131,6 @@ export interface BrowserMarketplaceCatalogSeed {
 }
 
 export interface BrowserRuntimeSeed {
-  bundledBridgeExtension?: boolean;
   extensionRegistry?: BrowserExtensionRegistrySeed;
   marketplaceCatalog?: BrowserMarketplaceCatalogSeed;
   skills?: BrowserSkillSeed[];
@@ -154,48 +143,6 @@ export interface BrowserAutomationOperatorFlowSeed {
   agentName: string;
   timeoutMs?: number;
   workspaceId?: string;
-}
-
-export interface BridgeAdapterMarkerPaths {
-  crashOnce: string;
-  delivery: string;
-  handshake: string;
-  ingest: string;
-  ownership: string;
-  shutdown: string;
-  starts: string;
-  state: string;
-  updates: string;
-}
-
-interface PreparedBrowserBridgeExtension {
-  checksum: string;
-  extensionDir: string;
-  markers: BridgeAdapterMarkerPaths;
-}
-
-export interface BrowserBridgeOperatorFlowSeed {
-  displayName?: string;
-  prepareExtension?: () => Promise<{
-    checksum: string;
-    extensionDir: string;
-    markers: BridgeAdapterMarkerPaths;
-  }>;
-  timeoutMs?: number;
-  workspaceRootDir?: string;
-}
-
-export interface BrowserBridgeOperatorFlowResult {
-  bridge: BridgeSummary;
-  extension: {
-    checksum: string;
-    dir: string;
-    markers: BridgeAdapterMarkerPaths;
-    name: string;
-    platform: string;
-  };
-  health: BridgeHealth;
-  provider: BridgeProvider;
 }
 
 export interface BrowserSettingsProviderSeed {
@@ -220,7 +167,6 @@ export interface BrowserSettingsHookSeed {
 export interface BrowserSettingsFixturesSeed {
   disabledSkills?: string[];
   hooks?: BrowserSettingsHookSeed[];
-  installBridgeExtension?: boolean;
   mcpServers?: BrowserSettingsMCPServerSeed[];
   providers?: BrowserSettingsProviderSeed[];
   timeoutMs?: number;
@@ -235,27 +181,11 @@ export interface BrowserSettingsFixturesResult {
     workspaceId?: string;
   }>;
   createdProviderNames: string[];
-  extension?: {
-    checksum: string;
-    dir: string;
-    markers: BridgeAdapterMarkerPaths;
-    name: string;
-    platform: string;
-  };
   initialDisabledSkills?: string[];
   workspace?: WorkspacePayload;
 }
 
-export interface BrowserSandboxProfileSeed {
-  name: string;
-  profile: SettingsSandboxRequest["profile"];
-}
-
-export interface BrowserSandboxProfilesResult {
-  sandboxes: SettingsSandboxEntry[];
-}
-
-type BrowserBridgeOperatorSeedRuntime = Pick<
+type BrowserSettingsSeedRuntime = Pick<
   BrowserRuntimeSeedClient,
   "requestJSON" | "requestOperatorJSON"
 > &
@@ -274,22 +204,6 @@ type BrowserAutomationOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requ
     };
     seeded?: BrowserRuntimeSeedResult;
   };
-
-type BrowserSettingsSeedRuntime = BrowserBridgeOperatorSeedRuntime;
-
-export interface BrowserBridgeIngressSeed {
-  assistantText?: string;
-  messageId?: number;
-  text?: string;
-  timeoutMs?: number;
-  updateId?: number;
-}
-
-export interface BrowserBridgeIngressResult {
-  routes: BridgeRoute[];
-  sessionId: string;
-  transcript: string;
-}
 
 export interface BrowserAutomationOperatorFlowResult {
   job: AutomationJob;
@@ -352,30 +266,6 @@ export async function readBrowserTaskCatalog(
   return await runtime.requestJSON<BrowserTaskCatalogResponse>(`/api/tasks${suffix}`);
 }
 
-export interface BrowserNetworkOperatorFlowSeed {
-  channel: string;
-  initiatorAgentName: string;
-  responderAgentName: string;
-  timeoutMs?: number;
-  workspaceId: string;
-}
-
-interface BrowserNetworkOperatorFlowParticipant extends SeededSessionPayload {
-  peerId: string;
-}
-
-export interface BrowserNetworkOperatorFlowResult {
-  channel: string;
-  directId: string;
-  initiator: BrowserNetworkOperatorFlowParticipant;
-  messageIds: typeof browserNetworkOperatorFlowScenario.messageIds;
-  responder: BrowserNetworkOperatorFlowParticipant;
-  threadId: string;
-  traceId: string;
-  workId: string;
-  workspaceId: string;
-}
-
 export interface BrowserRuntimeSeedResult {
   workspace?: WorkspacePayload;
   session?: SeededSessionPayload;
@@ -405,34 +295,6 @@ interface MockFixture {
   agents?: MockFixtureAgent[];
 }
 
-interface NetworkChannelSeedPayload {
-  channel: string;
-  sessions?: SeededSessionPayload[];
-}
-
-interface NetworkPeerSeedPayload {
-  channel: string;
-  peer_id: string;
-  session_id?: string;
-}
-
-interface NetworkMessageSeedPayload {
-  direct_id?: string;
-  message_id: string;
-  surface?: string;
-  thread_id?: string;
-}
-
-interface NetworkStatusSeedPayload {
-  network?: {
-    kind_metrics?: Array<{
-      kind?: string;
-      sent?: number;
-      delivered?: number;
-    }>;
-  };
-}
-
 type BrowserTasksOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJSON"> &
   Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
     paths?: {
@@ -440,37 +302,13 @@ type BrowserTasksOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJS
     };
     seeded?: BrowserRuntimeSeedResult;
   };
-
-const NETWORK_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const AUTOMATION_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const TASKS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
-const BRIDGE_OPERATOR_FLOW_TIMEOUT_MS = 45_000;
 const SETTINGS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BROWSER_SEED_POLL_MS = 150;
 const BROWSER_SEED_SESSION_ACTIVE_TIMEOUT_MS = 30_000;
-const BRIDGE_EXTENSION_NAME = "telegram-reference";
-const BRIDGE_PLATFORM = "telegram";
 
 let acpMockDriverBinaryPromise: Promise<string> | undefined;
-let bundledExtensionSeederBinaryPromise: Promise<string> | undefined;
-
-export const browserNetworkOperatorFlowScenario = {
-  messageIds: {
-    say: "browser_msg_say_01",
-    direct: "browser_msg_direct_01",
-    trace: "browser_msg_trace_01",
-    summary: "browser_msg_summary_01",
-  },
-  texts: {
-    say: "Who can take the failing migration tests in internal/store/sessiondb?",
-    direct: "I can take the failing migration tests and send back a patch summary.",
-    trace: "Patch prepared and local tests now pass.",
-    summary: "Summary: migration test patch prepared and local verification is passing.",
-  },
-  threadId: "thread_browser_patch_42",
-  traceId: "browser_trace_ops_patch_42",
-  workId: "browser_work_patch_42",
-} as const;
 
 export const browserAutomationOperatorFlowScenario = {
   job: {
@@ -490,37 +328,6 @@ export const browserAutomationOperatorFlowScenario = {
   },
   transcript: {
     assistant: "Automation review completed for deploy on main.",
-  },
-} as const;
-
-export const browserBridgeOperatorFlowScenario = {
-  bridge: {
-    initialName: "Telegram Browser Bridge",
-    initialProviderConfig: {
-      mode: "bot",
-      webhook_url: "https://example.test/browser-bridge",
-    },
-    editedName: "Telegram Bridge Ops",
-    editedProviderConfig: {
-      mode: "bot",
-      webhook_url: "https://example.test/browser-bridge-updated",
-    },
-  },
-  ingress: {
-    assistant: "Bridge summary: initial route handled.",
-    messageId: 321,
-    text: "Need a runtime bridge summary",
-    updateId: 94001,
-  },
-  secretBinding: {
-    name: "bot_token",
-    value: "telegram-bot-token",
-  },
-  testDelivery: {
-    message: "Deliver a short operator ping.",
-    mode: "direct-send",
-    peerId: "telegram-peer-321",
-    threadId: "654",
   },
 } as const;
 
@@ -579,10 +386,6 @@ export async function seedBrowserRuntimeHome(
   const skills = seed?.skills ?? [];
   if (skills.length > 0) {
     await seedBrowserSkills(paths.homeDir, skills);
-  }
-
-  if (seed?.bundledBridgeExtension === true) {
-    await seedBrowserBundledBridgeExtension(paths);
   }
 
   const mockAgents = seed?.mockAgents ?? [];
@@ -804,265 +607,6 @@ export async function applyBrowserRuntimeSeed(
     workspace,
     session,
   };
-}
-
-export async function seedBrowserNetworkOperatorFlow(
-  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
-  seed: BrowserNetworkOperatorFlowSeed
-): Promise<BrowserNetworkOperatorFlowResult> {
-  const channel = seed.channel.trim();
-  const initiatorAgentName = seed.initiatorAgentName.trim();
-  const responderAgentName = seed.responderAgentName.trim();
-  const workspaceId = requireSeedWorkspaceID(seed.workspaceId, "network operator flow seed");
-
-  if (channel === "") {
-    throw new Error("network operator flow seed requires a non-empty channel");
-  }
-  if (initiatorAgentName === "" || responderAgentName === "") {
-    throw new Error("network operator flow seed requires both initiator and responder agents");
-  }
-
-  const timeoutMs = seed.timeoutMs ?? NETWORK_OPERATOR_FLOW_TIMEOUT_MS;
-
-  const channelState = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ channel: NetworkChannelSeedPayload }>(
-        workspaceNetworkPath(workspaceId, `/channels/${encodeURIComponent(channel)}`)
-      );
-      const sessions = payload.channel.sessions ?? [];
-      const initiatorSession = sessions.find(session => session.agent_name === initiatorAgentName);
-      const responderSession = sessions.find(session => session.agent_name === responderAgentName);
-
-      if (!initiatorSession || !responderSession) {
-        return null;
-      }
-
-      return {
-        initiatorSession,
-        responderSession,
-      };
-    },
-    `network channel ${channel} to include both operator-flow agents`,
-    timeoutMs
-  );
-
-  const peerState = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ peers: NetworkPeerSeedPayload[] }>(
-        workspaceNetworkPath(workspaceId, `/peers?channel=${encodeURIComponent(channel)}`)
-      );
-      const initiatorPeer = payload.peers.find(
-        peer => peer.session_id === channelState.initiatorSession.id
-      );
-      const responderPeer = payload.peers.find(
-        peer => peer.session_id === channelState.responderSession.id
-      );
-
-      if (!initiatorPeer || !responderPeer) {
-        return null;
-      }
-
-      return {
-        initiatorPeer,
-        responderPeer,
-      };
-    },
-    `network peers for ${channel}`,
-    timeoutMs
-  );
-
-  const directRoom = await runtime.requestJSON<{ direct: { direct_id: string } }>(
-    workspaceNetworkPath(workspaceId, `/channels/${encodeURIComponent(channel)}/directs/resolve`),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        session_id: channelState.responderSession.id,
-        peer_id: peerState.initiatorPeer.peer_id,
-      }),
-    }
-  );
-  const directId = directRoom.direct.direct_id.trim();
-  if (directId === "") {
-    throw new Error("network operator flow seed direct resolve returned an empty direct_id");
-  }
-
-  await sendNetworkSeedMessage(runtime, workspaceId, {
-    session_id: channelState.initiatorSession.id,
-    channel,
-    kind: "say",
-    surface: "thread",
-    thread_id: browserNetworkOperatorFlowScenario.threadId,
-    id: browserNetworkOperatorFlowScenario.messageIds.say,
-    trace_id: browserNetworkOperatorFlowScenario.traceId,
-    body: {
-      text: browserNetworkOperatorFlowScenario.texts.say,
-      intent: "request-help",
-      artifacts: [],
-    },
-  });
-
-  await sendNetworkSeedMessage(runtime, workspaceId, {
-    session_id: channelState.responderSession.id,
-    channel,
-    kind: "say",
-    surface: "direct",
-    direct_id: directId,
-    to: peerState.initiatorPeer.peer_id,
-    work_id: browserNetworkOperatorFlowScenario.workId,
-    reply_to: browserNetworkOperatorFlowScenario.messageIds.say,
-    trace_id: browserNetworkOperatorFlowScenario.traceId,
-    causation_id: browserNetworkOperatorFlowScenario.messageIds.say,
-    id: browserNetworkOperatorFlowScenario.messageIds.direct,
-    body: {
-      text: browserNetworkOperatorFlowScenario.texts.direct,
-      intent: "handoff",
-      artifacts: [],
-    },
-  });
-
-  await sendNetworkSeedMessage(runtime, workspaceId, {
-    session_id: channelState.responderSession.id,
-    channel,
-    kind: "trace",
-    surface: "direct",
-    direct_id: directId,
-    to: peerState.initiatorPeer.peer_id,
-    work_id: browserNetworkOperatorFlowScenario.workId,
-    reply_to: browserNetworkOperatorFlowScenario.messageIds.direct,
-    trace_id: browserNetworkOperatorFlowScenario.traceId,
-    causation_id: browserNetworkOperatorFlowScenario.messageIds.direct,
-    id: browserNetworkOperatorFlowScenario.messageIds.trace,
-    body: {
-      state: "completed",
-      message: browserNetworkOperatorFlowScenario.texts.trace,
-      result: {
-        summary: "Fixed migration assertion mismatch in sessiondb tests.",
-      },
-      artifact_refs: [],
-    },
-  });
-
-  await sendNetworkSeedMessage(runtime, workspaceId, {
-    session_id: channelState.responderSession.id,
-    channel,
-    kind: "say",
-    surface: "thread",
-    thread_id: browserNetworkOperatorFlowScenario.threadId,
-    reply_to: browserNetworkOperatorFlowScenario.messageIds.trace,
-    trace_id: browserNetworkOperatorFlowScenario.traceId,
-    causation_id: browserNetworkOperatorFlowScenario.messageIds.trace,
-    id: browserNetworkOperatorFlowScenario.messageIds.summary,
-    body: {
-      text: browserNetworkOperatorFlowScenario.texts.summary,
-      intent: "summarize-back",
-      artifacts: [],
-    },
-  });
-
-  await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
-        workspaceNetworkPath(
-          workspaceId,
-          `/channels/${encodeURIComponent(channel)}/threads/${encodeURIComponent(
-            browserNetworkOperatorFlowScenario.threadId
-          )}/messages`
-        )
-      );
-      const messageIds = new Set(payload.messages.map(message => message.message_id));
-
-      return messageIds.has(browserNetworkOperatorFlowScenario.messageIds.say) &&
-        messageIds.has(browserNetworkOperatorFlowScenario.messageIds.summary)
-        ? payload.messages
-        : null;
-    },
-    `network thread ${browserNetworkOperatorFlowScenario.threadId} for ${channel}`,
-    timeoutMs
-  );
-
-  await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
-        workspaceNetworkPath(
-          workspaceId,
-          `/channels/${encodeURIComponent(channel)}/directs/${encodeURIComponent(directId)}/messages`
-        )
-      );
-      const messageIds = new Set(payload.messages.map(message => message.message_id));
-
-      return messageIds.has(browserNetworkOperatorFlowScenario.messageIds.direct) &&
-        messageIds.has(browserNetworkOperatorFlowScenario.messageIds.trace)
-        ? payload.messages
-        : null;
-    },
-    `network direct ${directId} for ${channel}`,
-    timeoutMs
-  );
-
-  await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<NetworkStatusSeedPayload>("/api/network/status");
-      const kindMetrics = new Map(
-        (payload.network?.kind_metrics ?? []).map(metric => [metric.kind ?? "", metric])
-      );
-      const say = kindMetrics.get("say");
-      const trace = kindMetrics.get("trace");
-
-      if ((say?.sent ?? 0) < 3 || (say?.delivered ?? 0) < 2) {
-        return null;
-      }
-      if ((trace?.sent ?? 0) < 1 || (trace?.delivered ?? 0) < 1) {
-        return null;
-      }
-
-      return payload.network?.kind_metrics ?? [];
-    },
-    `network operator metrics for ${channel}`,
-    timeoutMs
-  );
-
-  return {
-    channel,
-    directId,
-    initiator: {
-      ...channelState.initiatorSession,
-      peerId: peerState.initiatorPeer.peer_id,
-    },
-    responder: {
-      ...channelState.responderSession,
-      peerId: peerState.responderPeer.peer_id,
-    },
-    messageIds: browserNetworkOperatorFlowScenario.messageIds,
-    threadId: browserNetworkOperatorFlowScenario.threadId,
-    traceId: browserNetworkOperatorFlowScenario.traceId,
-    workId: browserNetworkOperatorFlowScenario.workId,
-    workspaceId,
-  };
-}
-
-export async function seedBrowserSandboxProfiles(
-  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
-  profiles: BrowserSandboxProfileSeed[]
-): Promise<BrowserSandboxProfilesResult> {
-  const sandboxes: SettingsSandboxEntry[] = [];
-
-  for (const seed of profiles) {
-    const name = seed.name.trim();
-    if (name === "") {
-      throw new Error("sandbox profile seed requires a non-empty name");
-    }
-
-    const payload = await runtime.requestJSON<{ sandbox: SettingsSandboxEntry }>(
-      `/api/settings/sandboxes/${encodeURIComponent(name)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ profile: seed.profile }),
-      }
-    );
-    sandboxes.push(payload.sandbox);
-  }
-
-  return { sandboxes };
 }
 
 export async function seedBrowserAutomationOperatorFlow(
@@ -1291,90 +835,6 @@ export async function seedBrowserTasksOperatorFlow(
   };
 }
 
-export async function seedBrowserBridgeOperatorFlow(
-  runtime: BrowserBridgeOperatorSeedRuntime,
-  seed: BrowserBridgeOperatorFlowSeed = {}
-): Promise<BrowserBridgeOperatorFlowResult> {
-  const timeoutMs = seed.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
-  const displayName =
-    seed.displayName?.trim() || browserBridgeOperatorFlowScenario.bridge.initialName;
-  const installedExtension = await installBrowserBridgeExtension(runtime, {
-    prepareExtension: seed.prepareExtension,
-    timeoutMs,
-  });
-
-  const provider = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ providers: BridgeProvider[] }>(
-        "/api/bridges/providers"
-      );
-      return (
-        payload.providers.find(
-          candidate =>
-            candidate.extension_name === BRIDGE_EXTENSION_NAME &&
-            candidate.platform === BRIDGE_PLATFORM
-        ) ?? null
-      );
-    },
-    `${BRIDGE_EXTENSION_NAME} bridge provider`,
-    timeoutMs
-  );
-
-  const workspace = await resolveBrowserBridgeWorkspace(runtime, seed.workspaceRootDir, timeoutMs);
-
-  const createResponse = await runtime.requestJSON<BridgeDetailResponse>("/api/bridges", {
-    method: "POST",
-    body: JSON.stringify({
-      display_name: displayName,
-      enabled: false,
-      extension_name: BRIDGE_EXTENSION_NAME,
-      platform: BRIDGE_PLATFORM,
-      provider_config: browserBridgeOperatorFlowScenario.bridge.initialProviderConfig,
-      routing_policy: {
-        include_group: false,
-        include_peer: true,
-        include_thread: true,
-      },
-      scope: "workspace",
-      workspace_id: workspace.id,
-    }),
-  });
-
-  await runtime.requestJSON<{ binding: { binding_name: string; secret_ref: string } }>(
-    `/api/bridges/${encodeURIComponent(createResponse.bridge.id)}/secret-bindings/${encodeURIComponent(
-      browserBridgeOperatorFlowScenario.secretBinding.name
-    )}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({
-        kind: browserBridgeOperatorFlowScenario.secretBinding.name,
-        secret_ref: `vault:bridges/${createResponse.bridge.id}/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
-        secret_value: browserBridgeOperatorFlowScenario.secretBinding.value,
-      }),
-    }
-  );
-
-  const bridgeDetail = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<BridgeDetailResponse>(
-        `/api/bridges/${encodeURIComponent(createResponse.bridge.id)}`
-      );
-      return payload.health?.status === "disabled" ? payload : null;
-    },
-    `bridge detail for ${createResponse.bridge.id}`,
-    timeoutMs
-  );
-
-  return {
-    bridge: bridgeDetail.bridge,
-    extension: {
-      ...installedExtension,
-    },
-    health: bridgeDetail.health,
-    provider,
-  };
-}
-
 export async function seedBrowserSettingsFixtures(
   runtime: BrowserSettingsSeedRuntime,
   seed: BrowserSettingsFixturesSeed = {}
@@ -1557,10 +1017,6 @@ export async function seedBrowserSettingsFixtures(
     );
   }
 
-  if (seed.installBridgeExtension) {
-    result.extension = await installBrowserBridgeExtension(runtime, { timeoutMs });
-  }
-
   return result;
 }
 
@@ -1627,125 +1083,6 @@ export async function cleanupBrowserSettingsFixtures(
   }
 }
 
-async function installBrowserBridgeExtension(
-  runtime: BrowserSettingsSeedRuntime,
-  options: {
-    prepareExtension?: () => Promise<{
-      checksum: string;
-      extensionDir: string;
-      markers: BridgeAdapterMarkerPaths;
-    }>;
-    timeoutMs?: number;
-  } = {}
-): Promise<NonNullable<BrowserSettingsFixturesResult["extension"]>> {
-  const requestOperatorJSON = async <T>(pathname: string, init?: RequestInit): Promise<T> => {
-    if (runtime.requestOperatorJSON) {
-      return await runtime.requestOperatorJSON<T>(pathname, init);
-    }
-    return await runtime.requestJSON<T>(pathname, init);
-  };
-  const prepareExtension =
-    options.prepareExtension ?? (() => resolveSeededBrowserBridgeExtension(runtime));
-  const timeoutMs = options.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
-  const prepared = await prepareExtension();
-
-  // Install is inert: the daemon registers the bundled package without starting it, so the seed
-  // waits for registration and then performs the explicit enable the lifecycle now requires.
-  await waitForSeedCondition(
-    async () => {
-      const payload = await requestOperatorJSON<{
-        extension: { checksum: string; enabled: boolean; name: string; source: string };
-      }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
-      return payload.extension.name === BRIDGE_EXTENSION_NAME &&
-        payload.extension.source === "bundled"
-        ? payload.extension
-        : null;
-    },
-    `${BRIDGE_EXTENSION_NAME} extension registration`,
-    timeoutMs
-  );
-
-  const installed = await waitForSeedCondition(
-    async () => {
-      const payload = await requestOperatorJSON<{
-        extension: { checksum: string; enabled: boolean; name: string; source: string };
-      }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
-      if (payload.extension.enabled) return payload.extension;
-      await requestOperatorJSON<unknown>(
-        `/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}/enable`,
-        { body: "{}", method: "POST" }
-      );
-      return null;
-    },
-    `${BRIDGE_EXTENSION_NAME} extension enable`,
-    timeoutMs
-  );
-
-  return {
-    checksum: installed.checksum || prepared.checksum,
-    dir: prepared.extensionDir,
-    markers: prepared.markers,
-    name: BRIDGE_EXTENSION_NAME,
-    platform: BRIDGE_PLATFORM,
-  };
-}
-
-async function resolveSeededBrowserBridgeExtension(
-  runtime: BrowserBridgeOperatorSeedRuntime
-): Promise<PreparedBrowserBridgeExtension> {
-  const homeDir = runtime.paths?.homeDir?.trim();
-  if (!homeDir) {
-    throw new Error("browser bridge flow requires a launch-mode bundled extension seed");
-  }
-  const extensionDir = path.join(homeDir, "fixtures", BRIDGE_EXTENSION_NAME);
-  return {
-    checksum: "",
-    extensionDir,
-    markers: createBridgeAdapterMarkerPaths(path.join(extensionDir, "markers")),
-  };
-}
-
-async function seedBrowserBundledBridgeExtension(paths: BrowserRuntimeSeedPaths): Promise<void> {
-  const fixtureRoot = path.join(paths.homeDir, "fixtures");
-  const prepared = await prepareBrowserBridgeExtension(fixtureRoot);
-  const seederPath = await ensureBundledExtensionSeederBinary(paths.repoRoot);
-  await execFileAsync(seederPath, ["--home", paths.homeDir, "--source", prepared.extensionDir], {
-    cwd: paths.repoRoot,
-    env: process.env,
-    maxBuffer: 20 * 1024 * 1024,
-  });
-}
-
-async function ensureBundledExtensionSeederBinary(repoRoot: string): Promise<string> {
-  if (bundledExtensionSeederBinaryPromise === undefined) {
-    bundledExtensionSeederBinaryPromise = buildBundledExtensionSeederBinary(repoRoot).catch(
-      error => {
-        bundledExtensionSeederBinaryPromise = undefined;
-        throw error;
-      }
-    );
-  }
-  return await bundledExtensionSeederBinaryPromise;
-}
-
-async function buildBundledExtensionSeederBinary(repoRoot: string): Promise<string> {
-  const buildDir = await mkdtemp(path.join(os.tmpdir(), "compozy-bundled-extension-seeder-"));
-  const outputPath = path.join(
-    buildDir,
-    process.platform === "win32" ? "bundled-extension-seeder.exe" : "bundled-extension-seeder"
-  );
-  await execFileAsync(
-    "go",
-    ["build", "-o", outputPath, "./web/e2e/fixtures/bundled-extension-seeder"],
-    {
-      cwd: repoRoot,
-      env: process.env,
-      maxBuffer: 20 * 1024 * 1024,
-    }
-  );
-  return outputPath;
-}
-
 function buildSettingsMCPServersListPath(
   scope: "global" | "workspace",
   workspaceId?: string
@@ -1800,45 +1137,6 @@ async function ignoreNotFound<T>(operation: Promise<T>): Promise<T | undefined> 
   }
 }
 
-async function resolveBrowserBridgeWorkspace(
-  runtime: BrowserBridgeOperatorSeedRuntime,
-  workspaceRootDir: string | undefined,
-  timeoutMs: number
-): Promise<WorkspacePayload> {
-  const requestedRoot = workspaceRootDir?.trim();
-  if (requestedRoot) {
-    if (!runtime.resolveWorkspace) {
-      throw new Error("browser bridge workspace seed requires resolveWorkspace support");
-    }
-    return await runtime.resolveWorkspace(requestedRoot);
-  }
-  const seededWorkspace = runtime.seeded?.workspace;
-  if (seededWorkspace) {
-    return seededWorkspace;
-  }
-
-  const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
-  const workspaceDir = runtime.paths?.workspaceDir;
-  if (resolveWorkspace && workspaceDir) {
-    return await waitForSeedCondition(
-      async () => await resolveWorkspace(workspaceDir),
-      "browser bridge workspace",
-      timeoutMs
-    );
-  }
-
-  return await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>(
-        "/api/workspaces"
-      );
-      return payload.workspaces[0] ?? null;
-    },
-    "browser bridge workspace",
-    timeoutMs
-  );
-}
-
 async function resolveBrowserTasksWorkspace(
   runtime: BrowserTasksOperatorSeedRuntime,
   seed: BrowserTasksOperatorFlowSeed,
@@ -1891,74 +1189,6 @@ async function createBrowserTask(
       body: JSON.stringify(body),
     })
   ).task;
-}
-
-export async function triggerBrowserBridgeIngress(
-  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
-  seeded: Pick<BrowserBridgeOperatorFlowResult, "bridge" | "extension">,
-  seed: BrowserBridgeIngressSeed = {}
-): Promise<BrowserBridgeIngressResult> {
-  const timeoutMs = seed.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
-  const update = createBrowserBridgeIngressUpdate(seeded.bridge.id, {
-    messageId: seed.messageId,
-    text: seed.text,
-    updateId: seed.updateId,
-  });
-  await appendJSONLine(seeded.extension.markers.updates, update);
-
-  await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<BridgeDetailResponse>(
-        `/api/bridges/${encodeURIComponent(seeded.bridge.id)}`
-      );
-      return (payload.health?.route_count ?? 0) >= 1 && Boolean(payload.health?.last_success_at)
-        ? payload
-        : null;
-    },
-    `bridge ingress health for ${seeded.bridge.id}`,
-    timeoutMs
-  );
-
-  const routes = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ routes: BridgeRoute[] }>(
-        `/api/bridges/${encodeURIComponent(seeded.bridge.id)}/routes`
-      );
-      return payload.routes.length > 0 ? payload.routes : null;
-    },
-    `bridge routes for ${seeded.bridge.id}`,
-    timeoutMs
-  );
-
-  const sessionId = routes[0]?.session_id?.trim();
-  if (!sessionId) {
-    throw new Error(`bridge ingress for ${seeded.bridge.id} did not produce a session route`);
-  }
-
-  const transcriptPayload = await waitForSeedCondition(
-    async () => {
-      const workspaceId = requireSeedWorkspaceID(
-        (routes[0] as { workspace_id?: string } | undefined)?.workspace_id,
-        `bridge route for session ${sessionId}`
-      );
-      const payload = await runtime.requestJSON<{ entries: Array<{ message: unknown }> }>(
-        workspaceSessionPath(workspaceId, sessionId, "/transcript")
-      );
-      const transcript = JSON.stringify(payload.entries.map(entry => entry.message));
-      const assistantText =
-        seed.assistantText?.trim() || browserBridgeOperatorFlowScenario.ingress.assistant;
-
-      return transcript.includes(assistantText) ? payload : null;
-    },
-    `bridge transcript for session ${sessionId}`,
-    timeoutMs
-  );
-
-  return {
-    routes,
-    sessionId,
-    transcript: JSON.stringify(transcriptPayload.entries.map(entry => entry.message)),
-  };
 }
 
 async function resolveSeedWorkspace(
@@ -2100,27 +1330,12 @@ function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: stri
   return lines.join("\n");
 }
 
-async function sendNetworkSeedMessage(
-  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
-  workspaceId: string,
-  body: Record<string, unknown>
-): Promise<void> {
-  await runtime.requestJSON(workspaceNetworkPath(workspaceId, "/send"), {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
 function requireSeedWorkspaceID(workspaceId: string | undefined, context: string): string {
   const normalized = workspaceId?.trim() ?? "";
   if (normalized === "") {
     throw new Error(`${context} requires a workspace_id`);
   }
   return normalized;
-}
-
-function workspaceNetworkPath(workspaceId: string, suffix: string): string {
-  return workspacePath(workspaceId, `/network${suffix.startsWith("/") ? suffix : `/${suffix}`}`);
 }
 
 function workspaceSessionPath(workspaceId: string, sessionId: string, suffix: string): string {
@@ -2192,181 +1407,6 @@ async function createAutomationOperatorTrigger(
       body: JSON.stringify(request),
     })
   ).trigger;
-}
-
-async function prepareBrowserBridgeExtension(
-  fixtureRoot?: string
-): Promise<PreparedBrowserBridgeExtension> {
-  const repoRoot = resolveBrowserRepoRoot();
-  const sourceDir = path.join(repoRoot, "internal", "extension", "testdata", BRIDGE_EXTENSION_NAME);
-  const tempRoot = fixtureRoot
-    ? path.resolve(fixtureRoot)
-    : await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridge-extension-"));
-  const extensionDir = path.join(tempRoot, BRIDGE_EXTENSION_NAME);
-  const markers = createBridgeAdapterMarkerPaths(path.join(extensionDir, "markers"));
-
-  await mkdir(tempRoot, { recursive: true });
-  await rm(extensionDir, { force: true, recursive: true });
-  await cp(sourceDir, extensionDir, { recursive: true });
-  await mkdir(path.join(extensionDir, "bin"), { recursive: true });
-  await mkdir(path.dirname(markers.handshake), { recursive: true });
-
-  const manifestPath = path.join(extensionDir, "extension.toml");
-  const rawManifest = await readFile(manifestPath, "utf8");
-  await writeFile(manifestPath, patchBridgeExtensionManifest(rawManifest, markers), "utf8");
-
-  await execFileAsync(
-    "go",
-    [
-      "build",
-      "-o",
-      path.join(extensionDir, "bin", BRIDGE_EXTENSION_NAME),
-      "./internal/extension/testdata/telegram-reference",
-    ],
-    {
-      cwd: repoRoot,
-      env: process.env,
-    }
-  );
-
-  return {
-    checksum: await computeDirectoryChecksum(extensionDir),
-    extensionDir,
-    markers,
-  };
-}
-
-function resolveBrowserRepoRoot(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-}
-
-function createBridgeAdapterMarkerPaths(rootDir: string): BridgeAdapterMarkerPaths {
-  return {
-    crashOnce: path.join(rootDir, "adapter-crash-once.json"),
-    delivery: path.join(rootDir, "adapter-deliveries.jsonl"),
-    handshake: path.join(rootDir, "adapter-handshake.json"),
-    ingest: path.join(rootDir, "adapter-ingest.jsonl"),
-    ownership: path.join(rootDir, "adapter-ownership.json"),
-    shutdown: path.join(rootDir, "adapter-shutdown.log"),
-    starts: path.join(rootDir, "adapter-starts.log"),
-    state: path.join(rootDir, "adapter-states.jsonl"),
-    updates: path.join(rootDir, "adapter-updates.jsonl"),
-  };
-}
-
-function patchBridgeExtensionManifest(manifest: string, markers: BridgeAdapterMarkerPaths): string {
-  let next = manifest.replace('min_compozy_version = "0.5.0"', 'min_compozy_version = "0.0.0"');
-  const values = {
-    COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH: markers.crashOnce,
-    COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH: markers.delivery,
-    COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH: markers.handshake,
-    COMPOZY_BRIDGE_ADAPTER_INGEST_PATH: markers.ingest,
-    COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH: markers.ownership,
-    COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH: markers.shutdown,
-    COMPOZY_BRIDGE_ADAPTER_STARTS_PATH: markers.starts,
-    COMPOZY_BRIDGE_ADAPTER_STATE_PATH: markers.state,
-    COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH: markers.updates,
-  } as const;
-
-  for (const [envName, value] of Object.entries(values)) {
-    const placeholder = `"{{env:${envName}}}"`;
-    next = next.replace(new RegExp(escapeRegExp(placeholder), "g"), JSON.stringify(value));
-  }
-
-  return next;
-}
-
-async function computeDirectoryChecksum(rootDir: string): Promise<string> {
-  const repoRoot = resolveBrowserRepoRoot();
-  await mkdir(path.join(repoRoot, ".tmp"), { recursive: true });
-  const helperRoot = await mkdtemp(path.join(repoRoot, ".tmp", "compozy-browser-checksum-"));
-  const helperPath = path.join(helperRoot, "main.go");
-
-  await writeFile(
-    helperPath,
-    [
-      "package main",
-      "",
-      "import (",
-      '\t"fmt"',
-      '\t"os"',
-      '\t"strings"',
-      "",
-      '\textensionpkg "github.com/compozy/compozy/internal/extension"',
-      ")",
-      "",
-      "func main() {",
-      "\tif len(os.Args) != 2 {",
-      '\t\tfmt.Fprintln(os.Stderr, "extension directory is required")',
-      "\t\tos.Exit(1)",
-      "\t}",
-      "",
-      "\tchecksum, err := extensionpkg.ComputeDirectoryChecksum(strings.TrimSpace(os.Args[1]))",
-      "\tif err != nil {",
-      "\t\tfmt.Fprintln(os.Stderr, err)",
-      "\t\tos.Exit(1)",
-      "\t}",
-      "",
-      "\tfmt.Print(checksum)",
-      "}",
-      "",
-    ].join("\n"),
-    "utf8"
-  );
-
-  try {
-    const { stdout } = await execFileAsync("go", ["run", helperPath, rootDir], {
-      cwd: repoRoot,
-      env: process.env,
-    });
-    const checksum = stdout.trim();
-    if (checksum === "") {
-      throw new Error(`go checksum helper returned an empty checksum for ${rootDir}`);
-    }
-    return checksum;
-  } finally {
-    await rm(helperRoot, { force: true, recursive: true });
-  }
-}
-
-function createBrowserBridgeIngressUpdate(
-  bridgeInstanceID: string,
-  input: Pick<BrowserBridgeIngressSeed, "messageId" | "text" | "updateId">
-) {
-  return {
-    bridge_instance_id: bridgeInstanceID,
-    message: {
-      chat: {
-        id: 777,
-        title: "ops",
-        type: "supergroup",
-      },
-      date: Math.floor(Date.now() / 1000),
-      from: {
-        first_name: "Alice",
-        id: 888,
-        last_name: "Example",
-        username: "alice",
-      },
-      message_id: input.messageId ?? browserBridgeOperatorFlowScenario.ingress.messageId,
-      message_thread_id: Number(browserBridgeOperatorFlowScenario.testDelivery.threadId),
-      text: input.text?.trim() || browserBridgeOperatorFlowScenario.ingress.text,
-    },
-    update_id: input.updateId ?? browserBridgeOperatorFlowScenario.ingress.updateId,
-  };
-}
-
-async function appendJSONLine(targetPath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  const line = `${JSON.stringify(value)}\n`;
-  await writeFile(targetPath, line, {
-    encoding: "utf8",
-    flag: "a",
-  });
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function waitForSeedCondition<T>(

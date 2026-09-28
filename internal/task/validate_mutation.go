@@ -3,8 +3,6 @@ package task
 import (
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // Validate reports whether the create-task request is internally consistent.
@@ -50,11 +48,6 @@ func (r CreateTask) Validate(path string) error {
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
 	}
-	if r.NetworkParticipation != nil {
-		if _, err := participation.NormalizeIntent(*r.NetworkParticipation); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath(path, "network_participation"), err)
-		}
-	}
 	return nil
 }
 
@@ -82,11 +75,6 @@ func (p Patch) Validate(path string) error {
 	if p.Metadata != nil {
 		if err := ValidateMetadataSize(*p.Metadata, nestedPath(path, "metadata")); err != nil {
 			return err
-		}
-	}
-	if p.NetworkParticipation != nil {
-		if _, err := participation.NormalizeIntent(*p.NetworkParticipation); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath(path, "network_participation"), err)
 		}
 	}
 	return nil

@@ -10,8 +10,8 @@ disconnecting the prompt response does not cancel a committed Goal.
 
 <Callout type="info">
   `/goal` is parsed only at authenticated operator prompt ingress: Web, HTTP, UDS, and `compozy
-  session prompt`. Internal, automation, network, extension, and synthetic prompts treat the same
-  text as an ordinary message.
+  session prompt`. Internal, automation, extension, and synthetic prompts treat the same text as an
+  ordinary message.
 </Callout>
 
 ## Start and inspect
@@ -43,7 +43,7 @@ slash-command text. Use `compozy__goal_control` with `session_id` and one operat
 HTTP/UDS route. The caller may target its own session or a descendant in the same workspace; an
 unrelated session is rejected with `goal_caller_unauthorized`. `set` and `replace` may include a
 typed provider/model/reasoning/speed runtime for the Goal worker. The Goal keeps its immutable
-creation identity and resolved network participation snapshot, while the selected worker runtime
+creation identity, while the selected worker runtime
 is scoped to that run. Results are structured and include stable reason codes for stale replacement,
 invalid runtime, and failed binding evidence.
 

@@ -92,7 +92,7 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	if err != nil {
 		return fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
 	}
-	accepted.proc, err = m.startAgentProcess(ctx, spec, session, startOpts)
+	accepted.proc, err = m.startAgentProcess(ctx, spec, startOpts)
 	if err != nil {
 		return fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
 	}
@@ -110,7 +110,6 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		strings.TrimSpace(startOpts.PreferredModel) == "" &&
 			startOpts.RuntimeStrategy == acp.RuntimeApplicationSessionConfig,
 		runtime.agent,
-		runtime.networkCapabilities,
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
@@ -119,7 +118,6 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 			fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err),
 		)
 	}
-	m.observeCommittedParticipation(ctx, spec.participationObservation)
 	if spec.resumeReplay {
 		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)
 	}
@@ -143,14 +141,13 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 
 	accepted.spec.cleanupSessionDir = false
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
-	sandboxErr := m.finalizeSandbox(cleanupCtx, session, sandboxSyncReasonForStop(session))
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
 	if m.hostedMCP != nil {
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, persistErr, sandboxErr, cleanupErr)
+	return errors.Join(startErr, persistErr, cleanupErr)
 }
 
 func (m *Manager) discardAcceptedSessionStart(
@@ -159,7 +156,6 @@ func (m *Manager) discardAcceptedSessionStart(
 	startErr error,
 ) error {
 	session := accepted.session
-	sandboxErr := m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session))
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
 		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
@@ -169,7 +165,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, stageErr),
 			)
-			return errors.Join(startErr, sandboxErr, stageErr, retainErr)
+			return errors.Join(startErr, stageErr, retainErr)
 		}
 		staged = &entry
 	}
@@ -184,7 +180,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, catalogErr, rollbackErr),
 			)
-			return errors.Join(startErr, sandboxErr, catalogErr, rollbackErr, retainErr)
+			return errors.Join(startErr, catalogErr, rollbackErr, retainErr)
 		}
 	}
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -198,7 +194,7 @@ func (m *Manager) discardAcceptedSessionStart(
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, sandboxErr, cleanupErr, directoryErr)
+	return errors.Join(startErr, cleanupErr, directoryErr)
 }
 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(

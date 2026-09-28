@@ -23,19 +23,15 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}
-	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
-	if err != nil {
-		return acp.StartOpts{}, startupFailure("session sandbox startup failed", err)
-	}
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
-	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, session, startOpts.Cwd)
+	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, startOpts.Cwd)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook cwd is invalid", err)
 	}
-	startOpts, err = resolveProviderNativeCLI(ctx, runtime.agent, startOpts)
+	startOpts, err = resolveProviderNativeCLI(runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
@@ -71,4 +67,15 @@ func (m *Manager) prepareSessionLaunch(
 		)
 	}
 	return startOpts, nil
+}
+
+func normalizeSessionLaunchCWD(spec *sessionStartSpec, requested string) (string, error) {
+	if spec == nil {
+		return "", fmt.Errorf("session: start spec is required")
+	}
+	cwd, err := resolveContainedDirectory(spec.executionRoot(), requested)
+	if err != nil {
+		return "", fmt.Errorf("%w: pre-start hook cwd escapes execution root: %w", ErrValidation, err)
+	}
+	return cwd, nil
 }

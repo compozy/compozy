@@ -339,7 +339,6 @@ func harnessContextResolutionSummary(resolved *ResolvedHarnessContext) string {
 		"session_type=" + strings.TrimSpace(string(resolved.Session.Type)),
 		"session_class=" + strings.TrimSpace(string(resolved.Policy.SessionClass)),
 		"turn_origin=" + strings.TrimSpace(string(resolved.Policy.TurnOrigin)),
-		"network_live=" + strconv.FormatBool(resolved.Session.NetworkLive),
 		"sections=" + joinHarnessPromptSections(resolved.Policy.IncludeSections),
 		"augmenters=" + joinHarnessAugmenters(resolved.Policy.EnableAugmenters),
 		"reentry=" + strings.TrimSpace(string(resolved.Policy.ReentryMode)),
@@ -348,9 +347,6 @@ func harnessContextResolutionSummary(resolved *ResolvedHarnessContext) string {
 	}
 	if workspaceID := strings.TrimSpace(resolved.Session.WorkspaceID); workspaceID != "" {
 		parts = append(parts, "workspace_id="+truncateHarnessToken(workspaceID, 120))
-	}
-	if channel := strings.TrimSpace(resolved.Session.NetworkParticipation.ChannelID); channel != "" {
-		parts = append(parts, "channel="+truncateHarnessQuoted(channel, 80))
 	}
 	if synthetic := resolved.Turn.Synthetic; synthetic != nil {
 		if reason := strings.TrimSpace(synthetic.Reason); reason != "" {

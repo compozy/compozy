@@ -1,34 +1,17 @@
-import {
-  Bot,
-  BrainCircuit,
-  Code,
-  GitBranch,
-  MessageSquare,
-  Send,
-  Sparkles,
-  SquareKanban,
-  Terminal,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "lucide-react";
 import { createElement, type ComponentType, type ReactNode, type SVGProps } from "react";
 
 import { BlackboxLogo } from "../../logos/blackbox";
 import { ClaudeLogo } from "../../logos/claude";
 import { ClineLogo } from "../../logos/cline";
 import { CursorLogo } from "../../logos/cursor";
-import { DiscordLogo } from "../../logos/discord";
 import { GeminiLogo } from "../../logos/gemini";
-import { GithubLogo } from "../../logos/github";
 import { GooseLogo } from "../../logos/goose";
-import { GoogleChatLogo } from "../../logos/google-chat";
 import { GroqLogo } from "../../logos/groq";
 import { HermesLogo } from "../../logos/hermes";
 import { JunieLogo } from "../../logos/junie";
 import { KimiLogo } from "../../logos/kimi";
 import { KiroLogo } from "../../logos/kiro";
-import { LinearLogo } from "../../logos/linear";
-import { MicrosoftTeamsLogo } from "../../logos/microsoft-teams";
 import { MinimaxLogo } from "../../logos/minimax";
 import { MistralLogo } from "../../logos/mistral";
 import { OpenAILogo } from "../../logos/openai";
@@ -39,9 +22,6 @@ import { OpenRouterLogo } from "../../logos/openrouter";
 import { PiLogo } from "../../logos/pi";
 import { QoderLogo } from "../../logos/qoder";
 import { QwenLogo } from "../../logos/qwen";
-import { SlackLogo } from "../../logos/slack";
-import { TelegramLogo } from "../../logos/telegram";
-import { WhatsAppLogo } from "../../logos/whatsapp";
 import { XAILogo } from "../../logos/xai";
 import { ZAILogo } from "../../logos/zai";
 
@@ -60,10 +40,6 @@ type KindIconRegistry<K extends string = string> = Record<K, KindIconRegistryEnt
 
 function renderOpenAIKindLogo(props: KindIconGlyphProps) {
   return createElement(OpenAILogo, { ...props, mode: "dark" });
-}
-
-function renderLinearKindLogo(props: KindIconGlyphProps) {
-  return createElement(LinearLogo, { ...props, mode: "dark" });
 }
 
 const providerKindIconRegistry = {
@@ -95,18 +71,5 @@ const providerKindIconRegistry = {
   zai: { brand: ZAILogo, fallback: Sparkles },
 } satisfies KindIconRegistry;
 
-const bridgeKindIconRegistry = {
-  discord: { brand: DiscordLogo, fallback: MessageSquare },
-  github: { brand: GithubLogo, fallback: GitBranch },
-  "google-chat": { brand: GoogleChatLogo, fallback: MessageSquare },
-  google_chat: { brand: GoogleChatLogo, fallback: MessageSquare },
-  linear: { render: renderLinearKindLogo, fallback: SquareKanban },
-  "microsoft-teams": { brand: MicrosoftTeamsLogo, fallback: Users },
-  microsoft_teams: { brand: MicrosoftTeamsLogo, fallback: Users },
-  slack: { brand: SlackLogo, fallback: MessageSquare },
-  telegram: { brand: TelegramLogo, fallback: Send },
-  whatsapp: { brand: WhatsAppLogo, fallback: MessageSquare },
-} satisfies KindIconRegistry;
-
-export { bridgeKindIconRegistry, providerKindIconRegistry };
+export { providerKindIconRegistry };
 export type { KindIconRegistry, KindIconRegistryEntry };

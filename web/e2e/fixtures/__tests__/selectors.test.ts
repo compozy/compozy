@@ -6,12 +6,8 @@ import type { Locator } from "@playwright/test";
 import {
   automationOperatorSelectors,
   automationOperatorTestIds,
-  bridgeOperatorSelectors,
-  bridgeOperatorTestIds,
   marketplaceOperatorSelectors,
   marketplaceOperatorTestIds,
-  networkOperatorSelectors,
-  networkOperatorTestIds,
   settingsExtensionsTestIds,
   settingsGeneralTestIds,
   settingsHooksTestIds,
@@ -22,8 +18,6 @@ import {
   settingsSkillsTestIds,
   profilesOperatorSelectors,
   profilesTestIds,
-  sandboxOperatorSelectors,
-  sandboxOperatorTestIds,
   sessionLifecycleSelectors,
   sessionLifecycleTestIds,
   sessionWindowSelectors,
@@ -99,41 +93,6 @@ describe("session window selectors", () => {
     expect(selectors.resumeButton).toBe(`win-locator:${sessionWindowTestIds.resumeButton}`);
     expect(selectors.stopButton).toBe(`win-locator:${sessionWindowTestIds.stopButton}`);
     expect(selectors.topbarOverflow).toBe(`win-locator:${sessionWindowTestIds.topbarOverflow}`);
-  });
-});
-
-describe("network operator selectors", () => {
-  it("maps the network navigation, dialog, lists, and detail surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const locator = vi.fn((selector: string) => `css:${selector}` as unknown as Locator);
-    const selectors = networkOperatorSelectors({
-      getByTestId,
-      locator,
-    });
-
-    expect(selectors.workspace).toBe(`locator:${networkOperatorTestIds.workspace}`);
-    expect(selectors.channelHeader).toBe(`locator:${networkOperatorTestIds.channelHeader}`);
-    expect(selectors.channelTabs).toBe(`locator:${networkOperatorTestIds.channelTabs}`);
-    expect(selectors.threadTab).toBe(`locator:${networkOperatorTestIds.threadTab}`);
-    expect(selectors.directTab).toBe(`locator:${networkOperatorTestIds.directTab}`);
-    expect(selectors.threadList).toBe(`locator:${networkOperatorTestIds.threadList}`);
-    expect(selectors.directList).toBe(`locator:${networkOperatorTestIds.directList}`);
-    expect(selectors.threadOverlay).toBe(`locator:${networkOperatorTestIds.threadOverlay}`);
-    expect(selectors.directRoom).toBe(`locator:${networkOperatorTestIds.directRoom}`);
-    expect(selectors.newDirectButton).toBe(`locator:${networkOperatorTestIds.newDirectButton}`);
-    expect(selectors.newDirectDialog).toBe(`locator:${networkOperatorTestIds.newDirectDialog}`);
-    expect(selectors.channelNameInput).toBe(`locator:${networkOperatorTestIds.channelNameInput}`);
-    expect(selectors.messageList).toBe(`locator:${networkOperatorTestIds.messageList}`);
-    expect(selectors.agentOption("mock-ops-coordinator")).toBe(
-      "locator:network-agent-option-mock-ops-coordinator"
-    );
-    expect(selectors.channelItem("builders")).toBe("locator:network-channel-row-builders");
-    expect(selectors.threadItem("thread_main")).toBe("locator:network-thread-list-row-thread_main");
-    expect(selectors.directItem("direct_abc")).toBe("locator:network-direct-list-row-direct_abc");
-    expect(selectors.newDirectPeer("peer_ops")).toBe("locator:network-new-direct-peer-peer_ops");
-    expect(selectors.channelMessage("browser_msg_say_01")).toBe(
-      'css:[data-testid="network-message-row-full"][data-message-id="browser_msg_say_01"], [data-testid="network-message-row-collapsed"][data-message-id="browser_msg_say_01"], [data-testid="network-message-row-system"][data-message-id="browser_msg_say_01"]'
-    );
   });
 });
 
@@ -225,96 +184,6 @@ describe("automation operator selectors", () => {
   });
 });
 
-describe("bridge operator selectors", () => {
-  it("maps the bridge list, edit, secret-binding, and test-delivery surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const getByRoleWithinWindowPath = vi.fn(
-      (role: string, options?: { name: string }) =>
-        `breadcrumb-role:${role}:${options?.name}` as unknown as Locator
-    );
-    const getByRole = vi.fn((role: string, options?: { name: string }) =>
-      role === "navigation" && options?.name === "Window path"
-        ? ({ getByRole: getByRoleWithinWindowPath } as unknown as Locator)
-        : (`role:${role}:${options?.name}` as unknown as Locator)
-    );
-    const selectors = bridgeOperatorSelectors({
-      getByRole,
-      getByTestId,
-    });
-
-    expect(selectors.listPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeListPanel}`);
-    expect(selectors.detailPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeDetailPanel}`);
-    expect(selectors.backToList).toBe("breadcrumb-role:button:Bridges");
-    expect(selectors.createDialog).toBe(`locator:${bridgeOperatorTestIds.bridgeCreateDialog}`);
-    expect(selectors.createDisplayNameInput).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeDisplayNameInput}`
-    );
-    expect(selectors.createProviderConfigInput).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeProviderConfigInput}`
-    );
-    expect(selectors.createProviderConfigError).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeProviderConfigError}`
-    );
-    expect(selectors.createModeAdvanced).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeModeAdvanced}`
-    );
-    expect(selectors.createDeliveryModeSelect).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeDeliveryModeSelect}`
-    );
-    expect(selectors.createDeliveryPeerInput).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeDeliveryPeerInput}`
-    );
-    expect(selectors.createDeliveryThreadInput).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeDeliveryThreadInput}`
-    );
-    expect(selectors.createRoutingIncludePeer).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeRoutingIncludePeer}`
-    );
-    expect(selectors.createRoutingIncludeThread).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeRoutingIncludeThread}`
-    );
-    expect(selectors.submitBridgeCreate).toBe(
-      `locator:${bridgeOperatorTestIds.submitBridgeCreate}`
-    );
-    expect(selectors.editDialog).toBe(`locator:${bridgeOperatorTestIds.bridgeEditDialog}`);
-    expect(selectors.editBridgeButton).toBe(`locator:${bridgeOperatorTestIds.editBridgeButton}`);
-    expect(selectors.disableBridgeButton).toBe(
-      `locator:${bridgeOperatorTestIds.disableBridgeButton}`
-    );
-    expect(selectors.enableBridgeButton).toBe(
-      `locator:${bridgeOperatorTestIds.enableBridgeButton}`
-    );
-    expect(selectors.restartBridgeButton).toBe(
-      `locator:${bridgeOperatorTestIds.restartBridgeButton}`
-    );
-    expect(selectors.restartRequired).toBe(
-      `locator:${bridgeOperatorTestIds.bridgeRestartRequired}`
-    );
-    expect(selectors.addListFilter).toBe(`locator:${bridgeOperatorTestIds.bridgeListFiltersAdd}`);
-    expect(selectors.activeRoutesMetric).toBe(
-      `locator:${bridgeOperatorTestIds.bridgeMetricActiveRoutes}`
-    );
-    expect(selectors.openTestDeliveryButton).toBe(
-      `locator:${bridgeOperatorTestIds.openTestDeliveryButton}`
-    );
-    expect(selectors.deliveryTestPanel).toBe(
-      `locator:${bridgeOperatorTestIds.bridgeDeliveryTestPanel}`
-    );
-    expect(selectors.testDeliveryResult).toBe(
-      `locator:${bridgeOperatorTestIds.bridgeTestDeliveryResult}`
-    );
-    expect(selectors.item("brg_browser")).toBe("locator:bridge-item-brg_browser");
-    expect(selectors.providerCard("telegram-reference::telegram")).toBe(
-      "locator:bridge-provider-card-telegram-reference::telegram"
-    );
-    expect(selectors.secretBinding("bot_token")).toBe("locator:bridge-secret-binding-bot_token");
-    expect(selectors.secretEnvInput("bot_token")).toBe("locator:bridge-secret-env-input-bot_token");
-    expect(selectors.saveSecret("bot_token")).toBe("locator:save-bridge-secret-bot_token");
-    expect(selectors.deleteSecret("bot_token")).toBe("locator:delete-bridge-secret-bot_token");
-    expect(selectors.route("sess_bridge_01")).toBe("locator:bridge-route-sess_bridge_01");
-  });
-});
-
 describe("marketplace operator selectors", () => {
   it("maps acquisition, detail, and overlay surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
@@ -325,12 +194,6 @@ describe("marketplace operator selectors", () => {
     expect(selectors.extensionKitInventory).toBe(
       `locator:${marketplaceOperatorTestIds.extensionKitInventory}`
     );
-    expect(selectors.extensionNetworkConfirmDialog).toBe(
-      `locator:${marketplaceOperatorTestIds.extensionNetworkConfirmDialog}`
-    );
-    expect(selectors.extensionNetworkConfirmAccept).toBe(
-      `locator:${marketplaceOperatorTestIds.extensionNetworkConfirmAccept}`
-    );
     expect(selectors.extensionTrustDialog).toBe(
       `locator:${marketplaceOperatorTestIds.extensionTrustDialog}`
     );
@@ -339,48 +202,6 @@ describe("marketplace operator selectors", () => {
     );
     expect(selectors.card("browser-skill")).toBe("locator:marketplace-card-browser-skill");
     expect(selectors.action("browser-skill")).toBe("locator:marketplace-action-browser-skill");
-  });
-});
-
-describe("sandbox operator selectors", () => {
-  it("maps the sandbox profile lifecycle surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const selectors = sandboxOperatorSelectors({
-      getByTestId,
-    });
-
-    expect(selectors.osDesktop).toBe(`locator:${sandboxOperatorTestIds.osDesktop}`);
-    expect(selectors.shell).toBe(`locator:${sandboxOperatorTestIds.shell}`);
-    expect(selectors.total).toBe(`locator:${sandboxOperatorTestIds.total}`);
-    expect(selectors.workspaceReferences).toBe(
-      `locator:${sandboxOperatorTestIds.workspaceReferences}`
-    );
-    expect(selectors.createButton).toBe(`locator:${sandboxOperatorTestIds.createButton}`);
-    expect(selectors.editor).toBe(`locator:${sandboxOperatorTestIds.editor}`);
-    expect(selectors.editorNameInput).toBe(`locator:${sandboxOperatorTestIds.editorNameInput}`);
-    expect(selectors.editorAdvancedMode).toBe(
-      `locator:${sandboxOperatorTestIds.editorAdvancedMode}`
-    );
-    expect(selectors.editorBackendLocal).toBe(
-      `locator:${sandboxOperatorTestIds.editorBackendLocal}`
-    );
-    expect(selectors.editorSave).toBe(`locator:${sandboxOperatorTestIds.editorSave}`);
-    expect(selectors.deleteDialog).toBe(`locator:${sandboxOperatorTestIds.deleteDialog}`);
-    expect(selectors.deleteConfirm).toBe(`locator:${sandboxOperatorTestIds.deleteConfirm}`);
-    expect(selectors.deleteUsage).toBe(`locator:${sandboxOperatorTestIds.deleteUsage}`);
-    expect(selectors.actionResult).toBe(`locator:${sandboxOperatorTestIds.actionResult}`);
-    expect(selectors.profile("browser-local-sandbox")).toBe(
-      "locator:sandbox-page-card-browser-local-sandbox"
-    );
-    expect(selectors.profileMetadata("browser-local-sandbox")).toBe(
-      "locator:sandbox-page-card-browser-local-sandbox-profile"
-    );
-    expect(selectors.editProfile("browser-local-sandbox")).toBe(
-      "locator:sandbox-page-card-browser-local-sandbox-edit"
-    );
-    expect(selectors.deleteProfile("browser-local-sandbox")).toBe(
-      "locator:sandbox-page-card-browser-local-sandbox-delete"
-    );
   });
 });
 
@@ -396,8 +217,8 @@ describe("settings operator selectors", () => {
     expect(selectors.shell.shell).toBe(`locator:${settingsShellTestIds.shell}`);
     expect(selectors.shell.sectionNav).toBe(`locator:${settingsShellTestIds.sectionNav}`);
     expect(selectors.shell.sectionLink("general")).toBe("locator:settings-section-general");
-    expect(selectors.shell.sectionActive("network")).toBe(
-      'locator:[data-testid="settings-section-network"][aria-current="page"]'
+    expect(selectors.shell.sectionActive("automation")).toBe(
+      'locator:[data-testid="settings-section-automation"][aria-current="page"]'
     );
 
     expect(selectors.general.page).toBe(`locator:${settingsGeneralTestIds.page}`);

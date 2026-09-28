@@ -77,10 +77,6 @@ type SessionCreateStoreEvents = {
   navigationCompleted: { attempt: number };
   navigationFailed: { attempt: number; message: string };
   navigationRequested: { attempt: number; execute: () => Promise<void> };
-  networkParticipationSelected: Pick<
-    SessionCreateDialogDraft,
-    "networkParticipationMode" | "networkChannelId" | "networkChannelStrategy"
-  >;
   environmentSelected: { environment: SessionEnvironmentTarget };
   environmentRestored: { environment: SessionEnvironmentTarget };
   sessionNameChanged: { sessionName: string };
@@ -195,11 +191,6 @@ export const sessionCreateStoreLogic = createStoreLogic<
         : undefined,
     environmentSettled: context =>
       context.pendingSubmit === null ? undefined : { ...context, pendingSubmit: null },
-    networkParticipationSelected: (context, event) => ({
-      ...context,
-      draft: { ...context.draft, ...event },
-      submitError: null,
-    }),
     validationFailed: (context, event) => ({
       ...context,
       submitError: event.message,

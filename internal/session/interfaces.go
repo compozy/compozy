@@ -11,9 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -26,7 +24,6 @@ type TurnSource string
 
 const (
 	TurnSourceUser      TurnSource = TurnSource(acp.PromptTurnSourceUser)
-	TurnSourceNetwork   TurnSource = TurnSource(acp.PromptTurnSourceNetwork)
 	TurnSourceSynthetic TurnSource = TurnSource(acp.PromptTurnSourceSynthetic)
 )
 
@@ -47,43 +44,6 @@ type PromptDelivery struct {
 
 // PromptDeliveryPreparer runs after the provider accepts a prompt and before its first event is pumped.
 type PromptDeliveryPreparer func(context.Context, PromptDelivery) error
-
-// NetworkPeerCapability is the runtime-owned capability projection shared with
-// the network join lifecycle for brief and rich discovery.
-type NetworkPeerCapability struct {
-	ID                string
-	Summary           string
-	Outcome           string
-	Version           string
-	Digest            string
-	ContextNeeded     []string
-	ArtifactsExpected []string
-	ExecutionOutline  []string
-	Constraints       []string
-	Examples          []string
-	Requirements      []string
-}
-
-// NetworkPeerJoin describes one daemon-local peer registration request for the
-// late-bound network lifecycle.
-type NetworkPeerJoin struct {
-	SessionID            string
-	ProfileID            string
-	PeerID               string
-	WorkspaceID          string
-	DisplayName          string
-	Channel              string
-	OwnerKey             string
-	NetworkParticipation participation.Spec
-	Capabilities         []NetworkPeerCapability
-}
-
-// NetworkPeerLifecycle is the late-bound network join/leave surface consumed by
-// the session manager without importing the network package.
-type NetworkPeerLifecycle interface {
-	JoinChannel(ctx context.Context, join NetworkPeerJoin) error
-	LeaveChannel(ctx context.Context, sessionID string) error
-}
 
 // WindowReconciler removes durable session windows after a session
 // deletion has committed its catalog mutation.
@@ -128,7 +88,7 @@ type LedgerMaterializer interface {
 	DiscardSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
 }
 
-// AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
+// AgentArtifacts returns an agent definition and resource ownership.
 type AgentArtifacts struct {
 	Agent               compozyconfig.AgentDef
 	ResourceID          string
@@ -142,7 +102,7 @@ type AgentArtifacts struct {
 	HeartbeatBody       string
 }
 
-// AgentArtifactResolver resolves agent provenance and sidecars when available.
+// AgentArtifactResolver resolves agent provenance when available.
 type AgentArtifactResolver interface {
 	ResolveAgentArtifacts(name string, resolved *workspacepkg.ResolvedWorkspace) (AgentArtifacts, error)
 }
@@ -151,8 +111,6 @@ func normalizeTurnSource(source TurnSource) TurnSource {
 	switch TurnSource(strings.TrimSpace(string(source))) {
 	case "", TurnSourceUser:
 		return TurnSourceUser
-	case TurnSourceNetwork:
-		return TurnSourceNetwork
 	case TurnSourceSynthetic:
 		return TurnSourceSynthetic
 	default:
@@ -181,9 +139,8 @@ type AgentProcess struct {
 	pendingPermissionFn func() bool
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
 	requestPermissionFn func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
-	configureRuntimeFn  func(func() TurnSource)
-	toolHostFn          func() sandbox.ToolHost
-	toolHost            sandbox.ToolHost
+	toolHostFn          func() acp.ToolHost
+	toolHost            acp.ToolHost
 	native              any
 	waitOverrideMu      sync.RWMutex
 	waitErrOverride     error
@@ -208,8 +165,7 @@ type AgentProcessOptions struct {
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
 	RequestPermission func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	CapsSnapshot      func() acp.Caps
-	ConfigureRuntime  func(func() TurnSource)
-	ToolHost          sandbox.ToolHost
+	ToolHost          acp.ToolHost
 }
 
 // NewAgentProcess constructs an AgentProcess for custom AgentDriver implementations.
@@ -252,7 +208,6 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		pendingPermissionFn: opts.PendingPermission,
 		approvePermissionFn: opts.ApprovePermission,
 		requestPermissionFn: opts.RequestPermission,
-		configureRuntimeFn:  opts.ConfigureRuntime,
 		toolHost:            opts.ToolHost,
 	}
 }
@@ -322,8 +277,8 @@ func (p *AgentProcess) HasPendingPermission() bool {
 	return p != nil && p.pendingPermissionFn != nil && p.pendingPermissionFn()
 }
 
-// ToolHost returns the sandbox-owned tool host when the process exposes one.
-func (p *AgentProcess) ToolHost() sandbox.ToolHost {
+// ToolHost returns the local tool host when the process exposes one.
+func (p *AgentProcess) ToolHost() acp.ToolHost {
 	if p == nil {
 		return nil
 	}
@@ -350,13 +305,6 @@ func (p *AgentProcess) RequestPermission(
 		return acp.RequestPermissionResponse{}, errors.New("session: permission request is not supported")
 	}
 	return p.requestPermissionFn(ctx, req)
-}
-
-func (p *AgentProcess) configureRuntime(currentTurnSource func() TurnSource) {
-	if p == nil || p.configureRuntimeFn == nil {
-		return
-	}
-	p.configureRuntimeFn(currentTurnSource)
 }
 
 func (p *AgentProcess) setWaitErrorOverride(err error) {
@@ -404,14 +352,6 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 			}
 			return proc.RequestPermission(ctx, req)
 		},
-		configureRuntimeFn: func(currentTurnSource func() TurnSource) {
-			proc.SetTurnSourceProvider(func() string {
-				if currentTurnSource == nil {
-					return ""
-				}
-				return string(currentTurnSource())
-			})
-		},
 		toolHostFn: proc.ToolHost,
 		native:     proc,
 	}
@@ -452,7 +392,7 @@ type Notifier interface {
 	OnAgentEvent(ctx context.Context, sessionID string, event any)
 }
 
-// FinalizationNotifier is an optional lifecycle seam invoked after the process and sandbox
+// FinalizationNotifier is an optional lifecycle seam invoked after the process
 // stop, but before the recorder closes and the durable ledger is materialized.
 type FinalizationNotifier interface {
 	OnSessionFinalizing(ctx context.Context, session *Session)

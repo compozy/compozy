@@ -83,14 +83,6 @@
   background: var(--site-bento-overlay-runtime);
 }
 
-.site-bento-overlay-network {
-  background: var(--site-bento-overlay-network);
-}
-
-.site-bento-overlay-bridges {
-  background: var(--site-bento-overlay-bridges);
-}
-
 .site-bento-overlay-memory {
   background: var(--site-bento-overlay-memory);
 }

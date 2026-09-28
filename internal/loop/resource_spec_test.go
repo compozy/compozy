@@ -75,13 +75,7 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 		body := strings.Replace(
 			loopDefinitionYAML("tool-action-loop"),
 			"      kind: transform",
-			"      kind: compozy__network_send",
-			1,
-		)
-		body = strings.Replace(
-			body,
-			"concurrency: queue\n",
-			"network_participation:\n  mode: live\n  channel_strategy: named\n  channel_id: builders\nconcurrency: queue\n",
+			"      kind: compozy__task_read",
 			1,
 		)
 		_, _, err := loop.ParseResource([]byte(body), loop.ResourceParseOptions{

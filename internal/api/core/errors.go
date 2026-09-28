@@ -1,7 +1,6 @@
 package core
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,15 +10,14 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network"
-	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/store"
+
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -194,64 +192,6 @@ func StatusForResourceError(err error) int {
 	}
 }
 
-// StatusForBridgeError maps bridge-domain and workspace-domain errors to transport statuses.
-func StatusForBridgeError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, contract.ErrBridgeInstanceMismatch),
-		errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding),
-		errors.Is(err, bridgepkg.ErrInvalidBridgeTaskSubscription),
-		errors.Is(err, bridgepkg.ErrInvalidBridgeTarget):
-		return http.StatusBadRequest
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound),
-		errors.Is(err, bridgepkg.ErrBridgeTargetUnknown),
-		errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound),
-		errors.Is(err, bridgepkg.ErrBridgeTaskSubscriptionNotFound),
-		errors.Is(err, bridgepkg.ErrBridgeRouteNotFound),
-		errors.Is(err, bridgepkg.ErrDeliveryNotFound),
-		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable),
-		errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition),
-		errors.Is(err, bridgepkg.ErrBridgeInstanceReadOnly):
-		return http.StatusConflict
-	case errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated),
-		errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable),
-		errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable),
-		errors.Is(err, bridgepkg.ErrBridgeTargetDirectoryUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// StatusForNotificationPresetError maps notification preset failures to transport statuses.
-func StatusForNotificationPresetError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, presetspkg.ErrInvalidPreset):
-		return http.StatusBadRequest
-	case errors.Is(err, presetspkg.ErrPresetNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, presetspkg.ErrPresetDuplicateName):
-		return http.StatusConflict
-	case errors.Is(err, presetspkg.ErrPresetBuiltIn):
-		return http.StatusConflict
-	case errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable),
-		errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated),
-		errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
 // ErrSkillNotFound is the sentinel for a missing skill.
 var ErrSkillNotFound = errors.New("skill not found")
 
@@ -263,9 +203,6 @@ var ErrSkillUnprocessable = errors.New("skill unprocessable")
 
 // ErrAutomationValidation is the sentinel for automation request validation failures.
 var ErrAutomationValidation = errors.New("automation validation error")
-
-// ErrNetworkValidation is the sentinel for malformed network control-plane requests.
-var ErrNetworkValidation = errors.New("network validation error")
 
 // ErrModelCatalogValidation is the sentinel for malformed model catalog requests.
 var ErrModelCatalogValidation = errors.New("model catalog validation error")
@@ -350,45 +287,6 @@ func StatusForAutomationError(err error) int {
 		return http.StatusUnauthorized
 	case errors.Is(err, automationpkg.ErrManagerNotRunning):
 		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// NewNetworkValidationError wraps a network request validation failure with the shared sentinel.
-func NewNetworkValidationError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrNetworkValidation, err)
-}
-
-// StatusForNetworkError maps network-domain errors to transport statuses.
-func StatusForNetworkError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, ErrNetworkValidation):
-		return http.StatusBadRequest
-	case errors.Is(err, store.ErrNetworkCursorInvalid):
-		return http.StatusBadRequest
-	case errors.Is(err, network.ErrLocalPeerNotFound),
-		errors.Is(err, network.ErrTargetPeerNotFound),
-		errors.Is(err, store.ErrNetworkConversationNotFound),
-		errors.Is(err, sql.ErrNoRows):
-		return http.StatusNotFound
-	case errors.Is(err, store.ErrNetworkDirectRoomCollision),
-		errors.Is(err, store.ErrNetworkWorkContainerMismatch),
-		errors.Is(err, store.ErrNetworkWorkClosed):
-		return http.StatusConflict
-	case errors.Is(err, network.ErrMissingField),
-		errors.Is(err, network.ErrInvalidField),
-		errors.Is(err, network.ErrInvalidKind),
-		errors.Is(err, network.ErrInvalidBody),
-		errors.Is(err, network.ErrExpired),
-		errors.Is(err, network.ErrReplayTooOld),
-		errors.Is(err, network.ErrLegacyFieldRejected):
-		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
 	}

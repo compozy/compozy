@@ -1,33 +1,20 @@
 package terminal
 
-// Suite: terminal capability resolution.
-// Invariant: platform/workspace support is reported honestly and recording is derived from interactivity.
-// Boundary IN: platform and workspace kind. Boundary OUT: terminal capability value.
-
 import "testing"
 
-func TestResolveCapabilities(t *testing.T) { // IT-016
+func TestRecordingAvailable(t *testing.T) {
 	t.Parallel()
-
-	for _, testCase := range []struct {
-		name          string
-		goos          string
-		workspaceKind string
-		interactive   bool
+	for _, tc := range []struct {
+		name        string
+		interactive bool
 	}{
-		{name: "Should allow a local Unix terminal", goos: "darwin", workspaceKind: WorkspaceKindLocal, interactive: true},
-		{name: "Should allow a local Windows terminal after ConPTY [IT-038]", goos: "windows", workspaceKind: WorkspaceKindLocal, interactive: true},
-		{name: "Should keep Windows sandbox workspaces execute-only [E2E-021]", goos: "windows", workspaceKind: "sandbox", interactive: false},
-		{name: "Should keep remote workspaces execute-only", goos: "linux", workspaceKind: "sandbox", interactive: false},
+		{name: "Should enable recording for interactive terminals", interactive: true},
+		{name: "Should omit recording for execute-only terminals", interactive: false},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			capabilities := ResolveCapabilities(testCase.goos, testCase.workspaceKind)
-			if capabilities.Interactive != testCase.interactive {
-				t.Fatalf("ResolveCapabilities(%q, %q) = %#v", testCase.goos, testCase.workspaceKind, capabilities)
-			}
-			if RecordingAvailable(capabilities) != testCase.interactive {
-				t.Fatalf("RecordingAvailable(%#v) did not derive from interactivity", capabilities)
+			if got := RecordingAvailable(Capabilities{Interactive: tc.interactive}); got != tc.interactive {
+				t.Fatalf("RecordingAvailable() = %t, want %t", got, tc.interactive)
 			}
 		})
 	}

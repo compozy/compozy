@@ -153,8 +153,7 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
 		PreferredCapabilities: append([]string(nil), run.PreferredCapabilities...),
 	}
-	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
-	continuation.SetNetworkState(run.NetworkSpecSnapshot(), wakeID, targetSessionID, ownerKey)
+
 	if err := continuation.Validate(); err != nil {
 		return RunReviewResult{}, err
 	}
@@ -191,8 +190,7 @@ func (s *inMemoryManagerStore) BindRunReviewSession(
 	review.Status = RunReviewStatusInReview
 	review.ReviewerSessionID = normalized.SessionID
 	review.ReviewerAgentName = normalized.ReviewerAgentName
-	review.ReviewerPeerID = normalized.ReviewerPeerID
-	review.ReviewerChannelID = normalized.ReviewerChannelID
+
 	review.StartedAt = boundAt.UTC()
 	review.UpdatedAt = boundAt.UTC()
 	s.reviews[review.ReviewID] = cloneRunReview(&review)
@@ -396,7 +394,6 @@ func TestTaskManagerRunReviews(t *testing.T) {
 				ReviewID:          review.ReviewID,
 				SessionID:         reviewerSessionID,
 				ReviewerAgentName: "reviewer",
-				ReviewerChannelID: "review-channel",
 			},
 			validActorContext(),
 		)

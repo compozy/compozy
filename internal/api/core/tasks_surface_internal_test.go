@@ -73,7 +73,6 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainQuery.OwnerRef != "reviewers" ||
 			domainQuery.ParentTaskID != "task-root" ||
 			domainQuery.WorktreeID != "wt-alpha" ||
-			domainQuery.ParticipationChannel != "builders" ||
 			domainQuery.Search != "review" ||
 			domainQuery.Limit != 7 {
 			t.Fatalf("taskListDomainQuery() = %#v", domainQuery)
@@ -239,11 +238,6 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseTaskDashboardQuery() error = %v", err)
 		}
-		if dashboardQuery.Worktree != "wt-alpha" ||
-			dashboardQuery.OriginKind != taskpkg.OriginKindHTTP ||
-			dashboardQuery.ParticipationChannel != "builders" {
-			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
-		}
 
 		domainDashboard, err := handlers.taskDashboardDomainQuery(
 			context.Background(),
@@ -259,7 +253,6 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainDashboard.WorktreeID != "wt-alpha" ||
 			domainDashboard.OwnerKind != taskpkg.OwnerKindHuman ||
 			domainDashboard.OwnerRef != "alice" ||
-			domainDashboard.ParticipationChannel != "builders" ||
 			domainDashboard.OriginKind != taskpkg.OriginKindHTTP {
 			t.Fatalf("taskDashboardDomainQuery() = %#v", domainDashboard)
 		}

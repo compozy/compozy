@@ -164,15 +164,15 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		return setNativeWorkspaceInput(payload, trusted)
 	}
 	if b == nil || b.workspaces == nil {
-		return nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
+		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	requestedWorkspace, err := b.workspaces.Resolve(ctx, requested)
 	if err != nil {
-		return nativeNetworkInputError(id, err)
+		return nativeInputError(id, err)
 	}
 	trustedWorkspace, err := b.workspaces.Resolve(ctx, trusted)
 	if err != nil {
-		return nativeNetworkInputError(id, err)
+		return nativeInputError(id, err)
 	}
 	if strings.TrimSpace(requestedWorkspace.WorkspaceID) == strings.TrimSpace(trustedWorkspace.WorkspaceID) {
 		return setNativeWorkspaceInput(payload, trustedWorkspace.WorkspaceID)
@@ -190,7 +190,7 @@ func nativeInputHasGlobalScope(payload map[string]json.RawMessage) bool {
 		return false
 	}
 	switch strings.TrimSpace(scope) {
-	case nativeBridgeScopeGlobal, nativeBridgeScopeAll:
+	case "global", "all":
 		return true
 	default:
 		return false
@@ -204,11 +204,11 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	ref string,
 ) error {
 	if b == nil || b.workspaces == nil {
-		return nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
+		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := b.workspaces.Resolve(ctx, ref)
 	if err != nil {
-		return nativeNetworkInputError(id, err)
+		return nativeInputError(id, err)
 	}
 	return setNativeWorkspaceInput(payload, resolved.WorkspaceID)
 }
@@ -323,11 +323,11 @@ func (n *daemonNativeTools) nativeWorkspaceRoot(
 		return "", nil
 	}
 	if n == nil || n.deps == nil || n.deps.Workspaces == nil {
-		return "", nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
+		return "", nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
 	if err != nil {
-		return "", nativeNetworkInputError(id, err)
+		return "", nativeInputError(id, err)
 	}
 	return strings.TrimSpace(resolved.RootDir), nil
 }

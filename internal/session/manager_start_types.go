@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -18,8 +17,6 @@ import (
 type sessionStartSpec struct {
 	sessionID                string
 	profileID                string
-	sandboxID                string
-	sandbox                  *store.SessionSandboxMeta
 	sessionName              string
 	agentName                string
 	provider                 string
@@ -32,14 +29,10 @@ type sessionStartSpec struct {
 	selectedRuntime          *RuntimeSelection
 	runtimeSelectionRevision int64
 	permissions              compozyconfig.PermissionMode
-	sandboxDisabled          bool
 	workspace                workspacepkg.ResolvedWorkspace
 	worktreeID               string
 	worktreeRoot             string
 	cwd                      string
-	networkParticipation     participation.Spec
-	networkOwnerKey          string
-	participationObservation *participation.ResolvedObservation
 	promptOverlay            string
 	contractOverlay          string
 	runtimeMode              string

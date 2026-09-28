@@ -59,7 +59,7 @@ func automationTriggerToonFields() []string {
 	return []string{
 		"id", profileNameOutputKey, automationNameKey, automationScopeKey, automationWorkspaceIDKey,
 		automationAgentNameKey, automationEventKey, automationEnabledKey, automationSourceKey, automationRetryKey,
-		"fire_limit", "webhook_id", "endpoint_slug", bridgeSetupWebhookPathKey, automationCreatedAtKey,
+		"fire_limit", "webhook_id", "endpoint_slug", cliOutputSetupWebhookPathKey, automationCreatedAtKey,
 		automationUpdatedAtKey, automationPromptKey,
 	}
 }

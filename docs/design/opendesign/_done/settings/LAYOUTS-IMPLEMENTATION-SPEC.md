@@ -272,7 +272,7 @@ Compozy Impact Audit:
   (internal/api/httpapi/window_manager_routes.go), neither of which changes shape here.
 
 - Extensibility and hooks: no impact on extensions, hooks, skills/capabilities, bundles,
-  registries or bridge SDKs — checked internal/hooks event list and the extension surface;
+  registries or extension SDKs — checked internal/hooks event list and the extension surface;
   window-manager emits no hook events and exposes no extension point. Config lifecycle is
   unchanged: window_manager.* stays DiffClassLive (internal/config/lifecycle/lifecycle.go:108)
   and no config.toml key is added, removed or re-ranged.

@@ -206,10 +206,6 @@ const (
 	DeadEntityMarked  = "reliability.dead_entity_marked"
 	DeadEntityCleared = "reliability.dead_entity_cleared"
 
-	BridgeNotificationSuppressed = "bridge_notification_suppressed"
-	NetworkPeerJoined            = "network.peer.joined"
-	NetworkPeerLeft              = "network.peer.left"
-
 	NotificationPresetCreated           = "notification.preset_created"
 	NotificationPresetUpdated           = "notification.preset_updated"
 	NotificationPresetDeleted           = "notification.preset_deleted"

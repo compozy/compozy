@@ -8,7 +8,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -92,7 +91,6 @@ func spawnHookContext(
 		ctx.ProfileID = strings.TrimSpace(parent.ProfileID)
 		ctx.WorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(parent.Workspace)
-		ctx.ResolvedNetworkParticipation = participation.CloneSpec(parent.NetworkParticipation)
 		ctx.ParentSoulDigest = strings.TrimSpace(parent.SoulDigest)
 	}
 	if child != nil {
@@ -100,7 +98,6 @@ func spawnHookContext(
 		ctx.ChildSessionID = strings.TrimSpace(child.ID)
 		ctx.WorkspaceID = strings.TrimSpace(child.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(child.Workspace)
-		ctx.ResolvedNetworkParticipation = participation.CloneSpec(child.NetworkParticipation)
 		ctx.SoulSnapshotID = strings.TrimSpace(child.SoulSnapshotID)
 		ctx.SoulDigest = strings.TrimSpace(child.SoulDigest)
 		if value := strings.TrimSpace(child.ParentSoulDigest); value != "" {

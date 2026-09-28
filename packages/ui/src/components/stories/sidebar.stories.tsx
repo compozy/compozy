@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   BookOpenIcon,
-  NetworkIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
   SparklesIcon,
-  WaypointsIcon,
   WrenchIcon,
   ZapIcon,
 } from "lucide-react";
@@ -99,8 +97,6 @@ function HeaderContent() {
 const NAV_ITEMS = [
   { label: "Tasks", icon: SparklesIcon, active: true },
   { label: "Automation", icon: ZapIcon },
-  { label: "Bridges", icon: WaypointsIcon },
-  { label: "Network", icon: NetworkIcon },
   { label: "Knowledge", icon: BookOpenIcon },
   { label: "Skills", icon: WrenchIcon },
 ];

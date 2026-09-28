@@ -56,8 +56,9 @@ that set further; it cannot make another class transient.
           kind: release.publish_failed
           payload: { code: "{{ .effect.failure.code }}" }
   on_retry:
-    - tool: compozy__network_send
-      with: { message: "Retry {{ .effect.attempt.number }} for {{ .effect.identity.node_id }}" }
+    - emit:
+        kind: release.publish_retry
+        payload: { attempt: "{{ .effect.attempt.number }}", node: "{{ .effect.identity.node_id }}" }
 ```
 
 `timeout` bounds one attempt. `deadline` bounds all attempts and backoff for the node. Both are
@@ -96,8 +97,6 @@ Each effect declares exactly one action:
 ```yaml
 on_canceled:
   - emit: { kind: release.canceled, payload: { run: "{{ .effect.links.run }}" } }
-  - tool: compozy__network_send
-    with: { message: "Run {{ .effect.identity.loop_run_id }} was canceled." }
 ```
 
 Effects are written in the same transaction as the lifecycle event and dispatched only after the

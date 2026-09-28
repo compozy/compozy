@@ -113,7 +113,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
         self.assertIn("**self-healing continue** loop", skill)
         self.assertIn("Do not write final iteration state", skill)
         self.assertIn("A failure is **repairable by default**", recovery)
-        self.assertIn("A stale Daytona sidecar is this case, not a blocker", recovery)
+        self.assertIn("A stale generated OpenAPI type file is this case, not a blocker", recovery)
         self.assertIn("run the canonical generator", recovery.lower())
 
     def test_skill_contract_reserves_blocked_for_external_dependencies(self) -> None:

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
 var (
@@ -49,7 +48,6 @@ type Workspace struct {
 	AdditionalDirs []string
 	Name           string
 	DefaultAgent   string
-	SandboxRef     string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -72,7 +70,6 @@ type ResolvedWorkspace struct {
 	Agents              []compozyconfig.AgentDef
 	AgentDiagnostics    []AgentDiagnostic
 	Skills              []SkillPath
-	Sandbox             sandbox.Resolved
 	ResolvedAt          time.Time
 }
 

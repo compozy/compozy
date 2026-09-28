@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -26,7 +25,6 @@ func BenchmarkDecodeHostAPIParamsTaskCreate(b *testing.B) {
 		"identifier":"bench-task",
 		"scope":"workspace",
 		"workspace":"ws-bench",
-		"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"agent/bench"},
 		"title":"Benchmark task",
 		"description":"Benchmark payload decode",
 		"metadata":{"body":"%s","labels":["alpha","beta","gamma"]}
@@ -204,18 +202,11 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 			SessionID:      fmt.Sprintf("session-%03d", i),
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "bench-ext"},
 			IdempotencyKey: fmt.Sprintf("idem-%03d", i),
-			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.Spec{
-				Version:         participation.SpecVersion,
-				Mode:            participation.ModeLive,
-				ChannelStrategy: participation.StrategyNamed,
-				ChannelID:       "agent/bench",
-				Source:          participation.SourceExplicitRequest,
-			}},
-			QueuedAt:  now.Add(time.Duration(i) * time.Second),
-			ClaimedAt: now.Add(time.Duration(i+1) * time.Second),
-			StartedAt: now.Add(time.Duration(i+2) * time.Second),
-			EndedAt:   time.Time{},
-			Error:     "",
+			QueuedAt:       now.Add(time.Duration(i) * time.Second),
+			ClaimedAt:      now.Add(time.Duration(i+1) * time.Second),
+			StartedAt:      now.Add(time.Duration(i+2) * time.Second),
+			EndedAt:        time.Time{},
+			Error:          "",
 		}
 		run.SetResult(result)
 		runs = append(runs, run)

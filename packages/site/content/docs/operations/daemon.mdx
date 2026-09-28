@@ -164,13 +164,13 @@ compozy daemon start
 ```
 
 During daemon shutdown, CompozyOS first closes new-work admission, then stops runtime workers, extensions, automation, active sessions, HTTP,
-UDS, bridges, network runtime, hooks, and then closes persistent resources. The default daemon
+UDS, hooks, and then closes persistent resources. The default daemon
 shutdown context is 10 seconds.
 
 ## Understand tool process recovery
 
 Long-running tool work can create subprocesses outside the main agent process. Examples include ACP
-terminals, sandbox-backed terminals, hook subprocesses, managed extension processes, and shared
+terminals, hook subprocesses, managed extension processes, and shared
 subprocess helpers.
 
 CompozyOS records those processes in the global database when they start, updates the record when ownership
@@ -182,7 +182,7 @@ On daemon boot, CompozyOS reconciles active process records before it starts acc
 
 - records with a PID and matching start-time evidence remain active for scoped interruption
 - records whose PID evidence no longer matches are marked `stale`
-- records without reusable local PID evidence, such as remote sandbox terminals, are retired as
+- records without reusable local PID evidence, are retired as
   stale after restart rather than signaled by PID
 
 This prevents CompozyOS from killing an unrelated host process after PID reuse.
@@ -195,14 +195,14 @@ session work alone.
 
 ## Know the runtime files
 
-| File                             | Purpose                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `$COMPOZY_HOME/daemon.lock`      | Advisory flock used to prevent two daemons from managing the same home directory.                      |
-| `$COMPOZY_HOME/daemon.json`      | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
-| `$COMPOZY_HOME/daemon.sock`      | Unix domain socket for local CLI and API traffic.                                                      |
-| `$COMPOZY_HOME/logs/compozy.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
-| `$COMPOZY_HOME/compozy.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
-| `$COMPOZY_HOME/sessions/`        | Per-session directories with event databases and metadata.                                             |
+| File                             | Purpose                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/daemon.lock`      | Advisory flock used to prevent two daemons from managing the same home directory.             |
+| `$COMPOZY_HOME/daemon.json`      | Discovery file with PID, HTTP port, and start time.                                           |
+| `$COMPOZY_HOME/daemon.sock`      | Unix domain socket for local CLI and API traffic.                                             |
+| `$COMPOZY_HOME/logs/compozy.log` | Structured daemon log file and detached child stdout/stderr target.                           |
+| `$COMPOZY_HOME/compozy.db`       | Global SQLite catalog for sessions, workspaces, automation, extensions, tasks, and summaries. |
+| `$COMPOZY_HOME/sessions/`        | Per-session directories with event databases and metadata.                                    |
 
 See [File Locations](/docs/configuration/file-locations) for the full home directory map.
 

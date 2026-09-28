@@ -9,11 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
-	core "github.com/compozy/compozy/internal/api/core"
-
-	"github.com/compozy/compozy/internal/network"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -243,43 +238,7 @@ func autonomyLeaseDuration(seconds int64) (time.Duration, error) {
 	}
 }
 
-func nativeNetworkSendToolError(id toolspkg.ToolID, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, contract.ErrRawClaimTokenMetadata) {
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			"network send payload must not contain raw claim_token fields",
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonNetworkRawTokenRejected,
-		)
-	}
-	if errors.Is(err, core.ErrNetworkValidation) {
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		)
-	}
-	return err
-}
-
-func nativeNetworkToolError(id toolspkg.ToolID, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, network.ErrMissingField) || errors.Is(err, network.ErrInvalidField) ||
-		errors.Is(err, core.ErrNetworkValidation) {
-		return nativeNetworkInputError(id, err)
-	}
-	return err
-}
-
-func nativeNetworkInputError(id toolspkg.ToolID, err error) error {
+func nativeInputError(id toolspkg.ToolID, err error) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeInvalidInput,
 		id,

@@ -3,7 +3,6 @@ package automation
 import (
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -25,34 +24,13 @@ func directTaskSpec(job *Job, prompt string) taskpkg.CreateTask {
 	}
 
 	return taskpkg.CreateTask{
-		ProfileID:            strings.TrimSpace(job.ProfileID),
-		Scope:                taskScopeForAutomationScope(job.Scope),
-		WorkspaceID:          strings.TrimSpace(job.WorkspaceID),
-		Title:                title,
-		Description:          description,
-		Owner:                cloneTaskOwnership(job.Task.Owner),
-		NetworkParticipation: cloneParticipationRequest(job.Task.NetworkParticipation),
+		ProfileID:   strings.TrimSpace(job.ProfileID),
+		Scope:       taskScopeForAutomationScope(job.Scope),
+		WorkspaceID: strings.TrimSpace(job.WorkspaceID),
+		Title:       title,
+		Description: description,
+		Owner:       cloneTaskOwnership(job.Task.Owner),
 	}
-}
-
-func (r DispatchRequest) networkParticipation() *participation.Request {
-	var request *participation.Request
-	switch {
-	case r.Job != nil && r.Job.Task != nil:
-		request = r.Job.Task.NetworkParticipation
-	case r.loopTarget() != nil:
-		request = r.loopTarget().NetworkParticipation
-	default:
-		return nil
-	}
-	if request == nil {
-		return nil
-	}
-	normalized, err := participation.NormalizeIntent(*request)
-	if err != nil {
-		return cloneParticipationRequest(request)
-	}
-	return &normalized
 }
 
 func taskScopeForAutomationScope(scope Scope) taskpkg.Scope {

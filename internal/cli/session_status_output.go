@@ -23,7 +23,7 @@ func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, erro
 		{Label: "Speed", Value: stringOrDash(sessionRuntimeSpeed(info))},
 		{Label: "Speed Outcome", Value: sessionSpeedOutcome(info)},
 		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
-		{Label: sessionChannelValue, Value: sessionResolvedChannel(info)},
+
 		{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
 		{Label: sessionBadgeValue, Value: stringOrDash(string(info.Badge))},
 		{Label: "Attached To", Value: stringOrDash(info.AttachedTo)},
@@ -38,25 +38,9 @@ func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, erro
 		{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
 		{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
 	})
-
 	blocks := []string{base}
-	blocks = appendSessionSandboxBlock(blocks, info)
 	blocks = appendSessionCapsBlock(blocks, info)
 	return renderHumanBlocks(blocks...), nil
-}
-
-func appendSessionSandboxBlock(blocks []string, info *SessionRecord) []string {
-	if info.Sandbox == nil {
-		return blocks
-	}
-	return append(blocks, renderHumanSection("Sandbox", []keyValue{
-		{Label: sessionBackendValue, Value: stringOrDash(info.Sandbox.Backend)},
-		{Label: sessionProfileValue, Value: stringOrDash(info.Sandbox.Profile)},
-		{Label: "Sandbox ID", Value: stringOrDash(info.Sandbox.SandboxID)},
-		{Label: "Instance ID", Value: stringOrDash(info.Sandbox.InstanceID)},
-		{Label: sessionStateValue, Value: stringOrDash(info.Sandbox.State)},
-		{Label: "Last Sync Error", Value: stringOrDash(info.Sandbox.LastSyncError)},
-	}))
 }
 
 func appendSessionCapsBlock(blocks []string, info *SessionRecord) []string {
@@ -77,9 +61,7 @@ func renderSessionToon(info *SessionRecord) (string, error) {
 		sessionProviderKey,
 		"speed",
 		"speed_outcome",
-		"sandbox_backend",
 		workspaceSkillSource,
-		sessionChannelKey,
 		sessionStateKey,
 		sessionBadgeKey,
 		"attached_to",
@@ -98,9 +80,7 @@ func renderSessionToon(info *SessionRecord) (string, error) {
 		sessionRuntimeProvider(info),
 		sessionRuntimeSpeed(info),
 		sessionSpeedOutcome(info),
-		sessionSandboxBackend(info),
 		displaySessionWorkspace(info),
-		sessionResolvedChannelRaw(info),
 		string(info.State),
 		string(info.Badge),
 		info.AttachedTo,
@@ -202,13 +182,6 @@ func sessionRecapBundle(record *SessionRecapRecord) outputBundle {
 			}), nil
 		},
 	}
-}
-
-func sessionSandboxBackend(info *SessionRecord) string {
-	if info.Sandbox == nil {
-		return ""
-	}
-	return strings.TrimSpace(info.Sandbox.Backend)
 }
 
 func sessionRepairBundle(record SessionRepairRecord) outputBundle {

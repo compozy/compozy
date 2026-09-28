@@ -1,36 +1,25 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  statSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it, vi } from "vitest";
 
 vi.unmock("next/image");
 
+vi.mock("@/lib/source", () => ({
+  docsSource: {
+    getPage: (slugs: string[]) => {
+      const path = resolve(import.meta.dirname, "../../content/docs", `${slugs.join("/")}.mdx`);
+      return existsSync(path) ? { url: `/docs/${slugs.join("/")}` } : undefined;
+    },
+  },
+}));
+
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
-}));
-
-vi.mock("@/lib/source", () => ({
-  docsSource: {
-    getPage: ([section, slug]: string[]) =>
-      section === "bridges" && slug?.startsWith("setup-")
-        ? { url: `/docs/${section}/${slug}` }
-        : undefined,
-  },
 }));
 
 import { MarketplaceCatalogBrowser } from "@/components/marketplace/marketplace-catalog-browser";
@@ -45,8 +34,6 @@ import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
 import MarketplaceEntryPage, {
   generateStaticParams as generateMarketplaceEntryParams,
 } from "@/app/marketplace/[entryId]/page";
-import { BRIDGE_LOGOS } from "../marketplace-bridge-logos";
-import { bridgeProviders, findBridgeProvider, readBridgeProviders } from "../marketplace-bridges";
 import {
   bundledSkills,
   bundledExtensions,
@@ -234,40 +221,6 @@ describe("marketplace catalog", () => {
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
-function bridgeManifests() {
-  const bridgesRoot = resolve(repoRoot, "extensions", "bridges");
-  const manifests: Array<{
-    platform: string;
-    displayName: string;
-    version: string;
-    description: string;
-    requiredSecrets: number;
-    totalSecrets: number;
-  }> = [];
-  for (const entry of readdirSync(bridgesRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const manifestPath = resolve(bridgesRoot, entry.name, "extension.toml");
-    if (!existsSync(manifestPath)) continue;
-    const manifest = parseToml(readFileSync(manifestPath, "utf8")) as {
-      bridge: {
-        platform: string;
-        display_name: string;
-        secret_slots: Array<{ required: boolean }>;
-      };
-      extension: { version: string; description: string };
-    };
-    manifests.push({
-      platform: manifest.bridge.platform,
-      displayName: manifest.bridge.display_name,
-      version: manifest.extension.version,
-      description: manifest.extension.description,
-      requiredSecrets: manifest.bridge.secret_slots.filter(slot => slot.required).length,
-      totalSecrets: manifest.bridge.secret_slots.length,
-    });
-  }
-  return manifests;
-}
-
 function manifestDirectories(root: string, directories: string[]): string[] {
   return directories
     .flatMap(directory => {
@@ -279,106 +232,6 @@ function manifestDirectories(root: string, directories: string[]): string[] {
     })
     .sort();
 }
-
-function writeBridgeManifest(root: string, directory: string, platform: string): void {
-  const manifestRoot = resolve(root, directory);
-  mkdirSync(manifestRoot, { recursive: true });
-  writeFileSync(
-    resolve(manifestRoot, "extension.toml"),
-    `[extension]
-name = "${directory}"
-version = "0.1.0"
-description = "${directory} bridge"
-
-[capabilities]
-provides = ["bridge.adapter"]
-
-[bridge]
-platform = "${platform}"
-display_name = "${directory}"
-
-[[bridge.secret_slots]]
-name = "token"
-description = "Bridge token"
-required = true
-`
-  );
-}
-
-describe("marketplace bridge providers", () => {
-  it("derives one provider per in-tree bridge manifest", () => {
-    const manifests = bridgeManifests();
-
-    expect(bridgeProviders).toHaveLength(manifests.length);
-    for (const manifest of manifests) {
-      expect(findBridgeProvider(manifest.platform)).toMatchObject({
-        platform: manifest.platform,
-        displayName: manifest.displayName,
-        version: manifest.version,
-        description: manifest.description,
-        secretSlots: { required: manifest.requiredSecrets, total: manifest.totalSecrets },
-        setupUrl: `/docs/bridges/setup-${manifest.platform}`,
-      });
-    }
-  });
-
-  it("keeps each manifest-derived secret-slot count internally consistent", () => {
-    for (const provider of bridgeProviders) {
-      expect(provider.secretSlots.total).toBeGreaterThan(0);
-      expect(provider.secretSlots.required).toBeGreaterThan(0);
-      expect(provider.secretSlots.required).toBeLessThanOrEqual(provider.secretSlots.total);
-      expect(provider.setupUrl).toBe(`/docs/bridges/setup-${provider.platform}`);
-    }
-  });
-
-  it("rejects a provider whose setup guide is missing from the docs source", () => {
-    expect(() => readBridgeProviders({ resolveSetupPage: () => undefined })).toThrow(
-      /setup guide is missing/
-    );
-  });
-
-  it("rejects duplicate bridge platforms before publishing providers", () => {
-    const root = mkdtempSync(join(tmpdir(), "compozy-bridge-providers-"));
-    try {
-      writeBridgeManifest(root, "first", "duplicate");
-      writeBridgeManifest(root, "second", "duplicate");
-
-      expect(() =>
-        readBridgeProviders({
-          root,
-          resolveSetupPage: ([, slug]) => ({ url: `/docs/bridges/${slug}` }),
-        })
-      ).toThrow(/duplicate bridge platform/);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("has a real platform mark for every provider", () => {
-    // Tiles render the `@compozy/ui` logo inventory, the same marks the landing page uses. A
-    // provider without one would silently fall back to a neutral glyph.
-    const marks = new Set(Object.keys(BRIDGE_LOGOS));
-    for (const provider of bridgeProviders) {
-      expect(marks.has(provider.platform)).toBe(true);
-    }
-  });
-
-  it("Should keep bridge setup independent of packaged MCP servers with the same brand", () => {
-    // Task02 packages the GitHub/Linear MCP servers. A shared brand is not bridge identity:
-    // bridges retain setup guides, while the distinct extension packages carry install artifacts.
-    for (const platform of ["github", "linear"]) {
-      const bridge = findBridgeProvider(platform);
-      const packaged = findEntry(platform);
-      expect(bridge?.setupUrl).toBe(`/docs/bridges/setup-${platform}`);
-      expect(packaged).toMatchObject({
-        entry_id: platform,
-        install_slug: `compozy/${platform}`,
-        repository: `https://github.com/compozy/compozy/tree/main/catalog/packages/${platform}`,
-      });
-      expect(packaged?.description).not.toBe(bridge?.description);
-    }
-  });
-});
 
 describe("marketplace bundled resources", () => {
   it.each(["spec-cycle", "open-design"])(

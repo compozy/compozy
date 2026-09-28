@@ -17,12 +17,8 @@ func TestExecutionProfileValidation(t *testing.T) {
 				AllowedAgentNames:    []string{" coder ", "reviewer", "coder"},
 				RequiredCapabilities: []string{"go", "test", "go"},
 			},
-			Review: ReviewProfile{
-				AllowedChannelIDs: []string{"chan-b", "chan-a", "chan-b"},
-			},
-			Participants: ParticipantPolicy{
-				PreferredPeerIDs: []string{"peer-2", "peer-1", "peer-2"},
-			},
+			Review:       ReviewProfile{},
+			Participants: ParticipantPolicy{},
 		}).Normalize(DefaultExecutionProfileValidationOptions())
 		if err != nil {
 			t.Fatalf("Normalize() error = %v", err)
@@ -34,16 +30,12 @@ func TestExecutionProfileValidation(t *testing.T) {
 		if got, want := profile.Worker.Mode, WorkerModeInherit; got != want {
 			t.Fatalf("Worker.Mode = %q, want %q", got, want)
 		}
-		if got, want := profile.Sandbox.Mode, SandboxModeInherit; got != want {
-			t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
-		}
+
 		if got, want := profile.Worktree.Mode, WorktreeModeInherit; got != want {
 			t.Fatalf("Worktree.Mode = %q, want %q", got, want)
 		}
 		assertStringSlice(t, profile.Worker.AllowedAgentNames, []string{"coder", "reviewer"})
 		assertStringSlice(t, profile.Worker.RequiredCapabilities, []string{"go", "test"})
-		assertStringSlice(t, profile.Review.AllowedChannelIDs, []string{"chan-a", "chan-b"})
-		assertStringSlice(t, profile.Participants.PreferredPeerIDs, []string{"peer-1", "peer-2"})
 	})
 
 	t.Run("Should trim and lowercase a referenced worktree policy", func(t *testing.T) {
@@ -76,8 +68,6 @@ func TestExecutionProfileValidation(t *testing.T) {
 			},
 		}).Normalize(ExecutionProfileValidationOptions{
 			AllowProviderOverride: false,
-			AllowSandboxNone:      true,
-			AllowSandboxRef:       true,
 		})
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("Normalize() error = %v, want %v", err, ErrValidation)
@@ -93,34 +83,6 @@ func TestExecutionProfileValidation(t *testing.T) {
 				AgentName:         "coder-a",
 				AllowedAgentNames: []string{"coder-b"},
 			},
-		}).Normalize(DefaultExecutionProfileValidationOptions())
-		if !errors.Is(err, ErrValidation) {
-			t.Fatalf("Normalize() error = %v, want %v", err, ErrValidation)
-		}
-	})
-
-	t.Run("Should reject sandbox none when config gate is disabled", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := (&ExecutionProfile{
-			TaskID:  "task-1",
-			Sandbox: SandboxPolicy{Mode: SandboxModeNone},
-		}).Normalize(ExecutionProfileValidationOptions{
-			AllowProviderOverride: true,
-			AllowSandboxNone:      false,
-			AllowSandboxRef:       true,
-		})
-		if !errors.Is(err, ErrValidation) {
-			t.Fatalf("Normalize() error = %v, want %v", err, ErrValidation)
-		}
-	})
-
-	t.Run("Should require sandbox ref for ref mode", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := (&ExecutionProfile{
-			TaskID:  "task-1",
-			Sandbox: SandboxPolicy{Mode: SandboxModeRef},
 		}).Normalize(DefaultExecutionProfileValidationOptions())
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("Normalize() error = %v, want %v", err, ErrValidation)

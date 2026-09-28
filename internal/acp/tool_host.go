@@ -11,33 +11,29 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
-// ToolHost abstracts ACP file, permission, and terminal operations for a runtime.
-type ToolHost = sandbox.ToolHost
-
-type permissionOperation = sandbox.PermissionOperation
+type permissionOperation = PermissionOperation
 
 const (
-	permissionReadTextFile     = sandbox.PermissionOperationReadTextFile
-	permissionWriteTextFile    = sandbox.PermissionOperationWriteTextFile
-	permissionCreateTerminal   = sandbox.PermissionOperationCreateTerminal
-	permissionCloseTerminal    = sandbox.PermissionOperationCloseTerminal
-	permissionRequestToolGrant = sandbox.PermissionOperationRequestToolGrant
+	permissionReadTextFile     = PermissionOperationReadTextFile
+	permissionWriteTextFile    = PermissionOperationWriteTextFile
+	permissionCreateTerminal   = PermissionOperationCreateTerminal
+	permissionCloseTerminal    = PermissionOperationCloseTerminal
+	permissionRequestToolGrant = PermissionOperationRequestToolGrant
 )
 
-type permissionDecision = sandbox.PermissionDecision
+type permissionDecision = PermissionDecision
 
 const (
-	decisionPending      = sandbox.PermissionDecisionPending
-	decisionAllowOnce    = sandbox.PermissionDecisionAllowOnce
-	decisionAllowAlways  = sandbox.PermissionDecisionAllowAlways
-	decisionRejectOnce   = sandbox.PermissionDecisionRejectOnce
-	decisionRejectAlways = sandbox.PermissionDecisionRejectAlways
+	decisionPending      = PermissionDecisionPending
+	decisionAllowOnce    = PermissionDecisionAllowOnce
+	decisionAllowAlways  = PermissionDecisionAllowAlways
+	decisionRejectOnce   = PermissionDecisionRejectOnce
+	decisionRejectAlways = PermissionDecisionRejectAlways
 )
 
-var _ sandbox.ToolHost = (*localToolHost)(nil)
+var _ ToolHost = (*localToolHost)(nil)
 
 type localToolHost struct {
 	cwd         string
@@ -85,7 +81,7 @@ func NewLocalToolHost(
 	mode compozyconfig.PermissionMode,
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
-) (sandbox.ToolHost, error) {
+) (ToolHost, error) {
 	return newLocalToolHost(ctx, root, mode, logger, opts...)
 }
 
@@ -171,13 +167,13 @@ func (h *localToolHost) ResolvePath(path string) (string, error) {
 	return h.permissions.resolvePath(path)
 }
 
-func (h *localToolHost) Authorize(op sandbox.PermissionOperation) error {
+func (h *localToolHost) Authorize(op PermissionOperation) error {
 	return h.permissions.authorize(op)
 }
 
 func (h *localToolHost) PermissionDecision(
 	req acpsdk.RequestPermissionRequest,
-) (sandbox.PermissionDecision, bool) {
+) (PermissionDecision, bool) {
 	return h.permissions.permissionDecision(req)
 }
 
@@ -263,14 +259,6 @@ func (h *localToolHost) ReleaseTerminal(id string) error {
 
 func (h *localToolHost) releaseTerminalWithContext(ctx context.Context, id string) error {
 	return h.terminals.releaseWithContext(ctx, id)
-}
-
-func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) {
-	term, err := h.terminals.lookup(id)
-	if err != nil {
-		return terminalOwnership{}, err
-	}
-	return term.ownership, nil
 }
 
 func (h *localToolHost) Close() {

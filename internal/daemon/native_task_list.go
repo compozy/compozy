@@ -11,23 +11,23 @@ import (
 )
 
 type taskListInput struct {
-	Scope                string `json:"scope,omitempty"`
-	WorkspaceID          string `json:"workspace,omitempty"`
-	Status               string `json:"status,omitempty"`
-	Priority             string `json:"priority,omitempty"`
-	IncludeDrafts        bool   `json:"include_drafts,omitempty"`
-	IncludeLoop          bool   `json:"include_loop,omitempty"`
-	LoopRunID            string `json:"loop_run_id,omitempty"`
-	ApprovalState        string `json:"approval_state,omitempty"`
-	OwnerKind            string `json:"owner_kind,omitempty"`
-	OwnerRef             string `json:"owner_ref,omitempty"`
-	ParentTaskID         string `json:"parent_task_id,omitempty"`
-	WorktreeID           string `json:"worktree,omitempty"`
-	ParticipationChannel string `json:"participation_channel,omitempty"`
-	Search               string `json:"search,omitempty"`
-	Sort                 string `json:"sort,omitempty"`
-	Cursor               string `json:"cursor,omitempty"`
-	Limit                int    `json:"limit,omitempty"`
+	Scope         string `json:"scope,omitempty"`
+	WorkspaceID   string `json:"workspace,omitempty"`
+	Status        string `json:"status,omitempty"`
+	Priority      string `json:"priority,omitempty"`
+	IncludeDrafts bool   `json:"include_drafts,omitempty"`
+	IncludeLoop   bool   `json:"include_loop,omitempty"`
+	LoopRunID     string `json:"loop_run_id,omitempty"`
+	ApprovalState string `json:"approval_state,omitempty"`
+	OwnerKind     string `json:"owner_kind,omitempty"`
+	OwnerRef      string `json:"owner_ref,omitempty"`
+	ParentTaskID  string `json:"parent_task_id,omitempty"`
+	WorktreeID    string `json:"worktree,omitempty"`
+
+	Search string `json:"search,omitempty"`
+	Sort   string `json:"sort,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
 }
 
 func (n *daemonNativeTools) taskList(
@@ -61,20 +61,20 @@ func (n *daemonNativeTools) taskList(
 
 func (i taskListInput) query() taskpkg.CatalogQuery {
 	return taskpkg.CatalogQuery{
-		Scope:                taskpkg.CatalogScope(strings.TrimSpace(i.Scope)),
-		WorkspaceID:          strings.TrimSpace(i.WorkspaceID),
-		Status:               taskpkg.Status(strings.TrimSpace(i.Status)),
-		Priority:             taskpkg.Priority(strings.TrimSpace(i.Priority)),
-		IncludeDrafts:        i.IncludeDrafts,
-		ApprovalState:        taskpkg.ApprovalState(strings.TrimSpace(i.ApprovalState)),
-		OwnerKind:            taskpkg.OwnerKind(strings.TrimSpace(i.OwnerKind)),
-		OwnerRef:             strings.TrimSpace(i.OwnerRef),
-		ParentTaskID:         strings.TrimSpace(i.ParentTaskID),
-		WorktreeID:           strings.TrimSpace(i.WorktreeID),
-		ParticipationChannel: strings.TrimSpace(i.ParticipationChannel),
-		Search:               strings.TrimSpace(i.Search),
-		Sort:                 taskpkg.CatalogSort(strings.TrimSpace(i.Sort)),
-		Cursor:               strings.TrimSpace(i.Cursor),
-		Limit:                i.Limit,
+		Scope:         taskpkg.CatalogScope(strings.TrimSpace(i.Scope)),
+		WorkspaceID:   strings.TrimSpace(i.WorkspaceID),
+		Status:        taskpkg.Status(strings.TrimSpace(i.Status)),
+		Priority:      taskpkg.Priority(strings.TrimSpace(i.Priority)),
+		IncludeDrafts: i.IncludeDrafts,
+		ApprovalState: taskpkg.ApprovalState(strings.TrimSpace(i.ApprovalState)),
+		OwnerKind:     taskpkg.OwnerKind(strings.TrimSpace(i.OwnerKind)),
+		OwnerRef:      strings.TrimSpace(i.OwnerRef),
+		ParentTaskID:  strings.TrimSpace(i.ParentTaskID),
+		WorktreeID:    strings.TrimSpace(i.WorktreeID),
+
+		Search: strings.TrimSpace(i.Search),
+		Sort:   taskpkg.CatalogSort(strings.TrimSpace(i.Sort)),
+		Cursor: strings.TrimSpace(i.Cursor),
+		Limit:  i.Limit,
 	}
 }

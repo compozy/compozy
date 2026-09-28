@@ -61,7 +61,6 @@ describe("tool-first canonical surface docs", () => {
     ]);
     expectExcludesAll(toolsets, ["compozy__memory_history", "compozy__bundles"]);
     expectIncludesAll(tools, [
-      "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
       "MCP server probe/status diagnostics",
     ]);

@@ -10,12 +10,10 @@ import { describe, expect, it } from "vitest";
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
   agentRoute,
-  bridgeRoute,
   knowledgeRoute,
   jobRoute,
   loopRoute,
   marketplaceEntryRoute,
-  networkChannelRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
   section,
@@ -67,7 +65,6 @@ describe("os-palette-domain-search helpers", () => {
     });
     expect(jobRoute("job-42")).toEqual({ pathname: "/jobs/job-42", search: {} });
     expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
-    expect(bridgeRoute("bridge-42")).toEqual({ pathname: "/bridges/bridge-42", search: {} });
     expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
     expect(terminalRoute("term/4f21")).toEqual({
       pathname: "/terminal/term%2F4f21",
@@ -107,13 +104,6 @@ describe("os-palette-domain-search helpers", () => {
     expect(vaultRoute("vault:providers/ops/api-token")).toEqual({
       pathname: "/vault",
       search: { ref: "vault:providers/ops/api-token" },
-    });
-  });
-
-  it("Should land a network channel on the channel threads location", () => {
-    expect(networkChannelRoute("ws-a", "ops")).toEqual({
-      pathname: "/network/ws-a/ops/threads",
-      search: {},
     });
   });
 

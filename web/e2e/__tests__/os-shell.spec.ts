@@ -3009,14 +3009,14 @@ const PERF_APPS = [
   "dashboard",
   "tasks",
   "agents",
-  "network",
+  "new-tab",
   "loops",
   "jobs",
   "triggers",
   "marketplace",
-  "bridges",
+  "terminal",
   "knowledge",
-  "sandbox",
+  "settings",
   "vault",
 ] as const;
 
@@ -3053,7 +3053,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     new PerformanceObserver(list => {
       for (const entry of list.getEntries()) {
         const url = new URL(entry.name);
-        if (url.pathname.endsWith("/window-manager")) {
+        if (url.pathname.endsWith("/window-manager") && perf.snapshotResponseEnd === null) {
           perf.snapshotResponseEnd = entry.startTime + entry.duration;
         }
       }
@@ -3185,8 +3185,8 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
 
   const peerA = await openPeerPage(browser, runtime);
   const peerB = await openPeerPage(browser, runtime);
-  const sandboxID = perfWindowIDs.get("sandbox");
-  if (!sandboxID) throw new Error("performance fixture must retain the sandbox window ID");
+  const settingsID = perfWindowIDs.get("settings");
+  if (!settingsID) throw new Error("performance fixture must retain the settings window ID");
   let worstPeerTask = 0;
   try {
     for (const peer of [peerA, peerB]) {
@@ -3200,7 +3200,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     }
     // Warm the shared topology/convergence path before starting either peer's
     // observer. The following authoritative move is the measured operation.
-    await moveWindowFromCLI(runtime, workspace.id, sandboxID, "desktop-default", {
+    await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", {
       x: 0.31,
       y: 0.23,
       width: 0.38,
@@ -3210,7 +3210,13 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     for (const peer of peers) {
       await expect
         .poll(() =>
-          windowMatchesAuthority(peer, appWindow(peer, "sandbox"), runtime, workspace.id, sandboxID)
+          windowMatchesAuthority(
+            peer,
+            appWindow(peer, "settings"),
+            runtime,
+            workspace.id,
+            settingsID
+          )
         )
         .toBe(true);
       await waitForLongTaskQuiet(peer);
@@ -3222,18 +3228,18 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       height: 0.46,
     };
     await Promise.all(
-      peers.map(peer => installPeerConvergenceProbe(peer, sandboxID, measuredRect))
+      peers.map(peer => installPeerConvergenceProbe(peer, settingsID, measuredRect))
     );
-    await moveWindowFromCLI(runtime, workspace.id, sandboxID, "desktop-default", measuredRect);
+    await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", measuredRect);
     const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
     for (const peer of peers) {
       expect(
         await windowMatchesAuthority(
           peer,
-          appWindow(peer, "sandbox"),
+          appWindow(peer, "settings"),
           runtime,
           workspace.id,
-          sandboxID
+          settingsID
         )
       ).toBe(true);
     }

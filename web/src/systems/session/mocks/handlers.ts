@@ -2,10 +2,6 @@ import { sessionContextHandlers } from "./context-handlers";
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
-import {
-  buildLiveNetworkParticipationFixture,
-  buildLocalNetworkParticipationFixture,
-} from "@/test/network-participation-fixtures";
 
 import {
   primarySessionFixture,
@@ -230,19 +226,6 @@ export const handlers: HttpHandler[] = [
     const body: CreateSessionParams = await request.json();
 
     const workspaceId = body.workspace ?? primarySessionFixture.workspace_id ?? "";
-    const participation = body.network_participation;
-    const namedLive =
-      participation?.mode === "live" && participation.channel_strategy === "named"
-        ? participation
-        : undefined;
-    const channelId = namedLive?.channel_id.trim() ?? "";
-    if (participation?.mode === "live" && (!namedLive || !channelId)) {
-      return HttpResponse.json(
-        { error: "Session Live participation requires a named channel." },
-        { status: 422 }
-      );
-    }
-
     // Creation accepts a durable, unbound session; prompt dispatch owns runtime binding.
     return HttpResponse.json(
       {
@@ -256,13 +239,6 @@ export const handlers: HttpHandler[] = [
           workspace_id: workspaceId,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,
-          resolved_network_participation:
-            participation?.mode === "live"
-              ? buildLiveNetworkParticipationFixture({
-                  workspaceId,
-                  channelId,
-                })
-              : buildLocalNetworkParticipationFixture(),
         },
       },
       { status: 201 }

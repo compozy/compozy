@@ -25,7 +25,6 @@ export function hasNoRecordedWork(overview: HomeOverview): boolean {
     overview.outcomes.failed === 0 &&
     overview.outcomes.canceled === 0 &&
     overview.usage.total_tokens === 0 &&
-    overview.network.messages_today === 0 &&
     overview.system.hook_runs_today === 0 &&
     overview.system.hook_failures_today === 0 &&
     !overview.freshness.has_live_work

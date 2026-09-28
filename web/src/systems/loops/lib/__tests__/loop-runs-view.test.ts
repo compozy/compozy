@@ -27,7 +27,6 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     budget_wall_sec: 0,
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
-    resolved_network_participation: null,
     created_at: "2026-07-05T12:00:00Z",
     started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:00:00Z",

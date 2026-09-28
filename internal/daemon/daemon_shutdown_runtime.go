@@ -9,9 +9,6 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 	if targets.clarify != nil {
 		appendWrappedError(errs, "daemon: close clarification broker", targets.clarify.Close(ctx))
 	}
-	if targets.networkWakeRunner != nil {
-		appendWrappedError(errs, "daemon: shutdown network wake runner", targets.networkWakeRunner.Shutdown(ctx))
-	}
 	if targets.dreamRuntime != nil {
 		targets.dreamRuntime.Shutdown()
 	}

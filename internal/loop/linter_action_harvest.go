@@ -2,10 +2,8 @@ package loop
 
 import (
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/tools"
 )
 
 func (c *lintContext) lintActionHarvest(node dsl.Node) {
@@ -23,27 +21,8 @@ func (c *lintContext) lintActionHarvest(node dsl.Node) {
 	switch kind {
 	case harvestKindEventRange, harvestKindAsync:
 		return
-	case harvestKindChannelResult:
 	default:
 		c.add(node.ID, CodeInvalidHarvest, "harvest kind %q is not supported", kind)
 		return
-	}
-	if strings.TrimSpace(node.Kind) != tools.ToolIDNetworkSend.String() {
-		c.add(
-			node.ID,
-			CodeInvalidHarvest,
-			"channel_result harvest requires %s action kind, got %q",
-			tools.ToolIDNetworkSend,
-			node.Kind,
-		)
-	}
-	window := strings.TrimSpace(node.Harvest.Window)
-	if window == "" {
-		c.add(node.ID, CodeInvalidHarvest, "channel_result harvest requires window")
-	} else if parsed, err := time.ParseDuration(window); err != nil || parsed <= 0 {
-		c.add(node.ID, CodeInvalidHarvest, "channel_result harvest window must be a positive duration")
-	}
-	if err := validateChannelResultContentRule(node.Harvest.ContentRule); err != nil {
-		c.add(node.ID, CodeInvalidHarvest, "channel_result harvest content_rule is invalid: %v", err)
 	}
 }

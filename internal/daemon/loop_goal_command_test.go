@@ -12,7 +12,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -408,16 +408,10 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	t.Run("Should preserve the origin Network snapshot and apply a per-run worker runtime", func(t *testing.T) {
+	t.Run("Should apply a per-run worker runtime", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newGoalCommandHandlerFixture(t)
-		status, ok := fixture.service.sessionStatus.(*goalCommandSessionStatus)
-		if !ok {
-			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
-		}
-		network := daemonTestLiveParticipation(fixture.workspaceID, "goal-origin-command")
-		status.info.NetworkParticipation = network
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
@@ -434,9 +428,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
 		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
-		if got := run.NetworkSpecSnapshot(); got != network {
-			t.Fatalf("run network snapshot = %#v, want exact origin snapshot %#v", got, network)
-		}
+
 		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(
 			testutil.Context(t),
 			run.WorkspaceID,
@@ -685,7 +677,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		})
 	})
 
-	t.Run("Should isolate eight concurrent child Goals by origin runtime and network", func(t *testing.T) {
+	t.Run("Should isolate eight concurrent child Goals by origin runtime", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newGoalCommandHandlerFixture(t)
@@ -707,15 +699,15 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		status.sessions[parentID] = &parent
 		for index := range 8 {
 			childID := "session-goal-child-" + string(rune('a'+index))
-			childNetwork := daemonTestLiveParticipation(fixture.workspaceID, "goal-child-"+string(rune('a'+index)))
+
 			child := &session.Info{
-				ID:                   childID,
-				ProfileID:            parent.ProfileID,
-				AgentName:            parent.AgentName,
-				Provider:             parent.Provider,
-				Model:                parent.Model,
-				WorkspaceID:          parent.WorkspaceID,
-				NetworkParticipation: childNetwork,
+				ID:          childID,
+				ProfileID:   parent.ProfileID,
+				AgentName:   parent.AgentName,
+				Provider:    parent.Provider,
+				Model:       parent.Model,
+				WorkspaceID: parent.WorkspaceID,
+
 				Lineage: &store.SessionLineage{
 					ParentSessionID: parentID,
 				},
@@ -724,8 +716,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 			status.sessions[childID] = child
 			creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-				SessionID: childID, NetworkOwnerKey: "session:" + childID,
-				NetworkParticipation: childNetwork, SessionType: string(session.SessionTypeUser),
+				SessionID:   childID,
+				SessionType: string(session.SessionTypeUser),
 			})
 			if err != nil {
 				t.Fatalf("CreationDigest(%q) error = %v", childID, err)
@@ -736,12 +728,12 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				CreationDigest:     creationDigest,
 			}
 			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), store.SessionInfo{
-				ProfileID:           child.ProfileID,
-				ID:                  childID,
-				AgentName:           child.AgentName,
-				Provider:            child.Provider,
-				WorkspaceID:         child.WorkspaceID,
-				SessionNetworkState: &store.SessionNetworkState{NetworkSpec: childNetwork},
+				ProfileID:   child.ProfileID,
+				ID:          childID,
+				AgentName:   child.AgentName,
+				Provider:    child.Provider,
+				WorkspaceID: child.WorkspaceID,
+
 				SessionType: string(
 					child.Type,
 				),
@@ -804,10 +796,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 					parentID,
 				)
 			}
-			child := status.sessions[result.childID]
-			if got := run.NetworkSpecSnapshot(); got != child.NetworkParticipation {
-				t.Fatalf("child Goal run %q network = %#v, want %#v", snapshot.RunID, got, child.NetworkParticipation)
-			}
+
 			definition, err := fixture.db.GetLoopDefinitionSnapshot(
 				testutil.Context(t),
 				run.WorkspaceID,
@@ -902,7 +891,7 @@ context_nudge_ratio = 0.0
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
 		ProfileID: profileOwner.ID,
 		Provider:  "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
-		SandboxMode: store.SessionCreationSandboxNone, Permissions: "default",
+		Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)
 	if err != nil {
@@ -914,10 +903,9 @@ context_nudge_ratio = 0.0
 	}
 	sessionID := "session-goal-command"
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-		SessionID:            sessionID,
-		NetworkOwnerKey:      "session:" + sessionID,
-		NetworkParticipation: participation.LocalSpec(),
-		SessionType:          string(session.SessionTypeUser),
+		SessionID: sessionID,
+
+		SessionType: string(session.SessionTypeUser),
 	})
 	if err != nil {
 		t.Fatalf("CreationDigest() error = %v", err)
@@ -929,9 +917,9 @@ context_nudge_ratio = 0.0
 	}
 	if _, err := db.RegisterSessionWithCreationIdentity(ctx, store.SessionInfo{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
-		WorkspaceID:         workspaceID,
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-		SessionType:         string(session.SessionTypeUser), State: string(session.StateActive),
+		WorkspaceID: workspaceID,
+
+		SessionType: string(session.SessionTypeUser), State: string(session.StateActive),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     now, UpdatedAt: now,
 	}, identity); err != nil {
@@ -988,9 +976,9 @@ context_nudge_ratio = 0.0
 	}, info: &session.Info{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		Model:       activeModel,
-		WorkspaceID: workspaceID, NetworkParticipation: participation.LocalSpec(),
-		Lineage: &store.SessionLineage{ParentSessionID: "agent-operator"},
-		Type:    session.SessionTypeUser, State: session.StateActive,
+		WorkspaceID: workspaceID,
+		Lineage:     &store.SessionLineage{ParentSessionID: "agent-operator"},
+		Type:        session.SessionTypeUser, State: session.StateActive,
 	}}
 	return goalCommandHandlerFixture{
 		service: &daemonLoopAPIService{

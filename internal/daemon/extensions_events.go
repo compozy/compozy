@@ -177,14 +177,14 @@ func (s *daemonExtensionService) recordExtensionEnableEvents(
 	ctx context.Context,
 	actor taskpkg.ActorContext,
 	key extensionpkg.InstanceKey,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 	result *contract.ExtensionEnableResult,
 ) error {
 	key = key.Normalize()
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
 	if confirmation != nil {
 		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
 		})
 	}

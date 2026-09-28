@@ -15,9 +15,7 @@ sources:
   - internal/tools
   - internal/extension
   - internal/automation
-  - internal/network
   - internal/coordinator
-  - internal/bridges
   - internal/api/contract
   - internal/api/core
   - internal/api/httpapi
@@ -37,10 +35,8 @@ composes:
   - 04-autonomy-kernel (AUT-01, AUT-03, AUT-04, AUT-05, AUT-09, AUT-12, AUT-15, AUT-16, AUT-18)
   - 05-memory-soul (MEM-01, MEM-04, MEM-09, MEM-10, MEM-11, MEM-19)
   - 06-skills-capabilities (SKL-01, SKL-03, SKL-09, SKL-11, SKL-13)
-  - 07-tools-sandbox (TOL-01, TOL-03, TOL-08, TOL-10, TOL-14, TOL-15)
-  - 08-extensions-bridges (EXT-01, EXT-02, EXT-03, EXT-06, EXT-11, EXT-14, EXT-15, EXT-16)
+  - 07-tools-mcp (TOL-01, TOL-03, TOL-08, TOL-10, TOL-14, TOL-15)
   - 09-automation-cron (CRN-01, CRN-04, CRN-05, CRN-14, CRN-18)
-  - 10-network-identity (NET-01, NET-02, NET-05, NET-12, NET-19)
   - 11-api-cli-parity (API-02, API-05, API-07, API-08, API-09, API-13, API-17)
   - 15-observability (OBS-01, OBS-02, OBS-03, OBS-05, OBS-06, OBS-18)
 ---
@@ -96,10 +92,8 @@ There is **no single Go test target** for cross-cutting integration. The closest
 | **Soul + memory + hook + tool deny chain runs in correct order on a single call** | `internal/soul`, `internal/memory/recall.go`, `internal/hooks/ordering.go`, `internal/tools/policy.go`. | XCT-03: agent SOUL.md narrows tool capability set, recalled memory triggers a hook narrowing, denied tool path produces stable typed error and ledger row. |
 | **Cron fires → child session → real LLM → events → web UI → consolidation gate** | `internal/automation`, `internal/scheduler`, `internal/session`, `internal/observe`, `internal/memory/consolidation`. | XCT-04: a 1-minute cron runs five times; touched_sessions counter reaches 5 and the Sessions gate fires the consolidation runtime exactly once; real Claude Code child receives the cron-fired prompt and writes a marker; SSE shows lineage `parent_session_id → root_session_id`. |
 | **Coordinator startup → claim → spawn → MCP tool → ledger row → CLI parity** | `internal/coordinator`, `internal/task`, `internal/acp`, `internal/mcp`, `internal/observe`, CLI parity. | XCT-05: fresh COMPOZY_HOME; coordinator boots, claims first task_run, spawns subagent via ACP, subagent calls hosted MCP tool; ledger captures redacted tool call; `compozy sessions list -o json` reflects exactly the same state HTTP returns. |
-| **Two-instance network: claim_token_hash crosses, raw `claim_token` never does** | `internal/network` rejects raw claim_token in metadata (`internal/CLAUDE.md:55`); NET-05 covers ingress, NET-19 covers audit. | XCT-06: instance A delegates a sub-task to B's exposed agent via channel; B completes; lineage `root_session_id` correlates both transcripts; `claim_token_hash` appears in B's audit row but the literal regex `\bcompozy_claim_[A-Za-z0-9]+\b` matches zero bytes across all of A's and B's logs/SSE/audit. |
 | **Extension uninstall is atomic across CLI/HTTP/UDS/web/memory/hooks** | `internal/extension/manager.go`, no partial-surface completions rule (`internal/CLAUDE.md:27`). | XCT-07: install ext-foo; observe CLI verb, HTTP route `/api/ext/foo`, UDS verb, web capability tile, memory hook firing on every invocation; uninstall; observe all four surfaces atomically removed and memory hook stops firing. |
 | **SSE reconnect across daemon restart with `Last-Event-ID` / `after_seq` durability** | OBS-05 anchors single-module; this scenario adds bridge inbound + tool dispatch in flight at restart. | XCT-08: client SSE-subscribes; bridge inbound (Slack) starts a real Claude Code prompt that runs a tool; SIGTERM mid-tool; client retries with the last seq; new daemon replays durably-appended events without duplicates. |
-| **Bridge inbound → real agent → tool call → bridge outbound: full actor correlation** | `internal/bridges`, `internal/session`, `internal/tools`, observability. | XCT-09: real Slack message creates a session via `internal/bridges`, real Claude Code answers with a tool-driven response; outbound matches the same Slack thread; events show `actor_kind=bridge, actor_id=slack:<channel>` for both inbound and outbound. |
 | **Multi-workspace memory + settings + sessions + web all isolate by `workspace_id`** | cfg-08 (config), MEM-11/MEM-12 (memory), web workspace switcher. | XCT-10: workspaces W_A and W_B; one Claude Code session in each running concurrently; memory writes never cross; settings overlay differs; web switcher renders both; `workspace_id` correlation key present on every event of each session. |
 | **Failure cascade is contained: extension panic does not kill peers** | `internal/extension/manager.go` lifecycle, EXT-15 single-module, daemon supervision. | XCT-11: install ext-X with a panicking host-API call; daemon catches; ext-X marked unhealthy with backoff; all other agents/sessions unaffected; web shows badge; `compozy extension list -o json` reflects; restart-policy attempt within window. |
 | **Greenfield zero-legacy invariant on a fresh COMPOZY_HOME** | `CLAUDE.md` greenfield rule; SD-002. | XCT-12: brand-new COMPOZY_HOME; assert no migration paths fire for "old state"; assert grep-search for the names of deleted features (e.g. `recipe`, `playbook`, deprecated CLI verbs) produces zero hits in the running binary's CLI output, OpenAPI spec, web bundle, and docs site. |
@@ -456,63 +450,6 @@ cleanup:
 ```
 
 ```markdown
-### XCT-06 — Local/Live Network: one bounded wake preserves lineage and raw claim tokens never cross
-
-```yaml qa-scenario
-id: xct-06-live-network-claim-hash-correlation
-title: A Local control stays disconnected while an explicitly Live session receives one addressed wake with task-run lineage and no raw claim token disclosure
-theme: cross-cutting
-composes:
-  - NET-01
-  - NET-02
-  - NET-05
-  - NET-12
-  - NET-19
-  - AUT-12
-  - AUT-16
-  - API-17
-  - OBS-02
-coverage:
-  primary:
-    - cross.network.delegate.claim-hash.lineage
-  secondary:
-    - network.participation.live
-    - autonomy.lineage.correlation
-    - security.claim-token.network-rejection
-live: true
-provider: claude-code
-modules: [network, agentidentity, task, session, transcript, observe]
-```
-
-```yaml qa-flow
-preconditions:
-  - One fresh isolated lab from `eng-qa-bootstrap`; real Claude Code reachable under the manifest provider policy.
-  - Network available and channel `compozy-qa-channel` created.
-steps:
-  - Create one Local control session with `compozy session new --network local -o json` and save its resolved snapshot.
-  - Create one Live session with `compozy session new --network live --network-channel-strategy named --network-channel compozy-qa-channel -o json`.
-  - Send one addressed `say` with nonce `OK-XCT06` to the Live session through the structured Network surface.
-  - Wait for the bounded wake to settle, then read the conversation, wake task run, session transcript, Network usage, and correlated events.
-  - Read the Local control's prompt/environment/tool projection and prove it received no Network state or wake.
-  - Scan all captured bodies, events, transcripts, and logs for raw `compozy_claim_*` values.
-expected_behavior:
-  - The Local snapshot is immutable Local and has zero Network prompt, tools, wake, and usage delta.
-  - The Live transcript acknowledges `OK-XCT06` exactly once and shares the wake task run's `root_session_id`/`run_id` lineage.
-  - Conversation and recipient disposition are durable before the wake; usage is actual or `usage_unavailable`.
-  - Structured evidence may expose `claim_token_hash`; no response, event, transcript, or log exposes raw `claim_token`.
-evidence_to_capture:
-  - local-session.json, live-session.json, conversation.json, wake-run.json, transcript.json, usage.json, events.json, forbidden-needles.txt.
-failure_signatures:
-  - Local receives any Network affordance or activation.
-  - The nonce is absent or prompts more than once.
-  - Conversation, wake, transcript, and usage lineage disagree.
-  - Any raw `compozy_claim_*` value appears.
-cleanup:
-  - Run the bootstrap manifest teardown command and retain `teardown.json` with `clean: true`.
-```
-```
-
-```markdown
 ### XCT-07 — Extension install lights up CLI + HTTP + UDS + web; uninstall removes all four atomically; memory hook fires on each invocation
 
 ```yaml qa-scenario
@@ -584,7 +521,7 @@ cleanup:
 ```
 
 ```markdown
-### XCT-08 — SSE reconnect across daemon restart with bridge-driven prompt mid-tool
+### XCT-08 — SSE reconnect across daemon restart with a managed prompt mid-tool
 
 ```yaml qa-scenario
 id: xct-08-sse-reconnect-across-restart-bridge-tool-inflight
@@ -599,7 +536,6 @@ composes:
   - API-05
   - OBS-03
   - OBS-05
-  - EXT-06
 coverage:
   primary:
     - cross.sse.restart.replay.durable-append-only
@@ -651,64 +587,6 @@ failure_signatures:
   - In-flight tool has `tool_call.started` without a paired `cancelled`/`completed` event after restart.
 cleanup:
   - compozy daemon stop && compozy extension uninstall xct08-bridge
-```
-```
-
-```markdown
-### XCT-09 — Bridge inbound (Slack) → real Claude Code → tool call → bridge outbound: full actor correlation
-
-```yaml qa-scenario
-id: xct-09-bridge-realllm-tool-bidi-actor-correlation
-title: A real Slack message creates a daemon session; real Claude Code answers via a tool-driven response; outbound returns to the same Slack thread; events show actor_kind=bridge,actor_id=slack:<ch> end-to-end
-theme: cross-cutting
-composes:
-  - EXT-06
-  - EXT-13
-  - ACP-04
-  - TOL-01
-  - OBS-02
-coverage:
-  primary:
-    - cross.bridge.realllm.bidi.actor-correlation
-  secondary:
-    - bridges.signature.verify
-    - observe.actor.bridge
-live: true
-provider: claude-code
-modules: [bridges, session, tools, observe, api]
-```
-
-```yaml qa-flow
-preconditions:
-  - Real Slack workspace + bot OR a high-fidelity QA bridge that emits identical event shape (preferred for deterministic CI; live Slack lane optional).
-  - Lab home; real Claude Code.
-steps:
-  - run: compozy daemon start && sleep 5
-  - run: compozy bridge configure slack --token $SLACK_BOT_TOKEN --signing-secret $SLACK_SIGNING_SECRET -o json
-  - run: curl -X POST "http://127.0.0.1:$COMPOZY_HTTP_PORT/api/bridges/slack/events" -H "X-Slack-Signature: $(./fixtures/xct09/sign.sh slack)" -H "X-Slack-Request-Timestamp: $(date +%s)" -d @./fixtures/xct09/event_message.json -o resp.json
-  - sleep: 8
-  - run: compozy sessions list --since "$(date -d '5 minutes ago' --utc -Iseconds)" -o json | tee sess.json
-  - set: SID=$(jq -r '.[0].id' sess.json)
-  - run: compozy observe events --session $SID -o json > events.json
-  - run: jq '[.[] | {event_type, actor_kind, actor_id, agent_name, root_session_id}]' events.json | tee summary.json
-  - run: jq '.[] | select(.event_type=="bridge_outbound")' events.json | tee outbound.json
-  - run: jq -r '.thread_ts // .channel' outbound.json | tee out_addr.txt
-  - run: jq -r '.thread_ts // .channel' ./fixtures/xct09/event_message.json | tee in_addr.txt
-  - run: cmp out_addr.txt in_addr.txt
-expected_behavior:
-  - At least one `bridge_inbound`, one `session_started`, one `tool_call`, one `agent_message`, one `bridge_outbound` for $SID (OBS-02 coverage matrix).
-  - Every event has `actor_kind=bridge` and `actor_id=slack:<channel>` per `internal/CLAUDE.md:49`.
-  - Inbound and outbound share the Slack thread address (cmp passes).
-  - signature verification path traced — invalid signature variant rejected with 401 (EXT-13).
-evidence_to_capture:
-  - resp.json, sess.json, events.json, summary.json, outbound.json, addr files.
-failure_signatures:
-  - Outbound delivered to a different thread.
-  - Any event missing `actor_kind` / `actor_id`.
-  - `agent_name` empty on `tool_call`.
-  - Signature path bypassed (any unsigned request accepted).
-cleanup:
-  - compozy sessions stop $SID && compozy daemon stop
 ```
 ```
 
@@ -1069,10 +947,9 @@ composes:
   - 04-autonomy-kernel
   - 05-memory-soul
   - 06-skills-capabilities
-  - 07-tools-sandbox
-  - 08-extensions-bridges
+  - 07-tools-mcp
+  - 08-extensions
   - 09-automation-cron
-  - 10-network-identity
   - 11-api-cli-parity
   - 15-observability
 coverage:
@@ -1124,9 +1001,6 @@ Cross-cutting obligations between modules. This is a different table from the pe
 
 | Invariant | Modules required to agree | Citation |
 | --- | --- | --- |
-| `claim_token_hash` on the wire; raw `claim_token` never on the wire | `internal/task`, `internal/network`, `internal/observe`, `internal/api/contract`, `internal/diagnostics` | `internal/CLAUDE.md:55`, `internal/api/contract/agents.go:479-498`, `internal/network` ingress reject (NET-05) |
-| `root_session_id` correlation across cron, network, bridges | `internal/automation`, `internal/network`, `internal/bridges`, `internal/session`, `internal/observe` | `internal/CLAUDE.md:49` correlation keys |
-| Detached lifetime: prompts, network sends, automation jobs, bridge dispatches | `internal/session`, `internal/network`, `internal/automation`, `internal/bridges`, `internal/extension/host_api.go:1724` | `internal/CLAUDE.md:33-35`, L-001 |
 | Hook dispatch at the call site, never tail event tables | `internal/hooks`, `internal/session`, `internal/extension`, `internal/tools`, `internal/skills` | `internal/CLAUDE.md:24-26` |
 | Authoritative-primitive exclusivity: only `task.Service.ClaimNextRun` claims | `internal/task`, `internal/scheduler`, `internal/coordinator`, `internal/automation` | L-005, AUT-07/AUT-14 |
 | Codegen co-ship: contract → openapi → web TS in a single change | `internal/api/contract`, `openapi/compozy.json`, `web/src/generated`, `make codegen-check` | `eng-contract-codegen-coship` skill, L-007 |
@@ -1147,7 +1021,6 @@ Cross-cutting failure modes that single-module DX cliffs miss.
 
 3. **Cron firing while consolidation is running can starve the consolidation Lock gate** — repro: dense one-minute cron + small workspace sessions; consolidation Time gate hits, but Lock gate fails to acquire because cron-driven sessions are still writing memory. Fix surface: `internal/memory/consolidation/runtime.go` Lock acquire must back off, not abandon, with telemetry.
 
-4. **Two-instance network: B's audit log carries A's `agent_id` but not A's `peer_card_fingerprint`** — repro: NET-19 + XCT-06; without the fingerprint the audit row cannot be validated post-incident. Fix surface: `internal/network` audit emitter must include the verified peer card fingerprint.
 
 5. **Extension lifecycle hook errors are swallowed silently in fail-open mode** — repro: XCT-13 with `mmm-mid` erroring; ledger captures but operator never sees a UI/CLI badge. Fix surface: emit a separate `hook_runtime_error` event consumed by the web "alerts" panel.
 
@@ -1170,9 +1043,7 @@ Cross-cutting failures that, if shipped, indicate broken module composition. Eac
 3. **A hook runs at the wrong call site.** XCT-02 + XCT-13: deny must short-circuit BEFORE provider spawn; ordering across layers must be hierarchy-then-alphabetical with deterministic ledger.
 4. **Cron→child→real-LLM→consolidation chain breaks at any seam.** XCT-04: touched_count never incrementing → consolidation gate dead. cron events without `parent_session_id` for `delivery=child` → lineage broken.
 5. **Coordinator claims using something other than `task.Service.ClaimNextRun`.** XCT-05 + L-005: any peer claim path is a structural redesign trigger (two-touch rule).
-6. **Network leaks raw `claim_token`.** XCT-06: greedy regex `\bcompozy_claim_[A-Za-z0-9]+\b` over all logs/audits/SSE on both labs MUST return zero matches.
 7. **SSE replay across restart drops or duplicates events.** XCT-08 + OBS-03: durable-append-before-broadcast invariant must hold even with a tool in-flight at SIGTERM.
-8. **Bridge correlation breaks on outbound delivery.** XCT-09: outbound MUST land in the same Slack thread as the inbound; `actor_kind/actor_id` carries through every event.
 9. **Workspace memory crosses workspaces.** XCT-10: any cross-recall is release-blocking.
 10. **Extension panic crashes the daemon.** XCT-11: parent PID must NOT change.
 11. **Greenfield rule is violated.** XCT-12: any deleted vocabulary in CLI/OpenAPI/web/site or any "migrating from" log message blocks release.
@@ -1184,8 +1055,6 @@ Cross-cutting failures that, if shipped, indicate broken module composition. Eac
 
 Cross-cutting QA harness needs, in addition to single-module child requirements:
 
-- **Parallel-lab bootstrap**: `eng-qa-bootstrap` must produce non-overlapping COMPOZY_HOME, daemon/UDS/Web endpoints, tmux-bridge sockets, and provider homes. XCT-06 itself uses one fresh lab because Network delivery is installation-local.
-- **QA bridge fixture**: an in-process bridge (Slack-class) that emits `bridge_inbound`/`bridge_outbound` events with the same shape as the real Slack bridge; gated behind a build tag so production binary cannot ship it. Used by XCT-08, XCT-09 (CI default), with the live Slack lane optional.
 - **Long-tool fixture**: `xct__sleep` that sleeps configurable duration; required for XCT-08.
 - **Panic-extension fixture**: `xct11-ext-X` with a host-API call that triggers `panic("xct11")`; required for XCT-11. Build-tag-gated.
 - **Phantom-fetch web fork**: `scripts/qa/truthful-ui-gate.sh` runs against an arbitrary web tree; required for XCT-14. Implementation: parse all `fetch(...)` literals, parse `openapi/compozy.json` route table, fail on mismatches.
@@ -1204,18 +1073,14 @@ Cross-cutting QA harness needs, in addition to single-module child requirements:
 - `internal/daemon/boot.go:152-1779` — composition-root boot pipeline; bootCleanup LIFO; bootSessionRepair (545-617); used in XCT-01, XCT-04.
 - `internal/api/httpapi/middleware.go:45-47` — `Last-Event-ID` exposed; required for XCT-01, XCT-08.
 - `internal/api/httpapi/httpapi_integration_test.go:417,1511` — existing reference for `Last-Event-ID` and `after_sequence` SSE replay.
-- `internal/task/types.go:276,380`, `internal/task/validate.go:488-497` — `claim_token_hash` is mandatory when `claim_token`/`lease_until`/`heartbeat_at` is set; XCT-05, XCT-06.
 - `internal/extension/host_api.go:1724` — `context.WithoutCancel` site for prompt detachment; XCT-01, XCT-08.
 - `internal/extension/manager.go:1392` — extension MutationActorKindExtension; XCT-07.
 - `internal/extension/host_api_authored_context.go:824` — `heartbeat.ActorKindExtension`; XCT-13.
 - `internal/coordinator/coordinator.go` — coordinator bootstrap (composed in XCT-05).
 - `internal/memory/consolidation/runtime.go:437` — Lock gate uses `context.WithoutCancel`; XCT-04.
-- `internal/network/` — peer card, channel publish, claim_token redaction; XCT-06.
-- `internal/bridges/` — bridge runtime, signature verification, registry; XCT-09, XCT-02, XCT-08.
 - `internal/observe/` — canonical event store, redaction, query engine; every XCT scenario.
 - `internal/skills/registry.go` + `internal/skills/loader.go` — skill registry hot install; XCT-02, XCT-13.
 - `internal/hooks/ordering.go` — hierarchy-then-alphabetical ordering; XCT-02, XCT-13.
-- `internal/api/contract/authored_context_test.go:127`, `internal/api/contract/agents_test.go:161` — contract assertions on `claim_token_hash`; XCT-05, XCT-06.
 - `docs/_memory/standing_directives.md`:
   - SD-002 — Remove Legacy Alpha Compatibility Code; XCT-12.
   - SD-005 — Real-Scenario QA Before Release; XCT-16.
@@ -1242,10 +1107,9 @@ Cross-cutting QA harness needs, in addition to single-module child requirements:
 - **Autonomy Kernel**: `04-autonomy-kernel.md` — AUT-01/03/04/05/09/12/15/16/18.
 - **Memory + Soul**: `05-memory-soul.md` — MEM-01/04/09/10/11/19.
 - **Skills + Capabilities**: `06-skills-capabilities.md` — SKL-01/03/09/11/13.
-- **Tools + Sandbox**: `07-tools-sandbox.md` — TOL-01/03/08/10/14/15.
-- **Extensions + Bridges**: `08-extensions-bridges.md` — EXT-01/02/03/06/11/14/15/16.
+- **Tools + Sandbox**: `07-tools-mcp.md` — TOL-01/03/08/10/14/15.
+- **Extensions + Bridges**: `08-extensions.md` — EXT-01/02/03/06/11/14/15/16.
 - **Automation + Cron**: `09-automation-cron.md` — CRN-01/04/05/14/18.
-- **Network + Identity**: `10-network-identity.md` — NET-01/02/05/12/19.
 - **API ↔ CLI parity**: `11-api-cli-parity.md` — API-02/05/07/08/09/13/17.
 - **Observability**: `15-observability.md` — OBS-01/02/03/05/06/18.
 
@@ -1265,7 +1129,6 @@ Rows = module that misbehaves silently. Columns = module that trusts the row. Ce
 | **tools** | tool-process registry orphans | session prompt has no tools | — | — | hook can't narrow capabilities | — | skill effective tools wrong | — | extension tool dispatch fails | automation triggers tool runs that never finish | — | tool_call events missing | tool APIs inconsistent | `compozy tool list` lies | web tool inspector wrong |
 | **extension** | extension Stop never called → daemon leaks | session-create hook unstable | — | — | hooks fired but extension panics (XCT-11) | memory hook not invoked | skills/tools registered for dead extension | tool dispatch crashes daemon | — | automation can't use extension | network exposes broken extension | extension health events missing | extension APIs lie | `compozy extension list` lies | web extensions panel wrong (XCT-07/XCT-11) |
 | **automation** | cron entries lock store on shutdown | sessions started without lineage | claim path orphan | scheduler wakeups doubled | hooks see wrong actor_kind | — | — | — | — | — | — | automation events missing | automation APIs inconsistent | `compozy automation list` lies | web automation pane wrong |
-| **network** | shutdown leaves admitted wakes stuck | network-driven sessions orphan | claim_token_hash mismatched (XCT-06) | — | — | — | — | — | — | — | — | network events missing audit row (NET-19) | network APIs lie | `compozy network status` lies | web network tile wrong |
 | **observe** | shutdown blocks broadcaster | session SSE silent | task lineage hidden | — | hook telemetry hidden | memory consolidation events hidden | — | tool_call events hidden (TOL-08) | extension health invisible | automation telemetry hidden | network audit hidden | — | `/api/observe/*` lies | `compozy observe events` empty | web event stream silent (XCT-08) |
 | **api(http/uds)** | shutdown rejects refuse mid-shutdown wrong (DB-15) | session APIs unreachable | task APIs unreachable | scheduler unreachable | hook APIs unreachable | memory APIs unreachable | skills APIs unreachable | tools APIs unreachable | extension APIs unreachable | automation APIs unreachable | network APIs unreachable | observe APIs unreachable | — | cli loses transport | web loses transport |
 | **cli** | — | session verbs lie | task verbs lie | — | — | memory verbs lie | skill verbs lie | tool verbs lie | extension verbs lie | automation verbs lie | network verbs lie | observe verbs lie | UDS verbs unreachable | — | — |

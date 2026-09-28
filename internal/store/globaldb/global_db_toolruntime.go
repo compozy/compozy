@@ -26,15 +26,15 @@ func (g *ToolRuntimeRepo) UpsertProcessRecord(ctx context.Context, record toolru
 		return fmt.Errorf("store: encode tool process args for %q: %w", record.ID, err)
 	}
 	err = g.queries.UpsertToolProcessRecord(ctx, sqlcgen.UpsertToolProcessRecordParams{
-		ID:             record.ID,
-		Source:         string(record.Source),
-		SessionID:      record.Owner.SessionID,
-		TurnID:         record.Owner.TurnID,
-		ToolCallID:     record.Owner.ToolCallID,
-		TerminalID:     record.Owner.TerminalID,
-		ExtensionName:  record.Owner.ExtensionName,
-		HookName:       record.Owner.HookName,
-		SandboxID:      record.Owner.SandboxID,
+		ID:            record.ID,
+		Source:        string(record.Source),
+		SessionID:     record.Owner.SessionID,
+		TurnID:        record.Owner.TurnID,
+		ToolCallID:    record.Owner.ToolCallID,
+		TerminalID:    record.Owner.TerminalID,
+		ExtensionName: record.Owner.ExtensionName,
+		HookName:      record.Owner.HookName,
+
 		Pid:            int64(record.PID),
 		ProcessGroupID: int64(record.ProcessGroupID),
 		Command:        record.Command,
@@ -159,7 +159,7 @@ func toolProcessListQuery(query toolruntime.ProcessQuery) (string, []any) {
 	var builder strings.Builder
 	builder.WriteString(`SELECT
 		id, source, session_id, turn_id, tool_call_id, terminal_id, extension_name,
-		hook_name, sandbox_id, pid, process_group_id, command, args_json, cwd,
+		hook_name, pid, process_group_id, command, args_json, cwd,
 		started_at, started_by_pid, state, exit_code, error, created_at, updated_at, completed_at
 		FROM tool_processes`)
 	if len(where) > 0 {
@@ -193,7 +193,6 @@ func scanToolProcessRecord(rows *sql.Rows) (toolruntime.ProcessRecord, error) {
 		&record.Owner.TerminalID,
 		&record.Owner.ExtensionName,
 		&record.Owner.HookName,
-		&record.Owner.SandboxID,
 		&record.PID,
 		&record.ProcessGroupID,
 		&record.Command,

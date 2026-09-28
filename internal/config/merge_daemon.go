@@ -12,7 +12,6 @@ type daemonOverlay struct {
 type daemonReloadTimeoutsOverlay struct {
 	Providers *time.Duration `toml:"providers"`
 	MCP       *time.Duration `toml:"mcp"`
-	Bridges   *time.Duration `toml:"bridges"`
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -34,8 +33,5 @@ func (o daemonReloadTimeoutsOverlay) Apply(dst *DaemonReloadTimeoutsConfig) {
 	}
 	if o.MCP != nil {
 		dst.MCP = *o.MCP
-	}
-	if o.Bridges != nil {
-		dst.Bridges = *o.Bridges
 	}
 }

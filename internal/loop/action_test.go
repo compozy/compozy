@@ -201,27 +201,6 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			t.Fatalf("ReasonError.Code = %q, want %q", reason.Code, loop.ReasonCodeUnknownActionKind)
 		}
 	})
-
-	t.Run("Should reject deleted channel post as unknown action kind", func(t *testing.T) {
-		t.Parallel()
-
-		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
-			tools.ToolID("channel-post"): {},
-		}}
-		actions := newActionRegistryForTest(t, registry)
-
-		_, err := actions.Resolve(context.Background(), tools.Scope{}, "channel-post")
-		if !errors.Is(err, loop.ErrActionUnknownKind) {
-			t.Fatalf("Resolve(channel-post) error = %v, want ErrActionUnknownKind", err)
-		}
-		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
-		if !reasonMatched || reason.Code != loop.ReasonCodeUnknownActionKind {
-			t.Fatalf("Resolve(channel-post) reason = %v, want %q", err, loop.ReasonCodeUnknownActionKind)
-		}
-		if registry.getCount() != 0 {
-			t.Fatalf("RuntimeRegistry.Get calls = %d, want 0", registry.getCount())
-		}
-	})
 }
 
 func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) {
@@ -570,68 +549,6 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			t.Fatalf("Harvest().Structured = %s, want event count", output.Structured)
 		}
 	})
-
-	t.Run("Should channel result harvest designated result or stall on silence", func(t *testing.T) {
-		t.Parallel()
-
-		toolID := tools.ToolID("compozy__network_send")
-		channel := &fakeChannelResultHarvester{
-			result: loop.ChannelResultHarvestResult{
-				Found:      true,
-				MessageID:  "msg-1",
-				Structured: json.RawMessage(`{"answer":"approved"}`),
-			},
-		}
-		registry := &fakeActionToolRegistry{
-			views: map[tools.ToolID]tools.ToolView{toolID: {}},
-			callResult: tools.ToolResult{Metadata: map[string]json.RawMessage{
-				"session_id":    json.RawMessage(`"sess-channel"`),
-				"eventStartSeq": json.RawMessage(`10`),
-				"eventEndSeq":   json.RawMessage(`11`),
-			}},
-		}
-		actions := newActionRegistryForTest(t, registry, loop.WithActionChannelResultHarvester(channel))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, toolID.String())
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		node := dsl.Node{
-			ID:    "ask",
-			Class: dsl.NodeClassAction,
-			Kind:  toolID.String(),
-			Harvest: &dsl.HarvestSpec{
-				Kind:        "channel_result",
-				Window:      "5m",
-				Responder:   "{{ .inputs.reviewer }}",
-				ContentRule: "contains:{{ .inputs.term }}",
-			},
-		}
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
-			Namespace: map[string]any{"inputs": map[string]any{"reviewer": "reviewer", "term": "approved"}},
-		})
-		if err != nil {
-			t.Fatalf("Execute() error = %v", err)
-		}
-		output, err := executor.Harvest(context.Background(), raw, node)
-		if err != nil {
-			t.Fatalf("Harvest() error = %v", err)
-		}
-		if channel.last.Window != "5m" ||
-			channel.last.Responder != "reviewer" ||
-			channel.last.ContentRule != "contains:approved" {
-			t.Fatalf("channel harvest request = %#v, want authored harvest spec", channel.last)
-		}
-		got, ok := output.Value.(map[string]any)
-		if !ok || got["answer"] != "approved" {
-			t.Fatalf("Harvest().Value = %#v, want approved answer", output.Value)
-		}
-
-		channel.result = loop.ChannelResultHarvestResult{Found: false}
-		_, err = executor.Harvest(context.Background(), raw, node)
-		if !errors.Is(err, loop.ErrActionStalled) {
-			t.Fatalf("Harvest() silence error = %v, want ErrActionStalled", err)
-		}
-	})
 }
 
 func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
@@ -720,7 +637,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				ID:      dsl.NodeID(strings.ReplaceAll(kind, "-", "_")),
 				Class:   dsl.NodeClassAction,
 				Kind:    kind,
-				Harvest: &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"},
+				Harvest: &dsl.HarvestSpec{Kind: "unsupported"},
 			}
 			_, err = executor.Harvest(context.Background(), loop.ActionRawResult{}, node)
 			if !errors.Is(err, loop.ErrValidation) {
@@ -1808,29 +1725,6 @@ func (r *fakeActionEventReader) ReadActionEventRange(
 		return loop.ActionEventRangeResult{}, r.err
 	}
 	return r.result, nil
-}
-
-type fakeChannelResultHarvester struct {
-	mu     sync.Mutex
-	last   loop.ChannelResultHarvestRequest
-	result loop.ChannelResultHarvestResult
-	err    error
-}
-
-func (h *fakeChannelResultHarvester) HarvestChannelResult(
-	_ context.Context,
-	req *loop.ChannelResultHarvestRequest,
-) (loop.ChannelResultHarvestResult, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if req != nil {
-		h.last = *req
-	}
-	if h.err != nil {
-		return loop.ChannelResultHarvestResult{}, h.err
-	}
-	return h.result, nil
 }
 
 type fakeActionSessionBinder struct {

@@ -44,7 +44,7 @@ function FooterColumnGroup({ column, className }: { column: FooterColumn; classN
 
 export function SiteFooter() {
   const currentYear = new Date().getFullYear();
-  const [runtime, network, resources] = footerColumns;
+  const [runtime, resources] = footerColumns;
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas">
@@ -73,7 +73,6 @@ export function SiteFooter() {
           </div>
 
           <FooterColumnGroup column={runtime} className="lg:col-span-2" />
-          <FooterColumnGroup column={network} className="lg:col-span-2" />
           <FooterColumnGroup column={resources} className="lg:col-span-3" />
         </div>
 

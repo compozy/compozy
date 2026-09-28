@@ -13,10 +13,9 @@ import (
 )
 
 const (
-	hookInputClassUserMessage    = acp.EventTypeUserMessage
-	hookInputClassNetworkMessage = "network_message"
-	hookInputClassSynthetic      = acp.EventTypeSyntheticReentry
-	hookInputClassStartup        = "startup_prompt"
+	hookInputClassUserMessage = acp.EventTypeUserMessage
+	hookInputClassSynthetic   = acp.EventTypeSyntheticReentry
+	hookInputClassStartup     = "startup_prompt"
 
 	hookMessageRoleAssistant = "assistant"
 
@@ -57,8 +56,6 @@ func newPromptRequestDispatchState(
 
 func inputClassForTurnSource(source TurnSource) string {
 	switch normalizeTurnSource(source) {
-	case TurnSourceNetwork:
-		return hookInputClassNetworkMessage
 	case TurnSourceSynthetic:
 		return hookInputClassSynthetic
 	default:

@@ -203,7 +203,7 @@ func appStatusBundle(report AppStatusReport) outputBundle {
 				{Label: cliInstalledValue, Value: strconv.FormatBool(report.Installed)},
 				{Label: versionValue, Value: stringOrDash(report.AppVersion)},
 				{Label: "Running", Value: strconv.FormatBool(report.Running)},
-				{Label: networkStateValue, Value: stringOrDash(report.State)},
+				{Label: cliOutputStateValue, Value: stringOrDash(report.State)},
 			}), nil
 		},
 		toon: func() (string, error) {

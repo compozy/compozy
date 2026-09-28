@@ -80,7 +80,7 @@ func validateDefinitionForProjection(def dsl.Definition, linter Linter) error {
 func knownStartKind(kind string) bool {
 	switch dsl.StartKind(strings.TrimSpace(kind)) {
 	case dsl.StartManual, dsl.StartCLI, dsl.StartHTTP, dsl.StartUDS, dsl.StartTrigger,
-		dsl.StartSchedule, dsl.StartWebhook, dsl.StartNetwork, dsl.StartExtension, dsl.StartNativeTool:
+		dsl.StartSchedule, dsl.StartWebhook, dsl.StartExtension, dsl.StartNativeTool:
 		return true
 	default:
 		return false

@@ -36,22 +36,12 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 		if loadErr != nil {
 			return loadErr
 		}
-		if current.IsNetworkWake() {
-			return fmt.Errorf(
-				"%w: network_wake runs must be completed through network settlement",
-				taskpkg.ErrValidation,
-			)
-		}
 		if err := normalized.ValidateForRun("lease_completion", current); err != nil {
 			return err
 		}
 		updated, err := g.completeRunLeaseWithExecutor(ctx, exec, normalized)
 		if err != nil {
 			return err
-		}
-		if updated.IsNetworkWake() {
-			settlement = taskpkg.CompletedRunSettlement{Run: updated}
-			return nil
 		}
 		settlement, err = g.tasks.settleCompletedTaskHierarchyWithExecutor(
 			ctx,
@@ -113,29 +103,27 @@ func (g *TaskRunRepo) completeRunLeaseWithExecutor(
 	if err := closeTerminalRunAgentBinding(ctx, exec, current, normalized.Now); err != nil {
 		return taskpkg.Run{}, err
 	}
-	if current.IsTaskAnchored() {
-		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-			return taskpkg.Run{}, err
-		}
-		if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
-			return taskpkg.Run{}, err
-		}
-		if err := appendTaskEventPayloadWithExecutor(
-			ctx,
-			exec,
-			current.TaskID,
-			current.ID,
-			string(hookspkg.HookTaskRunCompleted),
-			normalized.Actor,
-			normalized.Now,
-			taskRunCompletedWatchEventPayload{
-				Status:         taskpkg.TaskRunStatusCompleted,
-				Result:         resultPayload,
-				ClaimTokenHash: current.ClaimTokenHash,
-			},
-		); err != nil {
-			return taskpkg.Run{}, err
-		}
+	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := appendTaskEventPayloadWithExecutor(
+		ctx,
+		exec,
+		current.TaskID,
+		current.ID,
+		string(hookspkg.HookTaskRunCompleted),
+		normalized.Actor,
+		normalized.Now,
+		taskRunCompletedWatchEventPayload{
+			Status:         taskpkg.TaskRunStatusCompleted,
+			Result:         resultPayload,
+			ClaimTokenHash: current.ClaimTokenHash,
+		},
+	); err != nil {
+		return taskpkg.Run{}, err
 	}
 	updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {
@@ -152,9 +140,6 @@ func recordCompletedRunLoopOutput(
 	outputRef string,
 	resultPayload json.RawMessage,
 ) error {
-	if current.IsNetworkWake() {
-		return nil
-	}
 	if completion.Result.CoordinatorControl != nil {
 		recorded, err := updateLoopNodeOutputStatusWithExecutor(
 			ctx,
@@ -182,7 +167,6 @@ func recordCompletedRunLoopOutput(
 		current,
 		"success",
 		loopNodeTerminalOutputRef(outputRef, resultPayload),
-		resultPayload,
 		completion.Now,
 	)
 }

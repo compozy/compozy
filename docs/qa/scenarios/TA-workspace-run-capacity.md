@@ -4,9 +4,9 @@ area: TA
 title: Defer and drain workspace runs at the active-run limit
 persona: Ada
 journey: J-operate-bounded-task-capacity
-expected: A full workspace returns typed capacity deferral while preserving queued work, other workspaces plus global and Network wake work remain claimable, and the deferred run claims when capacity opens.
+expected: A full workspace returns typed capacity deferral while preserving queued work, other workspaces and global work remain claimable, and the deferred run claims when capacity opens.
 entry_points: `compozy config set task.orchestration.max_active_runs_per_workspace`; `compozy task next --wait -o json`; `POST /api/agent/tasks/claim-next`; `compozy__task_run_claim_next`
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -29,3 +29,5 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - Fan-out saturation run showing bounded admission waves and the typed capacity deferral.
 - Deferred-then-drained run rows (durably enqueued, claimed as capacity frees, attempt unchanged).
 - The one-slot concurrency race admitting exactly one claim, and the workspace-B isolation probe.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

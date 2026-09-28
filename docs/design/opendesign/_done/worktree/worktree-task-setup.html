@@ -15,15 +15,12 @@
   Spec: .compozy/tasks/worktree-support/_uiux.md §S10 · stories US-014, US-015.
   Provenance:
     production            — sheet anatomy from task-setup-sheet.tsx:44-203 (36px accent well, eyebrow
-                            "Execution profile", lock banner :81-90, footer button order); sandbox mode
                             grammar inherit|none|ref from task-setup-form.tsx:220-252; read view rows
                             from task-setup-profile-view.tsx:163-188
     spec worktree-support — TaskExecutionProfileSetRequest.worktree{mode: inherit|none|ref|per_run,
-                            worktree_ref} mirroring the sandbox contract; ref picker lists same-workspace
                             ready worktrees only (US-014 EC-2); missing-ref flag (US-014 EC-1)
     authorized delta      — mode selects render as pill-group segments (DS hard rule; production uses
                             NativeSelect — options transcribed, control re-set); "Environment" fieldset
-                            regroups sandbox + worktree (design decision, annotated in §01)
 -->
 <style>
   /* sheet look — transcribed from task-setup-sheet.tsx (SheetContent side=right, sm:max-w-xl → 576px) */
@@ -83,10 +80,10 @@
     <!-- ════ 01 · THE ENVIRONMENT FIELDSET (proposal) — full sheet, edit mode, ref selected ════ -->
     <section class="lab-sec" data-od-id="lab-env-fieldset">
       <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Environment fieldset — the proposal</h2>
-        <span class="lab-sec__gist">sandbox + worktree regrouped · one place answers "where does this task run"</span></div>
+        <span class="lab-sec__gist">worktree configuration · one place answers "where does this task run"</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Design decision</b>Production groups sandbox under "Sandbox and participants" (<code>task-setup-form.tsx:220-279</code>). The worktree policy is the same kind of fact — where runs execute — so both move into one <b style="display:inline">Environment</b> fieldset; participants keep their own. Worktree mirrors the sandbox grammar plus <code>per-run</code>. Shown: edit mode with <code>ref</code> selected on the task <b style="display:inline">Nightly triage</b>.</div>
+        <div class="spec__note"><b>Design decision</b>The worktree policy defines where runs execute in the <b style="display:inline">Environment</b> fieldset; participants keep their own. Shown: edit mode with <code>ref</code> selected on the task <b style="display:inline">Nightly triage</b>.</div>
         <div class="spec__demo">
           <div class="scrim--demo scrim--right">
             <!-- production: task-setup-sheet.tsx:62-134 sheet anatomy -->
@@ -112,20 +109,11 @@
                   <!-- proposal · spec worktree-support — provenance stays in comments, never rendered -->
                   <div class="fset__t"><span class="eyebrow">Environment</span></div>
 
-                  <!-- gating: TaskExecutionProfileSetRequest.sandbox.mode inherit|none|ref (production task-setup-form.tsx:224-237) -->
-                  <div class="fgroup">
-                    <div class="flabel">Sandbox</div>
-                    <!-- authorized delta: production NativeSelect options "Inherit workspace|None|Named sandbox" re-labelled to
-                         mirror the locked environment vocabulary (Never None / Inherit workspace on S10) without lying about the axis -->
-                    <div class="pill-group" role="group" aria-label="Sandbox mode">
-                      <button class="pill-group__item" aria-pressed="true">Inherit</button>
-                      <button class="pill-group__item">No sandbox</button>
-                      <button class="pill-group__item">Named sandbox</button>
-                    </div>
-                  </div>
+                  <!---->
+
 
                   <!-- gating: spec worktree-support — TaskExecutionProfileSetRequest.worktree.mode inherit|none|ref|per_run;
-                       worktree.worktree_ref required iff mode=ref (mirrors sandbox_ref, task-setup-form.tsx:239-252) -->
+                       worktree.worktree_ref required iff mode=ref -->
                   <div class="fgroup" data-od-id="ts-worktree-policy">
                     <div class="flabel">Worktree</div>
                     <div class="pill-group" role="group" aria-label="Worktree policy">
@@ -154,7 +142,7 @@
               </div>
               <div class="sheetd__foot">
                 <!-- production footer order task-setup-sheet.tsx:107-127 (editor open: Cancel neutral · Save primary)
-                     gating: Save setup submits TaskExecutionProfileSetRequest (sandbox + worktree blocks), disabled while invalid;
+                     gating: Save setup submits TaskExecutionProfileSetRequest (worktree block), disabled while invalid;
                      Cancel discards the draft — no request -->
                 <button class="btn">Cancel</button>
                 <button class="btn btn--primary">Save setup</button>
@@ -168,7 +156,7 @@
     <!-- ════ 02 · THE FOUR MODES ════ -->
     <section class="lab-sec" data-od-id="lab-modes">
       <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The four modes</h2>
-        <span class="lab-sec__gist">sandbox grammar + per-run · picker exists only under ref</span></div>
+        <span class="lab-sec__gist">worktree modes · picker exists only under ref</span></div>
 
       <div class="spec">
         <div class="spec__note"><b>Inherit — the default</b><code>worktree.mode=inherit</code>. Follows the workspace default; reads back exactly what was saved (US-014 AC-1). No picker, no extra field.</div>
@@ -203,7 +191,7 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>Named worktree</b><code>worktree.mode=ref</code> + <code>worktree_ref</code>. The picker appears only in this mode — same conditional reveal as the sandbox ref input (<code>task-setup-form.tsx:242</code>).</div>
+        <div class="spec__note"><b>Named worktree</b><code>worktree.mode=ref</code> + <code>worktree_ref</code>. The picker appears only in this mode — the reference picker is hidden for the other modes.</div>
         <div class="spec__demo"><div class="demo-card">
           <div class="fgroup" style="margin:0">
             <div class="flabel">Worktree</div>
@@ -355,15 +343,15 @@
         <span class="lab-sec__gist">lossless projection · reads back exactly what was saved</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Profile view</b>The read view (<code>task-setup-profile-view.tsx:163-188</code>) gains the Worktree row inside the regrouped Environment section. <code>ref</code> renders the record label as a chip (same as sandbox_ref); <code>per_run</code> and the other modes render as plain lowercase text. API/CLI/agent writes read back identically (US-014 AC-3).</div>
+        <div class="spec__note"><b>Profile view</b>The read view (<code>task-setup-profile-view.tsx:163-188</code>) gains the Worktree row inside the regrouped Environment section. <code>ref</code> renders the record label as a chip; <code>per_run</code> and the other modes render as plain lowercase text. API/CLI/agent writes read back identically (US-014 AC-3).</div>
         <div class="spec__demo"><div class="demo-card" style="max-width:480px">
           <div class="rgroup" data-od-id="ts-read-environment">
             <div class="rgroup__t"><span class="eyebrow">Environment</span></div>
             <!-- production rows task-setup-profile-view.tsx:163-180 · Worktree row is spec worktree-support -->
-            <div class="rrow"><span class="rk">Sandbox</span><span class="rv"><span class="cap">inherit</span></span></div>
+
             <div class="rrow"><span class="rk">Worktree</span><span class="rv"><span class="chipn">auth-refresh</span></span></div>
             <div class="rrow"><span class="rk">Runtime evidence</span><span class="rv"><span class="cap">inherit</span></span></div>
-            <div class="rrow"><span class="rk">Network</span><span class="rv"><span style="color:var(--muted)">Off</span></span></div>
+
           </div>
           <div class="rgroup">
             <div class="rgroup__t"><span class="eyebrow">Environment · per-run variant</span></div>

@@ -11,7 +11,7 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 - `internal/cli/**` — every new or renamed CLI verb regenerates `packages/site/content/runtime/cli/` via `make cli-docs`.
 - `cmd/compozy/**` — top-level binary changes affect docs/getting-started/snippets.
 - `internal/config/**` — new TOML keys or sections affect `packages/site/content/runtime/configuration/`.
-- `internal/extension/**`, `internal/bridgesdk/**`, `internal/bridges/**` — extension and bridge surfaces affect the runtime extensibility contract.
+- `internal/extension/**`, `sdk/**` — extension and SDK surfaces affect the runtime extensibility contract.
 - `internal/hooks/**` — hook taxonomy or payload changes affect extension authors and agent workflows.
 - `internal/skills/**`, `internal/tools/**`, `internal/resources/**`, `internal/extension/**`, `internal/registry/**`, `internal/mcp/**` — agent capability and extensibility surfaces require docs and manageability review.
 - `openapi/compozy.json` — direct OpenAPI edits are the same as `internal/api/contract/**`.
@@ -21,7 +21,6 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 
 - `internal/observe/**` — new metrics or log fields surface in operator dashboards (`web/src/systems/observability`).
 - `internal/automation/**` — automation lifecycle changes affect `/jobs` and `/triggers` UI.
-- `internal/network/**` — wire-format or capability changes affect `web/src/systems/network`, agent operations, and protocol docs.
 - `internal/memory/**` — memory health/history changes affect memory views.
 - `internal/scheduler/**`, `internal/task/**`, `internal/coordinator/**` — autonomy changes propagate to Tasks/Sessions/Coordinator UI per the contract co-ship rule.
 

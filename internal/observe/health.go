@@ -42,7 +42,6 @@ type Health struct {
 	Retention          RetentionHealth         `json:"retention"`
 	Failures           FailureHealth           `json:"failures"`
 	AgentProbes        []acp.ProbeResult       `json:"agent_probes,omitempty"`
-	Bridges            BridgeAggregateHealth   `json:"bridges"`
 	Tasks              TaskHealth              `json:"tasks"`
 	Activities         []SessionActivityHealth `json:"activities,omitempty"`
 	Version            string                  `json:"version"`
@@ -116,10 +115,6 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 		return Health{}, fmt.Errorf("observe: measure session database size: %w", err)
 	}
 
-	_, bridgeHealth, err := o.collectBridgeHealth(ctx)
-	if err != nil {
-		return Health{}, err
-	}
 	taskHealth, err := o.collectTaskHealth(ctx)
 	if err != nil {
 		return Health{}, fmt.Errorf("observe: collect task health: %w", err)
@@ -156,7 +151,6 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 		Retention:          retentionHealth,
 		Failures:           failureHealth,
 		AgentProbes:        agentProbes,
-		Bridges:            bridgeHealth,
 		Tasks:              taskHealth,
 		Activities:         activities,
 		Version:            o.versionSource().Version,

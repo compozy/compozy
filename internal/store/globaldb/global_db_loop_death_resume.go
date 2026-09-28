@@ -180,8 +180,8 @@ func (g *LoopRepo) reserveDeadNodeContinuation(
 		taskID: prepared.taskRun.TaskID, runID: deadNodeResumeRunID(request, prepared.nextEpoch),
 		runKind: prepared.taskRun.RunKind, loopRunID: string(request.RunID),
 		idempotencyKey: deadNodeResumeKey(request, prepared.nextEpoch), origin: origin,
-		networkSpec: prepared.taskRun.NetworkSpecSnapshot(), designationGroupID: prepared.taskRun.DesignationGroupID,
-		metadata: metadata, queuedAt: request.ConfirmedAt.UTC(),
+		designationGroupID: prepared.taskRun.DesignationGroupID,
+		metadata:           metadata, queuedAt: request.ConfirmedAt.UTC(),
 	})
 	return run, err
 }

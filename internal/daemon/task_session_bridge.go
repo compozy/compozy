@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/worktree"
@@ -124,20 +123,14 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
-		AgentName:                    taskSessionAgentName(spec.Task),
-		Provider:                     "",
-		Name:                         taskSessionName(spec),
-		ResolvedNetworkParticipation: participationSnapshotPointer(spec.Run.NetworkSpecSnapshot()),
-		Type:                         session.SessionTypeSystem,
+		AgentName: taskSessionAgentName(spec.Task),
+		Provider:  "",
+		Name:      taskSessionName(spec),
+
+		Type: session.SessionTypeSystem,
 	}
-	owner := participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: spec.Run.ID}
-	if strings.TrimSpace(spec.Run.LoopRunID) != "" {
-		owner = participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: spec.Run.LoopRunID}
-	}
-	opts.NetworkOwnerKey = participation.OwnerKey(owner)
 	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
 	policy := sessionPolicyFromTaskExecutionProfile(spec.ExecutionProfile)
-	applySessionSandboxPolicy(&opts, policy)
 	applySessionPermissionPolicy(&opts, policy)
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:

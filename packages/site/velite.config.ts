@@ -2,9 +2,7 @@ import { COMPOZY_CODE_THEMES } from "@compozy/ui/lib/code-theme";
 import { defineConfig, s } from "velite";
 import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
 
-const wireKinds = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
-
-const blogCategories = ["protocol", "runtime", "engineering", "network"] as const;
+const blogCategories = ["runtime", "engineering"] as const;
 
 const prettyCodeOptions: Partial<RehypePrettyCodeOptions> = {
   theme: COMPOZY_CODE_THEMES.dark,
@@ -36,7 +34,6 @@ export default defineConfig({
           tags: s.array(s.string()).default([]),
           author: s.string(),
           cover: s.image().optional(),
-          kinds: s.array(s.enum(wireKinds)).default([]),
           featured: s.boolean().default(false),
           excerpt: s.excerpt({ length: 240 }),
           metadata: s.metadata(),

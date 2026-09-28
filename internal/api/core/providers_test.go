@@ -111,7 +111,6 @@ func TestProviderAuthHandlers(t *testing.T) {
 			ProviderName: "native",
 			PreStartScope: authproviders.PreStartScope{
 				WorkspaceID: "workspace", ProfileID: "profile", HomeIdentity: t.TempDir(),
-				SandboxID: "sandbox", SandboxBackend: "local", SandboxProfile: "default",
 			},
 			LookPath:       func(string) (string, error) { return "/test/bin/provider-cli", nil },
 			ResolveCommand: resolver,
@@ -571,9 +570,9 @@ func TestDiagnosticStatus(t *testing.T) {
 		t.Parallel()
 
 		got := diagnosticStatus([]contract.DiagnosticItem{{
-			ID:       "doctor.network.status",
-			Code:     contract.CodeNetworkDisabled,
-			Category: contract.CategoryNetwork,
+			ID:       "doctor.provider.status",
+			Code:     "provider.info",
+			Category: contract.CategoryProvider,
 			Severity: contract.SeverityInfo,
 		}})
 		if got != statusStateOK {

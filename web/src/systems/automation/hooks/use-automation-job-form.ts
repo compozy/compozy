@@ -2,13 +2,6 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
 import {
-  isNetworkParticipationDraftValid,
-  networkParticipationDraftFromPayload,
-  serializeNetworkParticipation,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
-
-import {
   automationTargetMode,
   jobOutputMode,
   loopTargetWorkspaceId,
@@ -133,23 +126,13 @@ function computeCanSubmit(
     const loopWorkspaceValid =
       loopWorkspaceId !== "" &&
       (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
-    const participationValid = isNetworkParticipationDraftValid(
-      networkParticipationDraftFromPayload(draft.loop_target?.network_participation),
-      ["named", "loop_run"]
-    );
     return (
-      Boolean(draft.loop_target?.loop_name.trim()) &&
-      loopTargetCompatible &&
-      loopWorkspaceValid &&
-      participationValid
+      Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
     );
   }
   if (target === "task") {
     // Task mode: owner is optional, title/description fall back to the job — nothing more required.
-    return isNetworkParticipationDraftValid(
-      networkParticipationDraftFromPayload(draft.task?.network_participation),
-      ["named", "run"]
-    );
+    return true;
   }
   return draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
 }
@@ -256,10 +239,6 @@ export function useAutomationJobForm({
     patchTask({ owner: { ...owner, ref } });
   };
 
-  const handleTaskNetworkParticipation = (next: NetworkParticipationDraft) => {
-    patchTask({ network_participation: serializeNetworkParticipation(next) });
-  };
-
   const handleScheduleMode = (next: AutomationScheduleMode) => {
     setNow(Date.now());
     setCronFrequencyOverride(null);
@@ -346,7 +325,6 @@ export function useAutomationJobForm({
     onTaskDescription: (description: string) => patchTask({ description }),
     onOwnerKind: handleOwnerKind,
     onOwnerRef: handleOwnerRef,
-    onTaskNetworkParticipation: handleTaskNetworkParticipation,
 
     // schedule mode
     onScheduleMode: handleScheduleMode,

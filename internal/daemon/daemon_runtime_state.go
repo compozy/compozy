@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
+
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -44,9 +44,7 @@ type daemonRuntimeState struct {
 	coordinator            *coordinatorRuntime
 	spawnReaper            *spawnReaper
 	scheduler              *schedulerRuntime
-	network                networkRuntime
 	gateway                gateway.Policy
-	networkWakeRunner      *networkWakeRunner
 	toolRegistry           toolspkg.Registry
 	clarify                *clarifyBridge
 	hooks                  hookRuntime
@@ -62,13 +60,11 @@ type daemonRuntimeState struct {
 	mcpServerCatalog       *resourceCatalog[compozyconfig.MCPServer]
 	loopCatalog            *resourceCatalog[looppkg.ResourceSpec]
 	automation             automationRuntime
-	bridges                *bridgeRuntime
 	httpServer             Server
 	udsServer              Server
 	dreamRuntime           *consolidation.Runtime
 	workspaceRuntimeState
-	worktrees       *worktree.Service
-	sandboxRegistry *sandbox.Registry
+	worktrees *worktree.Service
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry
 	modelCatalog      *modelCatalogRuntime

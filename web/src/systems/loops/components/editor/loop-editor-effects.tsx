@@ -120,7 +120,7 @@ export function LoopEditorEffects({
                     suggestions={suggestions}
                     disabled={disabled}
                     mono
-                    placeholder={shape === "emit" ? "task_retrying" : "compozy__network_send"}
+                    placeholder={shape === "emit" ? "task_retrying" : "compozy__task_list"}
                     ariaLabel={`${rowName} ${shape === "emit" ? "event kind" : "tool id"}`}
                     testId={`${testId}-${shape === "emit" ? "kind" : "tool"}-${index}`}
                   />

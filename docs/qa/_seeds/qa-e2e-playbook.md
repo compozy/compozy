@@ -77,31 +77,6 @@ Key expectations:
 - `Network` page shows disabled state
 - no hard failures on empty states
 
-### Profile B: Network-enabled stress profile
-
-Purpose:
-
-- Validate live channels, peers, messages, channel sessions, and recovery paths.
-
-Key expectations:
-
-- `network.enabled = true`
-- at least one non-default channel can be created
-- at least two peers can join
-- messages can be sent and observed
-
-### Profile C: Bridge-provider profile
-
-Purpose:
-
-- Validate bridge discovery and delivery flows where a real provider is available.
-
-Key expectations:
-
-- at least one bridge provider is visible to the app
-- bridge creation works
-- test delivery covers at least one error path and one accepted path
-
 ### Profile D: Multi-workspace profile
 
 Purpose:
@@ -495,157 +470,6 @@ Assertions:
 
 ---
 
-### `E2E-BRIDGE-001` Bridge provider discovery and bridge creation
-
-Goal:
-
-- Prove the app can discover a real provider and create a bridge.
-
-Steps:
-
-1. Ensure at least one provider is installed or surfaced via extension.
-2. Open `Bridges`.
-3. Create a bridge.
-
-Assertions:
-
-- provider appears as selectable in the UI
-- bridge is persisted and visible in UI and CLI
-- scope and workspace binding are correct
-
-Caveat:
-
-- a synthetic adapter fixture may leave bridge status in `starting`.
-- do not mark that as a product bug unless a real provider reproduces it.
-
----
-
-### `E2E-BRIDGE-002` Bridge test-delivery error and success paths
-
-Goal:
-
-- Prove bridge delivery validation and accepted delivery both work.
-
-Minimum cases:
-
-- invalid target mode:
-  - `direct-send` without peer or group target
-- valid accepted delivery:
-  - reply mode with peer and thread IDs
-
-Assertions:
-
-- invalid request returns a specific validation error
-- valid request returns accepted/resolved target data
-
-Always fail if:
-
-- invalid delivery is silently accepted
-- accepted delivery returns malformed target metadata
-
----
-
-### `E2E-NET-001` Disabled network baseline
-
-Goal:
-
-- Prove the app behaves correctly under default network-disabled config.
-
-Steps:
-
-1. Run with default config where `network.enabled = false`.
-2. Open `Network`.
-3. Switch across tabs.
-
-Assertions:
-
-- app shows explicit disabled messaging
-- no raw `Service Unavailable` or downstream `503` errors leak to the page
-- navigation remains usable
-
-Permanent regression assertion:
-
-- channels/peers queries must be gated by network status.
-
----
-
-### `E2E-NET-002` Create a real channel and observe real peers
-
-Goal:
-
-- Prove channel creation starts real channel-bound sessions and peer membership.
-
-Steps:
-
-1. Run with `network.enabled = true`.
-2. Open `Network`.
-3. Create a channel with at least two agents.
-
-Assertions:
-
-- channel appears in the list
-- peer count is non-zero
-- peers tab lists the actual local peers
-- session records show channel-bound sessions
-
-Edge coverage:
-
-- agent availability changes by workspace
-- peers use display-name fallback correctly
-
----
-
-### `E2E-NET-003` Send a real message and verify metrics
-
-Goal:
-
-- Prove the network transport does real work and updates runtime state.
-
-Steps:
-
-1. Send a real network message through the public CLI.
-2. Check channel and peer read paths.
-3. Inspect network status counters.
-
-Assertions:
-
-- message ID is returned
-- message count increments
-- channel and peer listings remain consistent
-- metrics show sent/received activity
-
-Optional stronger assertion:
-
-- one receiving session reacts in a way visible in its transcript or ledger
-
----
-
-### `E2E-NET-004` Rehydrate channels and peers after resume / restart
-
-Goal:
-
-- Prove network membership can be restored after lifecycle boundaries.
-
-Steps:
-
-1. Shut down the daemon or stop the channel sessions.
-2. Start daemon again.
-3. Resume the channel sessions.
-4. Reopen `Network`.
-
-Assertions:
-
-- channel appears again
-- local peer count returns
-- peers list matches resumed sessions
-- browser detail view rehydrates correctly
-
-Always fail if:
-
-- channel metadata survives but peers never come back after valid resume
-
----
-
 ### `E2E-ROB-001` Daemon restart while the UI is in use
 
 Goal:
@@ -769,18 +593,6 @@ Assertions:
 - Retry contract is always valid.
 - Triggered runs create observable backend state.
 
-### Bridges
-
-- Provider discovery is derived from installed runtime capabilities.
-- Bridge creation is actually persisted.
-- Delivery validation rejects malformed targets.
-
-### Network
-
-- Disabled mode is graceful.
-- Enabled mode shows real channels and peers.
-- Message send updates observable counters or artifacts.
-
 ### Resilience
 
 - Restart semantics are explicit:
@@ -862,13 +674,10 @@ If any of those are missing, the round is incomplete.
 
 If we convert this playbook into executable E2E tests, start with these in order:
 
-1. `E2E-NET-001` disabled network regression
 2. `E2E-AUTO-001` create job with valid `retry.none`
 3. `E2E-AUTO-002` create trigger with valid `retry.none`
 4. `E2E-SES-001` create session and send prompt
 5. `E2E-SES-004` restart + resume + transcript recovery
 6. `E2E-WS-001` workspace switching and agent visibility
-7. `E2E-NET-002` channel creation and peer membership
-8. `E2E-BRIDGE-002` bridge delivery validation paths
 
 These cover the highest-signal product contracts and the two regressions already found in real usage.

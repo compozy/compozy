@@ -43,7 +43,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
 	dream := &stubDreamTrigger{}
 	extensionService := &stubExtensionService{}
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -270,7 +270,7 @@ func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
 
 func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -349,7 +349,7 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 
 func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -644,7 +644,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -843,7 +843,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -935,7 +935,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -988,7 +988,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "0.0.0.0"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -1239,7 +1239,7 @@ func decodeServerJSON(t *testing.T, resp *http.Response, dest any) {
 func TestServerStartReportsListenFailure(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	port := freeTCPPort(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = port
 
@@ -1397,7 +1397,7 @@ func newWindowManagerLifecycleServer(t *testing.T) *Server {
 	})
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	server, err := New(
 		WithHomePaths(homePaths),
@@ -1467,7 +1467,7 @@ func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan st
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	engine := gin.New()

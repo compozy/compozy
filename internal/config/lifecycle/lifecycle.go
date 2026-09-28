@@ -58,7 +58,6 @@ const (
 const (
 	pathDaemonReloadTimeoutProviders  = "daemon.reload_timeouts.providers"
 	pathDaemonReloadTimeoutMCP        = "daemon.reload_timeouts.mcp"
-	pathDaemonReloadTimeoutBridges    = "daemon.reload_timeouts.bridges"
 	pathRoles                         = "roles"
 	pathWindowManagerNavStackLimit    = "window_manager.nav_stack_limit"
 	pathWindowManagerClosedEntryLimit = "window_manager.closed_entry_limit"
@@ -84,7 +83,6 @@ var Matrix = []Rule{
 	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -96,7 +94,6 @@ var Matrix = []Rule{
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp.oauth.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
 	{Pattern: "hooks.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "extensions.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "defaults.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
@@ -125,8 +122,6 @@ var Matrix = []Rule{
 		DiffClass: DiffClassLive,
 	},
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "network.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayPrivatePort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayPublicPort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayWildcard, Lifecycle: Live, DiffClass: DiffClassLive},
@@ -187,8 +182,6 @@ func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
 	case "marketplace", "skills", pathRoles, "window-manager", "cmd-palette", "gateway", "attention", "shell":
 		return DiffClassLive
-	case "sandboxes":
-		return DiffClassSessionRebind
 	default:
 		return DiffClassRestartRequired
 	}

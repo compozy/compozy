@@ -31,8 +31,6 @@ func runReviewBindingFromReview(review RunReview) RunReviewBinding {
 		Review:            cloneRunReview(&review),
 		SessionID:         review.ReviewerSessionID,
 		ReviewerAgentName: review.ReviewerAgentName,
-		ReviewerPeerID:    review.ReviewerPeerID,
-		ReviewerChannelID: review.ReviewerChannelID,
 	}
 }
 

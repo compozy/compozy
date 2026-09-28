@@ -77,7 +77,7 @@ metadata:
 | `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). CompozyOS does not accept platform aliases. |
 | `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                      |
 | `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                        |
-| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                              |
+| `requires_capabilities` | all        | Capabilities authored on the effective agent. Extension capabilities are not merged into this gate.                                         |
 
 Different gate families compose with AND: every declared family must pass. Values are trimmed,
 lowercased, deduplicated, and kept in author order. Every gate value must be a non-empty string;

@@ -232,7 +232,7 @@ func TestParseRejectsForbiddenOwnerCategories(t *testing.T) {
 		{name: "Should reject capability authority", field: "capabilities", owner: "capabilities"},
 		{name: "Should reject claim token authority", field: "claim_token", owner: "task runtime"},
 		{name: "Should reject session liveness authority", field: "session_liveness", owner: "runtime state"},
-		{name: "Should reject network presence authority", field: "presence", owner: "Compozy Network presence"},
+		{name: "Should reject network presence authority", field: "presence", owner: "runtime state"},
 		{name: "Should reject spawn overlay authority", field: "spawn", owner: "session spawn overlays"},
 		{name: "Should reject config authority", field: "settings", owner: "config"},
 		{name: "Should reject memory runtime authority", field: "memory_scope", owner: "memory runtime"},

@@ -66,15 +66,15 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-092 bind one bridge instance to the verified generation", func(t *testing.T) {
+	t.Run("Should UT-092 bind one webhook trigger to the verified generation", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectBridgeInstance, ID: "bridge-a"}
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-a"}
 		store.subjects[ref] = IngressSubject{
 			IngressSubjectRef: ref,
 			Scope:             IngressScopeWorkspace,
 			WorkspaceID:       "workspace-a",
-			Path:              "/api/bridge-callbacks/bridge-a",
+			Path:              "/api/webhooks/workspaces/workspace-a/deploy--wbh_a",
 		}
 
 		binding, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true})
@@ -82,7 +82,7 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			t.Fatalf("bind() error = %v", err)
 		}
 		if binding.Subject != ref || binding.EndpointGeneration != 1 || !binding.Changed {
-			t.Fatalf("binding = %#v, want bridge-a at generation 1", binding)
+			t.Fatalf("binding = %#v, want trigger-a at generation 1", binding)
 		}
 		stored, err := store.GetIngressBinding(testContext(t), ref)
 		if err != nil {
@@ -93,15 +93,15 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-093 mark a bound bridge off without changing its subject", func(t *testing.T) {
+	t.Run("Should UT-093 mark a bound webhook off without changing its subject", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, false, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectBridgeInstance, ID: "bridge-external"}
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-external"}
 		subject := IngressSubject{
 			IngressSubjectRef: ref,
 			Scope:             IngressScopeWorkspace,
 			WorkspaceID:       "workspace-a",
-			Path:              "/api/bridge-callbacks/bridge-external",
+			Path:              "/api/webhooks/workspaces/workspace-a/external--wbh_external",
 		}
 		store.subjects[ref] = subject
 		store.bindings[ref] = IngressBinding{
@@ -119,18 +119,18 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			t.Fatalf("projection confirmed generation = %d, want 1 while off", projection.ConfirmedEndpointGeneration)
 		}
 		if got := store.subjects[ref]; got != subject {
-			t.Fatalf("bridge subject changed = %#v, want %#v", got, subject)
+			t.Fatalf("webhook subject changed = %#v, want %#v", got, subject)
 		}
 	})
 
-	t.Run("Should surface an invalid local bridge target as broken and refuse confirmation", func(t *testing.T) {
+	t.Run("Should surface an invalid local webhook target as broken and refuse confirmation", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectBridgeInstance, ID: "bridge-invalid-target"}
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-invalid-target"}
 		store.subjects[ref] = IngressSubject{
 			IngressSubjectRef: ref,
 			Scope:             IngressScopeGlobal,
-			Path:              "/api/bridge-callbacks/bridge-invalid-target",
+			Path:              "/api/webhooks/global/invalid--wbh_invalid",
 			TargetUnavailable: true,
 		}
 
@@ -168,12 +168,12 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
 		manager.events = &ingressEventSinkStub{err: errors.New("injected event failure")}
-		ref := IngressSubjectRef{Kind: IngressSubjectBridgeInstance, ID: "bridge-event-failure"}
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-event-failure"}
 		subject := IngressSubject{
 			IngressSubjectRef: ref,
 			Scope:             IngressScopeWorkspace,
 			WorkspaceID:       "workspace-a",
-			Path:              "/api/bridge-callbacks/bridge-event-failure",
+			Path:              "/api/webhooks/workspaces/workspace-a/event-failure--wbh_failure",
 		}
 		store.subjects[ref] = subject
 		if _, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true}); err == nil {
@@ -241,17 +241,17 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	})
 
 	t.Run(
-		"Should UT-094 require trigger and bridge reconfirmation after the public address changes [IT-048]",
+		"Should UT-094 require subject reconfirmation after the public address changes [IT-048]",
 		func(t *testing.T) {
 			t.Parallel()
 			store, manager := newIngressTestManager(t, true, nil)
 			refs := []IngressSubjectRef{
 				{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation"},
-				{Kind: IngressSubjectBridgeInstance, ID: "bridge-generation"},
+				{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation-secondary"},
 			}
 			paths := []string{
 				"/api/webhooks/global/deploy--wbh_generation",
-				"/api/bridge-callbacks/bridge-generation",
+				"/api/webhooks/global/secondary--wbh_generation_secondary",
 			}
 			for index, ref := range refs {
 				store.subjects[ref] = IngressSubject{
@@ -395,7 +395,7 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-097 sweep an orphan and treat it as absent", func(t *testing.T) {
 		t.Parallel()
 		store, _ := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectBridgeInstance, ID: "bridge-orphan"}
+		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-orphan"}
 		store.bindings[ref] = IngressBinding{Subject: ref, EndpointGeneration: 1}
 
 		if _, err := store.GetIngressBinding(testContext(t), ref); !errors.Is(err, ErrIngressSubjectNotFound) {

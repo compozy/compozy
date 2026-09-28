@@ -25,9 +25,6 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 			ClaimTokenHash: "sha256:claim-token",
 			LeaseUntil:     leaseUntil,
 			HeartbeatAt:    heartbeatAt,
-			RunNetworkState: &taskpkg.RunNetworkState{
-				NetworkSpec: situationLiveSpec(t, "ws-1", "coord-structured"),
-			},
 		}
 		service := NewService(Deps{
 			Now: fixedNow,

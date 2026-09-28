@@ -579,8 +579,7 @@ func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
 			">=1.1.0",
 			"--app-version",
 			"v1.0.0",
-			"--channel",
-			"beta",
+
 			"-o",
 			"jsonl",
 		)

@@ -65,7 +65,6 @@ func stubSessionListMatch(info *session.Info, query session.ListQuery, now time.
 		info.Name,
 		info.AgentName,
 		info.Provider,
-		info.NetworkParticipation.ChannelID,
 	} {
 		if strings.Contains(strings.ToLower(value), search) {
 			return true

@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-01
 expected: Running implement-tasks with mode=orchestrated and implementer=custom_implementer uses the bundled orchestrator in one continuous Goal session, starts every worker with that exact Agent and its Agent-local sentinel skill, gives every task its category-selected runtime, proves completed task frontmatter on disk, stops every spawned worker, marks the per-task branch not_taken, and settles done. Omitting implementer selects code_implementer.
 entry_points: compozy loop run --name implement-tasks --input slug=<slug> --input mode=orchestrated --input implementer=custom_implementer; compozy loop status; compozy session list --parent <goal-session> --agent custom_implementer; web /loop-runs/:run_id detail
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260826-optional-runtime-run-fails
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: 16096e1e706261c30e112995c0cbe457c27014ce; d4df0df8adbb73896b2cd33243db98f4037b00c3; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1; be2ca774e0ea4c5f1a3aa30fe73bb9110d451735
 evidence: /tmp/compozy-pr-542-worker-report.md; internal/daemon/loop_runtime_adapters_test.go; internal/session/manager_test.go
 last_report: /tmp/compozy-pr-542-worker-report.md
@@ -28,7 +28,7 @@ authorized provider credentials were unavailable for that isolated public-interf
 point, provider access and a human-run charter remained required before the scenario could become
 `pass`; the existing optional-runtime retest was `pending`, and the blocked result was not promoted to pass.
 
-2026-09-01: `pass` — typed entity validation resolves the acting Profile, and exact daemon-issued Agent identity plus nested session commands preserve that Profile without widening other CLI namespaces. Secret-safe sandbox diagnostics retained the red `compozy me` boundary (exit 69, session not found). The green public E2E proves conductor success, three engineer workers, Agent-local sentinel visibility, ordered task completion, stopped settlement, and zero surviving workers.
+2026-09-01: `pass` — typed entity validation resolves the acting Profile, and exact daemon-issued Agent identity plus nested session commands preserve that Profile without widening other CLI namespaces. Secret-safe runtime diagnostics retained the red `compozy me` boundary (exit 69, session not found). The green public E2E proves conductor success, three engineer workers, Agent-local sentinel visibility, ordered task completion, stopped settlement, and zero surviving workers.
 
 2026-09-02: `pass` after resetting the stale verdict. The targeted runtime E2E re-walk proved that the Profile conductor can run `session status`, `session prompt`, and `session stop` for each spawned worker before the Loop settles done.
 
@@ -80,15 +80,6 @@ The runner held the shared machine verification lock and retained output in
 suite also passed. This evidence uses real daemon/CLI/SQLite/extension processes and an ACP fixture
 subprocess; it does not claim a fresh live-provider run.
 
-A broader orchestrated-worktree attempt exposed a separate pre-existing ACP terminal-path defect
-before any judge ran: `acp: create terminal: invalid terminal cwd "<home>/worktrees/001/issue-512":
-outside workspace`. `internal/sandbox/local/provider.go` constructs `LocalTerminalScope` without
-`AllowedRoots`; the supplied local host reaches `internal/terminal/manager_open.go` with only the
-primary workspace authorized. Those paths are unchanged by #565. Reproduction: extend the existing
-worktree-only journey with `mode=orchestrated` after its per-task run, using the same selected worktree
-and conductor fixture. That broader journey is **not verified** by this change. Evidence is retained
-in `.cache/issue-565/e2e-round3.log` and the isolated round-3 daemon artifacts; its teardown was clean.
-
 Review remediation 2026-09-09 (#565): the selected-root scenario now also creates `per_run`
 worktrees from committed task statuses while leaving opposite statuses in the primary workspace.
 Before the fix, the completed per-run pack incorrectly reached `exhausted` instead of `done`
@@ -110,3 +101,6 @@ During the worker turn, invoke
 native `compozy__skill_view` for required guidance; an injected skill summary alone is not proof of
 callable tools. Confirm a nondelegated tool is still denied and omission still means zero tools.
 Then verify task completion, the selected Agent/Profile/runtime and stopped worker cleanup as above.
+
+
+2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.

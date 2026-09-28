@@ -124,13 +124,10 @@ CompozyOS then applies these additions:
 | `HOME` and XDG homes           | when `home_policy = "isolated"`                                  | provider-owned home/config/data/cache directories    |
 | Provider-specific homes        | known isolated providers                                         | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or similar        |
 | `PI_CODING_AGENT_DIR`          | native Pi isolated home or Pi-backed `bound_secret` sessions     | Pi auth/config directory                             |
-| `COMPOZY_SESSION_CHANNEL`      | sessions whose execution resolved as Live                        | immutable participation channel                      |
-| `COMPOZY_PEER_ID`              | sessions whose execution resolved as Live                        | `<agentName>.<sessionID>`                            |
 | `COMPOZY_BIN`                  | every spawned session when the daemon executable can be resolved | absolute path to the CompozyOS binary                |
 
 CompozyOS also prepends the CompozyOS binary directory to `PATH`, removing a duplicate entry if it already
-exists. Before setting Live participation values, stale `COMPOZY_SESSION_CHANNEL` and `COMPOZY_PEER_ID`
-values are cleared from the inherited environment. Local executions receive neither variable.
+exists.
 
 Provider API keys are injected only when `auth_mode = "bound_secret"` through provider
 `credential_slots`. A slot maps a `secret_ref` into a target environment variable such as
@@ -149,7 +146,7 @@ Code, and Kimi launch their ACP-capable CLI directly. API-backed built-ins launc
 Pi ACP harness. The same provider-neutral path owns session launch and automatic runtime recovery.
 
 When the effective command is a known ACP bridge that wraps another installed CLI, CompozyOS resolves
-that native executable from the final environment after sandbox preparation. Desktop-owned daemons
+that native executable from the final environment after local launch preparation. Desktop-owned daemons
 first load the operator login-shell `PATH`. The bridge registry then injects the absolute path expected
 by that adapter; the current Claude and Codex bridges use `CLAUDE_CODE_EXECUTABLE` and `CODEX_PATH`.
 Model discovery uses the same resolution, and a direct command override is left unchanged.
@@ -272,8 +269,7 @@ startup error; an HTTP/UDS session that was already accepted becomes durably `st
 ## Agent-Initiated Safe Spawn
 
 An active agent can request a child session through `compozy spawn`. This is separate from normal
-session creation: CompozyOS validates the caller identity, requires a positive TTL, keeps the child inside
-the parent's coordination channel, denies coordinator-role children, and only permits permission
+session creation: CompozyOS validates the caller identity, requires a positive TTL, denies coordinator-role children, and only permits permission
 subsets of the parent session. The child inherits the parent workspace unless `--workspace` targets
 another one, which the workspace-access policy must authorize.
 

@@ -117,7 +117,6 @@ func declaredProfileInput(extension string, declaration ManifestProfile) profile
 			Color: declaration.Color, Icon: declaration.Icon, Emoji: declaration.Emoji,
 			Defaults: profilepkg.PersonaDefaults{
 				Agent: declaration.Defaults.Agent, Provider: declaration.Defaults.Provider,
-				Sandbox: declaration.Defaults.Sandbox,
 			},
 			CredentialAsks: credentials,
 		},

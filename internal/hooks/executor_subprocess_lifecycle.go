@@ -163,7 +163,6 @@ func subprocessHookOwner(hook RegisteredHook, payload []byte) toolruntime.Proces
 		SessionID  string `json:"session_id"`
 		TurnID     string `json:"turn_id"`
 		ToolCallID string `json:"tool_call_id"`
-		SandboxID  string `json:"sandbox_id"`
 	}
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &contextPayload); err != nil {
@@ -173,7 +172,6 @@ func subprocessHookOwner(hook RegisteredHook, payload []byte) toolruntime.Proces
 	owner.SessionID = contextPayload.SessionID
 	owner.TurnID = contextPayload.TurnID
 	owner.ToolCallID = contextPayload.ToolCallID
-	owner.SandboxID = contextPayload.SandboxID
 	return owner
 }
 

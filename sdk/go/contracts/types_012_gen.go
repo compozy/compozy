@@ -7,187 +7,281 @@ import (
 	"time"
 )
 
-type HookSkillSource uint8
-
-type HookSource uint8
-
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
+type MessageDeltaPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
-type InboundAction struct {
-	ActionID  string `json:"action_id"`
-	MessageID string `json:"message_id,omitempty"`
-	Value     string `json:"value,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
+type MessageEndPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
 }
 
-type InboundCommand struct {
-	Command   string `json:"command"`
-	Text      string `json:"text,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
+type MessageEndPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
-type InboundEdit struct {
-	MessageID         string               `json:"message_id"`
-	NewText           string               `json:"new_text"`
-	OriginalTimestamp time.Time            `json:"original_timestamp"`
-	Operation         InboundEditOperation `json:"operation"`
+type MessagePatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
 }
 
-type InboundEditOperation string
-
-type InboundEventFamily string
-
-type InboundMessageEnvelope struct {
-	BridgeInstanceID  string                  `json:"bridge_instance_id"`
-	Scope             BridgeScope             `json:"scope"`
-	WorkspaceID       string                  `json:"workspace_id,omitempty"`
-	PeerID            string                  `json:"peer_id,omitempty"`
-	ThreadID          string                  `json:"thread_id,omitempty"`
-	GroupID           string                  `json:"group_id,omitempty"`
-	PlatformMessageID string                  `json:"platform_message_id,omitempty"`
-	ReceivedAt        time.Time               `json:"received_at"`
-	Sender            MessageSender           `json:"sender"`
-	Content           MessageContent          `json:"content,omitzero"`
-	Attachments       []MessageAttachment     `json:"attachments,omitempty"`
-	EventFamily       InboundEventFamily      `json:"event_family"`
-	Command           *InboundCommand         `json:"command,omitempty"`
-	Action            *InboundAction          `json:"action,omitempty"`
-	Reaction          *InboundReaction        `json:"reaction,omitempty"`
-	Edit              *InboundEdit            `json:"edit,omitempty"`
-	ReplyToText       string                  `json:"reply_to_text,omitempty"`
-	ReplyToAuthorID   string                  `json:"reply_to_author_id,omitempty"`
-	ReplyToAuthorName string                  `json:"reply_to_author_name,omitempty"`
-	Conversation      *NetworkConversationRef `json:"conversation,omitempty"`
-	ProviderMetadata  json.RawMessage         `json:"provider_metadata,omitempty"`
-	IdempotencyKey    string                  `json:"idempotency_key"`
+type MessagePayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
-type InboundReaction struct {
-	MessageID string `json:"message_id"`
-	Emoji     string `json:"emoji"`
-	RawEmoji  string `json:"raw_emoji,omitempty"`
-	Added     bool   `json:"added"`
+type MessageStartPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
 }
 
-type InitializeBridgeBoundSecret struct {
-	BindingName string `json:"binding_name"`
-	Kind        string `json:"kind"`
-	Value       string `json:"value"`
+type MessageStartPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
-type InitializeBridgeManagedInstance struct {
-	Instance     BridgeInstance                `json:"instance"`
-	BoundSecrets []InitializeBridgeBoundSecret `json:"bound_secrets,omitempty"`
+type MetaField struct {
+	Label    string            `json:"label"`
+	Value    string            `json:"value"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
 }
 
-type InitializeBridgeRuntime struct {
-	RuntimeVersion   string                            `json:"runtime_version"`
-	Purpose          BridgeRuntimePurpose              `json:"purpose"`
-	Provider         string                            `json:"provider"`
-	Platform         string                            `json:"platform"`
-	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
-	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
+type ModelCatalogCostPayload struct {
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
 }
 
-type InitializeCapabilities struct {
-	Provides              []string        `json:"provides"`
-	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
-	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
-	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
+type ModelCatalogSourceRefPayload struct {
+	SourceID    string `json:"source_id"`
+	SourceKind  string `json:"source_kind"`
+	Priority    int    `json:"priority"`
+	RefreshedAt string `json:"refreshed_at,omitempty"`
+	Stale       bool   `json:"stale"`
+	LastError   string `json:"last_error,omitempty"`
 }
 
-type InitializeExtension struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SourceTier string `json:"source_tier"`
+type ModelCatalogSourceStatusPayload struct {
+	SourceID     string `json:"source_id"`
+	SourceKind   string `json:"source_kind"`
+	ProviderID   string `json:"provider_id"`
+	Priority     int    `json:"priority"`
+	LastRefresh  string `json:"last_refresh,omitempty"`
+	NextRefresh  string `json:"next_refresh,omitempty"`
+	LastSuccess  string `json:"last_success,omitempty"`
+	LastError    string `json:"last_error,omitempty"`
+	RefreshState string `json:"refresh_state"`
+	RowCount     int    `json:"row_count"`
+	Stale        bool   `json:"stale"`
 }
 
-type InitializeExtensionInfo struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SDKName    string `json:"sdk_name,omitempty"`
-	SDKVersion string `json:"sdk_version,omitempty"`
+type ModelSourceListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
 }
 
-type InitializeMethods struct {
-	DaemonRequests    []string `json:"daemon_requests"`
-	ExtensionServices []string `json:"extension_services"`
+type ModelSourceListResponse struct {
+	Rows []ModelSourceRow `json:"rows"`
 }
 
-type InitializeRequest struct {
-	ProtocolVersion          string                 `json:"protocol_version"`
-	SupportedProtocolVersion []string               `json:"supported_protocol_versions"`
-	CompozyVersion           string                 `json:"compozy_version"`
-	SessionNonce             string                 `json:"session_nonce"`
-	Extension                InitializeExtension    `json:"extension"`
-	Capabilities             InitializeCapabilities `json:"capabilities"`
-	Methods                  InitializeMethods      `json:"methods"`
-	Runtime                  InitializeRuntime      `json:"runtime"`
+type ModelSourceOptionDescriptor struct {
+	ID             string                   `json:"id"`
+	Label          string                   `json:"label,omitempty"`
+	Description    string                   `json:"description,omitempty"`
+	Category       string                   `json:"category,omitempty"`
+	Kind           ModelSourceOptionKind    `json:"kind"`
+	CurrentValueID string                   `json:"current_value_id,omitempty"`
+	CurrentBool    *bool                    `json:"current_bool,omitempty"`
+	Values         []ModelSourceOptionValue `json:"values,omitempty"`
 }
 
-type InitializeResponse struct {
-	ProtocolVersion      string                  `json:"protocol_version"`
-	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
-	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
-	ImplementedMethods   []string                `json:"implemented_methods"`
-	SupportedHookEvents  []string                `json:"supported_hook_events"`
-	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
-	Supports             InitializeSupports      `json:"supports"`
+type ModelSourceOptionKind string
+
+const (
+	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
+	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
+)
+
+type ModelSourceOptionSelection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitempty"`
 }
 
-type InitializeRuntime struct {
-	HealthCheckIntervalMS int64                    `json:"health_check_interval_ms"`
-	HealthCheckTimeoutMS  int64                    `json:"health_check_timeout_ms"`
-	ShutdownTimeoutMS     int64                    `json:"shutdown_timeout_ms"`
-	DefaultHookTimeoutMS  int64                    `json:"default_hook_timeout_ms"`
-	DefaultViewTimeoutMS  int64                    `json:"default_view_timeout_ms,omitempty"`
-	Bridge                *InitializeBridgeRuntime `json:"bridge,omitempty"`
+type ModelSourceOptionValue struct {
+	ValueID     string `json:"value_id"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+	Order       int    `json:"order,omitempty"`
 }
 
-type InitializeSupports struct {
-	HealthCheck bool `json:"health_check"`
+type ModelSourceRow struct {
+	SourceID               string                        `json:"source_id"`
+	ProviderID             string                        `json:"provider_id"`
+	ModelID                string                        `json:"model_id"`
+	DisplayName            string                        `json:"display_name,omitempty"`
+	Priority               int                           `json:"priority,omitempty"`
+	Available              *bool                         `json:"available,omitempty"`
+	Stale                  bool                          `json:"stale,omitempty"`
+	RefreshedAt            time.Time                     `json:"refreshed_at"`
+	ExpiresAt              time.Time                     `json:"expires_at"`
+	ContextWindow          *int64                        `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                      `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                       `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
+	TransportBindings      []ModelSourceTransportBinding `json:"transport_bindings,omitempty"`
+	Cost                   *ModelCatalogCostPayload      `json:"cost,omitempty"`
+	Deprecated             *bool                         `json:"deprecated,omitempty"`
+	Hidden                 *bool                         `json:"hidden,omitempty"`
+	Featured               *bool                         `json:"featured,omitempty"`
+	ReleaseDate            *string                       `json:"release_date,omitempty"`
+	LastError              string                        `json:"last_error,omitempty"`
 }
 
-type InputAttachmentMetadata struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	MIME  string `json:"mime"`
-	Bytes int64  `json:"bytes"`
-	Kind  string `json:"kind"`
+type ModelSourceTransportBinding struct {
+	TransportModelID string                       `json:"transport_model_id"`
+	Label            string                       `json:"label,omitempty"`
+	ReasoningEffort  *Effort                      `json:"reasoning_effort,omitempty"`
+	Fast             *bool                        `json:"fast,omitempty"`
+	Thinking         *bool                        `json:"thinking,omitempty"`
+	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
 }
 
-type InputPreSubmitPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Message       *string        `json:"message,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+type ModelsListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	SourceID     string `json:"source_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
 }
 
-type InputPreSubmitPayload struct {
-	Event          HookEvent                 `json:"event"`
-	Timestamp      time.Time                 `json:"timestamp"`
-	ProfileID      string                    `json:"profile_id,omitempty"`
-	SessionID      string                    `json:"session_id,omitempty"`
-	SessionName    string                    `json:"session_name,omitempty"`
-	SessionType    string                    `json:"session_type,omitempty"`
-	AgentName      string                    `json:"agent_name,omitempty"`
-	WorkspaceID    string                    `json:"workspace_id,omitempty"`
-	Workspace      string                    `json:"workspace,omitempty"`
-	WorktreeID     string                    `json:"worktree_id,omitempty"`
-	ACPSessionID   string                    `json:"acp_session_id,omitempty"`
-	State          string                    `json:"state,omitempty"`
-	SoulSnapshotID string                    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string                    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time                 `json:"created_at"`
-	UpdatedAt      time.Time                 `json:"updated_at"`
-	TurnID         string                    `json:"turn_id,omitempty"`
-	InputClass     string                    `json:"input_class,omitempty"`
-	Message        string                    `json:"message,omitempty"`
-	ContextBlocks  []ContextBlock            `json:"context_blocks,omitempty"`
-	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
+type ModelsRefreshParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+	SourceID   string `json:"source_id,omitempty"`
+	Force      bool   `json:"force,omitempty"`
+	RequestID  string `json:"request_id,omitempty"`
+}
+
+type ModelsStatusParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+type ObserveHealth struct {
+	Status             string                  `json:"status"`
+	UptimeSeconds      int64                   `json:"uptime_seconds"`
+	ActiveSessions     int                     `json:"active_sessions"`
+	ActiveAgents       int                     `json:"active_agents"`
+	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
+	Persistence        PersistenceHealth       `json:"persistence"`
+	Retention          RetentionHealth         `json:"retention"`
+	Failures           FailureHealth           `json:"failures"`
+	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
+	Tasks              TaskHealth              `json:"tasks"`
+	Activities         []SessionActivityHealth `json:"activities,omitempty"`
+	Version            string                  `json:"version"`
+}
+
+type OpenAppEffect struct {
+	App string `json:"app"`
 }

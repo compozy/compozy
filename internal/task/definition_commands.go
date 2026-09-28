@@ -2,8 +2,6 @@ package task
 
 import (
 	"context"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTaskDefinitionMutation commits a task definition, optional execution
@@ -17,12 +15,10 @@ type CreateTaskDefinitionMutation struct {
 // UpdateTaskDefinitionMutation commits a task-row update, optional execution
 // profile intent, and every causal event as one persistence command.
 type UpdateTaskDefinitionMutation struct {
-	Task                      Task
-	UpdateTaskRow             bool
-	PatchNetworkParticipation bool
-	NetworkParticipation      *participation.Request
-	Actor                     ActorContext
-	Events                    []Event
+	Task          Task
+	UpdateTaskRow bool
+	Actor         ActorContext
+	Events        []Event
 }
 
 // ExecutionProfileMutation commits one profile replacement and its event.

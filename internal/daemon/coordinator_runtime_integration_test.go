@@ -8,7 +8,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -46,9 +46,10 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTask(first) error = %v", err)
 	}
-	if got, want := execution.Run.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-		t.Fatalf("StartTask(first) participation = %#v, want %#v", got, want)
+	if execution.Run.TaskID != created.ID || execution.Run.ID == "" {
+		t.Fatalf("StartTask(first) run = %#v, want executable run for %q", execution.Run, created.ID)
 	}
+
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after first start = %d, want 1", got)
 	}
@@ -198,16 +199,16 @@ func (s *coordinatorRuntimeSessionsWithRuntime) stopCoordinatorForTest(
 		}
 		info.State = session.StateStopped
 		return &session.Session{
-			ID:                   info.ID,
-			Name:                 info.Name,
-			AgentName:            info.AgentName,
-			Provider:             info.Provider,
-			WorkspaceID:          info.WorkspaceID,
-			Workspace:            info.Workspace,
-			NetworkParticipation: info.NetworkParticipation,
-			Type:                 info.Type,
-			Lineage:              info.Lineage,
-			State:                session.StateStopped,
+			ID:          info.ID,
+			Name:        info.Name,
+			AgentName:   info.AgentName,
+			Provider:    info.Provider,
+			WorkspaceID: info.WorkspaceID,
+			Workspace:   info.Workspace,
+
+			Type:    info.Type,
+			Lineage: info.Lineage,
+			State:   session.StateStopped,
 		}
 	}
 	t.Fatalf("coordinator session %q not found", id)

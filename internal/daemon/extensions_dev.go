@@ -69,10 +69,10 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 	if err != nil {
 		return err
 	}
-	var confirmation *extensionpkg.NetworkConfirmation
-	if devCandidateConfirmationRequired(staged, generation.NetworkRequirementDigest) {
-		confirmation, err = s.confirmDevCandidateNetwork(
-			key, generation.NetworkRequirementDigest, req.ConfirmNetworkDigest, actor,
+	var confirmation *extensionpkg.GatewayConfirmation
+	if devCandidateConfirmationRequired(staged, generation.GatewayRequirementDigest) {
+		confirmation, err = s.confirmDevCandidateGateway(
+			key, generation.GatewayRequirementDigest, req.ConfirmGatewayDigest, actor,
 		)
 		if err != nil {
 			return errors.Join(err, s.restoreStagedDevLink(key, snapshot))
@@ -92,7 +92,7 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
 	if confirmation != nil {
 		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
 		})
 	}
@@ -164,7 +164,7 @@ func (s *daemonExtensionService) inspectDevReloadCandidate(
 	snapshot *extensionpkg.DevLink,
 	req contract.ReloadExtensionRequest,
 	actor taskpkg.ActorContext,
-) (extensionpkg.DevelopmentGeneration, *extensionpkg.NetworkConfirmation, error) {
+) (extensionpkg.DevelopmentGeneration, *extensionpkg.GatewayConfirmation, error) {
 	generation, err := runtime.InspectDevelopmentGeneration(
 		ctx,
 		key.WorkspaceID,
@@ -182,13 +182,13 @@ func (s *daemonExtensionService) inspectDevReloadCandidate(
 			strings.TrimSpace(key.Name),
 		)
 	}
-	if !devCandidateConfirmationRequired(snapshot, generation.NetworkRequirementDigest) {
+	if !devCandidateConfirmationRequired(snapshot, generation.GatewayRequirementDigest) {
 		return generation, nil, nil
 	}
-	confirmation, err := s.confirmDevCandidateNetwork(
+	confirmation, err := s.confirmDevCandidateGateway(
 		key,
-		generation.NetworkRequirementDigest,
-		req.ConfirmNetworkDigest,
+		generation.GatewayRequirementDigest,
+		req.ConfirmGatewayDigest,
 		actor,
 	)
 	if err != nil {
@@ -203,12 +203,12 @@ func (s *daemonExtensionService) applyDevReload(
 	key extensionpkg.InstanceKey,
 	snapshot *extensionpkg.DevLink,
 	generation extensionpkg.DevelopmentGeneration,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
 	allocations, err := s.snapshotMCPAllocations(ctx, key, extensionMCPWorkspaceAllocations)
 	if err != nil {
-		return contract.ExtensionPayload{}, errors.Join(err, s.restoreDevNetworkConfirmation(key, snapshot))
+		return contract.ExtensionPayload{}, errors.Join(err, s.restoreDevGatewayConfirmation(key, snapshot))
 	}
 	ext, err := runtime.ReloadExtension(ctx, key, generation.GenerationHash)
 	if err != nil {
@@ -216,7 +216,7 @@ func (s *daemonExtensionService) applyDevReload(
 			Type: eventspkg.ExtensionReloadFailed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, ExtensionGeneration: generation.GenerationHash,
 		})
-		return contract.ExtensionPayload{}, errors.Join(err, eventErr, s.restoreDevNetworkConfirmation(key, snapshot))
+		return contract.ExtensionPayload{}, errors.Join(err, eventErr, s.restoreDevGatewayConfirmation(key, snapshot))
 	}
 	if err := s.syncExtensionConsumers(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, allocations, err)
@@ -241,12 +241,12 @@ func (s *daemonExtensionService) recordDevReloadEvents(
 	actor taskpkg.ActorContext,
 	key extensionpkg.InstanceKey,
 	generationHash string,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 ) error {
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
 	if confirmation != nil {
 		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
 		})
 	}

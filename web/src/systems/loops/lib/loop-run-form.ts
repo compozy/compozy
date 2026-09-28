@@ -1,5 +1,3 @@
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
-
 import type { LoopEnvironmentSpec, LoopInputSchema, LoopInputSchemaField } from "../types";
 import { LOOP_ENVIRONMENT_MODE_LABELS } from "./loop-node-schema-types";
 
@@ -79,12 +77,6 @@ export function declaredInputCountsGist(schema?: LoopInputSchema): string {
   const names = schema ? Object.keys(schema) : [];
   const required = names.filter(name => schema?.[name]?.required).length;
   return `${required} required · ${names.length - required} optional`;
-}
-
-/** Folded Participation takeaway from the live draft. */
-export function participationGist(draft: NetworkParticipationDraft): string {
-  if (draft.mode === "local") return "Local";
-  return `Live · ${draft.channelStrategy}`;
 }
 
 /** Folded Environment takeaway from the per-run override (inherit = loop default). */

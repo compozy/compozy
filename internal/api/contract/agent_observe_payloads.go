@@ -150,7 +150,6 @@ type ObserveHealthPayload struct {
 	Retention          ObserveRetentionHealthPayload   `json:"retention"`
 	Failures           ObserveFailureHealthPayload     `json:"failures"`
 	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
-	Bridges            BridgeAggregateHealthPayload    `json:"bridges"`
 	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
 	Version            string                          `json:"version"`
 }

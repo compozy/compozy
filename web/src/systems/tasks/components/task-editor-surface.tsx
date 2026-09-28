@@ -11,11 +11,6 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import {
-  isNetworkParticipationDraftValid,
-  networkParticipationDraftFromValues,
-} from "@/lib/network-participation";
-
 import type { TaskEditorDraft } from "../lib/task-editor";
 import { SIMPLE_TASK_TEMPLATE_IDS, type TaskTemplateId } from "../lib/task-templates";
 import { ContractSection } from "./task-form/contract-section";
@@ -26,7 +21,6 @@ import { PrioritySection } from "./task-form/priority-section";
 import { QueueOwnershipSection } from "./task-form/queue-ownership-section";
 import { TemplateCards } from "./task-form/template-cards";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
-import { NetworkParticipationFields } from "@/systems/network";
 import {
   CreateDestinationStatement,
   destinationLabel,
@@ -100,17 +94,7 @@ export function TaskEditorSurface({
 
   const advanced = isNewMode && formMode === "advanced";
   const submitLabel = resolveSubmitLabel(mode, draft.saveAsDraft);
-  const networkParticipation = networkParticipationDraftFromValues(
-    draft.networkParticipationMode,
-    draft.networkChannelId,
-    draft.networkChannelStrategy
-  );
-  const participationValid = isNetworkParticipationDraftValid(networkParticipation, [
-    "named",
-    "run",
-    "loop_run",
-  ]);
-  const submitAllowed = canSubmit && participationValid;
+
   const destination = destinationLabel(
     draft.scope,
     workspaces?.find(workspace => workspace.id === draft.workspaceId)?.name
@@ -135,13 +119,7 @@ export function TaskEditorSurface({
       <form
         className="flex min-h-0 flex-1 flex-col"
         data-testid="task-editor-modal-form"
-        onSubmit={event => {
-          if (!participationValid) {
-            event.preventDefault();
-            return;
-          }
-          form.submitForm(event);
-        }}
+        onSubmit={form.submitForm}
       >
         {isNewMode ? (
           <EntityModeToolbar mode={formMode} onModeChange={handleModeChange} testIdPrefix="task" />
@@ -175,25 +153,6 @@ export function TaskEditorSurface({
 
           <FormSection help="Higher priority gets claimed sooner." title="Priority">
             <PrioritySection onPriority={form.updatePriority} priority={draft.priority} />
-          </FormSection>
-
-          <FormSection
-            help="Local by default. Live requires an explicit channel strategy."
-            title="Network participation"
-          >
-            <NetworkParticipationFields
-              allowedStrategies={["named", "run", "loop_run"]}
-              onChange={next =>
-                onDraftChange(current => ({
-                  ...current,
-                  networkParticipationMode: next.mode,
-                  networkChannelId: next.channelId,
-                  networkChannelStrategy: next.channelStrategy,
-                }))
-              }
-              testIdPrefix="task-editor-participation"
-              value={networkParticipation}
-            />
           </FormSection>
 
           {advanced ? (
@@ -268,7 +227,7 @@ export function TaskEditorSurface({
           hintTestId="task-editor-modal-hint"
           isSaving={isSubmitting}
           onCancel={onCancel}
-          primaryDisabled={!submitAllowed}
+          primaryDisabled={!canSubmit}
           primaryIcon={mode === "new" ? Check : undefined}
           primaryLabel={submitLabel}
           primaryTestId="task-editor-modal-submit"

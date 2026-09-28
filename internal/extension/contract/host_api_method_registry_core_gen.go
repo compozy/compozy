@@ -94,22 +94,6 @@ var hostAPIMethodSpecsCore = []HostAPIMethodSpec{
 		Result: NamedType{Name: "SessionStatusResponse", Value: apicontract.SessionStatusResponse{}},
 	},
 	{
-		Method:         HostAPIMethod("sandbox/list"),
-		Params:         NamedType{Name: "SandboxListParams", Value: SandboxListParams{}},
-		Result:         NamedType{Name: "SandboxListResult", Value: SandboxListResult{}},
-		OptionalParams: true,
-	},
-	{
-		Method: HostAPIMethod("sandbox/info"),
-		Params: NamedType{Name: "SandboxInfoParams", Value: SandboxInfoParams{}},
-		Result: NamedType{Name: "SandboxInfoResult", Value: SandboxInfoResult{}},
-	},
-	{
-		Method: HostAPIMethod("sandbox/exec"),
-		Params: NamedType{Name: "SandboxExecParams", Value: SandboxExecParams{}},
-		Result: NamedType{Name: "SandboxExecResult", Value: SandboxExecResult{}},
-	},
-	{
 		Method: HostAPIMethod("memory/recall"),
 		Params: NamedType{Name: "MemoryRecallParams", Value: MemoryRecallParams{}},
 		Result: NamedType{Name: "MemoryRecallEntry", Value: []MemoryRecallEntry{}},

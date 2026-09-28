@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -107,4 +108,43 @@ func cloneHookRunPatch(src json.RawMessage) json.RawMessage {
 		return nil
 	}
 	return append(json.RawMessage(nil), src...)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copyValue := value.UTC()
+	return &copyValue
+}
+
+func cloneInt64Ptr(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	copyValue := *value
+	return &copyValue
+}
+
+func cloneRawMessage(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
+}
+
+func (h *BaseHandlers) nowUTC() time.Time {
+	if h == nil || h.Now == nil {
+		return time.Now().UTC()
+	}
+	return h.Now().UTC()
 }

@@ -83,13 +83,11 @@ describe("DesignSystemShowcase", () => {
       expect(within(inputs).getByRole("button", { name: "Sessions" })).toBeInTheDocument();
     });
 
-    it("renders status primitives, metric cards, mono badges, and kind chips", async () => {
+    it("renders status primitives, metric cards and mono badges", async () => {
       await renderShowcase();
       const status = screen.getByTestId("section-status");
       expect(within(status).getByText("Active sessions")).toBeInTheDocument();
       expect(within(status).getByText("RUNNING")).toBeInTheDocument();
-      const kindChips = status.querySelectorAll('[data-slot="kind-chip"]');
-      expect(kindChips.length).toBeGreaterThanOrEqual(7);
       expect(status.querySelectorAll('[data-slot="connection-indicator"]').length).toBe(3);
     });
 

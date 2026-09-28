@@ -9,7 +9,7 @@ deliverables, collaboration, and disruption recovery.
 
 | Playbook | Pick when the change touches… | Stress profile | Required deliverables |
 | --- | --- | --- | --- |
-| [`northstar-pay`](playbooks/northstar-pay.md) | Network channels, peer messaging, multi-corridor coordination, regulated copy | High channel volume, partner timeouts, claim compliance | 2 tsx_page, 2 tsx_component, 1 go_service_stub, 2 ts_test, 1 shell_script, 1 runbook_md |
+| [`northstar-pay`](playbooks/northstar-pay.md) | Task reviews, multi-corridor coordination, regulated copy | Concurrent Tasks, partner timeouts, claim compliance | 2 tsx_page, 2 tsx_component, 1 go_service_stub, 2 ts_test, 1 shell_script, 1 runbook_md |
 | [`devtool-oss-launch`](playbooks/devtool-oss-launch.md) | CLI, release pipelines, docs, or benchmark harnesses | Benchmark regression, signing failure, undocumented breaking change | 1 go_service_stub, 2 python_script, 1 shell_script, 1 tsx_page, 1 tsx_component, 1 ts_test, 1 runbook_md, 1 spec_md |
 | [`consumer-saas-growth`](playbooks/consumer-saas-growth.md) | Persistence, tasks, segmentation, Web read models, or lifecycle automation | Silent telemetry loss, assignment skew, lifecycle misfire | 2 tsx_page, 1 tsx_component, 2 ts_module, 2 ts_test, 1 sql_migration, 1 runbook_md, 1 spec_md |
 
@@ -20,7 +20,7 @@ scenario from becoming a memorized fixture.
 ## Base contract
 
 Bootstrap derives `scenario-contract.json` minimums from the selected playbook:
-agent/role/channel counts, open roots, review dependencies, task runs,
+agent/role counts, open roots, review dependencies, task runs,
 disruption probes, deliverable reuse, and required collaboration. Do not
 hand-edit the derived contract. The auditor checks base C1–C14 plus playbook
 C15–C18.
@@ -39,7 +39,7 @@ is infrastructure for other QA flows, not real-scenario evidence.
 4. Make every `kickoff_brief` and agent `system_prompt` in-persona and compliant
    with `references/forbidden-prompt-phrases.md`.
 5. Require at least four non-Markdown deliverables. Deliver disruption probes
-   through `knowledge_file`, `channel_message`, `task_event`, or
+   through `knowledge_file`, `task_event`, or
    `config_change`, never a direct agent prompt.
 6. Smoke-test bootstrap with a temporary scenario and tear down its emitted
    manifest on every terminal path.
@@ -47,7 +47,6 @@ is infrastructure for other QA flows, not real-scenario evidence.
 ## Synchronization boundary
 
 `northstar-pay` mirrors the scenario identities used by
-`web/src/storybook/fintech-scenario.ts` and its Network, Knowledge, and
-Workspace fixtures. Synchronization is review-driven: when those identifiers
+`web/src/storybook/fintech-scenario.ts` and its Knowledge and Workspace fixtures. Synchronization is review-driven: when those identifiers
 move, update the playbook in the same change rather than importing Web fixtures
 into the QA loader.

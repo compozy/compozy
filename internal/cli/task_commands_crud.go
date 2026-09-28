@@ -3,9 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
-
 	"fmt"
-
 	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -18,7 +16,6 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		identifier    string
 		scopeRaw      string
 		workspaceRef  string
-		networkFlags  networkParticipationFlags
 		title         string
 		description   string
 		ownerKindRaw  string
@@ -29,7 +26,6 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		autoEnqueue   bool
 		noWakeCreator bool
 	)
-
 	cmd := &cobra.Command{
 		Use:   taskCreateKey,
 		Short: "Create a task",
@@ -39,13 +35,11 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request, err := buildTaskCreateRequest(cmd, deps, client, taskCreateInput{
 				ID:                 id,
 				Identifier:         identifier,
 				ScopeRaw:           scopeRaw,
 				WorkspaceRef:       workspaceRef,
-				NetworkFlags:       networkFlags,
 				Title:              title,
 				Description:        description,
 				PriorityRaw:        priorityRaw,
@@ -58,7 +52,6 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			created, err := createTaskRecord(cmd, deps, client, request, asAgent)
 			if err != nil {
 				return err
@@ -71,7 +64,6 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
-	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Task title")
 	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Task description")
 	cmd.Flags().
@@ -100,7 +92,6 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			taskDetail, err := client.GetTask(cmd.Context(), args[0])
 			if err != nil {
 				return err
@@ -122,7 +113,6 @@ func newTaskInspectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			id := strings.TrimSpace(args[0])
 			var inspect TaskInspectRecord
 			switch taskInspectTargetForID(id) {

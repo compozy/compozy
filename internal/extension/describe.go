@@ -25,7 +25,7 @@ const (
 
 // DescribeExtension projects one extension snapshot into the shared CLI/API payload.
 func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contract.ExtensionPayload {
-	return DescribeExtensionForProfile(ext, daemonRunning, now, hostAPIBridgesDefaultKey)
+	return DescribeExtensionForProfile(ext, daemonRunning, now, hostAPIDefaultProfileID)
 }
 
 // DescribeExtensionForProfile projects package metadata through the selected profile placement.
@@ -87,9 +87,9 @@ func DescribeExtensionForProfile(
 		Permissions:              append([]string(nil), ext.Info.Permissions.Requires...),
 		RequiresEnv:              requiresEnv,
 		MissingEnv:               missingEnv,
-		NetworkRequirementDigest: ext.Info.NetworkRequirementDigest,
-		NetworkConfirmationRequired: strings.TrimSpace(ext.Info.NetworkRequirementDigest) != "" &&
-			(strings.TrimSpace(ext.Info.NetworkConfirmedBy) == "" || ext.Info.NetworkConfirmedAt.IsZero()),
+		GatewayRequirementDigest: ext.Info.GatewayRequirementDigest,
+		GatewayConfirmationRequired: strings.TrimSpace(ext.Info.GatewayRequirementDigest) != "" &&
+			(strings.TrimSpace(ext.Info.GatewayConfirmedBy) == "" || ext.Info.GatewayConfirmedAt.IsZero()),
 		PID:                 ext.Status.PID,
 		UptimeSeconds:       uptimeSeconds,
 		Health:              extensionHealth(ext.Manifest, &ext.Info, ext.Status, daemonRunning),

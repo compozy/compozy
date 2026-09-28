@@ -96,7 +96,7 @@ journey:
     - at_step: 7
       how: "Git removes the checkout outside Compozy before resume."
       resume: "Compozy preserves the session history, reports the missing binding, and lets the operator choose an explicit recovery path without root fallback."
-  crosses: [Git, worktree-registry, session-runtime, sandbox, local-tool-host, memory, CLI, HTTP, UDS, native-tools, command-catalog]
+  crosses: [Git, worktree-registry, session-runtime, local-tool-host, memory, CLI, HTTP, UDS, native-tools, command-catalog]
 
 coverage:
   journeys: "Creation or adoption, bound launch or fork, isolated work, assisted exit, removal, and missing recovery all reach truthful terminal states."

@@ -116,10 +116,7 @@ func (h *HostAPIHandler) memoryStoreFor(
 
 	switch scope {
 	case memcontract.ScopeProfile:
-		profileID, profileErr := hostAPIProfileID(ctx)
-		if profileErr != nil {
-			return nil, "", invalidParamsRPCError(profileErr)
-		}
+		profileID := hostAPIProfileID(ctx)
 		if profileID == store.DefaultProfileID {
 			return h.memory, memcontract.ScopeProfile, nil
 		}

@@ -6,38 +6,25 @@ import (
 
 	"sync"
 	"testing"
-
-	compozycontract "github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // ArtifactKind identifies one stable E2E diagnostic surface.
 type ArtifactKind string
 
 const (
-	ArtifactKindTranscript           ArtifactKind = "transcript"
-	ArtifactKindEvents               ArtifactKind = "events"
-	ArtifactKindTransportOutputs     ArtifactKind = "transport_outputs"
-	ArtifactKindNetworkMessages      ArtifactKind = "network_messages"
-	ArtifactKindNetworkThreads       ArtifactKind = "network_threads"
-	ArtifactKindNetworkDirectRooms   ArtifactKind = "network_direct_rooms"
-	ArtifactKindNetworkWork          ArtifactKind = "network_work"
-	ArtifactKindNetworkAudit         ArtifactKind = "network_audit"
-	ArtifactKindAutomationRuns       ArtifactKind = "automation_runs"
-	ArtifactKindTasks                ArtifactKind = "tasks"
-	ArtifactKindTaskRuns             ArtifactKind = "task_runs"
-	ArtifactKindBridgeHealth         ArtifactKind = "bridge_health"
-	ArtifactKindBridgeRoutes         ArtifactKind = "bridge_routes"
-	ArtifactKindBridgeDeliveryState  ArtifactKind = "bridge_delivery_state"
-	ArtifactKindBridgeSecretBindings ArtifactKind = "bridge_secret_bindings"
-	ArtifactKindProviderCalls        ArtifactKind = "provider_calls"
-	ArtifactKindToolHostDiagnostics  ArtifactKind = "tool_host_diagnostics"
-	ArtifactKindCombinedFlow         ArtifactKind = "combined_flow"
-	ArtifactKindSessionSandbox       ArtifactKind = "session_sandbox"
-	ArtifactKindBrowserTrace         ArtifactKind = "browser_trace"
-	ArtifactKindBrowserScreenshots   ArtifactKind = "browser_screenshots"
-	ArtifactKindBrowserConsole       ArtifactKind = "browser_console"
-	ArtifactKindBrowserNetwork       ArtifactKind = "browser_network"
+	ArtifactKindTranscript          ArtifactKind = "transcript"
+	ArtifactKindEvents              ArtifactKind = "events"
+	ArtifactKindTransportOutputs    ArtifactKind = "transport_outputs"
+	ArtifactKindAutomationRuns      ArtifactKind = "automation_runs"
+	ArtifactKindTasks               ArtifactKind = "tasks"
+	ArtifactKindTaskRuns            ArtifactKind = "task_runs"
+	ArtifactKindProviderCalls       ArtifactKind = "provider_calls"
+	ArtifactKindToolHostDiagnostics ArtifactKind = "tool_host_diagnostics"
+	ArtifactKindCombinedFlow        ArtifactKind = "combined_flow"
+	ArtifactKindBrowserTrace        ArtifactKind = "browser_trace"
+	ArtifactKindBrowserScreenshots  ArtifactKind = "browser_screenshots"
+	ArtifactKindBrowserConsole      ArtifactKind = "browser_console"
+	ArtifactKindBrowserNetwork      ArtifactKind = "browser_network"
 )
 
 type artifactSpec struct {
@@ -53,29 +40,19 @@ type captureFileTarget struct {
 const defaultArtifactSlug = "run"
 
 var artifactSpecs = map[ArtifactKind]artifactSpec{
-	ArtifactKindTranscript:           {relativePath: "transcript.json"},
-	ArtifactKindEvents:               {relativePath: "events.json"},
-	ArtifactKindTransportOutputs:     {relativePath: string(ArtifactKindTransportOutputs), isDir: true},
-	ArtifactKindNetworkMessages:      {relativePath: "network_messages.json"},
-	ArtifactKindNetworkThreads:       {relativePath: "network_threads.json"},
-	ArtifactKindNetworkDirectRooms:   {relativePath: "network_direct_rooms.json"},
-	ArtifactKindNetworkWork:          {relativePath: "network_work.json"},
-	ArtifactKindNetworkAudit:         {relativePath: "network_audit.json"},
-	ArtifactKindAutomationRuns:       {relativePath: "automation_runs.json"},
-	ArtifactKindTasks:                {relativePath: "tasks.json"},
-	ArtifactKindTaskRuns:             {relativePath: "task_runs.json"},
-	ArtifactKindBridgeHealth:         {relativePath: "bridge_health.json"},
-	ArtifactKindBridgeRoutes:         {relativePath: "bridge_routes.json"},
-	ArtifactKindBridgeDeliveryState:  {relativePath: "bridge_delivery_state.json"},
-	ArtifactKindBridgeSecretBindings: {relativePath: "bridge_secret_bindings.json"},
-	ArtifactKindProviderCalls:        {relativePath: "provider_calls.json"},
-	ArtifactKindToolHostDiagnostics:  {relativePath: "tool_host_diagnostics.json"},
-	ArtifactKindCombinedFlow:         {relativePath: "combined_flow.json"},
-	ArtifactKindSessionSandbox:       {relativePath: "session_sandbox.json"},
-	ArtifactKindBrowserTrace:         {relativePath: "browser_trace.zip"},
-	ArtifactKindBrowserScreenshots:   {relativePath: "browser_screenshots", isDir: true},
-	ArtifactKindBrowserConsole:       {relativePath: "browser_console.json"},
-	ArtifactKindBrowserNetwork:       {relativePath: "browser_network.json"},
+	ArtifactKindTranscript:          {relativePath: "transcript.json"},
+	ArtifactKindEvents:              {relativePath: "events.json"},
+	ArtifactKindTransportOutputs:    {relativePath: string(ArtifactKindTransportOutputs), isDir: true},
+	ArtifactKindAutomationRuns:      {relativePath: "automation_runs.json"},
+	ArtifactKindTasks:               {relativePath: "tasks.json"},
+	ArtifactKindTaskRuns:            {relativePath: "task_runs.json"},
+	ArtifactKindProviderCalls:       {relativePath: "provider_calls.json"},
+	ArtifactKindToolHostDiagnostics: {relativePath: "tool_host_diagnostics.json"},
+	ArtifactKindCombinedFlow:        {relativePath: "combined_flow.json"},
+	ArtifactKindBrowserTrace:        {relativePath: "browser_trace.zip"},
+	ArtifactKindBrowserScreenshots:  {relativePath: "browser_screenshots", isDir: true},
+	ArtifactKindBrowserConsole:      {relativePath: "browser_console.json"},
+	ArtifactKindBrowserNetwork:      {relativePath: "browser_network.json"},
 }
 
 // ArtifactEntry records one captured diagnostic artifact.
@@ -107,13 +84,12 @@ type RuntimeArtifactManifest struct {
 
 // RuntimeHomeArtifact captures the isolated Compozy home layout used by a harness.
 type RuntimeHomeArtifact struct {
-	HomeDir          string `json:"home_dir,omitempty"`
-	ConfigFile       string `json:"config_file,omitempty"`
-	DatabaseFile     string `json:"database_file,omitempty"`
-	DaemonSocket     string `json:"daemon_socket,omitempty"`
-	DaemonInfo       string `json:"daemon_info,omitempty"`
-	LogsDir          string `json:"logs_dir,omitempty"`
-	NetworkAuditFile string `json:"network_audit_file,omitempty"`
+	HomeDir      string `json:"home_dir,omitempty"`
+	ConfigFile   string `json:"config_file,omitempty"`
+	DatabaseFile string `json:"database_file,omitempty"`
+	DaemonSocket string `json:"daemon_socket,omitempty"`
+	DaemonInfo   string `json:"daemon_info,omitempty"`
+	LogsDir      string `json:"logs_dir,omitempty"`
 }
 
 // RuntimeLogArtifact captures the daemon log surfaces retained by the harness.
@@ -153,17 +129,6 @@ type TransportOutputArtifact struct {
 	Payload    any      `json:"payload,omitempty"`
 }
 
-// SessionSandboxArtifact captures both the public session sandbox
-// projection and the fuller persisted metadata stored on disk for one session.
-type SessionSandboxArtifact struct {
-	SessionID    string                                 `json:"session_id"`
-	SessionState string                                 `json:"session_state,omitempty"`
-	StopReason   store.StopReason                       `json:"stop_reason,omitempty"`
-	StopDetail   string                                 `json:"stop_detail,omitempty"`
-	API          *compozycontract.SessionSandboxPayload `json:"api,omitempty"`
-	Persisted    *store.SessionSandboxMeta              `json:"persisted,omitempty"`
-}
-
 // ToolHostOperationOutcome classifies one tool-host operation result.
 type ToolHostOperationOutcome string
 
@@ -191,17 +156,16 @@ type ToolHostDiagnosticsArtifact struct {
 // CombinedFlowArtifact records the cross-domain identifiers and side effects
 // that make a multi-domain failure diagnosable from one retained run.
 type CombinedFlowArtifact struct {
-	Scenario          string   `json:"scenario"`
-	SessionID         string   `json:"session_id,omitempty"`
-	Channel           string   `json:"channel,omitempty"`
-	AutomationRunID   string   `json:"automation_run_id,omitempty"`
-	TriggerID         string   `json:"trigger_id,omitempty"`
-	JobID             string   `json:"job_id,omitempty"`
-	TaskID            string   `json:"task_id,omitempty"`
-	TaskRunID         string   `json:"task_run_id,omitempty"`
-	BridgeID          string   `json:"bridge_id,omitempty"`
-	NetworkMessageIDs []string `json:"network_message_ids,omitempty"`
-	SideEffectPaths   []string `json:"side_effect_paths,omitempty"`
+	Scenario  string `json:"scenario"`
+	SessionID string `json:"session_id,omitempty"`
+
+	AutomationRunID string `json:"automation_run_id,omitempty"`
+	TriggerID       string `json:"trigger_id,omitempty"`
+	JobID           string `json:"job_id,omitempty"`
+	TaskID          string `json:"task_id,omitempty"`
+	TaskRunID       string `json:"task_run_id,omitempty"`
+
+	SideEffectPaths []string `json:"side_effect_paths,omitempty"`
 }
 
 // Allowed returns the matching allowed operation diagnostic when present.

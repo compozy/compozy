@@ -13,17 +13,14 @@ const DOCK_DEFS = [
   { id: "terminal", name: "Terminal", icon: "terminal" },
   { id: "sep-1", sep: true as const },
   { id: "agents", name: "Agents", icon: "agents" },
-  { id: "network", name: "Network", icon: "network" },
   { id: "tasks", name: "Tasks", icon: "tasks" },
   { id: "loops", name: "Loops", icon: "loops" },
   { id: "jobs", name: "Jobs", icon: "jobs" },
   { id: "triggers", name: "Triggers", icon: "triggers" },
   { id: "sep-2", sep: true as const },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
-  { id: "bridges", name: "Bridges", icon: "bridges" },
   { id: "knowledge", name: "Knowledge", icon: "knowledge" },
   { id: "sep-3", sep: true as const },
-  { id: "sandbox", name: "Sandbox", icon: "sandbox" },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
 

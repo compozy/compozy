@@ -5,8 +5,8 @@ title: Reconnect remote browser streams with fresh tickets
 persona: Iris
 journey: J-expose-and-pair-gateway
 expected: Every remote SSE and WebSocket connection or reconnect mints and consumes a fresh single-use ticket, ordinary network or server failures remain recoverable, and device revocation alone produces the terminal access-ended state with no cached data.
-entry_points: Paired private or public Gateway UI; session, task, loop, bridge, extension, dashboard, Network, and window-manager live views
-qa_status: blocked-verify
+entry_points: Paired private or public Gateway UI; session, task, loop, extension, dashboard, and window-manager live views
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -24,3 +24,5 @@ gateway-scoped queries before rendering the terminal state.
 QA walk 2026-08-07: local browser revocation rendered the terminal state and removed the active
 device. A real remote stream and ticket reconnect remain blocked because no authorized provider
 address was available; no local transport was substituted for that leg.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

@@ -103,7 +103,7 @@ type DeclaredSeed struct {
 	CredentialAsks     []CredentialAsk
 }
 
-type PersonaDefaults struct{ Agent, Provider, Sandbox string }
+type PersonaDefaults struct{ Agent, Provider string }
 type CredentialAsk struct{ Provider, Slot string }
 type RepoChoice struct {
 	All, None    bool

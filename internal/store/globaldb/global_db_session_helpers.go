@@ -8,13 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sessionSandboxID(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return ""
-	}
-	return strings.TrimSpace(meta.SandboxID)
-}
-
 func sessionLivenessPID(meta *store.SessionLivenessMeta) int {
 	if meta == nil {
 		return 0
@@ -63,59 +56,6 @@ func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) (string, error
 		return "", fmt.Errorf("store: session liveness activity marshal: %w", err)
 	}
 	return string(data), nil
-}
-
-func sessionSandboxBackend(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return globalDBSessionLocalKey
-	}
-	backend := strings.TrimSpace(meta.Backend)
-	if backend == "" {
-		return globalDBSessionLocalKey
-	}
-	return backend
-}
-
-func sessionSandboxProfile(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return ""
-	}
-	return strings.TrimSpace(meta.Profile)
-}
-
-func sessionSandboxInstanceID(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return ""
-	}
-	return strings.TrimSpace(meta.InstanceID)
-}
-
-func sessionSandboxState(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return ""
-	}
-	return strings.TrimSpace(meta.State)
-}
-
-func sessionSandboxProviderStateJSON(meta *store.SessionSandboxMeta) string {
-	if meta == nil || len(meta.ProviderState) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(string(meta.ProviderState))
-}
-
-func sessionSandboxLastSyncAt(meta *store.SessionSandboxMeta) any {
-	if meta == nil || meta.LastSyncAt == nil || meta.LastSyncAt.IsZero() {
-		return nil
-	}
-	return store.FormatTimestamp(*meta.LastSyncAt)
-}
-
-func sessionSandboxLastSyncError(meta *store.SessionSandboxMeta) string {
-	if meta == nil {
-		return ""
-	}
-	return strings.TrimSpace(meta.LastSyncError)
 }
 
 type rowScanner interface {

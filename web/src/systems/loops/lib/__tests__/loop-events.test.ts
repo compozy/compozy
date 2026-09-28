@@ -23,12 +23,11 @@ describe("applyLoopEventFrame", () => {
     expect(state.frames[state.frames.length - 1].seq).toBe(520);
   });
 
-  it("Should never retain token_tick or channel_msg frames (they aggregate elsewhere)", () => {
+  it("Should never retain token_tick frames (they aggregate elsewhere)", () => {
     let state = applyLoopEventFrame(
       emptyLoopRunLiveState(),
       frame("token_tick", { tokens_used: 1_000 }, 1)
     );
-    state = applyLoopEventFrame(state, frame("channel_msg", { id: "m1", text: "hello" }, 2));
     state = applyLoopEventFrame(state, frame("node_running", { node_id: "fix" }, 3));
     expect(state.frames.map(f => f.kind)).toEqual(["node_running"]);
     expect(state.tokensUsed).toBe(1_000);

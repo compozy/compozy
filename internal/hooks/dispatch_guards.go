@@ -105,18 +105,7 @@ func validatePermissionSubset(parent *PermissionSet, child *PermissionSet) error
 	); err != nil {
 		return err
 	}
-	if err := validatePermissionAtoms(
-		"network_channels",
-		permissionNetworkChannels(parent),
-		permissionNetworkChannels(child),
-	); err != nil {
-		return err
-	}
-	return validatePermissionAtoms(
-		"sandbox_profiles",
-		permissionSandboxProfiles(parent),
-		permissionSandboxProfiles(child),
-	)
+	return nil
 }
 
 func permissionTools(src *PermissionSet) []string {
@@ -147,20 +136,6 @@ func permissionWorkspacePaths(src *PermissionSet) []string {
 	return src.WorkspacePaths
 }
 
-func permissionNetworkChannels(src *PermissionSet) []string {
-	if src == nil {
-		return nil
-	}
-	return src.NetworkChannels
-}
-
-func permissionSandboxProfiles(src *PermissionSet) []string {
-	if src == nil {
-		return nil
-	}
-	return src.SandboxProfiles
-}
-
 func validatePermissionAtoms(category string, parent []string, child []string) error {
 	allowed := make(map[string]struct{}, len(parent))
 	for _, atom := range parent {
@@ -187,12 +162,10 @@ func normalizePermissionSet(src *PermissionSet) *PermissionSet {
 		return nil
 	}
 	return &PermissionSet{
-		Tools:           uniqueTrimmedStrings(src.Tools),
-		Skills:          uniqueTrimmedStrings(src.Skills),
-		MCPServers:      uniqueTrimmedStrings(src.MCPServers),
-		WorkspacePaths:  uniqueTrimmedStrings(src.WorkspacePaths),
-		NetworkChannels: uniqueTrimmedStrings(src.NetworkChannels),
-		SandboxProfiles: uniqueTrimmedStrings(src.SandboxProfiles),
+		Tools:          uniqueTrimmedStrings(src.Tools),
+		Skills:         uniqueTrimmedStrings(src.Skills),
+		MCPServers:     uniqueTrimmedStrings(src.MCPServers),
+		WorkspacePaths: uniqueTrimmedStrings(src.WorkspacePaths),
 	}
 }
 

@@ -151,9 +151,6 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 			present: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
-				"GET /api/bridge-callbacks/:id",
-				"POST /api/bridge-callbacks/:id",
-				"HEAD /api/bridge-callbacks/:id",
 			},
 			absent: []string{
 				"GET /api/status",
@@ -162,7 +159,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/gateway/audit",
 				"POST /api/gateway/stream-tickets",
 			},
-			wantRoutes: 5,
+			wantRoutes: 2,
 		},
 		{
 			name:       "Should expose safe gateway management without pairing on the public operator tier",

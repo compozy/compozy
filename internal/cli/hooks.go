@@ -454,13 +454,6 @@ func hookMatcherRows(matcher hookspkg.HookMatcher) [][]string {
 	appendRow("decision_class", matcher.DecisionClass)
 	appendRow("message_role", matcher.MessageRole)
 	appendRow("message_delta_type", matcher.MessageDeltaType)
-	if matcher.NetworkMatcher != nil {
-		appendRow("channel", matcher.Channel)
-		appendRow("surface", matcher.Surface)
-		appendRow("kind", matcher.Kind)
-		appendRow("direction", matcher.Direction)
-		appendRow("work_state", matcher.WorkState)
-	}
 	if matcher.CompactionMatcher != nil {
 		appendRow("compaction_reason", matcher.Reason)
 		appendRow("compaction_strategy", matcher.Strategy)

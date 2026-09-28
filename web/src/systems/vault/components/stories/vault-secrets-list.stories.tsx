@@ -16,8 +16,8 @@ const secrets: VaultSecret[] = [
     updated_at: "2026-04-17T17:42:00Z",
   },
   {
-    ref: "vault:bridges/slack/signing_secret",
-    namespace: "bridges",
+    ref: "vault:extensions/tools/signing_secret",
+    namespace: "extensions",
     kind: "signing_secret",
     present: true,
     created_at: "2026-04-17T17:31:00Z",

@@ -385,7 +385,7 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatal(err)
 		}
 		nativeRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager(""),
+			Sessions: nativeTestSessionManager(""),
 			MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return executor },
 			Settings: func() core.SettingsService { return settingsService },
 		}, nativeApproveAllPolicyInputs())

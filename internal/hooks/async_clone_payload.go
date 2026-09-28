@@ -10,40 +10,6 @@ func cloneSessionLifecyclePayload(payload SessionLifecyclePayload) SessionLifecy
 	return payload
 }
 
-//nolint:gocritic // Cloning must return an independent value for async hook dispatch.
-func cloneSandboxPreparePayload(payload SandboxPreparePayload) SandboxPreparePayload {
-	cloned := payload
-	cloned.SessionContext = cloneSessionContext(cloned.SessionContext)
-	cloned.Profile = cloneSandboxProfilePayload(cloned.Profile)
-	cloned.LocalAdditionalDirs = cloneStringSlice(cloned.LocalAdditionalDirs)
-	cloned.AgentEnv = cloneStringSlice(cloned.AgentEnv)
-	cloned.EnvOverrides = cloneStringMap(cloned.EnvOverrides)
-	return cloned
-}
-
-func cloneSandboxReadyPayload(payload SandboxReadyPayload) SandboxReadyPayload {
-	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	payload.RuntimeAdditionalDirs = cloneStringSlice(payload.RuntimeAdditionalDirs)
-	return payload
-}
-
-func cloneSandboxSyncBeforePayload(payload SandboxSyncBeforePayload) SandboxSyncBeforePayload {
-	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	payload.ExcludePatterns = cloneStringSlice(payload.ExcludePatterns)
-	return payload
-}
-
-func cloneSandboxSyncAfterPayload(payload SandboxSyncAfterPayload) SandboxSyncAfterPayload {
-	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	payload.Errors = cloneStringSlice(payload.Errors)
-	return payload
-}
-
-func cloneSandboxStopPayload(payload SandboxStopPayload) SandboxStopPayload {
-	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	return payload
-}
-
 func cloneInputPreSubmitPayload(payload InputPreSubmitPayload) InputPreSubmitPayload {
 	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
@@ -75,14 +41,12 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 }
 
 func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
-	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
 }
 
 func cloneSpawnLifecyclePayload(payload SpawnLifecyclePayload) SpawnLifecyclePayload {
-	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
@@ -93,12 +57,10 @@ func clonePermissionSet(src *PermissionSet) *PermissionSet {
 		return nil
 	}
 	return &PermissionSet{
-		Tools:           cloneStringSlice(src.Tools),
-		Skills:          cloneStringSlice(src.Skills),
-		MCPServers:      cloneStringSlice(src.MCPServers),
-		WorkspacePaths:  cloneStringSlice(src.WorkspacePaths),
-		NetworkChannels: cloneStringSlice(src.NetworkChannels),
-		SandboxProfiles: cloneStringSlice(src.SandboxProfiles),
+		Tools:          cloneStringSlice(src.Tools),
+		Skills:         cloneStringSlice(src.Skills),
+		MCPServers:     cloneStringSlice(src.MCPServers),
+		WorkspacePaths: cloneStringSlice(src.WorkspacePaths),
 	}
 }
 

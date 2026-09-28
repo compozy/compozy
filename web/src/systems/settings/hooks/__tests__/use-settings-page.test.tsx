@@ -59,7 +59,6 @@ describe("useSettingsPage", () => {
       "skills",
       "mcp",
       "automation",
-      "network",
       "gateway",
       "attention",
       "observability",

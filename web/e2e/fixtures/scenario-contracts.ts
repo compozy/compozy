@@ -218,12 +218,6 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     "web/e2e/__tests__/session-hardening.spec.ts"
   ),
   webScenario(
-    "TC-NETWORK-001",
-    "network",
-    "operator verifies thread and direct network surfaces with final conversation artifacts",
-    "web/e2e/__tests__/network.spec.ts"
-  ),
-  webScenario(
     "TC-TASKS-001",
     "tasks",
     "operator cancels a running task run and sees transport parity",
@@ -254,22 +248,9 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     "web/e2e/__tests__/skills.spec.ts"
   ),
   webScenario(
-    "TC-BRIDGES-001",
-    "bridges",
-    "operator manages a Telegram bridge lifecycle with route and secret parity evidence",
-    "web/e2e/__tests__/bridges.spec.ts",
-    "bound_secret"
-  ),
-  webScenario(
-    "TC-SANDBOX-001",
-    "sandbox",
-    "operator manages sandbox profiles and proves a local sandbox session boundary",
-    "web/e2e/__tests__/sandbox.spec.ts"
-  ),
-  webScenario(
     "TC-SETTINGS-001",
     "settings",
-    "operator applies Memory, Network, Automation, and Observability settings with config parity",
+    "operator applies Memory, Automation, and Observability settings with config parity",
     "web/e2e/__tests__/settings-hardening.spec.ts"
   ),
   {
@@ -343,18 +324,6 @@ export const e2eScenarioContracts: ScenarioContract[] = [
       "Requires hosted MCP OAuth credentials and an external server; local daemon-served coverage proves MCP config and tool registry parity, while the credentialed OAuth path remains mapped to nightly.",
   },
   {
-    ...webScenario(
-      "TC-COMBINED-001",
-      "combined-flows",
-      "operator can follow a bridge-created route into the shipped session view",
-      "web/e2e/__tests__/combined-flows.spec.ts",
-      "bound_secret"
-    ),
-    grep: "operator can follow a bridge-created route into the shipped session view",
-    lanes: ["make test-e2e-nightly"],
-    nightly: true,
-  },
-  {
     id: "TC-HARNESS-001",
     title: "runtime harness exposes comparable scenario contracts and transport evidence",
     module: "runtime-harness-transport",
@@ -373,14 +342,11 @@ export const e2eScenarioContracts: ScenarioContract[] = [
 export const defaultModuleCoverageRequirements: ModuleCoverageRequirement[] = [
   "dashboard",
   "sessions",
-  "network",
   "tasks",
   "jobs",
   "triggers",
   "knowledge",
   "skills",
-  "bridges",
-  "sandbox",
   "settings",
   "extensibility-tools-resources",
   "runtime-harness-transport",

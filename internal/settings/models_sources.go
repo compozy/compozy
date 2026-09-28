@@ -61,17 +61,6 @@ func isMCPDefinitionSidecarTarget(target WriteTargetKind) bool {
 	}
 }
 
-func singleTargetSourceMetadata(kind WriteTargetKind, workspaceID string) SourceMetadata {
-	return SourceMetadata{
-		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID, ""),
-		AvailableTargets: []WriteTargetKind{kind},
-	}
-}
-
-func globalConfigSourceMetadata() SourceMetadata {
-	return singleTargetSourceMetadata(WriteTargetGlobalConfig, "")
-}
-
 func cloneSourceRefs(values []SourceRef) []SourceRef {
 	if len(values) == 0 {
 		return nil

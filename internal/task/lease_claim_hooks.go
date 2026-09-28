@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -71,14 +70,13 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	actor ActorContext,
 ) (ClaimCriteria, error) {
 	taskContext := hookspkg.TaskRunContext{
-		ProfileID:       strings.TrimSpace(actor.ReadScope.ProfileID),
-		RunID:           strings.TrimSpace(criteria.RunID),
-		WorkspaceID:     strings.TrimSpace(criteria.WorkspaceID),
-		TargetSessionID: strings.TrimSpace(criteria.TargetSessionID),
-		AgentName:       strings.TrimSpace(criteria.AgentName),
-		SessionID:       strings.TrimSpace(criteria.ClaimerSessionID),
-		ActorKind:       string(actor.Actor.Kind.Normalize()),
-		ActorID:         strings.TrimSpace(actor.Actor.Ref),
+		ProfileID:   strings.TrimSpace(actor.ReadScope.ProfileID),
+		RunID:       strings.TrimSpace(criteria.RunID),
+		WorkspaceID: strings.TrimSpace(criteria.WorkspaceID),
+		AgentName:   strings.TrimSpace(criteria.AgentName),
+		SessionID:   strings.TrimSpace(criteria.ClaimerSessionID),
+		ActorKind:   string(actor.Actor.Kind.Normalize()),
+		ActorID:     strings.TrimSpace(actor.Actor.Ref),
 	}
 	if criteria.RunKind.Normalize() != RunKindUnknown {
 		runKind := criteria.RunKind.Normalize().String()
@@ -87,9 +85,6 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	if criteria.Soul != nil {
 		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)
 		taskContext.SoulDigest = strings.TrimSpace(criteria.Soul.Digest)
-	}
-	if criteria.CallerNetworkParticipation != nil {
-		taskContext.ResolvedNetworkParticipation = participation.CloneSpec(*criteria.CallerNetworkParticipation)
 	}
 	payload := hookspkg.TaskRunPreClaimPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -101,7 +96,6 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 			RunID:                criteria.RunID,
 			RunKind:              criteria.RunKind.Normalize().String(),
 			WorkspaceID:          criteria.WorkspaceID,
-			TargetSessionID:      criteria.TargetSessionID,
 			ClaimerSessionID:     criteria.ClaimerSessionID,
 			AgentName:            criteria.AgentName,
 			RequiredCapabilities: append([]string(nil), criteria.RequiredCapabilities...),

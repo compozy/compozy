@@ -764,8 +764,7 @@ func seedMarketplaceUpgradeState(t *testing.T, db *sql.DB) []string {
 	queries := seedMCPOwnerMigrationFixture(t, db)
 	return append(queries,
 		`SELECT json_group_array(json_array(name,version,source,manifest_path,format,ingest_diagnostics_json,
- installed_at,provides_json,permissions_json,checksum,lifecycle_token,registry_slug,registry_name,remote_version,
- network_requirement_digest,network_confirmed_by,network_confirmed_at)) FROM (SELECT * FROM extensions ORDER BY name)`,
+ installed_at,provides_json,permissions_json,checksum,lifecycle_token,registry_slug,registry_name,remote_version)) FROM (SELECT * FROM extensions ORDER BY name)`,
 		`SELECT json_group_array(json_array(extension_name,profile_id,enabled))
  FROM (SELECT * FROM extension_profile_enablement ORDER BY extension_name,profile_id)`,
 		`SELECT json_group_array(json_array(extension_name,profile_id,workspace_id,env_name,secret_ref,

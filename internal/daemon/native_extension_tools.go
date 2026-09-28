@@ -49,7 +49,7 @@ type extensionInstallInput struct {
 	Version              string                          `json:"version"`
 	Asset                string                          `json:"asset"`
 	AllowUnverified      bool                            `json:"allow_unverified"`
-	ConfirmNetworkDigest string                          `json:"confirm_network_digest"`
+	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest"`
 }
 
 func (i extensionInstallInput) request() contract.InstallExtensionRequest {
@@ -57,7 +57,7 @@ func (i extensionInstallInput) request() contract.InstallExtensionRequest {
 		Scope: i.Scope, WorkspaceID: i.Workspace, Profile: i.Profile,
 		Inputs: i.Inputs, ExpectedDigest: i.ExpectedDigest,
 		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
-		AllowUnverified: i.AllowUnverified, ConfirmNetworkDigest: i.ConfirmNetworkDigest,
+		AllowUnverified: i.AllowUnverified, ConfirmGatewayDigest: i.ConfirmGatewayDigest,
 	}
 }
 
@@ -72,7 +72,7 @@ type extensionUpdateInput struct {
 	CheckOnly            bool                            `json:"check_only,omitzero"`
 	Version              string                          `json:"version,omitempty"`
 	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
-	ConfirmNetworkDigest string                          `json:"confirm_network_digest,omitempty"`
+	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
@@ -202,10 +202,10 @@ func (n *daemonNativeTools) extensionUpdate(
 			errors.New("inputs apply only to a single extension update"),
 		)
 	}
-	if input.All && strings.TrimSpace(input.ConfirmNetworkDigest) != "" {
+	if input.All && strings.TrimSpace(input.ConfirmGatewayDigest) != "" {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(
 			req.ToolID,
-			errors.New("confirm_network_digest applies only to a single extension update"),
+			errors.New("confirm_gateway_digest applies only to a single extension update"),
 		)
 	}
 	actor, err := nativeExtensionScopedActorContext(scope, req)
@@ -220,7 +220,7 @@ func (n *daemonNativeTools) extensionUpdate(
 			CheckOnly:            input.CheckOnly,
 			AllowUnverified:      input.AllowUnverified,
 			Inputs:               input.Inputs,
-			ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
+			ConfirmGatewayDigest: strings.TrimSpace(input.ConfirmGatewayDigest),
 		}, actor)
 		if updateErr != nil {
 			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, updateErr)

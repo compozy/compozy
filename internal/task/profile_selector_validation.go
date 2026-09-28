@@ -39,22 +39,6 @@ func validateAgentSelectors(exact string, allowed []string, preferred []string, 
 	return nil
 }
 
-func validateChannelSelectors(allowed []string, preferred []string, role string) error {
-	base := "task_execution_profile." + role
-	if err := validateProfileSelectorIDs(allowed, nestedPath(base, "allowed_channel_ids")); err != nil {
-		return err
-	}
-	return validateProfileSelectorIDs(preferred, nestedPath(base, "preferred_channel_ids"))
-}
-
-func validatePeerSelectors(allowed []string, preferred []string, role string) error {
-	base := "task_execution_profile." + role
-	if err := validateProfileSelectorIDs(allowed, nestedPath(base, "allowed_peer_ids")); err != nil {
-		return err
-	}
-	return validateProfileSelectorIDs(preferred, nestedPath(base, "preferred_peer_ids"))
-}
-
 func validateCapabilitySelectors(required []string, preferred []string, role string) error {
 	base := "task_execution_profile." + role
 	if err := ValidateCapabilityIDs(required, nestedPath(base, "required_capabilities")); err != nil {

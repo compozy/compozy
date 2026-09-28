@@ -141,7 +141,7 @@ func newProfileReadParityHTTPRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", 2123
 	if _, err := httpapi.New(
 		httpapi.WithEngine(engine), httpapi.WithHomePaths(homePaths), httpapi.WithConfig(&cfg),
@@ -167,7 +167,7 @@ func newProfileReadParityUDSRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	if _, err := udsapi.New(
 		udsapi.WithEngine(engine), udsapi.WithHomePaths(homePaths), udsapi.WithConfig(&cfg),
 		udsapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),

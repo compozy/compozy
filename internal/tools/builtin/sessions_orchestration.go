@@ -119,8 +119,6 @@ const sessionSpawnInputSchema = `{
 		"skills":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"mcp_servers":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"workspace_paths":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"network_channels":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"sandbox_profiles":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"idempotency_key":{"type":"string"}
 	},
 	"additionalProperties":false

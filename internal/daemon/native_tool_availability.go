@@ -17,9 +17,6 @@ type nativeToolAvailabilitySet struct {
 	toolApprovals        toolspkg.NativeAvailabilityFunc
 	clarify              toolspkg.NativeAvailabilityFunc
 	skills               toolspkg.NativeAvailabilityFunc
-	network              toolspkg.NativeAvailabilityFunc
-	networkRead          toolspkg.NativeAvailabilityFunc
-	networkUsage         toolspkg.NativeAvailabilityFunc
 	sessions             toolspkg.NativeAvailabilityFunc
 	profiles             toolspkg.NativeAvailabilityFunc
 	sessionOrchestration toolspkg.NativeAvailabilityFunc
@@ -39,14 +36,12 @@ type nativeToolAvailabilitySet struct {
 	agentCatalog         toolspkg.NativeAvailabilityFunc
 	vault                toolspkg.NativeAvailabilityFunc
 	tasks                toolspkg.NativeAvailabilityFunc
-	taskNotifications    toolspkg.NativeAvailabilityFunc
 	memory               toolspkg.NativeAvailabilityFunc
 	memoryAdminStore     toolspkg.NativeAvailabilityFunc
 	memoryExtractor      toolspkg.NativeAvailabilityFunc
 	memoryProviders      toolspkg.NativeAvailabilityFunc
 	memorySessionLedger  toolspkg.NativeAvailabilityFunc
 	observe              toolspkg.NativeAvailabilityFunc
-	bridges              toolspkg.NativeAvailabilityFunc
 	gateway              toolspkg.NativeAvailabilityFunc
 	config               toolspkg.NativeAvailabilityFunc
 	hookRead             toolspkg.NativeAvailabilityFunc
@@ -95,14 +90,7 @@ func (n *daemonNativeTools) coreNativeToolAvailability() nativeToolAvailabilityS
 		clarify: n.dependencyAvailability(func() bool {
 			return n.clarifyBroker() != nil
 		}),
-		skills:  n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
-		network: n.networkParticipationAvailability(func() bool { return n.deps.Network != nil }),
-		networkRead: n.networkParticipationAvailability(func() bool {
-			return n.deps.Network != nil && n.deps.NetworkStore != nil
-		}),
-		networkUsage: n.networkParticipationAvailability(func() bool {
-			return n.deps.Network != nil && n.deps.NetworkUsage != nil
-		}),
+		skills: n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
 	}
 }
 
@@ -182,9 +170,6 @@ func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFu
 
 func (n *daemonNativeTools) applyTaskNativeToolAvailability(availability *nativeToolAvailabilitySet) {
 	availability.tasks = n.dependencyAvailability(func() bool { return n.deps.Tasks != nil })
-	availability.taskNotifications = n.dependencyAvailability(func() bool {
-		return n.deps.Tasks != nil && n.deps.Bridges != nil
-	})
 }
 
 func (n *daemonNativeTools) applyMemoryNativeToolAvailability(availability *nativeToolAvailabilitySet) {
@@ -202,7 +187,6 @@ func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nat
 		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
 	}
 	availability.observe = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })
-	availability.bridges = n.dependencyAvailability(n.bridgeCatalogReady)
 	availability.gateway = n.dependencyAvailability(func() bool { return n.deps.gatewayService() != nil })
 	availability.config = n.dependencyAvailability(configReady)
 	availability.hookRead = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })

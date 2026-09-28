@@ -17,7 +17,7 @@ of silently accepting this preference. Existing mode selection is unchanged when
 false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
 when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
 permissions never permit an unrestricted mode. This setting does not bypass an outer CompozyOS
-workspace/container sandbox or operating-system permissions; unrestricted provider commands run
+operating-system permissions; unrestricted provider commands run
 with the daemon user's access within those boundaries.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
@@ -65,7 +65,7 @@ These are the built-in operations CompozyOS checks directly:
 | `terminal/create`    | blocked    | blocked         | allowed       |
 
 Static auto-allow is only one part of the full story. CompozyOS still enforces workspace scoping and
-network-turn restrictions after the mode check passes.
+workspace restrictions after the mode check passes.
 
 ## Workspace boundaries
 
@@ -94,7 +94,7 @@ permission mode decides it:
 | `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
 Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
-network peers, and the daemon itself keep the behavior they have today; a permissive mode never
+and the daemon itself keep the behavior they have today; a permissive mode never
 widens them.
 
 `deny-all` reads differently on each axis, and that is deliberate. For tool risk it means "auto-allow
@@ -154,17 +154,6 @@ An audit write failure is logged and does not change the access decision. Read p
 
 See [Workspace Resolver](/docs/workspaces/resolver#isolation-and-cross-workspace-access) for
 what workspace isolation covers today and what it does not.
-
-## Network-originated turn restrictions
-
-Network-originated turns are stricter than normal user turns, even under `approve-all`.
-
-Current daemon-side restrictions:
-
-- `fs/write_text_file` is blocked for network turns
-- `terminal/create` is only allowed for a narrow allowlist of `compozy network ...` commands
-
-This is enforced after the normal mode check.
 
 ## Interactive approval flow
 
@@ -233,7 +222,7 @@ Selecting `allow-always` or `reject-always` stores an exact workspace + agent + 
 decision. The next matching invocation uses that decision before prompting, and the decision
 survives daemon restart. Operators and agents can inspect or revoke these records through Web,
 `compozy tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
-subprocess permissions or sandbox policy. See [Policy and Invocation](/docs/tools/policy-and-invocation#remembered-native-tool-decisions).
+subprocess permissions or operating-system policy. See [Policy and Invocation](/docs/tools/policy-and-invocation#remembered-native-tool-decisions).
 
 ## Permission events
 

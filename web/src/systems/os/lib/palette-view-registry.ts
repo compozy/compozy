@@ -55,14 +55,8 @@ export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
   jobs: domainView("jobs", "Jobs", OS_APP_DESCRIPTORS.jobs.icon),
   triggers: domainView("triggers", "Triggers", OS_APP_DESCRIPTORS.triggers.icon),
   agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon),
-  bridges: domainView("bridges", "Bridges", OS_APP_DESCRIPTORS.bridges.icon),
   knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon),
   vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon),
-  "network-channels": domainView(
-    "network-channels",
-    "Network channels",
-    OS_APP_DESCRIPTORS.network.icon
-  ),
   marketplace: domainView("marketplace", "Marketplace", OS_APP_DESCRIPTORS.marketplace.icon),
   extensions: domainView("extensions", "Extensions", Blocks),
   // Profiles owns a dedicated controller rather than the generic domain search:

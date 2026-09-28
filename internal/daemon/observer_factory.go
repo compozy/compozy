@@ -30,7 +30,6 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithWorkspaceResolver(deps.WorkspaceResolver),
 			observe.WithLogger(deps.Logger),
 			observe.WithStartTime(deps.StartedAt),
-			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
 			observe.WithObservabilityConfig(deps.Config.Observability),
 			observe.WithAgentProbeSource(
 				agentProbeTargetSource(configState, deps.AgentCatalog, deps.Logger),

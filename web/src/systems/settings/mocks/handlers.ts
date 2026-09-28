@@ -1,11 +1,7 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
-import type {
-  SettingsMutationResult,
-  SettingsNotificationPresetCollection,
-  SettingsUpdateApplyRequest,
-} from "@/systems/settings";
+import type { SettingsMutationResult, SettingsUpdateApplyRequest } from "@/systems/settings";
 
 import {
   settingsAppliedMutationFixture,
@@ -13,8 +9,6 @@ import {
   settingsAutomationSectionFixture,
   settingsAttentionSectionFixture,
   settingsCmdPaletteSectionFixture,
-  settingsSandboxesCollectionFixture,
-  settingsSandboxFixtures,
   settingsGeneralSectionFixture,
   settingsHooksExtensionsSectionFixture,
   mcpAuthBeginFixture,
@@ -25,8 +19,6 @@ import {
   settingsMCPServersCollectionFixture,
   settingsMarketplaceSectionFixture,
   settingsMemorySectionFixture,
-  settingsNetworkSectionFixture,
-  settingsNotificationPresetCollectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
@@ -213,13 +205,6 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(mutationResult("automation", true))
   ),
 
-  compozyApiMock.get("/api/settings/network", () =>
-    HttpResponse.json(settingsNetworkSectionFixture)
-  ),
-  compozyApiMock.patch("/api/settings/network", () =>
-    HttpResponse.json(mutationResult("network", true))
-  ),
-
   compozyApiMock.get("/api/settings/marketplace", () =>
     HttpResponse.json(settingsMarketplaceSectionFixture)
   ),
@@ -321,58 +306,6 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
 
-  compozyApiMock.get("/api/notifications/presets", () =>
-    HttpResponse.json(settingsNotificationPresetCollectionFixture)
-  ),
-  compozyApiMock.post("/api/notifications/presets", async ({ request }) => {
-    const body = (await request.json()) as {
-      name?: string;
-      events?: string[];
-      targets?: SettingsNotificationPresetCollection["presets"][number]["targets"];
-      filter?: string;
-      enabled?: boolean;
-    };
-    return HttpResponse.json(
-      {
-        preset: {
-          profile: "default",
-          name: body.name ?? "custom",
-          events: body.events ?? [],
-          targets: body.targets ?? [],
-          filter: body.filter ?? "",
-          enabled: body.enabled ?? false,
-          built_in: false,
-          default_version: "",
-          default_hash: "",
-          user_modified: false,
-          default_update_available: false,
-          created_at: "2026-04-17T11:30:00Z",
-          updated_at: "2026-04-17T11:30:00Z",
-        },
-      },
-      { status: 201 }
-    );
-  }),
-  compozyApiMock.put("/api/notifications/presets/{name}", async ({ params, request }) => {
-    const name = String(params.name);
-    const body = (await request.json()) as { enabled?: boolean };
-    const existing = settingsNotificationPresetCollectionFixture.presets.find(
-      preset => preset.name === name
-    );
-    return HttpResponse.json({
-      preset: {
-        ...(existing ?? settingsNotificationPresetCollectionFixture.presets[0]),
-        name,
-        enabled: body.enabled ?? existing?.enabled ?? true,
-        updated_at: "2026-04-17T11:45:00Z",
-      },
-    });
-  }),
-  compozyApiMock.delete(
-    "/api/notifications/presets/{name}",
-    () => new HttpResponse(null, { status: 204 })
-  ),
-
   compozyApiMock.get("/api/settings/providers", () =>
     HttpResponse.json(settingsProvidersCollectionFixture)
   ),
@@ -391,26 +324,6 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.delete("/api/settings/providers/{name}", () =>
     HttpResponse.json(mutationResult("providers", true))
-  ),
-
-  compozyApiMock.get("/api/settings/sandboxes", () =>
-    HttpResponse.json(settingsSandboxesCollectionFixture)
-  ),
-  compozyApiMock.get("/api/settings/sandboxes/{name}", ({ params }) => {
-    const name = String(params.name);
-    const sandbox = settingsSandboxFixtures.find(entry => entry.name === name);
-
-    if (!sandbox) {
-      return HttpResponse.json({ error: `Sandbox not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({ sandbox });
-  }),
-  compozyApiMock.put("/api/settings/sandboxes/{name}", () =>
-    HttpResponse.json(mutationResult("sandboxes", true))
-  ),
-  compozyApiMock.delete("/api/settings/sandboxes/{name}", () =>
-    HttpResponse.json(mutationResult("sandboxes", true))
   ),
 
   compozyApiMock.get("/api/settings/hooks", ({ request }) =>

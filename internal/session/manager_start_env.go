@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/procutil"
 )
 
@@ -112,7 +111,6 @@ func sessionStartEnvForProvider(
 	env = setSessionStartEnvValue(env, "COMPOZY_SESSION_ID", strings.TrimSpace(session.ID))
 	env = setSessionStartEnvValue(env, "COMPOZY_AGENT", strings.TrimSpace(session.AgentName))
 	env = setSessionStartEnvValue(env, "COMPOZY_AGENT_NAME", strings.TrimSpace(session.AgentName))
-	env = unsetSessionStartEnvKeys(env, "COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID")
 
 	if effort := strings.TrimSpace(reasoningEffort); effort != "" {
 		env = setSessionStartEnvValue(env, "COMPOZY_REASONING_EFFORT", effort)
@@ -120,13 +118,6 @@ func sessionStartEnvForProvider(
 		env = unsetSessionStartEnvKeys(env, "COMPOZY_REASONING_EFFORT")
 	}
 
-	if session.NetworkParticipation.Mode != participation.ModeLive {
-		return env
-	}
-	channel := strings.TrimSpace(session.NetworkParticipation.ChannelID)
-
-	env = setSessionStartEnvValue(env, "COMPOZY_SESSION_CHANNEL", channel)
-	env = setSessionStartEnvValue(env, "COMPOZY_PEER_ID", networkPeerID(session.AgentName, session.ID))
 	return env
 }
 

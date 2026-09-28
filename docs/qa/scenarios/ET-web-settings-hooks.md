@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-07-15-marketplace.md; web/e2e/settings-hooks.spec.ts;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: ET-044; NB-044; MS-031
+overlaps: ET-044; MS-031
 ---
 
 Added by marketplace Task 07. `/settings/hooks-extensions` has no alias or redirect.

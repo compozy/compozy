@@ -80,9 +80,7 @@ workspace's registry projection.
 
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
 `path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
-scalar field. The daemon selects and redacts the preview. See [Tool progress in
-bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
-contract.
+scalar field. The daemon selects and redacts the preview before presenting tool activity.
 
 MCP declarations embedded in installed Marketplace/ClawHub skills are disabled. Do not write the
 retired `skills.allowed_marketplace_mcp` key. Installed skill content/provenance and manual or
@@ -319,7 +317,7 @@ Terminal discovery starts from its complete toolset entry there; operating rules
 
 Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly exposes a scoped tool:
 
-- daemon lifecycle, sockets, host/port, sandbox, provider bootstrap, and destructive repair
+- daemon lifecycle, sockets, host/port, provider bootstrap, and destructive repair
 - creating, stopping, or mutating arbitrary sessions outside scoped authority
 - MCP OAuth login/logout and browser-based auth
 - trust roots, raw secrets, OAuth credentials, provider API-key bindings, PKCE material, and MCP auth secrets

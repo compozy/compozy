@@ -20,7 +20,6 @@ const (
 	watchEventsPayloadAgentNameKey            = "agent_name"
 	watchEventsPayloadAttemptKey              = "attempt"
 	watchEventsPayloadCausationIDKey          = "causation_id"
-	watchEventsPayloadChannelKey              = "channel"
 	watchEventsPayloadCoordinatorSessionIDKey = "coordinator_session_id"
 	watchEventsPayloadDecisionKey             = "decision"
 	watchEventsPayloadDecisionKindKey         = "decision_kind"
@@ -31,8 +30,6 @@ const (
 	watchEventsPayloadJobIDKey                = "job_id"
 	watchEventsPayloadMessageIDKey            = "message_id"
 	watchEventsPayloadModelKey                = "model"
-	watchEventsPayloadPeerFromKey             = "peer_from"
-	watchEventsPayloadPeerToKey               = "peer_to"
 	watchEventsPayloadProviderKey             = "provider"
 	watchEventsPayloadRecordTypeKey           = "record_type"
 	watchEventsPayloadSequenceKey             = "sequence"
@@ -122,7 +119,6 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 		case looppkg.WatchEventsTaskStream,
 			looppkg.WatchEventsLoopStream,
 			looppkg.WatchEventsAutomationStream,
-			looppkg.WatchEventsNetworkStream,
 			looppkg.WatchEventsObserveStream:
 		case "":
 			return normalizedWatchEventsQuery{}, fmt.Errorf(
@@ -199,8 +195,6 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 		return g.readLoopWatchEventsCursor(ctx, query)
 	case looppkg.WatchEventsAutomationStream:
 		return g.readAutomationWatchEventsCursor(ctx, query)
-	case looppkg.WatchEventsNetworkStream:
-		return g.readNetworkWatchEventsCursor(ctx, query)
 	case looppkg.WatchEventsObserveStream:
 		return g.readObserveWatchEventsCursor(ctx, query)
 	default:
@@ -234,8 +228,6 @@ func (g *WatchEventsRepo) readWatchEventsStreamMatches(
 		return g.readLoopWatchEvents(ctx, query)
 	case looppkg.WatchEventsAutomationStream:
 		return g.readAutomationWatchEvents(ctx, query)
-	case looppkg.WatchEventsNetworkStream:
-		return g.readNetworkWatchEvents(ctx, query)
 	case looppkg.WatchEventsObserveStream:
 		return g.readObserveWatchEvents(ctx, query)
 	default:

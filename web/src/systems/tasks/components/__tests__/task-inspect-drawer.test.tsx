@@ -14,17 +14,10 @@ import { buildDetailFixture, buildTaskInspectFixture } from "../../mocks/fixture
 import type { TaskStreamState } from "../../lib/task-stream-state";
 import { TaskInspectDrawer } from "../task-inspect-drawer";
 
-const bridges = {
-  onCreate: vi.fn(),
-  onDelete: vi.fn(),
-  subscriptions: [],
-};
-
 function renderDrawer(state: TaskStreamState, errorMessage: string | null = null) {
   return render(
     <TaskInspectDrawer
       activeTab="stream"
-      bridges={bridges}
       detail={buildDetailFixture()}
       inspect={null}
       onOpenChange={vi.fn()}
@@ -61,7 +54,6 @@ describe("TaskInspectDrawer", () => {
     render(
       <TaskInspectDrawer
         activeTab="diagnostics"
-        bridges={bridges}
         detail={buildDetailFixture()}
         inspect={null}
         inspectErrorMessage="Inspect snapshot failed"
@@ -86,7 +78,6 @@ describe("TaskInspectDrawer", () => {
     render(
       <TaskInspectDrawer
         activeTab="diagnostics"
-        bridges={bridges}
         detail={buildDetailFixture()}
         inspect={buildTaskInspectFixture()}
         inspectErrorMessage="Inspect refresh failed"

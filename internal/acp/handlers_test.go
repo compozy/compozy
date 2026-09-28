@@ -205,79 +205,6 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 	}
 }
 
-func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
-	t.Parallel()
-
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-
-	active, err := proc.beginPrompt("turn-network-write", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	target := filepath.Join(proc.Cwd, "network.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
-		SessionId: "sess-direct",
-		Path:      target,
-		Content:   "blocked",
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleWriteTextFile(network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-}
-
-func assertTerminalNetworkTurnRejectsNonAllowlistedCommands(t *testing.T) {
-	t.Parallel()
-
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-
-	active, err := proc.beginPrompt("turn-network-create", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	tests := []struct {
-		name    string
-		request acpsdk.CreateTerminalRequest
-	}{
-		{
-			name: "shell wrapper",
-			request: acpsdk.CreateTerminalRequest{
-				SessionId: "sess-direct",
-				Command:   "sh",
-				Args:      []string{"-c", "printf nope"},
-				Cwd:       new(proc.Cwd),
-			},
-		},
-		{
-			name: "non-network compozy subcommand",
-			request: acpsdk.CreateTerminalRequest{
-				SessionId: "sess-direct",
-				Command:   "compozy",
-				Args:      []string{"version"},
-				Cwd:       new(proc.Cwd),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := proc.handleCreateTerminal(
-				context.Background(),
-				tt.request,
-			); !errors.Is(
-				err,
-				ErrToolBlockedForNetworkTurn,
-			) {
-				t.Fatalf("handleCreateTerminal(%s) error = %v, want ErrToolBlockedForNetworkTurn", tt.name, err)
-			}
-		})
-	}
-}
-
 func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) {
 	t.Parallel()
 
@@ -1052,180 +979,6 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 }
 
-func assertNetworkTurnTerminalOwnershipGuards(t *testing.T) {
-	// This test mutates PATH with t.Setenv, so it must stay process-serial.
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	turnSource := ""
-	proc.SetTurnSourceProvider(func() string { return turnSource })
-
-	compozyDir := t.TempDir()
-	writeFakeCompozyBinary(t, compozyDir, `
-if [ -n "${OPENAI_API_KEY-}" ]; then printf leaked-provider-secret; exit 41; fi
-if [ "${COMPOZY_HOME-}" = "/tmp/redirected" ]; then printf leaked-request-home; exit 42; fi
-if [ -n "${SAFE_NETWORK_OVERRIDE-}" ]; then printf leaked-request-env; exit 43; fi
-printf network-ok`)
-	t.Setenv("PATH", compozyDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
-
-	turnSource = "network"
-	firstTurn, err := proc.beginPromptForRun("turn-network-1", "run-network-1", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(first network) error = %v", err)
-	}
-
-	networkCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "compozy",
-		Args:      []string{"network", "status"},
-		Cwd:       new(proc.Cwd),
-		Env: []acpsdk.EnvVariable{
-			{Name: "COMPOZY_HOME", Value: "/tmp/redirected"},
-			{Name: "SAFE_NETWORK_OVERRIDE", Value: "blocked"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("handleCreateTerminal(allowlisted network command) error = %v", err)
-	}
-
-	networkTerm, err := proc.terminals.lookup(networkCreate.TerminalId)
-	if err != nil {
-		t.Fatalf("lookup(network terminal) error = %v", err)
-	}
-	if !networkTerm.ownership.networkOwned {
-		t.Fatal("network terminal networkOwned = false, want true")
-	}
-	if networkTerm.ownership.ownerTurnID != "turn-network-1" {
-		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownership.ownerTurnID, "turn-network-1")
-	}
-
-	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleWaitForTerminalExit(same network turn) error = %v", err)
-	}
-
-	networkOutput, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	})
-	if err != nil {
-		t.Fatalf("handleTerminalOutput(same network turn) error = %v", err)
-	}
-	if networkOutput.Output != "network-ok" {
-		t.Fatalf("network terminal output = %q, want %q", networkOutput.Output, "network-ok")
-	}
-
-	proc.endPrompt(firstTurn)
-
-	turnSource = "user"
-	userTurn, err := proc.beginPromptForRun("turn-user-1", "run-user-1", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(user) error = %v", err)
-	}
-
-	userCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "sh",
-		Args:      []string{"-c", "sleep 5"},
-		Cwd:       new(proc.Cwd),
-	})
-	if err != nil {
-		t.Fatalf("handleCreateTerminal(user shell) error = %v", err)
-	}
-
-	proc.endPrompt(userTurn)
-
-	turnSource = "network"
-	secondTurn, err := proc.beginPromptForRun("turn-network-2", "run-network-2", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(second network) error = %v", err)
-	}
-	defer proc.endPrompt(secondTurn)
-
-	if _, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleTerminalOutput(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-
-	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-
-	if _, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleKillTerminal(network-owned) error = %v", err)
-	}
-
-	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleReleaseTerminal(network-owned) error = %v", err)
-	}
-
-	checks := []struct {
-		name string
-		run  func() error
-	}{
-		{
-			name: "output user terminal",
-			run: func() error {
-				_, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "wait user terminal",
-			run: func() error {
-				_, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "kill user terminal",
-			run: func() error {
-				_, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "release user terminal",
-			run: func() error {
-				_, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-	}
-
-	for _, check := range checks {
-		t.Run(check.name, func(t *testing.T) {
-			if err := check.run(); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-				t.Fatalf("%s error = %v, want ErrToolBlockedForNetworkTurn", check.name, err)
-			}
-		})
-	}
-}
-
 func TestHelperUtilities(t *testing.T) {
 	t.Parallel()
 
@@ -1347,86 +1100,77 @@ func TestWithoutCancelPreservingDeadline(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T) {
+func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 	t.Parallel()
+	t.Run("Should stop the terminal when process registration fails", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
-	proc.SetTurnSourceProvider(func() string { return "network" })
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
 
-	var killedTerminalID string
-	proc.toolHost = contextAwareToolHost{
-		createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
-			return acpsdk.CreateTerminalResponse{TerminalId: "term-external"}, nil
-		},
-		killTerminalFn: func(id string) error {
-			killedTerminalID = id
-			return nil
-		},
-	}
+		var killedTerminalID string
+		proc.toolHost = contextAwareToolHost{
+			createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
+				return acpsdk.CreateTerminalResponse{TerminalId: "term-external"}, nil
+			},
+			killTerminalFn: func(id string) error {
+				killedTerminalID = id
+				return nil
+			},
+		}
 
-	active, err := proc.beginPromptForRun("turn-network-create-failure", "run-network-create-failure", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
+		active, err := proc.beginPromptForRun("turn-terminal-create-failure", "run-terminal-create-failure", 1, 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "compozy",
-		Args:      []string{"network", "status"},
-	}); err == nil {
-		t.Fatal("handleCreateTerminal() error = nil, want registration failure")
-	}
+		if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+			SessionId: "sess-direct",
+			Command:   "printf",
+			Args:      []string{"ready"},
+		}); err == nil {
+			t.Fatal("handleCreateTerminal() error = nil, want registration failure")
+		}
 
-	if killedTerminalID != "term-external" {
-		t.Fatalf("cleanup killed terminal = %q, want %q", killedTerminalID, "term-external")
-	}
-	if _, ok := proc.terminalOwnership["term-external"]; ok {
-		t.Fatalf("terminalOwnership = %#v, want failed terminal removed", proc.terminalOwnership)
-	}
+		if killedTerminalID != "term-external" {
+			t.Fatalf("cleanup killed terminal = %q, want %q", killedTerminalID, "term-external")
+		}
+	})
 }
 
-func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
+func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 	t.Parallel()
+	t.Run("Should release the external terminal through its tool host", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-	proc.terminalOwnership = map[string]terminalOwnership{
-		"term-external": {
-			networkOwned:   true,
-			ownerSessionID: "sess-direct",
-			ownerTurnID:    "turn-network-release",
-		},
-	}
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 
-	var releasedTerminalID string
-	proc.toolHost = contextAwareToolHost{
-		releaseTerminalFn: func(id string) error {
-			releasedTerminalID = id
-			return nil
-		},
-	}
+		var releasedTerminalID string
+		proc.toolHost = contextAwareToolHost{
+			releaseTerminalFn: func(id string) error {
+				releasedTerminalID = id
+				return nil
+			},
+		}
 
-	active, err := proc.beginPrompt("turn-network-release", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
+		active, err := proc.beginPrompt("turn-terminal-release", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: "term-external",
-	}); err != nil {
-		t.Fatalf("handleReleaseTerminal() error = %v", err)
-	}
+		if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
+			SessionId:  "sess-direct",
+			TerminalId: "term-external",
+		}); err != nil {
+			t.Fatalf("handleReleaseTerminal() error = %v", err)
+		}
 
-	if releasedTerminalID != "term-external" {
-		t.Fatalf("released terminal = %q, want %q", releasedTerminalID, "term-external")
-	}
-	if _, ok := proc.terminalOwnership["term-external"]; ok {
-		t.Fatalf("terminalOwnership = %#v, want released terminal removed", proc.terminalOwnership)
-	}
+		if releasedTerminalID != "term-external" {
+			t.Fatalf("released terminal = %q, want %q", releasedTerminalID, "term-external")
+		}
+	})
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
@@ -2090,16 +1834,6 @@ func (failingProcessStore) ListProcessRecords(
 	toolruntime.ProcessQuery,
 ) ([]toolruntime.ProcessRecord, error) {
 	return nil, nil
-}
-
-func writeFakeCompozyBinary(t *testing.T, dir string, body string) {
-	t.Helper()
-
-	path := filepath.Join(dir, "compozy")
-	script := "#!/bin/sh\n" + body + "\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
-	}
 }
 
 func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {

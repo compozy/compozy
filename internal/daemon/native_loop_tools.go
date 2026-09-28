@@ -11,7 +11,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -232,8 +231,7 @@ func (n *daemonNativeTools) loopRun(
 	response, err := n.loopService().RunLoop(ctx, workspaceID, name, core.LoopRunInput{
 		Request: contract.RunLoopRequest{
 			Inputs: input.Inputs, ParentLoopRunID: strings.TrimSpace(input.ParentLoopRunID),
-			ConfigOverrides:      configOverrides,
-			NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
+			ConfigOverrides: configOverrides,
 		},
 		ProfileID: scope.ProfileID, StartKind: dsl.StartNativeTool, Actor: actor, Dry: input.Dry,
 	})

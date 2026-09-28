@@ -195,24 +195,8 @@ func (n *daemonNativeTools) observeToolBindings(
 	}
 }
 
-func (n *daemonNativeTools) bridgeToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDBridgesList: {
-			call:         n.bridgesList,
-			availability: availability,
-		},
-		toolspkg.ToolIDBridgesStatus: {
-			call:         n.bridgesStatus,
-			availability: availability,
-		},
-	}
-}
-
 func (n *daemonNativeTools) taskToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
-	notificationAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskList: {
@@ -273,8 +257,7 @@ func (n *daemonNativeTools) taskToolBindings(
 		},
 	}
 	mergeNativeToolBindings(bindings, n.taskRunToolBindings(availability))
-	mergeNativeToolBindings(bindings, n.taskNotificationToolBindings(notificationAvailability))
-	mergeNativeToolBindings(bindings, n.taskNetworkToolBindings(availability))
+	mergeNativeToolBindings(bindings, n.taskFanOutToolBindings(availability))
 	return bindings
 }
 
@@ -285,37 +268,10 @@ func mergeNativeToolBindings(
 	maps.Copy(dst, src)
 }
 
-func (n *daemonNativeTools) taskNotificationToolBindings(
+func (n *daemonNativeTools) taskFanOutToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDTaskNotificationSubscribe: {
-			call:         n.taskNotificationSubscribe,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskNotificationList: {
-			call:         n.taskNotificationList,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskNotificationShow: {
-			call:         n.taskNotificationShow,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskNotificationDelete: {
-			call:         n.taskNotificationDelete,
-			availability: availability,
-		},
-	}
-}
-
-func (n *daemonNativeTools) taskNetworkToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDTaskPromoteFromThread: {
-			call:         n.taskPromoteFromThread,
-			availability: availability,
-		},
 		toolspkg.ToolIDTaskFanOutRuns: {
 			call:         n.taskFanOutRuns,
 			availability: availability,

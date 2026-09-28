@@ -324,16 +324,8 @@
                 <span class="choice__name">This machine</span>
                 <span class="choice__desc">Runs in your workspace folder.</span>
               </button>
-              <button class="choice">
-                <span class="choice__ic"><i data-lucide="box"></i></span>
-                <span class="choice__name">Sandbox</span>
-                <span class="choice__desc">Isolated filesystem and network.</span>
-              </button>
-              <button class="choice">
-                <span class="choice__ic"><i data-lucide="cloud"></i></span>
-                <span class="choice__name">Remote</span>
-                <span class="choice__desc">Runs on a connected bridge.</span>
-              </button>
+
+
             </div>
             <div class="ffield" style="margin-top:16px">
               <label class="flabel">Idle timeout <span class="req">*</span></label>
@@ -431,33 +423,34 @@
         </div>
       </div>
     </div>
+
     <div class="mdl-win mdl-win--sheet" data-od-id="demo-sheet">
       <div class="mdl-win__head" data-od-id="demo-sheet-head">
-        <span class="w2-glyph"><i data-lucide="plug"></i></span>
-        <span class="mdl-win__title">Bridges</span><span class="w2-count">·3·</span>
+        <span class="w2-glyph"><i data-lucide="list-checks"></i></span>
+        <span class="mdl-win__title">Tasks</span><span class="w2-count">·3·</span>
       </div>
       <div class="mdl-win__body">
         <div class="mdl-win__ghost"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
         <div class="dlg-scrim dlg-scrim--sheet" data-od-id="demo-sheet-layer">
           <div class="dialog dialog--sheet" style="grid-template-rows:auto minmax(0,1fr) auto" data-od-id="demo-sheet-dialog">
             <div class="dialog__head">
-              <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="plug"></i></span>
+              <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="list-checks"></i></span>
               <div class="dialog__head-main">
-                <span class="eyebrow">Bridges · tmux</span>
-                <h3 class="dialog__title">Bridge details</h3>
+                <span class="eyebrow">Tasks · nightly-triage</span>
+                <h3 class="dialog__title">Task details</h3>
               </div>
               <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
             </div>
             <div class="dialog__body">
-              <div class="prow"><span class="prow__k">Status</span><span class="prow__v" style="color:var(--success)">connected</span></div>
-              <div class="prow"><span class="prow__k">Socket</span><span class="prow__v mono">~/.compozy/tmux.sock</span></div>
-              <div class="prow"><span class="prow__k">Sessions</span><span class="prow__v">3</span></div>
-              <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono">0.3.0</span></div>
+              <div class="prow"><span class="prow__k">Status</span><span class="prow__v" style="color:var(--success)">ready</span></div>
+              <div class="prow"><span class="prow__k">Worker</span><span class="prow__v mono">core</span></div>
+              <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v">0 of 3</span></div>
+              <div class="prow"><span class="prow__k">Priority</span><span class="prow__v mono">medium</span></div>
             </div>
             <div class="dialog__foot">
-              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Disconnecting stops 3 sessions.</span></span>
+              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Task setup opens in the task detail view.</span></span>
               <button class="btn">Close</button>
-              <button class="btn btn--destructive">Disconnect</button>
+              <button class="btn btn--primary">Open task</button>
             </div>
           </div>
         </div>
@@ -544,7 +537,7 @@
       <div class="rule"><i>M8</i><span><b>Sheets inspect, dialogs commit.</b> If the surface is mostly read-only property rows, it is a sheet; if it collects a decision, it is a dialog.</span></div>
     </div>
     <p class="demo-note" style="margin-top:16px">The 16 delivered modal surfaces — create/edit for agents,
-    providers, bridges, MCP servers, knowledge, network channels, sandbox profiles, vault secrets, workspaces,
+    providers, MCP servers, knowledge, vault secrets, workspaces,
     plus the task, trigger, job and session builders — live in <code>../_done/modals/</code> with
     <code>modal-system.css</code>, <code>modal-system.js</code> and <code>verify.mjs</code>. They still use the
     legacy <code>--color-*</code> token names; <b>this chapter is the bare-token successor</b>. Never mix the two

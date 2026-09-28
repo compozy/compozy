@@ -65,7 +65,7 @@ describe("extensions MSW handlers", () => {
     expect(body.extensions.some(extension => extension.name === "otel-bridge")).toBe(false);
   });
 
-  it("Should preview network requirements and require the exact digest before install", async () => {
+  it("Should preview gateway requirements and require the exact digest before install", async () => {
     const request = { ref: "dep-kit-ops", source: "curated", version: "1.1.0" };
     const previewResponse = await fetch(`${API}/api/extensions/preview-install`, {
       body: JSON.stringify(request),
@@ -73,7 +73,7 @@ describe("extensions MSW handlers", () => {
       method: "POST",
     });
     expect(previewResponse.status).toBe(200);
-    const preview = (await previewResponse.json()) as { network_requirement_digest: string };
+    const preview = (await previewResponse.json()) as { gateway_requirement_digest: string };
 
     const refused = await fetch(`${API}/api/extensions`, {
       body: JSON.stringify(request),
@@ -83,16 +83,16 @@ describe("extensions MSW handlers", () => {
     expect(refused.status).toBe(409);
     const refusal = (await refused.json()) as { code: string; current_digest: string };
     expect(refusal).toMatchObject({
-      code: "extension_network_confirmation_required",
+      code: "extension_gateway_confirmation_required",
       current_digest: "sha256:6f1c0a94d3b27e58",
     });
 
-    expect(refusal.current_digest).toBe(preview.network_requirement_digest);
+    expect(refusal.current_digest).toBe(preview.gateway_requirement_digest);
 
     const confirmed = await fetch(`${API}/api/extensions`, {
       body: JSON.stringify({
         ...request,
-        confirm_network_digest: preview.network_requirement_digest,
+        confirm_gateway_digest: preview.gateway_requirement_digest,
       }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -109,13 +109,13 @@ describe("extensions MSW handlers", () => {
     expect(refused.status).toBe(409);
     const refusal = (await refused.json()) as { code: string; current_digest: string };
     expect(refusal).toMatchObject({
-      code: "extension_network_confirmation_required",
+      code: "extension_gateway_confirmation_required",
       current_digest: "sha256:6f1c0a94d3b27e58",
     });
 
     const confirmed = await fetch(`${API}/api/extensions/dep-kit-ops`, {
       body: JSON.stringify({
-        confirm_network_digest: refusal.current_digest,
+        confirm_gateway_digest: refusal.current_digest,
         version: "1.1.0",
       }),
       headers: { "Content-Type": "application/json" },

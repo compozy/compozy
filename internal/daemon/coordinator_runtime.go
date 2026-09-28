@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/coordinator"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -221,9 +220,7 @@ func (r *coordinatorRuntime) OnTaskRunEnqueued(ctx context.Context, payload hook
 		r.logCoordinatorError("daemon: load task run for coordinator enqueue", err, payload)
 		return
 	}
-	if !run.IsTaskAnchored() {
-		return
-	}
+
 	taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		r.logCoordinatorError("daemon: load task for coordinator enqueue", err, payload)
@@ -275,17 +272,13 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 
 	workspaceID = strings.TrimSpace(workspaceID)
 	for _, run := range runs {
-		if !run.IsTaskAnchored() {
-			continue
-		}
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logCoordinatorError("daemon: load task for coordinator recovery", err, hookspkg.TaskRunEnqueuedPayload{
 				TaskRunContext: hookspkg.TaskRunContext{
-					ProfileID:                    strings.TrimSpace(run.ProfileID),
-					RunID:                        run.ID,
-					TaskID:                       run.TaskID,
-					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+					ProfileID: strings.TrimSpace(run.ProfileID),
+					RunID:     run.ID,
+					TaskID:    run.TaskID,
 				},
 			})
 			continue
@@ -299,11 +292,10 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
-						ProfileID:                    strings.TrimSpace(run.ProfileID),
-						RunID:                        run.ID,
-						TaskID:                       run.TaskID,
-						WorkspaceID:                  taskRecord.WorkspaceID,
-						ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+						ProfileID:   strings.TrimSpace(run.ProfileID),
+						RunID:       run.ID,
+						TaskID:      run.TaskID,
+						WorkspaceID: taskRecord.WorkspaceID,
 					},
 				},
 			)
@@ -324,7 +316,7 @@ func (r *coordinatorRuntime) bootstrapRun(
 	preflightConfig := defaultEnabledCoordinatorRole()
 	preflight := coordinator.DecideBootstrap(taskRecord, run, preflightConfig)
 	if !preflight.ShouldBootstrap {
-		r.dispatchDecision(ctx, preflight, nil, reason, "")
+		r.dispatchDecision(ctx, preflight, reason, "")
 		return nil, false, nil
 	}
 
@@ -343,12 +335,12 @@ func (r *coordinatorRuntime) bootstrapRun(
 	ctx = withRoleInvocationCorrelation(ctx, correlation)
 	cfg, err := r.roles.ResolveCoordinatorRole(ctx, preflight.WorkspaceID)
 	if err != nil {
-		r.dispatchFailed(ctx, preflight, nil, reason, err)
+		r.dispatchFailed(ctx, preflight, reason, err)
 		return nil, false, fmt.Errorf("daemon: resolve coordinator role: %w", err)
 	}
 	decision := coordinator.DecideBootstrap(taskRecord, run, cfg)
 	if !decision.ShouldBootstrap {
-		r.dispatchDecision(ctx, decision, nil, reason, "")
+		r.dispatchDecision(ctx, decision, reason, "")
 		return nil, false, nil
 	}
 
@@ -356,16 +348,16 @@ func (r *coordinatorRuntime) bootstrapRun(
 	existing, err := r.activeCoordinator(ctx, decision.WorkspaceID)
 	if err != nil {
 		r.mu.Unlock()
-		r.dispatchFailed(ctx, decision, nil, reason, err)
+		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, false, err
 	}
 	if existing != nil {
 		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
 		r.mu.Unlock()
-		existingParticipation := participation.CloneSpec(existing.NetworkParticipation)
-		r.dispatchDecision(ctx, decision, existingParticipation, reason, coordinator.DecisionExisting)
+
+		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
 		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
-			r.dispatchFailed(ctx, decision, existingParticipation, reason, err)
+			r.dispatchFailed(ctx, decision, reason, err)
 			return existing, false, err
 		}
 		return existing, false, nil

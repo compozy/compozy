@@ -180,31 +180,6 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should propagate sandbox ID entropy failure before session creation", func(t *testing.T) {
-		t.Parallel()
-
-		entropyErr := errors.New("entropy unavailable")
-		h := newHarness(t, WithSandboxIDGenerator(func() (string, error) {
-			return "", entropyErr
-		}))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-		}); !errors.Is(err, entropyErr) {
-			t.Fatalf("Create() error = %v, want entropy failure", err)
-		}
-		if sessions := h.manager.List(); len(sessions) != 0 {
-			t.Fatalf("List() after entropy failure = %#v, want no session", sessions)
-		}
-		entries, err := os.ReadDir(h.homePaths.SessionsDir)
-		if err != nil {
-			t.Fatalf("ReadDir(sessions) error = %v", err)
-		}
-		if len(entries) != 0 {
-			t.Fatalf("session metadata after sandbox ID entropy failure = %#v, want no persistence", entries)
-		}
-	})
-
 	t.Run("Should store open failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -945,14 +920,13 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 
 	sessionDir := filepath.Join(homePaths.SessionsDir, "sess-stored")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-stored",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-stored",
-		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
-		CreatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		ID:            "sess-stored",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-stored",
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		CreatedAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}

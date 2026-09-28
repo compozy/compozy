@@ -38,17 +38,16 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 	)
 
 	startup := session.StartupPromptContext{
-		SessionID:            "sess-startup",
-		ProfileID:            "profile-marketing",
-		AgentName:            "coder",
-		SessionType:          session.SessionTypeUser,
-		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
+		SessionID:   "sess-startup",
+		ProfileID:   "profile-marketing",
+		AgentName:   "coder",
+		SessionType: session.SessionTypeUser,
 	}
 	selected, _, err := selector.Select(startup, descriptors)
 	if err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
-	if got, want := len(selected), 3; got != want {
+	if got, want := len(selected), 2; got != want {
 		t.Fatalf("len(selected) = %d, want %d", got, want)
 	}
 	if got := summaryStore.Summaries(); len(got) != 0 {
@@ -87,10 +86,10 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 	if !strings.Contains(summaries[0].Summary, "surface=startup") {
 		t.Fatalf("context summary = %q, want startup surface", summaries[0].Summary)
 	}
-	if !strings.Contains(summaries[0].Summary, "sections=memory|skills|network") {
+	if !strings.Contains(summaries[0].Summary, "sections=memory|skills") {
 		t.Fatalf("context summary = %q, want selected section list", summaries[0].Summary)
 	}
-	if !strings.Contains(summaries[1].Summary, "selected=memory|skills|network") {
+	if !strings.Contains(summaries[1].Summary, "selected=memory|skills") {
 		t.Fatalf("section summary = %q, want selected section names", summaries[1].Summary)
 	}
 }

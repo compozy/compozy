@@ -35,14 +35,6 @@ func (g *AutomationRepo) prepareAutomationRunInsert(
 	if err != nil {
 		return automation.Run{}, sqlcgen.InsertAutomationRunParams{}, err
 	}
-	networkParticipation, err := encodeOptionalAutomationParticipation(
-		normalized.NetworkParticipation,
-		normalized.NetworkParticipation == nil,
-		"run.network_participation",
-	)
-	if err != nil {
-		return automation.Run{}, sqlcgen.InsertAutomationRunParams{}, err
-	}
 
-	return normalized, automationRunParams(normalized, networkParticipation, metadataJSON), nil
+	return normalized, automationRunParams(normalized, metadataJSON), nil
 }

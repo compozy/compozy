@@ -511,7 +511,7 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 	t.Run("Should preserve recovered history until process exit is verified", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		active := seedRecoveredRemoteStop(t, h)
+		active := seedRecoveredUnverifiedStop(t, h)
 		before := readStoredEvents(t, active)
 		if _, err := h.manager.ClearConversation(
 			testutil.Context(t),

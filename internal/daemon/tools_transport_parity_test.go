@@ -49,12 +49,6 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			body:   []byte(`{"session_id":"sess-1","input":{"message":"hello"}}`),
 		},
 		{
-			name:   "ShouldInvokeNetworkStatusTool",
-			method: http.MethodPost,
-			path:   "/api/tools/compozy__network_status/invoke",
-			body:   []byte(`{"session_id":"sess-1","input":{}}`),
-		},
-		{
 			name:   "ShouldInvokeSessionEventsTool",
 			method: http.MethodPost,
 			path:   "/api/tools/compozy__session_events/invoke",
@@ -124,7 +118,7 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 func newToolParityHTTPEngine(t *testing.T) *gin.Engine {
 	t.Helper()
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	registry := newToolParityRegistry()
@@ -172,7 +166,7 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 		ToolArtifacts: newToolParityArtifactStore(t),
 		Toolsets:      registry,
 		HomePaths:     homePaths,
-		Config:        testutil.ConfigWithDisabledNetwork(homePaths),
+		Config:        testutil.ConfigForTest(homePaths),
 		Logger:        testutil.DiscardLogger(),
 		StartedAt:     time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
 		Now:           func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
@@ -244,7 +238,6 @@ type toolParityRegistry struct {
 func newToolParityRegistry() *toolParityRegistry {
 	return &toolParityRegistry{views: []toolspkg.ToolView{
 		toolParityView(toolspkg.ToolIDSkillView, toolspkg.VisibilityModel, true),
-		toolParityView(toolspkg.ToolIDNetworkStatus, toolspkg.VisibilityModel, true),
 		toolParityView(toolspkg.ToolIDSessionEvents, toolspkg.VisibilityModel, true),
 		toolParityView(toolspkg.ToolIDWorkspaceDescribe, toolspkg.VisibilityModel, true),
 		toolParityView("compozy__operator_diag", toolspkg.VisibilityOperator, false),

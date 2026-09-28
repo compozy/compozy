@@ -44,13 +44,13 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 		normalizedQueuedAt = g.now()
 	}
 	return queuedRunReservationInput{
-		taskID:               normalizedReservation.TaskID,
-		runID:                normalizedReservation.RunID,
-		runKind:              normalizedReservation.RunKind,
-		loopRunID:            normalizedReservation.LoopRunID,
-		idempotencyKey:       normalizedReservation.IdempotencyKey,
-		origin:               normalizedOrigin,
-		networkSpec:          normalizedReservation.NetworkSpec,
+		taskID:         normalizedReservation.TaskID,
+		runID:          normalizedReservation.RunID,
+		runKind:        normalizedReservation.RunKind,
+		loopRunID:      normalizedReservation.LoopRunID,
+		idempotencyKey: normalizedReservation.IdempotencyKey,
+		origin:         normalizedOrigin,
+
 		designationGroupID:   normalizedReservation.DesignationGroupID,
 		resolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
 		resolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
@@ -156,9 +156,6 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 	}
 
 	workspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
-	if workspaceID == "" {
-		workspaceID = strings.TrimSpace(input.networkSpec.WorkspaceID)
-	}
 	run := taskpkg.Run{
 		ID:                 input.runID,
 		TaskID:             taskRecord.ID,
@@ -181,7 +178,6 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		Metadata:              input.metadata,
 		QueuedAt:              input.queuedAt,
 	}
-	run.SetNetworkState(input.networkSpec, "", "", "")
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)
 	if err != nil {
 		return taskpkg.Run{}, err

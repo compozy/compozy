@@ -3,15 +3,11 @@ package extensionpkg
 import (
 	"context"
 
-	"fmt"
-
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -210,56 +206,6 @@ func (m *Manager) Statuses() []ExtensionStatus {
 		return strings.Compare(left.Name, right.Name)
 	})
 	return statuses
-}
-
-// BridgeTargetSnapshots calls the negotiated bridge target snapshot service on
-// the named bridge-capable extension runtime.
-func (m *Manager) BridgeTargetSnapshots(
-	ctx context.Context,
-	extensionName string,
-	req bridgepkg.BridgeTargetSnapshotRequest,
-) ([]bridgepkg.BridgeTargetSnapshot, error) {
-	if err := req.Validate(); err != nil {
-		return nil, err
-	}
-	process, name, err := m.extensionServiceProcess(
-		ctx,
-		extensionName,
-		extensionprotocol.ExtensionServiceMethodBridgeTargets,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var response bridgepkg.BridgeTargetSnapshotResponse
-	if err := process.Call(
-		ctx,
-		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
-		req,
-		&response,
-	); err != nil {
-		return nil, fmt.Errorf("extension: list bridge target snapshots via %q: %w", name, err)
-	}
-	for index, target := range response.Targets {
-		if err := target.Validate(); err != nil {
-			return nil, fmt.Errorf("extension: bridge target snapshot %d from %q: %w", index, name, err)
-		}
-	}
-	return cloneBridgeTargetSnapshots(response.Targets), nil
-}
-
-func cloneBridgeTargetSnapshots(values []bridgepkg.BridgeTargetSnapshot) []bridgepkg.BridgeTargetSnapshot {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]bridgepkg.BridgeTargetSnapshot, len(values))
-	for index, value := range values {
-		cloned[index] = value
-		if len(value.Capabilities) > 0 {
-			cloned[index].Capabilities = append([]string(nil), value.Capabilities...)
-		}
-	}
-	return cloned
 }
 
 // AgentDefinitions returns the currently registered extension agent definitions.

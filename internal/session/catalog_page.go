@@ -287,7 +287,6 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		info.Name,
 		info.AgentName,
 		info.Provider,
-		info.NetworkParticipation.ChannelID,
 	} {
 		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), search) {
 			return true
@@ -442,7 +441,6 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
 		WorktreeID:               strings.TrimSpace(info.WorktreeID),
-		NetworkParticipation:     info.NetworkSpecSnapshot(),
 		Type:                     Type(strings.TrimSpace(info.SessionType)),
 		Lineage:                  store.CloneSessionLineage(info.Lineage),
 		State:                    State(strings.TrimSpace(info.State)),
@@ -453,7 +451,6 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		ACPSessionID:             stringValue(info.ACPSessionID),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),

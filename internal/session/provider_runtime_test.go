@@ -163,7 +163,7 @@ func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retain workspace and profile ownership without a sandbox", func(t *testing.T) {
+	t.Run("Should retain workspace and profile ownership", func(t *testing.T) {
 		t.Parallel()
 
 		const profileID = "01PROFILEMARKETING000000000"
@@ -174,9 +174,6 @@ func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 		if scope.WorkspaceID != "ws-marketing" || scope.ProfileID != profileID ||
 			scope.HomeIdentity != "/provider-home" {
 			t.Fatalf("provider pre-start scope = %#v, want workspace/profile/home ownership", scope)
-		}
-		if scope.SandboxID != "" || scope.SandboxBackend != "" || scope.SandboxProfile != "" {
-			t.Fatalf("provider pre-start sandbox scope = %#v, want empty no-sandbox fields", scope)
 		}
 	})
 }
@@ -634,7 +631,6 @@ func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
 		}
 
 		opts, err := resolveProviderNativeCLI(
-			testutil.Context(t),
 			compozyconfig.ResolvedAgent{
 				Provider: "claude",
 				Command:  "npx -y @agentclientprotocol/claude-agent-acp@latest",

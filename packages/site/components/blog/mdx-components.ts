@@ -1,6 +1,5 @@
 import type { ComponentType } from "react";
 import { BlogCodeBlock } from "./code-block";
-import { BlogKindChip } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import {
   BlogWireCard,
@@ -35,6 +34,5 @@ export const mdxComponents = {
   pre: BlogCodeBlock,
   Callout,
   WireCard: BlogWireCard,
-  KindChip: BlogKindChip,
   MonoBadge,
 } as unknown as MdxComponents;

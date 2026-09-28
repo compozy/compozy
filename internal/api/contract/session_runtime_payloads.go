@@ -4,15 +4,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
 const (
-	contractDirectKey = "direct"
-
 	// SessionAttachDefaultTTLSeconds is the lease duration used when attach omits a positive TTL.
 	SessionAttachDefaultTTLSeconds = 15 * 60
 	// SessionAttachMaxTTLSeconds is the largest attach lease accepted by the daemon.
@@ -29,8 +26,7 @@ type CreateSessionRequest struct {
 	NewWorktree   *NewSessionWorktreeRequest `json:"new_worktree,omitempty"`
 	// ParentSessionID records creation provenance; the parent must live in the
 	// target workspace and the link never narrows the child's lifecycle.
-	ParentSessionID      string                 `json:"parent_session_id,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	ParentSessionID string `json:"parent_session_id,omitempty"`
 }
 
 // RenameSessionRequest changes the durable display name of one user session.
@@ -60,33 +56,32 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	Queue                        *SessionQueueSummaryPayload `json:"queue,omitempty"`
-	Supervision                  *session.SupervisionState   `json:"supervision"`
-	BusyInput                    *session.BusyInputState     `json:"busy_input,omitempty"`
-	ID                           string                      `json:"id"`
-	ProfileID                    string                      `json:"profile_id"`
-	ProfileName                  string                      `json:"profile_name"`
-	ProfileColor                 string                      `json:"profile_color,omitempty"`
-	ProfileIcon                  string                      `json:"profile_icon,omitempty"`
-	ProfileEmoji                 string                      `json:"profile_emoji,omitempty"`
-	ProfileArchived              bool                        `json:"profile_archived,omitempty"`
-	Name                         string                      `json:"name,omitempty"`
-	AgentName                    string                      `json:"agent_name"`
-	Runtime                      SessionRuntimePayload       `json:"runtime"`
-	WorkspaceID                  string                      `json:"workspace_id,omitempty"`
-	WorkspacePath                string                      `json:"workspace_path,omitempty"`
-	WorktreeID                   string                      `json:"worktree_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
-	Type                         session.Type                `json:"type,omitempty"`
-	State                        session.State               `json:"state"`
-	Badge                        session.Badge               `json:"badge"`
-	Attachable                   bool                        `json:"attachable"`
-	AttachedTo                   string                      `json:"attached_to,omitempty"`
-	AttachExpiresAt              *time.Time                  `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch              int64                       `json:"transcript_epoch,omitempty"`
-	AttentionChangedAt           *time.Time                  `json:"attention_changed_at,omitempty"`
-	PendingInteractions          []PendingInteractionPayload `json:"pending_interactions"`
-	ArchivedAt                   *time.Time                  `json:"archived_at"`
+	Queue               *SessionQueueSummaryPayload `json:"queue,omitempty"`
+	Supervision         *session.SupervisionState   `json:"supervision"`
+	BusyInput           *session.BusyInputState     `json:"busy_input,omitempty"`
+	ID                  string                      `json:"id"`
+	ProfileID           string                      `json:"profile_id"`
+	ProfileName         string                      `json:"profile_name"`
+	ProfileColor        string                      `json:"profile_color,omitempty"`
+	ProfileIcon         string                      `json:"profile_icon,omitempty"`
+	ProfileEmoji        string                      `json:"profile_emoji,omitempty"`
+	ProfileArchived     bool                        `json:"profile_archived,omitempty"`
+	Name                string                      `json:"name,omitempty"`
+	AgentName           string                      `json:"agent_name"`
+	Runtime             SessionRuntimePayload       `json:"runtime"`
+	WorkspaceID         string                      `json:"workspace_id,omitempty"`
+	WorkspacePath       string                      `json:"workspace_path,omitempty"`
+	WorktreeID          string                      `json:"worktree_id,omitempty"`
+	Type                session.Type                `json:"type,omitempty"`
+	State               session.State               `json:"state"`
+	Badge               session.Badge               `json:"badge"`
+	Attachable          bool                        `json:"attachable"`
+	AttachedTo          string                      `json:"attached_to,omitempty"`
+	AttachExpiresAt     *time.Time                  `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch     int64                       `json:"transcript_epoch,omitempty"`
+	AttentionChangedAt  *time.Time                  `json:"attention_changed_at,omitempty"`
+	PendingInteractions []PendingInteractionPayload `json:"pending_interactions"`
+	ArchivedAt          *time.Time                  `json:"archived_at"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	StopCause  string           `json:"stop_cause,omitempty"`
@@ -98,7 +93,6 @@ type SessionPayload struct {
 	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
 	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands"`
 	Activity          *RuntimeActivityPayload      `json:"activity,omitempty"`
-	Sandbox           *SessionSandboxPayload       `json:"sandbox,omitempty"`
 	Lineage           *SessionLineagePayload       `json:"lineage,omitempty"`
 	Health            *SessionHealthPayload        `json:"health,omitempty"`
 	CreatedAt         time.Time                    `json:"created_at"`
@@ -225,15 +219,4 @@ type RecapPayload struct {
 	PendingInputs  int                       `json:"pending_inputs"`
 	PendingMarkers int                       `json:"pending_markers"`
 	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
-}
-
-// SessionSandboxPayload is the shared session sandbox response payload.
-type SessionSandboxPayload struct {
-	SandboxID         string          `json:"sandbox_id,omitempty"`
-	Backend           string          `json:"backend,omitempty"`
-	Profile           string          `json:"profile,omitempty"`
-	State             string          `json:"state,omitempty"`
-	InstanceID        string          `json:"instance_id,omitempty"`
-	LastSyncError     string          `json:"last_sync_error,omitempty"`
-	ProviderStateJSON json.RawMessage `json:"provider_state_json,omitempty"`
 }

@@ -3,7 +3,6 @@ package globaldb
 import (
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,95 +13,6 @@ import (
 
 func TestGlobalDBNotificationCursorStore(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should hold an owner-active permit until cursor advancement", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		service := notifications.NewService(globalDB)
-		key := notificationCursorTestKey()
-		now := notificationCursorTestTime()
-		permit := notifications.DeliveryPermit{Key: key, DeliveryID: "delivery-permitted", AcquiredAt: now}
-		if err := service.AcquireDeliveryPermit(ctx, permit); err != nil {
-			t.Fatalf("AcquireDeliveryPermit() error = %v", err)
-		}
-		if err := service.AcquireDeliveryPermit(ctx, permit); err != nil {
-			t.Fatalf("AcquireDeliveryPermit(idempotent) error = %v", err)
-		}
-		var held int
-		if err := globalDB.DB().
-			QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE delivery_id = ?`, permit.DeliveryID).
-			Scan(&held); err != nil {
-			t.Fatalf("count held permits error = %v", err)
-		}
-		if held != 1 {
-			t.Fatalf("held permits = %d, want 1", held)
-		}
-		if _, err := service.Advance(ctx, notifications.AdvanceCursor{
-			Key: key, LastSequence: 7, DeliveryID: permit.DeliveryID, Now: now.Add(time.Second),
-		}); err != nil {
-			t.Fatalf("Advance() error = %v", err)
-		}
-		if err := globalDB.DB().
-			QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE delivery_id = ?`, permit.DeliveryID).
-			Scan(&held); err != nil {
-			t.Fatalf("count cleared permits error = %v", err)
-		}
-		if held != 0 {
-			t.Fatalf("held permits after cursor advance = %d, want 0", held)
-		}
-	})
-
-	t.Run("Should enumerate durable replay work without clearing its fence", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		service := notifications.NewService(globalDB)
-		key := notificationCursorTestKey()
-		now := notificationCursorTestTime()
-		orphaned := notifications.DeliveryPermit{Key: key, DeliveryID: "delivery-orphaned", AcquiredAt: now}
-		if err := service.AcquireDeliveryPermit(ctx, orphaned); err != nil {
-			t.Fatalf("AcquireDeliveryPermit(%s) error = %v", orphaned.DeliveryID, err)
-		}
-		recovered, err := globalDB.ListDeliveryPermits(ctx)
-		if err != nil {
-			t.Fatalf("ListDeliveryPermits() error = %v", err)
-		}
-		if len(recovered) != 1 || recovered[0] != orphaned {
-			t.Fatalf("ListDeliveryPermits() = %#v, want %#v", recovered, []notifications.DeliveryPermit{orphaned})
-		}
-		var held int
-		if err := globalDB.DB().QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM notification_delivery_permits`,
-		).Scan(&held); err != nil {
-			t.Fatalf("count recovered permits error = %v", err)
-		}
-		if held != 1 {
-			t.Fatalf("held permits after listing replay work = %d, want 1", held)
-		}
-	})
-
-	t.Run("Should refuse a permit when its profile owner is archived", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		service := notifications.NewService(globalDB)
-		now := notificationCursorTestTime()
-		if _, err := globalDB.DB().ExecContext(ctx, `
-			UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
-			store.FormatTimestamp(now), store.DefaultProfileID,
-		); err != nil {
-			t.Fatalf("archive permit owner error = %v", err)
-		}
-		err := service.AcquireDeliveryPermit(ctx, notifications.DeliveryPermit{
-			Key: notificationCursorTestKey(), DeliveryID: "delivery-archived", AcquiredAt: now,
-		})
-		requireNotificationErrorContains(t, err, "profile_unavailable")
-	})
 
 	t.Run("Should advance and read a cursor", func(t *testing.T) {
 		t.Parallel()
@@ -330,7 +240,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		}
 		if _, err := service.RecordError(ctx, notifications.CursorError{
 			Key:       key,
-			LastError: "bridge delivery failed",
+			LastError: "projection update failed",
 			Now:       firstTime.Add(30 * time.Minute),
 		}); err != nil {
 			t.Fatalf("RecordError() error = %v", err)
@@ -411,7 +321,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if _, err := service.Reset(ctx, notifications.ResetCursor{
 			Key:          key,
 			LastSequence: 2,
-			Reason:       "operator replay after bridge repair",
+			Reason:       "operator replay after projection repair",
 			Now:          now.Add(time.Minute),
 		}); err != nil {
 			t.Fatalf("Reset() error = %v", err)
@@ -452,7 +362,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		}
 		cursor, err := service.RecordError(ctx, notifications.CursorError{
 			Key:       key,
-			LastError: "bridge delivery failed",
+			LastError: "projection update failed",
 			Now:       now.Add(time.Minute),
 		})
 		if err != nil {
@@ -461,7 +371,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if cursor.LastSequence != 31 || cursor.LastDeliveryID != "delivery-31" {
 			t.Fatalf("cursor after RecordError = %#v, want original delivery progress", cursor)
 		}
-		if cursor.LastError != "bridge delivery failed" {
+		if cursor.LastError != "projection update failed" {
 			t.Fatalf("cursor.LastError = %q, want diagnostic", cursor.LastError)
 		}
 	})
@@ -477,7 +387,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 
 		cursor, err := service.RecordError(ctx, notifications.CursorError{
 			Key:       key,
-			LastError: "bridge delivery failed",
+			LastError: "projection update failed",
 			Now:       now,
 		})
 		if err != nil {
@@ -486,7 +396,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if cursor.LastSequence != 0 || cursor.LastDeliveryID != "" {
 			t.Fatalf("cursor after first RecordError = %#v, want zero delivery progress", cursor)
 		}
-		if cursor.LastError != "bridge delivery failed" {
+		if cursor.LastError != "projection update failed" {
 			t.Fatalf("cursor.LastError = %q, want diagnostic", cursor.LastError)
 		}
 		if !cursor.UpdatedAt.Equal(now.UTC()) {
@@ -541,13 +451,6 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 			t.Fatalf("List() = %#v, want first stable task_events cursor", cursors)
 		}
 	})
-}
-
-func requireNotificationErrorContains(t *testing.T, err error, want string) {
-	t.Helper()
-	if err == nil || !strings.Contains(err.Error(), want) {
-		t.Fatalf("error = %v, want text %q", err, want)
-	}
 }
 
 func notificationCursorTestKey() notifications.CursorKey {

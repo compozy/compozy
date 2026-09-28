@@ -54,37 +54,36 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
-	Logger                *slog.Logger
-	Registry              func() toolspkg.Registry
-	CmdPalette            func() cmdpalette.Registry
-	ToolArtifacts         toolspkg.ToolArtifactStore
-	Config                compozyconfig.Config
-	Skills                daemonNativeSkillsRegistry
-	SkillExposures        store.SkillExposureRepository
-	SkillExposureEvents   store.EventSummaryStore
-	Sessions              core.SessionManager
-	Profiles              nativeProfileReader
-	ProfileManager        *profilepkg.Manager
-	SessionAttachments    attachmentspkg.Store
-	Workspaces            core.WorkspaceService
-	Worktrees             core.WorktreeService
-	WorkspaceResolver     workspacepkg.RuntimeResolver
-	ModelCatalog          core.ModelCatalogService
-	MarketplaceCatalog    core.MarketplaceCatalogService
-	Settings              func() core.SettingsService
-	Network               core.NetworkService
-	NetworkStore          core.NetworkStore
-	NetworkUsage          store.NetworkUsageStore
-	Tasks                 taskpkg.Manager
-	TaskClaimHandoff      taskClaimHandoffCoordinator
-	MemoryStore           *memorypkg.Store
-	MemoryToolWrites      memoryToolWriteRecorder
-	DreamTrigger          core.DreamTrigger
-	Roles                 core.RolesStatusProvider
-	MemoryExtractor       core.MemoryExtractorService
-	MemoryProviders       core.MemoryProviderService
-	MemorySessionLedger   core.MemorySessionLedgerService
-	Bridges               core.BridgeService
+	Logger              *slog.Logger
+	Registry            func() toolspkg.Registry
+	CmdPalette          func() cmdpalette.Registry
+	ToolArtifacts       toolspkg.ToolArtifactStore
+	Config              compozyconfig.Config
+	Skills              daemonNativeSkillsRegistry
+	SkillExposures      store.SkillExposureRepository
+	SkillExposureEvents store.EventSummaryStore
+	Sessions            core.SessionManager
+	Profiles            nativeProfileReader
+	ProfileManager      *profilepkg.Manager
+	SessionAttachments  attachmentspkg.Store
+	Workspaces          core.WorkspaceService
+	Worktrees           core.WorktreeService
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	ModelCatalog        core.ModelCatalogService
+	MarketplaceCatalog  core.MarketplaceCatalogService
+	Settings            func() core.SettingsService
+
+	Tasks               taskpkg.Manager
+	TaskDesignations    core.TaskDesignationStore
+	TaskClaimHandoff    taskClaimHandoffCoordinator
+	MemoryStore         *memorypkg.Store
+	MemoryToolWrites    memoryToolWriteRecorder
+	DreamTrigger        core.DreamTrigger
+	Roles               core.RolesStatusProvider
+	MemoryExtractor     core.MemoryExtractorService
+	MemoryProviders     core.MemoryProviderService
+	MemorySessionLedger core.MemorySessionLedgerService
+
 	Gateway               func() core.GatewayService
 	GatewayPermissionMode func(context.Context, string) (string, error)
 	HomePaths             compozyconfig.HomePaths

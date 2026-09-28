@@ -547,18 +547,6 @@ describe("task runs", () => {
     await expectFetchRequest({ path: "/api/task-runs/run_001/result?offset=16384&limit=4" });
   });
 
-  it("accepts a taskless network-wake run detail", async () => {
-    const tasklessRun = {
-      ...runDetailFixture,
-      run: { ...runFixture, kind: "network_wake", task_id: undefined },
-      task: null,
-    };
-    mockJsonResponse({ run: tasklessRun });
-
-    await expect(getTaskRun("run_wake")).resolves.toEqual(tasklessRun);
-    await expectFetchRequest({ path: "/api/task-runs/run_wake" });
-  });
-
   it("fetches run inspect snapshots", async () => {
     mockJsonResponse({ inspect: { ...inspectFixture, target: "run" } });
 

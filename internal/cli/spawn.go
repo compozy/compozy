@@ -38,9 +38,8 @@ type spawnCommandFlags struct {
 	skills           []string
 	mcpServers       []string
 	workspacePaths   []string
-	networkChannels  []string
-	sandboxProfiles  []string
-	idempotencyKey   string
+
+	idempotencyKey string
 }
 
 type spawnRequestOptions struct {
@@ -65,8 +64,7 @@ func newSpawnCommand(deps commandDeps) *cobra.Command {
     --ttl-seconds 1800 \
     --prompt-overlay "Review only the implementation diff." \
     --tool read \
-    --skill code-review \
-    --channel coord-run-123`,
+    --skill code-review`,
 		RunE: runSpawnCommand(deps, flags),
 	}
 	registerSpawnFlags(cmd, flags)
@@ -103,13 +101,6 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Allowed MCP server id (repeatable)")
 	cmd.Flags().
 		StringArrayVar(&flags.workspacePaths, "workspace-path", nil, "Allowed workspace path grant (repeatable)")
-	cmd.Flags().StringArrayVar(&flags.networkChannels, "channel", nil, "Allowed network channel grant (repeatable)")
-	cmd.Flags().StringArrayVar(
-		&flags.sandboxProfiles,
-		"sandbox-profile",
-		nil,
-		"Allowed sandbox profile grant (repeatable)",
-	)
 	cmd.Flags().StringVar(&flags.idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	mustMarkFlagRequired(cmd, "agent")
 	mustMarkFlagRequired(cmd, "ttl-seconds")
@@ -184,12 +175,10 @@ func (flags *spawnCommandFlags) request(
 		TTLSeconds:       flags.ttlSeconds,
 		AutoStopOnParent: flags.autoStopOnParent,
 		Permissions: SpawnPermissionPolicyRecord{
-			Tools:           trimSpawnAtoms(flags.tools),
-			Skills:          trimSpawnAtoms(flags.skills),
-			MCPServers:      trimSpawnAtoms(flags.mcpServers),
-			WorkspacePaths:  trimSpawnAtoms(flags.workspacePaths),
-			NetworkChannels: trimSpawnAtoms(flags.networkChannels),
-			SandboxProfiles: trimSpawnAtoms(flags.sandboxProfiles),
+			Tools:          trimSpawnAtoms(flags.tools),
+			Skills:         trimSpawnAtoms(flags.skills),
+			MCPServers:     trimSpawnAtoms(flags.mcpServers),
+			WorkspacePaths: trimSpawnAtoms(flags.workspacePaths),
 		},
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 	}

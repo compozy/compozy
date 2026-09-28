@@ -43,11 +43,8 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		},
 		manifestSubprocessKey: subprocessTOMLTable(manifest.Subprocess),
 	}
-	if requirement := manifest.NetworkParticipation.Normalize(); requirement != nil {
-		networkParticipation := map[string]any{manifestRequiredKey: requirement.Required}
-		putNonEmpty(networkParticipation, "mode", requirement.Mode)
-		putNonEmptyStrings(networkParticipation, "channel_scopes", requirement.ChannelScopes)
-		document[manifestFieldNetworkParticipation] = networkParticipation
+	if requirement := manifest.Gateway.Normalize(); requirement != nil {
+		document[manifestFieldGateway] = map[string]any{"permissions": requirement.Permissions}
 	}
 	if len(manifest.Profiles) > 0 {
 		document["profiles"] = manifest.Profiles

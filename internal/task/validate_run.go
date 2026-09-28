@@ -39,32 +39,8 @@ func validateRunIdentity(r Run) error {
 	if strings.TrimSpace(r.ID) == "" {
 		return fmt.Errorf("%w: task_run.id is required", ErrValidation)
 	}
-	wakeID, targetSessionID, ownerKey := r.NetworkWakeCorrelation()
-	kind := normalizeRunKindOrDefault(r.RunKind)
-	if kind == RunKindNetworkWake {
-		if strings.TrimSpace(r.TaskID) != "" {
-			return fmt.Errorf("%w: task_run.task_id must be empty for network_wake runs", ErrValidation)
-		}
-		if strings.TrimSpace(r.WorkspaceID) == "" {
-			return fmt.Errorf("%w: task_run.workspace_id is required for network_wake runs", ErrValidation)
-		}
-		if strings.TrimSpace(wakeID) == "" ||
-			strings.TrimSpace(targetSessionID) == "" ||
-			strings.TrimSpace(ownerKey) == "" {
-			return fmt.Errorf(
-				"%w: network_wake runs require network_wake_id, network_target_session_id, and network_owner_key",
-				ErrValidation,
-			)
-		}
-	} else {
-		if strings.TrimSpace(r.TaskID) == "" {
-			return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
-		}
-		if strings.TrimSpace(wakeID) != "" ||
-			strings.TrimSpace(targetSessionID) != "" ||
-			strings.TrimSpace(ownerKey) != "" {
-			return fmt.Errorf("%w: task-anchored runs cannot carry network wake correlation", ErrValidation)
-		}
+	if strings.TrimSpace(r.TaskID) == "" {
+		return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
 	}
 	if r.WorkspaceID != strings.TrimSpace(r.WorkspaceID) {
 		return fmt.Errorf("%w: task_run.workspace_id must be canonical", ErrValidation)

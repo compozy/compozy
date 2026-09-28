@@ -955,10 +955,6 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"origin_creation_profile_ref",
 		"origin_policy_spec_digest",
 		"origin_creation_digest",
-		"network_spec_json",
-		"network_mode",
-		"network_channel",
-		"network_source",
 		"best_generation",
 		"best_score",
 	})
@@ -1310,5 +1306,17 @@ func assertSchemaSQLContainsNormalized(
 	sqlText := schemaObjectSQL(t, db, objectType, name)
 	if !strings.Contains(normalize(sqlText), normalize(want)) {
 		t.Fatalf("sqlite schema for %s %s = %q, want normalized substring %q", objectType, name, sqlText, want)
+	}
+}
+
+func assertForeignKeysEnabled(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var enabled int
+	if err := db.QueryRowContext(testutil.Context(t), `PRAGMA foreign_keys`).Scan(&enabled); err != nil {
+		t.Fatalf("PRAGMA foreign_keys error = %v", err)
+	}
+	if enabled != 1 {
+		t.Fatalf("PRAGMA foreign_keys = %d, want 1", enabled)
 	}
 }

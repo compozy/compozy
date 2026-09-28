@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 114
+const expectedHookEventCount = 99
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -42,8 +42,6 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookAutomationTriggerPostFire:       {},
 			HookAutomationRunCompleted:          {},
 			HookAutomationRunFailed:             {},
-			HookSandboxReady:                    {},
-			HookSandboxSyncAfter:                {},
 			HookPermissionResolved:              {},
 			HookPermissionDenied:                {},
 			HookAgentSoulSnapshotResolved:       {},
@@ -55,15 +53,6 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookSessionRuntimeRecoveryStarted:   {},
 			HookSessionRuntimeRecoverySucceeded: {},
 			HookSessionRuntimeRecoveryExhausted: {},
-			HookNetworkPeerJoined:               {},
-			HookNetworkPeerLeft:                 {},
-			HookNetworkThreadOpened:             {},
-			HookNetworkDirectRoomOpened:         {},
-			HookNetworkMessagePersisted:         {},
-			HookNetworkWorkOpened:               {},
-			HookNetworkWorkTransitioned:         {},
-			HookNetworkWorkClosed:               {},
-			HookNetworkParticipationResolved:    {},
 			HookSessionMessagePersisted:         {},
 			HookTaskStatusChanged:               {},
 			HookLoopStarted:                     {},
@@ -226,36 +215,6 @@ func TestHookEventFamilyAndInvalidValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("invalid.Validate() error = nil, want non-nil")
-	}
-}
-
-func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
-	t.Parallel()
-
-	expected := []HookEvent{
-		HookNetworkPeerJoined,
-		HookNetworkPeerLeft,
-		HookNetworkThreadOpened,
-		HookNetworkDirectRoomOpened,
-		HookNetworkMessagePersisted,
-		HookNetworkWorkOpened,
-		HookNetworkWorkTransitioned,
-		HookNetworkWorkClosed,
-	}
-	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
-	for _, event := range AllHookEvents() {
-		seen[event] = struct{}{}
-	}
-	for _, event := range expected {
-		if _, ok := seen[event]; !ok {
-			t.Fatalf("AllHookEvents() missing %q", event)
-		}
-		if got := event.Family(); got != HookEventFamilyNetwork {
-			t.Fatalf("%s.Family() = %q, want %q", event, got, HookEventFamilyNetwork)
-		}
-		if event.SyncEligible() {
-			t.Fatalf("%s.SyncEligible() = true, want false", event)
-		}
 	}
 }
 

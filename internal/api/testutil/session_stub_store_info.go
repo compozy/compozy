@@ -20,9 +20,7 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		RuntimeTransition: info.RuntimeTransition,
 		RuntimeFailure:    info.RuntimeFailure,
 		WorkspaceID:       info.WorkspaceID,
-		SessionNetworkState: &store.SessionNetworkState{
-			NetworkSpec: info.NetworkParticipation,
-		},
+
 		SessionType:      string(info.Type),
 		Lineage:          info.Lineage,
 		State:            string(info.State),
@@ -30,7 +28,6 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		StopDetail:       info.StopDetail,
 		Failure:          info.Failure,
 		Liveness:         info.Liveness,
-		Sandbox:          info.Sandbox,
 		SoulSnapshotID:   info.SoulSnapshotID,
 		SoulDigest:       info.SoulDigest,
 		ParentSoulDigest: info.ParentSoulDigest,

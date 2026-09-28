@@ -11,7 +11,6 @@ type profileMutationEventPayload struct {
 	TaskID          string          `json:"task_id"`
 	CoordinatorMode CoordinatorMode `json:"coordinator_mode,omitempty"`
 	WorkerMode      WorkerMode      `json:"worker_mode,omitempty"`
-	SandboxMode     SandboxMode     `json:"sandbox_mode,omitempty"`
 	WorktreeMode    WorktreeMode    `json:"worktree_mode,omitempty"`
 }
 
@@ -98,7 +97,6 @@ func (m *Service) SetExecutionProfile(
 		TaskID:          trimmedID,
 		CoordinatorMode: normalized.Coordinator.Mode,
 		WorkerMode:      normalized.Worker.Mode,
-		SandboxMode:     normalized.Sandbox.Mode,
 		WorktreeMode:    normalized.Worktree.Mode,
 	})
 	if err != nil {
@@ -161,7 +159,6 @@ func defaultExecutionProfile(taskID string) ExecutionProfile {
 		TaskID:      taskID,
 		Coordinator: CoordinatorProfile{Mode: CoordinatorModeInherit},
 		Worker:      WorkerProfile{Mode: WorkerModeInherit},
-		Sandbox:     SandboxPolicy{Mode: SandboxModeInherit},
 		Worktree:    WorktreePolicy{Mode: WorktreeModeInherit},
 		Runtime:     RuntimePolicy{Mode: RuntimeModeDefault},
 	}

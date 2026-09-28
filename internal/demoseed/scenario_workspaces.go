@@ -35,7 +35,7 @@ func launchAgents() []agentStory {
 		{
 			Name: agentProductLead, WorkspaceKey: workspaceKeyLaunch,
 			Provider: providerClaude, Model: modelClaude, Permissions: approveReads,
-			Tools:        []string{toolNetworkSend, toolTaskList, toolTaskRead, toolLoopStatus},
+			Tools:        []string{toolTaskList, toolTaskRead, toolLoopStatus},
 			CategoryPath: []string{categoryOperations, "Launch"},
 			Prompt: "Own checkout launch decisions for Northstar Pay. Reconcile engineering, compliance, " +
 				"support, and rollout evidence into short recommendations with explicit holds and rollback thresholds.",
@@ -43,7 +43,7 @@ func launchAgents() []agentStory {
 		{
 			Name: agentComplianceReview, WorkspaceKey: workspaceKeyLaunch,
 			Provider: providerClaude, Model: modelClaude, Permissions: approveReads,
-			Tools:        []string{toolNetworkSend, toolTaskRead},
+			Tools:        []string{toolTaskRead},
 			CategoryPath: []string{categoryRisk, "Compliance"},
 			Prompt: "Review customer-facing payment language for Brazil and Mexico. Return approved wording, " +
 				"required qualifiers, and any market-specific hold in a form the launch team can apply directly.",
@@ -51,7 +51,7 @@ func launchAgents() []agentStory {
 		{
 			Name: agentSupportLead, WorkspaceKey: workspaceKeyLaunch,
 			Provider: providerClaude, Model: modelClaude, Permissions: approveReads,
-			Tools:        []string{toolNetworkSend, toolTaskRead, toolTaskUpdate},
+			Tools:        []string{toolTaskRead, toolTaskUpdate},
 			CategoryPath: []string{"Support"},
 			Prompt: "Keep checkout support operationally ready. Report only live queue counts, escalation coverage, " +
 				"and the customer macros that are ready for the selected launch market.",
@@ -72,7 +72,7 @@ func platformAgents() []agentStory {
 		{
 			Name: agentPlatformEngineer, WorkspaceKey: workspaceKeyPlatform,
 			Provider: providerCodex, Model: modelCodex, Permissions: approveReads,
-			Tools:        []string{toolNetworkSend, toolTaskRead, toolTaskUpdate},
+			Tools:        []string{toolTaskRead, toolTaskUpdate},
 			CategoryPath: []string{categoryEngineering, "Payments"},
 			Prompt: "Investigate payment-platform reliability with evidence. Separate market-specific findings, " +
 				"state data gaps plainly, and never promote a market without replay coverage.",
@@ -80,7 +80,7 @@ func platformAgents() []agentStory {
 		{
 			Name: agentCheckoutEngineer, WorkspaceKey: workspaceKeyPlatform,
 			Provider: providerCodex, Model: modelCodex, Permissions: approveAll,
-			Tools:        []string{toolNetworkSend, toolTaskList, toolTaskRead, toolTaskUpdate},
+			Tools:        []string{toolTaskList, toolTaskRead, toolTaskUpdate},
 			CategoryPath: []string{categoryEngineering, "Checkout"},
 			Prompt: "Prepare checkout rollout and rollback controls. Keep changes inside the approved market, " +
 				"canary percentage, and error-budget threshold.",

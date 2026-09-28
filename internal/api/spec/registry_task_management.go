@@ -20,10 +20,6 @@ func registryTaskManagementOperations() []OperationSpec {
 		setTaskExecutionProfileOperationSpec(),
 		setTaskWorktreePolicyOperationSpec(),
 		deleteTaskExecutionProfileOperationSpec(),
-		createTaskBridgeNotificationSubscriptionOperationSpec(),
-		listTaskBridgeNotificationSubscriptionsOperationSpec(),
-		deleteTaskBridgeNotificationSubscriptionOperationSpec(),
-		getTaskBridgeNotificationSubscriptionOperationSpec(),
 		listTaskReviewsOperationSpec(),
 	}
 	for index := range operations {
@@ -55,7 +51,6 @@ func listTasksOperationSpec() OperationSpec {
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("parent_task_id", "Filter by parent task ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
-			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			queryParam("query", "Filter by task title or identifier", false),
 			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),
 			queryParam("cursor", "Opaque query-bound continuation cursor", false),
@@ -347,119 +342,7 @@ func deleteTaskExecutionProfileOperationSpec() OperationSpec {
 		},
 	}
 }
-func createTaskBridgeNotificationSubscriptionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        specAPITasksIDNotificationsBridgesPath,
-		OperationID: "createTaskBridgeNotificationSubscription",
-		Summary:     "Create one bridge terminal notification subscription for a task",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task id"),
-		},
-		RequestBody: contract.CreateTaskBridgeNotificationSubscriptionRequest{},
-		Responses: []ResponseSpec{
-			{
-				Status:      201,
-				Description: specCreatedDescription,
-				Body:        contract.TaskBridgeNotificationSubscriptionResponse{},
-			},
-			{Status: 400, Description: "Invalid bridge notification subscription", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Task or bridge not found", Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specTaskOrBridgeServiceIsNotConfiguredDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func listTaskBridgeNotificationSubscriptionsOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPITasksIDNotificationsBridgesPath,
-		OperationID: "listTaskBridgeNotificationSubscriptions",
-		Summary:     "List bridge terminal notification subscriptions for one task",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task id"),
-			queryParam("bridge_instance_id", "Filter by bridge instance id", false),
-			enumQueryParam(specScopeKey, "Filter by bridge scope", bridgeScopeValues()),
-			queryParam("workspace_id", "Filter by workspace id", false),
-			intQueryParam("limit", "Maximum number of records to return"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.TaskBridgeNotificationSubscriptionsResponse{}},
-			{Status: 400, Description: "Invalid bridge notification filter", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specTaskOrBridgeServiceIsNotConfiguredDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func deleteTaskBridgeNotificationSubscriptionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodDelete,
-		Path:        specAPITasksIDNotificationsBridgesSubscriptionIDPath,
-		OperationID: "deleteTaskBridgeNotificationSubscription",
-		Summary:     "Delete one bridge terminal notification subscription for a task",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task id"),
-			pathParam("subscription_id", "Bridge task subscription id"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 204, Description: specNoContentDescription},
-			{
-				Status:      404,
-				Description: "Task or bridge notification subscription not found",
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      503,
-				Description: specTaskOrBridgeServiceIsNotConfiguredDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func getTaskBridgeNotificationSubscriptionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPITasksIDNotificationsBridgesSubscriptionIDPath,
-		OperationID: "getTaskBridgeNotificationSubscription",
-		Summary:     "Get one bridge terminal notification subscription for a task",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task id"),
-			pathParam("subscription_id", "Bridge task subscription id"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.TaskBridgeNotificationSubscriptionResponse{}},
-			{
-				Status:      404,
-				Description: "Task or bridge notification subscription not found",
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      503,
-				Description: specTaskOrBridgeServiceIsNotConfiguredDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
+
 func listTaskReviewsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,

@@ -20,8 +20,6 @@ type actionRegistryConfig struct {
 	sessionBinder  ActionSessionBinder
 	loopStarter    ActionLoopStarter
 	eventReader    ActionEventRangeReader
-	channel        ChannelResultHarvester
-	channelStore   ChannelResultConversationStore
 	toolWorkspace  ActionToolWorkspaceRootResolver
 	maxResultBytes int64
 }
@@ -85,20 +83,6 @@ func WithActionEventRangeReader(reader ActionEventRangeReader) ActionRegistryOpt
 	}
 }
 
-// WithActionChannelResultHarvester wires channel_result harvest.
-func WithActionChannelResultHarvester(harvester ChannelResultHarvester) ActionRegistryOption {
-	return func(cfg *actionRegistryConfig) {
-		cfg.channel = harvester
-	}
-}
-
-// WithActionChannelResultStore wires durable conversation storage for channel_result harvest.
-func WithActionChannelResultStore(conversations ChannelResultConversationStore) ActionRegistryOption {
-	return func(cfg *actionRegistryConfig) {
-		cfg.channelStore = conversations
-	}
-}
-
 // WithActionDefaultMaxResultBytes sets the configured outer result bound for Loop actions.
 func WithActionDefaultMaxResultBytes(maxBytes int64) ActionRegistryOption {
 	return func(cfg *actionRegistryConfig) {
@@ -114,7 +98,6 @@ type ActionRegistry struct {
 	transform      ActionExecutor
 	goal           ActionExecutor
 	events         ActionEventRangeReader
-	channel        ChannelResultHarvester
 	toolWorkspace  ActionToolWorkspaceRootResolver
 	maxResultBytes int64
 }
@@ -156,13 +139,6 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 	if cfg.runAgent == nil {
 		cfg.runAgent = &RunAgentActionExecutor{binder: cfg.sessionBinder}
 	}
-	if cfg.channel == nil && cfg.channelStore != nil {
-		channel, err := NewStoreChannelResultHarvester(cfg.channelStore)
-		if err != nil {
-			return nil, err
-		}
-		cfg.channel = channel
-	}
 	return &ActionRegistry{
 		runtime:        runtime,
 		runAgent:       cfg.runAgent,
@@ -170,7 +146,6 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 		transform:      cfg.transform,
 		goal:           cfg.goal,
 		events:         cfg.eventReader,
-		channel:        cfg.channel,
 		toolWorkspace:  cfg.toolWorkspace,
 		maxResultBytes: cfg.maxResultBytes,
 	}, nil
@@ -247,7 +222,6 @@ func (r *ActionRegistry) resolve(
 		runtime:               r.runtime,
 		toolID:                id,
 		eventReader:           r.events,
-		channel:               r.channel,
 		workspaceRootResolver: r.toolWorkspace,
 		maxResultBytes: tools.EffectiveResultLimit(
 			view.Descriptor.MaxResultBytes,

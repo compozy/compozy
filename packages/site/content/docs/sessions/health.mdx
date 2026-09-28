@@ -1,6 +1,6 @@
 ---
 title: Session Health
-description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, task leases, and network greet presence.
+description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, and task leases.
 ---
 
 Session health is a metadata-only runtime primitive CompozyOS maintains for every active session. It
@@ -31,7 +31,7 @@ automatic retry. Exhausted work remains visible as `needs_attention` with
 create a retry. Recovery history uses `task.run_recovered`, reason `supervised_silence`, and action
 `requeue`; the existing Requeued total includes it.
 
-The replacement keeps the task, profile, workspace, worktree and participation. Owned Loop
+The replacement keeps the task, profile, workspace, and worktree. Owned Loop
 `run-agent` work advances its node epoch; paused, quarantined and borrowed Goal bindings retain
 their existing control requirements. Committed files remain available. Workers must inspect partial
 external effects before repeating them and use the destination's idempotency mechanism where
@@ -130,9 +130,7 @@ These reasons appear in `compozy agent heartbeat status`, `compozy agent heartbe
   timers and runtime progress events; health is consumed metadata.
 - Session health is **not** `HEARTBEAT.md`. The authored file expresses wake/reentry preferences
   within config bounds. Health is always present; `HEARTBEAT.md` is optional.
-- Session health is **not** Compozy Network membership. Network membership is daemon-local and belongs
-  to the [protocol model](/docs/network/protocol-model). Membership never makes a session
-  wake-eligible by itself.
+
 - Session health is **not** an event bus. `session.health.update.after` fires on transitions only
   and is rate-limited by `[agents.heartbeat].session_health_hook_min_interval`.
 

@@ -2,14 +2,10 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -143,51 +139,6 @@ func exhaustExpiredLease(
 	return nil
 }
 
-func (g *TaskRunRepo) coordinationChannelMetadata(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-) (*taskpkg.CoordinationChannelMetadata, error) {
-	networkSpec := run.NetworkSpecSnapshot()
-	channelID := strings.TrimSpace(networkSpec.ChannelID)
-	if channelID == "" {
-		return nil, nil
-	}
-	metadata := &taskpkg.CoordinationChannelMetadata{
-		ID:          channelID,
-		DisplayName: channelID,
-		WorkspaceID: run.WorkspaceID,
-		TaskID:      run.TaskID,
-		RunID:       run.ID,
-		WorkflowID:  taskRunMetadataString(run.Metadata, "workflow_id"),
-		AllowedMessageKinds: []string{
-			globalDBTaskClaimStatusKey,
-			globalDBTaskClaimRequestKey,
-			"reply",
-			"blocker",
-			globalDBTaskClaimHandoffKey,
-			"result",
-			"review_request",
-		},
-	}
-
-	entry, err := getNetworkChannel(ctx, exec, store.NetworkChannelRef{
-		WorkspaceID: run.WorkspaceID,
-		Channel:     channelID,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return metadata, nil
-		}
-		return nil, err
-	}
-	metadata.DisplayName = entry.Channel
-	metadata.Purpose = entry.Purpose
-	metadata.WorkspaceID = entry.WorkspaceID
-	metadata.LastActivityAt = entry.UpdatedAt
-	return metadata, nil
-}
-
 func missingCapabilityPredicate(capabilities []string) string {
 	return missingCapabilityPredicateFor("req.capability_id", capabilities)
 }
@@ -233,23 +184,4 @@ func claimPlaceholders(count int) string {
 		values = append(values, "?")
 	}
 	return strings.Join(values, ", ")
-}
-
-func taskRunMetadataString(raw []byte, key string) string {
-	if len(raw) == 0 || strings.TrimSpace(key) == "" {
-		return ""
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return ""
-	}
-	value, ok := decoded[key]
-	if !ok {
-		return ""
-	}
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
 }

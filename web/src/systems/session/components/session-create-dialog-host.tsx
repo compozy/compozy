@@ -42,11 +42,9 @@ export function SessionCreateDialogHost({
       isAwaitingEnvironment={sessionCreate.isAwaitingEnvironment}
       isSubmitting={sessionCreate.isSubmitting}
       mode={sessionCreate.mode}
-      networkParticipation={sessionCreate.networkParticipation}
       onAgentChange={sessionCreate.onAgentChange}
       onCancelEnvironment={sessionCreate.onCancelEnvironment}
       onModeChange={sessionCreate.onModeChange}
-      onNetworkParticipationChange={sessionCreate.onNetworkParticipationChange}
       onOpenChange={sessionCreate.onOpenChange}
       onSessionNameChange={sessionCreate.onSessionNameChange}
       onSubmit={sessionCreate.submit}

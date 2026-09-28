@@ -60,9 +60,8 @@ export function TaskPropertiesRail({
   const activeRun = detail.summary?.active_run ?? null;
   const owner = record.owner ?? null;
   const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
-  const { worker, model, sandbox, channel } = taskExecutionProfileSummary(profile);
+  const { worker, model } = taskExecutionProfileSummary(profile);
   const { attemptsLabel, lastFailedRun, stuckRun } = taskPropertiesRunSummary(detail, runs);
-  const approvalBusy = Boolean(approvalPending.approve || approvalPending.reject);
 
   return (
     <div
@@ -73,86 +72,14 @@ export function TaskPropertiesRail({
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
       {record.loop ? <TaskLoopProvenance loop={record.loop} /> : null}
 
-      {record.approval_state === "pending" ? (
-        <RailSection label="Approval">
-          <PropertyRow label="State">
-            <Pill.Dot tone="info" />
-            Pending
-          </PropertyRow>
-          <PropertyRow label="Requested by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <Button
-              aria-busy={approvalPending.reject || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-reject"
-              disabled={approvalBusy}
-              onClick={onReject}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              {approvalPending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {approvalPending.reject ? "Rejecting…" : "Reject"}
-            </Button>
-            <Button
-              aria-busy={approvalPending.approve || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-approve"
-              disabled={approvalBusy}
-              onClick={onApprove}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {approvalPending.approve ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {approvalPending.approve ? "Approving…" : "Approve"}
-            </Button>
-          </div>
-        </RailSection>
-      ) : null}
+      <TaskApprovalSection
+        record={record}
+        pending={approvalPending}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
 
-      {stuckRun ? (
-        <RailSection label="Current run">
-          <PropertyRow label="Status">
-            <Pill.Dot tone={taskRunStatusTone(stuckRun.status)} />
-            {taskRunStatusLabel(stuckRun.status)}
-          </PropertyRow>
-          {stuckRun.claimed_by?.ref ? (
-            <PropertyRow label="Claimed by">
-              <OwnerAvatar
-                name={stuckRun.claimed_by.ref}
-                ownerId={stuckRun.claimed_by.ref}
-                ownerKind={ownerAvatarKindFor(stuckRun.claimed_by.kind)}
-                size="sm"
-              />
-              <span className="truncate">{stuckRun.claimed_by.ref}</span>
-            </PropertyRow>
-          ) : null}
-          <PropertyRow label="Run id" mono>
-            <MonoId value={stuckRun.id} />
-          </PropertyRow>
-        </RailSection>
-      ) : null}
-
-      {lastFailedRun ? (
-        <RailSection label="Last run">
-          <PropertyRow label="Status">
-            <Pill.Dot tone="danger" />
-            Failed
-          </PropertyRow>
-          {lastFailedRun.ended_at ? (
-            <PropertyRow label="Ended">
-              <Time iso={lastFailedRun.ended_at} mode="relative" />
-            </PropertyRow>
-          ) : null}
-          <PropertyRow label="Duration" mono>
-            {computeElapsed(lastFailedRun) ?? "—"}
-          </PropertyRow>
-          <PropertyRow label="Run id" mono>
-            <MonoId value={lastFailedRun.id} />
-          </PropertyRow>
-        </RailSection>
-      ) : null}
+      <TaskRunHistorySections stuckRun={stuckRun} lastFailedRun={lastFailedRun} />
 
       <RailSection label="Properties">
         <PropertyRow
@@ -221,7 +148,7 @@ export function TaskPropertiesRail({
             {model}
           </PropertyRow>
         ) : null}
-        {sandbox ? <PropertyRow label="Sandbox">{sandbox}</PropertyRow> : null}
+
         <PropertyRow label="Attempts">{attemptsLabel}</PropertyRow>
         <PropertyRow
           editor={
@@ -233,11 +160,6 @@ export function TaskPropertiesRail({
           }
           label="Auto-enqueue"
         />
-        {channel ? (
-          <PropertyRow label="Channel" mono>
-            {channel}
-          </PropertyRow>
-        ) : null}
       </RailSection>
 
       <RailSection label="Activity">
@@ -280,5 +202,112 @@ export function TaskPropertiesRail({
         </span>
       </footer>
     </div>
+  );
+}
+
+function TaskApprovalSection({
+  record,
+  pending,
+  onApprove,
+  onReject,
+}: {
+  record: TaskDetailView["task"];
+  pending: NonNullable<TaskPropertiesRailProps["approvalPending"]>;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const approvalBusy = Boolean(pending.approve || pending.reject);
+  return (
+    <>
+      {record.approval_state === "pending" ? (
+        <RailSection label="Approval">
+          <PropertyRow label="State">
+            <Pill.Dot tone="info" />
+            Pending
+          </PropertyRow>
+          <PropertyRow label="Requested by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <Button
+              aria-busy={pending.reject || undefined}
+              className="min-h-6"
+              data-testid="tasks-rail-reject"
+              disabled={approvalBusy}
+              onClick={onReject}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {pending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {pending.reject ? "Rejecting…" : "Reject"}
+            </Button>
+            <Button
+              aria-busy={pending.approve || undefined}
+              className="min-h-6"
+              data-testid="tasks-rail-approve"
+              disabled={approvalBusy}
+              onClick={onApprove}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              {pending.approve ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {pending.approve ? "Approving…" : "Approve"}
+            </Button>
+          </div>
+        </RailSection>
+      ) : null}
+    </>
+  );
+}
+
+function TaskRunHistorySections({
+  stuckRun,
+  lastFailedRun,
+}: Pick<ReturnType<typeof taskPropertiesRunSummary>, "stuckRun" | "lastFailedRun">) {
+  return (
+    <>
+      {stuckRun ? (
+        <RailSection label="Current run">
+          <PropertyRow label="Status">
+            <Pill.Dot tone={taskRunStatusTone(stuckRun.status)} />
+            {taskRunStatusLabel(stuckRun.status)}
+          </PropertyRow>
+          {stuckRun.claimed_by?.ref ? (
+            <PropertyRow label="Claimed by">
+              <OwnerAvatar
+                name={stuckRun.claimed_by.ref}
+                ownerId={stuckRun.claimed_by.ref}
+                ownerKind={ownerAvatarKindFor(stuckRun.claimed_by.kind)}
+                size="sm"
+              />
+              <span className="truncate">{stuckRun.claimed_by.ref}</span>
+            </PropertyRow>
+          ) : null}
+          <PropertyRow label="Run id" mono>
+            <MonoId value={stuckRun.id} />
+          </PropertyRow>
+        </RailSection>
+      ) : null}
+
+      {lastFailedRun ? (
+        <RailSection label="Last run">
+          <PropertyRow label="Status">
+            <Pill.Dot tone="danger" />
+            Failed
+          </PropertyRow>
+          {lastFailedRun.ended_at ? (
+            <PropertyRow label="Ended">
+              <Time iso={lastFailedRun.ended_at} mode="relative" />
+            </PropertyRow>
+          ) : null}
+          <PropertyRow label="Duration" mono>
+            {computeElapsed(lastFailedRun) ?? "—"}
+          </PropertyRow>
+          <PropertyRow label="Run id" mono>
+            <MonoId value={lastFailedRun.id} />
+          </PropertyRow>
+        </RailSection>
+      ) : null}
+    </>
   );
 }

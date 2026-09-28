@@ -14,7 +14,7 @@ The single in-persona message the operator sends at scenario start. The post-ope
 
 - Plain text. No markdown headers, no checklists, no test-case ids.
 - Single paragraph (or two short paragraphs maximum).
-- Reference real artifacts the playbook seeded: knowledge files, open task ids, channels, target deliverables.
+- Reference real artifacts the playbook seeded: knowledge files, open task ids, target deliverables.
 - Use the operator_persona voice_guidelines verbatim where they fit naturally.
 - Do **not** include any phrase from `references/forbidden-prompt-phrases.md`.
 - Do **not** describe the kickoff as a kickoff, briefing, or QA setup.

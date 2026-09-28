@@ -5,7 +5,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -23,11 +22,6 @@ func BenchmarkPromptOverlay(b *testing.B) {
 		TaskID:      "task-456",
 		RunID:       "run-789",
 		WorkflowID:  "workflow-012",
-		NetworkParticipation: participation.Spec{
-			Version: participation.SpecVersion, Mode: participation.ModeLive,
-			WorkspaceID: "workspace-123", ChannelStrategy: participation.StrategyNamed,
-			ChannelID: "channel-345", Source: participation.SourceExplicitRequest,
-		},
 	}
 
 	b.ReportAllocs()
@@ -39,14 +33,14 @@ func BenchmarkPromptOverlay(b *testing.B) {
 func BenchmarkPermissionPolicy(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		permissionPolicySink = PermissionPolicy(participation.LocalSpec())
+		permissionPolicySink = PermissionPolicy()
 	}
 }
 
 func BenchmarkLineage(b *testing.B) {
 	cfg := compozyconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
-	policy := PermissionPolicy(participation.LocalSpec())
+	policy := PermissionPolicy()
 
 	b.ReportAllocs()
 	for b.Loop() {

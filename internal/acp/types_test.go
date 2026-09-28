@@ -657,7 +657,7 @@ func TestPromptMetaValidateSyntheticRequiresWakeupReason(t *testing.T) {
 	}
 }
 
-func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testing.T) {
+func TestPromptMetaValidateRejectsSyntheticFieldsOnUserTurns(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -666,17 +666,9 @@ func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testin
 		want string
 	}{
 		{
-			name: "user",
+			name: "Should reject synthetic fields on user turns",
 			meta: PromptMeta{
 				TurnSource: PromptTurnSourceUser,
-				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
-			},
-			want: "cannot include network or synthetic fields",
-		},
-		{
-			name: "network",
-			meta: PromptMeta{
-				TurnSource: PromptTurnSourceNetwork,
 				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
 			},
 			want: "cannot include synthetic fields",

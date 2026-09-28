@@ -61,12 +61,7 @@ func TestStartBindingShouldDeriveActorsForEverySurface(t *testing.T) {
 			wantActor:  task.ActorKindAutomation,
 			wantOrigin: task.OriginKindAutomation,
 		},
-		{
-			name:       "Should derive network as network peer",
-			kind:       dsl.StartNetwork,
-			wantActor:  task.ActorKindNetworkPeer,
-			wantOrigin: task.OriginKindNetwork,
-		},
+
 		{
 			name:       "Should derive extension as extension",
 			kind:       dsl.StartExtension,
@@ -205,7 +200,6 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 		{name: "Should start from trigger", kind: dsl.StartTrigger},
 		{name: "Should start from schedule", kind: dsl.StartSchedule},
 		{name: "Should start from webhook", kind: dsl.StartWebhook},
-		{name: "Should start from network", kind: dsl.StartNetwork},
 		{name: "Should start from extension", kind: dsl.StartExtension},
 		{name: "Should start from native tool", kind: dsl.StartNativeTool},
 	}

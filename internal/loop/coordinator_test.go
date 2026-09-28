@@ -2851,8 +2851,6 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 			Generation:   1,
 			IterationCap: 0,
 		}
-		liveSpec := coordinatorLiveParticipationForTest(loopRun)
-		loopRun.SetNetworkSpec(liveSpec)
 		coordinatorRun := task.Run{
 			ID:        "run-coordinator-stop-when-dirty",
 			TaskID:    "task-coordinator-stop-when-dirty",
@@ -2879,9 +2877,6 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 		}
 		if got, want := plan.NextCoordinator.RunID, coordinatorRunID(loopRun.ID, 2); got != want {
 			t.Fatalf("NextCoordinator.RunID = %q, want %q", got, want)
-		}
-		if got := plan.NextCoordinator.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-			t.Fatalf("NextCoordinator participation = %#v, want %#v", got, liveSpec)
 		}
 		next := outputsByNodeForTest(coordinatorPostReservePayloadForTest(t, plan).Outputs)
 		if got, want := next["inspect_issues"].Status, generationOutputPending; got != want {

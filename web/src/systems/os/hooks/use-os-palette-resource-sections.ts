@@ -1,13 +1,11 @@
 import { useExtensionInventory } from "@/systems/extensions";
 import { useMemories } from "@/systems/knowledge";
 import { useMarketplaceCatalog } from "@/systems/marketplace";
-import { useNetworkChannels } from "@/systems/network";
 import { useVaultSecrets } from "@/systems/vault";
 
 import {
   knowledgeRoute,
   marketplaceEntryRoute,
-  networkChannelRoute,
   projectVaultRows,
   rowSeed,
   section,
@@ -36,7 +34,6 @@ export function useOsPaletteResourceSections(
   return [
     useKnowledgeSection(context, catalogs),
     useVaultSection(context),
-    useNetworkSection(context, catalogs),
     useMarketplaceSection(context),
     useExtensionSection(context, catalogs),
   ];
@@ -123,45 +120,6 @@ function useVaultSection(context: OsPaletteDomainContext) {
     context.query,
     context.signals,
     { limit: context.domainLimit, catalogTotal: rows.length }
-  );
-}
-
-function useNetworkSection(context: OsPaletteDomainContext, catalogs: OsPaletteWorkspaceCatalogs) {
-  const workspaceEnabled =
-    paletteDomainEnabled(context, "Network channels") && Boolean(context.scopedWorkspace);
-  const globalEnabled =
-    paletteDomainEnabled(context, "Network channels") && context.scope === "global";
-  const channels = useNetworkChannels({
-    enabled: workspaceEnabled,
-    workspaceId: context.scopedWorkspace,
-  });
-  if (context.signals === null) return EMPTY_SECTION("Network channels");
-  const rows = context.scope === "global" ? catalogs.channels : channels.channels;
-  return section(
-    "Network channels",
-    rows.flatMap(channel => {
-      const workspaceId = channel.workspace_id ?? context.scopedWorkspace;
-      if (!workspaceId) return [];
-      return [
-        rowSeed("Network channels", {
-          key: `network-channel:${workspaceId}:${channel.channel}`,
-          label: channel.channel,
-          detail: channel.purpose,
-          workspaceLabel: workspaceLabel(context.scope, workspaceId, context.workspaceNames),
-          app: "network",
-          route: networkChannelRoute(workspaceId, channel.channel),
-          workspaceId,
-        }),
-      ];
-    }),
-    context.scope === "global" ? catalogs.channelState : channels,
-    workspaceEnabled || globalEnabled,
-    context.query,
-    context.signals,
-    {
-      limit: context.domainLimit,
-      catalogTotal: context.scope === "global" ? catalogs.channelTotal : channels.channels.length,
-    }
   );
 }
 

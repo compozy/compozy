@@ -12,7 +12,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/notifications"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -30,36 +30,29 @@ const (
 	taskHookRunCanceled   = "task.run.canceled"
 )
 
-const (
-	taskConversationAvailable         = "available"
-	taskConversationNotLinked         = "not_linked"
-	taskConversationNetworkDisabled   = "network_disabled"
-	taskConversationAvailabilityError = "availability_error"
-)
-
 type taskStatusProjection struct {
-	EventID                  string
-	EventType                string
-	TaskID                   string
-	RunID                    string
-	TaskStatus               taskpkg.Status
-	RunStatus                taskpkg.RunStatus
-	NetworkParticipation     participation.Spec
-	ThreadOrigin             *storepkg.NetworkTaskThreadOrigin
-	ConversationAvailable    bool
-	ConversationAvailability string
-	DesignationRollup        *taskDesignationRollupStatus
-	ProjectedAt              time.Time
+	EventID    string
+	EventType  string
+	TaskID     string
+	RunID      string
+	TaskStatus taskpkg.Status
+	RunStatus  taskpkg.RunStatus
+
+	DesignationRollup *taskDesignationRollupStatus
+	ProjectedAt       time.Time
 }
 
 type taskStatusProjectionPublisher interface {
 	PublishTaskStatusProjection(context.Context, taskStatusProjection)
 }
 
+type taskDesignationWriter interface {
+	PutTaskDesignationRollup(context.Context, storepkg.TaskDesignationRollup) error
+}
+
 type taskStatusProjectionObserver struct {
 	tasks        taskStore
-	prefs        storepkg.NetworkPreferenceStore
-	availability storepkg.NetworkAvailabilityStore
+	designations taskDesignationWriter
 	events       taskpkg.EventSequenceStore
 	cursors      notifications.CursorStore
 	publisher    taskStatusProjectionPublisher
@@ -107,16 +100,15 @@ func newTaskStatusProjectionObserver(
 	publisher taskStatusProjectionPublisher,
 	opts ...taskStatusProjectionObserverOption,
 ) *taskStatusProjectionObserver {
-	prefs, ok := tasks.(storepkg.NetworkPreferenceStore)
-	availability, availabilityOK := tasks.(storepkg.NetworkAvailabilityStore)
+	designations, ok := tasks.(taskDesignationWriter)
 	cursors, cursorsOK := tasks.(notifications.CursorStore)
-	if tasks == nil || !ok || !availabilityOK || !cursorsOK || publisher == nil {
+	if tasks == nil || !ok || !cursorsOK || publisher == nil {
 		return nil
 	}
 	options := taskStatusProjectionObserverOptions{
 		logger: slog.Default(), now: time.Now,
-		queueSize:  compozyconfig.DefaultTaskNetworkStatusQueueSize,
-		timeout:    compozyconfig.DefaultTaskNetworkStatusTimeout,
+		queueSize:  compozyconfig.DefaultTaskStatusProjectionQueueSize,
+		timeout:    compozyconfig.DefaultTaskStatusProjectionTimeout,
 		retryDelay: 100 * time.Millisecond,
 	}
 	for _, opt := range opts {
@@ -131,17 +123,17 @@ func newTaskStatusProjectionObserver(
 		options.now = time.Now
 	}
 	if options.queueSize <= 0 {
-		options.queueSize = compozyconfig.DefaultTaskNetworkStatusQueueSize
+		options.queueSize = compozyconfig.DefaultTaskStatusProjectionQueueSize
 	}
 	if options.timeout <= 0 {
-		options.timeout = compozyconfig.DefaultTaskNetworkStatusTimeout
+		options.timeout = compozyconfig.DefaultTaskStatusProjectionTimeout
 	}
 	if options.retryDelay <= 0 {
 		options.retryDelay = 100 * time.Millisecond
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &taskStatusProjectionObserver{
-		tasks: tasks, prefs: prefs, availability: availability, events: tasks,
+		tasks: tasks, designations: designations, events: tasks,
 		cursors: cursors, publisher: publisher,
 		logger: options.logger, now: options.now, ctx: ctx, cancel: cancel,
 		queue: make(chan struct{}, options.queueSize), batchSize: options.queueSize,
@@ -187,8 +179,7 @@ func (o *taskStatusProjectionObserver) processWithContext(
 	projection := taskStatusProjection{
 		EventID: strings.TrimSpace(event.ID), EventType: taskStatusProjectionEventType(event.EventType),
 		TaskID: taskID, RunID: strings.TrimSpace(event.RunID), TaskStatus: taskRecord.Status,
-		NetworkParticipation: participation.LocalSpec(), ProjectedAt: o.now().UTC(),
-		ConversationAvailability: taskConversationNotLinked,
+		ProjectedAt: o.now().UTC(),
 	}
 	if projection.RunID != "" {
 		run, loadErr := o.tasks.GetTaskRun(ctx, projection.RunID)
@@ -199,7 +190,6 @@ func (o *taskStatusProjectionObserver) processWithContext(
 			return fmt.Errorf("load task run for status projection: %w", loadErr)
 		}
 		projection.RunStatus = run.Status
-		projection.NetworkParticipation = run.NetworkSpecSnapshot()
 		if strings.TrimSpace(run.DesignationGroupID) != "" {
 			rollup, rollupErr := o.persistDesignationRollup(ctx, event, run)
 			if rollupErr != nil {
@@ -208,43 +198,8 @@ func (o *taskStatusProjectionObserver) processWithContext(
 			projection.DesignationRollup = &rollup
 		}
 	}
-	origin, ok, err := o.originForTask(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	if ok {
-		projection.ThreadOrigin = &origin
-		availability, availabilityErr := o.availability.GetNetworkAvailability(ctx)
-		if availabilityErr != nil {
-			projection.ConversationAvailability = taskConversationAvailabilityError
-			return fmt.Errorf("load network availability for task status projection: %w", availabilityErr)
-		}
-		if availability.Enabled {
-			projection.ConversationAvailable = true
-			projection.ConversationAvailability = taskConversationAvailable
-		} else {
-			projection.ConversationAvailability = taskConversationNetworkDisabled
-		}
-	}
 	o.publisher.PublishTaskStatusProjection(ctx, projection)
 	return nil
-}
-
-func (o *taskStatusProjectionObserver) originForTask(
-	ctx context.Context,
-	taskID string,
-) (storepkg.NetworkTaskThreadOrigin, bool, error) {
-	origins, err := o.prefs.ListNetworkTaskThreadOrigins(
-		ctx,
-		storepkg.NetworkTaskThreadOriginQuery{TaskID: strings.TrimSpace(taskID), Limit: 1},
-	)
-	if err != nil {
-		return storepkg.NetworkTaskThreadOrigin{}, false, fmt.Errorf("load network task thread origin: %w", err)
-	}
-	if len(origins) == 0 {
-		return storepkg.NetworkTaskThreadOrigin{}, false, nil
-	}
-	return origins[0], true, nil
 }
 
 type taskDesignationRollupStatus struct {
@@ -279,7 +234,7 @@ func (o *taskStatusProjectionObserver) persistDesignationRollup(
 	if err != nil {
 		return taskDesignationRollupStatus{}, fmt.Errorf("marshal task designation rollup: %w", err)
 	}
-	if err := o.prefs.PutTaskDesignationRollup(ctx, storepkg.TaskDesignationRollup{
+	if err := o.designations.PutTaskDesignationRollup(ctx, storepkg.TaskDesignationRollup{
 		DesignationGroupID: rollup.DesignationGroupID, TaskID: rollup.TaskID,
 		SummaryJSON: encoded, CreatedAt: o.now().UTC(),
 	}); err != nil {
@@ -342,4 +297,21 @@ func taskStatusProjectionEvent(eventType string) bool {
 
 func taskStatusProjectionEventType(eventType string) string {
 	return taskpkg.StatusProjectionEventType(eventType)
+}
+
+func (d *Daemon) composeTaskEventObserver(
+	state *bootState,
+	store taskStore,
+	reentry taskpkg.EventObserver,
+) (taskpkg.EventObserver, *taskStatusProjectionObserver) {
+	if state == nil {
+		return reentry, nil
+	}
+	observer := newTaskStatusProjectionObserver(store, state.notifier,
+		withTaskStatusProjectionObserverLogger(state.logger),
+		withTaskStatusProjectionObserverClock(d.now),
+		withTaskStatusProjectionObserverQueueSize(state.cfg.Task.Orchestration.StatusProjectionQueueSize),
+		withTaskStatusProjectionObserverTimeout(state.cfg.Task.Orchestration.StatusProjectionTimeout),
+	)
+	return newTaskEventObserverFanout(state.logger, reentry, observer), observer
 }

@@ -22,13 +22,11 @@ import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 /**
- * (manual operator control) and (task-run coordination
- * channels) bookends for the Tasks UI. These cases verify:
+ * Manual operator control and coordinator-handoff bookends for the Tasks UI. These cases verify:
  *
  *   1. Creating a task is saved intent only, no run is queued, the runs panel
  *      explains that boundary, and the Publish CTA names coordinator handoff.
- *   2. Publishing/starting exposes the authoritative active run with its bound
- *      coordination channel.
+ *   2. Publishing/starting exposes the authoritative active run without retired coordination channels.
  *   3. Approving an agent-created approval-pending task enqueues a
  *      coordinator-handoff run, never auto-starting on creation.
  *   4. Manual session start UI is unaffected by task autonomy labels.
@@ -135,7 +133,7 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
   expect(runsPayload.runs).toHaveLength(0);
 });
 
-test("publishing a draft hands off to the coordinator and binds a coordination channel", async ({
+test("publishing a draft hands off to the coordinator without retired coordination channels", async ({
   appPage,
   runtime,
 }) => {
@@ -160,7 +158,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   await tasksUI.createPriority("high").click();
   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
   await tasksUI.createTitle.fill(publishedTitle);
-  await tasksUI.createDescription.fill(" channel binding bookend.");
+  await tasksUI.createDescription.fill("Coordinator handoff without a channel.");
   await tasksUI.createSaveDraft.click();
   await expect(tasksUI.createEditorSurface).toBeHidden();
 
@@ -184,17 +182,6 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
     })
     .toBe("draft");
 
-  // Persist Live/run participation on the draft profile so publish binds a derived channel.
-  await runtime.requestJSON(`/api/tasks/${encodeURIComponent(draftId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      network_participation: {
-        mode: "live",
-        channel_strategy: "run",
-      },
-    }),
-  });
-
   const publishResponsePromise = appPage.waitForResponse(response => {
     return (
       response.request().method() === "POST" &&
@@ -207,26 +194,8 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 
   await expect(tasksUI.detailPublish).toBeHidden();
 
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        runs: Array<{
-          id: string;
-          status: string;
-          resolved_network_participation?: { channel_id?: string | null } | null;
-        }>;
-      }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
-      return payload.runs[0]?.resolved_network_participation?.channel_id ?? "";
-    })
-    .not.toBe("");
-
   await expect(tasksUI.detailNowRun).toBeVisible();
-  await expect(tasksUI.detailCoordination).toBeVisible();
-  await expect(tasksUI.detailCoordination).toContainText(/channel/i);
-  await expect(tasksUI.detailCoordination).toHaveAttribute(
-    "title",
-    /channel messages support coordination only/i
-  );
+  await expect(tasksUI.detailCoordination).toHaveCount(0);
 
   await tasksUI.detailTab("runs").click();
   await expect(tasksUI.detailRunsEmpty).toBeHidden();

@@ -326,7 +326,7 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	t.Helper()
 	const maxFileBytes int64 = 64
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.Session.Attachments.MaxFileBytes = maxFileBytes
 	store, err := attachmentspkg.OpenFilesystemAttachmentStore(
 		t.Context(),

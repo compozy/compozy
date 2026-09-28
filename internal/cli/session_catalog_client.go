@@ -44,7 +44,7 @@ func (c *daemonClient) ListSessions(ctx context.Context, query SessionListQuery)
 }
 
 func (c *daemonClient) GetSession(ctx context.Context, id string) (SessionRecord, error) {
-	target, err := requireNetworkPathValue("session_id", id)
+	target, err := requirePathValue("session_id", id)
 	if err != nil {
 		return SessionRecord{}, err
 	}
@@ -56,7 +56,7 @@ func (c *daemonClient) GetSession(ctx context.Context, id string) (SessionRecord
 }
 
 func (c *daemonClient) sessionScopedPath(ctx context.Context, id string, suffix string) (string, error) {
-	sessionID, err := requireNetworkPathValue("session_id", id)
+	sessionID, err := requirePathValue("session_id", id)
 	if err != nil {
 		return "", err
 	}

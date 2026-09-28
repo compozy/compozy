@@ -62,26 +62,6 @@ func matchSessionRuntimeRecovery(matcher HookMatcher, payload SessionRuntimeReco
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
-func matchSandboxPrepare(matcher HookMatcher, payload *SandboxPreparePayload) bool {
-	return matcher.MatchesSandboxPrepare(payload)
-}
-
-func matchSandboxReady(matcher HookMatcher, payload SandboxReadyPayload) bool {
-	return matcher.MatchesSandboxReady(payload)
-}
-
-func matchSandboxSyncBefore(matcher HookMatcher, payload SandboxSyncBeforePayload) bool {
-	return matcher.MatchesSandboxSyncBefore(payload)
-}
-
-func matchSandboxSyncAfter(matcher HookMatcher, payload SandboxSyncAfterPayload) bool {
-	return matcher.MatchesSandboxSyncAfter(payload)
-}
-
-func matchSandboxStop(matcher HookMatcher, payload SandboxStopPayload) bool {
-	return matcher.MatchesSandboxStop(payload)
-}
-
 func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
 	return matcher.MatchesInput(payload)
 }
@@ -164,10 +144,6 @@ func matchTurn(matcher HookMatcher, payload TurnPayload) bool {
 
 func matchMessage(matcher HookMatcher, payload MessagePayload) bool {
 	return matcher.MatchesMessage(payload)
-}
-
-func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
-	return matcher.MatchesNetwork(payload)
 }
 
 func matchWindowManager(matcher HookMatcher, payload WindowManagerPayload) bool {

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/jonboulle/clockwork"
@@ -36,6 +35,7 @@ func TestRunOnceWakesOnlyEligibleIdleSessions(t *testing.T) {
 		sessionSnapshot("sess-missing-capability", "ws-1", "active", false, []string{"docs"}, base.Add(4*time.Second)),
 		sessionSnapshot("sess-stopped", "ws-1", "stopped", false, []string{"go"}, base.Add(5*time.Second)),
 		sessionSnapshot("sess-idle", "ws-1", "active", false, []string{"go", "sqlite"}, base.Add(6*time.Second)),
+		sessionSnapshot("sess-a-newer", "ws-1", "active", false, []string{"go", "sqlite"}, base.Add(7*time.Second)),
 	}}
 	waker := &fakeWaker{}
 	scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
@@ -105,23 +105,6 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			base,
 		)
 		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-agent"}
-		work.Run.SetNetworkState(participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-1",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "frontend",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         1,
-				MaxWakeWallTime:  "1m",
-				MaxTotalWallTime: "1m",
-				MaxInputTokens:   1,
-				MaxOutputTokens:  1,
-				MaxWakeDepth:     1,
-				CoalesceWindow:   "100ms",
-			},
-		}, "", "", "")
 		matching := sessionSnapshot(
 			"sess-matching",
 			"ws-1",
@@ -131,7 +114,6 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			base,
 		)
 		matching.AgentName = "frontend-agent"
-		matching.Channel = "frontend"
 
 		with := func(mutator func(*SessionSnapshot)) SessionSnapshot {
 			candidate := matching
@@ -192,14 +174,6 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 					candidate.WorkspaceID = "ws-2"
 				})},
 				wantKind: CapacityUnmatched,
-			},
-			{
-				name: "Should ignore participation channels when classifying otherwise compatible capacity",
-				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
-					candidate.Channel = "backend"
-				})},
-				wantKind:      CapacityAvailable,
-				wantAvailable: []string{"sess-matching"},
 			},
 			{
 				name: "Should return unmatched for a foreign owner pool",
@@ -933,13 +907,10 @@ func TestRunOnceRequiresTaskOwnerMatch(t *testing.T) {
 		base := time.Date(2026, 5, 6, 10, 15, 0, 0, time.UTC)
 		work := workSnapshot("task-owner", "run-owner", taskpkg.ScopeWorkspace, "ws-1", nil, base)
 		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"}
-		setRunParticipationChannel(t, &work.Run, "ws-1", "design-review")
 		wrongOwner := sessionSnapshot("sess-analytics", "ws-1", "active", false, nil, base)
 		wrongOwner.AgentName = "analytics-engineer-agent"
-		wrongOwner.Channel = "design-review"
 		matchingOwner := sessionSnapshot("sess-frontend", "ws-1", "active", false, nil, base.Add(time.Second))
 		matchingOwner.AgentName = "frontend-engineer-agent"
-		matchingOwner.Channel = "design-review"
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{wrongOwner, matchingOwner}}
 		waker := &fakeWaker{}

@@ -33,27 +33,6 @@ func (payload EventRecordPayload) cloneForAsync() EventRecordPayload {
 	return cloneEventRecordPayload(payload)
 }
 
-//nolint:gocritic // Native hook executors require the public payload's value semantics.
-func (payload SandboxPreparePayload) cloneForAsync() SandboxPreparePayload {
-	return cloneSandboxPreparePayload(payload)
-}
-
-func (payload SandboxReadyPayload) cloneForAsync() SandboxReadyPayload {
-	return cloneSandboxReadyPayload(payload)
-}
-
-func (payload SandboxSyncBeforePayload) cloneForAsync() SandboxSyncBeforePayload {
-	return cloneSandboxSyncBeforePayload(payload)
-}
-
-func (payload SandboxSyncAfterPayload) cloneForAsync() SandboxSyncAfterPayload {
-	return cloneSandboxSyncAfterPayload(payload)
-}
-
-func (payload SandboxStopPayload) cloneForAsync() SandboxStopPayload {
-	return cloneSandboxStopPayload(payload)
-}
-
 func (payload AgentPreStartPayload) cloneForAsync() AgentPreStartPayload {
 	return cloneAgentPreStartPayload(payload)
 }
@@ -128,12 +107,10 @@ func (payload AutomationTriggerPreFirePayload) cloneForAsync() AutomationTrigger
 }
 
 func (payload CoordinatorPreSpawnPayload) cloneForAsync() CoordinatorPreSpawnPayload {
-	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
 func (payload CoordinatorLifecyclePayload) cloneForAsync() CoordinatorLifecyclePayload {
-	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
@@ -156,19 +133,16 @@ func (payload TaskRunLeasePayload) cloneForAsync() TaskRunLeasePayload {
 }
 
 func (payload LoopLifecyclePayload) cloneForAsync() LoopLifecyclePayload {
-	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGenerationPayload) cloneForAsync() LoopGenerationPayload {
-	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGatePayload) cloneForAsync() LoopGatePayload {
-	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	payload.Score = clonePointer(payload.Score)
 	payload.BestGeneration = clonePointer(payload.BestGeneration)
@@ -183,7 +157,6 @@ func clonePointer[T any](value *T) *T {
 }
 
 func (payload LoopNodeTerminalPayload) cloneForAsync() LoopNodeTerminalPayload {
-	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }

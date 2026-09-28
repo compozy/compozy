@@ -87,8 +87,6 @@ type RunReview struct {
 	ReviewText        string           `json:"review_text,omitempty"`
 	ReviewerSessionID string           `json:"reviewer_session_id,omitempty"`
 	ReviewerAgentName string           `json:"reviewer_agent_name,omitempty"`
-	ReviewerPeerID    string           `json:"reviewer_peer_id,omitempty"`
-	ReviewerChannelID string           `json:"reviewer_channel_id,omitempty"`
 	ReviewedBy        *ActorIdentity   `json:"reviewed_by,omitempty"`
 	RequestedAt       time.Time        `json:"requested_at"`
 	RoutedAt          time.Time        `json:"routed_at"`
@@ -131,8 +129,6 @@ type BindRunReviewSessionRequest struct {
 	ReviewID          string `json:"review_id"`
 	SessionID         string `json:"session_id"`
 	ReviewerAgentName string `json:"reviewer_agent_name,omitempty"`
-	ReviewerPeerID    string `json:"reviewer_peer_id,omitempty"`
-	ReviewerChannelID string `json:"reviewer_channel_id,omitempty"`
 }
 
 // RunReviewBinding is the lookup shape consumed by reviewer-session tooling.
@@ -140,8 +136,6 @@ type RunReviewBinding struct {
 	Review            RunReview `json:"review"`
 	SessionID         string    `json:"session_id"`
 	ReviewerAgentName string    `json:"reviewer_agent_name,omitempty"`
-	ReviewerPeerID    string    `json:"reviewer_peer_id,omitempty"`
-	ReviewerChannelID string    `json:"reviewer_channel_id,omitempty"`
 }
 
 // RunReviewQuery captures supported review read filters.

@@ -32,7 +32,7 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 		"Memory History",
 		[]string{"Time", memoryOperationValue, automationScopeValue, memoryFilenameValue, authoredContextSummaryValue},
 		"operations",
-		[]string{networkTimestampKey, memoryOperationKey, automationScopeKey, memoryFilenameKey, memorySummaryKey},
+		[]string{cliOutputTimestampKey, memoryOperationKey, automationScopeKey, memoryFilenameKey, memorySummaryKey},
 		func(item memoryHistoryItem) []string {
 			return []string{
 				stringOrDash(formatTime(item.Timestamp)),

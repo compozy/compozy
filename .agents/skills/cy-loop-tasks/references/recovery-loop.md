@@ -38,7 +38,7 @@ artifacts exist, and the phase's completion gate is PASS.
 
 | Failure | Required autonomous action |
 | --- | --- |
-| CodegenCheck reports a stale generated file and names a generator | Run the canonical generator, inspect generated diffs, and recheck the invalidated evidence. A stale Daytona sidecar is this case, not a blocker. |
+| CodegenCheck reports a stale generated file and names a generator | Run the canonical generator, inspect generated diffs, and recheck the invalidated evidence. A stale generated OpenAPI type file is this case, not a blocker. |
 | Formatter, lint, typecheck, build, or test failure | Diagnose and fix the owning source or contract, then run the affected lane. |
 | Test timeout, race, or intermittent failure | Reproduce under bounded conditions, find the production/test-infrastructure cause, fix it without weakening the test or inflating timeouts, then rerun the gates. |
 | Missing local tool, generated dependency, or bootstrap state | Use the repository's canonical install/bootstrap command when it is safe and deterministic, then resume the action. |

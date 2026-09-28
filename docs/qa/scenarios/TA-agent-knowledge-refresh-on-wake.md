@@ -5,11 +5,11 @@ title: Refresh changed workspace knowledge on a later worker wake
 persona: Bruno
 journey: J-refresh-agent-knowledge
 expected: An active task-role worker observes changed workspace knowledge on its next eligible wake and acts on the new signal without a second operator prompt.
-entry_points: workspace knowledge; task-role wake; hosted native task lease; Network channel
-qa_status: pass
+entry_points: workspace knowledge; task-role wake; hosted native task lease
+qa_status: untested
 bug_ids: BUG-20260729-agent-knowledge-refresh-missed
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: pending final whole-diff commit
 evidence: /home/pedronauck/dev/qa-labs/compozy-knowledge-refresh-on-wake-20260803-025914-822792-lab/qa-artifacts/qa/knowledge-refresh-evidence.json
 last_report: docs/qa/reports/2026-08-02-knowledge-refresh-on-wake.md
@@ -26,7 +26,7 @@ own activation, native claim, and single-run execution.
 ## Implemented correction
 
 The daemon now reopens bounded regular Markdown files under the session workspace's `knowledge/`
-tree for every eligible user, Network, and synthetic turn. The current bytes and a revision digest
+tree for every eligible user, and synthetic turn. The current bytes and a revision digest
 travel in the live prompt context; symbolic links are excluded and cannot escape the workspace.
 
 The canonical integration regression mutates one knowledge file between two synthetic wakes and
@@ -42,3 +42,5 @@ and recap independently agreed, session health returned to idle/healthy, and the
 contained one user turn plus one synthetic reentry with no second operator prompt. The strict
 release-grade auditor remains blocked by its intentionally broader actor/channel/surface minimums
 and the deferred final gate; those do not change this scenario's observed behavior verdict.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

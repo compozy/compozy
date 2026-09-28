@@ -20,7 +20,7 @@ type verifiedDevGeneration struct {
 	GenerationHash           string
 	ManifestPath             string
 	Manifest                 *Manifest
-	NetworkRequirementDigest string
+	GatewayRequirementDigest string
 }
 
 // PrepareDevelopmentGeneration validates portable source or builds a native bundle.
@@ -150,10 +150,10 @@ func verifyDevGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("%w: load generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
-	networkDigest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	gatewayDigest, err := GatewayRequirementDigest(manifest.Gateway)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: digest generation %q network requirement: %w",
+			"%w: digest generation %q gateway requirement: %w",
 			ErrExtensionGenerationInvalid,
 			hash,
 			err,
@@ -165,7 +165,7 @@ func verifyDevGeneration(
 		GenerationHash:           hash,
 		ManifestPath:             extensionManifestPath(canonicalDir),
 		Manifest:                 manifest,
-		NetworkRequirementDigest: networkDigest,
+		GatewayRequirementDigest: gatewayDigest,
 	}, nil
 }
 
@@ -224,10 +224,10 @@ func verifyPortableDevGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
-	networkDigest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	gatewayDigest, err := GatewayRequirementDigest(manifest.Gateway)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: digest portable generation %q network requirement: %w",
+			"%w: digest portable generation %q gateway requirement: %w",
 			ErrExtensionGenerationInvalid,
 			hash,
 			err,
@@ -239,6 +239,6 @@ func verifyPortableDevGeneration(
 		GenerationHash:           hash,
 		ManifestPath:             document.Path,
 		Manifest:                 manifest,
-		NetworkRequirementDigest: networkDigest,
+		GatewayRequirementDigest: gatewayDigest,
 	}, nil
 }

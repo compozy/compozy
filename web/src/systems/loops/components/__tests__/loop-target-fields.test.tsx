@@ -122,40 +122,6 @@ describe("LoopTargetFields", () => {
     });
   });
 
-  it("Should round-trip bounded Live participation and expose only Loop-valid strategies", () => {
-    render(
-      <Harness
-        initialValue={{
-          loop_name: "implement-tasks",
-          inputs: {},
-          input_mapping: {},
-          network_participation: {
-            mode: "live",
-            channel_strategy: "named",
-            channel_id: "release-room",
-            bounds: { max_wakes: 4 },
-          },
-        }}
-      />
-    );
-
-    expect(screen.getByTestId("loop-target-participation-mode")).toHaveValue("live");
-    const strategy = screen.getByTestId("loop-target-participation-strategy");
-    expect(strategy).toHaveTextContent("Named channel");
-    expect(strategy).toHaveTextContent("This Loop run");
-    expect(Array.from((strategy as HTMLSelectElement).options, option => option.value)).toEqual([
-      "named",
-      "loop_run",
-    ]);
-
-    fireEvent.change(screen.getByTestId("loop-target-participation-channel"), {
-      target: { value: "launch-room" },
-    });
-    const value = screen.getByTestId("loop-target-value");
-    expect(value).toHaveTextContent('"channel_id":"launch-room"');
-    expect(value).toHaveTextContent('"max_wakes":4');
-  });
-
   it("Should render the event-payload mapping table only when enabled", () => {
     const { rerender } = render(<Harness />);
     selectLoop("implement-tasks");

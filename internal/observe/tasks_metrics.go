@@ -13,12 +13,10 @@ import (
 func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 	counts := make(map[string]TaskRunTotal)
 	for _, item := range runs {
-		channel := taskRunParticipationChannel(item)
-		key := item.Status.Normalize().String() + "\x00" + string(item.Origin.Kind.Normalize()) + "\x00" + channel
+		key := item.Status.Normalize().String() + "\x00" + string(item.Origin.Kind.Normalize())
 		current := counts[key]
 		current.Status = item.Status.Normalize()
 		current.OriginKind = item.Origin.Kind.Normalize()
-		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -33,7 +31,7 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 		if cmp := strings.Compare(string(left.OriginKind), string(right.OriginKind)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.ChannelID, right.ChannelID)
+		return 0
 	})
 	return rows
 }
@@ -66,34 +64,25 @@ func summarizeOwners(tasks []taskpkg.Summary) []TaskOwnerTotal {
 }
 
 func summarizeQueueDepth(runs []taskpkg.Run, now func() time.Time) []TaskQueueDepth {
-	counts := make(map[string]TaskQueueDepth)
 	currentTime := time.Now().UTC()
 	if now != nil {
 		currentTime = now().UTC()
 	}
+	var total TaskQueueDepth
 	for _, item := range runs {
 		if item.Status.Normalize() != taskpkg.TaskRunStatusQueued {
 			continue
 		}
-		channel := taskRunParticipationChannel(item)
-		current := counts[channel]
-		current.ChannelID = channel
-		current.Count++
-		if current.OldestQueuedAt.IsZero() || item.QueuedAt.Before(current.OldestQueuedAt) {
-			current.OldestQueuedAt = item.QueuedAt
-			age := max(currentTime.Sub(item.QueuedAt), 0)
-			current.OldestQueueAgeMilli = age.Milliseconds()
+		total.Count++
+		if total.OldestQueuedAt.IsZero() || item.QueuedAt.Before(total.OldestQueuedAt) {
+			total.OldestQueuedAt = item.QueuedAt
+			total.OldestQueueAgeMilli = max(currentTime.Sub(item.QueuedAt), 0).Milliseconds()
 		}
-		counts[channel] = current
 	}
-	rows := make([]TaskQueueDepth, 0, len(counts))
-	for _, item := range counts {
-		rows = append(rows, item)
+	if total.Count == 0 {
+		return nil
 	}
-	slices.SortFunc(rows, func(left, right TaskQueueDepth) int {
-		return strings.Compare(left.ChannelID, right.ChannelID)
-	})
-	return rows
+	return []TaskQueueDepth{total}
 }
 
 func summarizeCancelRequests(events []taskpkg.Event) []TaskCancelRequestTotal {
@@ -213,9 +202,9 @@ func findStuckRuns(runs []taskpkg.Run, now time.Time, cfg TaskHealthConfig) []St
 			RunID:      strings.TrimSpace(item.ID),
 			Status:     item.Status.Normalize(),
 			OriginKind: item.Origin.Kind.Normalize(),
-			ChannelID:  taskRunParticipationChannel(item),
-			SessionID:  strings.TrimSpace(item.SessionID),
-			AgeMillis:  age.Milliseconds(),
+
+			SessionID: strings.TrimSpace(item.SessionID),
+			AgeMillis: age.Milliseconds(),
 		})
 	}
 	return stuck

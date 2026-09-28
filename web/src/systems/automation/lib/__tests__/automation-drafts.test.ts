@@ -192,7 +192,6 @@ describe("job output mode helpers", () => {
       title: "",
       description: "",
       owner: null,
-      network_participation: { mode: "local" },
     });
   });
 
@@ -206,7 +205,6 @@ describe("job output mode helpers", () => {
       title: "",
       description: "",
       owner: null,
-      network_participation: { mode: "local" },
     });
     expect(taskDraft.retry).toEqual({ strategy: "none", max_retries: 0, base_delay: "" });
   });
@@ -249,7 +247,6 @@ describe("automation target mode helpers", () => {
     expect(trigger.loop_target).toMatchObject({
       workspace_id: "ws_alpha",
       loop_name: "",
-      network_participation: { mode: "local" },
     });
     expect(setTriggerTargetMode(trigger, "agent").loop_target).toBeUndefined();
 
@@ -258,7 +255,6 @@ describe("automation target mode helpers", () => {
     expect(job.loop_target).toMatchObject({
       workspace_id: "ws_alpha",
       loop_name: "",
-      network_participation: { mode: "local" },
     });
     expect(setJobTargetMode(job, "agent").loop_target).toBeUndefined();
   });

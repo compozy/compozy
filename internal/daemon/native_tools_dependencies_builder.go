@@ -31,10 +31,9 @@ func (d *Daemon) nativeToolsDeps(
 		ModelCatalog:        state.deps.ModelCatalog,
 		MarketplaceCatalog:  state.deps.MarketplaceCatalog,
 		Settings:            func() core.SettingsService { return state.deps.Settings },
-		Network:             state.deps.Network,
-		NetworkStore:        state.registry,
-		NetworkUsage:        state.registry,
+
 		Tasks:               state.deps.Tasks,
+		TaskDesignations:    state.registry,
 		TaskClaimHandoff:    taskClaimHandoffForState(state),
 		MemoryStore:         state.memoryStore,
 		MemoryToolWrites:    state.memoryExtractor,
@@ -43,7 +42,7 @@ func (d *Daemon) nativeToolsDeps(
 		MemoryExtractor:     state.deps.MemoryExtractor,
 		MemoryProviders:     state.deps.MemoryProviders,
 		MemorySessionLedger: state.deps.MemorySessionLedger,
-		Bridges:             state.deps.Bridges,
+
 		Gateway: func() core.GatewayService {
 			if state.deps.Gateway == nil {
 				return nil

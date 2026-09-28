@@ -98,8 +98,7 @@ SELECT j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.loop_network_participation,
-	j.created_at, j.updated_at
+	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
 FROM requested
 JOIN automation_jobs AS j ON j.id = requested.job_id
 LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
@@ -114,7 +113,7 @@ SELECT t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
   t.target_kind, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
-	t.loop_network_participation, t.created_at, t.updated_at
+	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
 LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = t.id

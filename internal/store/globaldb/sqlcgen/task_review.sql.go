@@ -14,7 +14,7 @@ const getRunReviewByID = `-- name: GetRunReviewByID :one
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE review_id = ?1
@@ -41,8 +41,6 @@ func (q *Queries) GetRunReviewByID(ctx context.Context, reviewID string) (TaskRu
 		&i.ReviewText,
 		&i.ReviewerSessionID,
 		&i.ReviewerAgentName,
-		&i.ReviewerPeerID,
-		&i.ReviewerChannelID,
 		&i.ReviewedByKind,
 		&i.ReviewedByRef,
 		&i.RequestedAt,
@@ -60,7 +58,7 @@ const getRunReviewByRunRoundAttempt = `-- name: GetRunReviewByRunRoundAttempt :o
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE run_id = ?1
@@ -95,8 +93,6 @@ func (q *Queries) GetRunReviewByRunRoundAttempt(ctx context.Context, arg GetRunR
 		&i.ReviewText,
 		&i.ReviewerSessionID,
 		&i.ReviewerAgentName,
-		&i.ReviewerPeerID,
-		&i.ReviewerChannelID,
 		&i.ReviewedByKind,
 		&i.ReviewedByRef,
 		&i.RequestedAt,
@@ -126,17 +122,17 @@ INSERT INTO task_run_reviews (
   review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
   status, outcome, confidence, reason, delivery_id, missing_work_json,
   next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-  reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+  reviewed_by_kind, reviewed_by_ref,
   requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7, ?8,
   ?9, ?10, ?11, ?12,
   ?13, ?14, ?15,
-  ?16, ?17, ?18,
-  ?19, ?20, ?21,
-  ?22, ?23, ?24, ?25,
-  ?26, ?27, ?28
+  ?16, ?17,
+  ?18, ?19,
+  ?20, ?21, ?22, ?23,
+  ?24, ?25, ?26
 )
 ON CONFLICT(run_id, review_round, attempt) DO NOTHING
 `
@@ -159,8 +155,6 @@ type InsertRunReviewRequestParams struct {
 	ReviewText        string          `json:"review_text"`
 	ReviewerSessionID sql.NullString  `json:"reviewer_session_id"`
 	ReviewerAgentName string          `json:"reviewer_agent_name"`
-	ReviewerPeerID    string          `json:"reviewer_peer_id"`
-	ReviewerChannelID string          `json:"reviewer_channel_id"`
 	ReviewedByKind    string          `json:"reviewed_by_kind"`
 	ReviewedByRef     string          `json:"reviewed_by_ref"`
 	RequestedAt       string          `json:"requested_at"`
@@ -191,8 +185,6 @@ func (q *Queries) InsertRunReviewRequest(ctx context.Context, arg InsertRunRevie
 		arg.ReviewText,
 		arg.ReviewerSessionID,
 		arg.ReviewerAgentName,
-		arg.ReviewerPeerID,
-		arg.ReviewerChannelID,
 		arg.ReviewedByKind,
 		arg.ReviewedByRef,
 		arg.RequestedAt,
@@ -243,7 +235,7 @@ const listRunReviews = `-- name: ListRunReviews :many
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
@@ -296,8 +288,6 @@ func (q *Queries) ListRunReviews(ctx context.Context, arg ListRunReviewsParams) 
 			&i.ReviewText,
 			&i.ReviewerSessionID,
 			&i.ReviewerAgentName,
-			&i.ReviewerPeerID,
-			&i.ReviewerChannelID,
 			&i.ReviewedByKind,
 			&i.ReviewedByRef,
 			&i.RequestedAt,
@@ -325,7 +315,7 @@ const lookupRunReviewBySession = `-- name: LookupRunReviewBySession :one
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE reviewer_session_id = ?1
@@ -361,8 +351,6 @@ func (q *Queries) LookupRunReviewBySession(ctx context.Context, arg LookupRunRev
 		&i.ReviewText,
 		&i.ReviewerSessionID,
 		&i.ReviewerAgentName,
-		&i.ReviewerPeerID,
-		&i.ReviewerChannelID,
 		&i.ReviewedByKind,
 		&i.ReviewedByRef,
 		&i.RequestedAt,
@@ -381,19 +369,15 @@ UPDATE task_run_reviews
 SET status = ?1,
     reviewer_session_id = ?2,
     reviewer_agent_name = ?3,
-    reviewer_peer_id = ?4,
-    reviewer_channel_id = ?5,
-    started_at = COALESCE(started_at, ?6),
-    updated_at = ?7
-WHERE review_id = ?8
+    started_at = COALESCE(started_at, ?4),
+    updated_at = ?5
+WHERE review_id = ?6
 `
 
 type UpdateRunReviewBindingParams struct {
 	Status            string         `json:"status"`
 	ReviewerSessionID sql.NullString `json:"reviewer_session_id"`
 	ReviewerAgentName string         `json:"reviewer_agent_name"`
-	ReviewerPeerID    string         `json:"reviewer_peer_id"`
-	ReviewerChannelID string         `json:"reviewer_channel_id"`
 	StartedAt         sql.NullString `json:"started_at"`
 	UpdatedAt         string         `json:"updated_at"`
 	ReviewID          string         `json:"review_id"`
@@ -404,8 +388,6 @@ func (q *Queries) UpdateRunReviewBinding(ctx context.Context, arg UpdateRunRevie
 		arg.Status,
 		arg.ReviewerSessionID,
 		arg.ReviewerAgentName,
-		arg.ReviewerPeerID,
-		arg.ReviewerChannelID,
 		arg.StartedAt,
 		arg.UpdatedAt,
 		arg.ReviewID,

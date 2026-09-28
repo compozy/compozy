@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -14,21 +13,20 @@ import (
 // StartupPromptContext carries the durable session metadata available during
 // startup prompt assembly and overlay selection.
 type StartupPromptContext struct {
-	SessionID            string
-	ProfileID            string
-	SessionName          string
-	AgentName            string
-	Provider             string
-	ProviderHomePolicy   compozyconfig.ProviderHomePolicy
-	WorkspaceID          string
-	Workspace            string
-	WorktreeID           string
-	NetworkParticipation participation.Spec
-	SessionType          Type
-	SpawnRole            string
-	SoulSnapshot         *soul.Snapshot
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	SessionID          string
+	ProfileID          string
+	SessionName        string
+	AgentName          string
+	Provider           string
+	ProviderHomePolicy compozyconfig.ProviderHomePolicy
+	WorkspaceID        string
+	Workspace          string
+	WorktreeID         string
+	SessionType        Type
+	SpawnRole          string
+	SoulSnapshot       *soul.Snapshot
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // StartupPromptAssembler optionally extends PromptAssembler with durable

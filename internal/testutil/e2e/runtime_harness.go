@@ -56,13 +56,13 @@ var (
 
 // RuntimeHarnessOptions configures one isolated daemon runtime.
 type RuntimeHarnessOptions struct {
-	BinaryPath       string
-	HomePaths        compozyconfig.HomePaths
-	ConfigSeed       ConfigSeedOptions
-	MockAgents       []MockAgentSpec
-	Workspace        WorkspaceSeedOptions
-	Env              map[string]string
-	EnableNetwork    bool
+	BinaryPath string
+	HomePaths  compozyconfig.HomePaths
+	ConfigSeed ConfigSeedOptions
+	MockAgents []MockAgentSpec
+	Workspace  WorkspaceSeedOptions
+	Env        map[string]string
+
 	StartTimeout     time.Duration
 	PollInterval     time.Duration
 	ResolveWorkspace bool
@@ -342,9 +342,6 @@ func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayo
 		}
 		if len(opts.MockAgents) > 0 {
 			ensureMockAgentProviderConfig(t, cfg)
-		}
-		if opts.EnableNetwork {
-			cfg.Network.Enabled = true
 		}
 	}
 	config := SeedConfig(t, homePaths, configSeed)

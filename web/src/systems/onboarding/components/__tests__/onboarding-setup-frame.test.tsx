@@ -123,7 +123,7 @@ describe("OnboardingSetupFrame", () => {
     expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
   });
 
-  it("Should mention Global and Network on the workspace step without a Network link", async () => {
+  it("Should explain the Global destination on the workspace step", async () => {
     const user = userEvent.setup();
     render(
       <UIProvider reducedMotion="always">
@@ -144,6 +144,6 @@ describe("OnboardingSetupFrame", () => {
 
     await user.click(screen.getByRole("button", { name: "About workspace" }));
     expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
-    expect(await screen.findByText(/does not enable Network/)).toBeInTheDocument();
+    expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
   });
 });

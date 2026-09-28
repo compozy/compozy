@@ -1,0 +1,372 @@
+package main
+
+import (
+	"context"
+
+	"errors"
+
+	"fmt"
+	"os"
+	"strings"
+
+	"time"
+
+	acpsdk "github.com/coder/acp-go-sdk"
+
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+)
+
+func (a *mockAgent) executeCommandCommand(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+) (acpmock.DiagnosticsStep, error) {
+	toolCallID, title := commandDescriptor(step)
+	if err := a.startCommandToolCall(ctx, sessionID, step, toolCallID, title); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+
+	result := a.runCommandCommand(ctx, sessionID, step)
+	diagnostics := commandDiagnosticsStep(step, result)
+	if expected := strings.TrimSpace(step.ExpectErrorContains); expected != "" {
+		return a.finishCommandFailure(ctx, sessionID, step, toolCallID, title, result, expected)
+	}
+	if err := validateCommandResult(step, result); err != nil {
+		diagnostics.Error = err.Error()
+		return diagnostics, err
+	}
+	if err := a.finishCommandSuccess(ctx, sessionID, step, toolCallID, title, result); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+
+	return diagnostics, nil
+}
+
+func commandDiagnosticsStep(step acpmock.Step, result commandRunResult) acpmock.DiagnosticsStep {
+	return acpmock.DiagnosticsStep{
+		Kind:       acpmock.StepKindCommand,
+		ToolCallID: strings.TrimSpace(step.ToolCallID),
+		Command:    strings.TrimSpace(step.Command),
+		Args:       append([]string(nil), step.Args...),
+		ExitCode:   result.ExitCode,
+		Output:     result.Output,
+		Error:      result.ObservedError,
+	}
+}
+
+func (a *mockAgent) executeDriverControl(
+	ctx context.Context,
+	step acpmock.Step,
+) (acpmock.DiagnosticsStep, error) {
+	if step.DriverControl == nil {
+		return acpmock.DiagnosticsStep{}, errors.New("driver_control payload is required")
+	}
+
+	diagnostics := acpmock.DiagnosticsStep{
+		Kind:         acpmock.StepKindDriverControl,
+		DriverAction: step.DriverControl.Action,
+		Text:         strings.TrimSpace(step.DriverControl.RawJSONRPC),
+	}
+	control := *step.DriverControl
+	if control.Async {
+		lifecycleCtx := a.lifecycleContext()
+		a.asyncWG.Add(1)
+		go func(promptCtx context.Context, lifetimeCtx context.Context, control acpmock.DriverControlStep) {
+			defer a.asyncWG.Done()
+
+			if err := waitDriverControlDelay(promptCtx, lifetimeCtx, control.DelayMS); err != nil {
+				return
+			}
+			if err := a.performDriverControl(promptCtx, control); err != nil {
+				if _, printErr := fmt.Fprintf(
+					os.Stderr,
+					"acpmock async driver_control %s error: %v\n",
+					control.Action,
+					err,
+				); printErr != nil {
+					return
+				}
+			}
+		}(ctx, lifecycleCtx, control)
+		return diagnostics, nil
+	}
+	if control.Action == acpmock.DriverControlHoldIgnoringCancel {
+		// Hold the turn open for the configured delay while ignoring prompt cancellation so
+		// stop ladders must escalate; only process lifetime ends the hold early.
+		return diagnostics, waitDriverControlDelay(context.WithoutCancel(ctx), a.lifecycleContext(), control.DelayMS)
+	}
+	if err := waitDriverControlDelay(ctx, a.lifecycleContext(), control.DelayMS); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	return diagnostics, a.performDriverControl(ctx, control)
+}
+
+func waitDriverControlDelay(promptCtx context.Context, lifetimeCtx context.Context, delayMS int) error {
+	if err := driverControlContextErr(promptCtx, lifetimeCtx); err != nil {
+		return err
+	}
+	if delayMS <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(time.Duration(delayMS) * time.Millisecond)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return driverControlContextErr(promptCtx, lifetimeCtx)
+	case <-contextDone(promptCtx):
+		return promptCtx.Err()
+	case <-contextDone(lifetimeCtx):
+		return lifetimeCtx.Err()
+	}
+}
+
+func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.DriverControlStep) error {
+	switch control.Action {
+	case acpmock.DriverControlDisconnect:
+		os.Exit(23)
+		// unreachable: os.Exit terminates the process for the disconnect fixture.
+		panic("invariant: os.Exit returned")
+	case acpmock.DriverControlWriteRawJSONRPC:
+		frame := control.RawJSONRPC
+		if !strings.HasSuffix(frame, "\n") {
+			frame += "\n"
+		}
+		_, err := os.Stdout.WriteString(frame)
+		return err
+	case acpmock.DriverControlBlockUntilCancel:
+		<-ctx.Done()
+		return ctx.Err()
+	case acpmock.DriverControlDelay, acpmock.DriverControlHoldIgnoringCancel:
+		return nil
+	default:
+		return fmt.Errorf("unsupported driver_control action %s", control.Action)
+	}
+}
+
+func commandDescriptor(step acpmock.Step) (string, string) {
+	toolCallID := strings.TrimSpace(step.ToolCallID)
+	title := strings.TrimSpace(step.Title)
+	if title == "" {
+		title = strings.TrimSpace(step.Command)
+	}
+	if title == "" {
+		title = "command command"
+	}
+	return toolCallID, title
+}
+
+func (a *mockAgent) startCommandToolCall(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+	toolCallID string,
+	title string,
+) error {
+	if toolCallID == "" {
+		return nil
+	}
+
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+		SessionId: sessionID,
+		Update: acpsdk.StartToolCall(
+			acpsdk.ToolCallId(toolCallID),
+			title,
+			acpsdk.WithStartKind(toolKind(step.ToolKind, acpsdk.ToolKindExecute)),
+			acpsdk.WithStartStatus(acpsdk.ToolCallStatusInProgress),
+			acpsdk.WithStartRawInput(map[string]any{
+				"command": strings.TrimSpace(step.Command),
+				"args":    append([]string(nil), step.Args...),
+			}),
+		),
+	}); err != nil {
+		return err
+	}
+	return pauseForDelivery(ctx)
+}
+
+func (a *mockAgent) runCommandCommand(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+) commandRunResult {
+	req := acpsdk.CreateTerminalRequest{
+		SessionId: sessionID,
+		Command:   strings.TrimSpace(step.Command),
+		Args:      append([]string(nil), step.Args...),
+		Env:       daemonIssuedAgentIdentityEnv(),
+	}
+	if cwd := strings.TrimSpace(step.Cwd); cwd != "" {
+		req.Cwd = new(cwd)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return commandRunResult{ObservedError: err.Error()}
+	}
+	// Once create is sent, wait for its bounded acknowledgement even if the
+	// prompt is canceled. Losing that ID would leave an acquired terminal
+	// without an owner able to release it.
+	createCtx, cancelCreate := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelCreate()
+	createResp, err := a.conn.CreateTerminal(createCtx, req)
+	if err != nil {
+		return commandRunResult{ObservedError: err.Error()}
+	}
+
+	result := commandRunResult{}
+	waitResp, waitErr := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
+		SessionId:  sessionID,
+		TerminalId: createResp.TerminalId,
+	})
+	if waitErr != nil {
+		result.observeError(waitErr)
+	} else {
+		result.ExitCode = waitResp.ExitCode
+		outputResp, outputErr := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
+			SessionId:  sessionID,
+			TerminalId: createResp.TerminalId,
+		})
+		if outputErr != nil {
+			result.observeError(outputErr)
+		} else {
+			result.Output = outputResp.Output
+		}
+	}
+
+	cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelCleanup()
+	_, releaseErr := a.conn.ReleaseTerminal(cleanupCtx, acpsdk.ReleaseTerminalRequest{
+		SessionId:  sessionID,
+		TerminalId: createResp.TerminalId,
+	})
+	if releaseErr != nil {
+		result.observeError(fmt.Errorf("release terminal: %w", releaseErr))
+	}
+	return result
+}
+
+func daemonIssuedAgentIdentityEnv() []acpsdk.EnvVariable {
+	keys := []string{agentidentity.EnvSessionID, agentidentity.EnvAgent}
+	env := make([]acpsdk.EnvVariable, 0, len(keys))
+	for _, key := range keys {
+		value := strings.TrimSpace(os.Getenv(key))
+		if value == "" {
+			continue
+		}
+		env = append(env, acpsdk.EnvVariable{Name: key, Value: value})
+	}
+	return env
+}
+
+func (r *commandRunResult) observeError(err error) {
+	if err == nil {
+		return
+	}
+	if r.ObservedError == "" {
+		r.ObservedError = err.Error()
+		return
+	}
+	r.ObservedError += "; " + err.Error()
+}
+
+func (a *mockAgent) finishCommandFailure(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+	toolCallID string,
+	title string,
+	result commandRunResult,
+	expected string,
+) (acpmock.DiagnosticsStep, error) {
+	if result.ObservedError == "" || !strings.Contains(result.ObservedError, expected) {
+		return acpmock.DiagnosticsStep{}, fmt.Errorf(
+			"command command error %s did not include %s",
+			result.ObservedError,
+			expected,
+		)
+	}
+	if err := a.emitCommandFailure(ctx, sessionID, step, toolCallID, title, result.ObservedError); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	return acpmock.DiagnosticsStep{
+		Kind:       acpmock.StepKindCommand,
+		ToolCallID: toolCallID,
+		Command:    strings.TrimSpace(step.Command),
+		Args:       append([]string(nil), step.Args...),
+		Error:      result.ObservedError,
+	}, nil
+}
+
+func validateCommandResult(step acpmock.Step, result commandRunResult) error {
+	if result.ObservedError != "" {
+		return errors.New(result.ObservedError)
+	}
+	if step.ExpectExitCode != nil {
+		if result.ExitCode == nil || *result.ExitCode != *step.ExpectExitCode {
+			got := "<nil>"
+			if result.ExitCode != nil {
+				got = fmt.Sprintf("%d", *result.ExitCode)
+			}
+			return fmt.Errorf(
+				"command exit code %s did not match expected %d",
+				got,
+				*step.ExpectExitCode,
+			)
+		}
+	}
+	if expected := strings.TrimSpace(step.ExpectOutputContains); expected != "" &&
+		!strings.Contains(result.Output, expected) {
+		return fmt.Errorf("command output %q did not include %s", result.Output, expected)
+	}
+	return nil
+}
+
+func (a *mockAgent) finishCommandSuccess(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+	toolCallID string,
+	title string,
+	result commandRunResult,
+) error {
+	if toolCallID != "" {
+		updateOpts := []acpsdk.ToolCallUpdateOpt{
+			acpsdk.WithUpdateStatus(toolStatus(step.Status, acpsdk.ToolCallStatusCompleted)),
+			acpsdk.WithUpdateTitle(title),
+		}
+		if result.Output != "" {
+			updateOpts = append(updateOpts, acpsdk.WithUpdateContent(textToolContent(result.Output)))
+		}
+		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: sessionID,
+			Update:    acpsdk.UpdateToolCall(acpsdk.ToolCallId(toolCallID), updateOpts...),
+		}); err != nil {
+			return err
+		}
+		if err := pauseForDelivery(ctx); err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case step.EmitOutput:
+		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: sessionID,
+			Update:    acpsdk.UpdateAgentMessageText(result.Output),
+		}); err != nil {
+			return err
+		}
+		return pauseForDelivery(ctx)
+	case strings.TrimSpace(step.EmitText) != "":
+		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: sessionID,
+			Update:    acpsdk.UpdateAgentMessageText(strings.TrimSpace(step.EmitText)),
+		}); err != nil {
+			return err
+		}
+		return pauseForDelivery(ctx)
+	default:
+		return nil
+	}
+}

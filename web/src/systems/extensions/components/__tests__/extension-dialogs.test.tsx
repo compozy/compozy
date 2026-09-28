@@ -26,7 +26,7 @@ vi.mock("../../hooks/use-extensions", () => ({
 }));
 
 import {
-  ExtensionNetworkConfirmDialog,
+  ExtensionGatewayConfirmDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
@@ -46,7 +46,7 @@ describe("RemoveExtensionDialog", () => {
     render(<RemoveExtensionDialog extension={extensionFixtures[1]!} onOpenChange={vi.fn()} open />);
 
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Revoked permissions: network/send, sessions/list"
+      "Revoked permissions: gateway/status, sessions/list"
     );
     await user.type(screen.getByLabelText("Type to confirm"), "slack-notify");
     expect(screen.getByTestId("remove-extension-confirm")).toBeEnabled();
@@ -159,12 +159,12 @@ describe("ExtensionProvenanceDialog", () => {
   });
 });
 
-describe("ExtensionNetworkConfirmDialog", () => {
+describe("ExtensionGatewayConfirmDialog", () => {
   it("Should show the exact digest and preserve the update callback", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     render(
-      <ExtensionNetworkConfirmDialog
+      <ExtensionGatewayConfirmDialog
         digest="sha256:6f1c0a94d3b27e58"
         error="confirmation rejected"
         extensionName="dep-kit-ops"
@@ -177,10 +177,10 @@ describe("ExtensionNetworkConfirmDialog", () => {
 
     expect(screen.getByText("confirmation rejected")).toBeInTheDocument();
     expect(screen.getByText(/Updating dep-kit-ops/)).toBeInTheDocument();
-    expect(screen.getByTestId("extension-network-confirm-digest")).toHaveTextContent(
+    expect(screen.getByTestId("extension-gateway-confirm-digest")).toHaveTextContent(
       "sha256:6f1c0a94d3b27e58"
     );
-    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 });

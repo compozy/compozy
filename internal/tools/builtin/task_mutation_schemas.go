@@ -17,7 +17,6 @@ const taskCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace":{"type":"string"},
-		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -40,7 +39,6 @@ const taskChildCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace":{"type":"string"},
-		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -65,7 +63,6 @@ const taskUpdateInputSchema = `{
 		"max_attempts":{"type":"integer"},
 		"approval_policy":{"type":"string"},
 		"metadata":{},
-		"network_participation":` + networkParticipationRequestSchema + `,
 		"owner":` + ownerSchema + `,
 		"clear_owner":{"type":"boolean"}
 	},
@@ -136,7 +133,6 @@ const taskRunListInputSchema = `{
 		"task_id":{"type":"string"},
 		"status":{"type":"string"},
 		"session_id":{"type":"string"},
-		"participation_channel":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -212,8 +208,7 @@ const taskExecutionProfileSetInputSchema = `{
 	"required":["task_id","profile"],
 	"properties":{
 		"task_id":{"type":"string"},
-		"profile":` + taskExecutionProfileSchema + `
-	},
+		"profile":` + taskExecutionProfileSchema + `	},
 	"additionalProperties":false
 }`
 
@@ -228,56 +223,6 @@ const taskWorktreePolicySetInputSchema = `{
 	"additionalProperties":false
 }`
 
-const taskNotificationSubscribeInputSchema = `{
-	"type":"object",
-	"required":["task_id","bridge_instance_id"],
-	"properties":{
-		"task_id":{"type":"string"},
-		"subscription_id":{"type":"string"},
-		"bridge_instance_id":{"type":"string"},
-		"scope":{"type":"string","enum":["","global","workspace"]},
-		"workspace_id":{"type":"string"},
-		"peer_id":{"type":"string"},
-		"thread_id":{"type":"string"},
-		"group_id":{"type":"string"},
-		"delivery_mode":{"type":"string","enum":["","direct-send","reply"]}
-	},
-	"additionalProperties":false
-}`
-
-const taskNotificationListInputSchema = `{
-	"type":"object",
-	"required":["task_id"],
-	"properties":{
-		"task_id":{"type":"string"},
-		"bridge_instance_id":{"type":"string"},
-		"scope":{"type":"string","enum":["","global","workspace"]},
-		"workspace_id":{"type":"string"},
-		"limit":{"type":"integer"}
-	},
-	"additionalProperties":false
-}`
-
-const taskNotificationShowInputSchema = `{
-	"type":"object",
-	"required":["task_id","subscription_id"],
-	"properties":{
-		"task_id":{"type":"string"},
-		"subscription_id":{"type":"string"}
-	},
-	"additionalProperties":false
-}`
-
-const taskNotificationDeleteInputSchema = `{
-	"type":"object",
-	"required":["task_id","subscription_id"],
-	"properties":{
-		"task_id":{"type":"string"},
-		"subscription_id":{"type":"string"}
-	},
-	"additionalProperties":false
-}`
-
 const taskExecutionProfileSchema = `{
 	"type":"object",
 	"properties":{
@@ -286,10 +231,8 @@ const taskExecutionProfileSchema = `{
 		"worker":` + workerProfileSchema + `,
 		"review":` + reviewProfileSchema + `,
 		"participants":` + participantPolicySchema + `,
-		"sandbox":` + sandboxPolicySchema + `,
 		"worktree":` + worktreePolicySchema + `,
-		"runtime":` + runtimePolicySchema + `,
-		"network_participation":` + networkParticipationRequestSchema + `
+		"runtime":` + runtimePolicySchema + `
 	},
 	"additionalProperties":false
 }`
@@ -329,10 +272,6 @@ const reviewProfileSchema = `{
 		"model":{"type":"string"},
 		"allowed_agent_names":{"type":"array","items":{"type":"string"}},
 		"preferred_agent_names":{"type":"array","items":{"type":"string"}},
-		"allowed_channel_ids":{"type":"array","items":{"type":"string"}},
-		"preferred_channel_ids":{"type":"array","items":{"type":"string"}},
-		"allowed_peer_ids":{"type":"array","items":{"type":"string"}},
-		"preferred_peer_ids":{"type":"array","items":{"type":"string"}},
 		"required_capabilities":{"type":"array","items":{"type":"string"}},
 		"preferred_capabilities":{"type":"array","items":{"type":"string"}}
 	},
@@ -342,23 +281,10 @@ const reviewProfileSchema = `{
 const participantPolicySchema = `{
 	"type":"object",
 	"properties":{
-		"allowed_channel_ids":{"type":"array","items":{"type":"string"}},
-		"preferred_channel_ids":{"type":"array","items":{"type":"string"}},
-		"allowed_peer_ids":{"type":"array","items":{"type":"string"}},
-		"preferred_peer_ids":{"type":"array","items":{"type":"string"}},
 		"allowed_agent_names":{"type":"array","items":{"type":"string"}},
 		"preferred_agent_names":{"type":"array","items":{"type":"string"}},
 		"required_capabilities":{"type":"array","items":{"type":"string"}},
 		"preferred_capabilities":{"type":"array","items":{"type":"string"}}
-	},
-	"additionalProperties":false
-}`
-
-const sandboxPolicySchema = `{
-	"type":"object",
-	"properties":{
-		"mode":{"type":"string","enum":["","inherit","none","ref"]},
-		"sandbox_ref":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

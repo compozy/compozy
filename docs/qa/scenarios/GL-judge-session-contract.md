@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/provider-attempt.json; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/judge-attribution/
 last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
-overlaps: GL-004;GL-037
+overlaps: GL-004; GL-037
 ---
 
 The live Cursor/Grok run proves the product boundary: Goal work sessions may use tools, but verdict-only judge sessions must not inherit that runtime authority or survive their one criterion.

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	yaml "gopkg.in/yaml.v3"
+
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -26,7 +28,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/goccy/go-yaml"
 )
 
 // TestMemoryHandlersAndHelpers verifies memory routes preserve workspace ownership, response contracts, and missing-resource errors.
@@ -1581,9 +1582,9 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			AdditionalDirs: []string{addDir},
 			Name:           "alpha",
 			DefaultAgent:   "coder",
-			SandboxRef:     "daytona-dev",
-			CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
+
+			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 		}
 		resolved := workspacepkg.ResolvedWorkspace{
 			Workspace: workspace,
@@ -1608,8 +1609,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 				if opts.RootDir != rootDir || len(opts.AdditionalDirs) != 1 ||
-					opts.DefaultAgent != "coder" ||
-					opts.SandboxRef != "daytona-dev" {
+					opts.AdditionalDirs[0] != addDir || opts.DefaultAgent != "coder" {
 					t.Fatalf("Register opts = %#v", opts)
 				}
 				return workspace, nil
@@ -1628,9 +1628,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 				if id != workspace.ID || opts.Name == nil || *opts.Name != "beta" {
 					t.Fatalf("Update call = %q %#v", id, opts)
 				}
-				if opts.SandboxRef != nil && *opts.SandboxRef != "local-dev" {
-					t.Fatalf("Update sandbox ref = %#v, want local-dev", opts.SandboxRef)
-				}
+
 				return nil
 			},
 			UnregisterFn: func(_ context.Context, id string) error {
@@ -1676,7 +1674,6 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			AddDirs:      []string{addDir},
 			Name:         "alpha",
 			DefaultAgent: "coder",
-			SandboxRef:   "daytona-dev",
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(create workspace request) error = %v", err)
@@ -1935,7 +1932,7 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 			fixture.Engine,
 			http.MethodPatch,
 			"/workspaces/ws_alpha",
-			[]byte(`{"add_dirs":["`+addDir+`"],"default_agent":"coder","sandbox_ref":"local-dev"}`),
+			[]byte(`{"add_dirs":["`+addDir+`"],"default_agent":"coder"}`),
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("update add_dirs/default_agent status = %d, want %d", resp.Code, http.StatusOK)
@@ -1946,9 +1943,6 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 		}
 		if captured.DefaultAgent == nil || *captured.DefaultAgent != "coder" {
 			t.Fatalf("captured default agent = %#v", captured.DefaultAgent)
-		}
-		if captured.SandboxRef == nil || *captured.SandboxRef != "local-dev" {
-			t.Fatalf("captured sandbox ref = %#v", captured.SandboxRef)
 		}
 	})
 }

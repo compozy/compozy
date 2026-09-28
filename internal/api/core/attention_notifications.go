@@ -8,15 +8,15 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/observe/attention"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
 type attentionNotificationObserver interface {
-	notifications.AttentionStore
+	attention.Store
 	TaskAttentionItems(context.Context, observe.OverviewQuery) ([]observe.OverviewAttentionItem, error)
 }
 
@@ -87,7 +87,7 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		return
 	}
 	var request contract.AcknowledgeAttentionRequest
-	if err := decodeStrictBridgeJSON(c, &request); err != nil || request.Snapshot == "" {
+	if err := decodeStrictJSONBody(c, &request); err != nil || request.Snapshot == "" {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: valid notification snapshot is required"))
 		return
 	}
@@ -98,7 +98,7 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		request.ID,
 	); err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, notifications.ErrAttentionSnapshotUnavailable) {
+		if errors.Is(err, attention.ErrSnapshotUnavailable) {
 			status = http.StatusConflict
 		}
 		h.respondError(c, status, err)
@@ -109,15 +109,15 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 
 func (h *BaseHandlers) attentionNotificationScope(
 	c *gin.Context, population string,
-) (attentionNotificationObserver, notifications.AttentionScope, bool) {
+) (attentionNotificationObserver, attention.Scope, bool) {
 	observer, ok := h.Observer.(attentionNotificationObserver)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: notification inbox is unavailable"))
-		return nil, notifications.AttentionScope{}, false
+		return nil, attention.Scope{}, false
 	}
 	query, ok := h.attentionOverviewQuery(c)
 	if !ok {
-		return nil, notifications.AttentionScope{}, false
+		return nil, attention.Scope{}, false
 	}
 	scope := observe.OverviewAttentionScope(query)
 	if population == attentionBellPopulation {

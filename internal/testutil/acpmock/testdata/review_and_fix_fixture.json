@@ -49,7 +49,7 @@
                     },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "triage-specific-review-file",
                             "title": "Triage the specific review file",
                             "command": "/bin/sh",
@@ -73,7 +73,7 @@
                     },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "triage-general-review-file",
                             "title": "Triage the general review file",
                             "command": "/bin/sh",

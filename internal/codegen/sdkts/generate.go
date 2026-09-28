@@ -116,7 +116,6 @@ func (g *generator) prepare() {
 		}
 		g.queued[root.Name] = t
 	}
-	g.prepareSpecializedTypeDependencies()
 }
 func namedBaseType(value any) reflect.Type {
 	if value == nil {
@@ -156,8 +155,6 @@ func (g *generator) ensureNamed(name string, t reflect.Type) error {
 	defer delete(g.processing, name)
 
 	switch {
-	case isSpecializedTypeAlias(t):
-		g.blocks = append(g.blocks, renderTypeAlias(name, specializedTypeAlias(t)))
 	case isEnumType(t):
 		g.blocks = append(g.blocks, renderTypeAlias(name, enumUnionForType(t)))
 	case isPrimitiveAliasType(t):

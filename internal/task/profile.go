@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -19,13 +18,6 @@ const (
 	WorkerModeInherit WorkerMode = "inherit"
 	// WorkerModeSelect narrows worker selection using the task profile.
 	WorkerModeSelect WorkerMode = "select"
-
-	// SandboxModeInherit uses workspace/global sandbox defaults.
-	SandboxModeInherit SandboxMode = "inherit"
-	// SandboxModeNone disables task-level sandbox selection when config permits it.
-	SandboxModeNone SandboxMode = "none"
-	// SandboxModeRef selects one named sandbox reference at session start.
-	SandboxModeRef SandboxMode = "ref"
 
 	// RuntimeModeDefault uses the normal task-session runtime contract.
 	RuntimeModeDefault RuntimeMode = "default"
@@ -44,25 +36,20 @@ type CoordinatorMode string
 // WorkerMode identifies how a task narrows worker selection.
 type WorkerMode string
 
-// SandboxMode identifies task-level sandbox selection behavior.
-type SandboxMode string
-
 // RuntimeMode identifies task-level runtime evidence behavior.
 type RuntimeMode string
 
 // ExecutionProfile is the typed task-owned orchestration selection state.
 type ExecutionProfile struct {
-	TaskID               string                 `json:"task_id"`
-	Coordinator          CoordinatorProfile     `json:"coordinator"`
-	Worker               WorkerProfile          `json:"worker"`
-	Review               ReviewProfile          `json:"review"`
-	Participants         ParticipantPolicy      `json:"participants"`
-	Sandbox              SandboxPolicy          `json:"sandbox"`
-	Worktree             WorktreePolicy         `json:"worktree"`
-	Runtime              RuntimePolicy          `json:"runtime"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
+	TaskID       string             `json:"task_id"`
+	Coordinator  CoordinatorProfile `json:"coordinator"`
+	Worker       WorkerProfile      `json:"worker"`
+	Review       ReviewProfile      `json:"review"`
+	Participants ParticipantPolicy  `json:"participants"`
+	Worktree     WorktreePolicy     `json:"worktree"`
+	Runtime      RuntimePolicy      `json:"runtime"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
 }
 
 // CoordinatorProfile supplies optional guidance to the existing coordinator runtime.
@@ -99,30 +86,16 @@ type ReviewProfile struct {
 	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
 	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
 	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	AllowedChannelIDs     []string             `json:"allowed_channel_ids,omitempty"`
-	PreferredChannelIDs   []string             `json:"preferred_channel_ids,omitempty"`
-	AllowedPeerIDs        []string             `json:"allowed_peer_ids,omitempty"`
-	PreferredPeerIDs      []string             `json:"preferred_peer_ids,omitempty"`
 	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
 }
 
 // ParticipantPolicy is an upper-bound routing policy, not a permission grant.
 type ParticipantPolicy struct {
-	AllowedChannelIDs     []string `json:"allowed_channel_ids,omitempty"`
-	PreferredChannelIDs   []string `json:"preferred_channel_ids,omitempty"`
-	AllowedPeerIDs        []string `json:"allowed_peer_ids,omitempty"`
-	PreferredPeerIDs      []string `json:"preferred_peer_ids,omitempty"`
 	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
 	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
 	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
-}
-
-// SandboxPolicy selects task-level sandbox behavior at session start.
-type SandboxPolicy struct {
-	Mode       SandboxMode `json:"mode"`
-	SandboxRef string      `json:"sandbox_ref,omitempty"`
 }
 
 // RuntimePolicy opts a task into broader runtime-evidence operations.
@@ -133,8 +106,6 @@ type RuntimePolicy struct {
 // ExecutionProfileValidationOptions carries config-backed gates without coupling task to config.
 type ExecutionProfileValidationOptions struct {
 	AllowProviderOverride       bool
-	AllowSandboxNone            bool
-	AllowSandboxRef             bool
 	DefaultWorktreeMode         WorktreeMode
 	MaxCoordinatorGuidanceBytes int
 }
@@ -143,8 +114,6 @@ type ExecutionProfileValidationOptions struct {
 func DefaultExecutionProfileValidationOptions() ExecutionProfileValidationOptions {
 	return ExecutionProfileValidationOptions{
 		AllowProviderOverride:       true,
-		AllowSandboxNone:            true,
-		AllowSandboxRef:             true,
 		DefaultWorktreeMode:         WorktreeModeInherit,
 		MaxCoordinatorGuidanceBytes: defaultCoordinatorGuidanceMaxBytes,
 	}
@@ -158,11 +127,6 @@ func (m CoordinatorMode) Normalize() CoordinatorMode {
 // Normalize returns the normalized worker mode.
 func (m WorkerMode) Normalize() WorkerMode {
 	return WorkerMode(strings.ToLower(strings.TrimSpace(string(m))))
-}
-
-// Normalize returns the normalized sandbox mode.
-func (m SandboxMode) Normalize() SandboxMode {
-	return SandboxMode(strings.ToLower(strings.TrimSpace(string(m))))
 }
 
 // Normalize returns the normalized runtime mode.
@@ -223,33 +187,16 @@ func normalizeReviewProfile(profile ReviewProfile) (ReviewProfile, error) {
 	}
 	profile.AllowedAgentNames = normalizeProfileSelectorList(profile.AllowedAgentNames)
 	profile.PreferredAgentNames = normalizeProfileSelectorList(profile.PreferredAgentNames)
-	profile.AllowedChannelIDs = normalizeProfileSelectorList(profile.AllowedChannelIDs)
-	profile.PreferredChannelIDs = normalizeProfileSelectorList(profile.PreferredChannelIDs)
-	profile.AllowedPeerIDs = normalizeProfileSelectorList(profile.AllowedPeerIDs)
-	profile.PreferredPeerIDs = normalizeProfileSelectorList(profile.PreferredPeerIDs)
 	profile.RequiredCapabilities = normalizeProfileSelectorList(profile.RequiredCapabilities)
 	profile.PreferredCapabilities = normalizeProfileSelectorList(profile.PreferredCapabilities)
 	return profile, nil
 }
 
 func normalizeParticipantPolicy(policy ParticipantPolicy) ParticipantPolicy {
-	policy.AllowedChannelIDs = normalizeProfileSelectorList(policy.AllowedChannelIDs)
-	policy.PreferredChannelIDs = normalizeProfileSelectorList(policy.PreferredChannelIDs)
-	policy.AllowedPeerIDs = normalizeProfileSelectorList(policy.AllowedPeerIDs)
-	policy.PreferredPeerIDs = normalizeProfileSelectorList(policy.PreferredPeerIDs)
 	policy.AllowedAgentNames = normalizeProfileSelectorList(policy.AllowedAgentNames)
 	policy.PreferredAgentNames = normalizeProfileSelectorList(policy.PreferredAgentNames)
 	policy.RequiredCapabilities = normalizeProfileSelectorList(policy.RequiredCapabilities)
 	policy.PreferredCapabilities = normalizeProfileSelectorList(policy.PreferredCapabilities)
-	return policy
-}
-
-func normalizeSandboxPolicy(policy SandboxPolicy) SandboxPolicy {
-	policy.Mode = policy.Mode.Normalize()
-	if policy.Mode == "" {
-		policy.Mode = SandboxModeInherit
-	}
-	policy.SandboxRef = strings.TrimSpace(policy.SandboxRef)
 	return policy
 }
 

@@ -6,10 +6,10 @@ persona: Ada
 journey: J-isolated-task-loop-execution
 expected: A Loop node resolves every agent session and workspace-relative extension action from its ready worktree, while root, directory, per-run, precedence, and invalid-environment behavior remain unchanged.
 entry_points: compozy loop create|validate --file; compozy loop configure --file|--set; compozy loop run --config-file; HTTP/UDS Loop definition, config, and run routes; compozy__loop_create|configure|run.environment; ext__spec-cycle__import_tasks
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: qa-lab pr-519-review-fixes worktree-removal-blocked.json; tool-run-completed.json; worktree-removed-after-tool.json
 last_report: docs/qa/reports/2026-09-01-pr-519-review-fixes.md
@@ -32,6 +32,8 @@ tool completed with the worktree-only task path, the same CLI removal succeeded.
 
 Profile policy regression (#570): repeat worker creation with a Profile-scoped Agent in a
 non-default Profile, using both Workspace ID and root path. Verify the same Profile layer supplies
-the Agent, sandbox, permissions, and runtime settings for action, pinned, and judge sessions.
+the Agent, permissions, and runtime settings for action, pinned, and judge sessions.
 An unknown or unavailable Profile must fail before session creation, even if a same-named global
 Agent exists. Retain the default Profile and worktree environment canaries above.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

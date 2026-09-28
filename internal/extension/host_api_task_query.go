@@ -58,10 +58,7 @@ func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorCon
 	if err != nil {
 		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 	actor.ReadScope = store.ReadScope{ProfileID: profileID}
 	if err := actor.Validate(); err != nil {
 		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
@@ -76,10 +73,7 @@ func (h *HostAPIHandler) taskQueryFromParams(
 	if err := apicontract.ValidateTaskListQuery(params, "task_query"); err != nil {
 		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 	query := taskpkg.CatalogQuery{
 		ReadScope:     store.ReadScope{ProfileID: profileID},
 		Scope:         params.Scope.Normalize(),
@@ -112,10 +106,6 @@ func (h *HostAPIHandler) taskQueryFromParams(
 		}
 		query.WorkspaceID = workspaceID
 	}
-	if err := validateTaskChannel("task_query.participation_channel", params.ParticipationChannel); err != nil {
-		return taskpkg.CatalogQuery{}, err
-	}
-	query.ParticipationChannel = strings.TrimSpace(params.ParticipationChannel)
 	normalized, err := taskpkg.NormalizeCatalogQuery(query)
 	if err != nil {
 		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
@@ -156,10 +146,9 @@ func taskTimelineQueryFromParams(params apicontract.TaskTimelineQuery) (taskpkg.
 
 func taskRunQueryFromParams(params apicontract.TaskRunListQuery) (taskpkg.RunQuery, error) {
 	query := taskpkg.RunQuery{
-		Status:               params.Status.Normalize(),
-		SessionID:            strings.TrimSpace(params.SessionID),
-		ParticipationChannel: strings.TrimSpace(params.ParticipationChannel),
-		Limit:                params.Limit,
+		Status:    params.Status.Normalize(),
+		SessionID: strings.TrimSpace(params.SessionID),
+		Limit:     params.Limit,
 	}
 	if err := query.Validate("task_run_query"); err != nil {
 		return taskpkg.RunQuery{}, invalidParamsRPCError(err)
@@ -175,18 +164,14 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 	if err != nil {
 		return observepkg.TaskDashboardQuery{}, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 	query := observepkg.TaskDashboardQuery{
-		ReadScope:            store.ReadScope{ProfileID: profileID},
-		Scope:                params.Scope.Normalize(),
-		OwnerKind:            params.OwnerKind.Normalize(),
-		OwnerRef:             strings.TrimSpace(params.OwnerRef),
-		ParticipationChannel: strings.TrimSpace(params.ParticipationChannel),
-		OriginKind:           params.OriginKind.Normalize(),
-		ExcludeCreatedBy:     exclusions,
+		ReadScope:        store.ReadScope{ProfileID: profileID},
+		Scope:            params.Scope.Normalize(),
+		OwnerKind:        params.OwnerKind.Normalize(),
+		OwnerRef:         strings.TrimSpace(params.OwnerRef),
+		OriginKind:       params.OriginKind.Normalize(),
+		ExcludeCreatedBy: exclusions,
 	}
 	if query.Scope.Normalize() != "" {
 		if err := query.Scope.Validate("task_dashboard_query.scope"); err != nil {
@@ -210,12 +195,6 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 		}
 		query.WorkspaceID = workspaceID
 	}
-	if err := validateTaskChannel(
-		"task_dashboard_query.participation_channel",
-		query.ParticipationChannel,
-	); err != nil {
-		return observepkg.TaskDashboardQuery{}, err
-	}
 	if err := query.Validate(); err != nil {
 		return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
 	}
@@ -233,10 +212,7 @@ func (h *HostAPIHandler) taskInboxQueryFromParams(
 	if err != nil {
 		return observepkg.TaskInboxQuery{}, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 	query := observepkg.TaskInboxQuery{
 		ReadScope:        store.ReadScope{ProfileID: profileID},
 		Scope:            params.Scope.Normalize(),

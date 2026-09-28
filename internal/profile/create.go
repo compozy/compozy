@@ -252,15 +252,14 @@ func (m *Manager) persistDeclaredSeed(
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO profile_lifecycle_op_seed
-		 (op_id, color, icon, emoji, default_agent, default_provider, default_sandbox, declaration_digest)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 (op_id, color, icon, emoji, default_agent, default_provider, declaration_digest)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		opID,
 		declared.seed.Color,
 		nullableString(declared.seed.Icon),
 		nullableString(declared.seed.Emoji),
 		nullableString(declared.seed.Defaults.Agent),
 		nullableString(declared.seed.Defaults.Provider),
-		nullableString(declared.seed.Defaults.Sandbox),
 		digest,
 	); err != nil {
 		return fmt.Errorf("profile: persist declared seed: %w", err)

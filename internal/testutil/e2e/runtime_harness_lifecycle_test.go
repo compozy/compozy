@@ -18,7 +18,7 @@ import (
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
@@ -671,23 +671,6 @@ func TestHelperUtilitiesCoverSortingAndSanitizing(t *testing.T) {
 	}
 }
 
-func TestCaptureNetworkAuditMissingFileIsNoop(t *testing.T) {
-	t.Parallel()
-
-	harness := &RuntimeHarness{
-		HomePaths: compozyconfig.HomePaths{
-			NetworkAuditFile: filepath.Join(t.TempDir(), "missing.audit"),
-		},
-		Artifacts: NewArtifactCollector(t),
-	}
-	if err := harness.CaptureNetworkAudit(); err != nil {
-		t.Fatalf("CaptureNetworkAudit() error = %v", err)
-	}
-	if got := len(harness.Artifacts.Manifest().Artifacts); got != 0 {
-		t.Fatalf("len(artifacts) = %d, want 0", got)
-	}
-}
-
 func TestRuntimeHelpersCoverCLIEnvAndRepoUtilities(t *testing.T) {
 	t.Parallel()
 
@@ -794,7 +777,7 @@ func TestBuildCompozyBinaryProducesReusableExecutable(t *testing.T) {
 	}
 }
 
-func TestBuildCompozyBinaryHonorsSandboxOverride(t *testing.T) {
+func TestBuildCompozyBinaryHonorsEnvironmentOverride(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "compozy-custom")
 	if err := os.WriteFile(override, []byte("fake"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", override, err)

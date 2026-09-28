@@ -79,13 +79,13 @@ it in each profile that needs it, or keep it at `workspace` scope when it belong
 
 Examples:
 
-| Memory                                                                 | Type       | Scope       | Agent tier  |
-| ---------------------------------------------------------------------- | ---------- | ----------- | ----------- |
-| "User prefers terse status updates while commands run."                | `user`     | `profile`   | n/a         |
-| "Never weaken a failing test to preserve a broken implementation."     | `feedback` | `profile`   | n/a         |
-| "The docs site package is `@compozy/site`."                            | `project`  | `workspace` | n/a         |
-| "Reviewer keeps blocking findings first and cites file:line."          | `feedback` | `agent`     | `global`    |
-| "In this repo, reviewer must call out release-risk on bridge changes." | `feedback` | `agent`     | `workspace` |
+| Memory                                                                    | Type       | Scope       | Agent tier  |
+| ------------------------------------------------------------------------- | ---------- | ----------- | ----------- |
+| "User prefers terse status updates while commands run."                   | `user`     | `profile`   | n/a         |
+| "Never weaken a failing test to preserve a broken implementation."        | `feedback` | `profile`   | n/a         |
+| "The docs site package is `@compozy/site`."                               | `project`  | `workspace` | n/a         |
+| "Reviewer keeps blocking findings first and cites file:line."             | `feedback` | `agent`     | `global`    |
+| "In this repo, reviewer must call out release-risk on extension changes." | `feedback` | `agent`     | `workspace` |
 
 ## Default write posture
 
@@ -137,7 +137,7 @@ compozy memory write \
   --type feedback \
   --name "Repo Reviewer Rules" \
   --description "This repo wants release-risk notes in reviews" \
-  --content "For this repo, include release risk when reviewing bridge or automation changes."
+  --content "For this repo, include release risk when reviewing extension or automation changes."
 ```
 
 Sessions without an active workspace cannot write `--scope workspace` or `--scope agent

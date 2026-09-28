@@ -5,135 +5,6 @@ import { describe, expect, it } from "vitest";
 import { captureRouteState } from "../browser-artifact-session";
 
 describe("captureRouteState", () => {
-  it("captures network shell context with the channel-pivot information architecture", async () => {
-    window.history.replaceState({}, "", "/network/builders/threads");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <div data-testid="network-shell">
-        <aside data-testid="network-channel-rail">
-          <div data-testid="network-channel-row-builders">
-            <a data-testid="network-channel-link-builders" aria-current="page">
-              <span>builders</span><span>just now</span>
-            </a>
-          </div>
-          <div data-testid="network-channel-row-design">
-            <a data-testid="network-channel-link-design">design</a>
-          </div>
-        </aside>
-        <main data-testid="network-main-pane">
-          <header data-testid="network-channel-header"><h1>#builders</h1></header>
-          <section data-testid="network-threads-tab">
-            <article data-testid="network-thread-list-row-thread_one"></article>
-            <article data-testid="network-thread-list-row-thread_two"></article>
-          </section>
-          <section data-testid="network-activity-feed">
-            <a data-testid="network-activity-entry-thread:thread_one"></a>
-          </section>
-          <section data-testid="network-work-inspector">
-            <li data-testid="network-work-inspector-row-work_one"></li>
-          </section>
-        </main>
-      </div>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      pathname: "/network/builders/threads",
-      title: "CompozyOS",
-      chat_view_visible: false,
-      message_count: 0,
-      network_view_visible: true,
-      network_active_tab: "threads",
-      network_channel_count: 2,
-      network_thread_count: 2,
-      network_direct_count: 0,
-      network_activity_count: 1,
-      network_message_count: 0,
-      network_work_count: 1,
-      network_selected_channel: "builders",
-    });
-    expect(routeState).not.toHaveProperty("network_selected_peer");
-    expect(routeState.network_selected_thread).toBeUndefined();
-  });
-
-  it("captures disabled and no-channel network route states for launch diagnostics", async () => {
-    window.history.replaceState({}, "", "/network");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <div data-testid="network-shell">
-        <section data-testid="network-no-channels-state"></section>
-      </div>
-      <section data-testid="network-disabled-state"></section>
-      <form data-testid="network-create-channel-dialog"></form>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      pathname: "/network",
-      network_create_dialog_open: true,
-      network_disabled_visible: true,
-      network_no_channels_visible: true,
-      network_view_visible: true,
-    });
-  });
-
-  it("captures the selected thread overlay container id without leaking direct fields", async () => {
-    window.history.replaceState({}, "", "/network/builders/threads/thread_launch_command");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <div data-testid="network-shell">
-        <main data-testid="network-main-pane">
-          <section data-testid="network-threads-tab">
-            <article data-testid="network-thread-list-row-thread_launch_command"></article>
-          </section>
-          <aside data-testid="network-thread-overlay" aria-label="Thread"></aside>
-        </main>
-      </div>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      network_view_visible: true,
-      network_active_tab: "threads",
-      network_selected_thread: "thread_launch_command",
-    });
-    expect(routeState.network_selected_direct).toBeUndefined();
-  });
-
-  it("captures the selected direct room container id without leaking thread fields", async () => {
-    window.history.replaceState({}, "", "/network/builders/directs/direct_abc123");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <div data-testid="network-shell">
-        <main data-testid="network-main-pane">
-          <section data-testid="network-direct-detail-slot" aria-label="Direct room direct_abc123 in #builders">
-            <article data-testid="network-direct-room" aria-label="Direct room with @peer"></article>
-          </section>
-        </main>
-      </div>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      network_view_visible: true,
-      network_active_tab: "directs",
-      network_selected_direct: "direct_abc123",
-    });
-    expect(routeState.network_selected_thread).toBeUndefined();
-  });
-
   it("captures automation detail route context, topbar title, and session-link state", async () => {
     window.history.replaceState({}, "", "/jobs/job_daily_review");
     document.title = "CompozyOS";
@@ -178,37 +49,6 @@ describe("captureRouteState", () => {
       automation_selected_item: "deploy-review",
       automation_session_link_count: 1,
       automation_trigger_visible: true,
-    });
-  });
-
-  it("captures bridge detail route context, topbar title, and dialog state", async () => {
-    window.history.replaceState({}, "", "/bridges/brg_ops");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <header><h1 data-testid="topbar-title-text">Telegram Bridge Ops</h1></header>
-      <section data-testid="bridge-detail-panel">
-        <div data-slot="page-head-title">Telegram Bridge Ops</div>
-      </section>
-      <article data-testid="bridge-secret-binding-bot_token"></article>
-      <article data-testid="bridge-route-sess_bridge_01"></article>
-      <form data-testid="bridge-edit-dialog"></form>
-      <section data-testid="bridge-test-delivery-result"></section>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      pathname: "/bridges/brg_ops",
-      title: "CompozyOS",
-      bridge_view_visible: true,
-      bridge_item_count: 0,
-      bridge_selected_item: "Telegram Bridge Ops",
-      bridge_secret_binding_count: 1,
-      bridge_route_count: 1,
-      bridge_edit_dialog_open: true,
-      bridge_test_delivery_result_visible: true,
     });
   });
 
@@ -359,62 +199,20 @@ describe("captureRouteState", () => {
     });
   });
 
-  it("captures sandbox route profile counts, dialogs, and restart state", async () => {
-    window.history.replaceState({}, "", "/sandbox");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <main data-testid="sandbox-shell">
-        <p data-testid="sandbox-page-total">2 profiles</p>
-        <p data-testid="sandbox-page-workspaces">1 workspace reference</p>
-        <table data-testid="sandbox-page-list">
-          <tbody>
-            <tr data-name="browser-local-sandbox" data-testid="sandbox-page-card-browser-local-sandbox">
-              <td data-testid="sandbox-page-card-browser-local-sandbox-profile">local / reuse</td>
-              <td data-testid="sandbox-page-card-browser-local-sandbox-source">CONFIG</td>
-              <td data-testid="sandbox-page-card-browser-local-sandbox-usage">1 workspace</td>
-            </tr>
-            <tr data-name="browser-blocked-sandbox" data-testid="sandbox-page-card-browser-blocked-sandbox"></tr>
-          </tbody>
-        </table>
-        <form data-testid="settings-sandbox-editor"></form>
-        <section data-testid="settings-sandboxes-delete"></section>
-        <section data-testid="sandbox-page-action-result"></section>
-        <section data-testid="settings-page-sandbox-restart-notice"></section>
-      </main>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      pathname: "/sandbox",
-      sandbox_action_result_visible: true,
-      sandbox_delete_dialog_open: true,
-      sandbox_editor_open: true,
-      sandbox_profile_count: 2,
-      sandbox_profile_names: ["browser-local-sandbox", "browser-blocked-sandbox"],
-      sandbox_restart_notice_visible: true,
-      sandbox_total_text: "2 profiles",
-      sandbox_view_visible: true,
-      sandbox_workspace_references_text: "1 workspace reference",
-    });
-  });
-
   it("captures Settings route section, provider, restart, and route-independent vault state", async () => {
-    window.history.replaceState({}, "", "/settings/network");
+    window.history.replaceState({}, "", "/settings/automation");
     document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
           <a data-testid="settings-section-general"></a>
-          <a data-testid="settings-section-network"></a>
+          <a data-testid="settings-section-automation"></a>
         </nav>
-        <section data-testid="settings-page-network-action-result"></section>
+        <section data-testid="settings-page-automation-action-result"></section>
         <form data-testid="settings-vault-editor"></form>
         <section data-testid="settings-vault-delete"></section>
-        <section data-testid="settings-page-network-restart-notice"></section>
-        <footer data-testid="settings-page-network-save-bar"></footer>
+        <section data-testid="settings-page-automation-restart-notice"></section>
+        <footer data-testid="settings-page-automation-save-bar"></footer>
         <table data-testid="vault-page-table">
           <tr data-testid="vault-secrets-row"></tr>
           <tr data-testid="vault-secrets-row"></tr>
@@ -440,9 +238,9 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/settings/network",
+      pathname: "/settings/automation",
       settings_action_result_visible: true,
-      settings_active_section: "network",
+      settings_active_section: "automation",
       settings_mcp_server_count: 1,
       settings_provider_card_count: 2,
       settings_restart_notice_visible: true,
@@ -462,7 +260,7 @@ describe("captureRouteState", () => {
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
           <a data-testid="settings-section-general"></a>
-          <a data-testid="settings-section-network"></a>
+          <a data-testid="settings-section-automation"></a>
         </nav>
       </main>
     `;

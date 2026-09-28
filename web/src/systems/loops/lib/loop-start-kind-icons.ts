@@ -5,7 +5,6 @@ import {
   Hand,
   Plug,
   Puzzle,
-  RadioTower,
   Terminal,
   Webhook,
   Wrench,
@@ -15,7 +14,7 @@ import {
 /**
  * Closed `start[]` vocabulary from `loop-bindings.ts`:
  * automation-carried `schedule|webhook|trigger` plus the direct surfaces
- * `manual|cli|http|uds|native_tool|extension|network`.
+ * `manual|cli|http|uds|native_tool|extension`.
  */
 export const LOOP_START_KINDS = [
   "schedule",
@@ -27,7 +26,6 @@ export const LOOP_START_KINDS = [
   "webhook",
   "trigger",
   "extension",
-  "network",
 ] as const;
 
 export type LoopStartKind = (typeof LOOP_START_KINDS)[number];
@@ -44,7 +42,6 @@ export const LOOP_START_KIND_ICONS: Record<LoopStartKind, LucideIcon> = {
   webhook: Webhook,
   trigger: Zap,
   extension: Puzzle,
-  network: RadioTower,
 };
 
 export function loopStartKindIcon(kind: string): LucideIcon | undefined {

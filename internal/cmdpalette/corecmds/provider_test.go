@@ -108,7 +108,6 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.hooks=/settings/hooks",
 			"settings.layouts=/settings/layouts",
 			"settings.memory=/settings/memory",
-			"settings.network=/settings/network",
 			"settings.observability=/settings/observability",
 			"settings.palette=/settings/palette",
 			"settings.profiles=/settings/profiles",
@@ -126,8 +125,8 @@ func TestProviderAbsorption(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		want := []string{
-			"agents", "bridges", "extensions", "jobs", "knowledge", "loops", "marketplace",
-			"network-channels", "profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
+			"agents", "extensions", "jobs", "knowledge", "loops", "marketplace",
+			"profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))
 		seen := make(map[string]int, len(want))

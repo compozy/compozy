@@ -29,7 +29,6 @@ const (
 	loopRunEventTargetBreakerTransition = string(looppkg.RunEventTargetBreaker)
 	loopRunEventGateVerdict             = string(looppkg.RunEventGateVerdict)
 	loopRunEventGenerationStarted       = string(looppkg.RunEventGenerationStarted)
-	loopRunEventChannelMsg              = string(looppkg.RunEventChannelMsg)
 	loopRunEventTokenTick               = string(looppkg.RunEventTokenTick)
 	loopRunEventNeedsApproval           = string(looppkg.RunEventNeedsApproval)
 	loopRunEventStatusChanged           = string(looppkg.RunEventStatusChanged)
@@ -281,7 +280,6 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventTargetBreakerTransition,
 		loopRunEventGateVerdict,
 		loopRunEventGenerationStarted,
-		loopRunEventChannelMsg,
 		loopRunEventTokenTick,
 		loopRunEventNeedsApproval,
 		loopRunEventStatusChanged,

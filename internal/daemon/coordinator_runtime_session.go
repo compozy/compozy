@@ -8,7 +8,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -16,21 +15,20 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 	ctx context.Context,
 	decision coordinator.Decision,
 	cfg compozyconfig.ResolvedCoordinatorRole,
-	coordinatorParticipation participation.Spec,
 ) (*session.Info, error) {
-	policy := coordinator.PermissionPolicy(coordinatorParticipation)
+	policy := coordinator.PermissionPolicy()
 	now := r.now().UTC()
 	workerWorktrees, err := r.activeWorkerWorktrees(ctx, decision.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	promptOverlay := coordinator.PromptOverlay(coordinator.PromptInput{
-		WorkspaceID:          decision.WorkspaceID,
-		TaskID:               decision.TaskID,
-		RunID:                decision.RunID,
-		WorkflowID:           decision.WorkflowID,
-		NetworkParticipation: coordinatorParticipation,
-		WorkerWorktrees:      workerWorktrees,
+		WorkspaceID: decision.WorkspaceID,
+		TaskID:      decision.TaskID,
+		RunID:       decision.RunID,
+		WorkflowID:  decision.WorkflowID,
+
+		WorkerWorktrees: workerWorktrees,
 	})
 	if r.contextOverlay != nil &&
 		strings.TrimSpace(decision.TaskID) != "" &&
@@ -56,19 +54,19 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
 		spawned, createErr := r.sessions.Create(attemptCtx, session.CreateOpts{
-			AgentName:                    route.AgentName,
-			Provider:                     route.Provider,
-			Model:                        route.Model,
-			ReasoningEffort:              route.ReasoningEffort,
-			Speed:                        route.Speed,
-			ACPOptions:                   session.ACPOptionSelectionsFromConfig(route.ACPOptions),
-			Name:                         coordinatorSessionName(decision.WorkspaceID),
-			Workspace:                    decision.WorkspaceID,
-			ResolvedNetworkParticipation: &coordinatorParticipation,
-			PromptOverlay:                promptOverlay,
-			Type:                         session.SessionTypeCoordinator,
-			Lineage:                      coordinator.Lineage(now, cfg, policy),
-			DiscardStartFailure:          true,
+			AgentName:       route.AgentName,
+			Provider:        route.Provider,
+			Model:           route.Model,
+			ReasoningEffort: route.ReasoningEffort,
+			Speed:           route.Speed,
+			ACPOptions:      session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Name:            coordinatorSessionName(decision.WorkspaceID),
+			Workspace:       decision.WorkspaceID,
+
+			PromptOverlay:       promptOverlay,
+			Type:                session.SessionTypeCoordinator,
+			Lineage:             coordinator.Lineage(now, cfg, policy),
+			DiscardStartFailure: true,
 		})
 		return spawned, spawned != nil, createErr
 	})

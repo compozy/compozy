@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"reflect"
 	"strings"
 
 	"time"
@@ -124,12 +123,11 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 
 	now := d.now()
 	run := Run{
-		ProfileID:            req.profileID(),
-		Status:               RunScheduled,
-		Attempt:              attempt,
-		StartedAt:            timePointer(now),
-		NetworkParticipation: req.networkParticipation(),
-		Metadata:             webhookRunMetadata(req),
+		ProfileID: req.profileID(),
+		Status:    RunScheduled,
+		Attempt:   attempt,
+		StartedAt: timePointer(now),
+		Metadata:  webhookRunMetadata(req),
 	}
 	if req.Job != nil {
 		run.JobID = req.Job.ID
@@ -180,10 +178,6 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	}
 	if req.Trigger != nil && strings.TrimSpace(reserved.TriggerID) != strings.TrimSpace(req.Trigger.ID) {
 		return nil, errors.New("automation: reserved run trigger_id does not match dispatch trigger")
-	}
-	requestedParticipation := req.networkParticipation()
-	if !reflect.DeepEqual(reserved.NetworkParticipation, requestedParticipation) {
-		return reserved, errors.New("automation: reserved run network participation does not match definition")
 	}
 
 	now := d.now()

@@ -89,7 +89,7 @@ func configPathIsTrustRoot(path []string) bool {
 	}
 	switch path[0] {
 	case "daemon", string(MCPServerTransportHTTP), toolSurfacePermissionsKey, "observability", "log",
-		toolSurfaceMCPServersKey, "sandboxes", "autonomy":
+		toolSurfaceMCPServersKey, "autonomy":
 		return true
 	case toolSurfaceHooksKey:
 		return true

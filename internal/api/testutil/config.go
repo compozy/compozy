@@ -6,17 +6,14 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-// ConfigWithDisabledNetwork returns a default test config with networking turned off.
-func ConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
-	cfg := compozyconfig.DefaultWithHome(homePaths)
-	cfg.Network.Enabled = false
-	return cfg
+// ConfigForTest returns the default isolated API test configuration.
+func ConfigForTest(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	return compozyconfig.DefaultWithHome(homePaths)
 }
 
-// NewDisabledNetworkHomeConfig creates one test home and derives a disabled-network config from it.
-func NewDisabledNetworkHomeConfig(t *testing.T) (compozyconfig.HomePaths, compozyconfig.Config) {
+// NewHomeConfig creates an isolated API test home and its configuration.
+func NewHomeConfig(t *testing.T) (compozyconfig.HomePaths, compozyconfig.Config) {
 	t.Helper()
-
 	homePaths := NewTestHomePaths(t)
-	return homePaths, ConfigWithDisabledNetwork(homePaths)
+	return homePaths, ConfigForTest(homePaths)
 }

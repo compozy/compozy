@@ -77,8 +77,7 @@ a cap.
 **A generation timeline** shows each generation as a collapsible card on a flat node spine. A
 fan-out renders as batch branches; a gate renders as a flat verdict card (`pass` tinted success,
 `fail` tinted danger) with its reason and route (`revise` or `next_generation`). When a Loop drives
-a channel conversation, the [converse](/docs/loops/converse-and-decide) exchange is embedded
-inline. A right rail streams the live event feed and the run facts.
+a child Loop, its execution is linked to the parent run for inspection.
 
 Each generation also shows its durable `origin` and `parent_generation`. Most generations point to
 `N-1`; a `ratchet_restore` points to the older best generation it was seeded from. Scored verdicts

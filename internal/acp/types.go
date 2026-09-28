@@ -11,7 +11,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -91,8 +90,8 @@ type StartOpts struct {
 	RuntimeStrategy      RuntimeApplicationStrategy
 	LaunchModelID        string
 	ResumeSessionID      string
-	Launcher             sandbox.Launcher
-	ToolHost             sandbox.ToolHost
+	Launcher             Launcher
+	ToolHost             ToolHost
 	ToolGateway          ToolExecutionGateway
 	ProviderName         string
 	ProviderConfig       *compozyconfig.ProviderConfig

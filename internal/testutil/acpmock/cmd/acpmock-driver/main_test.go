@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"os"
+
 	"path/filepath"
-	"reflect"
+
 	"strings"
 	"testing"
 
@@ -12,29 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
-
-func TestNetworkEnvironmentNames(t *testing.T) {
-	t.Run("Should return only populated Network environment names", func(t *testing.T) {
-		t.Setenv("COMPOZY_SESSION_CHANNEL", "builders")
-		t.Setenv("COMPOZY_PEER_ID", "coder.session-1")
-
-		got := networkEnvironmentNames()
-		want := []string{"COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID"}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("networkEnvironmentNames() = %#v, want %#v", got, want)
-		}
-
-		if err := os.Unsetenv("COMPOZY_SESSION_CHANNEL"); err != nil {
-			t.Fatalf("Unsetenv(COMPOZY_SESSION_CHANNEL) error = %v", err)
-		}
-		if err := os.Unsetenv("COMPOZY_PEER_ID"); err != nil {
-			t.Fatalf("Unsetenv(COMPOZY_PEER_ID) error = %v", err)
-		}
-		if got := networkEnvironmentNames(); len(got) != 0 {
-			t.Fatalf("networkEnvironmentNames() = %#v, want empty", got)
-		}
-	})
-}
 
 func TestPromptResponseUsagePreservesExplicitZeroTotal(t *testing.T) {
 	t.Parallel()
@@ -411,31 +388,31 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 	})
 }
 
-func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
+func TestMockAgentCommandTerminalCleanup(t *testing.T) {
 	t.Run("Should retain a failing command boundary in diagnostics", func(t *testing.T) {
 		exitCode := 69
-		got := sandboxDiagnosticsStep(acpmock.Step{
+		got := commandDiagnosticsStep(acpmock.Step{
 			Command: "/bin/sh", Args: []string{"-c", "compozy spawn"}, ToolCallID: "spawn-boundary",
-		}, sandboxRunResult{
+		}, commandRunResult{
 			ExitCode: &exitCode, Output: `{"error":"session not found"}`,
 			ObservedError: "spawn failed",
 		})
-		if got.Kind != acpmock.StepKindSandbox || got.Command != "/bin/sh" ||
+		if got.Kind != acpmock.StepKindCommand || got.Command != "/bin/sh" ||
 			len(got.Args) != 2 || got.Args[0] != "-c" || got.Args[1] != "compozy spawn" ||
 			got.Error != "spawn failed" || got.ToolCallID != "spawn-boundary" ||
 			got.ExitCode == nil || *got.ExitCode != 69 || got.Output != `{"error":"session not found"}` {
-			t.Fatalf("sandbox diagnostics = %#v, want exact failing command boundary", got)
+			t.Fatalf("command diagnostics = %#v, want exact failing command boundary", got)
 		}
 	})
 
 	t.Run("Should release terminal with detached context after wait cancellation", func(t *testing.T) {
-		conn := &recordingSandboxConnection{}
+		conn := &recordingCommandConnection{}
 		agent := &mockAgent{conn: conn}
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		conn.cancelOnCreate = cancel
 
-		result := agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-1"), acpmock.Step{
+		result := agent.runCommandCommand(ctx, acpsdk.SessionId("sess-1"), acpmock.Step{
 			Command: "/bin/sh",
 			Args:    []string{"-c", "sleep 30"},
 		})
@@ -455,13 +432,13 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 		t.Setenv("COMPOZY_SESSION_ID", "sess-agent")
 		t.Setenv("COMPOZY_AGENT", "orchestrator")
 
-		conn := &recordingSandboxConnection{}
+		conn := &recordingCommandConnection{}
 		agent := &mockAgent{conn: conn}
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		conn.cancelOnCreate = cancel
 
-		agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-agent"), acpmock.Step{
+		agent.runCommandCommand(ctx, acpsdk.SessionId("sess-agent"), acpmock.Step{
 			Command: "/bin/sh",
 			Args:    []string{"-c", "true"},
 		})
@@ -488,7 +465,7 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 	})
 }
 
-type recordingSandboxConnection struct {
+type recordingCommandConnection struct {
 	cancelOnCreate    context.CancelFunc
 	releaseCalled     bool
 	releaseContextErr error
@@ -496,7 +473,7 @@ type recordingSandboxConnection struct {
 	notifications     []acpsdk.SessionNotification
 }
 
-func (c *recordingSandboxConnection) SessionUpdate(
+func (c *recordingCommandConnection) SessionUpdate(
 	_ context.Context,
 	notification acpsdk.SessionNotification,
 ) error {
@@ -504,14 +481,14 @@ func (c *recordingSandboxConnection) SessionUpdate(
 	return nil
 }
 
-func (c *recordingSandboxConnection) RequestPermission(
+func (c *recordingCommandConnection) RequestPermission(
 	context.Context,
 	acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {
 	return acpsdk.RequestPermissionResponse{}, nil
 }
 
-func (c *recordingSandboxConnection) CreateTerminal(
+func (c *recordingCommandConnection) CreateTerminal(
 	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
@@ -525,21 +502,21 @@ func (c *recordingSandboxConnection) CreateTerminal(
 	return acpsdk.CreateTerminalResponse{TerminalId: "term-cancel"}, nil
 }
 
-func (c *recordingSandboxConnection) WaitForTerminalExit(
+func (c *recordingCommandConnection) WaitForTerminalExit(
 	ctx context.Context,
 	_ acpsdk.WaitForTerminalExitRequest,
 ) (acpsdk.WaitForTerminalExitResponse, error) {
 	return acpsdk.WaitForTerminalExitResponse{}, ctx.Err()
 }
 
-func (c *recordingSandboxConnection) TerminalOutput(
+func (c *recordingCommandConnection) TerminalOutput(
 	context.Context,
 	acpsdk.TerminalOutputRequest,
 ) (acpsdk.TerminalOutputResponse, error) {
 	return acpsdk.TerminalOutputResponse{}, nil
 }
 
-func (c *recordingSandboxConnection) ReleaseTerminal(
+func (c *recordingCommandConnection) ReleaseTerminal(
 	ctx context.Context,
 	_ acpsdk.ReleaseTerminalRequest,
 ) (acpsdk.ReleaseTerminalResponse, error) {

@@ -3,7 +3,6 @@ package hooks
 func sessionHookEventDescriptors() map[HookEvent]EventDescriptor {
 	return mergeHookEventDescriptors(
 		sessionFamilyHookEventDescriptors(),
-		sandboxFamilyHookEventDescriptors(),
 		inputFamilyHookEventDescriptors(),
 		promptFamilyHookEventDescriptors(),
 		eventFamilyHookEventDescriptors(),
@@ -81,43 +80,6 @@ func sessionFamilyHookEventDescriptors() map[HookEvent]EventDescriptor {
 			SyncEligible:  false,
 			PayloadSchema: "SessionHealthUpdateAfterPayload",
 			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
-		}}
-}
-func sandboxFamilyHookEventDescriptors() map[HookEvent]EventDescriptor {
-	return map[HookEvent]EventDescriptor{HookSandboxPrepare: {
-		Event:         HookSandboxPrepare,
-		Family:        HookEventFamilySandbox,
-		SyncEligible:  true,
-		PayloadSchema: "SandboxPreparePayload",
-		PatchSchema:   "SandboxPreparePatch",
-	},
-		HookSandboxReady: {
-			Event:         HookSandboxReady,
-			Family:        HookEventFamilySandbox,
-			SyncEligible:  false,
-			PayloadSchema: "SandboxReadyPayload",
-			PatchSchema:   "SandboxReadyPatch",
-		},
-		HookSandboxSyncBefore: {
-			Event:         HookSandboxSyncBefore,
-			Family:        HookEventFamilySandbox,
-			SyncEligible:  true,
-			PayloadSchema: "SandboxSyncBeforePayload",
-			PatchSchema:   "SandboxSyncBeforePatch",
-		},
-		HookSandboxSyncAfter: {
-			Event:         HookSandboxSyncAfter,
-			Family:        HookEventFamilySandbox,
-			SyncEligible:  false,
-			PayloadSchema: "SandboxSyncAfterPayload",
-			PatchSchema:   "SandboxSyncAfterPatch",
-		},
-		HookSandboxStop: {
-			Event:         HookSandboxStop,
-			Family:        HookEventFamilySandbox,
-			SyncEligible:  true,
-			PayloadSchema: "SandboxStopPayload",
-			PatchSchema:   "SandboxStopPatch",
 		}}
 }
 func inputFamilyHookEventDescriptors() map[HookEvent]EventDescriptor {

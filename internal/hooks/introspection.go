@@ -165,10 +165,6 @@ func cloneHookMatcher(src HookMatcher) HookMatcher {
 		value := *src.ToolReadOnly
 		cloned.ToolReadOnly = &value
 	}
-	if src.NetworkMatcher != nil {
-		value := *src.NetworkMatcher
-		cloned.NetworkMatcher = &value
-	}
 	if src.CompactionMatcher != nil {
 		value := *src.CompactionMatcher
 		cloned.CompactionMatcher = &value

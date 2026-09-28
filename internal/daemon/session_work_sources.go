@@ -6,7 +6,6 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -119,17 +118,11 @@ func (s sessionWorkSources) loopWork(ctx context.Context, id string) ([]looppkg.
 	if err != nil {
 		return nil, err
 	}
-	var ownerRunID looppkg.RunID
-	if info.NetworkOwnerKey != "" {
-		owner, err := participation.OwnerRefFromKey(info.WorkspaceID, info.NetworkOwnerKey)
-		if err != nil {
-			return nil, err
-		}
-		if owner.Kind == participation.OwnerKindLoopRun {
-			ownerRunID = looppkg.RunID(owner.ID)
-		}
+	var judgeRunID looppkg.RunID
+	if s.state.tasks != nil && s.state.tasks.loopJudges != nil {
+		judgeRunID = s.state.tasks.loopJudges.executions.loopRunForSession(id)
 	}
-	return reader.ListSessionLoopWork(ctx, store.ReadScope{ProfileID: info.ProfileID}, info.WorkspaceID, id, ownerRunID)
+	return reader.ListSessionLoopWork(ctx, store.ReadScope{ProfileID: info.ProfileID}, info.WorkspaceID, id, judgeRunID)
 }
 
 // loops projects durable Loop work, omitting quiet paused or watching Runs that require no attention.

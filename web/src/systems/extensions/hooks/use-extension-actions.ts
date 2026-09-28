@@ -8,7 +8,7 @@ import {
   setExtensionEnablement,
   updateExtension,
 } from "../adapters/extensions-api";
-import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
+import { extensionGatewayConfirmation } from "../lib/extension-gateway-confirmation";
 import { extensionKeys } from "../lib/query-keys";
 import type {
   ExtensionEnablement,
@@ -30,7 +30,7 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
   name: string;
   allowUnverified?: boolean;
   version?: string;
-  confirmNetworkDigest?: string;
+  confirmGatewayDigest?: string;
 }
 
 export interface RemoveExtensionVariables extends ExtensionInstanceScope {
@@ -39,11 +39,11 @@ export interface RemoveExtensionVariables extends ExtensionInstanceScope {
 }
 
 /**
- * A refused network confirmation is not a failure the operator has to read twice: the confirm
+ * A refused gateway confirmation is not a failure the operator has to read twice: the confirm
  * affordance owns it, so the toast stays out of the way.
  */
-function toastUnlessNetworkConfirmation(error: Error) {
-  if (extensionNetworkConfirmation(error)) return;
+function toastUnlessGatewayConfirmation(error: Error) {
+  if (extensionGatewayConfirmation(error)) return;
   toast.error(error.message);
 }
 
@@ -94,7 +94,7 @@ export function useUpdateExtension() {
       name,
       allowUnverified,
       version,
-      confirmNetworkDigest,
+      confirmGatewayDigest,
       scope,
       workspaceId,
       profileName,
@@ -107,11 +107,11 @@ export function useUpdateExtension() {
         ...(profileName ? { profile: profileName } : {}),
         ...(inputs ? { inputs } : {}),
         ...(version ? { version } : {}),
-        ...(confirmNetworkDigest ? { confirm_network_digest: confirmNetworkDigest } : {}),
+        ...(confirmGatewayDigest ? { confirm_gateway_digest: confirmGatewayDigest } : {}),
       }),
     onSuccess: (_data, { name, version }) =>
       toast.success(version ? `${name} updated to v${version}` : `${name} updated`),
-    onError: toastUnlessNetworkConfirmation,
+    onError: toastUnlessGatewayConfirmation,
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
 }

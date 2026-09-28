@@ -219,7 +219,7 @@ func TestParseResourceFilterPreservesListSemantics(t *testing.T) {
 func TestParseResourceFilterRejectsMismatchedPathAndQueryKinds(t *testing.T) {
 	t.Parallel()
 
-	ctx := newResourceTestContext(t, http.MethodGet, fixtureResourceAPIPath("")+"?kind=bridge.instance")
+	ctx := newResourceTestContext(t, http.MethodGet, fixtureResourceAPIPath("")+"?kind=invalid.resource")
 	ctx.Params = gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}}
 
 	_, err := ParseResourceFilter(ctx)

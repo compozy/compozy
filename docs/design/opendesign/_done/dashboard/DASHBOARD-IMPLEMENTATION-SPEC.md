@@ -42,7 +42,7 @@ This spec covers everything required — backend aggregates, API/contract/codege
 Extracted from the prototype + standing verified rules. These are acceptance criteria, not suggestions.
 
 1. **Zone order** (prototype `<main>` order, final):
-   `pagemeta` → **Needs you** → **KPI strip** → row(**Working now** | **Network**) → **Pulse** (full-width) → row(**Outcomes** | **Usage & cost**) → row(**Agents** | **Activity**) → **System**.
+   `pagemeta` → **Needs you** → **KPI strip** → **Working now** → **Pulse** (full-width) → row(**Outcomes** | **Usage & cost**) → row(**Agents** | **Activity**) → **System**.
 2. **Head**: identity lives in the OS window head/topbar (glyph + "Home" + Live `ConnectionIndicator` + primary **New session**). The body renders **no H1** and no second identity (pagehead-redesign contract). `pagemeta` is a demoted 12px meta line (date · workspace).
 3. **Accent budget**: accent appears only as the pulsing running-dot, the primary action, and chart-status where color *is* the data. **Never as a card/panel border** (verified rule "Dashboard live cards never use accent borders" — runcards use `--line`, hover `--line-strong`).
 4. **Viz neutrality**: magnitude charts (usage line, sparkline, share bar, pulse heatmap, runtime bars) paint with `--color-viz-*` neutral ink only. Status colors (`success`/`danger`) are allowed **only** in the Outcomes stacked bars and status dots, where the series itself is that state (tokens.css `--color-viz-*` comment).
@@ -66,9 +66,6 @@ Every widget → source. **NEW** marks backend work this spec adds (§5). Fields
 | 4 | `kpi-completed-today` | runs completed today · tasks closed today | day-windowed run/task outcomes | **NEW** |
 | 5 | `kpi-usage` + spark | 30d tokens, est. cost, daily series | workspace-wide daily usage rollup | **NEW** |
 | 6 | `section-working-now` runcards | agent, current activity line, elapsed, kind | active user sessions + `SessionPayload.activity` (`contract/session_runtime_payloads.go:79`: `current_tool`, `turn_started_at`, iterations) + dashboard `active_runs.items[]` (task runs: `age_ms`, `task_title`, `run_status`) | Exists |
-| 7 | `section-network` panel | peers online (+names), open work, channels, last activity | `GET /api/network/status` (`contract/network_payloads.go:11`) + `/api/workspaces/:id/network/peers` | Exists |
-| 8 | `network-budget` meter | wakes used / limit, reset | `GET /api/workspaces/:id/network/usage` `budget` (`contract/network_coordination.go:106`) | Exists (limit from config) |
-| 9 | "Messages today" | daily message count | `NetworkStatusPayload.messages_*` are **lifetime** counters | **NEW** (overview computes today window) — fallback: relabel "Messages" |
 | 10 | `section-pulse` heatmap | hour×weekday event buckets, 14d | none today | **NEW** |
 | 11 | `pulse-insights` | busiest hour · longest session · top tool | none today | **NEW** (derived in overview) |
 | 12 | `section-outcomes` | per-day run outcomes 14d + success % | none today (dashboard totals are lifetime) | **NEW** |
@@ -108,7 +105,6 @@ type ObserveOverviewPayload struct {
     Outcomes      OverviewOutcomesPayload  `json:"outcomes"`       // 14d fixed
     Usage         OverviewUsagePayload     `json:"usage"`          // usage_window, retention-bounded
     Pulse         OverviewPulsePayload     `json:"pulse"`          // 14d fixed
-    Network       OverviewNetworkPayload   `json:"network"`        // today-windowed counters only
     System        OverviewSystemPayload    `json:"system"`         // hooks_today, retention_days
     Freshness     TaskDashboardFreshnessPayload `json:"freshness"` // reuse existing shape (contract/tasks_dashboard.go:162)
 }
@@ -171,7 +167,6 @@ type OverviewPulseBucket struct { Weekday int `json:"weekday"` Hour int `json:"h
 type OverviewLongestSession struct { SessionID string `json:"session_id"` AgentName string `json:"agent_name"` DurationSeconds int64 `json:"duration_seconds"` Date string `json:"date"` }
 type OverviewTopTool struct { ToolID string `json:"tool_id"` Calls int `json:"calls"` }
 
-type OverviewNetworkPayload struct { MessagesToday int `json:"messages_today"` }
 type OverviewSystemPayload  struct { HookRunsToday int `json:"hook_runs_today"` HookFailuresToday int `json:"hook_failures_today"` RetentionDays int `json:"retention_days"` }
 ```
 
@@ -189,7 +184,7 @@ New store queries (sqlc, `internal/store/globaldb/queries/`), all workspace-filt
 | `TasksClosedByDay` | `GROUP BY date(completed_at)` over tasks | Today KPIs |
 | `EventCountsByHourWeekday` | `GROUP BY strftime('%w'), strftime('%H')` over event summaries, `since` 14d | Pulse |
 | `ToolCallCountsSince` | tool-call event summaries grouped by tool id, `since` 14d | Top tool |
-| `NetworkMessagesSince` / `HookRunsSince` | event summaries by type family, `since` today (daemon-local day boundary) | Network/System counters |
+| `HookRunsSince` | event summaries by type family, `since` today (daemon-local day boundary) | System counters |
 | `TokenUsageByDay` | per-day token totals, `since` window | Usage chart + KPI |
 | `TokenUsageByAgent` | token totals joined session→agent, `since` 30d | Agent share |
 | `SessionRuntimeMaxSince` | longest session runtime in window | Pulse insight |
@@ -214,7 +209,7 @@ Per `eng-contract-codegen-coship` and the codegen pipeline (`cmd/compozy-codegen
 
 ### 5.4 Existing endpoints reused (no changes)
 
-`/api/status`, `/api/observe/tasks/dashboard`, `/api/observe/tasks/inbox`, `POST /api/tasks/:id/approve|reject` (`core/task_read_handlers.go:282,326`), `/api/agents/catalog` (+`since` param per §5.2), `/api/network/status`, `/api/workspaces/:id/network/peers`, `/api/workspaces/:id/network/usage`, `/api/logs`, `/api/logs/stream`, `/api/sessions/catalog-stream`.
+`/api/status`, `/api/observe/tasks/dashboard`, `/api/observe/tasks/inbox`, `POST /api/tasks/:id/approve|reject` (`core/task_read_handlers.go:282,326`), `/api/agents/catalog` (+`since` param per §5.2), `/api/logs`, `/api/logs/stream`, `/api/sessions/catalog-stream`.
 
 ### 5.5 Freshness & live updates
 
@@ -234,7 +229,7 @@ web/src/systems/dashboard/
 ├── lib/query-keys.ts                 # dashboardKeys.{overview,attention,…}
 ├── lib/query-options.ts              # overviewOptions(workspaceId, usageWindow) — staleTime 15s, refetch 30s (constants shared with tasks: lib/query-options.ts:37-40)
 ├── lib/activity-classes.ts           # quiet-event classification (tool calls, config reads, memory compaction) keyed off event `type` from internal/events registry
-├── hooks/use-home-dashboard.ts       # composes overview + status + task dashboard + network + agents catalog + logs
+├── hooks/use-home-dashboard.ts       # composes overview + status + task dashboard + agents catalog + logs
 ├── hooks/use-home-live.ts            # stream subscriptions → cache invalidation
 ├── hooks/use-elapsed-ticker.ts       # 1s shared ticker for runcard elapsed
 ├── lib/home-prefs-store.ts           # zustand persisted: usageWindow, systemOpen (keys: compozy-home-win / compozy-home-sys)
@@ -243,7 +238,7 @@ web/src/systems/dashboard/
 
 `web/src/systems/os/apps/dashboard/dashboard-window.tsx` becomes a thin shell: topbar slot + `<HomeDashboard/>`. **Delete targets (zero-legacy):** `OverviewSection`, `DaemonStatusSection`, `METRIC_ORDER` (`dashboard-window.tsx:21-160`), old `use-dashboard-page.ts` shape (rewrite + rewrite its test).
 
-Preload: extend `preloadHomeWorkspace` (`web/src/routes/_app/-app-preload.ts:44`) + `preloadDashboard` (`app-registry.tsx:93`) to warm `overviewOptions`, task dashboard, agents catalog, network status via `settleRouteQueries` (non-blocking).
+Preload: extend `preloadHomeWorkspace` (`web/src/routes/_app/-app-preload.ts:44`) + `preloadDashboard` (`app-registry.tsx:93`) to warm `overviewOptions`, task dashboard, agents catalog via `settleRouteQueries` (non-blocking).
 
 ### 6.2 Component map — prototype → production
 
@@ -258,13 +253,12 @@ Zone components are domain-prefixed (`Home*`) per the UI-reuse rule; anything ge
 | Zone 1 `att__row` | `HomeAttentionRow` | `StatusDot` (warning/danger), `Button --sm` primary/ghost, `Time`; resolved state → `success-tint` row |
 | Zone 2 KPI tiles | `HomeKpiStrip` | `MetricGrid columns=4` + `Metric labelCase="eyebrow"` + `SlidingNumber` (count-up, motion-based, reduced-motion aware) + `Sparkline` (usage tile) |
 | Zone 3a `runcard` | `HomeRunCard` | `Pill.Dot tone="accent" pulse`, `OwnerAvatar`/initial chip, `KindChip` ("task run"), elapsed via `use-elapsed-ticker` + `formatDuration` (`packages/ui/src/lib/format-time.ts`) |
-| Zone 3b network `prow`/`netbudget` | `HomeNetworkPanel` | `Panel`, `StatusDot`, `MonoId`, `Progress` (budget meter), foot link pinned `margin-top:auto` |
 | Pulse heatmap | `HomePulseHeatmap` — CSS grid (34px + 24 cols), cells alpha-ramped on `--color-viz-cell`; **no chart lib** | `Panel`, `Tooltip` (cell hover), insights row uses `MonoId` |
 | Outcomes chart | `HomeOutcomesChart` — recharts stacked `BarChart` (lazy, same pattern as `queue-health-sparkline.tsx:46-79`): segments `success` / `viz-other` / `danger`, rx 2, first/last date ticks, hover tooltip | `Panel`, recharts via dynamic import, legend with 8px swatches |
 | Usage chart + window pills | `HomeUsageChart` — recharts `AreaChart` (lazy): `viz-line` stroke 1.5, `viz-fill` area, 3 gridlines, crosshair tooltip; window `PillGroup` (7d/30d/90d) persisted; retention-truncation footnote | `Panel`, `PillGroup`, recharts |
 | Per-agent share | `HomeAgentShare` | `StackedProgress` (neutral lightness ramp segments) + legend |
 | Zone 5a `agrow` table | `HomeAgentsPanel` — grid rows `1.1fr 52px 64px 52px 1fr`, sticky-free, runtime bar = `Progress` neutral | `Panel`, `OwnerAvatar`, mono numerics (`tabular-nums`), zero values `text-faint`, failed>0 `text-danger` |
-| Zone 5b activity feed | `HomeActivityFeed` — modeled on `activity-feed.tsx` (network) row anatomy; tone dots; "Earlier today" separator; quiet-events `Collapsible` ("N quieter events — tool calls and config reads") | `StatusDot`, `Collapsible`, `Time`, `Skeleton` rows |
+| Zone 5b activity feed | `HomeActivityFeed`; tone dots; "Earlier today" separator; quiet-events `Collapsible` ("N quieter events — tool calls and config reads") | `StatusDot`, `Collapsible`, `Time`, `Skeleton` rows |
 | Zone 7 `sysbar` + `tiles` | `HomeSystemPanel` — collapsed one-line bar (dot + "All systems normal" + mono summary) → `Collapsible` detail with 6 `MetadataTile`s + CLI hint `code-block` (`compozy observe overview -o json`) | `Panel`, `Collapsible`, `MetadataTile`, `StatusDot` |
 | `tip` tooltip | recharts `Tooltip` content styled `bg-elevated border-line shadow-overlay`; non-chart hovers use `Tooltip` | `Tooltip` |
 
@@ -278,7 +272,6 @@ Typography/geometry fidelity: KPI value `--text-kpi-value` (24px) at `--font-wei
 | `useTaskDashboard` (existing) | `/api/observe/tasks/dashboard` | reuse `taskDashboardOptions` (`web/src/systems/tasks/lib/query-options.ts:126`) |
 | `useTaskInbox` (existing) | `/api/observe/tasks/inbox` | approvals actions via `use-task-actions.ts` mutations |
 | `useAgentsCatalog(since=7d)` | `/api/agents/catalog` | existing options + new param |
-| `useNetworkStatus` / `useNetworkUsage` / `useNetworkPeers` (existing) | network routes | poll 30s (no network SSE) |
 | `useHomeActivity` | `/api/logs?workspace&limit=30` | staleTime 5s; live via logs stream |
 | `useDaemonHealth` (existing) | status | System zone + Live pill |
 
@@ -355,8 +348,8 @@ Resolve the token-timestamp schema question (§5.2 flag) → store queries (+ mi
 **Phase 2 — Frontend data layer**
 `systems/dashboard/` adapters, keys, options, `use-home-dashboard`, `use-home-live`, prefs store, preload wiring. *Gate:* hook-level tests (mock client) for composition, invalidation, workspace scoping.
 
-**Phase 3 — Zones: Needs you · KPIs · Working now · Network**
-`Panel` promotion (+ tasks migration + delete), attention rows with real approve/reject, KPI strip, runcards, network panel. *Gate:* interactions §6.6 items 1–3; flush-bottom rule on row 1.
+**Phase 3 — Zones: Needs you · KPIs · Working now**
+`Panel` promotion (+ tasks migration + delete), attention rows with real approve/reject, KPI strip, runcards. *Gate:* interactions §6.6 items 1–3; flush-bottom rule on row 1.
 
 **Phase 4 — Charts: Pulse · Outcomes · Usage/share**
 Lazy recharts components, heatmap, window pills, tooltips, honest empties. *Gate:* §3 rules 4–5; interactions 5, 7.
@@ -388,7 +381,7 @@ Coverage floor 80% per package; no snapshot/prose tests.
 ## 11. Compozy Impact Audit
 
 - **Native tools:** no impact — no `compozy__*` tool IDs, toolsets, descriptors, schemas, or capability gates change; checked the tool registry surfaces while adding only an observe read endpoint + CLI verb.
-- **Extensibility and hooks:** new read-only endpoint `/api/observe/overview` (HTTP+UDS) + CLI `compozy observe overview` extend the agent-manageable surface; no hook events added or changed (existing `task.*`/`network.*`/hook event families are only *read*). Config lifecycle: reads the existing observability retention key; no new config keys.
+- **Extensibility and hooks:** new read-only endpoint `/api/observe/overview` (HTTP+UDS) + CLI `compozy observe overview` extend the agent-manageable surface; no hook events added or changed (existing `task.*`/hook event families are only *read*). Config lifecycle: reads the existing observability retention key; no new config keys.
 - **Workspace data isolation:** every new aggregate is workspace-scoped (`workspace` param; global/home scope explicit); store queries filter `workspace_id`; SSE-driven cache invalidation keys include workspace id — tests in §10 assert no cross-workspace leakage in day buckets, agent share, and attention items.
 - **Official Compozy skill:** update `skills/compozy/` — document `compozy observe overview` and the overview read model (public CLI/API surface change).
 
@@ -404,4 +397,3 @@ Coverage floor 80% per package; no snapshot/prose tests.
 2. **Retry verb**: confirm a run-retry/run-again endpoint exists for `failure` attention items; otherwise ship `open` only.
 3. **Scheduler "next wake"**: confirm `StatusPayload.automation` exposes it; otherwise the Scheduler tile shows status only.
 4. **Storage tile**: DB/disk size is absent from status — optional `OverviewSystemPayload` extension or drop the tile (prototype ships Retention instead; keep Retention, defer storage).
-5. **Messages today** (§4 #9): ship windowed counter vs. relabel.

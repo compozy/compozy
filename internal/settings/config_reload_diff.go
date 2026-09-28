@@ -44,7 +44,6 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	if current.Automation.Suggestions.PendingCap != desired.Automation.Suggestions.PendingCap {
 		changed = append(changed, "automation.suggestions.pending_cap")
 	}
-	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
 	changed = append(changed, diffGatewaySettings(current.Gateway, desired.Gateway)...)
 	changed = append(changed, diffWindowManagerSettings(
 		current.WindowManager,
@@ -66,9 +65,6 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	}
 	if !reflect.DeepEqual(current.MCPServers, desired.MCPServers) {
 		changed = append(changed, "mcp-servers.*")
-	}
-	if !reflect.DeepEqual(current.Sandboxes, desired.Sandboxes) {
-		changed = append(changed, "sandboxes.*")
 	}
 	if !reflect.DeepEqual(current.Hooks.Declarations, desired.Hooks.Declarations) {
 		changed = append(changed, "hooks.*")

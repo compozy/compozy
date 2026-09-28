@@ -1,10 +1,4 @@
 import { useEffect, useEffectEvent } from "react";
-import {
-  networkParticipationDraftFromPayload,
-  isNetworkParticipationDraftValid,
-  serializeNetworkParticipation,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
 
 import {
   buildConfigOverrides,
@@ -39,31 +33,18 @@ export function useLoopRunForm({
   const { aggregate, destination } = useProfileReadScope();
   const formState = useLoopRunFormState({
     effectiveConfig,
-    networkParticipation: networkParticipationDraftFromPayload(
-      loop.definition.network_participation
-    ),
     schema,
     scope: { loopName: loop.name, workspaceId },
   });
-  const {
-    inputs,
-    fieldErrors,
-    networkParticipation,
-    networkParticipationOverridden,
-    overrides,
-    pendingRequest,
-    plan,
-    submitAttempted,
-  } = formState;
+
+  const { inputs, fieldErrors, overrides, pendingRequest, plan, submitAttempted } = formState;
 
   const runMutation = useRunLoop();
   const dryMutation = useRunLoop();
   const missing = new Set(missingRequiredInputs(schema, inputs));
   const valid =
     isRunFormValid(schema, inputs) &&
-    isLoopEnvironmentOverrideValid(overrides.environment, gitBacked) &&
-    (!networkParticipationOverridden ||
-      isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]));
+    isLoopEnvironmentOverrideValid(overrides.environment, gitBacked);
   const busy = pendingRequest !== null;
   const configOverrides = buildConfigOverrides(overrides, effectiveConfig);
   const handleRunStarted = useEffectEvent((runId: string) => onRunStarted?.(runId));
@@ -81,9 +62,6 @@ export function useLoopRunForm({
     return {
       inputs: serializeRunInputs(schema, inputs),
       config_overrides: configOverrides,
-      ...(networkParticipationOverridden
-        ? { network_participation: serializeNetworkParticipation(networkParticipation) }
-        : {}),
     };
   }
 
@@ -93,10 +71,6 @@ export function useLoopRunForm({
 
   function setOverridesDraft(next: LoopOverrideDraft) {
     formState.setOverrides(next);
-  }
-
-  function setNetworkParticipationDraft(next: NetworkParticipationDraft) {
-    formState.setNetworkParticipation(next);
   }
 
   function handleDryRun() {
@@ -146,7 +120,6 @@ export function useLoopRunForm({
     inputs,
     fieldErrors,
     overrides,
-    networkParticipation,
     configOverrides,
     plan,
     submitAttempted,
@@ -158,7 +131,6 @@ export function useLoopRunForm({
     pendingKind: pendingRequest?.kind ?? null,
     setInput,
     setOverridesDraft,
-    setNetworkParticipationDraft,
     handleDryRun,
     handleRun,
   };

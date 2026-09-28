@@ -100,23 +100,22 @@ declaration validation. `tool_read_only` is a boolean exact match.
 
 Each event family accepts only its own matcher fields:
 
-| Family        | Allowed matcher fields                                                                                                                                                                                                                                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session`     | `agent_name`, `workspace_id`, `workspace_root`, `session_type`                                                                                                                                                                                                                                                                |
-| `input`       | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                                                                 |
-| `prompt`      | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                                                                 |
-| `event`       | `agent_name`, `acp_event_type`, `turn_id`                                                                                                                                                                                                                                                                                     |
-| `automation`  | `agent_name`, `workspace_id`                                                                                                                                                                                                                                                                                                  |
-| `agent`       | `agent_name`, `workspace_id`, `workspace_root`                                                                                                                                                                                                                                                                                |
-| `turn`        | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                                                                 |
-| `tool`        | `tool_name`, `tool_namespace`, `tool_read_only`                                                                                                                                                                                                                                                                               |
-| `permission`  | `tool_name`, `decision_class`                                                                                                                                                                                                                                                                                                 |
-| `message`     | `message_role`, `message_delta_type`                                                                                                                                                                                                                                                                                          |
-| `context`     | `compaction_reason`, `compaction_strategy`                                                                                                                                                                                                                                                                                    |
-| `network`     | Observation events: `channel`, `surface`, `kind`, `direction`, `work_state`. Participation events: `workspace_id`, `channel`, `participation_mode`, `participation_source`.                                                                                                                                                   |
-| `coordinator` | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.participation_channel`, `matcher.autonomy.coordinator_session_id`                                                                                                    |
-| `task.run`    | `agent_name`, `workspace_id`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.participation_channel`, `matcher.autonomy.release_reason`                                                                                                                              |
-| `spawn`       | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.participation_channel`, `matcher.autonomy.parent_session_id`, `matcher.autonomy.root_session_id`, `matcher.autonomy.child_session_id`, `matcher.autonomy.spawn_role` |
+| Family        | Allowed matcher fields                                                                                                                                                                                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session`     | `agent_name`, `workspace_id`, `workspace_root`, `session_type`                                                                                                                                                                                                                      |
+| `input`       | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                       |
+| `prompt`      | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                       |
+| `event`       | `agent_name`, `acp_event_type`, `turn_id`                                                                                                                                                                                                                                           |
+| `automation`  | `agent_name`, `workspace_id`                                                                                                                                                                                                                                                        |
+| `agent`       | `agent_name`, `workspace_id`, `workspace_root`                                                                                                                                                                                                                                      |
+| `turn`        | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                       |
+| `tool`        | `tool_name`, `tool_namespace`, `tool_read_only`                                                                                                                                                                                                                                     |
+| `permission`  | `tool_name`, `decision_class`                                                                                                                                                                                                                                                       |
+| `message`     | `message_role`, `message_delta_type`                                                                                                                                                                                                                                                |
+| `context`     | `compaction_reason`, `compaction_strategy`                                                                                                                                                                                                                                          |
+| `coordinator` | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.coordinator_session_id`                                                                                                    |
+| `task.run`    | `agent_name`, `workspace_id`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.release_reason`                                                                                                                              |
+| `spawn`       | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.parent_session_id`, `matcher.autonomy.root_session_id`, `matcher.autonomy.child_session_id`, `matcher.autonomy.spawn_role` |
 
 `agent_type` exists in the internal matcher struct, but no current event family accepts it. Setting
 it in a declaration fails validation.
@@ -138,18 +137,7 @@ workspace_id = "ws_checkout"
 
 [hooks.declarations.matcher.autonomy]
 workflow_id = "release-*"
-participation_channel = "coord-*"
 ```
-
-Autonomy and Loop payloads expose the immutable execution snapshot as
-`resolved_network_participation`. The `participation_channel` matcher compares its resolved channel
-id; it does not read a mutable task or session channel field.
-
-`network.participation.pre_resolve` is synchronous and may deny or return a request that is
-provably no broader than the incoming intent. The runtime derives that relation; patches cannot
-self-authorize widening. `network.participation.resolved` is an asynchronous observation emitted
-with the immutable committed snapshot. Both events honor `workspace_id`, `channel`,
-`participation_mode`, and `participation_source` matchers.
 
 ## Executors
 

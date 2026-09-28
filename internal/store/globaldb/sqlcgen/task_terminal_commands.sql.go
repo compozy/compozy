@@ -231,7 +231,7 @@ type InsertTaskRunTerminalCommandParams struct {
 	AdmittedAt           string         `json:"admitted_at"`
 	UpdatedAt            string         `json:"updated_at"`
 	RunID                string         `json:"run_id"`
-	TaskID               sql.NullString `json:"task_id"`
+	TaskID               string         `json:"task_id"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
 }
 

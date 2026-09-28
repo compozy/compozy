@@ -964,7 +964,7 @@ func assertImplementTasksTaskSettlement(t testing.TB, harness *e2etest.RuntimeHa
 	}
 	output := ""
 	for _, step := range prompts[0].Steps {
-		if step.Kind == acpmock.StepKindSandbox {
+		if step.Kind == acpmock.StepKindCommand {
 			if output != "" {
 				t.Fatalf("implement-tasks conductor diagnostics = %#v, want one sandbox step", prompts)
 			}

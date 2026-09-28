@@ -94,15 +94,6 @@
   --color-overlay-scrim: rgba(0, 0, 0, 0.55);
   --color-overlay-ghost-hover: rgba(255, 255, 255, 0.06);
 
-  /* Protocol kind colors. */
-  --color-kind-say: var(--color-neutral);
-  --color-kind-greet: var(--color-info);
-  --color-kind-direct: var(--color-accent);
-  --color-kind-receipt: var(--color-success);
-  --color-kind-capability: var(--color-warning);
-  --color-kind-trace: var(--color-info);
-  --color-kind-whois: var(--color-neutral);
-
   /* Owner avatar palette.
      `packages/ui/src/lib/owner-palette.ts` resolves these via
      `colorsFor(ownerKind, ownerId)`. Storybook + design ref tools must

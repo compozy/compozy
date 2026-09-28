@@ -59,8 +59,6 @@ const (
 	StartSchedule StartKind = "schedule"
 	// StartWebhook allows webhook starts.
 	StartWebhook StartKind = "webhook"
-	// StartNetwork allows network starts.
-	StartNetwork StartKind = "network"
 	// StartExtension allows extension starts.
 	StartExtension StartKind = "extension"
 	// StartNativeTool allows native-tool starts.

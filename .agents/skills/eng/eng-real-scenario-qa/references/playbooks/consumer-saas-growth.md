@@ -31,19 +31,10 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
 | analytics-engineer-agent | Analytics Engineer | ws_data_science |
 | lifecycle-marketer-agent | Lifecycle Marketer | ws_lifecycle_marketing |
 
-## Channels (4)
-
-| id | purpose | primary workspace |
-|---|---|---|
-| growth-room | Sprint coordination, ship/hold calls, experiment decisions | ws_growth_lab |
-| design-review | TSX surface review, copy alignment | ws_product_design |
-| data-watch | Event tracking, dashboard checks, segment readouts | ws_data_science |
-| lifecycle-cadence | Email send timing, copy review, suppression rules | ws_lifecycle_marketing |
-
 ## Disruption probe seeds
 
 - **silent_event_drop** at minute 6 — overwrite a knowledge file with the previous day's event volume showing the activation event went to zero.
-- **variant_assignment_skew** at minute 14 — channel message reporting variant B is getting 70/30 of traffic (assignment bug).
+- **variant_assignment_skew** at minute 14 — knowledge file reporting variant B is getting 70/30 of traffic (assignment bug).
 - **lifecycle_send_misfire** at minute 20 — task event recording an email send to a suppressed segment.
 
 ---
@@ -66,19 +57,41 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
     "name": "Priya Joshi",
     "voice_guidelines": "Outcomes-first, short sentences. Reference the activation funnel, the experiment ledger, the data-science weekly, and the suppression rules. Never use evaluation or testing language."
   },
-  "kickoff_brief": "Priya here. Two-week activation sprint kicks off now. Open work: ship variant A and variant B of the post-signup landing (TSX), instrument the activation event tracking module so it actually fires on first save, write the segmentation SQL for day-7 lapsed users, ship the day-3 lifecycle email TSX template, and write the experiment decision memo with the success metrics in advance. Data science owns the readout cadence; lifecycle marketing owns the suppression rules. The activation event has been quiet — confirm it is firing before we light the variants. Coordinate in growth-room and your domain channels; request review where the variant copy will affect the activation rate.",
+  "kickoff_brief": "Priya here. Two-week activation sprint kicks off now. Open work: ship variant A and variant B of the post-signup landing (TSX), instrument the activation event tracking module so it actually fires on first save, write the segmentation SQL for day-7 lapsed users, ship the day-3 lifecycle email TSX template, and write the experiment decision memo with the success metrics in advance. Data science owns the readout cadence; lifecycle marketing owns the suppression rules. The activation event has been quiet — confirm it is firing before we light the variants. Coordinate in growth-lab task artifacts and your domain task artifacts; request review where the variant copy will affect the activation rate.",
   "workspaces": [
-    { "id": "ws_growth_lab", "name": "growth-lab", "purpose": "Experiment design, A/B variant ownership, decision memos", "knowledge_files": ["workspace/experiment-ledger.md"] },
-    { "id": "ws_product_design", "name": "product-design", "purpose": "Onboarding TSX surfaces, lifecycle email TSX templates" },
-    { "id": "ws_data_science", "name": "data-science", "purpose": "Event tracking, segmentation SQL, statistical readouts", "knowledge_files": ["workspace/event-volume-yesterday.md"] },
-    { "id": "ws_lifecycle_marketing", "name": "lifecycle-marketing", "purpose": "Lifecycle automation, email cadence, copy review" }
+    {
+      "id": "ws_growth_lab",
+      "name": "growth-lab",
+      "purpose": "Experiment design, A/B variant ownership, decision memos",
+      "knowledge_files": [
+        "workspace/experiment-ledger.md"
+      ]
+    },
+    {
+      "id": "ws_product_design",
+      "name": "product-design",
+      "purpose": "Onboarding TSX surfaces, lifecycle email TSX templates"
+    },
+    {
+      "id": "ws_data_science",
+      "name": "data-science",
+      "purpose": "Event tracking, segmentation SQL, statistical readouts",
+      "knowledge_files": [
+        "workspace/event-volume-yesterday.md"
+      ]
+    },
+    {
+      "id": "ws_lifecycle_marketing",
+      "name": "lifecycle-marketing",
+      "purpose": "Lifecycle automation, email cadence, copy review"
+    }
   ],
   "agents": [
     {
       "id": "growth-pm-agent",
       "role": "Growth PM",
       "persona": "Growth PM. Owns sprint sequence and experiment decisions.",
-      "system_prompt": "You are the Growth PM at Lumen Notes. Hold the sprint sequence in growth-room, decide experiment ship/hold based on activation funnel evidence, and unblock owners. Reference the experiment ledger and the activation funnel definition before any decision.",
+      "system_prompt": "You are the Growth PM at Lumen Notes. Hold the sprint sequence in growth-lab task artifacts, decide experiment ship/hold based on activation funnel evidence, and unblock owners. Reference the experiment ledger and the activation funnel definition before any decision.",
       "workspace": "ws_growth_lab"
     },
     {
@@ -92,43 +105,37 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "id": "product-designer-agent",
       "role": "Product Designer",
       "persona": "Product Designer. Owns variant copy direction and visual coherence.",
-      "system_prompt": "You are the Product Designer at Lumen Notes. Direct the copy and visual choice for variant A and variant B. Variant A is the control (current copy); variant B is the empathy variant. Coordinate with the frontend engineer on design-review channel.",
+      "system_prompt": "You are the Product Designer at Lumen Notes. Direct the copy and visual choice for variant A and variant B. Variant A is the control (current copy); variant B is the empathy variant. Coordinate with the frontend engineer on product-design task artifacts.",
       "workspace": "ws_product_design"
     },
     {
       "id": "frontend-engineer-agent",
       "role": "Frontend Engineer",
       "persona": "Frontend Engineer. Builds the variant TSX pages and the lifecycle email template.",
-      "system_prompt": "You are the Frontend Engineer at Lumen Notes. Ship variant A (control) and variant B (empathy) of the post-signup landing as TSX pages; ship the day-3 lifecycle email as a TSX template. Hand off the landing variants to the product designer on design-review and the lifecycle email to the lifecycle marketer on lifecycle-cadence.",
+      "system_prompt": "You are the Frontend Engineer at Lumen Notes. Ship variant A (control) and variant B (empathy) of the post-signup landing as TSX pages; ship the day-3 lifecycle email as a TSX template. Hand off the landing variants to the product designer on product-design task artifacts and the lifecycle email to the lifecycle marketer on lifecycle-marketing task artifacts.",
       "workspace": "ws_product_design"
     },
     {
       "id": "data-scientist-agent",
       "role": "Data Scientist",
       "persona": "Data Scientist. Owns success metrics and the activation funnel definition.",
-      "system_prompt": "You are the Data Scientist at Lumen Notes. Confirm the activation event is firing before any variant launches; if you see anomalous event volume, post immediately to data-watch and block the experiment from growth-room. Define success metrics in advance, not after the experiment ends.",
+      "system_prompt": "You are the Data Scientist at Lumen Notes. Confirm the activation event is firing before any variant launches; if you see anomalous event volume, post immediately to data-science task artifacts and block the experiment from growth-lab task artifacts. Define success metrics in advance, not after the experiment ends.",
       "workspace": "ws_data_science"
     },
     {
       "id": "analytics-engineer-agent",
       "role": "Analytics Engineer",
       "persona": "Analytics Engineer. Owns the segmentation SQL and the activation event tracking module.",
-      "system_prompt": "You are the Analytics Engineer at Lumen Notes. Author the segmentation SQL migration for day-7 lapsed users and the activation event tracking TS module. Maintain unit tests for both. Coordinate with the data scientist on data-watch.",
+      "system_prompt": "You are the Analytics Engineer at Lumen Notes. Author the segmentation SQL migration for day-7 lapsed users and the activation event tracking TS module. Maintain unit tests for both. Coordinate with the data scientist on data-science task artifacts.",
       "workspace": "ws_data_science"
     },
     {
       "id": "lifecycle-marketer-agent",
       "role": "Lifecycle Marketer",
       "persona": "Lifecycle Marketer. Owns the day-3 send and suppression rules.",
-      "system_prompt": "You are the Lifecycle Marketer at Lumen Notes. Hold the day-3 lifecycle send timing and suppression rules. Never send to suppressed segments. Coordinate lifecycle copy with the frontend engineer on lifecycle-cadence and review the lifecycle email TSX before scheduling.",
+      "system_prompt": "You are the Lifecycle Marketer at Lumen Notes. Hold the day-3 lifecycle send timing and suppression rules. Never send to suppressed segments. Coordinate lifecycle copy with the frontend engineer on lifecycle-marketing task artifacts and review the lifecycle email TSX before scheduling.",
       "workspace": "ws_lifecycle_marketing"
     }
-  ],
-  "channels": [
-    { "id": "growth-room", "purpose": "Sprint coordination, ship/hold calls, experiment decisions", "primary_workspace": "ws_growth_lab" },
-    { "id": "design-review", "purpose": "TSX surface review, copy alignment", "primary_workspace": "ws_product_design" },
-    { "id": "data-watch", "purpose": "Event tracking, dashboard checks, segment readouts", "primary_workspace": "ws_data_science" },
-    { "id": "lifecycle-cadence", "purpose": "Email send timing, copy review, suppression rules", "primary_workspace": "ws_lifecycle_marketing" }
   ],
   "knowledge_files": [
     {
@@ -159,8 +166,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "tsx_page",
       "deliverable_path_hint": "ws_product_design/onboarding/variant-a.tsx",
-      "review_required_by": "product-designer-agent",
-      "channel": "design-review"
+      "review_required_by": "product-designer-agent"
     },
     {
       "title": "Variant B — empathy TSX page",
@@ -168,8 +174,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "tsx_page",
       "deliverable_path_hint": "ws_product_design/onboarding/variant-b.tsx",
-      "review_required_by": "product-designer-agent",
-      "channel": "design-review"
+      "review_required_by": "product-designer-agent"
     },
     {
       "title": "Day-3 lifecycle email TSX template",
@@ -177,8 +182,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "tsx_component",
       "deliverable_path_hint": "ws_product_design/lifecycle/day3-email.tsx",
-      "review_required_by": "lifecycle-marketer-agent",
-      "channel": "lifecycle-cadence"
+      "review_required_by": "lifecycle-marketer-agent"
     },
     {
       "title": "A/B assignment TS module",
@@ -186,8 +190,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "experiment-engineer-agent",
       "deliverable_type": "ts_module",
       "deliverable_path_hint": "ws_growth_lab/assignment/split.ts",
-      "review_required_by": "data-scientist-agent",
-      "channel": "growth-room"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "Activation event tracking TS module",
@@ -195,8 +198,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "analytics-engineer-agent",
       "deliverable_type": "ts_module",
       "deliverable_path_hint": "ws_data_science/tracking/activation.ts",
-      "review_required_by": "data-scientist-agent",
-      "channel": "data-watch"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "Day-7 lapsed user segmentation SQL",
@@ -204,8 +206,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "analytics-engineer-agent",
       "deliverable_type": "sql_migration",
       "deliverable_path_hint": "ws_data_science/segments/day7-lapsed.sql",
-      "review_required_by": "data-scientist-agent",
-      "channel": "data-watch"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "A/B assignment unit tests",
@@ -213,8 +214,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "experiment-engineer-agent",
       "deliverable_type": "ts_test",
       "deliverable_path_hint": "ws_growth_lab/assignment/split.test.ts",
-      "review_required_by": "data-scientist-agent",
-      "channel": "growth-room"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "Activation tracking unit tests",
@@ -222,8 +222,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "analytics-engineer-agent",
       "deliverable_type": "ts_test",
       "deliverable_path_hint": "ws_data_science/tracking/activation.test.ts",
-      "review_required_by": "data-scientist-agent",
-      "channel": "data-watch"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "Experiment decision memo",
@@ -231,8 +230,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "growth-pm-agent",
       "deliverable_type": "spec_md",
       "deliverable_path_hint": "ws_growth_lab/decisions/act-2026-04-memo.md",
-      "review_required_by": "data-scientist-agent",
-      "channel": "growth-room"
+      "review_required_by": "data-scientist-agent"
     },
     {
       "title": "Lifecycle send runbook",
@@ -240,8 +238,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "lifecycle-marketer-agent",
       "deliverable_type": "runbook_md",
       "deliverable_path_hint": "ws_lifecycle_marketing/runbooks/day3-send.md",
-      "review_required_by": "growth-pm-agent",
-      "channel": "lifecycle-cadence"
+      "review_required_by": "growth-pm-agent"
     },
     {
       "title": "Tracking outage incident decision",
@@ -249,8 +246,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "owner_agent": "data-scientist-agent",
       "deliverable_type": "spec_md",
       "deliverable_path_hint": "ws_data_science/decisions/event-outage-decision.md",
-      "review_required_by": "growth-pm-agent",
-      "channel": "data-watch"
+      "review_required_by": "growth-pm-agent"
     }
   ],
   "required_deliverables": {
@@ -263,29 +259,27 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
     "spec_md": 1
   },
   "required_collaboration": {
-    "peer_messages_min": 12,
     "review_cycles_min": 3,
-    "disagreements_resolved_min": 1,
-    "channels_active_min": 3
+    "disagreements_resolved_min": 1
   },
   "disruption_probe_seeds": [
     {
       "type": "silent_event_drop",
       "seed_at_minute": 6,
       "delivery": "knowledge_file",
-      "expected_recovery": "Data scientist reads the updated event-volume knowledge file, posts the anomaly to data-watch within 5 minutes, and blocks experiment launch from growth-room until the analytics engineer confirms the activation tracking module is wired."
+      "expected_recovery": "Data scientist reads the updated event-volume knowledge file, posts the anomaly to data-science task artifacts within 5 minutes, and blocks experiment launch from growth-lab task artifacts until the analytics engineer confirms the activation tracking module is wired."
     },
     {
       "type": "variant_assignment_skew",
       "seed_at_minute": 14,
-      "delivery": "channel_message",
-      "expected_recovery": "Experiment engineer reproduces the skew, fixes the deterministic split, posts the verdict to growth-room within 10 minutes."
+      "delivery": "knowledge_file",
+      "expected_recovery": "Experiment engineer reproduces the skew, fixes the deterministic split, posts the verdict to growth-lab task artifacts within 10 minutes."
     },
     {
       "type": "lifecycle_send_misfire",
       "seed_at_minute": 20,
       "delivery": "task_event",
-      "expected_recovery": "Lifecycle marketer pauses the day-3 send, audits the suppression list, posts the next-step decision to lifecycle-cadence within 8 minutes."
+      "expected_recovery": "Lifecycle marketer pauses the day-3 send, audits the suppression list, posts the next-step decision to lifecycle-marketing task artifacts within 8 minutes."
     }
   ]
 }

@@ -33,7 +33,7 @@ func TestTimelineViewContract(t *testing.T) {
 		}
 		events := []RunEvent{
 			{LoopRunID: "run-a", Seq: 1, Kind: string(RunEventTokenTick)},
-			{LoopRunID: "run-a", Seq: 2, Kind: string(RunEventChannelMsg)},
+			{LoopRunID: "run-a", Seq: 2, Kind: string(RunEventGoalTurnStarted)},
 			{LoopRunID: "run-a", Seq: 3, Kind: string(RunEventNodeSucceeded)},
 		}
 		page, err := ProjectTimeline("run-a", events, TimelineQuery{View: TimelineViewAll})

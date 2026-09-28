@@ -1,25 +1,15 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 
 	"net/http"
 	"net/url"
-	"os"
 
-	"path/filepath"
-
-	"sort"
 	"strings"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
-
-	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -40,156 +30,6 @@ func (h *RuntimeHarness) CaptureSessionEvents(ctx context.Context, sessionID str
 		return err
 	}
 	return h.Artifacts.CaptureJSON(ArtifactKindEvents, response.Events)
-}
-
-// CaptureSessionSandbox stores session sandbox metadata.
-func (h *RuntimeHarness) CaptureSessionSandbox(ctx context.Context, sessionID string) error {
-	artifact, err := h.SessionSandboxArtifact(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindSessionSandbox, artifact)
-}
-
-// SessionSandboxArtifact reads the public session payload and, when present,
-// the persisted session metadata for one runtime session.
-func (h *RuntimeHarness) SessionSandboxArtifact(
-	ctx context.Context,
-	sessionID string,
-) (SessionSandboxArtifact, error) {
-	session, err := h.GetSession(ctx, sessionID)
-	if err != nil {
-		return SessionSandboxArtifact{}, err
-	}
-	artifact := SessionSandboxArtifact{
-		SessionID:    session.ID,
-		SessionState: string(session.State),
-		StopReason:   session.StopReason,
-		StopDetail:   session.StopDetail,
-		API:          session.Sandbox,
-	}
-
-	metaPath := store.SessionMetaFile(filepath.Join(h.HomePaths.SessionsDir, strings.TrimSpace(sessionID)))
-	meta, err := store.ReadSessionMeta(metaPath)
-	switch {
-	case err == nil:
-		artifact.Persisted = meta.Sandbox
-	case errors.Is(err, os.ErrNotExist):
-		// Keep the public-surface artifact even when no persisted meta exists yet.
-	default:
-		return SessionSandboxArtifact{}, fmt.Errorf("read session meta %q: %w", metaPath, err)
-	}
-	return artifact, nil
-}
-
-// CaptureNetworkMessages stores the current network message projection for one channel.
-func (h *RuntimeHarness) CaptureNetworkMessages(ctx context.Context, channel string) error {
-	messages, err := h.NetworkChannelMessages(ctx, channel)
-	if err != nil {
-		return err
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindNetworkMessages, messages)
-}
-
-// CaptureNetworkThreads stores public-thread summaries for one channel.
-func (h *RuntimeHarness) CaptureNetworkThreads(ctx context.Context, channel string) error {
-	threads, err := h.NetworkThreads(ctx, channel)
-	if err != nil {
-		return err
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindNetworkThreads, threads)
-}
-
-// CaptureNetworkDirectRooms stores direct-room summaries for one channel.
-func (h *RuntimeHarness) CaptureNetworkDirectRooms(ctx context.Context, channel string) error {
-	directs, err := h.NetworkDirectRooms(ctx, channel)
-	if err != nil {
-		return err
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindNetworkDirectRooms, directs)
-}
-
-// CaptureNetworkWork stores unique work rows referenced by the channel's thread and direct messages.
-func (h *RuntimeHarness) CaptureNetworkWork(ctx context.Context, channel string) error {
-	workIDs, err := h.networkWorkIDs(ctx, channel)
-	if err != nil {
-		return err
-	}
-	work := make([]compozycontract.NetworkWorkPayload, 0, len(workIDs))
-	for _, workID := range workIDs {
-		item, err := h.NetworkWork(ctx, workID)
-		if err != nil {
-			return err
-		}
-		work = append(work, item)
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindNetworkWork, work)
-}
-
-func (h *RuntimeHarness) networkWorkIDs(ctx context.Context, channel string) ([]string, error) {
-	seen := make(map[string]struct{})
-	add := func(messages []compozycontract.NetworkConversationMessagePayload) {
-		for _, message := range messages {
-			workID := strings.TrimSpace(message.WorkID)
-			if workID != "" {
-				seen[workID] = struct{}{}
-			}
-		}
-	}
-
-	threadMessages, err := h.NetworkChannelMessages(ctx, channel)
-	if err != nil {
-		return nil, err
-	}
-	add(threadMessages)
-
-	directs, err := h.NetworkDirectRooms(ctx, channel)
-	if err != nil {
-		return nil, err
-	}
-	for _, direct := range directs {
-		messages, err := h.NetworkDirectRoomMessages(ctx, channel, direct.DirectID)
-		if err != nil {
-			return nil, err
-		}
-		add(messages)
-	}
-
-	workIDs := make([]string, 0, len(seen))
-	for workID := range seen {
-		workIDs = append(workIDs, workID)
-	}
-	sort.Strings(workIDs)
-	return workIDs, nil
-}
-
-// CaptureNetworkAudit stores the raw network audit sink when present.
-func (h *RuntimeHarness) CaptureNetworkAudit() error {
-	entries, err := h.NetworkAuditSnapshot()
-	if err != nil {
-		return err
-	}
-	if entries == nil {
-		return nil
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindNetworkAudit, entries)
-}
-
-// CaptureNetworkArtifacts stores the stable message and audit snapshots for one scenario channel.
-func (h *RuntimeHarness) CaptureNetworkArtifacts(ctx context.Context, channel string) error {
-	if err := h.CaptureNetworkThreads(ctx, channel); err != nil {
-		return err
-	}
-	if err := h.CaptureNetworkDirectRooms(ctx, channel); err != nil {
-		return err
-	}
-	if err := h.CaptureNetworkMessages(ctx, channel); err != nil {
-		return err
-	}
-	if err := h.CaptureNetworkWork(ctx, channel); err != nil {
-		return err
-	}
-	return h.CaptureNetworkAudit()
 }
 
 // CaptureAutomationRuns stores the current automation run projection.
@@ -227,62 +67,6 @@ func (h *RuntimeHarness) CaptureTaskRuns(
 		return err
 	}
 	return h.Artifacts.CaptureJSON(ArtifactKindTaskRuns, response.Runs)
-}
-
-// CaptureBridgeHealth stores one bridge health-stream snapshot for the given bridge IDs.
-func (h *RuntimeHarness) CaptureBridgeHealth(ctx context.Context, bridgeIDs ...string) (err error) {
-	trimmed := make([]string, 0, len(bridgeIDs))
-	for _, id := range bridgeIDs {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		trimmed = append(trimmed, id)
-	}
-	if len(trimmed) == 0 {
-		return errors.New("bridge health capture requires at least one bridge id")
-	}
-
-	query := url.Values{}
-	query.Set("bridge_ids", strings.Join(trimmed, ","))
-	response, err := doRequest(
-		ctx,
-		h.UDSClient,
-		h.UDSURL("/api/bridges/health/stream")+"?"+query.Encode(),
-		http.MethodGet,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	defer mergeHTTPResponseCloseError(
-		&err,
-		response,
-		http.MethodGet,
-		h.UDSURL("/api/bridges/health/stream")+"?"+query.Encode(),
-	)
-
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		payload, readErr := io.ReadAll(response.Body)
-		if readErr != nil {
-			return fmt.Errorf("read bridge health failure response: %w", readErr)
-		}
-		return fmt.Errorf("bridge health status %d: %s", response.StatusCode, bytes.TrimSpace(payload))
-	}
-
-	records, err := readSSERecords(response.Body, 1)
-	if err != nil {
-		return err
-	}
-	if len(records) == 0 {
-		return errors.New("bridge health stream returned no snapshot")
-	}
-
-	var snapshot compozycontract.BridgeHealthStreamPayload
-	if err := json.Unmarshal(records[0].Data, &snapshot); err != nil {
-		return fmt.Errorf("decode bridge health snapshot: %w", err)
-	}
-	return h.Artifacts.CaptureJSON(ArtifactKindBridgeHealth, snapshot)
 }
 
 // CaptureProviderCallsFile stores provider call markers or logs as a raw artifact.

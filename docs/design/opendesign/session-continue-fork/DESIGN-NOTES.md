@@ -80,7 +80,7 @@ Signal colour marks state only. Nothing in this feature is danger-toned except p
 - Context line: **Carries over {n} messages · {size}** · **Carries over {k} of {n} messages · {size}** + **{n−k} earlier messages omitted to fit the context budget.** · **Measuring…** · **Couldn't measure this session's context.** · **A turn is still in progress; it will not be carried over.** · **Uses the agent's own session clone.**
 - Refusals: **That turn hasn't settled yet.** · **Transcript changed — reopen to fork from the current state.** · daemon messages verbatim for `agent_not_found`, `session_archived`, `route_not_found`, `new_work_admission_unavailable`.
 - Origin: pill **Continued from {origin_agent_name}** / **Forked from {parent title}**; divider **Continued from {parent title}** / **Forked from {parent title}**; ledger **continue · from {agent}** / **fork · through {message_id}** / **fork**; empty child **Nothing said here yet** + **The conversation carried over is sent with your first message.** (continue) / **The conversation up to the fork point is carried into your first message.** (fork).
-- Never in product copy: *handoff* (Network channel kind), *branch* (git, worktree, Loops), *chat*, *Handoff from X*, *Continued from chat*, a *Badge*.
+- Never in product copy: *branch* (git, worktree, Loops), *chat*, *Handoff from X*, *Continued from chat*, a *Badge*.
 
 ## VC matrix
 

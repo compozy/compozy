@@ -178,7 +178,6 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		StopVerificationFailed:   info.StopVerificationFailed,
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
@@ -198,7 +197,6 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 	}
 	result.SetACPOptions(storeOptionSelectionsFromACP(info.ACPOptions))
 	result.SetRuntimeRecovery(info.RuntimeRecovery)
-	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
 }
 
@@ -233,7 +231,6 @@ func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
 		FailureSet:               true,
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		UpdatedAt:                info.UpdatedAt,
 	}
 }

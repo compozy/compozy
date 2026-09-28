@@ -309,7 +309,7 @@ const extensionInstallInputSchema = `{
 		"inputs":` + extensionValuesInputSchema + `,
 		"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
 		"allow_unverified":{"type":"boolean"},
-		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -328,7 +328,7 @@ const extensionUpdateInputSchema = `{
 		"version":{"type":"string"},
 		"inputs":` + extensionValuesInputSchema + `,
 		"allow_unverified":{"type":"boolean"},
-		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -382,7 +382,7 @@ const extensionDevInputSchema = `{
 	"properties":{
 		"origin_path":{"type":"string","minLength":1},
 		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -395,7 +395,7 @@ const extensionReloadInputSchema = `{
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
 		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`

@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-target-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-history-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-confirmation-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-trigger-workspace-loop-fixed-created-final.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-system-stop-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-deleted-after-generation-zero-proof.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-replay-0714.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: LP-034;TA-065
+overlaps: LP-034; TA-065
 ---
 
 Exercise schedule and event trigger types plus invalid/empty payload mappings.

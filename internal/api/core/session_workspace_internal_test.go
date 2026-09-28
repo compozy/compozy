@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -178,31 +177,7 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{
-			name:       "Should map invalid participation strategy to bad request",
-			err:        participation.ErrStrategyInvalid,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "Should map conflicting participation fields to bad request",
-			err:        participation.ErrStrategyChannelConflict,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "Should map an unknown participation channel to not found",
-			err:        participation.ErrChannelUnknown,
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "Should map administratively disabled Live participation to conflict",
-			err:        participation.ErrUnavailable,
-			wantStatus: http.StatusConflict,
-		},
-		{
-			name:       "Should map unsupported Live participation to unprocessable entity",
-			err:        participation.ErrLiveUnsupported,
-			wantStatus: http.StatusUnprocessableEntity,
-		},
+
 		{
 			name:       "Should map unsupported prompt images to unprocessable entity",
 			err:        session.ErrPromptImagesUnsupported,

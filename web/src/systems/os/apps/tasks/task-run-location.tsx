@@ -5,13 +5,6 @@ import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@comp
 import { TaskRunTopbar } from "./task-run-topbar";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
 import { useTaskRunLocation } from "./use-task-run-location";
-import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
-import {
-  formatTaskRunBounds,
-  TaskRunConversationPanel,
-  TaskRunCoordinationInvitationHost,
-  useTaskRunConversation,
-} from "@/systems/network";
 import {
   TaskResultSection,
   TaskRunActivitySection,
@@ -26,13 +19,8 @@ import {
 import type { TaskRun } from "@/systems/tasks";
 
 export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
-  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const controller = useTaskRunLocation(taskId, runId);
   const { page, record } = controller;
-  const conversation = useTaskRunConversation(runId, page.run?.network, {
-    enabled: liveDataEnabled,
-  });
-
   if (page.runLoading) {
     return (
       <div
@@ -86,11 +74,6 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
     );
   }
 
-  const participation = record.resolved_network_participation;
-  const coordinationWorkspaceId =
-    (participation?.mode === "live" ? participation.workspace_id : undefined) ??
-    page.task?.task.workspace_id ??
-    "";
   const nextAttempt =
     controller.taskRuns.find(candidate => candidate.previous_run_id === record.id) ?? null;
 
@@ -126,48 +109,7 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
                 workspaceId={page.task?.task.workspace_id ?? ""}
               />
 
-              {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
-                <Section
-                  count={page.reviews.length || undefined}
-                  data-testid="tasks-run-reviews"
-                  label="Reviews"
-                >
-                  {page.reviewsLoading ? (
-                    <Skeleton className="h-20 rounded-lg" />
-                  ) : page.reviewsError ? (
-                    <p className="text-small-body text-danger" role="alert">
-                      {page.reviewsError.message}
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {page.reviews.map(review => (
-                        <TaskRunReviewCard key={review.review_id} review={review} />
-                      ))}
-                    </div>
-                  )}
-                </Section>
-              ) : null}
-
-              {controller.authoritativeTaskId && coordinationWorkspaceId ? (
-                <TaskRunCoordinationInvitationHost
-                  runId={record.id}
-                  taskId={controller.authoritativeTaskId}
-                  workspaceId={coordinationWorkspaceId}
-                />
-              ) : null}
-              {conversation && page.run.network ? (
-                <TaskRunConversationPanel
-                  boundsLabel={formatTaskRunBounds(record, page.run.network)}
-                  conversationError={conversation.error}
-                  conversationLoading={conversation.isLoading}
-                  hasMoreMessages={conversation.hasOlder}
-                  isFetchingMore={conversation.isLoadingOlder}
-                  messages={conversation.messages}
-                  onLoadMore={conversation.loadOlder}
-                  streamError={conversation.streamError}
-                  usage={conversation.usage}
-                />
-              ) : null}
+              <TaskRunReviews page={page} />
 
               <TaskRunActivitySection
                 errorMessage={controller.timelineError?.message}
@@ -219,5 +161,33 @@ function TaskRunResult({ run, workspaceId }: { run: TaskRun; workspaceId: string
       resultBytes={run.result_bytes}
       resultRef={run.result_ref}
     />
+  );
+}
+
+function TaskRunReviews({ page }: { page: ReturnType<typeof useTaskRunLocation>["page"] }) {
+  return (
+    <>
+      {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
+        <Section
+          count={page.reviews.length || undefined}
+          data-testid="tasks-run-reviews"
+          label="Reviews"
+        >
+          {page.reviewsLoading ? (
+            <Skeleton className="h-20 rounded-lg" />
+          ) : page.reviewsError ? (
+            <p className="text-small-body text-danger" role="alert">
+              {page.reviewsError.message}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {page.reviews.map(review => (
+                <TaskRunReviewCard key={review.review_id} review={review} />
+              ))}
+            </div>
+          )}
+        </Section>
+      ) : null}
+    </>
   );
 }

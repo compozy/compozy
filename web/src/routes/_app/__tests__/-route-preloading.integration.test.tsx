@@ -14,14 +14,6 @@ import {
   useAutomationTriggers,
 } from "@/systems/automation";
 import {
-  useBridge,
-  useBridgeProviders,
-  useBridgeRoutes,
-  useBridgeSecretBindings,
-  useBridgeTargets,
-  useBridges,
-} from "@/systems/bridges";
-import {
   useLoop,
   useLoopAnnotations,
   useLoopConfig,
@@ -30,7 +22,6 @@ import {
   useLoops,
 } from "@/systems/loops";
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
-import { useNotificationPresets } from "@/systems/notifications";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
@@ -51,7 +42,6 @@ import {
   useSettingsMemory,
   useSettingsObservability,
   useSettingsProviders,
-  useSettingsSandboxes,
   useSettingsSkills,
   useSettingsUpdate,
 } from "@/systems/settings";
@@ -73,7 +63,6 @@ const adapterMocks = vi.hoisted(() => ({
   fetchSessions: vi.fn(),
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
-  getBridge: vi.fn(),
   getLoop: vi.fn(),
   getLoopAnnotations: vi.fn(),
   getLoopConfig: vi.fn(),
@@ -93,11 +82,6 @@ const adapterMocks = vi.hoisted(() => ({
   getSkill: vi.fn(),
   getSkillContent: vi.fn(),
   getSkillShadows: vi.fn(),
-  listBridgeProviders: vi.fn(),
-  listBridgeRoutes: vi.fn(),
-  listBridgeSecretBindings: vi.fn(),
-  listBridgeTargets: vi.fn(),
-  listBridges: vi.fn(),
   listAutomationJobs: vi.fn(),
   listAutomationJobRuns: vi.fn(),
   listAutomationTriggerRuns: vi.fn(),
@@ -107,11 +91,9 @@ const adapterMocks = vi.hoisted(() => ({
   listLoops: vi.fn(),
   listMemories: vi.fn(),
   listTasks: vi.fn(),
-  listNotificationPresets: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   listSettingsMCPServers: vi.fn(),
   listSettingsProviders: vi.fn(),
-  listSettingsSandboxes: vi.fn(),
   listSkills: vi.fn(),
   listVaultSecrets: vi.fn(),
 }));
@@ -168,12 +150,6 @@ vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
   listSettingsApplyRecords: adapterMocks.listSettingsApplyRecords,
   listSettingsMCPServers: adapterMocks.listSettingsMCPServers,
   listSettingsProviders: adapterMocks.listSettingsProviders,
-  listSettingsSandboxes: adapterMocks.listSettingsSandboxes,
-}));
-
-vi.mock("@/systems/notifications/adapters/notifications-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/notifications/adapters/notifications-api")>()),
-  listNotificationPresets: adapterMocks.listNotificationPresets,
 }));
 
 vi.mock("@/systems/vault/adapters/vault-api", async importOriginal => ({
@@ -187,16 +163,6 @@ vi.mock("@/systems/skill/adapters/skill-api", async importOriginal => ({
   getSkillContent: adapterMocks.getSkillContent,
   getSkillShadows: adapterMocks.getSkillShadows,
   listSkills: adapterMocks.listSkills,
-}));
-
-vi.mock("@/systems/bridges/adapters/bridges-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/bridges/adapters/bridges-api")>()),
-  getBridge: adapterMocks.getBridge,
-  listBridgeProviders: adapterMocks.listBridgeProviders,
-  listBridgeRoutes: adapterMocks.listBridgeRoutes,
-  listBridgeSecretBindings: adapterMocks.listBridgeSecretBindings,
-  listBridgeTargets: adapterMocks.listBridgeTargets,
-  listBridges: adapterMocks.listBridges,
 }));
 
 vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => ({
@@ -235,8 +201,6 @@ import { Route as AppRoute } from "../../_app";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
 import { Route as AgentsRoute } from "../agents.index";
-import { Route as BridgeDetailRoute } from "../bridges.$id";
-import { Route as BridgesRoute } from "../bridges";
 import { Route as HomeRoute } from "../index";
 import { Route as JobDetailRoute } from "../jobs.$jobId";
 import { Route as JobsRoute } from "../jobs";
@@ -248,7 +212,6 @@ import { Route as LoopEditorRoute } from "../loops.$name.editor";
 import { Route as LoopRunFormRoute } from "../loops.$name.run";
 import { Route as LoopDetailRoute } from "../loops.$name";
 import { Route as LoopsRoute } from "../loops";
-import { Route as SandboxRoute } from "../sandbox";
 import { Route as TriggersRoute } from "../triggers";
 import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
 import { Route as TasksRoute } from "../tasks";
@@ -485,15 +448,6 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "sandbox → settingsSandboxesListOptions",
-    load: queryClient => invokeLoader(SandboxRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useSettingsSandboxes();
-      }),
-    requests: [adapterMocks.listSettingsSandboxes],
-  },
-  {
     name: "vault → exact filtered vaultSecretsListOptions",
     load: queryClient =>
       invokeLoader(VaultRoute, {
@@ -563,57 +517,6 @@ const cases: PreloadCase[] = [
         });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationTriggers],
-  },
-  {
-    name: "bridges → workspace-scoped bridgesListOptions + bridgeProvidersOptions",
-    load: queryClient =>
-      invokeLoader(BridgesRoute, {
-        ...context(queryClient),
-        deps: { scope: "all" as const },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useBridges({
-          limit: 50,
-          scope: "all",
-          sort: "name",
-          workspace_id: workspace.id,
-        });
-        useBridgeProviders();
-      }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listBridges,
-      adapterMocks.listBridgeProviders,
-    ],
-  },
-  {
-    name: "bridge detail → list/provider/detail/routes/targets/secret-binding options",
-    load: queryClient =>
-      invokeLoader(BridgeDetailRoute, {
-        ...context(queryClient),
-        params: { id: "bridge-1" },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useBridges({ scope: "all", workspace_id: workspace.id });
-        useBridgeProviders();
-        useBridge("bridge-1");
-        useBridgeRoutes("bridge-1");
-        useBridgeTargets("bridge-1", { limit: 50, q: "" });
-        useBridgeSecretBindings("bridge-1");
-      }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listBridges,
-      adapterMocks.listBridgeProviders,
-      adapterMocks.getBridge,
-      adapterMocks.listBridgeRoutes,
-      adapterMocks.listBridgeTargets,
-      adapterMocks.listBridgeSecretBindings,
-    ],
   },
   {
     name: "loops catalog → loopsCatalogOptions",
@@ -791,14 +694,13 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.getSettingsObservability],
   },
   {
-    name: "hooks settings → section and notification-preset options",
+    name: "hooks settings → section options",
     load: queryClient => invokeLoader(SettingsHooksRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useSettingsHooksExtensions();
-        useNotificationPresets();
       }),
-    requests: [adapterMocks.getSettingsHooksExtensions, adapterMocks.listNotificationPresets],
+    requests: [adapterMocks.getSettingsHooksExtensions],
   },
   {
     name: "extensions settings → combined policy section option",
@@ -837,7 +739,6 @@ describe("route query preloading", () => {
       sessions: [],
       page: { has_more: false, limit: 50, total: 0 },
     });
-    adapterMocks.listSettingsSandboxes.mockResolvedValue({ sandboxes: [] });
     adapterMocks.listSettingsMCPServers.mockResolvedValue({ mcp_servers: [] });
     adapterMocks.getSettingsGeneral.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsUpdate.mockResolvedValue({ status: "idle" });
@@ -847,7 +748,6 @@ describe("route query preloading", () => {
     adapterMocks.getSettingsMemory.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsObservability.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsHooksExtensions.mockResolvedValue({ config: {} });
-    adapterMocks.listNotificationPresets.mockResolvedValue([]);
     adapterMocks.listVaultSecrets.mockResolvedValue([]);
     adapterMocks.listSkills.mockResolvedValue([]);
     adapterMocks.getSkill.mockResolvedValue({ name: "memory" });
@@ -872,27 +772,6 @@ describe("route query preloading", () => {
     });
     adapterMocks.listAutomationJobRuns.mockResolvedValue([]);
     adapterMocks.listAutomationTriggerRuns.mockResolvedValue([]);
-    adapterMocks.listBridges.mockResolvedValue({
-      bridge_health: {},
-      bridges: [],
-      facets: {
-        platforms: {},
-        statuses: {
-          auth_required: 0,
-          degraded: 0,
-          disabled: 0,
-          error: 0,
-          ready: 0,
-          starting: 0,
-        },
-      },
-      page: { has_more: false, limit: 50, total: 0 },
-    });
-    adapterMocks.listBridgeProviders.mockResolvedValue([]);
-    adapterMocks.getBridge.mockResolvedValue({ bridge: { id: "bridge-1" } });
-    adapterMocks.listBridgeRoutes.mockResolvedValue([]);
-    adapterMocks.listBridgeTargets.mockResolvedValue({ targets: [] });
-    adapterMocks.listBridgeSecretBindings.mockResolvedValue([]);
     adapterMocks.listLoops.mockResolvedValue({
       facets: { categories: {}, kinds: {}, statuses: {} },
       loops: [],

@@ -59,14 +59,12 @@ INSERT INTO sessions (
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
-  network_spec_json, network_mode, network_channel, network_source, state,
+  state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
   acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail, failure_kind, failure_summary, crash_bundle_path,
   subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
-  sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
-  sandbox_state, sandbox_provider_state_json, sandbox_last_sync_at, sandbox_last_sync_error,
   created_at, updated_at
 ) SELECT
   sqlc.arg(profile_id), sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
@@ -76,8 +74,7 @@ INSERT INTO sessions (
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),
   sqlc.arg(selected_speed), sqlc.arg(selected_acp_options_json), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
   sqlc.narg(worktree_id),
-  sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
-  sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
+  sqlc.arg(session_type), sqlc.arg(state), sqlc.narg(parent_session_id),
   sqlc.narg(root_session_id), sqlc.arg(spawn_depth), sqlc.narg(spawn_role), sqlc.narg(ttl_expires_at),
   sqlc.arg(auto_stop_on_parent), sqlc.arg(notify_creator), sqlc.arg(spawn_budget_json), sqlc.arg(permission_policy_json),
   sqlc.narg(acp_session_id), sqlc.narg(stop_reason), sqlc.arg(stop_escalated), sqlc.arg(stop_verification_failed), sqlc.narg(stop_detail), sqlc.narg(failure_kind),
@@ -85,9 +82,6 @@ INSERT INTO sessions (
   sqlc.narg(subprocess_started_at), sqlc.narg(last_update_at), sqlc.arg(stall_state),
   sqlc.arg(stall_reason), sqlc.arg(activity_json), sqlc.arg(transcript_epoch),
   sqlc.narg(soul_snapshot_id), sqlc.arg(soul_digest), sqlc.arg(parent_soul_digest),
-  sqlc.arg(sandbox_id), sqlc.arg(sandbox_backend), sqlc.arg(sandbox_profile),
-  sqlc.arg(sandbox_instance_id), sqlc.arg(sandbox_state), sqlc.arg(sandbox_provider_state_json),
-  sqlc.narg(sandbox_last_sync_at), sqlc.arg(sandbox_last_sync_error),
   sqlc.arg(created_at), sqlc.arg(updated_at)
 WHERE sqlc.narg(worktree_id) IS NULL
    OR EXISTS (
@@ -155,21 +149,9 @@ ON CONFLICT(id) DO UPDATE SET
   soul_snapshot_id = excluded.soul_snapshot_id,
   soul_digest = excluded.soul_digest,
   parent_soul_digest = excluded.parent_soul_digest,
-  sandbox_id = excluded.sandbox_id,
-  sandbox_backend = excluded.sandbox_backend,
-  sandbox_profile = excluded.sandbox_profile,
-  sandbox_instance_id = excluded.sandbox_instance_id,
-  sandbox_state = excluded.sandbox_state,
-  sandbox_provider_state_json = excluded.sandbox_provider_state_json,
-  sandbox_last_sync_at = excluded.sandbox_last_sync_at,
-  sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
 WHERE sessions.workspace_id = excluded.workspace_id
-  AND sessions.worktree_id IS excluded.worktree_id
-  AND sessions.network_spec_json IS excluded.network_spec_json
-  AND sessions.network_mode IS excluded.network_mode
-  AND sessions.network_channel IS excluded.network_channel
-  AND sessions.network_source IS excluded.network_source;
+  AND sessions.worktree_id IS excluded.worktree_id;
 
 -- name: GetSessionWorkspaceID :one
 SELECT workspace_id

@@ -419,56 +419,6 @@ func TestDispatchMethodsSmokeNoHooks(t *testing.T) {
 			},
 		},
 		{
-			name: "Should dispatch sandbox.prepare without hooks",
-			run: func(ctx context.Context, hooks *Hooks) error {
-				_, err := hooks.DispatchSandboxPrepare(
-					ctx,
-					&SandboxPreparePayload{PayloadBase: PayloadBase{Event: HookSandboxPrepare}},
-				)
-				return err
-			},
-		},
-		{
-			name: "Should dispatch sandbox.ready without hooks",
-			run: func(ctx context.Context, hooks *Hooks) error {
-				_, err := hooks.DispatchSandboxReady(
-					ctx,
-					SandboxReadyPayload{PayloadBase: PayloadBase{Event: HookSandboxReady}},
-				)
-				return err
-			},
-		},
-		{
-			name: "Should dispatch sandbox.sync.before without hooks",
-			run: func(ctx context.Context, hooks *Hooks) error {
-				_, err := hooks.DispatchSandboxSyncBefore(
-					ctx,
-					SandboxSyncBeforePayload{PayloadBase: PayloadBase{Event: HookSandboxSyncBefore}},
-				)
-				return err
-			},
-		},
-		{
-			name: "Should dispatch sandbox.sync.after without hooks",
-			run: func(ctx context.Context, hooks *Hooks) error {
-				_, err := hooks.DispatchSandboxSyncAfter(
-					ctx,
-					SandboxSyncAfterPayload{PayloadBase: PayloadBase{Event: HookSandboxSyncAfter}},
-				)
-				return err
-			},
-		},
-		{
-			name: "Should dispatch sandbox.stop without hooks",
-			run: func(ctx context.Context, hooks *Hooks) error {
-				_, err := hooks.DispatchSandboxStop(
-					ctx,
-					SandboxStopPayload{PayloadBase: PayloadBase{Event: HookSandboxStop}},
-				)
-				return err
-			},
-		},
-		{
 			name: "Should dispatch input.pre_submit without hooks",
 			run: func(ctx context.Context, hooks *Hooks) error {
 				_, err := hooks.DispatchInputPreSubmit(
@@ -1073,57 +1023,6 @@ func assertImmutableSessionWorkspacePayload(
 	}
 }
 
-func TestDispatchSandboxPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
-	t.Parallel()
-
-	hooks := newTestHooks(
-		t,
-		WithNativeDeclarations([]HookDecl{{
-			Name:         "sandbox-pre",
-			Event:        HookSandboxPrepare,
-			Mode:         HookModeSync,
-			ExecutorKind: HookExecutorNative,
-			Matcher: HookMatcher{
-				SandboxID: "env-1",
-				AgentName: "codex",
-			},
-		}}),
-		WithExecutorResolver(testExecutorResolver(map[string]Executor{
-			"sandbox-pre": NewTypedNativeExecutor(
-				func(_ context.Context, _ RegisteredHook, payload SandboxPreparePayload) (SandboxPreparePatch, error) {
-					if payload.SandboxID != "env-1" {
-						t.Fatalf("payload.SandboxID = %q, want env-1", payload.SandboxID)
-					}
-					return SandboxPreparePatch{
-						ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
-						EnvOverrides: map[string]string{"SECRET_TOKEN": "redacted"},
-					}, nil
-				},
-			),
-		})),
-	)
-	if err := hooks.Rebuild(t.Context()); err != nil {
-		t.Fatalf("Rebuild() error = %v, want nil", err)
-	}
-
-	result, err := hooks.DispatchSandboxPrepare(t.Context(), &SandboxPreparePayload{
-		PayloadBase: PayloadBase{Event: HookSandboxPrepare},
-		SessionContext: SessionContext{
-			AgentName: "codex",
-		},
-		SandboxID: "env-1",
-	})
-	if err == nil {
-		t.Fatal("DispatchSandboxPrepare() error = nil, want deny error")
-	}
-	if !result.Denied || result.DenyReason != "policy" {
-		t.Fatalf("result deny fields = (%v, %q), want policy denial", result.Denied, result.DenyReason)
-	}
-	if got := result.EnvOverrides["SECRET_TOKEN"]; got != "redacted" {
-		t.Fatalf("result.EnvOverrides[SECRET_TOKEN] = %q, want redacted", got)
-	}
-}
-
 func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
 	t.Parallel()
 
@@ -1176,94 +1075,6 @@ func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
 			t.Fatalf("result.ToolID = %q, want original tool id", result.ToolID)
 		}
 	})
-}
-
-func TestDispatchSandboxSyncBeforeAppliesExcludePatternsAndDeny(t *testing.T) {
-	t.Parallel()
-
-	hooks := newTestHooks(
-		t,
-		WithNativeDeclarations([]HookDecl{{
-			Name:         "sandbox-sync-before",
-			Event:        HookSandboxSyncBefore,
-			Mode:         HookModeSync,
-			ExecutorKind: HookExecutorNative,
-			Matcher: HookMatcher{
-				SandboxBackend: "daytona",
-				SyncDirection:  "to_runtime",
-			},
-		}}),
-		WithExecutorResolver(testExecutorResolver(map[string]Executor{
-			"sandbox-sync-before": NewTypedNativeExecutor(
-				func(_ context.Context, _ RegisteredHook, _ SandboxSyncBeforePayload) (SandboxSyncBeforePatch, error) {
-					return SandboxSyncBeforePatch{
-						ControlPatch:    ControlPatch{Deny: true, DenyReason: "maintenance"},
-						ExcludePatterns: []string{"node_modules/**", "*.log"},
-					}, nil
-				},
-			),
-		})),
-	)
-	if err := hooks.Rebuild(t.Context()); err != nil {
-		t.Fatalf("Rebuild() error = %v, want nil", err)
-	}
-
-	result, err := hooks.DispatchSandboxSyncBefore(t.Context(), SandboxSyncBeforePayload{
-		PayloadBase: PayloadBase{Event: HookSandboxSyncBefore},
-		Backend:     "daytona",
-		Direction:   "to_runtime",
-	})
-	if err != nil {
-		t.Fatalf("DispatchSandboxSyncBefore() error = %v, want nil", err)
-	}
-	if !result.Denied || result.DenyReason != "maintenance" {
-		t.Fatalf("result deny fields = (%v, %q), want maintenance denial", result.Denied, result.DenyReason)
-	}
-	wantPatterns := []string{"node_modules/**", "*.log"}
-	if !reflect.DeepEqual(result.ExcludePatterns, wantPatterns) {
-		t.Fatalf("result.ExcludePatterns = %#v, want %#v", result.ExcludePatterns, wantPatterns)
-	}
-}
-
-func TestDispatchSandboxStopAppliesDeny(t *testing.T) {
-	t.Parallel()
-
-	hooks := newTestHooks(
-		t,
-		WithNativeDeclarations([]HookDecl{{
-			Name:         "sandbox-stop",
-			Event:        HookSandboxStop,
-			Mode:         HookModeSync,
-			ExecutorKind: HookExecutorNative,
-			Matcher: HookMatcher{
-				SandboxID: "env-1",
-			},
-		}}),
-		WithExecutorResolver(testExecutorResolver(map[string]Executor{
-			"sandbox-stop": NewTypedNativeExecutor(
-				func(_ context.Context, _ RegisteredHook, _ SandboxStopPayload) (SandboxStopPatch, error) {
-					return SandboxStopPatch{
-						ControlPatch: ControlPatch{Deny: true, DenyReason: "retain for audit"},
-					}, nil
-				},
-			),
-		})),
-	)
-	if err := hooks.Rebuild(t.Context()); err != nil {
-		t.Fatalf("Rebuild() error = %v, want nil", err)
-	}
-
-	result, err := hooks.DispatchSandboxStop(t.Context(), SandboxStopPayload{
-		PayloadBase: PayloadBase{Event: HookSandboxStop},
-		SandboxID:   "env-1",
-		WillDestroy: true,
-	})
-	if err != nil {
-		t.Fatalf("DispatchSandboxStop() error = %v, want nil", err)
-	}
-	if !result.Denied || result.DenyReason != "retain for audit" {
-		t.Fatalf("result deny fields = (%v, %q), want retain denial", result.Denied, result.DenyReason)
-	}
 }
 
 func TestDispatchPromptPostAssembleAppliesPatch(t *testing.T) {

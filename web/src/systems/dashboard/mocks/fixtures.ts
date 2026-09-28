@@ -92,7 +92,6 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
         date: "2026-07-22",
       },
     },
-    network: { messages_today: 128 },
     system: { hook_runs_today: 24, hook_failures_today: 0, retention_days: 7 },
     freshness: {
       observed_at: "2026-07-23T12:00:00Z",
@@ -125,7 +124,6 @@ export function makeEmptyHomeOverview(overrides: Partial<HomeOverview> = {}): Ho
       profiles: [],
     },
     pulse: { window_days: base.pulse.window_days, buckets: [] },
-    network: { messages_today: 0 },
     system: { hook_runs_today: 0, hook_failures_today: 0, retention_days: 7 },
     freshness: { ...base.freshness, has_live_work: false },
     ...overrides,

@@ -4,25 +4,18 @@ import (
 	"context"
 
 	"errors"
-	"fmt"
 
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
-
-	"github.com/compozy/compozy/internal/transcript"
 )
 
 type hostAPIPromptSubmission struct {
-	TurnID             string
-	SeedEvents         []bridgepkg.DeliveryProjectionEvent
-	DeliveryRegistered bool
-	Admission          session.SendPromptResult
+	TurnID    string
+	Admission session.SendPromptResult
 }
 
 type hostAPIPromptRequest struct {
@@ -108,14 +101,8 @@ func promptSubmissionFromStoredEvents(events []store.SessionEvent) (hostAPIPromp
 		return hostAPIPromptSubmission{}, errors.New("extension: prompt turn id not found after prompt submission")
 	}
 
-	seedEvents, err := promptSeedEventsFromStoredEvents(events, turnID)
-	if err != nil {
-		return hostAPIPromptSubmission{}, err
-	}
-
 	return hostAPIPromptSubmission{
-		TurnID:     turnID,
-		SeedEvents: seedEvents,
+		TurnID: turnID,
 	}, nil
 }
 
@@ -140,55 +127,6 @@ func isPromptInitiatingStoredEventType(eventType string) bool {
 	default:
 		return false
 	}
-}
-
-func promptSeedEventsFromStoredEvents(
-	events []store.SessionEvent,
-	turnID string,
-) ([]bridgepkg.DeliveryProjectionEvent, error) {
-	turnID = strings.TrimSpace(turnID)
-	if turnID == "" || len(events) == 0 {
-		return nil, nil
-	}
-
-	seedEvents := make([]bridgepkg.DeliveryProjectionEvent, 0, len(events))
-	for _, storedEvent := range events {
-		if strings.TrimSpace(storedEvent.TurnID) != turnID {
-			continue
-		}
-
-		projected, err := promptProjectionEventFromStoredEvent(storedEvent)
-		if err != nil {
-			return nil, err
-		}
-		seedEvents = append(seedEvents, projected)
-	}
-	return seedEvents, nil
-}
-
-func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (bridgepkg.DeliveryProjectionEvent, error) {
-	decoded, err := transcript.UnmarshalAgentEvent(storedEvent.Content)
-	if err != nil {
-		return bridgepkg.DeliveryProjectionEvent{}, fmt.Errorf("extension: decode prompt seed event: %w", err)
-	}
-	if strings.TrimSpace(decoded.Type) == "" {
-		decoded.Type = strings.TrimSpace(storedEvent.Type)
-	}
-	if strings.TrimSpace(decoded.TurnID) == "" {
-		decoded.TurnID = strings.TrimSpace(storedEvent.TurnID)
-	}
-	if decoded.Timestamp.IsZero() {
-		decoded.Timestamp = storedEvent.Timestamp
-	}
-
-	fingerprint, err := canonicalProjectionFingerprint(storedEvent.Content)
-	if err != nil {
-		return bridgepkg.DeliveryProjectionEvent{}, fmt.Errorf(
-			"extension: fingerprint prompt seed event: %w",
-			err,
-		)
-	}
-	return projectionEventFromCanonicalAgentEvent(&decoded, fingerprint), nil
 }
 
 func (h *HostAPIHandler) latestSessionSequence(ctx context.Context, sessionID string) (int64, error) {

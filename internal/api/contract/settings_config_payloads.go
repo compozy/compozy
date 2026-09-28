@@ -25,7 +25,6 @@ type SettingsGeneralConfigPayload struct {
 type SettingsDefaultsPayload struct {
 	Agent    string `json:"agent"`
 	Provider string `json:"provider,omitempty"`
-	Sandbox  string `json:"sandbox,omitempty"`
 }
 
 type SettingsLimitsPayload struct {
@@ -50,7 +49,6 @@ type SettingsDaemonPayload struct {
 type SettingsDaemonReloadTimeoutsPayload struct {
 	Providers string `json:"providers"`
 	MCP       string `json:"mcp"`
-	Bridges   string `json:"bridges"`
 }
 
 type SettingsRedactPayload struct {
@@ -287,38 +285,6 @@ type SettingsAutomationConfigPayload struct {
 	DefaultFireLimit  automationmodel.FireLimitConfig `json:"default_fire_limit"`
 }
 
-type SettingsNetworkConfigPayload struct {
-	Enabled      bool                             `json:"enabled"`
-	MaxReplayAge int                              `json:"max_replay_age"`
-	Live         SettingsNetworkLiveConfigPayload `json:"live"`
-}
-
-type SettingsNetworkLiveConfigPayload struct {
-	Defaults SettingsNetworkLiveDefaultsPayload `json:"defaults"`
-	Limits   SettingsNetworkLiveLimitsPayload   `json:"limits"`
-}
-
-type SettingsNetworkLiveDefaultsPayload struct {
-	MaxWakes         int    `json:"max_wakes"`
-	MaxWakeWallTime  string `json:"max_wake_wall_time"`
-	MaxTotalWallTime string `json:"max_total_wall_time"`
-	MaxInputTokens   int64  `json:"max_input_tokens"`
-	MaxOutputTokens  int64  `json:"max_output_tokens"`
-	MaxWakeDepth     int    `json:"max_wake_depth"`
-	CoalesceWindow   string `json:"coalesce_window"`
-}
-
-type SettingsNetworkLiveLimitsPayload struct {
-	MaxWakes          int    `json:"max_wakes"`
-	MaxWakeWallTime   string `json:"max_wake_wall_time"`
-	MaxTotalWallTime  string `json:"max_total_wall_time"`
-	MaxInputTokens    int64  `json:"max_input_tokens"`
-	MaxOutputTokens   int64  `json:"max_output_tokens"`
-	MaxWakeDepth      int    `json:"max_wake_depth"`
-	MinCoalesceWindow string `json:"min_coalesce_window"`
-	MaxCoalesceWindow string `json:"max_coalesce_window"`
-}
-
 type SettingsObservabilityConfigPayload struct {
 	Enabled        bool                                   `json:"enabled"`
 	RetentionDays  int                                    `json:"retention_days"`
@@ -392,17 +358,6 @@ type SettingsAutomationRuntimePayload struct {
 	TriggerEnabled   int        `json:"trigger_enabled"`
 	NextFire         *time.Time `json:"next_fire,omitempty"`
 	LastSyncedAt     *time.Time `json:"last_synced_at,omitempty"`
-}
-
-type SettingsNetworkRuntimePayload struct {
-	Available         bool   `json:"available"`
-	Enabled           bool   `json:"enabled"`
-	Status            string `json:"status,omitempty"`
-	LocalPeers        int    `json:"local_peers"`
-	Channels          int    `json:"channels"`
-	MessagesReceived  int64  `json:"messages_received"`
-	MessagesDelivered int64  `json:"messages_delivered"`
-	MessagesRejected  int64  `json:"messages_rejected"`
 }
 
 type SettingsObservabilityRuntimePayload struct {

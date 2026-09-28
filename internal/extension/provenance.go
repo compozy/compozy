@@ -270,9 +270,6 @@ func extensionPermissions(manifest *Manifest) []string {
 		items.addMapKeys("hook.executor.env:"+hookName, hook.Executor.Env)
 		items.addMapKeys("hook.executor.secret_env:"+hookName, hook.Executor.SecretEnv)
 	}
-	for _, slot := range manifest.Bridge.SecretSlots {
-		items.add("bridge.secret_slot", slot.Name)
-	}
 	return items.sorted()
 }
 

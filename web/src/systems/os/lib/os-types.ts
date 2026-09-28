@@ -28,14 +28,11 @@ export type OsAppId =
   | "terminal"
   | "tasks"
   | "agents"
-  | "network"
   | "loops"
   | "jobs"
   | "triggers"
   | "marketplace"
-  | "bridges"
   | "knowledge"
-  | "sandbox"
   | "vault"
   | "settings";
 

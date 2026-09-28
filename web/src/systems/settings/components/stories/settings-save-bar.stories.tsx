@@ -66,7 +66,7 @@ export const WithWarnings: Story = {
     state: {
       kind: "warning",
       message: "Saved with warnings",
-      warnings: ["Restart required", "Sandbox mismatch"],
+      warnings: ["Restart required", "Provider unavailable"],
     },
     onSave: fn(),
     onReset: fn(),

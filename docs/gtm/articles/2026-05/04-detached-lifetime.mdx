@@ -110,7 +110,6 @@ The pattern is not a one-off in the prompt path. It recurs across every surface 
 
 - **Prompts.** The HTTP and UDS prompt handlers in `internal/api/httpapi/prompt.go` and `internal/api/udsapi/prompt.go` both derive their execution context with `context.WithoutCancel`. When the operator closes the web tab or the CLI process exits, the daemon keeps streaming events into the session's event store. A reconnecting client picks up from `after_seq` and replays.
 
-- **Compozy Network channel sends.** Outbound sends on `compozy-network/v0` channels detach the same way. A peer-to-peer envelope can take longer than any single request that triggered it; tying the send to the request would corrupt the receipt path. The daemon owns the send; the request owns the acknowledgement that the send was queued.
 
 - **Automation jobs.** `internal/automation/manager.go` runs scheduled triggers, webhooks, and cron dispatches under a runtime context derived from `context.WithoutCancel(ctx)`. The automation runtime has its own cancel signal — the configuration changes, the trigger is deleted, the daemon stops. None of those reasons should be tangled with whatever request set up the trigger.
 
@@ -140,7 +139,7 @@ The agent is the thing doing the work. The request is the thing asking for it. C
 
 Tool calls are slow and side-effecting. A tool that writes a file, sends a message, or charges a card cannot be cancelled the way a SELECT can be cancelled. Cancelling the parent context can leave the side effect half-done. Detached execution at least makes the inconsistency loud — the work is still going, the operator can see it, and a named cancel verb lets the operator decide whether to roll it back.
 
-Multiple surfaces watch the same work. Compozy exposes a prompt's events through HTTP/SSE for the web UI, through UDS for the CLI, and through the network protocol for peer agents. If any one watcher could cancel the work by leaving, the others would live in a runtime where their view of progress was decided by someone else's network. The daemon has to be the owner. Watchers are watchers.
+Multiple surfaces watch the same work. Compozy exposes a prompt's events through HTTP/SSE for the web UI, through UDS for the CLI. If any one watcher could cancel the work by leaving, the others would live in a runtime where their view of progress was decided by someone else's network. The daemon has to be the owner. Watchers are watchers.
 
 ## Four rules to take with you
 

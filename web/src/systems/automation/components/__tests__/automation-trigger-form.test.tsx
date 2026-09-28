@@ -407,31 +407,12 @@ describe("AutomationTriggerForm", () => {
         target_kind: "loop",
         loop_target: expect.objectContaining({
           loop_name: "",
-          network_participation: { mode: "local" },
         }),
       })
     );
     // The loop picker + payload mapping table replace the agent prompt.
     expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
     expect(screen.queryByTestId("trigger-agent-input")).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId("loop-target-participation-mode"), {
-      target: { value: "live" },
-    });
-    fireEvent.change(screen.getByTestId("loop-target-participation-channel"), {
-      target: { value: "trigger-room" },
-    });
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        loop_target: expect.objectContaining({
-          network_participation: {
-            mode: "live",
-            channel_id: "trigger-room",
-            channel_strategy: "named",
-          },
-        }),
-      })
-    );
 
     selectLoop("implement-tasks");
     expect(onChange).toHaveBeenLastCalledWith(

@@ -95,7 +95,7 @@ func TestEditConfigOverlayGlobalWritePreservesStructureOnDisk(t *testing.T) {
 [defaults]
 agent = "legacy"
 
-[network]
+[observability]
 enabled = true
 `)
 
@@ -116,7 +116,7 @@ enabled = true
 		text := string(payload)
 		for _, want := range []string{
 			"# global structure",
-			"[network]",
+			"[observability]",
 			"enabled = true",
 			`agent = "general"`,
 		} {

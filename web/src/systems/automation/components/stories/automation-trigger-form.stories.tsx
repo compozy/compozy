@@ -193,12 +193,6 @@ export const WorkspaceLoopTarget: Story = {
           input_mapping: {},
           inputs: { pr: 2 },
           loop_name: "review-and-fix",
-          network_participation: {
-            mode: "live",
-            channel_strategy: "named",
-            channel_id: "release-room",
-            bounds: { max_wakes: 3 },
-          },
           workspace_id: storyWorkspaceIds.hq,
         },
         name: "review-on-stop",
@@ -209,12 +203,6 @@ export const WorkspaceLoopTarget: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const participation = await canvas.findByTestId("loop-target-participation");
-    participation.scrollIntoView({ block: "center" });
-    await expect(canvas.getByTestId("loop-target-participation-mode")).toHaveValue("live");
-    await expect(canvas.getByTestId("loop-target-participation-channel")).toHaveValue(
-      "release-room"
-    );
     await expect(canvas.getByTestId("submit-trigger-form")).toBeEnabled();
   },
 };

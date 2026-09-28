@@ -14,7 +14,7 @@ import { Empty, MonoId } from "@compozy/ui";
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import {
   MarketplaceExtensionManageCard,
-  MarketplaceExtensionNetworkCard,
+  MarketplaceExtensionGatewayCard,
   MarketplaceExtensionProvenanceCard,
   MarketplaceExtensionRuntimeCard,
 } from "./marketplace-detail-extension-rail";
@@ -36,7 +36,7 @@ import {
   ExtensionKitInventoryPanel,
   type ExtensionLogEventSource,
   ExtensionLogPanel,
-  ExtensionNetworkConfirmDialog,
+  ExtensionGatewayConfirmDialog,
   ExtensionProvenanceDialog,
   ExtensionSkippedComponents,
   extensionTrustFacts,
@@ -143,17 +143,17 @@ function MarketplaceDetailExtensionInstalled({
             <MarketplaceExtensionTrustCard trust={entry.trust} />
             <MarketplaceExtensionDetailsCard data={data} defaultOpen={false} />
             <MarketplaceExtensionProvenanceCard extension={extension} facts={facts} />
-            <MarketplaceExtensionNetworkCard extension={extension} />
+            <MarketplaceExtensionGatewayCard extension={extension} />
           </>
         }
       />
-      {state.networkConfirm ? (
-        <ExtensionNetworkConfirmDialog
-          digest={state.networkConfirm.digest}
+      {state.gatewayConfirm ? (
+        <ExtensionGatewayConfirmDialog
+          digest={state.gatewayConfirm.digest}
           extensionName={extension.name}
-          onConfirm={state.submitNetworkConfirm}
+          onConfirm={state.submitGatewayConfirm}
           onOpenChange={open => {
-            if (!open) state.dismissNetworkConfirm();
+            if (!open) state.dismissGatewayConfirm();
           }}
           open
           pending={state.update.isPending}

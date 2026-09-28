@@ -4,7 +4,6 @@ import { agentsListOptions, type AgentPayload } from "@/systems/agent";
 import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions";
 import { listMemories, memoriesListOptions, type MemoryHeader } from "@/systems/knowledge";
 import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
-import { networkChannelsOptions, type NetworkChannelSummary } from "@/systems/network";
 import type { ProfileOwnerLabel } from "@/systems/profiles";
 import { worktreesListOptions } from "@/systems/workspace";
 
@@ -25,10 +24,6 @@ export interface PaletteWorkspaceExtension {
   readonly workspaceId: string;
 }
 
-export interface PaletteWorkspaceChannel extends NetworkChannelSummary {
-  readonly workspace_id: string;
-}
-
 export interface PaletteWorkspaceWorktree extends ProfileOwnerLabel {
   readonly id: string;
   readonly name: string;
@@ -41,9 +36,6 @@ export interface OsPaletteWorkspaceCatalogs {
   readonly loops: readonly PaletteWorkspaceLoop[];
   readonly loopTotal: number;
   readonly loopState: QueryState;
-  readonly channels: readonly PaletteWorkspaceChannel[];
-  readonly channelTotal: number;
-  readonly channelState: QueryState;
   readonly workspaceMemories: readonly MemoryHeader[];
   readonly workspaceMemoryTotal: number;
   readonly workspaceMemoryState: QueryState;
@@ -61,7 +53,6 @@ export interface UseOsPaletteWorkspaceCatalogsOptions {
   readonly profile: string;
   readonly workspaceIds: readonly string[];
   readonly loopsEnabled: boolean;
-  readonly networkEnabled: boolean;
   readonly knowledgeEnabled: boolean;
   readonly agentsEnabled: boolean;
   readonly extensionsEnabled: boolean;
@@ -131,7 +122,6 @@ export function useOsPaletteWorkspaceCatalogs({
   profile,
   workspaceIds,
   loopsEnabled,
-  networkEnabled,
   knowledgeEnabled,
   agentsEnabled,
   extensionsEnabled,
@@ -149,9 +139,6 @@ export function useOsPaletteWorkspaceCatalogs({
         staleTime: 15_000,
       });
     }),
-  });
-  const channelQueries = useQueries({
-    queries: ids.map(workspaceId => networkChannelsOptions(workspaceId, {}, networkEnabled)),
   });
   const memoryQueries = useQueries({
     queries: ids.map(workspaceId => {
@@ -191,13 +178,6 @@ export function useOsPaletteWorkspaceCatalogs({
     loopTotal += catalog?.total ?? 0;
     for (const loop of catalog?.loops ?? []) {
       loops.push({ loop, workspaceId });
-    }
-  });
-
-  const channels: PaletteWorkspaceChannel[] = [];
-  ids.forEach((workspaceId, index) => {
-    for (const channel of channelQueries[index]?.data?.channels ?? []) {
-      channels.push({ ...channel, workspace_id: channel.workspace_id ?? workspaceId });
     }
   });
 
@@ -245,9 +225,6 @@ export function useOsPaletteWorkspaceCatalogs({
     loops,
     loopTotal,
     loopState: queryState(loopQueries),
-    channels,
-    channelTotal: channels.length,
-    channelState: queryState(channelQueries),
     workspaceMemories,
     workspaceMemoryTotal,
     workspaceMemoryState: queryState(memoryQueries),

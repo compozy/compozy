@@ -16,7 +16,6 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -162,15 +161,6 @@ check_interval = "45m"
 [roles.dream]
 agent = "claude"
 
-[network]
-enabled = true
-max_replay_age = 600
-
-[network.live.defaults]
-max_wakes = 12
-
-[network.live.limits]
-max_wakes = 80
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -341,18 +331,6 @@ max_wakes = 80
 	if got, want := cfg.Memory.Dream.CheckInterval, 45*time.Minute; got != want {
 		t.Fatalf("Load() Memory.Dream.CheckInterval = %s, want %s", got, want)
 	}
-	if !cfg.Network.Enabled {
-		t.Fatal("Load() Network.Enabled = false, want true")
-	}
-	if got, want := cfg.Network.MaxReplayAge, 600; got != want {
-		t.Fatalf("Load() Network.MaxReplayAge = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.Live.Defaults.MaxWakes, 12; got != want {
-		t.Fatalf("Load() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.Live.Limits.MaxWakes, 80; got != want {
-		t.Fatalf("Load() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
-	}
 
 	claude, err := cfg.ResolveProvider("claude")
 	if err != nil {
@@ -522,150 +500,6 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 			t.Fatalf("Validate() error = %v, want %q", err, daemonSubprocessHealthEscalationThresholdPath)
 		}
 	})
-}
-
-func TestLoadSandboxProfilesFromTOML(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("COMPOZY_HOME", homeRoot)
-
-	homePaths, err := ResolveHomePaths()
-	if err != nil {
-		t.Fatalf("ResolveHomePaths() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-
-	writeFile(t, homePaths.ConfigFile, `
-[defaults]
-sandbox = "daytona-dev"
-
-[sandboxes.local]
-backend = "local"
-
-[sandboxes.daytona-dev]
-backend = "daytona"
-sync_mode = "session-bidirectional"
-persistence = "reuse"
-runtime_root = "/home/daytona/workspace"
-
-[sandboxes.daytona-dev.env]
-NODE_ENV = "development"
-COMPOZY_PROFILE = "daytona"
-
-[sandboxes.daytona-dev.network]
-allow_public_ingress = false
-allow_outbound = true
-allow_list = ["api.example.test"]
-deny_list = ["metadata.google.internal"]
-
-[sandboxes.daytona-dev.daytona]
-api_url = "https://app.daytona.io/api"
-target = "team-default"
-image = "ubuntu:24.04"
-snapshot = "snap-agent-base"
-class = "cpu-2"
-auto_stop = "30m"
-auto_archive = "24h"
-`)
-
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if got, want := cfg.Defaults.Sandbox, "daytona-dev"; got != want {
-		t.Fatalf("Defaults.Sandbox = %q, want %q", got, want)
-	}
-	profile := cfg.Sandboxes["daytona-dev"]
-	if profile.Backend != "daytona" || profile.Daytona.Snapshot != "snap-agent-base" {
-		t.Fatalf("daytona profile = %#v, want parsed profile", profile)
-	}
-	if got, want := profile.Env["NODE_ENV"], "development"; got != want {
-		t.Fatalf("profile Env[NODE_ENV] = %q, want %q", got, want)
-	}
-
-	resolved, err := cfg.ResolveSandbox(cfg.Defaults.Sandbox)
-	if err != nil {
-		t.Fatalf("ResolveSandbox() error = %v", err)
-	}
-	if resolved.Backend != sandbox.BackendDaytona {
-		t.Fatalf("resolved.Backend = %q, want %q", resolved.Backend, sandbox.BackendDaytona)
-	}
-	if resolved.SyncMode != sandbox.SyncModeSessionBidirectional ||
-		resolved.Persistence != sandbox.PersistenceReuse {
-		t.Fatalf("resolved sync/persistence = %q/%q", resolved.SyncMode, resolved.Persistence)
-	}
-	if resolved.Daytona == nil {
-		t.Fatal("resolved.Daytona = nil, want profile")
-	}
-	if got, want := resolved.Daytona.StartupSource, sandbox.DaytonaStartupSourceSnapshot; got != want {
-		t.Fatalf("resolved Daytona startup source = %q, want %q", got, want)
-	}
-	if got, want := resolved.Daytona.StartupRef, "snap-agent-base"; got != want {
-		t.Fatalf("resolved Daytona startup ref = %q, want %q", got, want)
-	}
-}
-
-func TestResolveSandboxErrorContract(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should expose missing sandbox profiles through a sentinel error", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := Config{Sandboxes: map[string]SandboxProfile{}}
-		_, err := cfg.ResolveSandbox("missing-profile")
-		if !errors.Is(err, ErrSandboxProfileNotFound) {
-			t.Fatalf("ResolveSandbox() error = %v, want ErrSandboxProfileNotFound", err)
-		}
-	})
-}
-
-func TestDaytonaSnapshotWinsOverImageInResolvedProfile(t *testing.T) {
-	t.Parallel()
-
-	resolved, err := (SandboxProfile{
-		Backend: "daytona",
-		Daytona: DaytonaProfile{
-			Image:    "ubuntu:24.04",
-			Snapshot: "snap-prebuilt",
-		},
-	}).Resolve("daytona-dev")
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if resolved.Daytona == nil {
-		t.Fatal("resolved.Daytona = nil, want profile")
-	}
-	if got, want := resolved.Daytona.StartupSource, sandbox.DaytonaStartupSourceSnapshot; got != want {
-		t.Fatalf("StartupSource = %q, want %q", got, want)
-	}
-	if got, want := resolved.Daytona.StartupRef, "snap-prebuilt"; got != want {
-		t.Fatalf("StartupRef = %q, want %q", got, want)
-	}
-	if got, want := resolved.Daytona.Image, "ubuntu:24.04"; got != want {
-		t.Fatalf("Image = %q, want preserved fallback %q", got, want)
-	}
-}
-
-func TestSandboxProfileValidationRejectsInvalidBackend(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	cfg := DefaultWithHome(homePaths)
-	cfg.Sandboxes["bad"] = SandboxProfile{Backend: "docker"}
-
-	err = cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want invalid backend")
-	}
-	if !strings.Contains(err.Error(), "sandboxes.bad.backend") {
-		t.Fatalf("Validate() error = %v, want sandboxes.bad.backend", err)
-	}
 }
 
 func TestDefaultWithHomeIncludesSoulDefaults(t *testing.T) {
@@ -899,50 +733,6 @@ func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
 				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
 			}
 		})
-	}
-}
-
-func TestSandboxProfileValidationRejectsInvalidSyncMode(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	cfg := DefaultWithHome(homePaths)
-	cfg.Sandboxes["bad"] = SandboxProfile{
-		Backend:  "daytona",
-		SyncMode: "continuous",
-	}
-
-	err = cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want invalid sync_mode")
-	}
-	if !strings.Contains(err.Error(), "sandboxes.bad.sync_mode") {
-		t.Fatalf("Validate() error = %v, want sandboxes.bad.sync_mode", err)
-	}
-}
-
-func TestSandboxProfileValidationRejectsInvalidPersistence(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	cfg := DefaultWithHome(homePaths)
-	cfg.Sandboxes["bad"] = SandboxProfile{
-		Backend:     "daytona",
-		Persistence: "forever",
-	}
-
-	err = cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want invalid persistence")
-	}
-	if !strings.Contains(err.Error(), "sandboxes.bad.persistence") {
-		t.Fatalf("Validate() error = %v, want sandboxes.bad.persistence", err)
 	}
 }
 
@@ -2135,7 +1925,7 @@ func TestExtensionsConfigValidateResourcesConfig(t *testing.T) {
 			name: "ShouldRejectDaemonOnlyAllowedKind",
 			cfg: ExtensionsConfig{
 				Resources: ExtensionsResourcesConfig{
-					AllowedKinds: []resources.ResourceKind{resources.ResourceKind("bridge.instance")},
+					AllowedKinds: []resources.ResourceKind{resources.ResourceKind("unsupported.kind")},
 				},
 			},
 			wantErrPath: "extensions.resources.allowed_kinds",
@@ -2632,12 +2422,6 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 		!slices.Equal(cfg.Skills.DisabledSkills, want.Skills.DisabledSkills) {
 		t.Fatalf("Load() Skills = %#v, want %#v", cfg.Skills, want.Skills)
 	}
-	if cfg.Network != want.Network {
-		t.Fatalf("Load() Network = %#v, want %#v", cfg.Network, want.Network)
-	}
-	if !cfg.Network.Enabled {
-		t.Fatal("Load() Network.Enabled = false, want true by default")
-	}
 	if !cfg.Roles.AutoTitle.Enabled {
 		t.Fatal("Load() Roles.AutoTitle.Enabled = false, want true by default")
 	}
@@ -2666,147 +2450,7 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 		if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
 			t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
 		}
-		if !cfg.Network.Enabled {
-			t.Fatal("defaultConfig() Network.Enabled = false, want true")
-		}
-		if got, want := cfg.Network.Live.Defaults.MaxWakes, 8; got != want {
-			t.Fatalf("defaultConfig() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.Live.Limits.MaxWakes, 64; got != want {
-			t.Fatalf("defaultConfig() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
-		}
 	})
-}
-
-func TestLoadRespectsExplicitNetworkDisable(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("COMPOZY_HOME", homeRoot)
-
-	homePaths, err := ResolveHomePaths()
-	if err != nil {
-		t.Fatalf("ResolveHomePaths() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-
-	writeFile(t, homePaths.ConfigFile, `
-[network]
-enabled = false
-`)
-
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if cfg.Network.Enabled {
-		t.Fatal("Load() Network.Enabled = true, want explicit false override to win")
-	}
-}
-
-func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	tests := []struct {
-		name    string
-		mutate  func(*Config)
-		wantErr string
-	}{
-		{
-			name: "Should reject invalid live default max wakes",
-			mutate: func(cfg *Config) {
-				cfg.Network.Live.Defaults.MaxWakes = 0
-			},
-			wantErr: "network.live.defaults",
-		},
-		{
-			name: "Should reject live default above ceiling",
-			mutate: func(cfg *Config) {
-				cfg.Network.Live.Defaults.MaxWakes = cfg.Network.Live.Limits.MaxWakes + 1
-			},
-			wantErr: networkLiveLimitsMaxWakesPath,
-		},
-		{
-			name: "Should reject invalid coalesce range",
-			mutate: func(cfg *Config) {
-				cfg.Network.Live.Limits.MinCoalesceWindow = "6s"
-			},
-			wantErr: networkLiveLimitsMinCoalesceWindowPath,
-		},
-		{
-			name: "Should reject invalid replay age",
-			mutate: func(cfg *Config) {
-				cfg.Network.MaxReplayAge = 0
-			},
-			wantErr: "network.max_replay_age",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := DefaultWithHome(homePaths)
-			tc.mutate(&cfg)
-
-			err := cfg.Validate()
-			if err == nil {
-				t.Fatalf("Validate() error = nil for %s", tc.name)
-			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("Validate() error = %q, want substring %q", err, tc.wantErr)
-			}
-		})
-	}
-}
-
-func TestLoadGlobalConfigRejectsRemovedNetworkKeys(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		key   string
-		value string
-	}{
-		{name: "Should reject default_channel", key: "default_channel", value: `"builders"`},
-		{name: "Should reject port", key: "port", value: "4222"},
-		{name: "Should reject max_payload", key: "max_payload", value: "65536"},
-		{name: "Should reject activation_top_k", key: "activation_top_k", value: "3"},
-		{name: "Should reject digest_flush_interval", key: "digest_flush_interval", value: `"250ms"`},
-		{name: "Should reject digest_max_envelopes", key: "digest_max_envelopes", value: "10"},
-		{name: "Should reject response_guidance_max_bytes", key: "response_guidance_max_bytes", value: "512"},
-		{
-			name:  "Should reject delivery_structured_body_max_bytes",
-			key:   "delivery_structured_body_max_bytes",
-			value: "4096",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-			writeFile(t, homePaths.ConfigFile, "[network]\n"+tc.key+" = "+tc.value+"\n")
-
-			_, err = LoadGlobalConfig(homePaths)
-			if err == nil {
-				t.Fatalf("LoadGlobalConfig() error = nil, want removed key %q rejected", tc.key)
-			}
-			if !strings.Contains(err.Error(), "network."+tc.key) {
-				t.Fatalf("LoadGlobalConfig() error = %q, want path network.%s", err, tc.key)
-			}
-		})
-	}
 }
 
 func TestProfileConfigLayersComposeInSpecificityOrder(t *testing.T) {
@@ -2965,7 +2609,7 @@ func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
 
 		inputs := []string{
 			"[http]\nport = 9999\n",
-			"[sandboxes.dev]\nbackend = \"host\"\n",
+			"[observability]\nenabled = false\n",
 			"[window_manager.global_shortcuts]\nsummon = \"meta+KeyK\"\n",
 			"[tools.clarify]\ntimeout = \"5m\"\n",
 		}

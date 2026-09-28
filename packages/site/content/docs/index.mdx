@@ -20,7 +20,7 @@ structured surfaces.
 
 ## Choose your path
 
-The docs serve four jobs. Start with yours — every path stays inside the same system, so the deeper
+The docs serve three jobs. Start with yours — every path stays inside the same system, so the deeper
 pages are always one link away.
 
 <PathGrid>
@@ -60,24 +60,7 @@ pages are always one link away.
       CLI reference
     </PathLink>
   </PathCard>
-  <PathCard
-    label="Protocol implementers"
-    title="Implement compozy-network/v0"
-    description="The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting CompozyOS internals."
-  >
-    <PathLink href="/docs/network/protocol" icon="Network" cta>
-      Read the compozy-network/v0 spec
-    </PathLink>
-    <PathLink href="/docs/network/protocol/envelope" icon="Mail">
-      Envelope
-    </PathLink>
-    <PathLink href="/docs/network/protocol/message-kinds" icon="List">
-      Message kinds
-    </PathLink>
-    <PathLink href="/docs/network/protocol/conformance" icon="BadgeCheck">
-      Conformance
-    </PathLink>
-  </PathCard>
+
   <PathCard
     label="Evaluators"
     title="See what ships today"
@@ -99,9 +82,7 @@ pages are always one link away.
 
 Everything in these docs shares one daemon-owned state: a task can start a session, permissions
 bound it, memory follows the workspace, and another agent can continue the work without rebuilding
-context by hand. **Compozy Network** — peer discovery, typed messages, lifecycle-bearing work — is a
-subsystem of that same runtime, documented under its own group below with the
-[protocol spec](/docs/network/protocol) nested for implementers.
+context by hand.
 
 ```bash
 # no Docker, no Postgres — one local binary
@@ -110,8 +91,7 @@ compozy daemon start
 
 ## How the docs are organized
 
-One sidebar, eight groups, ordered by journey: start, do, understand, automate, coordinate, extend,
-operate, look up. Task-oriented content sits above concepts; the generated references collapse to
+One sidebar, ordered by journey: start, do, understand, automate, extend, operate, and look up. Task-oriented content sits above concepts; the generated references collapse to
 two rows until you need them.
 
 <GroupIndex>
@@ -123,18 +103,13 @@ two rows until you need them.
     Task-first material: [guides](/docs/guides) for a job to be done, [examples](/docs/examples) you
     can run as shipped, and [use cases](/docs/use-cases) that show whole journeys.
   </GroupRow>
+
   <GroupRow name="Core concepts">
-    The state model behind the work: [sessions](/docs/sessions), [agents](/docs/agents),
-    [autonomy](/docs/autonomy), [memory](/docs/memory), [workspaces](/docs/workspaces),
-    [profiles](/docs/profiles), and [sandbox](/docs/sandbox).
+    [Sessions](/docs/sessions), [agents](/docs/agents), [autonomy](/docs/autonomy),
+    [memory](/docs/memory), [workspaces](/docs/workspaces), and [profiles](/docs/profiles).
   </GroupRow>
   <GroupRow name="Automation">
-    Work that runs without you: [jobs, triggers, and webhooks](/docs/automation), goal-seeking
-    [Loops](/docs/loops), and chat [bridges](/docs/bridges).
-  </GroupRow>
-  <GroupRow name="Compozy Network">
-    [Using the network from CompozyOS](/docs/network), with the [compozy-network/v0 protocol
-    spec](/docs/network/protocol) nested one level deeper for implementers.
+    [Jobs, triggers, and webhooks](/docs/automation) and goal-seeking [Loops](/docs/loops).
   </GroupRow>
   <GroupRow name="Extensibility">
     How the system grows: the [marketplace](/docs/marketplace), [skills](/docs/skills),
@@ -199,22 +174,7 @@ context on every run.
 The same daemon-owned state is available through the CLI, HTTP/SSE, UDS, and the web UI. Managed
 agents use policy-filtered native tools, and trusted external MCP clients can receive a
 workspace-bound Host API projection through `compozy mcp serve`. Sessions, memory, tasks, automation,
-bridges, and observability stay in one control plane instead of separate stores.
-
-### Opt into Compozy Network when agents need to coordinate
-
-Compozy Network is the coordination subsystem inside CompozyOS. Local is the default; a session or
-task run participates only when its execution is explicitly Live. Live participants can discover
-peers, exchange typed messages, and track lifecycle-bearing work in a channel.
-
-The wire boundary remains independently implementable even though Network is part of the integrated
-system. Agents can publish
-[capability catalogs](/docs/agents/capabilities) so peers discover outcomes instead of
-internal tool names.
-
-Under the hood, CompozyOS runs as a single local daemon that manages sessions, persists events, and
-talks to compatible agents through a standardized protocol layer. The operating model matters more
-than the internals — head into [Sessions](/docs/sessions) when you want the package-level view.
+and observability stay in one control plane instead of separate stores.
 
 ## Why CompozyOS vs. other models
 
@@ -236,8 +196,7 @@ framework, or tool protocol.
 
 Most alternatives optimize for one of these lanes: assistant surface, hosted gateway, framework for
 custom orchestration, or protocol for tool access. CompozyOS connects those operational concerns
-around one daemon-owned state model, while Compozy Network supplies the optional coordination
-boundary for explicitly Live work.
+around one daemon-owned state model.
 
 ### When CompozyOS is the right choice
 
@@ -247,7 +206,7 @@ CompozyOS is a strong fit when you:
 - want replay, auditability, and observability without bolting on external control planes
 - need project-specific memory, policies, and behavior without rebuilding prompts every time
 - need people, managed agents, and trusted integrations to operate the same runtime state
-- expect specialized agents to coordinate through explicit, bounded Live participation
+- need specialized agents to hand work through tasks and review gates
 
 ### When another lane may fit better
 

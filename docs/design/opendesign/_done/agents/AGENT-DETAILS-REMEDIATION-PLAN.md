@@ -949,7 +949,7 @@ The TechSpec must verify whether runtime selection interacts with:
 - model-catalog refresh hooks;
 - skills/capability gates;
 - toolsets and bundles;
-- bridge SDKs or MCP sidecars;
+- extension SDKs or MCP sidecars;
 - `config.toml` defaults or policy restrictions.
 
 The selector must consume registries and extension points. It must not hardcode a closed list of providers in the web feature.
@@ -964,7 +964,7 @@ Likely impact depends on whether the agent runtime update contract changes. Chec
 
 ### Extensibility and hooks
 
-Check provider and model registries, runtime-advertised options, extensions, hooks, skills/capabilities, tools/resources, bundles, bridge SDKs, MCP sidecars, and config lifecycle. The unified selector must remain registry-driven. Record any hook or capability event triggered by a default-runtime update.
+Check provider and model registries, runtime-advertised options, extensions, hooks, skills/capabilities, tools/resources, bundles, extension SDKs, MCP sidecars, and config lifecycle. The unified selector must remain registry-driven. Record any hook or capability event triggered by a default-runtime update.
 
 ### Workspace data isolation
 

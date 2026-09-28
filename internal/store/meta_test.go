@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestWriteSessionMetaAndReadBack(t *testing.T) {
@@ -18,29 +16,16 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	stopReason := StopHookStopped
 	meta := SessionMeta{
-		ID:                   "sess-meta",
-		Name:                 "Session Meta",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-meta",
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		SessionType:          "system",
-		State:                "stopped",
-		RuntimeStatus:        SessionRuntimeReady,
-		StopReason:           &stopReason,
-		StopDetail:           "hook denied continuation",
-		Sandbox: &SessionSandboxMeta{
-			SandboxID:             "env-123",
-			Backend:               "daytona",
-			Profile:               "daytona-dev",
-			State:                 "ready",
-			InstanceID:            "sandbox-123",
-			RuntimeRootDir:        "/home/daytona/workspace",
-			RuntimeAdditionalDirs: []string{"/home/daytona/shared"},
-			ProviderState:         json.RawMessage(`{"sandbox_id":"sandbox-123"}`),
-			SSHAccessExpiresAt:    new(time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)),
-			LastSyncAt:            new(time.Date(2026, 4, 3, 17, 59, 0, 0, time.UTC)),
-			LastSyncError:         "sync warning",
-		},
+		ID:            "sess-meta",
+		Name:          "Session Meta",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-meta",
+		SessionType:   "system",
+		State:         "stopped",
+		RuntimeStatus: SessionRuntimeReady,
+		StopReason:    &stopReason,
+		StopDetail:    "hook denied continuation",
+
 		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
@@ -55,7 +40,6 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if readBack.ID != meta.ID ||
 		readBack.AgentName != meta.AgentName ||
 		readBack.WorkspaceID != meta.WorkspaceID ||
-		readBack.NetworkSpecSnapshot() != meta.NetworkSpecSnapshot() ||
 		readBack.State != meta.State ||
 		readBack.SessionType != meta.SessionType ||
 		readBack.StopDetail != meta.StopDetail {
@@ -70,38 +54,6 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if *readBack.StopReason != *meta.StopReason {
 		t.Fatalf("ReadSessionMeta().StopReason = %q, want %q", *readBack.StopReason, *meta.StopReason)
 	}
-	if readBack.Sandbox == nil {
-		t.Fatal("ReadSessionMeta().Sandbox = nil, want metadata")
-	}
-	if readBack.Sandbox.SandboxID != "env-123" ||
-		readBack.Sandbox.State != "ready" ||
-		readBack.Sandbox.InstanceID != "sandbox-123" ||
-		readBack.Sandbox.LastSyncError != "sync warning" {
-		t.Fatalf("ReadSessionMeta().Sandbox = %#v, want persisted sandbox metadata", readBack.Sandbox)
-	}
-	var providerState struct {
-		SandboxID string `json:"sandbox_id"`
-	}
-	if err := json.Unmarshal(readBack.Sandbox.ProviderState, &providerState); err != nil {
-		t.Fatalf("json.Unmarshal(ProviderState) error = %v", err)
-	}
-	if providerState.SandboxID != "sandbox-123" {
-		t.Fatalf("ProviderState sandbox_id = %q, want sandbox-123", providerState.SandboxID)
-	}
-	if readBack.Sandbox.SSHAccessExpiresAt == nil ||
-		!readBack.Sandbox.SSHAccessExpiresAt.Equal(*meta.Sandbox.SSHAccessExpiresAt) {
-		t.Fatalf("SSHAccessExpiresAt = %#v, want %#v",
-			readBack.Sandbox.SSHAccessExpiresAt,
-			meta.Sandbox.SSHAccessExpiresAt,
-		)
-	}
-	if readBack.Sandbox.LastSyncAt == nil ||
-		!readBack.Sandbox.LastSyncAt.Equal(*meta.Sandbox.LastSyncAt) {
-		t.Fatalf("LastSyncAt = %#v, want %#v",
-			readBack.Sandbox.LastSyncAt,
-			meta.Sandbox.LastSyncAt,
-		)
-	}
 }
 
 func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
@@ -109,14 +61,13 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	base := SessionMeta{
-		ID:                   "sess-meta-concurrent",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-meta-concurrent",
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "active",
-		RuntimeStatus:        SessionRuntimeReady,
-		CreatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		ID:            "sess-meta-concurrent",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-meta-concurrent",
+		State:         "active",
+		RuntimeStatus: SessionRuntimeReady,
+		CreatedAt:     time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 	}
 
 	var wg sync.WaitGroup
@@ -163,76 +114,6 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 	}
 }
 
-func TestSessionMetaValidateRejectsParticipationOutsideCreationIdentity(t *testing.T) {
-	t.Parallel()
-
-	profile := SessionCreationProfile{
-		Version:     SessionCreationProfileVersion,
-		AgentName:   "coder",
-		Provider:    "codex",
-		ProfileID:   DefaultProfileID,
-		WorkspaceID: "ws-meta-identity",
-		CWD:         "/work/meta-identity",
-		SandboxMode: SessionCreationSandboxNone,
-		Permissions: "approve-all",
-	}
-	options := SessionCreationOptions{
-		SessionID:            "sess-meta-identity",
-		NetworkOwnerKey:      "session:sess-meta-identity",
-		NetworkParticipation: participation.LocalSpec(),
-		SessionType:          "user",
-	}
-	profileRef, err := profile.Ref()
-	if err != nil {
-		t.Fatalf("SessionCreationProfile.Ref() error = %v", err)
-	}
-	policyDigest, err := profile.PolicySpecDigest()
-	if err != nil {
-		t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
-	}
-	creationDigest, err := profile.CreationDigest(options)
-	if err != nil {
-		t.Fatalf("SessionCreationProfile.CreationDigest() error = %v", err)
-	}
-	live := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     profile.WorkspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       "other-channel",
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-	}
-	meta := SessionMeta{
-		ID:                   options.SessionID,
-		AgentName:            profile.AgentName,
-		WorkspaceID:          profile.WorkspaceID,
-		NetworkParticipation: participation.CloneSpec(live),
-		SessionType:          options.SessionType,
-		State:                "stopped",
-		RuntimeStatus:        SessionRuntimeReady,
-		CreationProfile:      &profile,
-		CreationOptions:      &options,
-		CreationProfileRef:   profileRef,
-		PolicySpecDigest:     policyDigest,
-		CreationDigest:       creationDigest,
-		CreatedAt:            time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
-	}
-
-	if err := meta.Validate(); err == nil {
-		t.Fatal("SessionMeta.Validate() error = nil, want creation participation mismatch")
-	}
-}
-
 func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
 	t.Run("Should handle optional stop fields omitted", func(t *testing.T) {
 		t.Parallel()
@@ -243,11 +124,6 @@ func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
   "name": "Current Session",
   "agent_name": "coder",
   "workspace_id": "ws-current",
-  "network_participation": {
-    "version": "network-participation/v1",
-    "mode": "local",
-    "source": "built_in_local"
-  },
   "session_type": "user",
   "state": "stopped",
   "runtime_status": "ready",
@@ -272,7 +148,7 @@ func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
 	})
 }
 
-func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
+func TestSessionMetaCreationWitness(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name        string
@@ -280,13 +156,13 @@ func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
 		replacement string
 		valid       bool
 	}{
-		{name: "Should reopen the beta 21 witness without rewriting it", valid: true},
-		{name: "Should reject a tampered policy", old: "Preserve this historical policy.", replacement: "Tampered policy"},
-		{name: "Should reject an unknown future version", old: `"version": 4`, replacement: `"version": 6`},
+		{name: "Should reopen the creation witness without rewriting it", valid: true},
+		{name: "Should reject a tampered policy", old: "Preserve this runtime policy.", replacement: "Tampered policy"},
+		{name: "Should reject an unknown future version", old: `"version":6`, replacement: `"version":99`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			payload, err := os.ReadFile("testdata/session-profile-v4/meta.json.golden")
+			payload, err := json.Marshal(sessionCreationWitnessForTest(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -300,7 +176,7 @@ func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
 			meta, err := ReadSessionMeta(path)
 			if !tc.valid {
 				if err == nil {
-					t.Fatal("accepted invalid historical witness")
+					t.Fatal("accepted invalid creation witness")
 				}
 				return
 			}
@@ -312,7 +188,7 @@ func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !bytes.Equal(payload, after) {
-				t.Fatal("read rewrote historical metadata")
+				t.Fatal("read rewrote creation metadata")
 			}
 			if err := WriteSessionMeta(path, meta); err != nil {
 				t.Fatal(err)
@@ -325,8 +201,36 @@ func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
 				reopened.CreationDigest != meta.CreationDigest ||
 				reopened.PolicySpecDigest != meta.PolicySpecDigest ||
 				reopened.CreationProfile.PromptOverlay != meta.CreationProfile.PromptOverlay {
-				t.Fatal("metadata rewrite changed the historical witness")
+				t.Fatal("metadata rewrite changed the creation witness")
 			}
 		})
+	}
+}
+
+func sessionCreationWitnessForTest(t *testing.T) SessionMeta {
+	t.Helper()
+	profile := validSessionCreationProfile(t)
+	profile.PromptOverlay = "Preserve this runtime policy."
+	options := SessionCreationOptions{SessionID: "sess-creation-witness", SessionType: "user"}
+	profileRef, err := profile.Ref()
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyDigest, err := profile.PolicySpecDigest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	creationDigest, err := profile.CreationDigest(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return SessionMeta{
+		ID: options.SessionID, AgentName: profile.AgentName, ProfileID: profile.ProfileID,
+		WorkspaceID: profile.WorkspaceID, SessionType: options.SessionType,
+		State: "stopped", RuntimeStatus: SessionRuntimeReady,
+		CreationProfile: &profile, CreationOptions: &options,
+		CreationProfileRef: profileRef, PolicySpecDigest: policyDigest, CreationDigest: creationDigest,
+		CreatedAt: time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
 	}
 }

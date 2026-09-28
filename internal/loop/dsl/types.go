@@ -3,8 +3,6 @@ package dsl
 
 import (
 	"fmt"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const (
@@ -34,8 +32,7 @@ type Definition struct {
 
 // DefinitionExtensionState keeps optional authoring extensions off the hot Definition value.
 type DefinitionExtensionState struct {
-	Start                []StartBinding         `json:"start,omitempty"                 yaml:"start,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty" yaml:"network_participation,omitempty"`
+	Start []StartBinding `json:"start,omitempty" yaml:"start,omitempty"`
 }
 
 // Normalize applies document-level zero-value semantics without inventing authoring defaults.

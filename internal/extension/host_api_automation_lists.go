@@ -26,10 +26,7 @@ func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return nil, err
-	}
+	profileID := hostAPIProfileID(ctx)
 
 	query := automationpkg.JobListQuery{
 		ReadScope:   store.ReadScope{ProfileID: profileID},
@@ -76,10 +73,7 @@ func (h *HostAPIHandler) handleAutomationTriggers(ctx context.Context, raw json.
 	if err != nil {
 		return nil, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return nil, err
-	}
+	profileID := hostAPIProfileID(ctx)
 
 	query := automationpkg.TriggerListQuery{
 		ReadScope:   store.ReadScope{ProfileID: profileID},

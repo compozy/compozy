@@ -3,40 +3,10 @@ package hooks
 import (
 	"encoding/json"
 	"reflect"
-	"strings"
+
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
-
-func TestTaskRunContextNetworkSpecSnapshot(t *testing.T) {
-	t.Run("Should project an absent typed snapshot as Local without reading compatibility fields", func(t *testing.T) {
-		t.Parallel()
-
-		context := TaskRunContext{}
-		if got, want := context.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
-		}
-	})
-
-	t.Run("Should return the immutable typed snapshot by value", func(t *testing.T) {
-		t.Parallel()
-
-		want := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-hooks",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "operations",
-			Source:          participation.SourceExplicitRequest,
-		}
-		context := TaskRunContext{ResolvedNetworkParticipation: participation.CloneSpec(want)}
-		if got := context.NetworkSpecSnapshot(); got != want {
-			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
-		}
-	})
-}
 
 func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -135,94 +105,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	})
 	assertJSONRoundTrip(t, "SessionPostStopPatch", SessionPostStopPatch{
 		Workspace: &workspace,
-	})
-
-	assertJSONRoundTrip(t, "SandboxPreparePayload", SandboxPreparePayload{
-		PayloadBase:    samplePayloadBase(HookSandboxPrepare),
-		SessionContext: sampleSession,
-		SandboxID:      "env-1",
-		Backend:        "daytona",
-		Profile: SandboxProfilePayload{
-			Profile:        "daytona-dev",
-			Backend:        "daytona",
-			SyncMode:       "session-bidirectional",
-			Persistence:    "transient",
-			RuntimeRootDir: "/workspace",
-			DestroyOnStop:  true,
-			Env:            map[string]string{"BASE": "1"},
-		},
-		LocalRootDir:        "/local",
-		LocalAdditionalDirs: []string{"/local-extra"},
-		AgentCommand:        "codex",
-		AgentEnv:            []string{"BASE=1"},
-		Permissions:         "approve-all",
-		ResumeACPState:      "acp-1",
-		EnvOverrides:        map[string]string{"SECRET": "token"},
-		Denied:              true,
-		DenyReason:          "policy",
-	})
-	assertJSONRoundTrip(t, "SandboxReadyPayload", SandboxReadyPayload{
-		PayloadBase:           samplePayloadBase(HookSandboxReady),
-		SessionContext:        sampleSession,
-		SandboxID:             "env-1",
-		Backend:               "daytona",
-		Profile:               "daytona-dev",
-		InstanceID:            "instance-1",
-		RuntimeRootDir:        "/runtime",
-		RuntimeAdditionalDirs: []string{"/runtime-extra"},
-	})
-	assertJSONRoundTrip(t, "SandboxSyncBeforePayload", SandboxSyncBeforePayload{
-		PayloadBase:     samplePayloadBase(HookSandboxSyncBefore),
-		SessionContext:  sampleSession,
-		SandboxID:       "env-1",
-		Backend:         "daytona",
-		Profile:         "daytona-dev",
-		InstanceID:      "instance-1",
-		RuntimeRootDir:  "/runtime",
-		Direction:       "to_runtime",
-		Reason:          "start",
-		ExcludePatterns: []string{"node_modules/**"},
-		Denied:          true,
-		DenyReason:      "blocked",
-	})
-	assertJSONRoundTrip(t, "SandboxSyncAfterPayload", SandboxSyncAfterPayload{
-		PayloadBase:      samplePayloadBase(HookSandboxSyncAfter),
-		SessionContext:   sampleSession,
-		SandboxID:        "env-1",
-		Backend:          "daytona",
-		Profile:          "daytona-dev",
-		InstanceID:       "instance-1",
-		RuntimeRootDir:   "/runtime",
-		Direction:        "from_runtime",
-		Reason:           "stop",
-		FilesSynced:      5,
-		BytesTransferred: 4096,
-		DurationMS:       37,
-		Errors:           []string{"retryable warning"},
-	})
-	assertJSONRoundTrip(t, "SandboxStopPayload", SandboxStopPayload{
-		PayloadBase:    samplePayloadBase(HookSandboxStop),
-		SessionContext: sampleSession,
-		SandboxID:      "env-1",
-		Backend:        "daytona",
-		Profile:        "daytona-dev",
-		InstanceID:     "instance-1",
-		RuntimeRootDir: "/runtime",
-		StopReason:     "user_requested",
-		WillDestroy:    true,
-		Denied:         true,
-		DenyReason:     "retain",
-	})
-	assertJSONRoundTrip(t, "SandboxPreparePatch", SandboxPreparePatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
-		EnvOverrides: map[string]string{"SECRET": "token"},
-	})
-	assertJSONRoundTrip(t, "SandboxSyncBeforePatch", SandboxSyncBeforePatch{
-		ControlPatch:    ControlPatch{Deny: true, DenyReason: "sync blocked"},
-		ExcludePatterns: []string{"tmp/**"},
-	})
-	assertJSONRoundTrip(t, "SandboxStopPatch", SandboxStopPatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "retain"},
 	})
 
 	assertJSONRoundTrip(t, "InputPreSubmitPayload", InputPreSubmitPayload{
@@ -493,25 +375,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		LastPresenceAt:      time.Date(2026, time.April, 9, 12, 0, 0, 0, time.UTC),
 		IneligibilityReason: "",
 	})
-	assertJSONRoundTrip(t, "NetworkMessagePersistedPayload", NetworkMessagePersistedPayload{
-		PayloadBase: samplePayloadBase(HookNetworkMessagePersisted),
-		SessionID:   "sess-coder",
-		Channel:     "builders",
-		Surface:     "thread",
-		ThreadID:    "thread_alpha",
-		MessageID:   "msg_01",
-		Kind:        "trace",
-		Direction:   "received",
-		WorkID:      "work_01",
-		WorkState:   "completed",
-		PeerFrom:    "coder.sess-abc",
-		PeerTo:      "reviewer.sess-xyz",
-		TraceID:     "trace_01",
-		CausationID: "msg_parent",
-	})
-	assertJSONRoundTrip(t, "NetworkObservationPatch", NetworkObservationPatch{
-		Labels: map[string]string{"consumer": "observer"},
-	})
 	assertJSONRoundTrip(t, "AuthoredContextObservationPatch", AuthoredContextObservationPatch{})
 
 	assertJSONRoundTrip(t, "TurnStartPayload", TurnStartPayload{
@@ -687,16 +550,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "PermissionDeniedPatch", PermissionDeniedPatch{})
 
 	sampleTaskContext := TaskContext{
-		TaskID:       "task-1",
-		ParentTaskID: "task-parent",
-		WorkspaceID:  "ws-1",
-		WorkflowID:   "wf-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			Version:   participation.SpecVersion,
-			Mode:      participation.ModeLive,
-			ChannelID: "builders",
-			Source:    participation.SourceExplicitRequest,
-		}),
+		TaskID:         "task-1",
+		ParentTaskID:   "task-parent",
+		WorkspaceID:    "ws-1",
+		WorkflowID:     "wf-1",
 		AgentName:      "codex",
 		ActorKind:      "agent_session",
 		ActorID:        "sess-1",
@@ -779,36 +636,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		windowManagerDispatchTestPayload(HookWindowManagerLayoutApplied),
 	)
 	assertJSONRoundTrip(t, "WindowManagerObservationPatch", WindowManagerObservationPatch{})
-}
-
-func TestNetworkPayloadExcludesRawMessageMaterial(t *testing.T) {
-	t.Parallel()
-
-	payload := NetworkMessagePersistedPayload{
-		PayloadBase: PayloadBase{
-			Event:     HookNetworkMessagePersisted,
-			Timestamp: time.Date(2026, time.May, 5, 12, 0, 0, 0, time.UTC),
-		},
-		Channel:     "builders",
-		Surface:     "direct",
-		DirectID:    "direct_99401d24bee62651d189e5a561785466",
-		MessageID:   "msg_01",
-		Kind:        "say",
-		Direction:   "sent",
-		WorkID:      "work_01",
-		TraceID:     "trace_01",
-		CausationID: "msg_parent",
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal(NetworkMessagePersistedPayload) error = %v", err)
-	}
-	text := string(encoded)
-	for _, forbidden := range []string{"body", "text", "preview_text", "compozy_claim_"} {
-		if strings.Contains(text, forbidden) {
-			t.Fatalf("encoded network payload contains %q: %s", forbidden, text)
-		}
-	}
 }
 
 func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {

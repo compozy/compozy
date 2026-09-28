@@ -106,7 +106,7 @@ var CZ_TREE = [
 
   { label: "Guides & examples" },
   { folder: "Guides", id: "guides", icon: "book",
-    kids: ["Choose an operator surface", "Debug a failed session", "Coordinate agents over network"] },
+    kids: ["Choose an operator surface", "Debug a failed session"] },
   { folder: "Examples", id: "examples", icon: "flask-conical",
     kids: [
       { t: "Review-and-fix loop", href: "site-example-page.html" },
@@ -122,13 +122,11 @@ var CZ_TREE = [
     kids: ["Definitions", "Capabilities", "Soul", "Heartbeat", "Providers", "Model catalog", "Spawning"] },
   { folder: "Autonomy", id: "autonomy", icon: "shield-check",
     kids: ["Coordinator", "Task runs and leases", "Execution profiles", "Review gate",
-      "Notification cursors", "Notification presets", "Coordination channels", "Safe spawn"] },
+      "Notification cursors", "Safe spawn"] },
   { folder: "Memory", id: "memory", icon: "brain",
     kids: ["System", "Scopes", "Dream", "Best practices"] },
   { folder: "Workspaces", id: "workspaces", icon: "folder-tree",
     kids: ["Resolver", "Config overlays", "Multi-root", "Window management"] },
-  { folder: "Sandbox", id: "sandbox", icon: "terminal",
-    kids: ["Profiles", "Daytona"] },
 
   { label: "Automation" },
   { folder: "Automation", id: "automation", icon: "clock",
@@ -143,28 +141,6 @@ var CZ_TREE = [
       { group: "Reference" },
       "DSL reference", "Goal node", "Reference grammar", "Guardrails", "Hooks", "Extensions"
     ] },
-  { folder: "Bridges", id: "bridges", icon: "layers",
-    kids: ["Setup", "Slack", "Telegram", "Discord", "WhatsApp", "Teams", "Google Chat", "GitHub", "Linear",
-      "Access", "Operations", "Conversations", "Behavior", "Routing", "Progress", "Adding a bridge"] },
-
-  { label: "Compozy Network" },
-  { folder: "Network", id: "network", icon: "network",
-    kids: [
-      "Protocol", "Channels and peers", "Threads", "Directs", "Work", "Delivery and safety", "Task promotion",
-      { folder: "Protocol spec", id: "protocol-spec", mono: "compozy-network/v0",
-        kids: [
-          "Overview", "Implementation status",
-          { group: "Wire format" },
-          "Envelope", "Message kinds", "Interactions", "Peer discovery", "Capability discovery",
-          { group: "Delivery" },
-          "Delivery",
-          { group: "Optional trust profile (v1)" },
-          "Ed25519 JCS", "Verification",
-          { group: "Build" },
-          "Examples", "Conformance", "Guide"
-        ] }
-    ] },
-
   { label: "Extensibility" },
   { item: "Marketplace", id: "marketplace", icon: "store" },
   { folder: "Skills", id: "skills", icon: "file-code",
@@ -193,9 +169,9 @@ var CZ_TREE = [
       { group: "Workspace & OS" },
       "workspace", "desktop", "window", "layout", "layout-profile", "open", "onboarding",
       { group: "Automation & coordination" },
-      "automation", "loop", "scheduler", "network", "notifications", "hooks",
+      "automation", "loop", "scheduler", "hooks",
       { group: "Capabilities & integrations" },
-      "marketplace", "skill", "extension", "resource", "tool", "toolsets", "mcp", "provider", "bridge", "vault",
+      "marketplace", "skill", "extension", "resource", "tool", "toolsets", "mcp", "provider", "vault",
       { group: "Runtime & diagnostics" },
       "daemon", "status", "doctor", "drain", "undrain", "observe", "logs", "support",
       { group: "Configuration & system" },
@@ -207,9 +183,8 @@ var CZ_TREE = [
       { group: "Workspace" },
       "sessions", "workspaces", "agents", "memory", "skills",
       { group: "Tools & automation" },
-      "marketplace", "tools", "toolsets", "resources", "automation", "loops", "bridges", "notifications",
-      { group: "Network" },
-      "network", "observe", "hooks",
+      "marketplace", "tools", "toolsets", "resources", "automation", "loops",
+      "observe", "hooks",
       { group: "Operations" },
       "diagnostics", "onboarding", "filesystem", "logs", "settings", "support", "providers", "extensions", "vault", "openai"
     ] }

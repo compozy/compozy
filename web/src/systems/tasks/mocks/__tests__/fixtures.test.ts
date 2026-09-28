@@ -10,30 +10,21 @@ import {
   storyAgentNames,
   storyCoordinatorAgentName,
   storyDefaultWorkspaceId,
-  storyHeroNetworkChannel,
   storyPeople,
 } from "@/storybook/fintech-scenario";
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-import { runIsCoordinated, taskLifecyclePhase } from "../../lib/task-formatters";
-import type { TaskInboxView, TaskListPage, TaskRun } from "../../types";
+import { taskLifecyclePhase } from "../../lib/task-formatters";
+import type { TaskInboxView, TaskListPage } from "../../types";
 import {
   agentContextFixture,
   awaitingApprovalTaskFixture,
-  buildBridgeNotificationCursorFixture,
-  buildTaskBridgeNotificationSubscriptionFixture,
   buildTaskContextBundleFixture,
   buildTaskExecutionProfileFixture,
-  buildTaskRunFixture,
-  buildTaskRunRecordFixture,
   buildTaskRunReviewFixture,
   buildTaskRunReviewVerdictResultFixture,
   coordinatorEnabledWorkspaceFixture,
-  queuedCoordinatedTaskFixture,
   nonEscalatedRecoverTaskFixture,
   recoverableTaskFixture,
   savedIntentTaskFixture,
-  taskBridgeNotificationSubscriptionFixture,
-  taskBridgeNotificationSubscriptionsFixture,
   taskContextBundleFixture,
   taskExecutionProfileFixture,
   taskRunReviewFixture,
@@ -51,35 +42,6 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe("tasks fixtures cover the manual-first lifecycle states", () => {
-  it("Should default generic run fixtures to a canonical Local snapshot", () => {
-    for (const run of [buildTaskRunFixture(), buildTaskRunRecordFixture()]) {
-      expect(run.resolved_network_participation).toEqual(buildLocalNetworkParticipationFixture());
-    }
-  });
-
-  it("Should derive catalog participation from the active run and preserve it in run responses", async () => {
-    const task = TASK_FIXTURES.find(candidate => candidate.id === "task_006");
-    expect(task?.active_run).not.toBeNull();
-    expect(task?.resolved_network_participation).toBe(
-      task?.active_run?.resolved_network_participation
-    );
-    expect(task?.resolved_network_participation).toMatchObject({
-      bounds: { max_wakes: 8 },
-      channel_id: storyHeroNetworkChannel,
-      channel_strategy: "named",
-      mode: "live",
-      source: "explicit_request",
-      workspace_id: storyDefaultWorkspaceId,
-    });
-
-    const response = await fetch("http://localhost/api/tasks/task_006/runs");
-    const body = (await response.json()) as { runs: TaskRun[] };
-    expect(response.status).toBe(200);
-    expect(body.runs[0]?.resolved_network_participation).toEqual(
-      task?.active_run?.resolved_network_participation
-    );
-  });
-
   it("savedIntentTaskFixture is a draft with no run and resolves to publish", () => {
     expect(savedIntentTaskFixture.status).toBe("draft");
     expect(savedIntentTaskFixture.draft).toBe(true);
@@ -93,20 +55,6 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
     expect(awaitingApprovalTaskFixture.active_run).toBeNull();
     expect(awaitingApprovalTaskFixture.created_by?.kind).toBe("agent_session");
     expect(taskLifecyclePhase(awaitingApprovalTaskFixture)).toBe("awaiting_approval");
-  });
-
-  it("queuedCoordinatedTaskFixture has a queued run bound to a coordination channel", () => {
-    expect(queuedCoordinatedTaskFixture.active_run?.status).toBe("queued");
-    expect(runIsCoordinated(queuedCoordinatedTaskFixture.active_run)).toBe(true);
-    const participation = queuedCoordinatedTaskFixture.active_run?.resolved_network_participation;
-    expect(participation?.mode).toBe("live");
-    if (participation?.mode !== "live") {
-      throw new Error("queued coordinated fixture must carry Live participation");
-    }
-    expect(participation.channel_id).toBe("coord-task-queued");
-    expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("claim_token_hash");
-    expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("coordination_channel");
-    expect(taskLifecyclePhase(queuedCoordinatedTaskFixture)).toBe("queued");
   });
 
   it("recover fixtures cover escalated and non-escalated task states", () => {
@@ -142,7 +90,6 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
   it("coordinatorEnabledWorkspaceFixture marks the workspace as coordinator-enabled", () => {
     expect(coordinatorEnabledWorkspaceFixture.coordinatorEnabled).toBe(true);
     expect(coordinatorEnabledWorkspaceFixture.coordinatorAgentName).toBe(storyCoordinatorAgentName);
-    expect(coordinatorEnabledWorkspaceFixture.defaultChannelDisplayName).toMatch(/coordination/i);
   });
 });
 
@@ -152,7 +99,6 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
       approval_state: "pending",
       include_drafts: "false",
       limit: "1",
-      participation_channel: storyHeroNetworkChannel,
       owner_kind: "human",
       owner_ref: storyPeople.productLead,
       parent_task_id: "task_001",
@@ -177,7 +123,6 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
 
     const exclusions: [string, string][] = [
       ["approval_state", "approved"],
-      ["participation_channel", "unrelated-channel"],
       ["owner_kind", "agent_session"],
       ["owner_ref", "another-owner"],
       ["parent_task_id", "task_other"],
@@ -365,7 +310,6 @@ describe("orchestration fixtures satisfy generated contract shape", () => {
     expect(taskExecutionProfileFixture.task_id).toBeTypeOf("string");
     expect(taskExecutionProfileFixture.coordinator.mode).toMatch(/inherit|guided/);
     expect(taskExecutionProfileFixture.worker.mode).toMatch(/inherit|select/);
-    expect(taskExecutionProfileFixture.sandbox.mode).toMatch(/inherit|none|ref/);
     expect(taskExecutionProfileFixture.created_at).toBeTypeOf("string");
     expect(taskExecutionProfileFixture.updated_at).toBeTypeOf("string");
 
@@ -391,25 +335,6 @@ describe("orchestration fixtures satisfy generated contract shape", () => {
     );
     const reset = buildTaskRunReviewVerdictResultFixture({ circuit_opened: true });
     expect(reset.circuit_opened).toBe(true);
-  });
-
-  it("Should expose bridge subscription fixtures with cursor diagnostics", () => {
-    expect(taskBridgeNotificationSubscriptionFixture.cursor.consumer_id).toBe(
-      taskBridgeNotificationSubscriptionFixture.subscription_id
-    );
-    expect(taskBridgeNotificationSubscriptionFixture.cursor.stream_name).toBe("task_events");
-    expect(taskBridgeNotificationSubscriptionFixture.cursor.last_sequence).toBeGreaterThanOrEqual(
-      0
-    );
-    expect(taskBridgeNotificationSubscriptionsFixture).toHaveLength(2);
-
-    const fresh = buildBridgeNotificationCursorFixture({ last_sequence: 0 });
-    expect(fresh.last_sequence).toBe(0);
-
-    const customSub = buildTaskBridgeNotificationSubscriptionFixture({
-      subscription_id: "bsub_custom",
-    });
-    expect(customSub.cursor.consumer_id).toBe(customSub.subscription_id);
   });
 
   it("Should expose task context bundle with latest_event_seq and execution profile", () => {

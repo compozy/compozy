@@ -160,16 +160,6 @@ func DeriveExtensionActorContextForWorkspace(
 	)
 }
 
-// DeriveNetworkPeerActorContext derives one trusted network-peer actor
-// context. If originRef is empty, the actor ref is reused as the durable origin
-// ref so ingress layers may include peer or peer/channel details as needed.
-func DeriveNetworkPeerActorContext(actorRef string, originRef string) (ActorContext, error) {
-	if originRef == "" {
-		originRef = actorRef
-	}
-	return deriveActorContext(ActorKindNetworkPeer, actorRef, OriginKindNetwork, originRef, CallerScope{})
-}
-
 // DeriveDaemonActorContext derives one trusted daemon-owned actor context. If
 // originRef is empty, the actor ref is reused as the durable origin ref.
 func DeriveDaemonActorContext(actorRef string, originRef string) (ActorContext, error) {
@@ -229,10 +219,6 @@ func validateActorOriginPair(actor ActorIdentity, origin Origin) error {
 		}
 	case ActorKindExtension:
 		if origin.Kind.Normalize() == OriginKindExtension {
-			return nil
-		}
-	case ActorKindNetworkPeer:
-		if origin.Kind.Normalize() == OriginKindNetwork {
 			return nil
 		}
 	case ActorKindDaemon:

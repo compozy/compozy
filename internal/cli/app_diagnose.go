@@ -233,7 +233,7 @@ func appDiagnosticReportOutput(report appDiagnosticReport) outputBundle {
 		human: func() (string, error) {
 			rows := []keyValue{
 				{Label: "Boot", Value: report.BootID},
-				{Label: networkStateValue, Value: report.BootPhase},
+				{Label: cliOutputStateValue, Value: report.BootPhase},
 				{Label: versionValue, Value: report.AppVersion},
 			}
 			if report.RuntimeVersion != nil {

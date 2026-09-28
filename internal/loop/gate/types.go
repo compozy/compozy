@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -111,7 +110,6 @@ type GateInput struct {
 	JudgeRuntime             dsl.RuntimeSpec
 	JudgeUsageReporter       JudgeUsageReporter
 	JudgeEvidence            JudgeEvidence
-	NetworkParticipation     *participation.Spec
 }
 
 // JudgeEvidence is the authoritative completed candidate supplied to an agent judge.
@@ -277,18 +275,17 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	LoopRunID            string
-	GateID               string
-	CriterionID          string
-	Attempt              int
-	CorrelationID        string
-	ProfileID            string
-	WorkspaceID          string
-	Agent                string
-	Runtime              dsl.RuntimeSpec
-	Rubric               string
-	Contract             dsl.Contract
-	NetworkParticipation *participation.Spec
+	LoopRunID     string
+	GateID        string
+	CriterionID   string
+	Attempt       int
+	CorrelationID string
+	ProfileID     string
+	WorkspaceID   string
+	Agent         string
+	Runtime       dsl.RuntimeSpec
+	Rubric        string
+	Contract      dsl.Contract
 }
 
 // JudgeResponse is the raw judge response payload.

@@ -17,11 +17,9 @@
   Provenance:
     production        — ScopeSelector pill-group from scope-selector.tsx (call sites:
                         automation-job-form.tsx:180-192, automation-trigger-form.tsx:87-101,
-                        bridge-create-dialog.tsx:179-190, task-editor-surface.tsx:137-148);
                         hand-rolled twins in agent-create-dialog.tsx:134-181 and
                         marketplace-kind-page.tsx:153-172; RadioCards in
                         mcp-install-dialog.tsx:119-146; NativeSelect in
-                        task-bridge-subscription-create-dialog.tsx:123-154; vault ref
                         derivation use-mcp-install-dialog.ts:50-55
     redesign proposal — all of the above deleted; .gw-scope / .gw-scope-note derive from
                         the menubar toggle (store.scope) and only STATE the target
@@ -204,16 +202,7 @@
         </div>
       </div>
 
-      <div class="spec">
-        <div class="spec__note"><b>Bridge subscriptions</b>The Scope <code>NativeSelect</code> + read-only "Workspace id" echo (<code>task-bridge-subscription-create-dialog.tsx:123-154</code>) collapse into the same foot note — the id echo was already derived state pretending to be a field.</div>
-        <div class="spec__demo">
-          <div class="crop"><div class="dialog dialog--compact"><div class="dialog__foot">
-            <div class="gw-scope-note" data-od-id="gw-bridge-foot"><svg data-lucide="box"></svg>Subscribes in <b>compozy</b>.</div>
-            <button class="btn">Cancel</button>
-            <button class="btn btn--primary">Create subscription</button>
-          </div></div></div>
-        </div>
-      </div>
+
     </section>
 
     <!-- ════ 05 · EDIT MODE ════ -->

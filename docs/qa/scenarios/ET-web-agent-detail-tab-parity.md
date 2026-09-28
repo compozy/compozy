@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png
 last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
-overlaps: RT-agent-overview-canonical-metrics;RT-076
+overlaps: RT-agent-overview-canonical-metrics; RT-076
 ---
 
 Added by agent-detail OpenDesign tab parity 2026-07-17 after aligning Overview/Instructions/Configuration/Sessions composition to frozen agent-detail.html (SHA-1 4a4c214402cc83a06ff8ab7c607b9c0d6cfc12bc).

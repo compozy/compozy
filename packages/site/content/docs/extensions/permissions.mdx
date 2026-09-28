@@ -86,8 +86,6 @@ Twenty-six consent areas cover the cataloged methods.
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `automation:read`  | `automation/jobs`, `automation/jobs/get`, `automation/jobs/runs`, `automation/runs`, `automation/triggers`, `automation/triggers/get`, `automation/triggers/runs`                                                             |
 | `automation:write` | `automation/jobs/create`, `automation/jobs/delete`, `automation/jobs/trigger`, `automation/jobs/update`, `automation/triggers/create`, `automation/triggers/delete`, `automation/triggers/fire`, `automation/triggers/update` |
-| `bridge:read`      | `bridges/instances/get`, `bridges/instances/list`                                                                                                                                                                             |
-| `bridge:write`     | `bridges/instances/report_state`, `bridges/messages/ingest`                                                                                                                                                                   |
 | `clarify:ask`      | `clarify/ask`                                                                                                                                                                                                                 |
 | `heartbeat:read`   | `agents/heartbeat/get`, `agents/heartbeat/history`, `agents/heartbeat/status`, `agents/heartbeat/validate`                                                                                                                    |
 | `heartbeat:write`  | `agents/heartbeat/delete`, `agents/heartbeat/put`, `agents/heartbeat/rollback`, `agents/heartbeat/wake`                                                                                                                       |
@@ -96,13 +94,9 @@ Twenty-six consent areas cover the cataloged methods.
 | `memory:write`     | `memory/forget`, `memory/store`                                                                                                                                                                                               |
 | `model:read`       | `models/list`, `models/status`                                                                                                                                                                                                |
 | `model:write`      | `models/refresh`                                                                                                                                                                                                              |
-| `network:read`     | `network/channels`, `network/direct/messages`, `network/directs`, `network/peers`, `network/status`, `network/thread/get`, `network/thread/messages`, `network/threads`, `network/usage`, `network/work/get`                  |
-| `network:write`    | `network/direct/resolve`, `network/send`                                                                                                                                                                                      |
 | `observe:read`     | `observe/health`                                                                                                                                                                                                              |
 | `resources:read`   | `resources/get`, `resources/list`                                                                                                                                                                                             |
 | `resources:write`  | `resources/snapshot`                                                                                                                                                                                                          |
-| `sandbox:exec`     | `sandbox/exec`                                                                                                                                                                                                                |
-| `sandbox:read`     | `sandbox/info`, `sandbox/list`                                                                                                                                                                                                |
 | `sessions:read`    | `sessions/events`, `sessions/health/get`, `sessions/list`, `sessions/status`, `sessions/status/get`                                                                                                                           |
 | `sessions:write`   | `sessions/archive`, `sessions/create`, `sessions/prompt`, `sessions/stop`, `sessions/unarchive`                                                                                                                               |
 | `skills:read`      | `skills/list`                                                                                                                                                                                                                 |
@@ -113,7 +107,7 @@ Twenty-six consent areas cover the cataloged methods.
 
 Read and write are separate areas everywhere, so a read-only reviewer extension never requests a
 mutation grant. Paged collection methods (`tasks`, `tasks/inbox`, `automation/jobs`,
-`automation/triggers`, and the `network/*` collections) return bounded envelopes with page metadata —
+`automation/triggers`) return bounded envelopes with page metadata —
 read the collection field and its page metadata together, never as a bare array.
 
 ## Source ceilings

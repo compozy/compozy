@@ -119,9 +119,8 @@ export function SupportedAgents() {
         <div className="max-w-[40ch]">
           <Eyebrow className="text-accent">Bring the agents you use</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
-            CompozyOS launches built-in CLI and provider integrations as durable sessions. Local is
-            the default; choose Live when a session should discover peers, share capabilities, and
-            coordinate through Compozy Network.
+            CompozyOS launches built-in CLI and provider integrations as durable sessions, with
+            shared tools, explicit permissions, and history that stays on your machine.
           </p>
           <Link
             href="/docs/agents/providers"

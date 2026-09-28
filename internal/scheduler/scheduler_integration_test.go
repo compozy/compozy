@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -32,10 +31,6 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 		workspaceID := registerSchedulerWorkspace(t, db, "wake-claim", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Wake then claim")
-		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
-		if runChannel == "" {
-			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
-		}
 		run := execution.Run
 		if _, err := db.DB().ExecContext(
 			ctx,
@@ -53,7 +48,6 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 				integrationSessionSnapshot(
 					"sess-worker",
 					workspaceID,
-					runChannel,
 					"active",
 					false,
 					[]string{"go", "sqlite"},
@@ -103,7 +97,6 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 			Scope:                taskpkg.ScopeWorkspace,
 			WorkspaceID:          workspaceID,
 			ClaimerSessionID:     "sess-worker",
-			ParticipationChannel: runChannel,
 			RequiredCapabilities: []string{"go"},
 			LeaseDuration:        time.Minute,
 			Now:                  base.Add(time.Second),
@@ -128,22 +121,17 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 		workspaceID := registerSchedulerWorkspace(t, first, "restart-recovery", filepath.Join(t.TempDir(), "workspace"))
 		firstManager := newSchedulerTaskManager(t, first)
 		execution := createSchedulerTaskRun(t, ctx, firstManager, workspaceID, "Restart recovery")
-		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
-		if runChannel == "" {
-			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
-		}
 
 		oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 		}
 		claimed, err := firstManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-old",
-			ParticipationChannel: runChannel,
-			LeaseDuration:        time.Second,
-			Now:                  base,
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-old",
+			LeaseDuration:    time.Second,
+			Now:              base,
 		}, oldActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(old) error = %v", err)
@@ -165,7 +153,6 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 				integrationSessionSnapshot(
 					"sess-new",
 					workspaceID,
-					runChannel,
 					"active",
 					false,
 					nil,
@@ -208,12 +195,11 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 		}
 		claim, err := secondManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-new",
-			ParticipationChannel: runChannel,
-			LeaseDuration:        time.Minute,
-			Now:                  base.Add(3 * time.Second),
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-new",
+			LeaseDuration:    time.Minute,
+			Now:              base.Add(3 * time.Second),
 		}, newActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(new) error = %v", err)
@@ -224,11 +210,11 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 	})
 }
 
-func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testing.T) {
+func TestSchedulerRecoversExpiredLeaseAndFencesPriorClaimIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run(
-		"Should recover an expired immutable participation lease and preserve reclaim semantics",
+		"Should recover an expired lease and fence the prior claim through completion",
 		func(t *testing.T) {
 			ctx := testutil.Context(t)
 			base := time.Date(2027, 4, 28, 9, 46, 36, 0, time.UTC)
@@ -236,26 +222,13 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 			workspaceID := registerSchedulerWorkspace(
 				t,
 				db,
-				"participation-expiry",
+				"lease-expiry",
 				filepath.Join(t.TempDir(), "workspace"),
 			)
 			manager := newSchedulerTaskManagerWithOptions(
 				t,
 				db,
 			)
-
-			channelTimestamp := base.Add(-3 * time.Second)
-			if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-				Channel:     "scope-direct-history",
-				WorkspaceID: workspaceID,
-				ProfileID:   store.DefaultProfileID,
-				Purpose:     "Immutable participation lease expiry recovery validation",
-				CreatedBy:   "founder",
-				CreatedAt:   channelTimestamp,
-				UpdatedAt:   channelTimestamp,
-			}); err != nil {
-				t.Fatalf("WriteNetworkChannel() error = %v", err)
-			}
 
 			operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task start")
 			if err != nil {
@@ -265,19 +238,14 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: workspaceID,
-				Title:       "Immutable participation lease expiry recovery",
+				Title:       "Lease expiry recovery",
 			}, operator)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
 			}
-			execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
-				NetworkParticipation: schedulerNamedParticipation("scope-direct-history"),
-			}, operator)
+			execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, operator)
 			if err != nil {
 				t.Fatalf("StartTask() error = %v", err)
-			}
-			if got, want := execution.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("execution.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 
 			oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old", workspaceID)
@@ -285,21 +253,17 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 			}
 			firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:                taskpkg.ScopeWorkspace,
-				WorkspaceID:          workspaceID,
-				ClaimerSessionID:     "sess-old",
-				ParticipationChannel: "scope-direct-history",
-				LeaseDuration:        time.Second,
-				Now:                  base,
+				Scope:            taskpkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				ClaimerSessionID: "sess-old",
+				LeaseDuration:    time.Second,
+				Now:              base,
 			}, oldActor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun(old) error = %v", err)
 			}
 			if got, want := firstClaim.Run.ID, execution.Run.ID; got != want {
 				t.Fatalf("firstClaim.Run.ID = %q, want %q", got, want)
-			}
-			if got, want := firstClaim.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("firstClaim.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 			if firstClaim.ClaimToken == "" {
 				t.Fatal("firstClaim.ClaimToken = empty, want raw claim token")
@@ -325,7 +289,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("RecoveredRunIDs = %v, want %q", result.RecoveredRunIDs, execution.Run.ID)
 			}
 			if got := len(waker.targetsSnapshot()); got != 0 {
-				t.Fatalf("wake targets after participation recovery = %d, want 0", got)
+				t.Fatalf("wake targets after lease recovery = %d, want 0", got)
 			}
 
 			if _, err := manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
@@ -346,12 +310,11 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 			}
 			secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:                taskpkg.ScopeWorkspace,
-				WorkspaceID:          workspaceID,
-				ClaimerSessionID:     "sess-new",
-				ParticipationChannel: "scope-direct-history",
-				LeaseDuration:        time.Minute,
-				Now:                  base.Add(14 * time.Second),
+				Scope:            taskpkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				ClaimerSessionID: "sess-new",
+				LeaseDuration:    time.Minute,
+				Now:              base.Add(14 * time.Second),
 			}, newActor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun(new) error = %v", err)
@@ -362,9 +325,6 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 			if got, want := secondClaim.Run.SessionID, "sess-new"; got != want {
 				t.Fatalf("secondClaim.Run.SessionID = %q, want %q", got, want)
 			}
-			if got, want := secondClaim.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("secondClaim.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
-			}
 			if secondClaim.ClaimToken == "" {
 				t.Fatal("secondClaim.ClaimToken = empty, want raw claim token")
 			}
@@ -373,7 +333,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				RunID:      secondClaim.Run.ID,
 				ClaimToken: secondClaim.ClaimToken,
 				Result: taskpkg.RunResult{
-					Value: []byte(`{"ok":true,"path":"scheduler-participation-expiry"}`),
+					Value: []byte(`{"ok":true,"path":"scheduler-lease-expiry"}`),
 				},
 			}, newActor)
 			if err != nil {
@@ -381,9 +341,6 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 			}
 			if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
 				t.Fatalf("completed.Status = %q, want %q", got, want)
-			}
-			if got, want := completed.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("completed.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 
 			storedTask, err := db.GetTask(ctx, taskRecord.ID)
@@ -440,22 +397,17 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 		workspaceID := registerSchedulerWorkspace(t, db, "dead-worker", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Dead worker recovery")
-		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
-		if runChannel == "" {
-			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
-		}
 
 		deadActor, err := taskpkg.DeriveAgentSessionActorContext("sess-dead-worker", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(dead) error = %v", err)
 		}
 		firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-dead-worker",
-			ParticipationChannel: runChannel,
-			LeaseDuration:        time.Minute,
-			Now:                  base,
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-dead-worker",
+			LeaseDuration:    time.Minute,
+			Now:              base,
 		}, deadActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(dead) error = %v", err)
@@ -509,7 +461,6 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 				integrationSessionSnapshot(
 					"sess-replacement",
 					workspaceID,
-					runChannel,
 					"active",
 					false,
 					nil,
@@ -542,12 +493,11 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			t.Fatalf("DeriveAgentSessionActorContext(replacement) error = %v", err)
 		}
 		secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-replacement",
-			ParticipationChannel: runChannel,
-			LeaseDuration:        time.Minute,
-			Now:                  base.Add(13 * time.Second),
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-replacement",
+			LeaseDuration:    time.Minute,
+			Now:              base.Add(13 * time.Second),
 		}, replacementActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(replacement) error = %v", err)
@@ -580,19 +530,16 @@ func TestSchedulerEscalatesSerialBacklogBehindCompatibleCapacityIntegration(t *t
 		)
 		activeExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Active serial work")
 		queuedExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Queued serial work")
-		activeChannel := activeExecution.Run.NetworkSpecSnapshot().ChannelID
-		queuedChannel := queuedExecution.Run.NetworkSpecSnapshot().ChannelID
 		actor, err := taskpkg.DeriveAgentSessionActorContext("sess-serial", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
 		activeClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-serial",
-			ParticipationChannel: activeChannel,
-			LeaseDuration:        time.Hour,
-			Now:                  base.Add(time.Second),
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-serial",
+			LeaseDuration:    time.Hour,
+			Now:              base.Add(time.Second),
 		}, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(active) error = %v", err)
@@ -605,7 +552,6 @@ func TestSchedulerEscalatesSerialBacklogBehindCompatibleCapacityIntegration(t *t
 			integrationSessionSnapshot(
 				"sess-serial",
 				workspaceID,
-				queuedChannel,
 				"active",
 				false,
 				nil,
@@ -723,12 +669,11 @@ func TestSchedulerEscalatesSerialBacklogBehindCompatibleCapacityIntegration(t *t
 			t.Fatalf("after-release wake run = %q, want %q", got, want)
 		}
 		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          workspaceID,
-			ClaimerSessionID:     "sess-serial",
-			ParticipationChannel: queuedChannel,
-			LeaseDuration:        time.Hour,
-			Now:                  base.Add(11 * time.Minute),
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-serial",
+			LeaseDuration:    time.Hour,
+			Now:              base.Add(11 * time.Minute),
 		}, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(queued) error = %v", err)
@@ -882,7 +827,6 @@ func newSchedulerTaskManagerWithOptions(t *testing.T, store taskpkg.Store, opts 
 
 	managerOptions := []taskpkg.Option{
 		taskpkg.WithStore(store),
-		taskpkg.WithParticipationResolver(schedulerParticipationResolver{}),
 	}
 	managerOptions = append(managerOptions, opts...)
 	manager, err := taskpkg.NewManager(managerOptions...)
@@ -895,7 +839,6 @@ func newSchedulerTaskManagerWithOptions(t *testing.T, store taskpkg.Store, opts 
 func integrationSessionSnapshot(
 	id string,
 	workspaceID string,
-	channel string,
 	state string,
 	prompting bool,
 	capabilities []string,
@@ -904,7 +847,6 @@ func integrationSessionSnapshot(
 	return SessionSnapshot{
 		ID:              id,
 		WorkspaceID:     workspaceID,
-		Channel:         channel,
 		State:           state,
 		Prompting:       prompting,
 		Capabilities:    append([]string(nil), capabilities...),
@@ -954,64 +896,11 @@ func createSchedulerTaskRun(
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
-		NetworkParticipation: schedulerNamedParticipation("scheduler-" + taskRecord.ID),
-	}, actor)
+	execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, actor)
 	if err != nil {
 		t.Fatalf("StartTask() error = %v", err)
 	}
 	return execution
-}
-
-type schedulerParticipationResolver struct{}
-
-func (schedulerParticipationResolver) Resolve(
-	_ context.Context,
-	input participation.ResolveInput,
-) (participation.Spec, error) {
-	if input.Request == nil || input.Request.Mode == nil || *input.Request.Mode == participation.ModeLocal {
-		return participation.LocalSpec(), nil
-	}
-	bounds, err := participation.ResolveBounds(
-		input.Request.Bounds,
-		schedulerParticipationDefaults(),
-		participation.Limits{},
-	)
-	if err != nil {
-		return participation.Spec{}, err
-	}
-	return participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     input.WorkspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       strings.TrimSpace(*input.Request.ChannelID),
-		Source:          participation.SourceExplicitRequest,
-		Bounds:          bounds,
-	}, nil
-}
-
-func schedulerParticipationDefaults() participation.Bounds {
-	return participation.Bounds{
-		MaxWakes:         4,
-		MaxWakeWallTime:  "30s",
-		MaxTotalWallTime: "2m",
-		MaxInputTokens:   4096,
-		MaxOutputTokens:  4096,
-		MaxWakeDepth:     4,
-		CoalesceWindow:   "250ms",
-	}
-}
-
-func schedulerNamedParticipation(channel string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	channel = strings.TrimSpace(channel)
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channel,
-	}
 }
 
 func schedulerIntegrationHasEvent(events []taskpkg.Event, want string) bool {

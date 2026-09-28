@@ -16,13 +16,11 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.T) {
@@ -1848,58 +1846,6 @@ func (s *promptCommandServiceStub) Expand(
 	return "VERIFIED REVIEW INSTRUCTIONS\n\n" + message, nil
 }
 
-func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptInputAugmenter(func(
-		_ context.Context,
-		_ *Session,
-		message string,
-	) (string, error) {
-		return message + "\n\nNETWORK AUGMENT", nil
-	}))
-	session := createLiveNetworkSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	eventsCh, err := h.manager.PromptNetwork(
-		testutil.Context(t),
-		session.ID,
-		"network message",
-		acp.PromptNetworkMeta{
-			MessageID: "msg-1",
-			Kind:      "direct",
-			Channel:   "builders",
-			From:      "ops.peer",
-		},
-	)
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
-	}
-	_ = collectEvents(t, eventsCh)
-
-	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query() error = %v", err)
-	}
-	if len(stored) == 0 {
-		t.Fatal("stored events = 0, want at least one event")
-	}
-	if got := h.driver.promptCalls[0].Message; got != "network message\n\nNETWORK AUGMENT" {
-		t.Fatalf("driver prompt message = %q, want augmented network content", got)
-	}
-	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
-		t.Fatalf("driver turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
-	}
-	if !strings.Contains(stored[0].Content, `"text":"network message"`) {
-		t.Fatalf("stored user_message content = %s, want original network message", stored[0].Content)
-	}
-	if strings.Contains(stored[0].Content, "NETWORK AUGMENT") {
-		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
-	}
-}
-
 func TestPromptAugmenterPropagatesFailureAndSkipsDriverDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -1952,7 +1898,7 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	session := createLiveNetworkSession(t, h)
+	session := createSession(t, h)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})
@@ -1975,74 +1921,14 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	}
 	_ = collectEvents(t, firstEvents)
 
-	secondEvents, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network prompt")
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceUser {
+		t.Fatalf("user prompt source = %q, want user", got)
 	}
-	_ = collectEvents(t, secondEvents)
-
-	if got, want := len(h.driver.promptCalls), 2; got != want {
-		t.Fatalf("len(promptCalls) = %d, want %d", got, want)
-	}
-	if got, want := h.driver.promptCalls[0].Meta.TurnSource, acp.PromptTurnSourceUser; got != want {
-		t.Fatalf("promptCalls[0].Meta.TurnSource = %q, want %q", got, want)
-	}
-	networkMeta := acp.PromptNetworkMeta{
-		MessageID: "msg-1",
-		Kind:      "direct",
-		Channel:   "builders",
-		From:      "ops.peer",
-	}
-	thirdEvents, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network prompt", networkMeta)
-	if err != nil {
-		t.Fatalf("PromptNetwork(with meta) error = %v", err)
-	}
-	_ = collectEvents(t, thirdEvents)
-	if got, want := h.driver.promptCalls[2].Meta.TurnSource, acp.PromptTurnSourceNetwork; got != want {
-		t.Fatalf("promptCalls[2].Meta.TurnSource = %q, want %q", got, want)
-	}
-	if h.driver.promptCalls[2].Meta.Network == nil {
-		t.Fatal("promptCalls[2].Meta.Network = nil, want populated metadata")
-	}
-	if got, want := h.driver.promptCalls[2].Meta.Network.MessageID, networkMeta.MessageID; got != want {
-		t.Fatalf("promptCalls[2].Meta.Network.MessageID = %q, want %q", got, want)
-	}
-	if !slices.Equal(seenSources, []TurnSource{TurnSourceUser, TurnSourceNetwork, TurnSourceNetwork}) {
-		t.Fatalf(
-			"seen turn sources = %#v, want %#v",
-			seenSources,
-			[]TurnSource{TurnSourceUser, TurnSourceNetwork, TurnSourceNetwork},
-		)
+	if !slices.Equal(seenSources, []TurnSource{TurnSourceUser}) {
+		t.Fatalf("seen turn sources = %#v, want user", seenSources)
 	}
 	if got := session.CurrentTurnSource(); got != "" {
 		t.Fatalf("CurrentTurnSource() after prompts = %q, want empty", got)
-	}
-}
-
-func TestPromptNetworkRejectsMultipleMetadataValues(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	_, err := h.manager.PromptNetwork(
-		testutil.Context(t),
-		session.ID,
-		"network prompt",
-		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
-		acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "direct"},
-	)
-	if err == nil {
-		t.Fatal("PromptNetwork(multiple meta) error = nil, want validation failure")
-	}
-	if !strings.Contains(err.Error(), "at most one metadata value") {
-		t.Fatalf("PromptNetwork(multiple meta) error = %v, want multiple-metadata validation", err)
-	}
-	if got := len(h.driver.promptCalls); got != 0 {
-		t.Fatalf("len(promptCalls) = %d, want 0 when PromptNetwork validation fails", got)
 	}
 }
 
@@ -2618,7 +2504,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 
 	var (
 		called       bool
-		gotChannel   string
 		gotType      Type
 		gotWorkspace string
 	)
@@ -2633,7 +2518,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 				prompt string,
 			) (string, error) {
 				called = true
-				gotChannel = startup.NetworkParticipation.ChannelID
 				gotType = startup.SessionType
 				gotWorkspace = startup.Workspace
 				return prompt + "\n\noverlay block", nil
@@ -2642,10 +2526,9 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+		AgentName: "coder",
+		Name:      "session",
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -2657,9 +2540,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	if !called {
 		t.Fatal("Create() did not invoke the configured startup prompt overlay")
 	}
-	if gotChannel != "builders" {
-		t.Fatalf("startup overlay channel = %q, want %q", gotChannel, "builders")
-	}
 	if gotType != SessionTypeUser {
 		t.Fatalf("startup overlay session type = %q, want %q", gotType, SessionTypeUser)
 	}
@@ -2668,62 +2548,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	}
 	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\noverlay block" {
 		t.Fatalf("start system prompt = %q, want overlay output", got)
-	}
-}
-
-func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithPromptAssembler(
-			startupPromptAssemblerFunc(
-				func(
-					_ context.Context,
-					startup StartupPromptContext,
-					agent compozyconfig.AgentDef,
-					workspace *workspacepkg.ResolvedWorkspace,
-				) (string, error) {
-					if got, want := workspace.RootDir, h.workspace; got != want {
-						t.Fatalf("assembler workspace = %q, want %q", got, want)
-					}
-					prompt := agent.Prompt + "\n\nmemory block"
-					if startup.NetworkParticipation.Mode != participation.ModeLive {
-						return prompt, nil
-					}
-					return prompt + "\n\n" + networkSkill, nil
-				},
-			),
-		),
-	)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	wantPrompt := "You are a coding assistant.\n\nmemory block\n\n" + networkSkill
-	if got := h.driver.startCalls[0].SystemPrompt; got != wantPrompt {
-		t.Fatalf("start system prompt = %q, want %q", got, wantPrompt)
-	}
-	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("network skill occurrences = %d, want 1", got)
 	}
 }
 
@@ -3030,6 +2854,15 @@ func TestCancelTurn(t *testing.T) {
 			t.Fatalf("session outcome = %#v, %v", stopOutcome, err)
 		}
 		collectEvents(t, events)
+		stored := readStoredEvents(t, session)
+		if got := countEventType(stored, eventspkg.SessionTurnQuiesced); got != 1 {
+			t.Fatalf("persisted turn quiescence receipts = %d, want 1", got)
+		}
+		quiesced := storedEventByType(t, stored, eventspkg.SessionTurnQuiesced)
+		stopped := storedEventByType(t, stored, EventTypeSessionStopped)
+		if quiesced.Sequence >= stopped.Sequence {
+			t.Fatalf("quiescence sequence %d must precede session stop %d", quiesced.Sequence, stopped.Sequence)
+		}
 		h.driver.mu.Lock()
 		starts, cancels := len(h.driver.startCalls), h.driver.cancelCalls
 		h.driver.mu.Unlock()

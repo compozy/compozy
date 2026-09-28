@@ -21,7 +21,6 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
@@ -99,22 +98,21 @@ func TestNodeLifecycleConfigShouldResolveAndPinAdmissionValues(t *testing.T) {
 	})
 }
 
-func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *testing.T) {
+func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep copied non-network definitions Local in start and dry-run", func(t *testing.T) {
+	t.Run("Should preserve the explicit profile owner when starting copied definitions", func(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
 		copied := definition
 		store := newFakeLoopStore()
-		svc := newParticipationTestService(
+		svc := newLifecycleTestService(
 			t,
 			store,
 			copied,
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 		)
-		preview, err := svc.DryRun(
+		_, err := svc.DryRun(
 			context.Background(),
 			"ws-1",
 			"valid-loop",
@@ -125,23 +123,14 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}
-		if got := preview.ResolvedNetworkParticipation; got != participation.LocalSpec() {
-			t.Fatalf("DryRun participation = %#v, want canonical Local", got)
-		}
 		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{ProfileID: "profile-marketing",
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
-		if got := run.NetworkSpecSnapshot(); got != participation.LocalSpec() {
-			t.Fatalf("Start participation = %#v, want canonical Local", got)
-		}
 		if got, want := run.ProfileID, "profile-marketing"; got != want {
 			t.Fatalf("Start().ProfileID = %q, want %q", got, want)
-		}
-		if got := store.mustRun(t, run.ID).NetworkSpecSnapshot(); got != participation.LocalSpec() {
-			t.Fatalf("stored participation = %#v, want canonical Local", got)
 		}
 	})
 
@@ -149,11 +138,10 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		svc := newParticipationTestService(
+		svc := newLifecycleTestService(
 			t,
 			store,
 			validDefinition(),
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 		)
 		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},
@@ -163,109 +151,15 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		}
 	})
 
-	t.Run("Should reject network nodes when resolved participation is Local", func(t *testing.T) {
-		t.Parallel()
-
-		cases := []struct {
-			name       string
-			nodeID     dsl.NodeID
-			mutateNode func(*dsl.Node)
-		}{
-			{
-				name:   "Should reject compozy network tools",
-				nodeID: "send-update",
-				mutateNode: func(node *dsl.Node) {
-					node.Kind = "compozy__network_send"
-				},
-			},
-			{
-				name:   "Should reject channel result harvests",
-				nodeID: "await-reply",
-				mutateNode: func(node *dsl.Node) {
-					node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "30s"}
-				},
-			},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				definition := validDefinition()
-				definition.Graph.Nodes[2].ID = tc.nodeID
-				tc.mutateNode(&definition.Graph.Nodes[2])
-				store := newFakeLoopStore()
-				svc := newParticipationTestService(
-					t,
-					store,
-					definition,
-					loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
-				)
-				inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
-				if _, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs); !errors.Is(
-					err,
-					participation.ErrLoopRequiresLive,
-				) || !strings.Contains(err.Error(), string(tc.nodeID)) {
-					t.Fatalf("DryRun() error = %v, want loop_requires_live naming %s", err, tc.nodeID)
-				}
-				if _, err := svc.Start(
-					context.Background(),
-					"ws-1",
-					"valid-loop",
-					inputs,
-					humanActor(t),
-				); !errors.Is(err, participation.ErrLoopRequiresLive) ||
-					!strings.Contains(err.Error(), string(tc.nodeID)) {
-					t.Fatalf("Start() error = %v, want loop_requires_live naming %s", err, tc.nodeID)
-				}
-				if got := store.createCount(); got != 0 {
-					t.Fatalf("CreateLoopRun calls = %d, want 0", got)
-				}
-			})
-		}
-	})
-
-	t.Run("Should resolve one live loop-run snapshot from the definition", func(t *testing.T) {
-		t.Parallel()
-
-		definition := liveLoopTestDefinition()
-		store := newFakeLoopStore()
-		svc := newParticipationTestService(
-			t,
-			store,
-			definition,
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
-		)
-		run, err := svc.Start(
-			context.Background(),
-			"ws-1",
-			"valid-loop",
-			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
-				Values: map[string]any{"tasks": "task-ref"},
-			},
-			humanActor(t),
-		)
-		if err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		spec := run.NetworkSpecSnapshot()
-		if spec.Mode != participation.ModeLive || spec.Source != participation.SourceLoopDefinition ||
-			spec.ChannelStrategy != participation.StrategyLoopRun || strings.TrimSpace(spec.ChannelID) == "" {
-			t.Fatalf("Start participation = %#v, want live loop-definition snapshot", spec)
-		}
-		if got := store.mustRun(t, run.ID).NetworkSpecSnapshot(); got != spec {
-			t.Fatalf("stored participation = %#v, want %#v", got, spec)
-		}
-	})
-
-	t.Run("Should carry the live snapshot through started and terminal hooks", func(t *testing.T) {
+	t.Run("Should keep started and terminal hooks active with a bounded context", func(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		hooks := &participationLifecycleHookDispatcher{}
-		svc := newParticipationTestService(
+		hooks := &lifecycleHookDispatcher{}
+		svc := newLifecycleTestService(
 			t,
 			store,
-			liveLoopTestDefinition(),
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
+			validDefinition(),
 			loop.WithHookDispatcher(hooks),
 		)
 		startCtx, cancelStart := context.WithCancel(context.Background())
@@ -276,10 +170,6 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		}, humanActor(t))
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
-		}
-		want := run.NetworkSpecSnapshot()
-		if got := hooks.started.ResolvedNetworkParticipation; got == nil || *got != want {
-			t.Fatalf("loop.started participation = %#v, want %#v", got, want)
 		}
 		if !hooks.startedActive || !hooks.startedDeadline {
 			t.Fatalf(
@@ -299,82 +189,12 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		); err != nil {
 			t.Fatalf("Transition(done) error = %v", err)
 		}
-		if got := hooks.terminal.ResolvedNetworkParticipation; got == nil || *got != want {
-			t.Fatalf("loop.terminal participation = %#v, want %#v", got, want)
-		}
 		if !hooks.terminalActive || !hooks.terminalDeadline {
 			t.Fatalf(
 				"loop.terminal context active/deadline = %v/%v, want true/true",
 				hooks.terminalActive,
 				hooks.terminalDeadline,
 			)
-		}
-	})
-
-	t.Run("Should preserve automation-job provenance for a per-fire request", func(t *testing.T) {
-		t.Parallel()
-
-		definition := validDefinition()
-		store := newFakeLoopStore()
-		svc := newParticipationTestService(
-			t,
-			store,
-			definition,
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
-		)
-		mode := participation.ModeLive
-		strategy := participation.StrategyLoopRun
-		run, err := svc.Start(
-			context.Background(),
-			"ws-1",
-			"valid-loop",
-			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
-				Values: map[string]any{"tasks": "task-ref"},
-				NetworkParticipation: &participation.Request{
-					Mode:            &mode,
-					ChannelStrategy: &strategy,
-				},
-				NetworkParticipationSource: participation.SourceAutomationJob,
-			},
-			humanActor(t),
-		)
-		if err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		spec := run.NetworkSpecSnapshot()
-		if spec.Mode != participation.ModeLive || spec.Source != participation.SourceAutomationJob ||
-			spec.ChannelStrategy != participation.StrategyLoopRun || strings.TrimSpace(spec.ChannelID) == "" {
-			t.Fatalf("Start participation = %#v, want live automation-job snapshot", spec)
-		}
-		if got := store.mustRun(t, run.ID).NetworkSpecSnapshot(); got != spec {
-			t.Fatalf("stored participation = %#v, want %#v", got, spec)
-		}
-	})
-
-	t.Run("Should reject live while unavailable before creating a run", func(t *testing.T) {
-		t.Parallel()
-
-		store := newFakeLoopStore()
-		svc := newParticipationTestService(
-			t,
-			store,
-			liveLoopTestDefinition(),
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, false)),
-		)
-		_, err := svc.Start(
-			context.Background(),
-			"ws-1",
-			"valid-loop",
-			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
-				Values: map[string]any{"tasks": "task-ref"},
-			},
-			humanActor(t),
-		)
-		if !errors.Is(err, participation.ErrUnavailable) {
-			t.Fatalf("Start() error = %v, want network participation unavailable", err)
-		}
-		if got := store.createCount(); got != 0 {
-			t.Fatalf("CreateLoopRun calls = %d, want 0", got)
 		}
 	})
 }
@@ -2956,7 +2776,6 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		t.Parallel()
 
 		store := newTimeTravelFakeStore()
-		resolver := loopTestParticipationResolver(t, true)
 		definition := validDefinition()
 		definition.Inputs["tasks"] = dsl.Input{Type: dsl.InputTypeAgent, Required: true}
 		entityCatalog := inputEntityCatalogStub{
@@ -2967,7 +2786,6 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			store,
 			definition,
 			loop.WithRunIDFactory(func() (loop.RunID, error) { return "fork-child", nil }),
-			loop.WithParticipationResolver(resolver),
 			loop.WithInputEntityCatalog(entityCatalog),
 		).(loop.TimeTravelService)
 		starter := newTestServiceWithOptions(
@@ -2977,19 +2795,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			loop.WithRunIDFactory(func() (loop.RunID, error) {
 				return "fork-source", nil
 			}),
-			loop.WithParticipationResolver(resolver),
 			loop.WithInputEntityCatalog(entityCatalog),
 		)
-		mode, strategy := participation.ModeLive, participation.StrategyLoopRun
 		source, err := starter.Start(
 			context.Background(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
 				Values: map[string]any{"tasks": "source-ref"},
-				NetworkParticipation: &participation.Request{
-					Mode: &mode, ChannelStrategy: &strategy,
-				},
 			},
 			humanActor(t),
 		)
@@ -3041,14 +2854,6 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}
 		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "reviewer" {
 			t.Fatalf("fork snapshot/inputs = digest %q inputs %#v", result.Run.DefinitionDigest, result.Run.Inputs)
-		}
-		sourceNetwork, childNetwork := source.NetworkSpecSnapshot(), result.Run.NetworkSpecSnapshot()
-		if childNetwork.Mode != participation.ModeLive ||
-			childNetwork.ChannelStrategy != participation.StrategyLoopRun ||
-			childNetwork.ChannelID == sourceNetwork.ChannelID ||
-			childNetwork.Source != sourceNetwork.Source ||
-			childNetwork.Bounds != sourceNetwork.Bounds {
-			t.Fatalf("fork participation = %#v, source %#v", childNetwork, sourceNetwork)
 		}
 		if store.forkRequest == nil || store.forkRequest.Operation.SourceGeneration == nil ||
 			*store.forkRequest.Operation.SourceGeneration != 1 || len(store.forkRequest.SeedOutputs) != 1 ||
@@ -3556,55 +3361,7 @@ func testGoalRunPolicyResolver(ratio float64) loop.GoalRunPolicyResolver {
 	})
 }
 
-func liveLoopTestDefinition() dsl.Definition {
-	definition := validDefinition()
-	live := participation.ModeLive
-	loopRun := participation.StrategyLoopRun
-	definition.NetworkParticipation = &participation.Request{
-		Mode:            &live,
-		ChannelStrategy: &loopRun,
-	}
-	definition.Graph.Nodes[2].Harvest = &dsl.HarvestSpec{
-		Kind:   "channel_result",
-		Window: "30s",
-	}
-	return definition
-}
-
-func loopTestParticipationResolver(t *testing.T, available bool) participation.Resolver {
-	t.Helper()
-	defaults := participation.Bounds{
-		MaxWakes:         4,
-		MaxWakeWallTime:  "30s",
-		MaxTotalWallTime: "2m",
-		MaxInputTokens:   4096,
-		MaxOutputTokens:  4096,
-		MaxWakeDepth:     4,
-		CoalesceWindow:   "250ms",
-	}
-	resolver, err := participation.NewResolver(participation.ResolverOptions{
-		Defaults: defaults,
-		Limits: participation.Limits{
-			MaxWakes:          16,
-			MaxWakeWallTime:   "5m",
-			MaxTotalWallTime:  "30m",
-			MaxInputTokens:    1_000_000,
-			MaxOutputTokens:   1_000_000,
-			MaxWakeDepth:      16,
-			MinCoalesceWindow: "10ms",
-			MaxCoalesceWindow: "5s",
-		},
-		Availability: func(context.Context) (bool, error) {
-			return available, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("participation.NewResolver() error = %v", err)
-	}
-	return resolver
-}
-
-func newParticipationTestService(
+func newLifecycleTestService(
 	t *testing.T,
 	store loop.Store,
 	definition dsl.Definition,
@@ -3639,7 +3396,7 @@ func newParticipationTestService(
 	return svc
 }
 
-type participationLifecycleHookDispatcher struct {
+type lifecycleHookDispatcher struct {
 	loop.HookDispatcher
 	started          hookspkg.LoopStartedPayload
 	terminal         hookspkg.LoopTerminalPayload
@@ -3651,7 +3408,7 @@ type participationLifecycleHookDispatcher struct {
 	terminalDeadline bool
 }
 
-func (d *participationLifecycleHookDispatcher) DispatchLoopStarted(
+func (d *lifecycleHookDispatcher) DispatchLoopStarted(
 	ctx context.Context,
 	payload hookspkg.LoopStartedPayload,
 ) (hookspkg.LoopStartedPayload, error) {
@@ -3662,7 +3419,7 @@ func (d *participationLifecycleHookDispatcher) DispatchLoopStarted(
 	return payload, nil
 }
 
-func (d *participationLifecycleHookDispatcher) DispatchLoopTerminal(
+func (d *lifecycleHookDispatcher) DispatchLoopTerminal(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
 ) (hookspkg.LoopTerminalPayload, error) {

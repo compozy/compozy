@@ -176,22 +176,22 @@ func TestFilesImporting(t *testing.T) {
 			t,
 			root,
 			"root.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivity\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"provider.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges/slack\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivity/tailscale\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"neighbor.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridgekit\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivitykit\"\n",
 		)
 
-		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/extensions/bridges")
+		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/extensions/connectivity")
 		if err != nil {
 			t.Fatalf("filesImportingPrefix() error = %v", err)
 		}
@@ -348,9 +348,9 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 
 		rules := []dependencyClosureRule{{
 			root:            "./fixture",
-			allowedPrefixes: []string{compozyModulePath + "internal/bridges/contract"},
+			allowedPrefixes: []string{compozyModulePath + "internal/gateway/contract"},
 			forbiddenPrefixes: []string{
-				compozyModulePath + "internal/bridges",
+				compozyModulePath + "internal/gateway",
 				compozyModulePath + "internal/store",
 				compozyModulePath + "internal/extension",
 			},
@@ -361,21 +361,21 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 			}
 			return []string{
 				"fmt",
-				compozyModulePath + "internal/bridges/contract",
+				compozyModulePath + "internal/gateway/contract",
 				compozyModulePath + "internal/extensionprotocol",
 				compozyModulePath + "internal/store/globaldb",
 				compozyModulePath + "internal/extension/contract",
-				compozyModulePath + "internal/bridges",
-				compozyModulePath + "internal/bridges/experimental",
+				compozyModulePath + "internal/gateway",
+				compozyModulePath + "internal/gateway/experimental",
 			}, nil
 		})
 		if err != nil {
 			t.Fatalf("inspectDependencyClosures() error = %v", err)
 		}
 		want := []dependencyClosureViolation{
-			{root: "./fixture", dependency: compozyModulePath + "internal/bridges"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/bridges/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/extension/contract"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/gateway"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/gateway/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/store/globaldb"},
 		}
 		if !slices.Equal(violations, want) {
@@ -514,7 +514,12 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 		if got := readTestFile(t, worktreeDir, ".compozy/tasks/active/task.md"); got != "active" {
 			t.Fatalf("active task content = %q, want active", got)
 		}
-		if _, err := os.Stat(filepath.Join(worktreeDir, ".compozy/tasks/_archived/old/evidence.bin")); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(
+			filepath.Join(worktreeDir, ".compozy/tasks/_archived/old/evidence.bin"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			t.Fatalf("archived evidence os.Stat() error = %v, want os.ErrNotExist", err)
 		}
 		if got := readTestFile(t, worktreeDir, "docs/prompts/current.md"); got != "prompt" {

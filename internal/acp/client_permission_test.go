@@ -58,32 +58,40 @@ func TestPermissionPolicyModes(t *testing.T) {
 	}
 }
 
-func TestPermissionPolicyResolvePathSandbox(t *testing.T) {
+func TestPermissionPolicyResolvePathContainment(t *testing.T) {
 	t.Parallel()
+	t.Run("Should confine file access to the allowed workspace", func(t *testing.T) {
+		t.Parallel()
 
-	root := t.TempDir()
-	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)
-	if err != nil {
-		t.Fatalf("newPermissionPolicy() error = %v", err)
-	}
+		root := t.TempDir()
+		policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)
+		if err != nil {
+			t.Fatalf("newPermissionPolicy() error = %v", err)
+		}
 
-	insideFile := filepath.Join(root, "nested", "file.txt")
-	resolvedInside, err := policy.resolvePath(insideFile)
-	if err != nil {
-		t.Fatalf("resolvePath(%q) error = %v", insideFile, err)
-	}
-	if !strings.HasSuffix(resolvedInside, filepath.Join("nested", "file.txt")) {
-		t.Fatalf(
-			"resolvePath(%q) = %q, want suffix %q",
-			insideFile,
-			resolvedInside,
-			filepath.Join("nested", "file.txt"),
-		)
-	}
+		insideFile := filepath.Join(root, "nested", "file.txt")
+		resolvedInside, err := policy.resolvePath(insideFile)
+		if err != nil {
+			t.Fatalf("resolvePath(%q) error = %v", insideFile, err)
+		}
+		if !strings.HasSuffix(resolvedInside, filepath.Join("nested", "file.txt")) {
+			t.Fatalf(
+				"resolvePath(%q) = %q, want suffix %q",
+				insideFile,
+				resolvedInside,
+				filepath.Join("nested", "file.txt"),
+			)
+		}
 
-	if _, err := policy.resolvePath(filepath.Join(root, "..", "escape.txt")); !errors.Is(err, ErrPathOutsideWorkspace) {
-		t.Fatalf("resolvePath(outside) error = %v, want ErrPathOutsideWorkspace", err)
-	}
+		if _, err := policy.resolvePath(
+			filepath.Join(root, "..", "escape.txt"),
+		); !errors.Is(
+			err,
+			ErrPathOutsideWorkspace,
+		) {
+			t.Fatalf("resolvePath(outside) error = %v, want ErrPathOutsideWorkspace", err)
+		}
+	})
 }
 
 func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {

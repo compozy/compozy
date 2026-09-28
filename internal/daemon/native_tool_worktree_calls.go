@@ -43,7 +43,7 @@ func (n *daemonNativeTools) worktreeList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -85,7 +85,7 @@ func (n *daemonNativeTools) worktreeCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -145,7 +145,7 @@ func (n *daemonNativeTools) nativeWorktreeTarget(
 	workspace string,
 	ref string,
 ) (string, string, error) {
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, id, workspace, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, id, workspace, scope)
 	if err != nil {
 		return "", "", err
 	}

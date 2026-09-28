@@ -20,7 +20,6 @@ var expectedCompozyReferences = []string{
 	"references/loops.md",
 	"references/memory.md",
 	"references/native-tools.md",
-	"references/network.md",
 	"references/profiles.md",
 	"references/runtime-operations.md",
 	"references/tasks-and-orchestration.md",
@@ -139,13 +138,13 @@ func TestLoadResourceRejectsInvalidInputs(t *testing.T) {
 		{
 			name:         "Should reject empty skill",
 			skillName:    "",
-			resourcePath: "references/network.md",
+			resourcePath: "references/loops.md",
 			wantErr:      ErrSkillNameRequired,
 		},
 		{
 			name:         "Should reject nested skill",
-			skillName:    "compozy/network",
-			resourcePath: "references/network.md",
+			skillName:    "compozy/loops",
+			resourcePath: "references/loops.md",
 			wantErr:      ErrInvalidSkillName,
 		},
 		{
@@ -163,25 +162,25 @@ func TestLoadResourceRejectsInvalidInputs(t *testing.T) {
 		{
 			name:         "Should reject absolute path",
 			skillName:    "compozy",
-			resourcePath: "/references/network.md",
+			resourcePath: "/references/loops.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject backslash path",
 			skillName:    "compozy",
-			resourcePath: `references\network.md`,
+			resourcePath: `references\loops.md`,
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject dot-prefixed resource alias",
 			skillName:    "compozy",
-			resourcePath: "./references/network.md",
+			resourcePath: "./references/loops.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
 			name:         "Should reject duplicate separator resource alias",
 			skillName:    "compozy",
-			resourcePath: "references//network.md",
+			resourcePath: "references//loops.md",
 			wantErr:      ErrInvalidResourcePath,
 		},
 		{
@@ -193,7 +192,7 @@ func TestLoadResourceRejectsInvalidInputs(t *testing.T) {
 		{
 			name:         "Should reject surrounding whitespace resource alias",
 			skillName:    "compozy",
-			resourcePath: " references/network.md ",
+			resourcePath: " references/loops.md ",
 			wantErr:      ErrInvalidResourcePath,
 		},
 	}

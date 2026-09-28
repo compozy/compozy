@@ -174,7 +174,7 @@ func TestMarketplaceCommands(t *testing.T) {
 
 		want := MarketplaceListRecord{
 			Items: []MarketplaceListingRecord{{
-				EntryID: "extension-entry", Name: "Bridge", Source: "curated",
+				EntryID: "extension-entry", Name: "Utility", Source: "curated",
 			}},
 		}
 		deps := newWorkspaceTestDeps(t, &stubClient{

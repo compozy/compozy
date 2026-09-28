@@ -33,7 +33,7 @@ type LifecycleRegistry interface {
 	Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error
 	Disable(name string) error
 	Uninstall(name string) error
-	RestoreNetworkConfirmation(InstanceKey, NetworkConfirmation) error
+	RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error
 }
 
 var _ LifecycleRegistry = (*Registry)(nil)

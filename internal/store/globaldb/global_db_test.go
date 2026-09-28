@@ -17,7 +17,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -204,17 +202,6 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"extensions",
 			"extension_dev_links",
 			"config_apply_records",
-			"network_channel_stats",
-			"network_channel_participants",
-			"network_channel_kind_counts",
-			"workspace_network_coordination",
-			"network_coordination_invitations",
-			"network_availability",
-			"network_message_dispositions",
-			"network_live_wakes",
-			"network_wake_sources",
-			"network_participation_budgets",
-			"network_task_status_projections",
 			"scheduler_pause",
 			"task_run_terminal_commands",
 			"worktrees",
@@ -259,7 +246,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		)
 		assertTableHasColumns(t, globalDB.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
-			assertTableHasColumns(t, globalDB.db, table, []string{
+			assertTableExcludesColumns(t, globalDB.db, table, []string{
 				"network_spec_json",
 				"network_mode",
 				"network_channel",
@@ -267,16 +254,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			})
 		}
 		assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
-		assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
 		assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-		assertTableHasColumns(t, globalDB.db, "network_channel_participants", []string{"session_id"})
-		assertTableHasColumns(t, globalDB.db, "network_direct_rooms", []string{"session_a", "session_b"})
-		assertTableHasColumns(t, globalDB.db, "network_subscriptions", []string{"session_id"})
-		assertTableHasColumns(t, globalDB.db, "network_thread_participants", []string{"session_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
-		assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
 			"provider",
 			"outcome",
@@ -319,20 +297,6 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"idx_config_apply_records_generation",
 			"idx_config_apply_records_actor",
 			"idx_config_apply_records_status",
-		)
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			"network_channel_stats",
-			"idx_network_channel_stats_activity",
-		)
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			"network_threads",
-			"idx_network_threads_created",
-			"idx_network_threads_title",
-			"idx_network_threads_open_work",
 		)
 		assertTableColumns(t, globalDB.db, "task_run_terminal_commands", []string{
 			"command_id",
@@ -442,6 +406,152 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: feature retirement preserves retained runtime state and authored context across upgrades.
+	// Owner: global persistence; canonical suite: reopen and migration preservation.
+	t.Run("Should retire remote features while preserving local runtime and authored context", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00121_retire_network_bridges_sandbox.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const timestamp = "2026-09-27T10:00:00Z"
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, add_dirs, created_at, updated_at, sandbox_ref)
+			 VALUES ('retained-ws', '/retained', 'retained', '[]', '` + timestamp + `', '` + timestamp + `', 'retired-sandbox')`,
+			`INSERT INTO agent_soul_snapshots (id, workspace_id, agent_name, source_path, digest, body, created_at)
+			 VALUES ('retained-soul', 'retained-ws', 'coder', '/SOUL.md', 'soul-digest', 'Keep persona', '` + timestamp + `')`,
+			`INSERT INTO agent_heartbeat_snapshots (id, workspace_id, agent_name, source_path, digest, config_digest,
+			 body, frontmatter_json, resolved_json, diagnostics_json, created_at)
+			 VALUES ('retained-heartbeat', 'retained-ws', 'coder', '/HEARTBEAT.md', 'heartbeat-digest', 'config-digest',
+			 'Keep wake policy', '{}', '{}', '[]', '` + timestamp + `')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at,
+			 soul_snapshot_id, soul_digest, sandbox_id, sandbox_backend, attention_revision, last_seen_revision)
+			 VALUES ('retained-session', '00000000000000000000000000', 'coder', 'retained-ws', 'stopped',
+			 '` + timestamp + `', '` + timestamp + `', 'retained-soul', 'soul-digest', 'retired-sandbox', 'daytona', 7, 4)`,
+			`INSERT INTO session_health (session_id, workspace_id, agent_name, state, health, active_prompt,
+			 attachable, eligible_for_wake, updated_at) VALUES ('retained-session', 'retained-ws', 'coder',
+			 'stopped', 'healthy', 0, 1, 0, '` + timestamp + `')`,
+			`INSERT INTO tasks (id, profile_id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			 origin_kind, origin_ref, created_at, updated_at, owner_kind, owner_ref)
+			 VALUES ('retained-task', '00000000000000000000000000', 'workspace', 'retained-ws', 'Keep task', 'open',
+			 'network_peer', 'remote-peer', 'network', 'remote-origin', '` + timestamp + `', '` + timestamp + `', 'network_peer', 'remote-peer')`,
+			`INSERT INTO task_triage_state (task_id, actor_kind, actor_id, is_read, archived, dismissed, updated_at)
+			 VALUES ('retained-task', 'daemon', 'shared-actor', 1, 0, 1, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'shared-actor', 0, 1, 0, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'retired-actor', 0, 1, 0, '` + timestamp + `')`,
+			`INSERT INTO task_runs (id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at)
+			 VALUES ('retained-run', 'retained-task', 'retained-ws', 'queued', 1, 'network', 'remote-origin', '` + timestamp + `')`,
+			`INSERT INTO task_runs (id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at, run_kind,
+			 network_wake_id, network_target_session_id, network_owner_key)
+			 VALUES ('retired-wake', 'retained-ws', 'queued', 1, 'network', 'wake', '` + timestamp + `', 'network_wake',
+			 'wake', 'retained-session', 'retired-owner')`,
+			`INSERT INTO notification_cursors (scope_kind, profile_id, workspace_id, consumer_id, stream_name,
+			 subject_id, last_sequence, updated_at) VALUES ('workspace', '00000000000000000000000000',
+			 'retained-ws', 'task-status', 'task.events', 'retained-task', 12, '` + timestamp + `')`,
+			`INSERT INTO task_designation_rollups (designation_group_id, task_id, summary_json, created_at)
+			 VALUES ('retained-group', 'retained-task', '{"completed":1}', '` + timestamp + `')`,
+			`INSERT INTO vault_secrets (ref, kind, encrypted_value, created_at, updated_at) VALUES
+			 ('vault:providers/retained/token', 'provider', 'retained-ciphertext', '` + timestamp + `', '` + timestamp + `'),
+			 ('vault:bridges/retired/token', 'bridge', 'retired-ciphertext', '` + timestamp + `', '` + timestamp + `'),
+			 ('vault:sandbox/retired/token', 'sandbox', 'retired-ciphertext', '` + timestamp + `', '` + timestamp + `')`,
+			`INSERT INTO resource_records (kind, id, version, scope_kind, owner_kind, owner_id, source_kind, source_id,
+			 spec_json, created_at, updated_at) VALUES ('bridge.instance', 'retired-resource', 1, 'user', 'user', 'operator',
+			 'user', 'operator', '{}', '` + timestamp + `', '` + timestamp + `')`,
+			`INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum,
+			 network_requirement_digest, network_confirmed_by, network_confirmed_at)
+			 VALUES ('retained-gateway', '1.0.0', 'user', '/gateway/extension.toml', '` + timestamp + `', 'checksum',
+			 'gateway-digest', 'operator', '` + timestamp + `')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatalf("seed retirement fixture: %v", err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, retained := range []struct{ query, want string }{
+				{`SELECT soul_snapshot_id || ':' || soul_digest || ':' || attention_revision || ':' || last_seen_revision FROM sessions WHERE id='retained-session'`, "retained-soul:soul-digest:7:4"},
+				{`SELECT encrypted_value FROM vault_secrets WHERE ref='vault:providers/retained/token'`, "retained-ciphertext"},
+				{`SELECT body FROM agent_soul_snapshots WHERE id='retained-soul'`, "Keep persona"},
+				{`SELECT body FROM agent_heartbeat_snapshots WHERE id='retained-heartbeat'`, "Keep wake policy"},
+				{`SELECT health FROM session_health WHERE session_id='retained-session'`, "healthy"},
+				{`SELECT title || ':' || created_by_kind || ':' || origin_kind || ':' || COALESCE(owner_kind,'') FROM tasks WHERE id='retained-task'`, "Keep task:daemon:daemon:"},
+				{`SELECT actor_kind || ':' || actor_id || ':' || is_read || ':' || archived || ':' || dismissed FROM task_triage_state WHERE task_id='retained-task'`, "daemon:shared-actor:1:0:1"},
+				{`SELECT CAST(COUNT(*) AS TEXT) FROM task_triage_state WHERE task_id='retained-task'`, "1"},
+				{`SELECT origin_kind || ':' || run_kind FROM task_runs WHERE id='retained-run'`, "daemon:worker"},
+				{`SELECT CAST(last_sequence AS TEXT) FROM notification_cursors WHERE subject_id='retained-task'`, "12"},
+				{`SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'`, `{"completed":1}`},
+				{`SELECT gateway_requirement_digest || ':' || gateway_confirmed_by || ':' || gateway_confirmed_at FROM extensions WHERE name='retained-gateway'`, "gateway-digest:operator:" + timestamp},
+			} {
+				var got string
+				if err := upgraded.db.QueryRowContext(ctx, retained.query).Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if got != retained.want {
+					t.Fatalf("retained state = %q, want %q", got, retained.want)
+				}
+			}
+			var wakeCount, retiredTables, retiredResources, retiredCredentials int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs WHERE id='retired-wake'`).
+				Scan(&wakeCount); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND
+			 (name GLOB 'network_*' OR name GLOB 'bridge_*' OR name IN ('notification_presets','notification_delivery_permits',
+			 'notification_preset_enablement','task_network_coordination','workspace_network_coordination','task_profile_channels','task_profile_peers'))`).Scan(&retiredTables); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resource_records WHERE kind='bridge.instance'`).
+				Scan(&retiredResources); err != nil {
+				t.Fatal(err)
+			}
+			if retiredResources != 0 {
+				t.Fatalf("retired resource count = %d, want zero", retiredResources)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM vault_secrets WHERE ref GLOB 'vault:bridges/*' OR ref GLOB 'vault:sandbox/*'`).
+				Scan(&retiredCredentials); err != nil {
+				t.Fatal(err)
+			}
+			if retiredCredentials != 0 {
+				t.Fatalf("retired credential count = %d, want zero", retiredCredentials)
+			}
+			if wakeCount != 0 || retiredTables != 0 {
+				t.Fatalf("retired wake/table counts = %d/%d, want zero", wakeCount, retiredTables)
+			}
+			assertTableExcludesColumns(t, upgraded.db, "sessions", []string{"network_spec_json", "sandbox_id"})
+			assertTableExcludesColumns(
+				t,
+				upgraded.db,
+				"task_runs",
+				[]string{"network_mode", "network_wake_id", "claimed_peer_id"},
+			)
+			var violations int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_check`).
+				Scan(&violations); err != nil {
+				t.Fatal(err)
+			}
+			if violations != 0 {
+				t.Fatalf("foreign-key violations = %d, want zero", violations)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// Invariant: attachment migration preserves every installed package and its global/all-profile reach.
 	// Owner: global database upgrade. Canonical suite: reopen/preservation tests.
 	t.Run(
@@ -1967,7 +2077,7 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 
 	ctx := testutil.Context(t)
 	for _, table := range []string{"sessions", "task_runs"} {
-		assertOwnerTableCanonicalLocal(t, globalDB.db, table)
+		assertRetainedOwnerWithoutNetwork(t, globalDB.db, table)
 	}
 	var loopRunCount int
 	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_runs`).Scan(&loopRunCount); err != nil {
@@ -2056,46 +2166,6 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
 	assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
 	assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
-	assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
-
-	guidanceExists, err := tableExists(ctx, globalDB.db, "network_delivery_guidance_state")
-	if err != nil {
-		t.Fatalf("tableExists(network_delivery_guidance_state) error = %v", err)
-	}
-	if guidanceExists {
-		t.Fatal("network_delivery_guidance_state still exists after destructive cut")
-	}
-	for _, relation := range []struct {
-		name  string
-		query string
-	}{
-		{name: "network_channel_participants", query: `SELECT COUNT(*) FROM network_channel_participants`},
-		{name: "network_direct_rooms", query: `SELECT COUNT(*) FROM network_direct_rooms`},
-		{name: "network_subscriptions", query: `SELECT COUNT(*) FROM network_subscriptions`},
-		{name: "network_thread_participants", query: `SELECT COUNT(*) FROM network_thread_participants`},
-	} {
-		var count int
-		if err := globalDB.db.QueryRowContext(ctx, relation.query).Scan(&count); err != nil {
-			t.Fatalf("count %s error = %v", relation.name, err)
-		}
-		if count != 0 {
-			t.Fatalf("%s row count after destructive cut = %d, want 0", relation.name, count)
-		}
-	}
-	var autoChannelCount int
-	if err := globalDB.db.QueryRowContext(
-		ctx,
-		`SELECT COUNT(*) FROM network_channels WHERE purpose = 'task_run_coordination'`,
-	).Scan(&autoChannelCount); err != nil {
-		t.Fatalf("count task_run_coordination channels error = %v", err)
-	}
-	if autoChannelCount != 0 {
-		t.Fatalf("task_run_coordination channel count = %d, want 0", autoChannelCount)
-	}
-
 	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
 		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 		ID:        "sess-precut",
@@ -2104,15 +2174,15 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	if err != nil {
 		t.Fatalf("ListSessions(pre-cut history) error = %v", err)
 	}
-	if len(sessions) != 1 || !reflect.DeepEqual(sessions[0].NetworkSpec, participation.LocalSpec()) {
-		t.Fatalf("ListSessions(pre-cut history) = %#v, want one canonical Local session", sessions)
+	if len(sessions) != 1 || sessions[0].ID != "sess-precut" {
+		t.Fatalf("ListSessions(pre-cut history) = %#v, want retained historical session", sessions)
 	}
 	taskRun, err := globalDB.GetTaskRun(ctx, "run-precut")
 	if err != nil {
 		t.Fatalf("GetTaskRun(pre-cut history) error = %v", err)
 	}
-	if !reflect.DeepEqual(taskRun.NetworkSpec, participation.LocalSpec()) {
-		t.Fatalf("GetTaskRun(pre-cut history).NetworkSpec = %#v, want canonical Local", taskRun.NetworkSpec)
+	if taskRun.ID != "run-precut" {
+		t.Fatalf("GetTaskRun(pre-cut history) = %#v, want retained historical run", taskRun)
 	}
 	if _, err := globalDB.GetLoopRun(
 		ctx,
@@ -2126,63 +2196,20 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	}
 }
 
-func assertOwnerTableCanonicalLocal(t *testing.T, db *sql.DB, table string) {
+func assertRetainedOwnerWithoutNetwork(t *testing.T, db *sql.DB, table string) {
 	t.Helper()
-
-	queries := map[string]string{
-		"sessions":  `SELECT network_spec_json, network_mode, network_channel, network_source FROM sessions`,
-		"task_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM task_runs`,
-		"loop_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM loop_runs`,
+	assertTableExcludesColumns(
+		t,
+		db,
+		table,
+		[]string{"network_spec_json", "network_mode", "network_channel", "network_source"},
+	)
+	if table != "sessions" && table != "task_runs" {
+		t.Fatalf("unsupported owner table %q", table)
 	}
-	query, ok := queries[table]
-	if !ok {
-		t.Fatalf("assertOwnerTableCanonicalLocal(%q) has no canonical query", table)
-	}
-	rows, err := db.QueryContext(testutil.Context(t), query)
-	if err != nil {
-		t.Fatalf("query %s network snapshots error = %v", table, err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			t.Fatalf("close %s network snapshot rows error = %v", table, err)
-		}
-	}()
-	expectedJSON, err := json.Marshal(participation.LocalSpec())
-	if err != nil {
-		t.Fatalf("json.Marshal(canonical Local) error = %v", err)
-	}
-	count := 0
-	for rows.Next() {
-		var (
-			rawSnapshot string
-			mode        string
-			channel     sql.NullString
-			source      string
-		)
-		if err := rows.Scan(&rawSnapshot, &mode, &channel, &source); err != nil {
-			t.Fatalf("scan %s network snapshot error = %v", table, err)
-		}
-		count++
-		if rawSnapshot != string(expectedJSON) || mode != "local" || channel.Valid || source != "built_in_local" {
-			t.Fatalf(
-				"%s network snapshot = (%q, %q, %#v, %q), want canonical Local projections",
-				table,
-				rawSnapshot,
-				mode,
-				channel,
-				source,
-			)
-		}
-		decoded, err := decodeParticipationSnapshot("", rawSnapshot, mode, channel, source)
-		if err != nil {
-			t.Fatalf("decode %s network snapshot error = %v", table, err)
-		}
-		if !reflect.DeepEqual(decoded, participation.LocalSpec()) {
-			t.Fatalf("decoded %s NetworkSpec = %#v, want canonical Local", table, decoded)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate %s network snapshots error = %v", table, err)
+	var count int
+	if err := db.QueryRowContext(testutil.Context(t), "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatalf("%s retained owner count = %d, want 1", table, count)
@@ -2336,9 +2363,9 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 			"registry_name",
 			"remote_version",
 			globalDBExtensionProvenanceJSONKey,
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
+			"gateway_requirement_digest",
+			"gateway_confirmed_by",
+			"gateway_confirmed_at",
 		})
 		assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
 			"extension_name",
@@ -2353,9 +2380,9 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 			"linked_at",
 			"format",
 			"ingest_diagnostics_json",
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
+			"gateway_requirement_digest",
+			"gateway_confirmed_by",
+			"gateway_confirmed_at",
 		})
 		assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
 			"extension_name",
@@ -2413,9 +2440,9 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 			"registry_name",
 			"remote_version",
 			globalDBExtensionProvenanceJSONKey,
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
+			"gateway_requirement_digest",
+			"gateway_confirmed_by",
+			"gateway_confirmed_at",
 		})
 		assertTableColumns(t, second.db, "extension_profile_enablement", []string{
 			"extension_name",
@@ -2430,9 +2457,9 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 			"linked_at",
 			"format",
 			"ingest_diagnostics_json",
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
+			"gateway_requirement_digest",
+			"gateway_confirmed_by",
+			"gateway_confirmed_at",
 		})
 		assertTableColumns(t, second.db, "extension_env_bindings", []string{
 			"extension_name",
@@ -2984,251 +3011,93 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 }
 
 func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
-	t.Parallel()
+	t.Run("Should persist workspace changes and resolve canonical lookups", func(t *testing.T) {
+		t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	rootParent := t.TempDir()
-	rootDir := filepath.Join(rootParent, "workspace-root")
-	if err := os.MkdirAll(rootDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(rootDir) error = %v", err)
-	}
-	symlinkPath := filepath.Join(t.TempDir(), "workspace-link")
-	if err := os.Symlink(rootDir, symlinkPath); err != nil {
-		t.Fatalf("Symlink() error = %v", err)
-	}
-
-	canonicalRoot, err := filepath.EvalSymlinks(symlinkPath)
-	if err != nil {
-		t.Fatalf("EvalSymlinks() error = %v", err)
-	}
-
-	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	ws := compozyworkspace.Workspace{
-		ID:             "ws-primary",
-		RootDir:        canonicalRoot,
-		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
-		Name:           "alpha",
-		DefaultAgent:   "coder",
-		SandboxRef:     "daytona-dev",
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	}
-	if err := globalDB.InsertWorkspace(testutil.Context(t), ws); err != nil {
-		t.Fatalf("InsertWorkspace() error = %v", err)
-	}
-
-	byID, err := globalDB.GetWorkspace(testutil.Context(t), ws.ID)
-	if err != nil {
-		t.Fatalf("GetWorkspace() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byID, compozyworkspace.Workspace{
-		ID:             ws.ID,
-		RootDir:        canonicalRoot,
-		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
-		Name:           "alpha",
-		DefaultAgent:   "coder",
-		SandboxRef:     "daytona-dev",
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	})
-
-	byPath, err := globalDB.GetWorkspaceByPath(testutil.Context(t), canonicalRoot)
-	if err != nil {
-		t.Fatalf("GetWorkspaceByPath() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byPath, byID)
-
-	byName, err := globalDB.GetWorkspaceByName(testutil.Context(t), "alpha")
-	if err != nil {
-		t.Fatalf("GetWorkspaceByName() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byName, byID)
-
-	updated := byID
-	updated.Name = "beta"
-	updated.DefaultAgent = "reviewer"
-	updated.SandboxRef = "local-dev"
-	updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
-	updated.UpdatedAt = createdAt.Add(5 * time.Minute)
-	if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
-		t.Fatalf("UpdateWorkspace() error = %v", err)
-	}
-
-	gotUpdated, err := globalDB.GetWorkspace(testutil.Context(t), updated.ID)
-	if err != nil {
-		t.Fatalf("GetWorkspace(updated) error = %v", err)
-	}
-	assertWorkspaceEqual(t, gotUpdated, updated)
-
-	t.Run("Should persist revisioned network coordination with availability fencing", func(t *testing.T) {
-		ctx := testutil.Context(t)
-		ref := compozyworkspace.CoordinationRef{
-			WorkspaceID: updated.ID,
-			ScopeKind:   compozyworkspace.InvitationScopeWorkspace,
+		globalDB := openTestGlobalDB(t)
+		rootParent := t.TempDir()
+		rootDir := filepath.Join(rootParent, "workspace-root")
+		if err := os.MkdirAll(rootDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(rootDir) error = %v", err)
 		}
-		commands := compozyworkspace.NewCoordinationService(globalDB, nil)
-		initialView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(initial coordination) error = %v", getErr)
-		}
-		initial := initialView.Setting
-		if initial.Enabled || initial.Revision != 0 || initial.WorkspaceID != updated.ID {
-			t.Fatalf("Get(initial coordination) = %#v, want disabled revision zero", initial)
-		}
-		if !initial.UpdatedAt.IsZero() || initial.UpdatedBy != "" {
-			t.Fatalf("Get(initial coordination) = %#v, absent row must not invent provenance", initial)
+		symlinkPath := filepath.Join(t.TempDir(), "workspace-link")
+		if err := os.Symlink(rootDir, symlinkPath); err != nil {
+			t.Fatalf("Symlink() error = %v", err)
 		}
 
-		firstTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
-		globalDB.now = func() time.Time { return firstTime }
-		firstView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 0,
-		}, operatorActorContextForTest("operator:first"))
-		if setErr != nil {
-			t.Fatalf("Set(first coordination) error = %v", setErr)
-		}
-		first := firstView.Setting
-		if !first.Enabled || first.Revision != 1 || first.UpdatedBy != "operator:first" {
-			t.Fatalf("Set(first coordination) = %#v, want enabled revision one", first)
+		canonicalRoot, err := filepath.EvalSymlinks(symlinkPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks() error = %v", err)
 		}
 
-		secondView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: false, ExpectedRevision: 1,
-		}, operatorActorContextForTest("operator:second"))
-		if setErr != nil {
-			t.Fatalf("Set(second coordination) error = %v", setErr)
+		createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+		ws := compozyworkspace.Workspace{
+			ID:             "ws-primary",
+			RootDir:        canonicalRoot,
+			AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
+			Name:           "alpha",
+			DefaultAgent:   "coder",
+			CreatedAt:      createdAt,
+			UpdatedAt:      createdAt,
 		}
-		second := secondView.Setting
-		if second.Enabled || second.Revision != 2 || second.UpdatedBy != "operator:second" {
-			t.Fatalf("Set(second coordination) = %#v, want disabled revision two", second)
-		}
-		if !second.UpdatedAt.After(first.UpdatedAt) {
-			t.Fatalf("second.UpdatedAt = %s, want after %s", second.UpdatedAt, first.UpdatedAt)
+		if err := globalDB.InsertWorkspace(testutil.Context(t), ws); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
 
-		if _, disableErr := globalDB.SetNetworkAvailability(ctx, false, "operator:disable"); disableErr != nil {
-			t.Fatalf("SetNetworkAvailability(false) error = %v", disableErr)
+		byID, err := globalDB.GetWorkspace(testutil.Context(t), ws.ID)
+		if err != nil {
+			t.Fatalf("GetWorkspace() error = %v", err)
 		}
-		if _, setErr = commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 2,
-		}, operatorActorContextForTest("operator:blocked")); !errors.Is(
-			setErr,
-			participation.ErrUnavailable,
+		assertWorkspaceEqual(t, byID, compozyworkspace.Workspace{
+			ID:             ws.ID,
+			RootDir:        canonicalRoot,
+			AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
+			Name:           "alpha",
+			DefaultAgent:   "coder",
+			CreatedAt:      createdAt,
+			UpdatedAt:      createdAt,
+		})
+
+		byPath, err := globalDB.GetWorkspaceByPath(testutil.Context(t), canonicalRoot)
+		if err != nil {
+			t.Fatalf("GetWorkspaceByPath() error = %v", err)
+		}
+		assertWorkspaceEqual(t, byPath, byID)
+
+		byName, err := globalDB.GetWorkspaceByName(testutil.Context(t), "alpha")
+		if err != nil {
+			t.Fatalf("GetWorkspaceByName() error = %v", err)
+		}
+		assertWorkspaceEqual(t, byName, byID)
+
+		updated := byID
+		updated.Name = "beta"
+		updated.DefaultAgent = "reviewer"
+		updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
+		updated.UpdatedAt = createdAt.Add(5 * time.Minute)
+		if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
+			t.Fatalf("UpdateWorkspace() error = %v", err)
+		}
+
+		gotUpdated, err := globalDB.GetWorkspace(testutil.Context(t), updated.ID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(updated) error = %v", err)
+		}
+		assertWorkspaceEqual(t, gotUpdated, updated)
+
+		if err := globalDB.DeleteWorkspace(testutil.Context(t), updated.ID); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		if _, err := globalDB.GetWorkspace(
+			testutil.Context(t),
+			updated.ID,
+		); !errors.Is(
+			err,
+			compozyworkspace.ErrWorkspaceNotFound,
 		) {
-			t.Fatalf("Set(while unavailable) error = %v, want %v", setErr, participation.ErrUnavailable)
-		}
-		unchangedView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(after blocked Set) error = %v", getErr)
-		}
-		unchanged := unchangedView.Setting
-		if unchanged.Revision != second.Revision || unchanged.UpdatedBy != second.UpdatedBy {
-			t.Fatalf("Get(after blocked Set) = %#v, want unchanged %#v", unchanged, second)
-		}
-		if _, enableErr := globalDB.SetNetworkAvailability(ctx, true, "operator:enable"); enableErr != nil {
-			t.Fatalf("SetNetworkAvailability(true) error = %v", enableErr)
-		}
-		thirdView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 2,
-		}, operatorActorContextForTest("operator:third"))
-		if setErr != nil || thirdView.Setting.Revision != 3 {
-			t.Fatalf("Set(third coordination) = %#v, error = %v, want revision three", thirdView, setErr)
-		}
-
-		var clockCalls atomic.Int64
-		firstHasWriteLock := make(chan struct{})
-		releaseFirst := make(chan struct{})
-		globalDB.now = func() time.Time {
-			call := clockCalls.Add(1)
-			if call == 1 {
-				close(firstHasWriteLock)
-				<-releaseFirst
-			}
-			return firstTime.Add(time.Duration(call) * time.Minute)
-		}
-		type setResult struct {
-			view compozyworkspace.CoordinationView
-			err  error
-		}
-		firstResult := make(chan setResult, 1)
-		secondResult := make(chan setResult, 1)
-		waitForSetResult := func(name string, results <-chan setResult) setResult {
-			t.Helper()
-			select {
-			case result := <-results:
-				return result
-			case <-time.After(5 * time.Second):
-				t.Fatalf("timed out waiting for %s coordination result", name)
-				return setResult{}
-			}
-		}
-		go func() {
-			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-				Ref: ref, Enabled: true, ExpectedRevision: 3,
-			}, operatorActorContextForTest("operator:concurrent-first"))
-			firstResult <- setResult{view: view, err: callErr}
-		}()
-		select {
-		case <-firstHasWriteLock:
-		case result := <-firstResult:
-			t.Fatalf("first coordination writer returned before holding the write lock: %v", result.err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for first coordination writer to hold the write lock")
-		}
-		go func() {
-			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-				Ref: ref, Enabled: false, ExpectedRevision: 3,
-			}, operatorActorContextForTest("operator:concurrent-second"))
-			secondResult <- setResult{view: view, err: callErr}
-		}()
-		close(releaseFirst)
-		firstConcurrent := waitForSetResult("first", firstResult)
-		if firstConcurrent.err != nil {
-			t.Fatalf("Set(concurrent first) error = %v", firstConcurrent.err)
-		}
-		secondConcurrent := waitForSetResult("second", secondResult)
-		if !errors.Is(secondConcurrent.err, compozyworkspace.ErrCoordinationConflict) {
-			t.Fatalf("Set(concurrent second) error = %v, want revision conflict", secondConcurrent.err)
-		}
-		winnerView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(concurrent winner) error = %v", getErr)
-		}
-		winner := winnerView.Setting
-		if !winner.Enabled || winner.UpdatedBy != "operator:concurrent-first" || winner.Revision != 4 {
-			t.Fatalf("Get(concurrent winner) = %#v, want sole first writer at revision four", winner)
-		}
-		summaries, summaryErr := globalDB.ListEventSummaries(
-			ctx,
-			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
-				WorkspaceID: updated.ID,
-				Type:        "network.coordination.setting_changed",
-			},
-		)
-		if summaryErr != nil {
-			t.Fatalf("ListEventSummaries(coordination) error = %v", summaryErr)
-		}
-		if len(summaries) != 4 {
-			t.Fatalf("len(coordination summaries) = %d, want four committed winners", len(summaries))
-		}
-		latestSummary := summaries[len(summaries)-1]
-		if latestSummary.ActorID != "operator:concurrent-first" {
-			t.Fatalf("latest coordination actor = %q, want committed CAS winner", latestSummary.ActorID)
+			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
 		}
 	})
-
-	if err := globalDB.DeleteWorkspace(testutil.Context(t), updated.ID); err != nil {
-		t.Fatalf("DeleteWorkspace() error = %v", err)
-	}
-	if _, err := globalDB.GetWorkspace(
-		testutil.Context(t),
-		updated.ID,
-	); !errors.Is(
-		err,
-		compozyworkspace.ErrWorkspaceNotFound,
-	) {
-		t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
-	}
 }
 
 func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
@@ -4022,27 +3891,17 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	)
 
 	session := SessionInfo{
-		ProfileID:           store.DefaultProfileID,
-		ID:                  "sess-workspace-id",
-		AgentName:           "coder",
-		RuntimeStatus:       store.SessionRuntimeUnbound,
-		WorkspaceID:         workspaceID,
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-		State:               "active",
+		ProfileID:     store.DefaultProfileID,
+		ID:            "sess-workspace-id",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
 		Liveness: &store.SessionLivenessMeta{
 			SubprocessPID: 77,
 			LastUpdateAt:  ptrTime(time.Date(2026, 4, 3, 13, 1, 0, 0, time.UTC)),
 			StallState:    store.SessionStallStateDetected,
 			StallReason:   store.SessionStallReasonActivityTimeout,
-		},
-		Sandbox: &store.SessionSandboxMeta{
-			SandboxID:     "env-workspace-id",
-			Backend:       "local",
-			Profile:       "local",
-			State:         "prepared",
-			InstanceID:    "instance-workspace-id",
-			ProviderState: []byte(`{"provider":true}`),
-			LastSyncError: "last sync failed",
 		},
 		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
@@ -4062,24 +3921,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	}
 	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].NetworkSpecSnapshot().ChannelID, ""; got != want {
-		t.Fatalf("sessions[0] Network channel = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].NetworkSpec, participation.LocalSpec(); got != want {
-		t.Fatalf("sessions[0].NetworkSpec = %#v, want %#v", got, want)
-	}
-	if sessions[0].Sandbox == nil {
-		t.Fatal("sessions[0].Sandbox = nil, want sandbox metadata")
-	}
-	if got, want := sessions[0].Sandbox.SandboxID, "env-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Sandbox.SandboxID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].Sandbox.InstanceID, "instance-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Sandbox.InstanceID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].Sandbox.LastSyncError, "last sync failed"; got != want {
-		t.Fatalf("sessions[0].Sandbox.LastSyncError = %q, want %q", got, want)
 	}
 	if sessions[0].Liveness == nil {
 		t.Fatal("sessions[0].Liveness = nil, want liveness metadata")
@@ -4158,14 +3999,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"last_seen_revision",
 				"last_seen_at",
 				"attention_changed_at",
-				"sandbox_id",
-				"sandbox_backend",
-				"sandbox_profile",
-				"sandbox_instance_id",
-				"sandbox_state",
-				"sandbox_provider_state_json",
-				"sandbox_last_sync_at",
-				"sandbox_last_sync_error",
 				"created_at",
 				"updated_at",
 				"failure_kind",
@@ -4187,10 +4020,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"creation_digest",
 				"policy_spec_digest",
 				"creation_profile_ref",
-				"network_spec_json",
-				"network_mode",
-				"network_channel",
-				"network_source",
 			},
 		)
 	})
@@ -5302,7 +5131,6 @@ func assertWorkspaceEqual(t *testing.T, got compozyworkspace.Workspace, want com
 		got.RootDir != want.RootDir ||
 		got.Name != want.Name ||
 		got.DefaultAgent != want.DefaultAgent ||
-		got.SandboxRef != want.SandboxRef ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
 		!got.UpdatedAt.Equal(want.UpdatedAt) ||
 		!testutil.EqualStringSlices(got.AdditionalDirs, want.AdditionalDirs) {

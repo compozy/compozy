@@ -298,9 +298,9 @@ type connectivityConformanceTrust struct{}
 func (connectivityConformanceTrust) ResolveProviderTrust(context.Context, string) (gateway.ProviderTrust, error) {
 	return gateway.ProviderTrust{
 		InstallSource: gateway.ProviderInstallSourceBundled,
-		ChannelScopes: []string{
-			gateway.ProviderChannelScope(gateway.TierPrivate),
-			gateway.ProviderChannelScope(gateway.TierPublic),
+		Permissions: []string{
+			gateway.ProviderPermission(gateway.TierPrivate),
+			gateway.ProviderPermission(gateway.TierPublic),
 		},
 	}, nil
 }
@@ -442,10 +442,8 @@ version = "0.1.0"
 description = "Connectivity subprocess conformance fixture"
 min_compozy_version = "0.6.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["gateway.private", "gateway.public"]
+[gateway]
+permissions = ["gateway.private", "gateway.public"]
 
 [capabilities]
 provides = ["connectivity.provider"]

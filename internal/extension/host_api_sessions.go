@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/session"
 
@@ -122,10 +121,9 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	createOpts := session.CreateOpts{
-		AgentName:            strings.TrimSpace(params.Agent),
-		Workspace:            strings.TrimSpace(params.Workspace),
-		NetworkParticipation: participation.CloneRequest(params.NetworkParticipation),
-		Type:                 session.SessionTypeSystem,
+		AgentName: strings.TrimSpace(params.Agent),
+		Workspace: strings.TrimSpace(params.Workspace),
+		Type:      session.SessionTypeSystem,
 	}
 	acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
 	if !ok {

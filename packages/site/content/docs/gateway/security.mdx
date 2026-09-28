@@ -10,12 +10,12 @@ authority.
 
 ## What each switch exposes
 
-| State                  | Who can reach it          | What they get                                                             | What is not there                                                        |
-| ---------------------- | ------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Local only (default)   | Processes on this machine | Loopback HTTP and the Unix socket                                         | Any remote path at all                                                   |
-| Private overlay        | Devices on your tailnet   | The pairing gate; the full product only after device authentication       | Any access without a device session                                      |
-| Public delivery        | The internet              | Webhook and bridge delivery endpoints that verify each request themselves | The UI, the API, pairing — those routes are not built into this listener |
-| Public operator access | The internet              | The pairing gate in front of the UI and API, after explicit consent       | Pairing mint and redeem — a device session can only be created privately |
+| State                  | Who can reach it          | What they get                                                       | What is not there                                                        |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Local only (default)   | Processes on this machine | Loopback HTTP and the Unix socket                                   | Any remote path at all                                                   |
+| Private overlay        | Devices on your tailnet   | The pairing gate; the full product only after device authentication | Any access without a device session                                      |
+| Public delivery        | The internet              | Webhook delivery endpoints that verify each request themselves      | The UI, the API, pairing — those routes are not built into this listener |
+| Public operator access | The internet              | The pairing gate in front of the UI and API, after explicit consent | Pairing mint and redeem — a device session can only be created privately |
 
 Two properties hold across the whole table. The agent kernel, hosted MCP, task mutations, and
 resource mutations exist only on local access and never move. And a tier is a property of the

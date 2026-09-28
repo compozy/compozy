@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-cli.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-http.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/fresh-status-uds.json;/Users/pedronauck/dev/qa-labs/compozy-store-redesign-20260712-144704-069939-lab/qa-artifacts/qa/evidence/session-summary.md
 last_report: docs/qa/reports/2026-07-12-store-redesign.md
-overlaps: RT-inspect-schema-streams;RT-001
+overlaps: RT-inspect-schema-streams; RT-001
 ---
 
 Store-redesign QA 2026-07-12: passed. HTTP, UDS, and CLI returned the same ordered global/memory stream payload

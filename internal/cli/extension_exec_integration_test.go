@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -23,7 +24,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 	t.Parallel()
 
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = shortSocketPath(t)
 	workspaceRoot := t.TempDir()
 	registry := newCommandInvokeSpyRegistry()

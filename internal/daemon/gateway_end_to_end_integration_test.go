@@ -100,7 +100,6 @@ func TestGatewayBootRedactsExposureRefusal(t *testing.T) {
 	const rawCredential = "cpz_gwd_device-secret-material-0123456789"
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
 	cfg.Gateway.Enabled = true
 	cfg.Gateway.PrivatePort = 0
 	cfg.Gateway.PublicPort = 0
@@ -135,7 +134,6 @@ func TestGatewayBootRedactsExposureRefusal(t *testing.T) {
 func TestGatewayBootContinuesLocalOnlyWhenProviderDegraded(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
 	cfg.Gateway.Enabled = true
 	cfg.Gateway.PrivatePort = 0
 	cfg.Gateway.PublicPort = 0
@@ -194,7 +192,6 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Automation.Enabled = true
-	cfg.Network.Enabled = false
 	cfg.Gateway.Enabled = true
 	cfg.Gateway.PrivatePort = 0
 	cfg.Gateway.PublicPort = 0

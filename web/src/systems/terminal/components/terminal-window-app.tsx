@@ -8,11 +8,7 @@ import { useCompactTerminalWindow } from "../hooks/use-compact-terminal-window";
 import { useTerminalWindowAppState } from "../hooks/use-terminal-window-app-state";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
-import {
-  TerminalEmptyState,
-  TerminalExecuteOnlyState,
-  TerminalNotFoundState,
-} from "./terminal-empty-states";
+import { TerminalEmptyState, TerminalNotFoundState } from "./terminal-empty-states";
 import type { TerminalRecordingState } from "./terminal-header";
 import { TerminalJournalHostChrome } from "./terminal-journal-host-chrome";
 import { TerminalJournalHead } from "./terminal-journal-panel";
@@ -27,14 +23,12 @@ const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 type TerminalPrimarySurface =
   | { kind: "journal" }
   | { kind: "missing"; onOpenTerminal?: () => void; onViewJournal: () => void }
-  | { kind: "execute-only"; onViewJournal: () => void }
   | { kind: "resolving" }
   | { kind: "empty"; onOpenTerminal?: () => void }
   | { kind: "active" };
 
 function resolveTerminalPrimarySurface({
   active,
-  interactiveAvailable,
   journalOpen,
   missingRequested,
   openJournal,
@@ -42,7 +36,6 @@ function resolveTerminalPrimarySurface({
   resolving,
 }: {
   active: TerminalInfo | null;
-  interactiveAvailable: boolean;
   journalOpen: boolean;
   missingRequested: boolean;
   openJournal: () => void;
@@ -52,9 +45,6 @@ function resolveTerminalPrimarySurface({
   if (journalOpen) return { kind: "journal" };
   if (missingRequested) {
     return { kind: "missing", onOpenTerminal: openTerminal, onViewJournal: openJournal };
-  }
-  if (!interactiveAvailable && active === null) {
-    return { kind: "execute-only", onViewJournal: openJournal };
   }
   if (active !== null) return { kind: "active" };
   if (resolving) return { kind: "resolving" };
@@ -81,8 +71,6 @@ export interface TerminalWindowAppProps {
   exitRetentionMs?: number;
   /** `[terminal].detached_ttl`, already phrased when known. */
   detachedTtl?: string;
-  /** False where the platform cannot host an interactive terminal at all. */
-  interactiveAvailable: boolean;
   /** Aggregate profile reads cannot mutate terminals owned by another profile. */
   readOnly?: boolean;
   recordings?: Readonly<Record<string, TerminalRecordingState>>;
@@ -132,7 +120,6 @@ export function TerminalWindowApp({
   limit,
   exitRetentionMs,
   detachedTtl,
-  interactiveAvailable,
   readOnly = false,
   recordings,
   pipeOutput,
@@ -167,7 +154,6 @@ export function TerminalWindowApp({
     terminals,
     limit,
     readOnly,
-    interactiveAvailable,
     actions,
     requestedTerminalId,
     windowedTerminalIds,
@@ -178,7 +164,6 @@ export function TerminalWindowApp({
   });
   const primarySurface = resolveTerminalPrimarySurface({
     active,
-    interactiveAvailable,
     journalOpen,
     missingRequested,
     openJournal,
@@ -269,8 +254,6 @@ function TerminalPrimarySurfaceView({
           onViewJournal={surface.onViewJournal}
         />
       );
-    case "execute-only":
-      return <TerminalExecuteOnlyState onViewJournal={surface.onViewJournal} />;
     case "resolving":
       return <BlockLoading className="flex-1" label="Opening a terminal" surface="bare" />;
     case "empty":

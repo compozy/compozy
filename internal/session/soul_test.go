@@ -336,12 +336,10 @@ func TestManagerSpawnSoulLineage(t *testing.T) {
 			Prompt:   "Review code.",
 		})
 		parentPolicy := store.SessionPermissionPolicy{
-			Tools:           []string{testToolEdit, testToolRead},
-			Skills:          []string{"go", "tests"},
-			MCPServers:      []string{"filesystem"},
-			WorkspacePaths:  []string{h.workspace},
-			NetworkChannels: []string{"builders"},
-			SandboxProfiles: []string{"default"},
+			Tools:          []string{testToolEdit, testToolRead},
+			Skills:         []string{"go", "tests"},
+			MCPServers:     []string{"filesystem"},
+			WorkspacePaths: []string{h.workspace},
 		}
 		parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{
 			MaxChildren:           2,
@@ -361,12 +359,10 @@ func TestManagerSpawnSoulLineage(t *testing.T) {
 			PromptOverlay:   "Use explicit spawn overlay only.",
 			TTL:             30 * time.Minute,
 			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{testToolRead},
-				Skills:          []string{"go"},
-				MCPServers:      []string{"filesystem"},
-				WorkspacePaths:  []string{h.workspace},
-				NetworkChannels: []string{"builders"},
-				SandboxProfiles: []string{"default"},
+				Tools:          []string{testToolRead},
+				Skills:         []string{"go"},
+				MCPServers:     []string{"filesystem"},
+				WorkspacePaths: []string{h.workspace},
 			},
 		})
 		if err != nil {

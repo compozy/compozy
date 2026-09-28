@@ -4,9 +4,9 @@ area: TA
 title: Task detail 3-tab IA with command-state head
 persona: Bruno
 journey: J-complete-task-tree
-expected: Task detail renders Overview/Runs/Activity tabs with the 44px drill-in head (back, Tasks / <task> trail, status pill, one primary action from the §6 command machine — recover > publish > approve > resume > open run > retry > start — plus overflow verbs), an outcome/now strip matching the task state, subtasks with stacked progress, the 320px properties rail (priority + auto-enqueue editable; owner read-only), and the Inspect drawer (Diagnostics/Stream/Bridges/Raw). Nullable metrics render "—"; no set-status or delete-run control exists anywhere.
+expected: Task detail renders Overview/Runs/Activity tabs with the 44px drill-in head (back, Tasks / <task> trail, status pill, one primary action from the §6 command machine — recover > publish > approve > resume > open run > retry > start — plus overflow verbs), an outcome/now strip matching the task state, subtasks with stacked progress, the 320px properties rail (priority + auto-enqueue editable; owner read-only), and the Inspect drawer (Diagnostics/Stream/Raw). Nullable metrics render "—"; no set-status or delete-run control exists anywhere.
 entry_points: web /tasks/:id (Overview, Runs, Activity tabs); Inspect drawer; Edit setup sheet
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -23,3 +23,5 @@ QA impact 2026-09-17 (issue #653): the Overview tab renders the task description
 emphasis, accent-strong underlined links, and framed tables inside its bordered card. The 3-tab IA and the
 command-state head are untouched. Not inspected in Storybook and not walked: confirm a description with
 H1/H2 headings and a table still sits comfortably in the card with no horizontal overflow.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

@@ -1,4 +1,4 @@
-import { MonitorX, Moon, RotateCcw, TerminalSquare } from "lucide-react";
+import { Moon, RotateCcw, TerminalSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Empty } from "@compozy/ui";
@@ -119,33 +119,6 @@ export function TerminalNotFoundState({
         framed
         icon={RotateCcw}
         title="This terminal isn't here"
-      />
-    </TerminalEmptyFrame>
-  );
-}
-
-/**
- * An execute-only platform.
- *
- * Said before anything can hang, and the interactive option is absent rather
- * than greyed out: a disabled Open would still claim the feature exists here.
- */
-export function TerminalExecuteOnlyState({ onViewJournal }: { onViewJournal?: () => void }) {
-  return (
-    <TerminalEmptyFrame>
-      <Empty
-        action={
-          onViewJournal ? (
-            <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
-              View journal
-            </Button>
-          ) : undefined
-        }
-        cause="terminal_interactive_unavailable · exec available"
-        data-testid="terminal-execute-only"
-        framed
-        icon={MonitorX}
-        title="Interactive terminals aren't available here yet"
       />
     </TerminalEmptyFrame>
   );

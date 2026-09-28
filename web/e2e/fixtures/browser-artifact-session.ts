@@ -233,36 +233,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             testId !== "automation-run-history-rows" &&
             !testId.startsWith("automation-run-session-link-")
         ).length;
-    const networkPathTab = window.location.pathname.match(
-      /\/network\/[^/]+\/(threads|directs|activity)(?:\/|$)/
-    )?.[1] as "threads" | "directs" | "activity" | undefined;
-    const networkActiveTab =
-      networkPathTab ??
-      (document.querySelector('[data-testid="network-threads-tab"]')
-        ? ("threads" as const)
-        : document.querySelector('[data-testid="network-directs-tab"]')
-          ? ("directs" as const)
-          : document.querySelector('[data-testid="network-activity-tab"]')
-            ? ("activity" as const)
-            : undefined);
-    const selectedChannelLink = document.querySelector<HTMLElement>(
-      '[data-testid^="network-channel-link-"][aria-current="page"]'
-    );
-    const selectedChannelTestId = selectedChannelLink?.getAttribute("data-testid") ?? "";
-    const networkSelectedChannel =
-      selectedChannelTestId.replace(/^network-channel-link-/, "") ||
-      document
-        .querySelector<HTMLElement>('[data-testid="network-channel-header"] h1')
-        ?.textContent?.trim()
-        .replace(/^#/, "") ||
-      undefined;
-    const networkSelectedThread = readPathContainerId(/\/network\/[^/]+\/threads\/([^/?#]+)/);
-    const networkSelectedDirect =
-      document
-        .querySelector<HTMLElement>('[data-testid="network-direct-detail-slot"]')
-        ?.getAttribute("aria-label")
-        ?.match(/^Direct room (\S+)/)?.[1] ??
-      readPathContainerId(/\/network\/[^/]+\/directs\/([^/?#]+)/);
     const automationPathTab = window.location.pathname.match(/^\/(jobs|triggers)(?:\/|$)/)?.[1] as
       | "jobs"
       | "triggers"
@@ -290,15 +260,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       : document.querySelector('[data-testid="automation-trigger-form"]')
         ? "trigger"
         : undefined;
-    const bridgeScopeSearch = new URLSearchParams(window.location.search).get("scope");
-    const bridgeScopeFilter = document.querySelector('[data-testid="bridge-list-panel"]')
-      ? bridgeScopeSearch === "global" || bridgeScopeSearch === "workspace"
-        ? bridgeScopeSearch
-        : "all"
-      : undefined;
-    const bridgeSelectedItem = document.querySelector('[data-testid="bridge-detail-panel"]')
-      ? topbarTitle
-      : undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>
         document.querySelector(`[data-testid="tasks-mode-${mode}"][aria-current="page"]`) !== null
@@ -337,12 +298,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       : skillsEnabledText?.includes("enabled")
         ? "enabled"
         : undefined;
-    const sandboxProfiles = [
-      ...document.querySelectorAll<HTMLElement>('[data-testid^="sandbox-page-card-"][data-name]'),
-    ];
-    const sandboxProfileNames = sandboxProfiles
-      .map(element => element.dataset.name)
-      .filter((value): value is string => Boolean(value));
     const settingsActiveSection = readPathContainerId(/\/settings\/([^/?#]+)/);
 
     return {
@@ -380,24 +335,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="jobs-shell"]') !== null ||
         document.querySelector('[data-testid="triggers-shell"]') !== null ||
         document.querySelector('[data-testid="automation-detail-panel"]') !== null,
-      bridge_create_dialog_open:
-        document.querySelector('[data-testid="bridge-create-dialog"]') !== null,
-      bridge_detail_visible: document.querySelector('[data-testid="bridge-detail-panel"]') !== null,
-      bridge_edit_dialog_open:
-        document.querySelector('[data-testid="bridge-edit-dialog"]') !== null,
-      bridge_item_count: countByPrefix("bridge-item-"),
-      bridge_route_count: countByPrefix("bridge-route-"),
-      bridge_scope_filter: bridgeScopeFilter,
-      bridge_secret_binding_count: countByPrefix("bridge-secret-binding-"),
-      bridge_selected_item: bridgeSelectedItem,
-      bridge_test_delivery_open:
-        document.querySelector('[data-testid="bridge-delivery-test-panel"]') !== null,
-      bridge_test_delivery_result_visible:
-        document.querySelector('[data-testid="bridge-test-delivery-result"]') !== null,
-      bridge_view_visible:
-        document.querySelector('[data-testid="bridge-list-panel"]') !== null ||
-        document.querySelector('[data-testid="bridges-empty-state"]') !== null ||
-        document.querySelector('[data-testid="bridge-detail-panel"]') !== null,
       chat_view_visible: document.querySelector('[data-testid="chat-view"]') !== null,
       composer_clear_button_enabled:
         document.querySelector<HTMLButtonElement>('[data-testid="composer-clear-button"]')
@@ -454,20 +391,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="marketplace-kind-skill"]') !== null ||
         (skillsDetailRouteItem !== undefined &&
           document.querySelector('[data-testid="marketplace-detail"]') !== null),
-      sandbox_action_result_visible:
-        document.querySelector('[data-testid="sandbox-page-action-result"]') !== null,
-      sandbox_delete_dialog_open:
-        document.querySelector('[data-testid="settings-sandboxes-delete"]') !== null,
-      sandbox_editor_open:
-        document.querySelector('[data-testid="settings-sandbox-editor"]') !== null,
-      sandbox_empty_visible: document.querySelector('[data-testid="sandbox-page-empty"]') !== null,
-      sandbox_profile_count: sandboxProfiles.length,
-      sandbox_profile_names: sandboxProfileNames,
-      sandbox_restart_notice_visible:
-        document.querySelector('[data-testid="settings-page-sandbox-restart-notice"]') !== null,
-      sandbox_total_text: readText("sandbox-page-total"),
-      sandbox_view_visible: document.querySelector('[data-testid="sandbox-shell"]') !== null,
-      sandbox_workspace_references_text: readText("sandbox-page-workspaces"),
       settings_action_result_visible:
         document.querySelector('[data-testid^="settings-page-"][data-testid$="-action-result"]') !==
         null,
@@ -492,23 +415,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       message_count: document.querySelectorAll(
         '[data-testid="message-bubble-user"], [data-testid="message-bubble-assistant"]'
       ).length,
-      network_active_tab: networkActiveTab,
-      network_activity_count: countByPrefix("network-activity-entry-"),
-      network_channel_count: countByPrefix("network-channel-row-"),
-      network_create_dialog_open:
-        document.querySelector('[data-testid="network-create-channel-dialog"]') !== null,
-      network_thread_count: countByPrefix("network-thread-list-row-"),
-      network_direct_count: countByPrefix("network-direct-list-row-"),
-      network_disabled_visible:
-        document.querySelector('[data-testid="network-disabled-state"]') !== null,
-      network_message_count: countByPrefix("network-message-"),
-      network_no_channels_visible:
-        document.querySelector('[data-testid="network-no-channels-state"]') !== null,
-      network_selected_channel: networkSelectedChannel,
-      network_selected_thread: networkSelectedThread,
-      network_selected_direct: networkSelectedDirect,
-      network_view_visible: document.querySelector('[data-testid="network-shell"]') !== null,
-      network_work_count: countByPrefix("network-work-inspector-row-"),
       permission_prompt_visible: document.querySelector('[data-testid="permission-dock"]') !== null,
       processing_indicator_visible:
         document.querySelector('[data-testid="processing-indicator"]') !== null,

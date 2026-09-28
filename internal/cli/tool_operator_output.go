@@ -146,7 +146,7 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 				{Label: "Bytes", Value: fmt.Sprintf("%d", response.Result.Bytes)},
 			}
 			if preview := strings.TrimSpace(response.Result.Preview); preview != "" {
-				rows = append(rows, keyValue{Label: toolOperatorPreviewValue, Value: preview})
+				rows = append(rows, keyValue{Label: cliOutputToolOperatorPreviewValue, Value: preview})
 			}
 			if len(response.Result.Redactions) > 0 {
 				rows = append(

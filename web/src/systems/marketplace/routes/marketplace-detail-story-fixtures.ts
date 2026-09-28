@@ -47,8 +47,8 @@ export const kitExtensionFixture = {
       resource: "campaign-board",
     },
   ],
-  network_confirmation_required: true,
-  network_requirement_digest: "sha256:6f1c0a94d3b27e58",
+  gateway_confirmation_required: true,
+  gateway_requirement_digest: "sha256:6f1c0a94d3b27e58",
   remote_version: undefined,
   requires_env: ["DEP_KIT_TOKEN", "DEP_KIT_WEBHOOK"],
   update_available: false,
@@ -110,10 +110,10 @@ export function kitDetailHandlers(refuseUpdate = false) {
         ? [
             compozyApiMock.put("/api/extensions/{name}", ({ response }) =>
               response(409).json({
-                code: "extension_network_confirmation_required",
+                code: "extension_gateway_confirmation_required",
                 current_digest: "sha256:6f1c0a94d3b27e58",
                 error:
-                  "dep-kit-ops update changes Live network participation that has not been confirmed",
+                  "dep-kit-ops update changes gateway control permissions that has not been confirmed",
               })
             ),
           ]

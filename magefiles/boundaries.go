@@ -114,7 +114,6 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/terminal", "internal/api/contract"},
 		{"internal/terminal", "internal/cli"},
 		{"internal/terminal", "internal/tools"},
-		{"internal/terminal", "internal/sandbox"},
 		{"internal/terminal", "internal/acp"},
 		{"internal/terminal", "internal/session"},
 		{"internal/terminal", "internal/profile"},
@@ -161,7 +160,7 @@ func directImportBoundaries() []directImportBoundary {
 	return append(forbidden, gatewayForbiddenDirectImports...)
 }
 
-// Boundaries verifies direct package rules, strict leaf imports, and bridge dependency closures.
+// Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
 func Boundaries() error {
 	forbidden := directImportBoundaries()
 
@@ -192,17 +191,6 @@ func Boundaries() error {
 		importer string
 		imported string
 	}{
-		// In-tree platform implementations live under extensions/bridges. The
-		// daemon bridge domain must not depend on either that exact package or
-		// any provider sibling below it; provider composition points inward.
-		{"internal/bridges", "extensions/bridges"},
-		{"internal/bridges", "internal/bridgesdk"},
-		{"internal/bridges", "internal/extension"},
-		{"internal/bridges", "internal/daemon"},
-		{"internal/bridgesdk", "internal/extension"},
-		{"internal/bridgesdk", "internal/daemon"},
-		{"internal/bridgesdk", "internal/store"},
-		{"internal/bridgesdk", "internal/session"},
 		{"internal/worktree", "internal/session"},
 		{"internal/worktree", "internal/task"},
 		{"internal/worktree", "internal/loop"},
@@ -250,7 +238,6 @@ func Boundaries() error {
 				"github.com/compozy/compozy/internal/mcppolicy":   {},
 			},
 		},
-		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{
 			importer: "internal/codegen/sdkgo",
@@ -269,12 +256,6 @@ func Boundaries() error {
 		},
 		{
 			importer: "internal/toolmeta",
-			allowed: map[string]struct{}{
-				"github.com/compozy/compozy/internal/redact": {},
-			},
-		},
-		{
-			importer: "internal/bridges/contract",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/redact": {},
 			},
@@ -308,11 +289,11 @@ func Boundaries() error {
 	}
 
 	closureViolations, err := inspectDependencyClosures(
-		bridgeDependencyClosureRules,
+		subprocessDependencyClosureRules,
 		listPackageDependencies,
 	)
 	if err != nil {
-		return fmt.Errorf("inspect bridge dependency closures: %w", err)
+		return fmt.Errorf("inspect dependency closures: %w", err)
 	}
 	for _, violation := range closureViolations {
 		fmt.Printf(

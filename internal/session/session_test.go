@@ -288,7 +288,6 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			ACPSessionID:             "acp-provider",
 			WorkspaceID:              "ws-provider",
 			Workspace:                t.TempDir(),
-			NetworkParticipation:     testLocalParticipation(),
 			State:                    StateActive,
 			CreatedAt:                now,
 			UpdatedAt:                now,
@@ -394,16 +393,15 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
 		}}
 		session := &Session{
-			ID:                   "sess-commands",
-			AgentName:            "coder",
-			RuntimeStatus:        RuntimeStatusUnbound,
-			WorkspaceID:          "ws-commands",
-			Workspace:            t.TempDir(),
-			NetworkParticipation: testLocalParticipation(),
-			State:                StateActive,
-			AdvertisedCommands:   commands,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:                 "sess-commands",
+			AgentName:          "coder",
+			RuntimeStatus:      RuntimeStatusUnbound,
+			WorkspaceID:        "ws-commands",
+			Workspace:          t.TempDir(),
+			State:              StateActive,
+			AdvertisedCommands: commands,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 
 		meta := session.Meta()

@@ -1,11 +1,6 @@
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { generateMetadata, generateStaticParams } from "../../app/blog/[slug]/page";
 import { allPosts, authorByHandle } from "../blog";
-
-const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function pageProps(slug: string) {
   return {
@@ -58,7 +53,7 @@ describe("blog metadata", () => {
     expect(metadata).toEqual({});
   });
 
-  it("uses the launch cover art in OpenGraph and Twitter metadata", async () => {
+  it("uses the generated social card when a post has no cover", async () => {
     const metadata = await generateMetadata(pageProps("introducing-compozyos"));
     const openGraphImage =
       Array.isArray(metadata.openGraph?.images) && typeof metadata.openGraph.images[0] === "object"
@@ -69,13 +64,10 @@ describe("blog metadata", () => {
         ? metadata.twitter.images[0]
         : null;
 
-    expect(openGraphImage?.url).toBe("/static/blog/introducing-compozy-cover.png");
+    expect(openGraphImage?.url).toBe("/og/blog/introducing-compozyos/image.png");
     expect(openGraphImage?.alt).toBe(
-      "compozy-network/v0, three peers exchanging direct, receipt, and trace envelopes"
+      `${allPosts().find(post => post.slug === "posts/introducing-compozyos")?.title} | CompozyOS`
     );
-    expect(twitterImage).toBe("/static/blog/introducing-compozy-cover.png");
-    expect(existsSync(resolve(siteRoot, "public/static/blog/introducing-compozy-cover.png"))).toBe(
-      true
-    );
+    expect(twitterImage).toBe("/og/blog/introducing-compozyos/image.png");
   });
 });

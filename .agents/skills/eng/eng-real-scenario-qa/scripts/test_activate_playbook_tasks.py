@@ -1,7 +1,7 @@
 """Regression tests for playbook task activation.
 
 Suite: real-scenario task activation adapter
-Invariant: a declared channel starts a live run through the current named-channel CLI contract.
+Invariant: task activation pauses dispatch and starts each declared Task with a stable idempotency key.
 Boundary IN: activate-playbook-tasks argument construction and activation evidence.
 Boundary OUT: the Compozy CLI parser and daemon, covered by the live real-scenario run.
 """
@@ -24,7 +24,7 @@ SPEC.loader.exec_module(ACTIVATION)
 
 
 class ActivatePlaybookTasksTest(unittest.TestCase):
-    def test_declared_channel_uses_named_live_network_contract(self) -> None:
+    def test_declared_task_starts_behind_scheduler_barrier(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             workspace = root / "workspace"
@@ -37,7 +37,6 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
                         {
                             "runtime_id": "task-playbook-001",
                             "playbook_ref": "consumer-saas-growth",
-                            "channel": "growth-room",
                         }
                     ]
                 ),
@@ -65,15 +64,13 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
                 if args[:2] == ["scheduler", "pause"]:
                     return {"scheduler": {"paused": True}}
                 if args[:2] == ["task", "start"]:
-                    if "--channel" in args:
-                        raise RuntimeError("unknown flag: --channel")
                     return {
                         "task": {"id": "task-playbook-001"},
                         "run": {"id": "run-playbook-001"},
                     }
                 raise AssertionError(f"unexpected command: {args}")
 
-            ACTIVATION.prepare_activation(
+            result = ACTIVATION.prepare_activation(
                 workspace,
                 qa_output,
                 manifest,
@@ -82,16 +79,18 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
                 recorder=lambda *_args: None,
             )
 
+            self.assertEqual(result["status"], "prepared")
+            self.assertTrue(result["scheduler_pause_owned"])
+            self.assertEqual([args[:2] for args in calls], [["scheduler", "status"], ["scheduler", "pause"], ["task", "start"]])
             start_args = next(args for args in calls if args[:2] == ["task", "start"])
             self.assertEqual(
-                start_args[-6:],
+                start_args[:5],
                 [
-                    "--network",
-                    "live",
-                    "--network-channel-strategy",
-                    "named",
-                    "--network-channel",
-                    "growth-room",
+                    "task",
+                    "start",
+                    "task-playbook-001",
+                    "--idempotency-key",
+                    "real-scenario:consumer-saas-growth:task-playbook-001",
                 ],
             )
 

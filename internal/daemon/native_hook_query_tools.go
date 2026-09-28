@@ -115,7 +115,7 @@ func (n *daemonNativeTools) hooksRuns(
 	}
 	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID)
 	if err != nil {

@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"context"
-	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -32,9 +31,7 @@ func (s *StubTaskManager) ListTaskCatalog(
 		return taskpkg.CatalogPage{Limit: query.Limit}, nil
 	}
 	limit := query.Limit
-	if strings.TrimSpace(query.ParticipationChannel) != "" {
-		limit = 0
-	}
+
 	tasks, err := s.ListTasksFn(ctx, taskpkg.Query{
 		ReadScope:     query.ReadScope,
 		Scope:         taskpkg.Scope(query.Scope),
@@ -50,18 +47,6 @@ func (s *StubTaskManager) ListTaskCatalog(
 	}, actor)
 	if err != nil {
 		return taskpkg.CatalogPage{}, err
-	}
-	channel := strings.TrimSpace(query.ParticipationChannel)
-	if channel != "" {
-		filtered := make([]taskpkg.Summary, 0, len(tasks))
-		for index := range tasks {
-			run := tasks[index].ActiveRun
-			if run != nil && run.ResolvedNetworkParticipation != nil &&
-				strings.TrimSpace(run.ResolvedNetworkParticipation.ChannelID) == channel {
-				filtered = append(filtered, tasks[index])
-			}
-		}
-		tasks = filtered
 	}
 	total := len(tasks)
 	page := taskpkg.CatalogPage{Tasks: tasks, Total: total, Limit: query.Limit}

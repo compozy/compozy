@@ -17,10 +17,10 @@ charter:
   guidance:
     must_try:
       - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register PIDs, and run eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite clean teardown.json."
-      - "Register two workspaces in that one home, then from an approve-all session name the second one on a native tool call, a task claim, a spawn, and a coordination read — each must cross with no prompt and behave in the target exactly as it would at home."
+      - "Register two workspaces in that one home, then from an approve-all session name the second one on a native tool call, a task claim, and a spawn — each must cross with no prompt and behave in the target exactly as it would at home."
       - "Repeat every crossing under deny-all and confirm no prompt appears at any seam, the denial carries the exact permission-mode hint, native denials report workspace_access_denied, and the agent CLI verbs exit 77 from a daemon-origin denial rather than a local pre-flight block."
-      - "Repeat under approve-reads and confirm the identity, task, spawn, and coordination seams deny with the same hint and never prompt — the native-tool prompt itself belongs to CH-cross-workspace-consent-audit."
-      - "Run the same crossing over CLI, HTTP, and UDS for the identity, spawn, claim, and coordination routes and diff the error shapes; then confirm the operator path still reaches both workspaces."
+      - "Repeat under approve-reads and confirm the identity, task, and spawn seams deny with the same hint and never prompt — the native-tool prompt itself belongs to CH-cross-workspace-consent-audit."
+      - "Run the same crossing over CLI, HTTP, and UDS for the identity, spawn, and claim routes and diff the error shapes; then confirm the operator path still reaches both workspaces."
       - "Read every changed public guide against what you just observed: CLI spawn; agent spawning; safe-spawn; configuration; event catalog; permissions; workspace index and resolver; plus the official skill's native-tool and agent-definition references. Record any place the guidance overstates or understates the shipped behavior."
     must_avoid:
       - "Answering a native-tool prompt or exercising session-consent reuse and expiry — that is CH-cross-workspace-consent-audit's box."
@@ -29,7 +29,7 @@ charter:
       - "Parallel config writes against the shared isolated home."
   coverage:
     tier: targeted
-    surfaces: [native-tools, agent-CLI, HTTP, UDS, task-claim, spawn, network-coordination, event-store, site-docs, official-skill]
+    surfaces: [native-tools, agent-CLI, HTTP, UDS, task-claim, spawn, event-store, site-docs, official-skill]
     invariants: [1, 7]
     hot_spots:
       - "Invariant 1 named deltas: approve-all crosses freely and is the built-in default; the tool-seam reason moved from ReasonScopeMismatch to ReasonWorkspaceAccessDenied; the denial copy gained the mode hint; the CLI pre-flight block became a daemon-origin exit 77."

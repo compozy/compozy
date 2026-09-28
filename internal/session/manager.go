@@ -96,7 +96,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 			return time.Now().UTC()
 		},
 		newSessionID:                newIDGenerator("sess"),
-		newSandboxID:                newIDGenerator("env"),
 		newTurnID:                   newIDGenerator("turn"),
 		newRunID:                    newIDGenerator("run"),
 		newRepairEventID:            newIDGenerator("ev"),
@@ -222,18 +221,6 @@ func (m *Manager) waitForConversationFinalization(ctx context.Context, id string
 	}
 }
 
-// SetNetworkPeerLifecycle installs the late-bound network join/leave callbacks
-// used after session activation and before final stop cleanup.
-func (m *Manager) SetNetworkPeerLifecycle(lifecycle NetworkPeerLifecycle) {
-	if m == nil {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.networkPeers = lifecycle
-}
-
 // SetTurnEndNotifier installs a post-construction callback invoked after each
 // prompt turn finishes.
 func (m *Manager) SetTurnEndNotifier(fn TurnEndNotifier) {
@@ -274,16 +261,6 @@ func (m *Manager) IsPrompting(id string) bool {
 		return false
 	}
 	return session.IsPrompting()
-}
-
-func (m *Manager) currentNetworkPeerLifecycle() NetworkPeerLifecycle {
-	if m == nil {
-		return nil
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.networkPeers
 }
 
 func (m *Manager) currentTurnEndNotifier() TurnEndNotifier {

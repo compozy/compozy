@@ -46,15 +46,12 @@ type loopRunScanValues struct {
 	originProfileRef  sql.NullString
 	originPolicy      sql.NullString
 	originCreation    sql.NullString
-	networkSpecJSON   string
-	networkMode       string
-	networkChannel    sql.NullString
-	networkSource     string
-	bestGeneration    sql.NullInt64
-	bestScore         sql.NullFloat64
-	completionState   string
-	forkedFromRunID   sql.NullString
-	forkedFromGen     sql.NullInt64
+
+	bestGeneration  sql.NullInt64
+	bestScore       sql.NullFloat64
+	completionState string
+	forkedFromRunID sql.NullString
+	forkedFromGen   sql.NullInt64
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -109,10 +106,6 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.originProfileRef,
 		&v.originPolicy,
 		&v.originCreation,
-		&v.networkSpecJSON,
-		&v.networkMode,
-		&v.networkChannel,
-		&v.networkSource,
 		&v.bestGeneration,
 		&v.bestScore,
 		&v.completionState,
@@ -200,17 +193,6 @@ func applyLoopRunPayloadScan(run *looppkg.Run, v *loopRunScanValues) error {
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
 	}
-	networkSpec, err := decodeParticipationSnapshot(
-		string(run.WorkspaceID),
-		v.networkSpecJSON,
-		v.networkMode,
-		v.networkChannel,
-		v.networkSource,
-	)
-	if err != nil {
-		return err
-	}
-	run.SetNetworkSpec(networkSpec)
 	if err := applyLoopRunBest(run, v.bestGeneration, v.bestScore); err != nil {
 		return err
 	}

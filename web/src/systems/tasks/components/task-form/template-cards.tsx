@@ -1,12 +1,4 @@
-import {
-  Calendar,
-  Layers,
-  ListChecks,
-  Network,
-  Sparkles,
-  UserCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { Calendar, Layers, ListChecks, Sparkles, UserCheck, type LucideIcon } from "lucide-react";
 
 import { Pill, RadioCard } from "@compozy/ui";
 
@@ -29,7 +21,6 @@ const TEMPLATE_ICONS: Record<TaskTemplateId, LucideIcon> = {
   one_shot: Sparkles,
   recurring: Calendar,
   epic: Layers,
-  remote_peer: Network,
   human_in_loop: UserCheck,
   blank: ListChecks,
 };

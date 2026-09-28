@@ -66,13 +66,6 @@ tokens:
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
       overlay-scrim: "rgba(0, 0, 0, 0.55)"
       overlay-ghost-hover: "rgba(255, 255, 255, 0.06)"
-      kind-say: "var(--color-neutral)"
-      kind-greet: "var(--color-info)"
-      kind-direct: "var(--color-accent)"
-      kind-receipt: "var(--color-success)"
-      kind-capability: "var(--color-warning)"
-      kind-trace: "var(--color-info)"
-      kind-whois: "var(--color-neutral)"
       avatar-agent-0-bg: "rgba(232, 144, 99, 0.18)"
       avatar-agent-0-fg: "#f2b895"
       avatar-agent-1-bg: "rgba(168, 178, 220, 0.16)"
@@ -523,8 +516,6 @@ tokens:
       api-schema-min-width: "18rem"
       diagram-node-stroke-width: "1.4px"
       bento-overlay-runtime: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )"
-      bento-overlay-network: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 94%, transparent) 0%, color-mix(in srgb, var(--color-rail) 78%, transparent) 21%, transparent 48% )"
-      bento-overlay-bridges: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 84%, transparent) 0%, color-mix(in srgb, var(--color-rail) 40%, transparent) 30%, transparent 64% )"
       bento-overlay-memory: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 72%, transparent) 27%, transparent 58% )"
       bento-overlay-extensibility: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )"
 ---
@@ -733,25 +724,11 @@ families so owner color is deterministic by kind and id.
 
 <!-- END:tokens:owner-avatar -->
 
-### Status and wire tone vocabulary
+### Status tone vocabulary
 
-Status, priority, kind, and protocol colors must route through typed
+Status and priority colors must route through typed
 dictionaries or component props. Do not inline switch statements that invent a
 new tone map at each feature boundary.
-
-<!-- BEGIN:tokens:status-tone -->
-
-| Token                     | Value                  |
-| ------------------------- | ---------------------- |
-| `--color-kind-say`        | `var(--color-neutral)` |
-| `--color-kind-greet`      | `var(--color-info)`    |
-| `--color-kind-direct`     | `var(--color-accent)`  |
-| `--color-kind-receipt`    | `var(--color-success)` |
-| `--color-kind-capability` | `var(--color-warning)` |
-| `--color-kind-trace`      | `var(--color-info)`    |
-| `--color-kind-whois`      | `var(--color-neutral)` |
-
-<!-- END:tokens:status-tone -->
 
 ### Terminal emulator ramp
 
@@ -1284,8 +1261,7 @@ Geist.
 | `--site-api-sticky-row-fallback`            | `2rem`                                                                                                                                                              | `--site-api-sticky-offset`               | `1rem`                                                                                                                                                              | `--site-api-example-width`                | `22rem`                                                                                                                                                             |
 | `--site-api-example-width-wide`             | `26rem`                                                                                                                                                             | `--site-api-content-gap`                 | `1.25rem`                                                                                                                                                           | `--site-api-heading-content-gap`          | `0.875rem`                                                                                                                                                          |
 | `--site-api-subheading-offset`              | `2.5rem`                                                                                                                                                            | `--site-api-schema-min-width`            | `18rem`                                                                                                                                                             | `--site-diagram-node-stroke-width`        | `1.4px`                                                                                                                                                             |
-| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-network`           | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 94%, transparent) 0%, color-mix(in srgb, var(--color-rail) 78%, transparent) 21%, transparent 48% )` | `--site-bento-overlay-bridges`            | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 84%, transparent) 0%, color-mix(in srgb, var(--color-rail) 40%, transparent) 30%, transparent 64% )` |
-| `--site-bento-overlay-memory`               | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 72%, transparent) 27%, transparent 58% )` | `--site-bento-overlay-extensibility`     | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` |                                           |                                                                                                                                                                     |
+| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-memory`            | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 72%, transparent) 27%, transparent 58% )` | `--site-bento-overlay-extensibility`      | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` |
 
 <!-- END:tokens:site-layout -->
 

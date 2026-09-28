@@ -35,7 +35,7 @@
                     "match": { "turn_source": "user" },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "worker-native-skill",
                             "title": "Read required guidance through native tool policy",
                             "command": "/bin/sh",
@@ -91,7 +91,7 @@
                     },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "conduct-delivery-tasks",
                             "title": "Conduct bounded task workers",
                             "command": "/bin/sh",

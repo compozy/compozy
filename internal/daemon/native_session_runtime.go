@@ -88,7 +88,7 @@ func (n *daemonNativeTools) sessionRuntimeSelectionTarget(
 	}
 	registryWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return nil, nil, nativeNetworkInputError(toolID, err)
+		return nil, nil, nativeInputError(toolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, toolID, registryWorkspaceID, sessionID)
 	if err != nil {
@@ -110,7 +110,7 @@ func nativeRuntimeSelectionRevision(
 		return current, nil
 	}
 	if *expected < 0 {
-		return 0, nativeNetworkInputError(toolID, fmt.Errorf("expected_revision must not be negative"))
+		return 0, nativeInputError(toolID, fmt.Errorf("expected_revision must not be negative"))
 	}
 	return *expected, nil
 }

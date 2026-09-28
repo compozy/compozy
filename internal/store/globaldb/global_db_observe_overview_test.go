@@ -719,47 +719,6 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		}
 	})
 
-	t.Run("Should count network audit envelopes since the window start", func(t *testing.T) {
-		t.Parallel()
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		workspaceID := registerSessionForGlobalTests(t, globalDB, "sess-overview-net")
-
-		now := time.Now()
-		write := func(id string, at time.Time) {
-			t.Helper()
-			if err := globalDB.WriteNetworkAudit(ctx, store.NetworkAuditEntry{
-				ID:          id,
-				SessionID:   "sess-overview-net",
-				WorkspaceID: workspaceID,
-				Direction:   "sent",
-				Kind:        "say",
-				Channel:     "builders",
-				Surface:     store.NetworkSurfaceThread,
-				ThreadID:    "thread_overview",
-				MessageID:   "msg-" + id,
-				PeerFrom:    "coder.sess-overview-net",
-				ProfileID:   store.DefaultProfileID,
-				Timestamp:   at,
-			}); err != nil {
-				t.Fatalf("WriteNetworkAudit(%q) error = %v", id, err)
-			}
-		}
-		write("naud-ov-1", store.LocalDayStart(now, 0).Add(time.Hour))
-		write("naud-ov-2", store.LocalDayStart(now, 2))
-
-		messages, err := globalDB.CountNetworkMessagesSince(ctx, store.OverviewSinceQuery{
-			ReadScope: store.ReadScope{AllProfiles: true},
-			Since:     store.LocalDayStart(now, 0),
-		})
-		if err != nil {
-			t.Fatalf("CountNetworkMessagesSince() error = %v", err)
-		}
-		if messages != 1 {
-			t.Fatalf("CountNetworkMessagesSince() = %d, want 1", messages)
-		}
-	})
-
 	t.Run("Should return the longest user session inside the window", func(t *testing.T) {
 		t.Parallel()
 		globalDB := openTestGlobalDB(t)

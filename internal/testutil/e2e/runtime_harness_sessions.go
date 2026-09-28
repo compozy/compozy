@@ -54,13 +54,12 @@ func (h *RuntimeHarness) RuntimeManifest() (RuntimeArtifactManifest, error) {
 		Version:       1,
 		WorkspaceRoot: strings.TrimSpace(h.WorkspaceRoot),
 		Home: RuntimeHomeArtifact{
-			HomeDir:          strings.TrimSpace(h.HomePaths.HomeDir),
-			ConfigFile:       strings.TrimSpace(h.HomePaths.ConfigFile),
-			DatabaseFile:     strings.TrimSpace(h.HomePaths.DatabaseFile),
-			DaemonSocket:     strings.TrimSpace(h.HomePaths.DaemonSocket),
-			DaemonInfo:       strings.TrimSpace(h.HomePaths.DaemonInfo),
-			LogsDir:          strings.TrimSpace(h.HomePaths.LogsDir),
-			NetworkAuditFile: strings.TrimSpace(h.HomePaths.NetworkAuditFile),
+			HomeDir:      strings.TrimSpace(h.HomePaths.HomeDir),
+			ConfigFile:   strings.TrimSpace(h.HomePaths.ConfigFile),
+			DatabaseFile: strings.TrimSpace(h.HomePaths.DatabaseFile),
+			DaemonSocket: strings.TrimSpace(h.HomePaths.DaemonSocket),
+			DaemonInfo:   strings.TrimSpace(h.HomePaths.DaemonInfo),
+			LogsDir:      strings.TrimSpace(h.HomePaths.LogsDir),
 		},
 		Logs: RuntimeLogArtifact{
 			DaemonLogFile:  strings.TrimSpace(h.HomePaths.LogFile),
@@ -198,10 +197,6 @@ func (h *RuntimeHarness) sessionScopedAPIPath(sessionID string, suffix string) (
 		return "", errors.New("session ID is required")
 	}
 	return h.workspaceScopedAPIPath("", "/sessions/"+url.PathEscape(sessionID)+suffix)
-}
-
-func (h *RuntimeHarness) networkScopedAPIPath(workspaceID string, suffix string) (string, error) {
-	return h.workspaceScopedAPIPath(workspaceID, "/network"+suffix)
 }
 
 // CreateSession creates one session through the operator surface.

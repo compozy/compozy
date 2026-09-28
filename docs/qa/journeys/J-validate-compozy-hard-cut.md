@@ -11,7 +11,7 @@ flowchart TD
     B --> C{Inspect identity surface}
     C -->|runtime state| D[.compozy home + compozy.db + events.db + COMPOZY_* + Compozy helpers]
     C -->|agent plane| E[compozy__ tools + compozy_host__ MCP + min_compozy_version + official compozy skill]
-    C -->|wire/security| F[compozy-network/v0 + compozy.* keys + compozy_claim_ redaction]
+    C -->|wire/security| F[compozy.* keys + compozy_claim_ redaction]
     C -->|public surface| G[@compozy packages + canonical OpenAPI + local site, metadata, launch route, and docs]
     D --> H[Compare CLI, HTTP, UDS, disk, logs, and doctor]
     E --> H
@@ -66,7 +66,7 @@ journey:
     - at_step: 3
       how: "A raw claim token appears in any output."
       resume: "Stop the session immediately and register the security defect before any further journey work."
-  crosses: [CLI, HTTP, UDS, native-tools, hosted-MCP, runtime-home, SQLite, network-wire, redaction, bundled-skill, web, docs, generated-contracts]
+  crosses: [CLI, HTTP, UDS, native-tools, hosted-MCP, runtime-home, SQLite, redaction, bundled-skill, web, docs, generated-contracts]
 ```
 
 ## Coverage contract

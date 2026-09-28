@@ -44,17 +44,6 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if setRecord.Path != "defaults.provider" || setRecord.Value != "claude" {
 			t.Fatalf("config set record = %#v, want defaults.provider=claude", setRecord)
 		}
-		sandboxOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.sandbox", "local", "-o", "json")
-		if err != nil {
-			t.Fatalf("config set defaults.sandbox error = %v", err)
-		}
-		var sandboxSetRecord configSetRecord
-		if err := json.Unmarshal([]byte(sandboxOut), &sandboxSetRecord); err != nil {
-			t.Fatalf("json.Unmarshal(config set defaults.sandbox) error = %v", err)
-		}
-		if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
-			t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
-		}
 		deadlineOut, _, err := executeRootCommand(
 			t,
 			deps,
@@ -85,9 +74,6 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		}
 		if cfg.Defaults.Provider != "claude" {
 			t.Fatalf("Defaults.Provider = %q, want claude", cfg.Defaults.Provider)
-		}
-		if cfg.Defaults.Sandbox != "local" {
-			t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
 		}
 		if got, want := cfg.Session.Supervision.PromptDeadline.String(), "8s"; got != want {
 			t.Fatalf("Session.Supervision.PromptDeadline = %q, want %q", got, want)
@@ -1123,7 +1109,7 @@ func TestConfigSetPreservesOverriddenFeedbackAfterDaemonReload(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			workspaceConfig,
-			[]byte("[network.live.defaults]\nmax_wakes = 17\n"),
+			[]byte("[task.orchestration]\ncontext_recent_events = 17\n"),
 			0o644,
 		); err != nil {
 			t.Fatalf("WriteFile(workspace config) error = %v", err)
@@ -1134,7 +1120,7 @@ func TestConfigSetPreservesOverriddenFeedbackAfterDaemonReload(t *testing.T) {
 			deps,
 			"config",
 			"set",
-			"network.live.defaults.max_wakes",
+			"task.orchestration.context_recent_events",
 			"9",
 			"--scope",
 			"user",
@@ -1462,7 +1448,7 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 		deps,
 		"config",
 		"set",
-		"network.live.defaults.max_wakes",
+		"task.orchestration.context_recent_events",
 		"12",
 		"--scope",
 		"workspace",
@@ -1491,18 +1477,18 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(workspace config) error = %v", err)
 	}
-	if !strings.Contains(string(contents), "max_wakes = 12") {
-		t.Fatalf("workspace config = %s, want network Live max_wakes 12", string(contents))
+	if !strings.Contains(string(contents), "context_recent_events = 12") {
+		t.Fatalf("workspace config = %s, want task context_recent_events 12", string(contents))
 	}
 	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
-	if got, want := loaded.Network.Live.Defaults.MaxWakes, 12; got != want {
-		t.Fatalf("Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+	if got, want := loaded.Task.Orchestration.ContextRecentEvents, 12; got != want {
+		t.Fatalf("Task.Orchestration.ContextRecentEvents = %d, want %d", got, want)
 	}
-	if got, want := loaded.Network.Live.Limits.MaxWakes, compozyconfig.DefaultNetworkConfig().Live.Limits.MaxWakes; got != want {
-		t.Fatalf("Network.Live.Limits.MaxWakes = %d, want default %d", got, want)
+	if got, want := loaded.Task.Orchestration.ContextPriorAttempts, compozyconfig.DefaultTaskConfig().Orchestration.ContextPriorAttempts; got != want {
+		t.Fatalf("Task.Orchestration.ContextPriorAttempts = %d, want default %d", got, want)
 	}
 	if !loaded.Terminal.Recording {
 		t.Fatal("Terminal.Recording = false, want workspace config set value")
@@ -1787,7 +1773,7 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 			deps,
 			"config",
 			"set",
-			"network.live.defaults.max_wakes",
+			"task.orchestration.context_recent_events",
 			"12",
 			"--scope",
 			"workspace",
@@ -1799,7 +1785,7 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 			deps,
 			"config",
 			"get",
-			"network.live.defaults.max_wakes",
+			"task.orchestration.context_recent_events",
 			"-o",
 			"json",
 		)
@@ -2016,7 +2002,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 	})
 }
 
-func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
+func TestConfigOutputRedactsMCPAndProviderSecrets(t *testing.T) {
 	t.Parallel()
 
 	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
@@ -2030,12 +2016,6 @@ name = "remote"
 command = "remote-mcp"
 secret_env = { MCP_TOKEN = "env:MCP_TOKEN" }
 
-[sandboxes.dev]
-backend = "local"
-
-	[sandboxes.dev.secret_env]
-	API_TOKEN = "vault:sandbox/dev/api-token"
-
 [providers.private]
 command = "private-acp"
 auth_mode = "native_cli"
@@ -2047,7 +2027,6 @@ auth_login_command = "private login --token raw-login-secret"
 		t.Fatalf("config list error = %v", err)
 	}
 	if strings.Contains(listOut, "env:MCP_TOKEN") ||
-		strings.Contains(listOut, "vault:sandbox/dev/api-token") ||
 		strings.Contains(listOut, "raw-login-secret") {
 		t.Fatalf("config list leaked secret values:\n%s", listOut)
 	}
@@ -2256,31 +2235,6 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: true,
 			},
 			{
-				name:        "Should redact sandbox env values",
-				path:        "sandboxes.dev.env.API_TOKEN",
-				wantKind:    configSetString,
-				wantRedact:  true,
-				wantAllowed: true,
-			},
-			{
-				name:        "Should allow sandbox public ingress",
-				path:        "sandboxes.dev.network.allow_public_ingress",
-				wantKind:    configSetBool,
-				wantAllowed: true,
-			},
-			{
-				name:        "Should allow sandbox network allow list",
-				path:        "sandboxes.dev.network.allow_list",
-				wantKind:    configSetStringSlice,
-				wantAllowed: true,
-			},
-			{
-				name:        "Should allow sandbox Daytona image",
-				path:        "sandboxes.dev.daytona.image",
-				wantKind:    configSetString,
-				wantAllowed: true,
-			},
-			{
 				name:        "Should classify loop predicate cost as unsigned",
 				path:        "loops.defaults.delivery.predicates.cost_limit",
 				wantKind:    configSetUint64,
@@ -2416,7 +2370,6 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{name: "Should reject removed extractor model", path: "memory.extractor.model", wantAllowed: false},
 			{name: "Should reject removed extractor enabled", path: "memory.extractor.enabled", wantAllowed: false},
 			{name: "Should reject removed controller model", path: "memory.controller.llm.model", wantAllowed: false},
-			{name: "Should reject unknown sandbox values", path: "sandboxes.dev.unknown.value", wantAllowed: false},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -2543,36 +2496,8 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 	})
 }
 
-func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *testing.T) {
+func TestManagedModeBlocksConfigMutation(t *testing.T) {
 	t.Parallel()
-
-	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-	if _, _, err := executeRootCommand(t, deps, "config", "set", "sandboxes.dev.backend", "local"); err != nil {
-		t.Fatalf("config set sandbox backend error = %v", err)
-	}
-	out, _, err := executeRootCommand(
-		t,
-		deps,
-		"config",
-		"set",
-		"sandboxes.dev.secret_env.API_TOKEN",
-		"vault:sandbox/dev/api-token",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("config set sandbox env error = %v", err)
-	}
-	if strings.Contains(out, "vault:sandbox/dev/api-token") {
-		t.Fatalf("config set leaked secret value:\n%s", out)
-	}
-	var setRecord configSetRecord
-	if err := json.Unmarshal([]byte(out), &setRecord); err != nil {
-		t.Fatalf("json.Unmarshal(secret config set) error = %v", err)
-	}
-	if setRecord.Value != compozyconfig.RedactedValue() || !setRecord.Redacted {
-		t.Fatalf("secret config set record = %#v, want redacted placeholder", setRecord)
-	}
 
 	managedDeps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	managedDeps.getenv = func(key string) string {
@@ -2581,7 +2506,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 		}
 		return ""
 	}
-	_, _, err = executeRootCommand(t, managedDeps, "config", "set", "defaults.provider", "claude")
+	_, _, err := executeRootCommand(t, managedDeps, "config", "set", "defaults.provider", "claude")
 	if err == nil {
 		t.Fatal("managed config set error = nil, want managed mutation refusal")
 	}

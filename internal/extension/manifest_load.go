@@ -110,31 +110,6 @@ func (m *Manifest) validateModelSourceCapability() error {
 	return nil
 }
 
-func (m *Manifest) validateBridgeAdapterCapability() error {
-	if !providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
-		return nil
-	}
-	if err := requireField("bridge.platform", m.Bridge.Platform); err != nil {
-		return err
-	}
-	if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
-		return err
-	}
-	if err := validateBridgeSecretSlots(m.Bridge.SecretSlots); err != nil {
-		return err
-	}
-	if m.Bridge.ConfigSchema == nil {
-		return nil
-	}
-	if err := m.Bridge.ConfigSchema.Validate(); err != nil {
-		return &ManifestValidationError{
-			Field:   "bridge.config_schema",
-			Message: err.Error(),
-		}
-	}
-	return nil
-}
-
 // IsZero reports whether the duration is unset.
 func (d Duration) IsZero() bool {
 	return time.Duration(d) == 0
@@ -282,7 +257,8 @@ func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 		if len(key) == 0 {
 			continue
 		}
-		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey {
+		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey ||
+			key[0] == legacyManifestNetworkParticipationKey {
 			return legacyManifestSectionError(key[0])
 		}
 		if key[0] == manifestResourcesKey {
@@ -335,7 +311,11 @@ func rejectLegacyManifestJSON(data []byte) error {
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil
 	}
-	for _, section := range []string{legacyManifestActionsKey, legacyManifestSecurityKey} {
+	for _, section := range []string{
+		legacyManifestActionsKey,
+		legacyManifestSecurityKey,
+		legacyManifestNetworkParticipationKey,
+	} {
 		if _, ok := root[section]; ok {
 			return legacyManifestSectionError(section)
 		}
@@ -344,11 +324,18 @@ func rejectLegacyManifestJSON(data []byte) error {
 }
 
 const (
-	legacyManifestActionsKey  = "actions"
-	legacyManifestSecurityKey = "security"
+	legacyManifestActionsKey              = "actions"
+	legacyManifestSecurityKey             = "security"
+	legacyManifestNetworkParticipationKey = "network_participation"
 )
 
 func legacyManifestSectionError(section string) error {
+	if section == legacyManifestNetworkParticipationKey {
+		return &ManifestValidationError{
+			Field:   section,
+			Message: "[network_participation] was removed; rebuild with [gateway] and confirm its requirement digest",
+		}
+	}
 	return &ManifestValidationError{
 		Field:   section,
 		Message: fmt.Sprintf("[%s] was removed; use [permissions]", section),

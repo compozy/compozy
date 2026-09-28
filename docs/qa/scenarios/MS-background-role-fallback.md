@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: a9a8fcad63f4354505e4c9a0701a6d0f559cc991
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/ui-live-fallback-cli.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/ui-live-fallback-http.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/inherit-provider-fix-fallback-events.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: MS-background-role-routing;MS-inspect-background-role-routing
+overlaps: MS-background-role-routing; MS-inspect-background-role-routing
 ---
 
 QA impact 2026-07-23: ordered role fallback is new behavior. Planning flag only; the next QA cycle

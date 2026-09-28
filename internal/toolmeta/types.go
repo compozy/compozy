@@ -79,7 +79,7 @@ type RenderOptions struct {
 	Verbose      bool
 }
 
-// Presentation is the daemon-rendered progress chrome sent to bridge adapters.
+// Presentation is the daemon-rendered progress chrome used by progress renderers.
 type Presentation struct {
 	ToolID    string
 	Label     string
@@ -89,7 +89,7 @@ type Presentation struct {
 	Fallback  bool
 }
 
-// ProgressFields returns provider-neutral fields for the bridge SDK renderer.
+// ProgressFields returns provider-neutral fields for progress renderers.
 func (p Presentation) ProgressFields() (string, string) {
 	label := p.Label
 	if p.Preview == "" {

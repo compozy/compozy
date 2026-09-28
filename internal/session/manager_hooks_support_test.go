@@ -411,46 +411,6 @@ func (r *orderedRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, e
 	return nil, nil
 }
 
-type recordingNetworkPeerLifecycle struct {
-	joinErr  error
-	leaveErr error
-	joins    []networkJoinCall
-	leaves   []string
-}
-
-type networkJoinCall struct {
-	sessionID    string
-	peerID       string
-	channel      string
-	capabilities []NetworkPeerCapability
-}
-
-func (r *recordingNetworkPeerLifecycle) JoinChannel(
-	_ context.Context,
-	join NetworkPeerJoin,
-) error {
-	r.joins = append(r.joins, networkJoinCall{
-		sessionID:    join.SessionID,
-		peerID:       join.PeerID,
-		channel:      join.Channel,
-		capabilities: cloneNetworkPeerCapabilities(join.Capabilities),
-	})
-	return r.joinErr
-}
-
-func (r *recordingNetworkPeerLifecycle) LeaveChannel(_ context.Context, sessionID string) error {
-	r.leaves = append(r.leaves, sessionID)
-	return r.leaveErr
-}
-
-func (r *recordingNetworkPeerLifecycle) joinCount() int {
-	return len(r.joins)
-}
-
-func (r *recordingNetworkPeerLifecycle) leaveCount() int {
-	return len(r.leaves)
-}
-
 func (r *orderedRecorder) Record(_ context.Context, event store.SessionEvent) error {
 	_, err := r.RecordPersisted(context.Background(), event)
 	return err

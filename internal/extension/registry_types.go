@@ -38,9 +38,9 @@ type ExtensionInfo struct {
 	RegistryName             *string
 	RemoteVersion            *string
 	Provenance               ExtensionProvenance
-	NetworkRequirementDigest string
-	NetworkConfirmedBy       string
-	NetworkConfirmedAt       time.Time
+	GatewayRequirementDigest string
+	GatewayConfirmedBy       string
+	GatewayConfirmedAt       time.Time
 }
 
 type installConfig struct {

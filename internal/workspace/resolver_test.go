@@ -464,10 +464,6 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		if filesnap.Equal(left, right) {
 			t.Fatal("filesnap.Equal() = true, want false")
 		}
-
-		if got := cloneStringMap(nil); got != nil {
-			t.Fatalf("cloneStringMap(nil) = %#v, want nil", got)
-		}
 	})
 
 	t.Run("Should generate secure IDs", func(t *testing.T) {

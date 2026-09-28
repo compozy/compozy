@@ -42,14 +42,14 @@ func TestPublicProvideConformance(t *testing.T) {
 		})
 	}
 
-	t.Run("Should keep bridge adapter conformance private", func(t *testing.T) {
+	t.Run("Should reject unsupported provide conformance", func(t *testing.T) {
 		t.Parallel()
 
-		if err := extensiontest.ValidateProvide("bridge.adapter", []string{
-			"bridges/deliver",
-			"bridges/targets/snapshot",
+		if err := extensiontest.ValidateProvide("unknown.provider", []string{
+			"unknown/action",
+			"unknown/status",
 		}); err == nil {
-			t.Fatal("ValidateProvide(bridge.adapter) error = nil, want private-fixture rejection")
+			t.Fatal("ValidateProvide(unknown.provider) error = nil, want unsupported-provide rejection")
 		}
 	})
 }

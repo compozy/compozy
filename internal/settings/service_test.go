@@ -75,13 +75,6 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				NextFire:         new(time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)),
 			},
 		},
-		NetworkRuntime: fakeNetworkRuntimeProvider{
-			status: NetworkRuntimeStatus{
-				Available: true,
-				Enabled:   true,
-				Status:    "ready",
-			},
-		},
 		ObservabilityRuntime: fakeObservabilityRuntimeProvider{
 			status: ObservabilityRuntimeStatus{
 				Available:          true,
@@ -226,21 +219,6 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				}
 				if got, want := envelope.Automation.Runtime.JobTotal, 4; got != want {
 					t.Fatalf("Automation jobs = %d, want %d", got, want)
-				}
-			},
-		},
-		{
-			name: SectionNetwork,
-			assert: func(t *testing.T, envelope SectionEnvelope) {
-				t.Helper()
-				if envelope.Network == nil {
-					t.Fatal("Network section = nil")
-				}
-				if got, want := envelope.Network.Config.Live.Defaults.MaxWakes, 12; got != want {
-					t.Fatalf("Network Live default max wakes = %d, want %d", got, want)
-				}
-				if got, want := envelope.Network.Runtime.Status, "ready"; got != want {
-					t.Fatalf("Network runtime status = %q, want %q", got, want)
 				}
 			},
 		},
@@ -627,7 +605,7 @@ func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T
 	service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore, MCPAuth: authRuntime})
 	profileRequest := SectionRequest{Scope: ScopeProfile, ProfileName: "marketing"}
 
-	persona := compozyconfig.DefaultsConfig{Agent: "editor", Provider: "codex", Sandbox: "dev"}
+	persona := compozyconfig.DefaultsConfig{Agent: "editor", Provider: "codex"}
 	personaResult, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: withSettingsSection(profileRequest, SectionPersona),
 		Persona:        &persona,
@@ -714,14 +692,6 @@ func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T
 		func(server compozyconfig.MCPServer) bool { return server.Name == "linear" },
 	) {
 		t.Fatal("profile effective config is missing the profile MCP server")
-	}
-	if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{
-			Collection: CollectionSandboxes, Scope: ScopeProfile, ProfileName: "marketing",
-		},
-		Name: "forbidden", Sandbox: &compozyconfig.SandboxProfile{Backend: "local"},
-	}); err == nil || !errors.Is(err, ErrConflict) {
-		t.Fatalf("PutCollectionItem(sandbox profile) error = %v, want scope conflict", err)
 	}
 }
 
@@ -1908,13 +1878,6 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 		},
 		{
 			descriptor: MutationDescriptor{
-				Section:       SectionName(CollectionSandboxes),
-				ChangedFields: []string{"sandboxes.dev.backend"},
-			},
-			want: MutationBehaviorAppliedNow,
-		},
-		{
-			descriptor: MutationDescriptor{
 				Section:       SectionName(CollectionHooks),
 				ChangedFields: []string{"hooks.audit.command"},
 			},
@@ -1934,493 +1897,6 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 				t.Fatalf("behavior = %q, want %q", got, want)
 			}
 		})
-	}
-}
-
-func TestListCollectionBuildsProvidersSandboxesAndHooks(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	workspaceRoot := filepath.Join(t.TempDir(), "hook-workspace")
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
-
-[providers.codex]
-[providers.codex.models]
-default = "gpt-5"
-[[providers.codex.models.curated]]
-id = "gpt-5"
-display_name = "GPT-5"
-[[providers.codex.models.curated]]
-id = "gpt-5-mini"
-display_name = "GPT-5 Mini"
-
-	[providers.custom]
-	command = "custom-acp --stdio"
-	[providers.custom.models]
-	default = "custom-model"
-	[[providers.custom.credential_slots]]
-	name = "api_key"
-	target_env = "CUSTOM_API_KEY"
-	secret_ref = "env:CUSTOM_API_KEY"
-	kind = "api_key"
-	required = true
-
-	[sandboxes.staging]
-backend = "local"
-
-[[hooks.declarations]]
-name = "ship"
-event = "session.post_create"
-mode = "async"
-command = "/bin/ship"
-`)
-	writeFile(t, filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName), `
-[[hooks.declarations]]
-name = "ship"
-event = "session.post_create"
-command = "/bin/profile-ship"
-`)
-	writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
-[[hooks.declarations]]
-name = "ship"
-event = "session.post_create"
-command = "/bin/workspace-ship"
-`)
-	writeFile(t, filepath.Join(
-		workspaceRoot,
-		compozyconfig.DirName,
-		compozyconfig.ProfilesDirName,
-		"marketing",
-		compozyconfig.ConfigName,
-	), `
-[[hooks.declarations]]
-name = "ship"
-event = "session.post_create"
-command = "/bin/workspace-profile-ship"
-`)
-
-	service := testService(t, homePaths, Dependencies{
-		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
-			"codex": {
-				{ProviderID: "codex", ModelID: "gpt-5", DisplayName: "GPT-5", Curated: true},
-				{ProviderID: "codex", ModelID: "gpt-5-mini", DisplayName: "GPT-5 Mini", Curated: true},
-			},
-		}},
-		CommandLookPath: func(command string) (string, error) {
-			if strings.HasPrefix(command, "custom-acp") {
-				return "", os.ErrNotExist
-			}
-			return "/bin/" + command, nil
-		},
-		LookupEnv: func(key string) (string, bool) {
-			if key == "OPENAI_API_KEY" {
-				return "token", true
-			}
-			return "", false
-		},
-		WorkspaceResolver: fakeWorkspaceResolver{
-			resolved: map[string]workspacepkg.ResolvedWorkspace{
-				"ws-hooks": {
-					Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: workspaceRoot},
-				},
-			},
-			listed: []workspacepkg.Workspace{
-				{ID: "ws-dev", SandboxRef: "dev"},
-				{ID: "ws-stage-a", SandboxRef: "staging"},
-				{ID: "ws-stage-b", SandboxRef: "staging"},
-			},
-		},
-	})
-
-	providers, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
-	if err != nil {
-		t.Fatalf("ListCollection(providers) error = %v", err)
-	}
-	codex := mustFindProviderItem(t, providers.Providers, "codex")
-	if got, want := codex.Settings.Models.Default, "gpt-5"; got != want {
-		t.Fatalf("codex default model = %q, want %q", got, want)
-	}
-	if got, want := len(codex.Settings.Models.Curated), 2; got != want {
-		t.Fatalf("codex curated model count = %d, want %d", got, want)
-	}
-	if got, want := codex.Settings.Models.Curated[0].ID, "gpt-5"; got != want {
-		t.Fatalf("codex curated[0].ID = %q, want %q", got, want)
-	}
-	if got, want := codex.Settings.Models.Curated[1].ID, "gpt-5-mini"; got != want {
-		t.Fatalf("codex curated[1].ID = %q, want %q", got, want)
-	}
-	if !codex.Default {
-		t.Fatal("codex default = false, want true")
-	}
-	if got, want := codex.SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
-		t.Fatalf("codex effective source = %q, want %q", got, want)
-	}
-	if codex.Fallback == nil || codex.Fallback.Source.Kind != SourceKindBuiltinProvider {
-		t.Fatalf("codex fallback = %#v, want builtin fallback", codex.Fallback)
-	}
-	custom := mustFindProviderItem(t, providers.Providers, "custom")
-	if got, want := custom.SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
-		t.Fatalf("custom effective source = %q, want %q", got, want)
-	}
-	if custom.CommandAvailable {
-		t.Fatal("custom command available = true, want false")
-	}
-	if len(custom.Credentials) != 1 || custom.Credentials[0].Present {
-		t.Fatalf("custom credentials = %#v, want one missing credential status", custom.Credentials)
-	}
-	claude := mustFindProviderItem(t, providers.Providers, "claude")
-	if got, want := claude.SourceMetadata.EffectiveSource.Kind, SourceKindBuiltinProvider; got != want {
-		t.Fatalf("claude effective source = %q, want %q", got, want)
-	}
-
-	sandboxes, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionSandboxes})
-	if err != nil {
-		t.Fatalf("ListCollection(sandboxes) error = %v", err)
-	}
-	dev := findSandboxItem(t, sandboxes.Sandboxes, "dev")
-	if got, want := dev.WorkspaceUsageCount, 1; got != want {
-		t.Fatalf("dev workspace usage = %d, want %d", got, want)
-	}
-	staging := findSandboxItem(t, sandboxes.Sandboxes, "staging")
-	if got, want := staging.WorkspaceUsageCount, 2; got != want {
-		t.Fatalf("staging workspace usage = %d, want %d", got, want)
-	}
-
-	hooks, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionHooks})
-	if err != nil {
-		t.Fatalf("ListCollection(hooks) error = %v", err)
-	}
-	if got, want := hooks.Hooks[0].Name, "audit"; got != want {
-		t.Fatalf("hooks[0].Name = %q, want %q", got, want)
-	}
-	if got, want := hooks.Hooks[1].Name, "ship"; got != want {
-		t.Fatalf("hooks[1].Name = %q, want %q", got, want)
-	}
-	if got, want := hooks.Hooks[1].SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
-		t.Fatalf("hook effective source = %q, want %q", got, want)
-	}
-
-	profileHooks, err := service.ListCollection(ctx, CollectionRequest{
-		Collection: CollectionHooks,
-		Scope:      ScopeProfile, WorkspaceID: "ws-hooks", ProfileName: "marketing",
-	})
-	if err != nil {
-		t.Fatalf("ListCollection(profile hooks) error = %v", err)
-	}
-	profileShip := findHookItem(t, profileHooks.Hooks, "ship")
-	if got, want := profileShip.SourceMetadata.EffectiveSource.Kind, SourceKindWorkspaceProfileConfig; got != want {
-		t.Fatalf("profile hook effective source = %q, want %q", got, want)
-	}
-	if got, want := profileShip.Declaration.Command, "/bin/workspace-profile-ship"; got != want {
-		t.Fatalf("profile hook command = %q, want %q", got, want)
-	}
-	if got, want := len(profileShip.SourceMetadata.ShadowedSources), 3; got != want {
-		t.Fatalf("profile hook shadowed sources = %d, want %d", got, want)
-	}
-	if got, want := profileShip.SourceMetadata.AvailableTargets, []WriteTargetKind{
-		WriteTargetGlobalConfig,
-		WriteTargetProfileConfig,
-		WriteTargetWorkspaceConfig,
-	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("profile hook available targets = %#v, want %#v", got, want)
-	}
-}
-
-func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	service := testService(t, homePaths, Dependencies{
-		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
-			"codex": {
-				{ProviderID: "codex", ModelID: "gpt-5.6-sol", Curated: true},
-				{ProviderID: "codex", ModelID: "gpt-5.6-terra", Curated: true},
-				{ProviderID: "codex", ModelID: "gpt-5.6-luna", Curated: true},
-			},
-			"custom": {
-				{ProviderID: "custom", ModelID: "custom-model", Curated: true},
-				{ProviderID: "custom", ModelID: "custom-fast", Curated: true},
-			},
-		}},
-	})
-
-	providerResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
-		Provider: &ProviderSettings{
-			Command:   "custom-acp --stdio",
-			ModelsSet: true,
-			Models: compozyconfig.ProviderModelsConfig{
-				Default: "custom-model",
-				Curated: []compozyconfig.ProviderModelConfig{
-					{
-						ID:                     "custom-model",
-						DisplayName:            "Custom Model",
-						SupportsReasoning:      new(true),
-						ReasoningEfforts:       []string{"low", "high"},
-						DefaultReasoningEffort: "high",
-						SupportsTools:          new(true),
-					},
-					{ID: "custom-fast", DisplayName: "Custom Fast"},
-				},
-			},
-			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
-				{
-					Name:      "api_key",
-					TargetEnv: "CUSTOM_API_KEY",
-					SecretRef: "env:CUSTOM_API_KEY",
-					Kind:      "api_key",
-					Required:  true,
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(provider) error = %v", err)
-	}
-	if got, want := providerResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("provider write target = %q, want %q", got, want)
-	}
-	if got, want := providerResult.Behavior, MutationBehaviorRestartRequired; got != want {
-		t.Fatalf("provider behavior = %q, want %q", got, want)
-	}
-	configPayload := readFile(t, homePaths.ConfigFile)
-	if !strings.Contains(configPayload, "[providers.custom]") ||
-		!strings.Contains(configPayload, "[providers.custom.models]") ||
-		!strings.Contains(configPayload, `default = "custom-model"`) ||
-		!strings.Contains(configPayload, `[[providers.custom.models.curated]]`) ||
-		!strings.Contains(configPayload, `id = "custom-model"`) ||
-		!strings.Contains(configPayload, `reasoning_efforts = ["low", "high"]`) {
-		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
-	}
-	emptyCuratedResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "codex",
-		Provider: &ProviderSettings{
-			ModelsSet: true,
-			Models: compozyconfig.ProviderModelsConfig{
-				Curated: []compozyconfig.ProviderModelConfig{},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(explicit empty curated) error = %v", err)
-	}
-	if got, want := emptyCuratedResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("empty curated write target = %q, want %q", got, want)
-	}
-	loadedConfig, err := compozyconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome(after empty curated) error = %v", err)
-	}
-	codexOverlay := loadedConfig.Providers["codex"]
-	if got, want := len(codexOverlay.Models.Curated), 3; got != want {
-		t.Fatalf("codex curation row count after explicit empty membership = %d, want %d", got, want)
-	}
-	for _, model := range codexOverlay.Models.Curated {
-		if model.Hidden == nil || !*model.Hidden {
-			t.Fatalf("codex curation row %q hidden = %v, want true", model.ID, model.Hidden)
-		}
-	}
-	emptyEffortsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
-		Provider: &ProviderSettings{
-			Command:   "custom-acp --stdio",
-			ModelsSet: true,
-			Models: compozyconfig.ProviderModelsConfig{
-				Curated: []compozyconfig.ProviderModelConfig{
-					{
-						ID:               "custom-model",
-						ReasoningEfforts: []string{},
-					},
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(explicit empty reasoning efforts) error = %v", err)
-	}
-	if got, want := emptyEffortsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("empty reasoning efforts write target = %q, want %q", got, want)
-	}
-	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome(after empty reasoning efforts) error = %v", err)
-	}
-	custom := loadedConfig.Providers["custom"]
-	customModel := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-model")
-	if got, want := len(customModel.ReasoningEfforts), 2; got != want {
-		t.Fatalf(
-			"custom reasoning effort count after membership-only write = %d, want preserved %d",
-			got,
-			want,
-		)
-	}
-	customFast := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-fast")
-	if customFast.Hidden == nil || !*customFast.Hidden {
-		t.Fatalf("custom-fast hidden = %v, want true after removal from membership", customFast.Hidden)
-	}
-	blankIDResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
-		Provider: &ProviderSettings{
-			Command:   "custom-acp --stdio",
-			ModelsSet: true,
-			Models: compozyconfig.ProviderModelsConfig{
-				Curated: []compozyconfig.ProviderModelConfig{
-					{ID: "   ", DisplayName: "Ignored Blank"},
-					{ID: "custom-valid", DisplayName: "Custom Valid"},
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(blank curated id) error = %v", err)
-	}
-	if got, want := blankIDResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("blank curated id write target = %q, want %q", got, want)
-	}
-	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome(after blank curated id) error = %v", err)
-	}
-	custom = loadedConfig.Providers["custom"]
-	visible := make([]string, 0, len(custom.Models.Curated))
-	for _, model := range custom.Models.Curated {
-		if model.Hidden == nil || !*model.Hidden {
-			visible = append(visible, model.ID)
-		}
-	}
-	if got, want := len(visible), 1; got != want {
-		t.Fatalf("visible custom curation rows after blank id filtering = %#v, want %d", visible, want)
-	}
-	if got, want := visible[0], "custom-valid"; got != want {
-		t.Fatalf("visible custom model after blank curated id = %q, want %q", got, want)
-	}
-	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
-		Provider: &ProviderSettings{
-			Command:   "custom-acp --stdio",
-			ModelsSet: true,
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(clear provider models) error = %v", err)
-	}
-	if got, want := clearModelsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("clear provider models write target = %q, want %q", got, want)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, "[providers.custom.models]") ||
-		strings.Contains(configPayload, `default = "custom-model"`) ||
-		strings.Contains(configPayload, `[[providers.custom.models.curated]]`) {
-		t.Fatalf("config payload still contains provider model overlay after clear:\n%s", configPayload)
-	}
-	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
-	}); err != nil {
-		t.Fatalf("DeleteCollectionItem(provider) error = %v", err)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, "[providers.custom]") {
-		t.Fatalf("provider overlay still present after delete:\n%s", configPayload)
-	}
-
-	sandboxResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
-		Name:              "staging",
-		Sandbox: &compozyconfig.SandboxProfile{
-			Backend:     "local",
-			SyncMode:    "session-bidirectional",
-			Persistence: "transient",
-			RuntimeRoot: "/tmp/staging",
-			Env: map[string]string{
-				"QA_VISIBLE": "yes",
-			},
-			Network: compozyconfig.NetworkProfile{
-				AllowOutbound: true,
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(sandbox) error = %v", err)
-	}
-	if got, want := sandboxResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("sandbox write target = %q, want %q", got, want)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if !strings.Contains(configPayload, "[sandboxes.staging]") ||
-		!strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) ||
-		!strings.Contains(configPayload, `[sandboxes.staging.env]`) ||
-		!strings.Contains(configPayload, `QA_VISIBLE = "yes"`) ||
-		!strings.Contains(configPayload, `[sandboxes.staging.network]`) ||
-		!strings.Contains(configPayload, "allow_outbound = true") {
-		t.Fatalf("config payload missing sandbox overlay:\n%s", configPayload)
-	}
-	_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
-		Name:              "staging",
-		Sandbox: &compozyconfig.SandboxProfile{
-			Backend: "local",
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(replace sandbox) error = %v", err)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) ||
-		strings.Contains(configPayload, `[sandboxes.staging.env]`) ||
-		strings.Contains(configPayload, `QA_VISIBLE = "yes"`) ||
-		strings.Contains(configPayload, `[sandboxes.staging.network]`) ||
-		strings.Contains(configPayload, "allow_outbound = true") {
-		t.Fatalf("config payload still contains stale sandbox fields after replace:\n%s", configPayload)
-	}
-	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
-		Name:              "staging",
-	}); err != nil {
-		t.Fatalf("DeleteCollectionItem(sandbox) error = %v", err)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, "[sandboxes.staging]") {
-		t.Fatalf("sandbox overlay still present after delete:\n%s", configPayload)
-	}
-
-	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
-		Name:              "ship",
-		Hook: &hookspkg.HookDecl{
-			Event:   hookspkg.HookToolPreCall,
-			Mode:    hookspkg.HookModeAsync,
-			Command: "/bin/ship",
-			Args:    []string{"--fast"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(hook) error = %v", err)
-	}
-	if got, want := hookResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("hook write target = %q, want %q", got, want)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if !strings.Contains(configPayload, `name = "ship"`) || !strings.Contains(configPayload, `args = ["--fast"]`) {
-		t.Fatalf("config payload missing hook declaration:\n%s", configPayload)
-	}
-	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
-		Name:              "ship",
-	}); err != nil {
-		t.Fatalf("DeleteCollectionItem(hook) error = %v", err)
-	}
-	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, `name = "ship"`) {
-		t.Fatalf("hook declaration still present after delete:\n%s", configPayload)
 	}
 }
 
@@ -4256,13 +3732,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			want: `max_concurrent_jobs = 5`,
 		},
 		{
-			name: "network",
-			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionNetwork},
-			},
-			want: `max_wakes = 13`,
-		},
-		{
 			name: "observability",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionObservability},
@@ -4326,15 +3795,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 				SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false), testSkill("beta", false)),
 			})
 			request := tt.request
-			if request.Section == SectionNetwork {
-				current, err := compozyconfig.LoadForHome(homePaths)
-				if err != nil {
-					t.Fatalf("LoadForHome(network fixture) error = %v", err)
-				}
-				networkConfig := current.Network
-				networkConfig.Live.Defaults.MaxWakes = 13
-				request.Network = &networkConfig
-			}
 
 			result, err := service.UpdateSection(ctx, request)
 			if err != nil {
@@ -4353,15 +3813,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			if !strings.Contains(payload, tt.want) {
 				t.Fatalf("config payload missing %q:\n%s", tt.want, payload)
 			}
-			if request.Section == SectionNetwork {
-				reloaded, err := compozyconfig.LoadForHome(homePaths)
-				if err != nil {
-					t.Fatalf("LoadForHome(updated network) error = %v", err)
-				}
-				if got, want := reloaded.Network.Live.Defaults.MaxWakes, 13; got != want {
-					t.Fatalf("reloaded Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-				}
-			}
 		})
 	}
 }
@@ -4369,41 +3820,10 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 	t.Parallel()
 
-	profileValues := sandboxProfileMap(compozyconfig.SandboxProfile{
-		Backend:  "daytona",
-		SyncMode: "mirror",
-		Env:      map[string]string{"TOKEN": "value"},
-		Network: compozyconfig.NetworkProfile{
-			AllowPublicIngress: true,
-			AllowOutbound:      true,
-			AllowList:          []string{"api.example"},
-			DenyList:           []string{"blocked.example"},
-			Required:           true,
-		},
-		Daytona: compozyconfig.DaytonaProfile{
-			APIURL:      "https://daytona.example",
-			Target:      "prod",
-			Image:       "compozy:latest",
-			Snapshot:    "snap-1",
-			Class:       "large",
-			AutoStop:    "15m",
-			AutoArchive: "24h",
-		},
-	})
-	if _, ok := profileValues["env"]; !ok {
-		t.Fatalf("sandboxProfileMap() missing env: %#v", profileValues)
-	}
-	if _, ok := profileValues["network"]; !ok {
-		t.Fatalf("sandboxProfileMap() missing network: %#v", profileValues)
-	}
-	if _, ok := profileValues["daytona"]; !ok {
-		t.Fatalf("sandboxProfileMap() missing daytona: %#v", profileValues)
-	}
-
 	readOnly := true
 	decl := hookspkg.HookDecl{
 		Name:         "capture",
-		Event:        hookspkg.HookNetworkMessagePersisted,
+		Event:        hookspkg.HookSessionMessagePersisted,
 		Mode:         hookspkg.HookModeAsync,
 		ExecutorKind: hookspkg.HookExecutorSubprocess,
 		Command:      "/bin/capture",
@@ -4414,24 +3834,11 @@ func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 			ToolReadOnly:     &readOnly,
 			MessageRole:      "assistant",
 			MessageDeltaType: "text",
-			NetworkMatcher: &hookspkg.NetworkMatcher{
-				Channel:   "builders",
-				Surface:   "thread",
-				Kind:      "trace",
-				Direction: "received",
-				WorkState: "completed",
-			},
 		},
 	}
 	matcher := hookMatcherMap(decl)
 	if got, want := matcher["tool_id"], "compozy__read"; got != want {
 		t.Fatalf("hookMatcherMap()[tool_id] = %#v, want %q", got, want)
-	}
-	if got, want := matcher["channel"], "builders"; got != want {
-		t.Fatalf("hookMatcherMap()[channel] = %#v, want %q", got, want)
-	}
-	if got, want := matcher["work_state"], "completed"; got != want {
-		t.Fatalf("hookMatcherMap()[work_state] = %#v, want %q", got, want)
 	}
 	executor := hookExecutorMap(decl)
 	if got, want := executor["kind"], string(hookspkg.HookExecutorSubprocess); got != want {
@@ -4653,14 +4060,6 @@ type fakeAutomationRuntimeProvider struct {
 }
 
 func (f fakeAutomationRuntimeProvider) AutomationRuntimeStatus(context.Context) (AutomationRuntimeStatus, error) {
-	return f.status, nil
-}
-
-type fakeNetworkRuntimeProvider struct {
-	status NetworkRuntimeStatus
-}
-
-func (f fakeNetworkRuntimeProvider) NetworkRuntimeStatus(context.Context) (NetworkRuntimeStatus, error) {
 	return f.status, nil
 }
 
@@ -5257,7 +4656,6 @@ func baseSettingsConfig() string {
 [defaults]
 agent = "writer"
 provider = "codex"
-sandbox = "dev"
 
 [limits]
 max_concurrent_agents = 11
@@ -5298,32 +4696,6 @@ max_concurrent_jobs = 3
 [automation.default_fire_limit]
 max = 9
 window = "1h"
-
-[sandboxes.dev]
-backend = "local"
-
-[network]
-enabled = true
-max_replay_age = 60
-
-[network.live.defaults]
-max_wakes = 12
-max_wake_wall_time = "5m"
-max_total_wall_time = "30m"
-max_input_tokens = 200000
-max_output_tokens = 50000
-max_wake_depth = 3
-coalesce_window = "500ms"
-
-[network.live.limits]
-max_wakes = 64
-max_wake_wall_time = "15m"
-max_total_wall_time = "2h"
-max_input_tokens = 1000000
-max_output_tokens = 200000
-max_wake_depth = 5
-min_coalesce_window = "100ms"
-max_coalesce_window = "5s"
 
 [observability]
 enabled = true
@@ -5382,17 +4754,6 @@ func mustFindProviderItem(t *testing.T, items []ProviderItem, name string) Provi
 	return ProviderItem{}
 }
 
-func findSandboxItem(t *testing.T, items []SandboxItem, name string) SandboxItem {
-	t.Helper()
-	for index := range items {
-		if items[index].Name == name {
-			return items[index]
-		}
-	}
-	t.Fatalf("Sandbox item %q not found in %#v", name, items)
-	return SandboxItem{}
-}
-
 func findHookItem(t *testing.T, items []HookItem, name string) HookItem {
 	t.Helper()
 	for index := range items {
@@ -5441,5 +4802,412 @@ func testSkill(name string, enabled bool) *skillspkg.Skill {
 	return &skillspkg.Skill{
 		Meta:    skillspkg.SkillMeta{Name: name},
 		Enabled: enabled,
+	}
+}
+
+func TestListCollectionBuildsProvidersAndHooks(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	workspaceRoot := filepath.Join(t.TempDir(), "hook-workspace")
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.codex]
+[providers.codex.models]
+default = "gpt-5"
+[[providers.codex.models.curated]]
+id = "gpt-5"
+display_name = "GPT-5"
+[[providers.codex.models.curated]]
+id = "gpt-5-mini"
+display_name = "GPT-5 Mini"
+
+	[providers.custom]
+	command = "custom-acp --stdio"
+	[providers.custom.models]
+	default = "custom-model"
+	[[providers.custom.credential_slots]]
+	name = "api_key"
+	target_env = "CUSTOM_API_KEY"
+	secret_ref = "env:CUSTOM_API_KEY"
+	kind = "api_key"
+	required = true
+
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+mode = "async"
+command = "/bin/ship"
+`)
+	writeFile(t, filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/profile-ship"
+`)
+	writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/workspace-ship"
+`)
+	writeFile(t, filepath.Join(
+		workspaceRoot,
+		compozyconfig.DirName,
+		compozyconfig.ProfilesDirName,
+		"marketing",
+		compozyconfig.ConfigName,
+	), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/workspace-profile-ship"
+`)
+
+	service := testService(t, homePaths, Dependencies{
+		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"codex": {
+				{ProviderID: "codex", ModelID: "gpt-5", DisplayName: "GPT-5", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5-mini", DisplayName: "GPT-5 Mini", Curated: true},
+			},
+		}},
+		CommandLookPath: func(command string) (string, error) {
+			if strings.HasPrefix(command, "custom-acp") {
+				return "", os.ErrNotExist
+			}
+			return "/bin/" + command, nil
+		},
+		LookupEnv: func(key string) (string, bool) {
+			if key == "OPENAI_API_KEY" {
+				return "token", true
+			}
+			return "", false
+		},
+		WorkspaceResolver: fakeWorkspaceResolver{
+			resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-hooks": {
+					Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: workspaceRoot},
+				},
+			},
+			listed: []workspacepkg.Workspace{},
+		},
+	})
+
+	providers, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	if err != nil {
+		t.Fatalf("ListCollection(providers) error = %v", err)
+	}
+	codex := mustFindProviderItem(t, providers.Providers, "codex")
+	if got, want := codex.Settings.Models.Default, "gpt-5"; got != want {
+		t.Fatalf("codex default model = %q, want %q", got, want)
+	}
+	if got, want := len(codex.Settings.Models.Curated), 2; got != want {
+		t.Fatalf("codex curated model count = %d, want %d", got, want)
+	}
+	if got, want := codex.Settings.Models.Curated[0].ID, "gpt-5"; got != want {
+		t.Fatalf("codex curated[0].ID = %q, want %q", got, want)
+	}
+	if got, want := codex.Settings.Models.Curated[1].ID, "gpt-5-mini"; got != want {
+		t.Fatalf("codex curated[1].ID = %q, want %q", got, want)
+	}
+	if !codex.Default {
+		t.Fatal("codex default = false, want true")
+	}
+	if got, want := codex.SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
+		t.Fatalf("codex effective source = %q, want %q", got, want)
+	}
+	if codex.Fallback == nil || codex.Fallback.Source.Kind != SourceKindBuiltinProvider {
+		t.Fatalf("codex fallback = %#v, want builtin fallback", codex.Fallback)
+	}
+	custom := mustFindProviderItem(t, providers.Providers, "custom")
+	if got, want := custom.SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
+		t.Fatalf("custom effective source = %q, want %q", got, want)
+	}
+	if custom.CommandAvailable {
+		t.Fatal("custom command available = true, want false")
+	}
+	if len(custom.Credentials) != 1 || custom.Credentials[0].Present {
+		t.Fatalf("custom credentials = %#v, want one missing credential status", custom.Credentials)
+	}
+	claude := mustFindProviderItem(t, providers.Providers, "claude")
+	if got, want := claude.SourceMetadata.EffectiveSource.Kind, SourceKindBuiltinProvider; got != want {
+		t.Fatalf("claude effective source = %q, want %q", got, want)
+	}
+
+	hooks, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionHooks})
+	if err != nil {
+		t.Fatalf("ListCollection(hooks) error = %v", err)
+	}
+	if got, want := hooks.Hooks[0].Name, "audit"; got != want {
+		t.Fatalf("hooks[0].Name = %q, want %q", got, want)
+	}
+	if got, want := hooks.Hooks[1].Name, "ship"; got != want {
+		t.Fatalf("hooks[1].Name = %q, want %q", got, want)
+	}
+	if got, want := hooks.Hooks[1].SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
+		t.Fatalf("hook effective source = %q, want %q", got, want)
+	}
+
+	profileHooks, err := service.ListCollection(ctx, CollectionRequest{
+		Collection: CollectionHooks,
+		Scope:      ScopeProfile, WorkspaceID: "ws-hooks", ProfileName: "marketing",
+	})
+	if err != nil {
+		t.Fatalf("ListCollection(profile hooks) error = %v", err)
+	}
+	profileShip := findHookItem(t, profileHooks.Hooks, "ship")
+	if got, want := profileShip.SourceMetadata.EffectiveSource.Kind, SourceKindWorkspaceProfileConfig; got != want {
+		t.Fatalf("profile hook effective source = %q, want %q", got, want)
+	}
+	if got, want := profileShip.Declaration.Command, "/bin/workspace-profile-ship"; got != want {
+		t.Fatalf("profile hook command = %q, want %q", got, want)
+	}
+	if got, want := len(profileShip.SourceMetadata.ShadowedSources), 3; got != want {
+		t.Fatalf("profile hook shadowed sources = %d, want %d", got, want)
+	}
+	if got, want := profileShip.SourceMetadata.AvailableTargets, []WriteTargetKind{
+		WriteTargetGlobalConfig,
+		WriteTargetProfileConfig,
+		WriteTargetWorkspaceConfig,
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("profile hook available targets = %#v, want %#v", got, want)
+	}
+}
+
+func TestCollectionMutationsProviderAndHook(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	service := testService(t, homePaths, Dependencies{
+		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"codex": {
+				{ProviderID: "codex", ModelID: "gpt-5.6-sol", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5.6-terra", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5.6-luna", Curated: true},
+			},
+			"custom": {
+				{ProviderID: "custom", ModelID: "custom-model", Curated: true},
+				{ProviderID: "custom", ModelID: "custom-fast", Curated: true},
+			},
+		}},
+	})
+
+	providerResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+			Models: compozyconfig.ProviderModelsConfig{
+				Default: "custom-model",
+				Curated: []compozyconfig.ProviderModelConfig{
+					{
+						ID:                     "custom-model",
+						DisplayName:            "Custom Model",
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"low", "high"},
+						DefaultReasoningEffort: "high",
+						SupportsTools:          new(true),
+					},
+					{ID: "custom-fast", DisplayName: "Custom Fast"},
+				},
+			},
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
+				{
+					Name:      "api_key",
+					TargetEnv: "CUSTOM_API_KEY",
+					SecretRef: "env:CUSTOM_API_KEY",
+					Kind:      "api_key",
+					Required:  true,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(provider) error = %v", err)
+	}
+	if got, want := providerResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("provider write target = %q, want %q", got, want)
+	}
+	if got, want := providerResult.Behavior, MutationBehaviorRestartRequired; got != want {
+		t.Fatalf("provider behavior = %q, want %q", got, want)
+	}
+	configPayload := readFile(t, homePaths.ConfigFile)
+	if !strings.Contains(configPayload, "[providers.custom]") ||
+		!strings.Contains(configPayload, "[providers.custom.models]") ||
+		!strings.Contains(configPayload, `default = "custom-model"`) ||
+		!strings.Contains(configPayload, `[[providers.custom.models.curated]]`) ||
+		!strings.Contains(configPayload, `id = "custom-model"`) ||
+		!strings.Contains(configPayload, `reasoning_efforts = ["low", "high"]`) {
+		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
+	}
+	emptyCuratedResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "codex",
+		Provider: &ProviderSettings{
+			ModelsSet: true,
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(explicit empty curated) error = %v", err)
+	}
+	if got, want := emptyCuratedResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("empty curated write target = %q, want %q", got, want)
+	}
+	loadedConfig, err := compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome(after empty curated) error = %v", err)
+	}
+	codexOverlay := loadedConfig.Providers["codex"]
+	if got, want := len(codexOverlay.Models.Curated), 3; got != want {
+		t.Fatalf("codex curation row count after explicit empty membership = %d, want %d", got, want)
+	}
+	for _, model := range codexOverlay.Models.Curated {
+		if model.Hidden == nil || !*model.Hidden {
+			t.Fatalf("codex curation row %q hidden = %v, want true", model.ID, model.Hidden)
+		}
+	}
+	emptyEffortsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{
+					{
+						ID:               "custom-model",
+						ReasoningEfforts: []string{},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(explicit empty reasoning efforts) error = %v", err)
+	}
+	if got, want := emptyEffortsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("empty reasoning efforts write target = %q, want %q", got, want)
+	}
+	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome(after empty reasoning efforts) error = %v", err)
+	}
+	custom := loadedConfig.Providers["custom"]
+	customModel := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-model")
+	if got, want := len(customModel.ReasoningEfforts), 2; got != want {
+		t.Fatalf(
+			"custom reasoning effort count after membership-only write = %d, want preserved %d",
+			got,
+			want,
+		)
+	}
+	customFast := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-fast")
+	if customFast.Hidden == nil || !*customFast.Hidden {
+		t.Fatalf("custom-fast hidden = %v, want true after removal from membership", customFast.Hidden)
+	}
+	blankIDResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{
+					{ID: "   ", DisplayName: "Ignored Blank"},
+					{ID: "custom-valid", DisplayName: "Custom Valid"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(blank curated id) error = %v", err)
+	}
+	if got, want := blankIDResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("blank curated id write target = %q, want %q", got, want)
+	}
+	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome(after blank curated id) error = %v", err)
+	}
+	custom = loadedConfig.Providers["custom"]
+	visible := make([]string, 0, len(custom.Models.Curated))
+	for _, model := range custom.Models.Curated {
+		if model.Hidden == nil || !*model.Hidden {
+			visible = append(visible, model.ID)
+		}
+	}
+	if got, want := len(visible), 1; got != want {
+		t.Fatalf("visible custom curation rows after blank id filtering = %#v, want %d", visible, want)
+	}
+	if got, want := visible[0], "custom-valid"; got != want {
+		t.Fatalf("visible custom model after blank curated id = %q, want %q", got, want)
+	}
+	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(clear provider models) error = %v", err)
+	}
+	if got, want := clearModelsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("clear provider models write target = %q, want %q", got, want)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if strings.Contains(configPayload, "[providers.custom.models]") ||
+		strings.Contains(configPayload, `default = "custom-model"`) ||
+		strings.Contains(configPayload, `[[providers.custom.models.curated]]`) {
+		t.Fatalf("config payload still contains provider model overlay after clear:\n%s", configPayload)
+	}
+	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+	}); err != nil {
+		t.Fatalf("DeleteCollectionItem(provider) error = %v", err)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if strings.Contains(configPayload, "[providers.custom]") {
+		t.Fatalf("provider overlay still present after delete:\n%s", configPayload)
+	}
+
+	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
+		Name:              "ship",
+		Hook: &hookspkg.HookDecl{
+			Event:   hookspkg.HookToolPreCall,
+			Mode:    hookspkg.HookModeAsync,
+			Command: "/bin/ship",
+			Args:    []string{"--fast"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(hook) error = %v", err)
+	}
+	if got, want := hookResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("hook write target = %q, want %q", got, want)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if !strings.Contains(configPayload, `name = "ship"`) || !strings.Contains(configPayload, `args = ["--fast"]`) {
+		t.Fatalf("config payload missing hook declaration:\n%s", configPayload)
+	}
+	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
+		Name:              "ship",
+	}); err != nil {
+		t.Fatalf("DeleteCollectionItem(hook) error = %v", err)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if strings.Contains(configPayload, `name = "ship"`) {
+		t.Fatalf("hook declaration still present after delete:\n%s", configPayload)
 	}
 }

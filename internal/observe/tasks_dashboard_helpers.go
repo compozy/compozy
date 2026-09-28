@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -229,26 +227,26 @@ func taskDashboardActiveRunItems(
 		}
 		_, stuck := stuckByID[run.ID]
 		activeRunItems = append(activeRunItems, TaskDashboardActiveRun{
-			TaskID:                       taskItem.ID,
-			TaskIdentifier:               taskItem.Identifier,
-			TaskTitle:                    taskItem.Title,
-			TaskStatus:                   taskItem.Status.Normalize(),
-			TaskPriority:                 taskItem.Priority,
-			TaskOwner:                    cloneOwnership(taskItem.Owner),
-			Scope:                        taskItem.Scope.Normalize(),
-			WorkspaceID:                  taskItem.WorkspaceID,
-			LatestEventSeq:               taskItem.LatestEventSeq,
-			RunID:                        run.ID,
-			RunStatus:                    run.Status.Normalize(),
-			Attempt:                      int(run.Attempt),
-			MaxAttempts:                  taskItem.MaxAttempts,
-			SessionID:                    strings.TrimSpace(run.SessionID),
-			ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-			LastActivityAt:               dashboardRunActivityAt(run),
-			AgeMilli:                     dashboardRunAge(run, currentTime).Milliseconds(),
-			HealthStatus:                 dashboardStatusForAny(stuck),
-			Stuck:                        stuck,
-			Error:                        strings.TrimSpace(run.Error),
+			TaskID:         taskItem.ID,
+			TaskIdentifier: taskItem.Identifier,
+			TaskTitle:      taskItem.Title,
+			TaskStatus:     taskItem.Status.Normalize(),
+			TaskPriority:   taskItem.Priority,
+			TaskOwner:      cloneOwnership(taskItem.Owner),
+			Scope:          taskItem.Scope.Normalize(),
+			WorkspaceID:    taskItem.WorkspaceID,
+			LatestEventSeq: taskItem.LatestEventSeq,
+			RunID:          run.ID,
+			RunStatus:      run.Status.Normalize(),
+			Attempt:        int(run.Attempt),
+			MaxAttempts:    taskItem.MaxAttempts,
+			SessionID:      strings.TrimSpace(run.SessionID),
+
+			LastActivityAt: dashboardRunActivityAt(run),
+			AgeMilli:       dashboardRunAge(run, currentTime).Milliseconds(),
+			HealthStatus:   dashboardStatusForAny(stuck),
+			Stuck:          stuck,
+			Error:          strings.TrimSpace(run.Error),
 		})
 	}
 	return activeRunItems

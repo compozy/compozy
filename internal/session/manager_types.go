@@ -11,8 +11,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -33,28 +31,17 @@ type CreateOpts struct {
 	Speed            speedpkg.Speed
 	ACPOptions       []acp.SessionConfigOptionSelection
 	CWD              string
-	SandboxRef       string
-	DisableSandbox   bool
 	Permissions      compozyconfig.PermissionMode
 	Name             string
 	Workspace        string
 	WorkspacePath    string
 	// Worktree names an existing ready worktree within the resolved parent workspace.
-	Worktree             string
-	NetworkParticipation *participation.Request
-	// ResolvedNetworkParticipation binds an internal worker session to the immutable owner snapshot.
-	// Callers must not set it together with NetworkParticipation.
-	ResolvedNetworkParticipation *participation.Spec
-	// NetworkOwnerKey binds an internal worker session to its task or loop budget owner.
-	// Empty values default to the session's own identity.
-	NetworkOwnerKey string
-	// NetworkAuthority carries the concrete delegated channel scope for child-owned resolution.
-	NetworkAuthority *participation.AuthorityScope
-	PromptOverlay    string
-	ContractOverlay  string
-	RuntimeMode      string
-	Type             Type
-	Lineage          *store.SessionLineage
+	Worktree        string
+	PromptOverlay   string
+	ContractOverlay string
+	RuntimeMode     string
+	Type            Type
+	Lineage         *store.SessionLineage
 	// ProvenanceParentSessionID links an internal system session to its informational origin.
 	// It does not grant spawn governance and is unavailable on public create surfaces.
 	ProvenanceParentSessionID string
@@ -185,8 +172,6 @@ type Manager struct {
 	logger                       *slog.Logger
 	driver                       AgentDriver
 	notifier                     Notifier
-	networkPeers                 NetworkPeerLifecycle
-	participationResolver        participation.Resolver
 	sessionWindowReconciler      WindowReconciler
 	windowReconciliationCtx      context.Context
 	windowReconciliationCancel   context.CancelFunc
@@ -207,7 +192,6 @@ type Manager struct {
 	goalCommandHandler           GoalCommandHandler
 	startupOverlay               StartupPromptOverlay
 	hooks                        HookSet
-	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
 	profileNames                 ProfileNameResolver
@@ -245,7 +229,6 @@ type Manager struct {
 	lifecycleCtx                 context.Context
 	now                          func() time.Time
 	newSessionID                 IDGenerator
-	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
 	newRunID                     IDGenerator
 	newRepairEventID             IDGenerator

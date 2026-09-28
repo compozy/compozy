@@ -145,7 +145,6 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
   const requestedId = matchTerminalInstance(pathname);
   const terminals = catalog.data ?? [];
   const terminalSettings = settings.data?.config.terminal;
-  const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
 
   if (requestedId === null && create.completedTerminal) {
     const terminal = create.completedTerminal;
@@ -179,7 +178,6 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
       inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
       inputRequests={inputRequests.data ?? []}
-      interactiveAvailable={interactiveAvailable}
       resolvedInputRequests={resolvedInputRequests}
       journal={
         <TerminalWindowJournal openTerminal={openTerminal} retargetTerminal={retargetTerminal} />

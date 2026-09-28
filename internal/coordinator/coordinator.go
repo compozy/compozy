@@ -7,7 +7,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -32,18 +31,6 @@ const (
 )
 
 var (
-	// operationalMessageKinds are the coordination-channel message kinds a
-	// coordinator may use for worker conversation. Task ownership remains in
-	// the task lease API.
-	operationalMessageKinds = [...]string{
-		"status",
-		"request",
-		"blocker",
-		"handoff",
-		"result",
-		"review_request",
-	}
-
 	// taskToolAllowlist is the orchestration-safe surface granted to coordinator
 	// sessions. Operator lifecycle verbs and coordinator-to-coordinator spawn
 	// are intentionally absent. These must stay aligned with canonical builtin
@@ -57,50 +44,34 @@ var (
 		toolspkg.ToolIDTaskRunRelease.String(),
 		toolspkg.ToolIDTaskCreate.String(),
 	}
-	networkToolAllowlist = [...]string{
-		toolspkg.ToolIDNetworkChannels.String(),
-		toolspkg.ToolIDNetworkInbox.String(),
-		toolspkg.ToolIDNetworkSend.String(),
-	}
 )
-
-// OperationalMessageKinds returns the coordination-channel message kinds a
-// coordinator may use for worker conversation.
-func OperationalMessageKinds() []string {
-	return slices.Clone(operationalMessageKinds[:])
-}
 
 // ToolAllowlist returns the orchestration-safe tool surface granted to
 // coordinator sessions.
-func ToolAllowlist(spec participation.Spec) []string {
+func ToolAllowlist() []string {
 	tools := slices.Clone(taskToolAllowlist[:])
-	if spec.Mode == participation.ModeLive {
-		tools = append(tools, networkToolAllowlist[:]...)
-	}
 	return tools
 }
 
 // Decision describes whether a task run is eligible to bootstrap a workspace
 // coordinator.
 type Decision struct {
-	ShouldBootstrap      bool
-	Reason               string
-	ProfileID            string
-	WorkspaceID          string
-	TaskID               string
-	RunID                string
-	WorkflowID           string
-	NetworkParticipation participation.Spec
+	ShouldBootstrap bool
+	Reason          string
+	ProfileID       string
+	WorkspaceID     string
+	TaskID          string
+	RunID           string
+	WorkflowID      string
 }
 
 // PromptInput captures the first-run situation given to a coordinator session.
 type PromptInput struct {
-	WorkspaceID          string
-	TaskID               string
-	RunID                string
-	WorkflowID           string
-	NetworkParticipation participation.Spec
-	WorkerWorktrees      []WorkerWorktreeBinding
+	WorkspaceID     string
+	TaskID          string
+	RunID           string
+	WorkflowID      string
+	WorkerWorktrees []WorkerWorktreeBinding
 }
 
 // WorkerWorktreeBinding identifies the worktree assigned to one active worker run.
@@ -114,12 +85,11 @@ type WorkerWorktreeBinding struct {
 // belongs to the daemon runtime.
 func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg compozyconfig.ResolvedCoordinatorRole) Decision {
 	decision := Decision{
-		ProfileID:            strings.TrimSpace(task.ProfileID),
-		WorkspaceID:          strings.TrimSpace(task.WorkspaceID),
-		TaskID:               strings.TrimSpace(task.ID),
-		RunID:                strings.TrimSpace(run.ID),
-		WorkflowID:           workflowIDFromMetadata(run.Metadata),
-		NetworkParticipation: run.NetworkSpecSnapshot(),
+		ProfileID:   strings.TrimSpace(task.ProfileID),
+		WorkspaceID: strings.TrimSpace(task.WorkspaceID),
+		TaskID:      strings.TrimSpace(task.ID),
+		RunID:       strings.TrimSpace(run.ID),
+		WorkflowID:  workflowIDFromMetadata(run.Metadata),
 	}
 	if !cfg.Enabled {
 		decision.Reason = DecisionDisabled
@@ -182,21 +152,16 @@ func ExecutableRunStatuses() []taskpkg.RunStatus {
 }
 
 // PermissionPolicy returns the restricted coordinator root permission policy.
-func PermissionPolicy(spec participation.Spec) store.SessionPermissionPolicy {
-	channelIDs := []string(nil)
-	if spec.Mode == participation.ModeLive {
-		channelIDs = nonEmptyAtoms(spec.ChannelID)
-	}
+func PermissionPolicy() store.SessionPermissionPolicy {
 	policy := store.SessionPermissionPolicy{
-		Tools:           ToolAllowlist(spec),
-		NetworkChannels: channelIDs,
+		Tools: ToolAllowlist(),
 	}
 	return store.NormalizeSessionPermissionPolicy(policy)
 }
 
 // ToolAllowed reports whether a concrete tool/action is coordinator-safe.
-func ToolAllowed(spec participation.Spec, tool string) bool {
-	return slices.Contains(ToolAllowlist(spec), strings.TrimSpace(tool))
+func ToolAllowed(tool string) bool {
+	return slices.Contains(ToolAllowlist(), strings.TrimSpace(tool))
 }
 
 // SpawnRoleAllowed reports whether a coordinator may request the given child
@@ -260,9 +225,6 @@ func PromptOverlay(input PromptInput) string {
 	writePromptLine(&b, "task_id", input.TaskID)
 	writePromptLine(&b, "run_id", input.RunID)
 	writePromptLine(&b, "workflow_id", input.WorkflowID)
-	if input.NetworkParticipation.Mode == participation.ModeLive {
-		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
-	}
 	writeWorkerWorktrees(&b, input.WorkerWorktrees)
 	b.WriteString("\nUse public Compozy agent APIs only:\n")
 	b.WriteString("- `" + toolspkg.ToolIDSessionDescribe.String() + "` for the Situation Surface.\n")
@@ -272,19 +234,9 @@ func PromptOverlay(input PromptInput) string {
 		toolspkg.ToolIDTaskRunComplete.String() + "`, `" +
 		toolspkg.ToolIDTaskRunFail.String() + "`, and `" +
 		toolspkg.ToolIDTaskRunRelease.String() + "` for task ownership and terminal status.\n")
-	if input.NetworkParticipation.Mode == participation.ModeLive {
-		b.WriteString("- `" + toolspkg.ToolIDNetworkChannels.String() + "`, `" +
-			toolspkg.ToolIDNetworkInbox.String() + "`, and `" +
-			toolspkg.ToolIDNetworkSend.String() + "` for operational worker communication.\n")
-	}
 	b.WriteString("- `compozy spawn` for bounded worker delegation.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")
 	b.WriteString("execution boundary, and child work must stay within the allowed task-run and spawn surfaces.\n")
-	if input.NetworkParticipation.Mode == participation.ModeLive {
-		b.WriteString("\nChannel communication is operational only. Use the run coordination channel for ")
-		b.WriteString(strings.Join(operationalMessageKinds[:], ", "))
-		b.WriteString(" messages when conversation is useful. Do not use channel messages as task ownership state.\n")
-	}
 	b.WriteString("Never spawn another coordinator. ")
 	b.WriteString("Worker delegation must stay inside safe-spawn permissions and task approvals.\n")
 	return strings.TrimSpace(b.String())
@@ -327,16 +279,6 @@ func writePromptLine(b *strings.Builder, key string, value string) {
 	b.WriteString(": ")
 	b.WriteString(trimmed)
 	b.WriteByte('\n')
-}
-
-func nonEmptyAtoms(values ...string) []string {
-	atoms := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			atoms = append(atoms, trimmed)
-		}
-	}
-	return atoms
 }
 
 func workflowIDFromMetadata(raw json.RawMessage) string {

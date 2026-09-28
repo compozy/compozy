@@ -1,8 +1,6 @@
 export { tasksKeys } from "./lib/query-keys";
 export {
   agentContextOptions,
-  taskBridgeNotificationSubscriptionOptions,
-  taskBridgeNotificationSubscriptionsOptions,
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,

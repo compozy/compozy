@@ -21,5 +21,5 @@ charter:
       - "Complete a real OpenCode turn and compare cache/cost provenance with the sidebar and structured reads. Record actual provider blockers rather than substituting fixture evidence."
       - "Exercise threshold0.85 and disabled0, catalog-only size without warning and failed transport without receipt. Reuse unit/SQLite evidence for read failures and adversarial ordering."
     must_avoid:
-      - "Unrelated release, marketplace, network or automation journeys; no private state edits to manufacture product success."
+      - "Unrelated release, marketplace or automation journeys; no private state edits to manufacture product success."
 ```

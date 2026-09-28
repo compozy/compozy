@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -282,18 +281,6 @@ func creationProfileFromStart(
 	spec *sessionStartSpec,
 	resolved compozyconfig.ResolvedAgent,
 ) store.SessionCreationProfile {
-	sandboxMode := store.SessionCreationSandboxRef
-	sandboxRef := strings.TrimSpace(spec.workspace.SandboxRef)
-	if sandboxRef == "" {
-		sandboxRef = strings.TrimSpace(spec.workspace.Config.Defaults.Sandbox)
-	}
-	if sandboxRef == "" && !spec.sandboxDisabled {
-		sandboxRef = strings.TrimSpace(spec.workspace.Sandbox.Profile)
-	}
-	if spec.sandboxDisabled || sandboxRef == "" {
-		sandboxMode = store.SessionCreationSandboxNone
-		sandboxRef = ""
-	}
 	return BuildCreationProfile(CreationProfileInput{
 		AgentName:       resolved.Name,
 		Provider:        resolved.Provider,
@@ -305,8 +292,6 @@ func creationProfileFromStart(
 		WorkspaceID:     spec.workspace.ID,
 		CWD:             spec.cwd,
 		WorktreeRef:     spec.worktreeID,
-		SandboxMode:     sandboxMode,
-		SandboxRef:      sandboxRef,
 		Permissions:     startSpecPermissions(spec, resolved.Permissions),
 		AllowedTools:    spec.allowedToolsOverride,
 		AgentTools:      resolved.Tools,
@@ -353,11 +338,9 @@ func creationOptionsForSpec(spec *sessionStartSpec) *store.SessionCreationOption
 		return cloneCreationOptions(spec.creationOptions)
 	}
 	return &store.SessionCreationOptions{
-		SessionID:            strings.TrimSpace(spec.sessionID),
-		Name:                 strings.TrimSpace(spec.sessionName),
-		NetworkOwnerKey:      strings.TrimSpace(spec.networkOwnerKey),
-		NetworkParticipation: spec.networkParticipation,
-		SessionType:          string(normalizeSessionType(spec.sessionType)),
+		SessionID:   strings.TrimSpace(spec.sessionID),
+		Name:        strings.TrimSpace(spec.sessionName),
+		SessionType: string(normalizeSessionType(spec.sessionType)),
 	}
 }
 
@@ -367,22 +350,10 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	if profile == nil || identity == nil {
 		return errors.New("session: creation profile and identity are required")
 	}
-	networkParticipation := participation.LocalSpec()
-	if opts.ResolvedNetworkParticipation != nil {
-		networkParticipation = *opts.ResolvedNetworkParticipation
-	}
 	spec := &sessionStartSpec{
-		sessionID:            strings.TrimSpace(opts.DesiredSessionID),
-		sessionName:          strings.TrimSpace(opts.Name),
-		networkOwnerKey:      strings.TrimSpace(opts.NetworkOwnerKey),
-		networkParticipation: networkParticipation,
-		sessionType:          normalizeSessionType(opts.Type),
-	}
-	if spec.networkOwnerKey == "" {
-		spec.networkOwnerKey = participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindSession,
-			ID:   spec.sessionID,
-		})
+		sessionID:   strings.TrimSpace(opts.DesiredSessionID),
+		sessionName: strings.TrimSpace(opts.Name),
+		sessionType: normalizeSessionType(opts.Type),
 	}
 	computed, err := identityForCreationProfile(*profile, spec)
 	if err != nil {

@@ -4,13 +4,10 @@ import {
   getSettingsAttention,
   getSettingsCmdPalette,
   getSettingsAutomation,
-  getSettingsSandbox,
   getSettingsGeneral,
   getSettingsHooksExtensions,
   getSettingsMemory,
-  getSettingsNetwork,
   getSettingsMarketplace,
-  listSettingsNotificationPresets,
   getSettingsObservability,
   getSettingsPersona,
   getSettingsProvider,
@@ -21,7 +18,6 @@ import {
   getSettingsUpdate,
   getRolesStatus,
   listSettingsApplyRecords,
-  listSettingsSandboxes,
   listSettingsHooks,
   listSettingsMCPServers,
   getSettingsMCPServer,
@@ -34,7 +30,6 @@ import type {
   SettingsAttentionFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
-  SettingsNotificationPresetFilter,
   SettingsCmdPaletteFilter,
   SettingsHookListFilter,
   SettingsPersonaFilter,
@@ -156,16 +151,6 @@ export function settingsAutomationOptions() {
   });
 }
 
-export function settingsNetworkOptions() {
-  return queryOptions({
-    queryKey: settingsKeys.section("network"),
-    queryFn: ({ signal }) => getSettingsNetwork(signal),
-    staleTime: SECTION_STALE_TIME,
-    refetchInterval: SECTION_REFETCH_INTERVAL,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
 export function settingsMarketplaceOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("marketplace"),
@@ -248,27 +233,6 @@ export function settingsProviderDetailOptions(name: string, enabled = true) {
   });
 }
 
-export function settingsSandboxesListOptions() {
-  return queryOptions({
-    queryKey: settingsKeys.sandboxesList(),
-    queryFn: ({ signal }) => listSettingsSandboxes(signal),
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsSandboxDetailOptions(name: string, enabled = true) {
-  return queryOptions({
-    queryKey: settingsKeys.sandboxDetail(name),
-    queryFn: ({ signal }) => getSettingsSandbox(name, signal),
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
-    enabled: Boolean(name) && enabled,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
 export function settingsHooksListOptions(filter: SettingsHookListFilter = {}) {
   return queryOptions({
     queryKey: settingsKeys.hooksList(filter),
@@ -307,16 +271,6 @@ export function settingsMCPServersListOptions(
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval,
     enabled,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsNotificationPresetsOptions(filter: SettingsNotificationPresetFilter = {}) {
-  return queryOptions({
-    queryKey: settingsKeys.notificationPresetsList(filter),
-    queryFn: ({ signal }) => listSettingsNotificationPresets(filter, signal),
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
   });
 }

@@ -45,11 +45,5 @@ func daemonReloadTimeoutsFromPayload(
 			fmt.Errorf("general.config.daemon.reload_timeouts.mcp: %w", err),
 		)
 	}
-	bridges, err := parseSettingsDurationOrDefault(payload.Bridges, defaults.Bridges)
-	if err != nil {
-		return compozyconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.bridges: %w", err),
-		)
-	}
-	return compozyconfig.DaemonReloadTimeoutsConfig{Providers: providers, MCP: mcp, Bridges: bridges}, nil
+	return compozyconfig.DaemonReloadTimeoutsConfig{Providers: providers, MCP: mcp}, nil
 }

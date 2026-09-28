@@ -43,7 +43,7 @@ The QA philosophy Compozy is adopting is the synthesis of the openclaw QA framew
 
 1. **Behavior first.** Every scenario asserts an observable product behavior, not the shape of an internal call. Operators run scenarios; they don't read mocks.
 2. **Real-LLM where it matters.** Spawning Claude Code, OpenClaw, or Hermes via ACP and watching the JSON-RPC + SSE evidence is the canonical proof for any interactive surface. `mock-acp` is permitted only where determinism (claim-race, async-bridge, codec) is the actual property under test.
-3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, Compozy-local SQLite-backed implementation per `08-extensions-bridges.md` §6).
+3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, Compozy-local SQLite-backed implementation per `08-extensions.md` §6).
 4. **Evidence is the artifact.** Every scenario lists what to capture: log path, db query, SSE stream snapshot, HAR (web), screenshots (web), goroutine snapshot (where goleak is asserted). Without evidence, "passed" is a claim, not a proof.
 5. **`file:line` citations are mandatory.** Every behavioral claim in this plan and its children cites the implementation it's proving. If the citation rots, the citation rots in the plan, not in a hidden test.
 6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `COMPOZY_HOME`, daemon port, UDS socket, and Web proxy target. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
@@ -77,7 +77,6 @@ The two together give Compozy a balanced execution model: openclaw-style scenari
 | 04 | autonomy-kernel | task_runs, ClaimNextRun, mechanical scheduler, hooks dispatch, coordinator, lease/sweep | session lifecycle (→ 03), automation/cron triggers (→ 09), tool deny/narrow (→ 07) |
 | 05 | memory-soul | memory store + recall + provenance, consolidation cascade, agent soul, lifecycle hooks invocation order | hooks taxonomy + dispatch (→ 04), workspace scoping (→ 02) |
 | 06 | skills-capabilities | skills catalog + loader + VerifyContent, registry, situation, resources projector | hook dispatch (→ 04), extension manifest (→ 08), tool resolution (→ 07) |
-| 07 | tools-sandbox | tool registry + dispatch, toolruntime interrupts, sandbox profiles, MCP sidecars, path-security | hook deny/narrow (→ 04), skill provenance (→ 06) |
 | 08 | extensions-bridges | extension manifest + install + kit lifecycle + secrets + host API, bridges (Slack/Telegram), bridge SDK | skills VerifyContent on extension load (→ 06), workspace scoping (→ 02) |
 | 09 | automation-cron | cron expressions, webhook ingress, scheduled triggers, durable scheduler state, DST/timezone | task_run dispatch (→ 04), session spawn lineage (→ 03) |
 | 10 | network-identity | Local/Live participation, durable conversations, bounded wakes, usage, identity authorization | task-run wake substrate (→ 04), public-surface parity (→ 11/12) |
@@ -121,10 +120,6 @@ Selected parity scenarios where openclaw must drive the same path as Claude Code
 
 ACP-03 (parity proof) and a small number of cron + memory scenarios where hermes is on the critical path.
 
-### 3.4 Live Slack/Telegram bridges (`live: conditional`, broker-pooled)
-
-EXT-06, EXT-07, EXT-09, XCT-09. The credential broker contract is in `08-extensions-bridges.md` §6.
-
 ### 3.5 Mock-ACP (legitimate determinism)
 
 Reserved for: claim races (AUT-01), async-panic containment (AUT-17), structural skill scenarios (SKL-06 static, SKL-07 trace, SKL-14 codec, SKL-17 fake clock, SKL-19 fixture, SKL-20 log-only), high-write-rate stress (MEM-17), lock-race determinism (MEM-05). These are the only legitimate mock paths.
@@ -147,10 +142,7 @@ The full edge-case inventory is per-child. The cross-cutting view to keep in min
 | Encoding | UTF-8 BOM (CFG §5), trailing-newline missing (CFG §5), embedded tabs in TOML (CFG §5), embedded newlines in secrets (CFG §5), MDX with backtick-in-fence (DOC §5) |
 | Concurrency | claim race (AUT-01), lock race (MEM-05), concurrent prompts on session (ACP-15), concurrent tool dispatch (TOL-16), concurrent cron triggers (CRN-12), concurrent config writes (CFG §5) |
 | Crash recovery | kill -9 mid-prompt (DB-04), kill -9 between append + broadcast (OBS-03), kill -9 mid-cron-fire (CRN-05), kill -9 before lease expire (AUT-08) |
-| Authentication | webhook unsigned (CRN-07), webhook replay (CRN §5), proof-stripped peer (NET-02), invalid proof (NET-03), unknown-key peer (NET-04), revoked bridge token (EXT-17), spoofed COMPOZY_SESSION_ID (ACP-10) |
-| Resources | very large prompt output >1MB (ACP-16), 10k events/s (OBS-16), 1k memory writes/s (MEM-17), oversize webhook (CRN-17), 1000 inbound bridge messages/min (EXT-16), 10k peer-card requests/min (NET-17) |
 | Path security | full pattern-set: TOL-04..07, SKL-07..08, EXT-04, plus the load-time scan invariant SKL-04 |
-| Daemon downgrade / upgrade | multi-binary upgrade (DB-10), version mismatch (ACP-17), cross-version peers (NET-09) |
 | Schema | schema reopen (DB-09), `-wal`/`-shm` recovery (DB-08), append-only invariant (OBS-13) |
 
 Operator MUST run §4 edge-case scenarios on Linux + macOS Apple-Silicon at minimum; Windows scenarios are gated behind cross-build (`GOOS=windows GOARCH=amd64 go build`) and a single Windows runner pass for DB-05.
@@ -186,7 +178,6 @@ Authoritative version is `14-cross-cutting.md` §12 (15×15 grid keyed by misbeh
 - session × observe (missing correlation keys): OBS-02
 - skills × extension (load-time VerifyContent): SKL-04 + EXT-12
 - automation × task (cron-fired claim): CRN-13
-- network × identity (proof-stripping): NET-02
 - web × api-contract (truthful UI): UI-19 + XCT-14
 - memory × hooks (lifecycle hook order): MEM-09
 - config × settings (hot-apply vs restart-required misclassification): CFG-04 + CFG-05
@@ -259,7 +250,7 @@ For live Slack/Telegram/Network scenarios that need credentials:
 - **Rotation**: revoked tokens are removed from pool at the broker, not by the scenario.
 - **Default budget**: pool sized so one parallel-3 lane can run end-to-end.
 
-The broker contract is detailed in `08-extensions-bridges.md` §6.
+The broker contract is detailed in `08-extensions.md` §6.
 
 ### 8.5 Test fixtures (workspaces, configs, seeds)
 
@@ -312,13 +303,12 @@ These three exercise the same runtime surface from different angles. Run in para
 
 7. `05-memory-soul.md` (MEM-01..19)
 8. `06-skills-capabilities.md` (SKL-01..20)
-9. `07-tools-sandbox.md` (TOL-01..17)
+9. `07-tools-mcp.md` (TOL-01..17)
 
 ### Lane D — Extension and integration (parallel after C)
 
-10. `08-extensions-bridges.md` (EXT-01..20) — bridges live: conditional
+10. `08-extensions.md` (EXT-01..20) — bridges live: conditional
 11. `09-automation-cron.md` (CRN-01..22) — DST scenarios pinned to fixed clock
-12. `10-network-identity.md` (NET-01..21) — Local/Live, commit-first delivery, bounds, identity, isolation
 
 ### Lane E — Surface adherence (parallel after B+C)
 
@@ -349,9 +339,7 @@ These came out of the research. The operator MUST pick a side before the live la
 3. **Default scope for memory write** — RFC says `memory.scope` is per-agent; today no global config-level fallback. MEM §3 flags. Choose default.
 4. **Webhook past-fire rule** — `at` triggers with `time <= now`: log-and-skip (current per `schedule.go:525-535`) vs immediate-fire vs reject. CRN-08 needs an explicit decision; current implementation is log-and-skip.
 5. **DST spring-forward** — cron at 02:30 in spring-forward window: skipped or rolled forward? CRN-11 gates on the answer.
-6. **v0 ↔ v1 network negotiation** — clean version-mismatch error vs negotiation handshake? NET-09 gates.
 7. **Spawn depth cap** — `DefaultSpawnMaxDepth = 1` today (`internal/session/spawn.go:17-18`). The OBS-17 deep-lineage scenario was tuned to depth 1. Decide: keep at 1 (deny depth>1 with typed event), raise to 5/6, or make per-agent-overridable.
-8. **`compozy extension info` vs `compozy extension status`** — canonical command name. Today the implementation has `status` (`internal/cli/extension.go:220`). EXT-09 picks `status` and recommends docs sync.
 9. **Observability matrix red rows** — four canonical event names not 100% pinned by code-grep (memory write, health status change, ACP fresh-start fallback, bridge auth failure). OBS-01 produces `coverage_matrix.json`; the operator must close the four flags in the same commit that lands the live-lane fix.
 
 Until these are decided, the affected scenarios run with `expected: TBD-decision-N` placeholders that the executor renders as "BLOCKED — decision N pending."
@@ -447,7 +435,7 @@ Spot-check (the plan does not duplicate `docs/_memory/lessons/L-*.md` content; i
 | 04 | autonomy-kernel | 16 | 2 | 18 | 1,131 |
 | 05 | memory-soul | 17 | 2 | 19 | 1,509 |
 | 06 | skills-capabilities | 18 | 2 | 20 | 1,344 |
-| 07 | tools-sandbox | 17 | 0 | 17 | 1,100 |
+| 07 | tools-mcp | 17 | 0 | 17 | 1,100 |
 | 08 | extensions-bridges | 18 | 2 | 20 | 1,291 |
 | 09 | automation-cron | 20 | 2 | 22 | 1,367 |
 | 10 | network-identity | 19 | 2 | 21 | 1,366 |

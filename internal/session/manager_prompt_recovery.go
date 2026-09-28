@@ -296,7 +296,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if err != nil {
 		return nil, err
 	}
-	candidate, err := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, err := m.startAgentProcess(ctx, &plan.spec, startOpts)
 	if err == nil {
 		return candidate, nil
 	}
@@ -309,7 +309,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if prepareErr != nil {
 		return nil, errors.Join(err, prepareErr)
 	}
-	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, startOpts)
 	if fallbackErr != nil {
 		return nil, errors.Join(err, fallbackErr)
 	}

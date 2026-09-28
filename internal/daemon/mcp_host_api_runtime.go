@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -63,9 +62,6 @@ var (
 	_ extensionpkg.ModelSourceRuntime   = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ extensionpkg.ForgeRuntime         = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ watchpkg.Poller                   = (*extensionRuntimeWithMCPHostAPI)(nil)
-	_ bridgepkg.DeliveryTransport       = (*extensionRuntimeWithMCPHostAPI)(nil)
-	_ bridgepkg.TargetSnapshotTransport = (*extensionRuntimeWithMCPHostAPI)(nil)
-	_ bridgepkg.BridgeControlTransport  = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ mcppkg.HostAPIInvoker             = (*extensionRuntimeWithMCPHostAPI)(nil)
 )
 

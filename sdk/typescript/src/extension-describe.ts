@@ -100,17 +100,9 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       args: [...(input.definition.subprocess?.args ?? [])],
       env: { ...input.definition.subprocess?.env },
     },
-    ...(input.definition.network_participation === undefined
+    ...(input.definition.gateway === undefined
       ? {}
-      : {
-          network_participation: {
-            required: input.definition.network_participation.required,
-            mode: input.definition.network_participation.mode.trim().toLowerCase(),
-            channel_scopes: normalizeStringList(
-              input.definition.network_participation.channel_scopes
-            ),
-          },
-        }),
+      : { gateway: { permissions: normalizeStringList(input.definition.gateway.permissions) } }),
     tools: [...input.tools].sort((left, right) => left.handler.localeCompare(right.handler)),
     command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeDescribeHookEvents(input.definition.supported_hook_events),
@@ -168,7 +160,6 @@ function normalizeDescribeProfiles(profiles: DescribeProfile[] | undefined): Des
         defaults: {
           ...(defaults.agent?.trim() ? { agent: defaults.agent.trim() } : {}),
           ...(defaults.provider?.trim() ? { provider: defaults.provider.trim() } : {}),
-          ...(defaults.sandbox?.trim() ? { sandbox: defaults.sandbox.trim() } : {}),
         },
         credentials: [...(profile.credentials ?? [])]
           .map(credential => ({

@@ -26,10 +26,6 @@ func (m *Service) HeartbeatRunLease(
 		return nil, err
 	}
 	run := settlement.Run
-	if run.IsNetworkWake() {
-		m.dispatchTaskRunLeaseExtended(ctx, run, Task{}, actor)
-		return &run, nil
-	}
 	m.dispatchTaskRunLeaseExtended(ctx, run, settlement.Task, actor)
 	return &run, nil
 }
@@ -76,11 +72,6 @@ func (m *Service) ReleaseRunLease(
 	}
 	run := settlement.Run
 	previous := settlement.PreviousRun
-	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
-	if run.IsNetworkWake() {
-		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
-		return &run, nil
-	}
 	m.dispatchTaskRunReleased(ctx, run, settlement.Task, actor, previous, normalized.Reason)
 	return &run, nil
 }
@@ -112,7 +103,6 @@ func (m *Service) ReleaseSessionRunLeases(
 	for index := range settlement.outcomes {
 		outcome := &settlement.outcomes[index]
 		m.dispatchTaskRunReleased(ctx, outcome.result.Run, outcome.task, actor, outcome.previous, normalized.Reason)
-		m.restoreTaskRunNetworkBestEffort(ctx, outcome.previous.SessionID, outcome.result.Run.ID)
 		results = append(results, outcome.result)
 	}
 	return results, nil

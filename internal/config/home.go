@@ -54,8 +54,6 @@ const (
 	DaemonInfoName = "daemon.json"
 	// LogFileName is the structured daemon log filename.
 	LogFileName = "compozy.log"
-	// NetworkAuditFileName is the append-only network audit filename.
-	NetworkAuditFileName = "network.audit"
 	// AppStateFileName is the desktop shell state filename.
 	AppStateFileName = "app.json"
 	// UpdateOperationFileName is the live host update journal filename.
@@ -92,7 +90,6 @@ type HomePaths struct {
 	ExtensionDataRoot     string
 	BinDir                string
 	LogFile               string
-	NetworkAuditFile      string
 	AppStateFile          string
 	UpdateOperationFile   string
 	UpdateOperationLock   string
@@ -264,7 +261,6 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		ExtensionDataRoot:     filepath.Join(root, ExtensionDataDirName),
 		BinDir:                filepath.Join(root, BinDirName),
 		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
-		NetworkAuditFile:      filepath.Join(root, LogsDirName, NetworkAuditFileName),
 		AppStateFile:          filepath.Join(root, AppStateFileName),
 		UpdateOperationFile:   filepath.Join(root, UpdateOperationFileName),
 		UpdateOperationLock:   filepath.Join(root, UpdateOperationLockName),

@@ -53,9 +53,6 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 	if _, ok := findSettingsProvider([]settingspkg.ProviderItem{{Name: "openai"}}, "openai"); !ok {
 		t.Fatal("findSettingsProvider() = false, want true")
 	}
-	if _, ok := findSettingsSandbox([]settingspkg.SandboxItem{{Name: "local"}}, "local"); !ok {
-		t.Fatal("findSettingsSandbox() = false, want true")
-	}
 
 	if providerSettingsPayloadEmpty(contract.SettingsProviderWritePayload{
 		Models: &contract.SettingsProviderModelsPayload{},
@@ -76,7 +73,7 @@ func TestSettingsProviderItemRuntimeStrategy(t *testing.T) {
 		t.Parallel()
 
 		payload := settingsProviderItemPayload(&settingspkg.ProviderItem{
-			Name: "gateway-bridge",
+			Name: "gateway-provider",
 			Settings: settingspkg.ProviderSettings{
 				RuntimeProvider: "openclaw",
 			},
@@ -176,20 +173,7 @@ func TestSettingsCollectionResponseFromEnvelopeUsesEmptyArrays(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:     "sandboxes",
-			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionSandboxes},
-			assertList: func(t *testing.T, payload any) {
-				t.Helper()
-				response, ok := payload.(contract.SettingsSandboxesResponse)
-				if !ok {
-					t.Fatalf("payload type = %T, want SettingsSandboxesResponse", payload)
-				}
-				if response.Sandboxes == nil || len(response.Sandboxes) != 0 {
-					t.Fatalf("Sandboxes = %#v, want empty non-nil array", response.Sandboxes)
-				}
-			},
-		},
+
 		{
 			name:     "hooks",
 			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionHooks},
@@ -247,11 +231,7 @@ func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *te
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionAutomation},
 			want:     "settings automation section is required",
 		},
-		{
-			name:     "network",
-			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionNetwork},
-			want:     "settings network section is required",
-		},
+
 		{
 			name:     "observability",
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionObservability},
@@ -340,12 +320,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatal("extensionRateLimitConfigFromPayload(invalid window) error = nil, want non-nil")
 	}
 
-	if _, err := sandboxProfileFromPayload(contract.SettingsSandboxProfilePayload{
-		Backend: "invalid",
-	}); err == nil {
-		t.Fatal("sandboxProfileFromPayload(invalid backend) error = nil, want non-nil")
-	}
-
 	if _, err := hookDeclarationFromPayload(contract.SettingsHookDeclarationPayload{
 		Name:         "capture",
 		Event:        hookspkg.HookToolPreCall,
@@ -406,33 +380,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("automationSettingsFromPayload(valid) error = %v", err)
 	}
-	if _, err := networkConfigFromPayload(contract.SettingsNetworkConfigPayload{
-		Enabled:      true,
-		MaxReplayAge: 10,
-		Live: contract.SettingsNetworkLiveConfigPayload{
-			Defaults: contract.SettingsNetworkLiveDefaultsPayload{
-				MaxWakes:         8,
-				MaxWakeWallTime:  "5m",
-				MaxTotalWallTime: "30m",
-				MaxInputTokens:   200_000,
-				MaxOutputTokens:  50_000,
-				MaxWakeDepth:     3,
-				CoalesceWindow:   "500ms",
-			},
-			Limits: contract.SettingsNetworkLiveLimitsPayload{
-				MaxWakes:          64,
-				MaxWakeWallTime:   "15m",
-				MaxTotalWallTime:  "2h",
-				MaxInputTokens:    1_000_000,
-				MaxOutputTokens:   200_000,
-				MaxWakeDepth:      5,
-				MinCoalesceWindow: "100ms",
-				MaxCoalesceWindow: "5s",
-			},
-		},
-	}); err != nil {
-		t.Fatalf("networkConfigFromPayload(valid) error = %v", err)
-	}
+
 	if _, err := observabilityConfigFromPayload(contract.SettingsObservabilityConfigPayload{
 		Enabled:        true,
 		RetentionDays:  7,

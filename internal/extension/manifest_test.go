@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -392,6 +391,26 @@ func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
 		wantFragments []string
 	}{
 		{
+			name:     "Should reject retired Network participation in TOML with Gateway guidance",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "retired-participation"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+[network_participation]
+permissions = ["network.gateway.private"]
+`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
+		{
+			name:          "Should reject retired Network participation in JSON with Gateway guidance",
+			fileName:      manifestJSONFileName,
+			content:       `{"extension":{"name":"retired-participation","version":"0.1.0","min_compozy_version":"0.6.0"},"network_participation":{"permissions":["network.gateway.private"]}}`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
+		{
 			name:     "Should reject an unknown provide and list the closed set",
 			fileName: manifestTOMLFileName,
 			content: `[extension]
@@ -405,7 +424,6 @@ provides = ["prompt.provider"]
 			wantField: "capabilities.provides[0]",
 			wantFragments: []string{
 				"prompt.provider",
-				"bridge.adapter",
 				"loop.watch_source",
 				"memory.backend",
 				"model.source",
@@ -608,7 +626,6 @@ icon = "chart-line"
 [profiles.defaults]
 agent = "growth-analyst"
 provider = "openai"
-sandbox = "workspace-write"
 
 [[profiles.credentials]]
 provider = "openai"
@@ -748,60 +765,6 @@ min_compozy_version = "0.5.0"
 	}
 }
 
-func TestLoadManifestParsesNetworkHookMatcher(t *testing.T) {
-	t.Run("Should parse network hook matcher", func(t *testing.T) {
-		withDaemonVersion(t, "0.6.0")
-
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
-name = "network-observer"
-version = "0.1.0"
-description = "Network hook observer"
-min_compozy_version = "0.5.0"
-
-[[resources.hooks]]
-name = "observe-network"
-event = "network.message.persisted"
-mode = "async"
-executor.kind = "subprocess"
-executor.command = "node"
-
-[resources.hooks.matcher]
-channel = "builders"
-surface = "thread"
-kind = "trace"
-direction = "received"
-work_state = "completed"
-`)
-
-		manifest, err := LoadManifest(dir)
-		if err != nil {
-			t.Fatalf("LoadManifest() error = %v", err)
-		}
-		if got, want := len(manifest.Resources.Hooks), 1; got != want {
-			t.Fatalf("len(Resources.Hooks) = %d, want %d", got, want)
-		}
-		matcher := manifest.Resources.Hooks[0].Matcher
-		if matcher.Channel != "builders" ||
-			matcher.Surface != "thread" ||
-			matcher.Kind != "trace" ||
-			matcher.Direction != "received" ||
-			matcher.WorkState != "completed" {
-			t.Fatalf("Hook matcher = %#v, want parsed network fields", matcher)
-		}
-
-		hookMatcher := hookConfigMatcher(matcher)
-		if hookMatcher.NetworkMatcher == nil ||
-			hookMatcher.Channel != "builders" ||
-			hookMatcher.Surface != "thread" ||
-			hookMatcher.Kind != "trace" ||
-			hookMatcher.Direction != "received" ||
-			hookMatcher.WorkState != "completed" {
-			t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
-		}
-	})
-}
-
 func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 	t.Parallel()
 
@@ -812,9 +775,7 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		decl := hookspkg.HookDecl{
 			Matcher: hookspkg.HookMatcher{
 				ToolReadOnly: &toolReadOnly,
-				NetworkMatcher: &hookspkg.NetworkMatcher{
-					Channel: "builders",
-				},
+
 				CompactionMatcher: &hookspkg.CompactionMatcher{
 					Reason: "size",
 				},
@@ -825,14 +786,10 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Channel = "ops"
 		cloned.Matcher.Reason = "time"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Channel, "builders"; got != want {
-			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
-		}
 		if got, want := decl.Matcher.Reason, "size"; got != want {
 			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
 		}
@@ -1135,38 +1092,6 @@ func TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions(t *testi
 	}
 }
 
-func TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints(t *testing.T) {
-	t.Parallel()
-
-	cfg := normalizeBridgeConfig(BridgeConfig{
-		Platform:    " slack ",
-		DisplayName: " Slack ",
-		SecretSlots: []bridgepkg.BridgeSecretSlot{
-			{Name: " bot_token ", Description: " Bot token ", Required: true},
-		},
-		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  " compozy.bridge.slack ",
-			Version: " v1 ",
-		},
-	})
-
-	if got, want := cfg.Platform, "slack"; got != want {
-		t.Fatalf("cfg.Platform = %q, want %q", got, want)
-	}
-	if got, want := cfg.DisplayName, "Slack"; got != want {
-		t.Fatalf("cfg.DisplayName = %q, want %q", got, want)
-	}
-	if got, want := cfg.SecretSlots[0].Name, "bot_token"; got != want {
-		t.Fatalf("cfg.SecretSlots[0].Name = %q, want %q", got, want)
-	}
-	if cfg.ConfigSchema == nil {
-		t.Fatal("cfg.ConfigSchema = nil, want value")
-	}
-	if got, want := cfg.ConfigSchema.Schema, "compozy.bridge.slack"; got != want {
-		t.Fatalf("cfg.ConfigSchema.Schema = %q, want %q", got, want)
-	}
-}
-
 func TestCloneBoolPointer(t *testing.T) {
 	t.Parallel()
 
@@ -1332,27 +1257,31 @@ min_other_version = "0.5.0"
 	}
 }
 
-func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
+func TestManifestValidateRejectsUnknownResourcePublishFamily(t *testing.T) {
 	t.Parallel()
 
-	manifest := expectedManifest()
-	manifest.Resources.Publish = ResourceGrantRequest{
-		Families: []string{"bridge_instances"},
-		MaxScope: resources.ResourceScopeKindUser,
-	}
+	t.Run("Should reject an unknown resource publication family", func(t *testing.T) {
+		t.Parallel()
 
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want non-nil")
-	}
+		manifest := expectedManifest()
+		manifest.Resources.Publish = ResourceGrantRequest{
+			Families: []string{"unknown_family"},
+			MaxScope: resources.ResourceScopeKindUser,
+		}
 
-	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-	if !validationErrMatched {
-		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
-	}
-	if got, want := validationErr.Field, "resources.publish"; got != want {
-		t.Fatalf("Validate() field = %q, want %q", got, want)
-	}
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want non-nil")
+		}
+
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
+			t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
+		}
+		if got, want := validationErr.Field, "resources.publish"; got != want {
+			t.Fatalf("Validate() field = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestManifestValidateRejectsInvalidResourcePublishScope(t *testing.T) {
@@ -1568,129 +1497,6 @@ func TestManifestValidate_RejectsInvalidPermissionName(t *testing.T) {
 	if validationErr.Field != "permissions.requires[0]" {
 		t.Fatalf("validation field = %q, want %q", validationErr.Field, "permissions.requires[0]")
 	}
-}
-
-func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should reject bridge adapters without platform metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-		if !errors.Is(err, ErrManifestInvalid) {
-			t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if validationErr.Field != "bridge.platform" {
-			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.platform")
-		}
-	})
-
-	t.Run("Should reject bridge adapters without display name metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "telegram"
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if validationErr.Field != "bridge.display_name" {
-			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.display_name")
-		}
-	})
-
-	t.Run("Should accept bridge adapters with complete bridge metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "telegram"
-		manifest.Bridge.DisplayName = "Telegram"
-
-		if err := manifest.Validate(); err != nil {
-			t.Fatalf("Validate() with bridge metadata error = %v", err)
-		}
-	})
-}
-
-func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should reject bridge secret slots without names", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{{Required: true}}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if got, want := validationErr.Field, "bridge.secret_slots[0]"; got != want {
-			t.Fatalf("validation field = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should reject duplicate bridge secret slot names", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
-			{Name: "bot_token", Required: true},
-			{Name: " bot_token ", Required: true},
-		}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if got, want := validationErr.Field, "bridge.secret_slots[1].name"; got != want {
-			t.Fatalf("validation field = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should accept bridge secret slots and config schema hints", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
-			{Name: "bot_token", Description: "Bot OAuth token", Required: true},
-			{Name: "signing_secret", Description: "Request signing secret", Required: true},
-		}
-		manifest.Bridge.ConfigSchema = &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  "compozy.bridge.slack",
-			Version: "v1",
-		}
-
-		if err := manifest.Validate(); err != nil {
-			t.Fatalf("Validate() error = %v", err)
-		}
-	})
 }
 
 func TestManifestHelpers_ErrorFormattingAndDurationMethods(t *testing.T) {

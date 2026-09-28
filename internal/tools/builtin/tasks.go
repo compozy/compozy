@@ -3,11 +3,6 @@ package builtin
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 const (
-	tasksNotificationsKey = "notifications"
-)
-
-const (
-	tasksBridgesKey                = "bridges"
 	tasksExecutionProfileKey       = "execution_profile"
 	tasksReviewsKey                = "reviews"
 	tasksRunsKey                   = "runs"
@@ -282,76 +277,6 @@ var taskTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 		[]string{tasksTasksKey, tasksExecutionProfileKey},
 		[]string{tasksTaskExecutionProfileValue, "profile delete"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDTaskNotificationSubscribe,
-		"task_notification_subscribe",
-		"Task Notification Subscribe",
-		"Create one bridge notification subscription for terminal task events.",
-		taskNotificationSubscribeInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
-		[]string{"task notification subscribe", "bridge task subscription"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDTaskNotificationList,
-		"task_notification_list",
-		"Task Notification List",
-		"List bridge notification subscriptions for one task.",
-		taskNotificationListInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
-		[]string{"task notification list", "bridge task subscriptions"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDTaskNotificationShow,
-		"task_notification_show",
-		"Task Notification Show",
-		"Read one bridge notification subscription for one task.",
-		taskNotificationShowInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
-		[]string{"task notification show", "bridge task subscription detail"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDTaskNotificationDelete,
-		"task_notification_delete",
-		"Task Notification Delete",
-		"Delete one bridge notification subscription for one task.",
-		taskNotificationDeleteInputSchema,
-		toolspkg.RiskDestructive,
-		false,
-		true,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
-		[]string{"task notification delete", "unsubscribe bridge task notification"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDTaskPromoteFromThread,
-		"task_promote_from_thread",
-		"Task Promote From Thread",
-		"Promote one Compozy network thread message into a durable workspace task.",
-		taskPromoteFromThreadInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks, toolspkg.ToolsetIDCoordination},
-		[]string{tasksTasksKey, "network", "promote"},
-		[]string{"promote network thread", "thread to task"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDTaskFanOutRuns,

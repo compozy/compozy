@@ -150,9 +150,6 @@ func normalizePromptMeta(
 			)
 		}
 	}
-	if turnSource == TurnSourceUser && normalized.Network != nil {
-		return acp.PromptMeta{}, errors.New("session: user prompt metadata cannot include network fields")
-	}
 	if err := normalized.Validate(); err != nil {
 		return acp.PromptMeta{}, err
 	}

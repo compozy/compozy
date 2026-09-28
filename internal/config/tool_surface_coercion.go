@@ -211,13 +211,6 @@ func hookMatcherOverlayValues(matcher hookspkg.HookMatcher) map[string]any {
 	addString("decision_class", matcher.DecisionClass)
 	addString("message_role", matcher.MessageRole)
 	addString("message_delta_type", matcher.MessageDeltaType)
-	if matcher.NetworkMatcher != nil {
-		addString("channel", matcher.Channel)
-		addString("surface", matcher.Surface)
-		addString("kind", matcher.Kind)
-		addString("direction", matcher.Direction)
-		addString("work_state", matcher.WorkState)
-	}
 	if matcher.CompactionMatcher != nil {
 		addString("compaction_reason", matcher.Reason)
 		addString("compaction_strategy", matcher.Strategy)

@@ -1,11 +1,9 @@
 package globaldb
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -52,7 +50,6 @@ func appendLoopNodeTerminalEventsWithExecutor(
 	run taskpkg.Run,
 	outcome string,
 	outputRef string,
-	resultPayload json.RawMessage,
 	tokensUsed int64,
 	at time.Time,
 ) error {
@@ -80,19 +77,6 @@ func appendLoopNodeTerminalEventsWithExecutor(
 	}, at); err != nil {
 		return err
 	}
-	if payload, ok := loopChannelMessagePayload(ctx, run, metadata, resultPayload); ok {
-		if err := appendLoopRunEventWithExecutor(
-			ctx,
-			exec,
-			loopRun.ID,
-			loopRun.WorkspaceID,
-			loopRunEventChannelMsg,
-			payload,
-			at,
-		); err != nil {
-			return err
-		}
-	}
 	return appendLoopTokenTickEventWithExecutor(
 		ctx,
 		exec,
@@ -119,57 +103,6 @@ func loopRunAndNodeMetadataForTaskRun(
 		return looppkg.Run{}, loopNodeRunMetadata{}, false, err
 	}
 	return loopRun, metadata, true, nil
-}
-
-func loopChannelMessagePayload(
-	ctx context.Context,
-	run taskpkg.Run,
-	metadata loopNodeRunMetadata,
-	resultPayload json.RawMessage,
-) (map[string]any, bool) {
-	text := channelMessageText(ctx, run.ID, resultPayload)
-	if strings.TrimSpace(text) == "" {
-		return nil, false
-	}
-	author := loopCoordinatorActorRef
-	if run.ClaimedBy != nil && strings.TrimSpace(run.ClaimedBy.Ref) != "" {
-		author = strings.TrimSpace(run.ClaimedBy.Ref)
-	}
-	return map[string]any{
-		"id":                             run.ID + ":result",
-		"author":                         author,
-		loopRunEventPayloadKeyRole:       string(taskpkg.ActorKindAgentSession),
-		loopRunEventPayloadKeyText:       text,
-		"is_result":                      true,
-		loopRunEventPayloadKeyNodeID:     metadata.NodeID,
-		loopRunEventPayloadKeyGeneration: metadata.Generation,
-		loopRunEventPayloadKeyItemIndex:  metadata.ItemIndex,
-		loopRunEventPayloadKeyTaskRunID:  run.ID,
-	}, true
-}
-
-func channelMessageText(ctx context.Context, taskRunID string, raw json.RawMessage) string {
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return ""
-	}
-	var envelope map[string]any
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		slog.Default().DebugContext(
-			ctx,
-			"store: decode loop channel message payload",
-			loopRunEventPayloadKeyTaskRunID,
-			strings.TrimSpace(taskRunID),
-			"error",
-			err,
-		)
-		return ""
-	}
-	for _, key := range []string{"message", loopRunEventPayloadKeyText, loopRunEventPayloadKeySummary} {
-		if value, ok := envelope[key].(string); ok && strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func appendLoopTokenTickEventWithExecutor(

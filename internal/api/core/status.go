@@ -78,10 +78,6 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect automation health: %w", err)
 	}
-	networkStatus, err := h.runtimeNetworkStatusPayload(ctx)
-	if err != nil {
-		return contract.StatusPayload{}, fmt.Errorf("api: collect network status: %w", err)
-	}
 	gatewayStatus, err := h.runtimeGatewayStatusPayload(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect gateway status: %w", err)
@@ -113,7 +109,6 @@ func (h *BaseHandlers) statusPayload(
 		Daemon: h.daemonStatusPayload(
 			&health,
 			sessionSummary.Total,
-			networkStatus,
 			gatewayStatus,
 			schemaStreams,
 		),
@@ -123,7 +118,6 @@ func (h *BaseHandlers) statusPayload(
 		Memory:           memoryHealth,
 		Automation:       automationHealth,
 		Tasks:            TaskHealthPayloadFromObserve(health.Tasks),
-		Bridges:          BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Providers:        providers,
 		MCPServers:       mcpServers,
 		Skills:           skillStatus,
@@ -154,26 +148,6 @@ func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contra
 		return nil, err
 	}
 	return &payload, nil
-}
-
-func (h *BaseHandlers) runtimeNetworkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
-	if !h.Config.Network.Enabled {
-		return h.networkStatusPayload(ctx)
-	}
-	if h.Network == nil {
-		return &contract.NetworkStatusPayload{
-			Enabled: true,
-			Status:  memoryHealthStatusUnavailable,
-		}, nil
-	}
-	payload, err := h.networkStatusPayload(ctx)
-	if err != nil {
-		return &contract.NetworkStatusPayload{
-			Enabled: true,
-			Status:  memoryHealthStatusUnavailable,
-		}, nil
-	}
-	return payload, nil
 }
 
 func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAggregatePayload, error) {

@@ -1,5 +1,3 @@
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-
 import {
   GRAPH_ENG_FORK_RUN_ID,
   GRAPH_ENG_RUN_ID,
@@ -38,7 +36,6 @@ function buildReleaseTrainRun(
     budget_wall_sec: 7_200,
     budget_on_exceeded: "escalate",
     reattempt_strategy: "failed_only",
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     created_at: "2026-08-17T08:40:00Z",
     started_at: "2026-08-17T08:40:00Z",
     last_progress_at: "2026-08-17T09:00:00Z",

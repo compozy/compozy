@@ -8,8 +8,7 @@ INSERT INTO loop_runs (
   budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json,
   started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
   goal_context_nudge_ratio, origin_kind, origin_session_id,
-  origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
-  network_spec_json, network_mode, network_channel, network_source
+  origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest
 ) VALUES (
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(status), sqlc.arg(historical),
@@ -22,9 +21,7 @@ INSERT INTO loop_runs (
   sqlc.arg(inputs_json), sqlc.arg(started_by_kind), sqlc.arg(started_by_ref),
   sqlc.arg(started_origin_kind), sqlc.arg(started_origin_ref), sqlc.arg(goal_context_nudge_ratio),
   sqlc.arg(origin_kind), sqlc.narg(origin_session_id), sqlc.narg(origin_creation_profile_ref),
-  sqlc.narg(origin_policy_spec_digest), sqlc.narg(origin_creation_digest),
-  sqlc.arg(network_spec_json), sqlc.arg(network_mode), sqlc.narg(network_channel),
-  sqlc.arg(network_source)
+  sqlc.narg(origin_policy_spec_digest), sqlc.narg(origin_creation_digest)
 );
 
 -- name: GetLoopRun :one

@@ -16,14 +16,12 @@ const (
 	BackendExtensionHost BackendKind = "extension_host"
 	// BackendMCP executes through daemon-owned MCP client adapters.
 	BackendMCP BackendKind = "mcp"
-	// BackendBridge is reserved for a later bridge adapter TechSpec.
-	BackendBridge BackendKind = "bridge"
 )
 
 // Validate ensures the backend kind is documented.
 func (k BackendKind) Validate(field string) error {
 	switch k {
-	case BackendNativeGo, BackendExtensionHost, BackendMCP, BackendBridge:
+	case BackendNativeGo, BackendExtensionHost, BackendMCP:
 		return nil
 	default:
 		return NewValidationError(field, ReasonBackendNotExecutable, "unsupported backend kind")
@@ -73,8 +71,6 @@ func (b BackendRef) Validate(field string) error {
 		if b.MCPTool == "" {
 			return NewValidationError(field+".mcp_tool", ReasonDependencyMissing, "mcp backend requires mcp_tool")
 		}
-	case BackendBridge:
-		return NewValidationError(field+".kind", ReasonBackendNotExecutable, "bridge backend is reserved post-MVP")
 	}
 	return nil
 }

@@ -123,7 +123,7 @@ func TestLoopEffectRelayShouldDeliverNativePromptThroughDaemonWorkspaceScope(t *
 		t,
 		&daemonNativeToolsDeps{
 			Sessions:   sessions,
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		},
 		policyResolver,
 		nil,

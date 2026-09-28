@@ -1,16 +1,15 @@
 package config
 
 const (
+	toolSurfaceTaskOrchestrationStatusProjectionQueueSizePath     = "task.orchestration.status_projection_queue_size"
+	toolSurfaceTaskOrchestrationStatusProjectionTimeoutPath       = "task.orchestration.status_projection_timeout"
 	toolSurfaceTaskOrchestrationContextBodyMaxBytesPath           = "task.orchestration.context_body_max_bytes"
 	toolSurfaceTaskOrchestrationContextPriorAttemptsPath          = "task.orchestration.context_prior_attempts"
 	toolSurfaceTaskOrchestrationContextRecentEventsPath           = "task.orchestration.context_recent_events"
 	toolSurfaceTaskOrchestrationDefaultMaxRuntimePath             = "task.orchestration.default_max_runtime"
 	toolSurfaceTaskOrchestrationDesignatedRunMaxPath              = "task.orchestration.designated_run_max"
 	toolSurfaceTaskOrchestrationMaxActiveRunsPerWorkspacePath     = "task.orchestration.max_active_runs_per_workspace"
-	toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath        = "task.orchestration.network_status_queue_size"
-	toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath          = "task.orchestration.network_status_timeout"
 	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
-	toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath     = "task.orchestration.profile.default_sandbox_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath      = "task.orchestration.profile.default_worker_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultWorktreeModePath    = "task.orchestration.profile.default_worktree_mode"
 	toolSurfaceTaskOrchestrationReviewDefaultPolicyPath           = "task.orchestration.review.default_policy"
@@ -35,6 +34,8 @@ const (
 
 func taskToolSurfaceMutableConfigKinds() map[string]ValueKind {
 	return map[string]ValueKind{
+		toolSurfaceTaskOrchestrationStatusProjectionQueueSizePath:     ConfigValueInt,
+		toolSurfaceTaskOrchestrationStatusProjectionTimeoutPath:       ConfigValueDuration,
 		toolSurfaceTaskOrchestrationSummaryMaxBytesPath:               ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextBodyMaxBytesPath:           ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextPriorAttemptsPath:          ConfigValueInt,
@@ -45,14 +46,10 @@ func taskToolSurfaceMutableConfigKinds() map[string]ValueKind {
 		toolSurfaceTaskOrchestrationDefaultMaxRuntimePath:             ConfigValueDuration,
 		toolSurfaceTaskOrchestrationDesignatedRunMaxPath:              ConfigValueInt,
 		toolSurfaceTaskOrchestrationMaxActiveRunsPerWorkspacePath:     ConfigValueInt,
-		toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath:        ConfigValueInt,
-		toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath:          ConfigValueDuration,
 		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath:      ConfigValueString,
-		toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath:     ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultWorktreeModePath:    ConfigValueString,
 		"task.orchestration.profile.allow_task_provider_override":     ConfigValueBool,
-		"task.orchestration.profile.allow_task_sandbox_none":          ConfigValueBool,
 		toolSurfaceTaskOrchestrationReviewDefaultPolicyPath:           ConfigValueString,
 		toolSurfaceTaskOrchestrationReviewMaxRoundsPath:               ConfigValueInt,
 		toolSurfaceTaskOrchestrationReviewMaxReviewAttemptsPath:       ConfigValueInt,

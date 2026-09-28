@@ -1255,14 +1255,14 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			dir,
 			"--allow-unverified",
 			"--yes",
-			"--confirm-network-requirement",
+			"--confirm-gateway-requirement",
 			"sha256:fixture",
 		)
 		if err != nil {
 			t.Fatalf("extension install human preview error = %v", err)
 		}
-		if previewRequest.ConfirmNetworkDigest != "sha256:fixture" ||
-			installRequest.ConfirmNetworkDigest != "sha256:fixture" ||
+		if previewRequest.ConfirmGatewayDigest != "sha256:fixture" ||
+			installRequest.ConfirmGatewayDigest != "sha256:fixture" ||
 			previewRequest.Source != contract.InstallExtensionSourceLocalPath ||
 			installRequest.Source != contract.InstallExtensionSourceLocalPath ||
 			previewRequest.Ref != filepath.Clean(dir) ||

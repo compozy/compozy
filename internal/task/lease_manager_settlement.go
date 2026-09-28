@@ -40,9 +40,6 @@ func (m *Service) claimNextRunSettlement(
 			}
 			claimResultWithoutRawTokenInMetadata(&claim)
 			commandResult.settlement.Run = claim.Run
-			if claim.Run.IsNetworkWake() {
-				return nil
-			}
 
 			taskRecord, transitions, commandErr := m.reconcileTaskSettlementCascadeWithStore(
 				ctx,
@@ -105,9 +102,6 @@ func (m *Service) heartbeatRunLeaseSettlement(
 				return commandErr
 			}
 			commandResult.settlement.Run = run
-			if run.IsNetworkWake() {
-				return nil
-			}
 
 			taskRecord, commandErr := store.GetTask(ctx, run.TaskID)
 			if commandErr != nil {
@@ -217,9 +211,6 @@ func (m *Service) releaseRunLeaseSettlement(
 			}
 			commandResult.settlement.Run = run
 			commandResult.settlement.PreviousRun = previous
-			if run.IsNetworkWake() {
-				return nil
-			}
 
 			taskRecord, transitions, commandErr := m.reconcileTaskSettlementCascadeWithStore(
 				ctx,
@@ -290,10 +281,6 @@ func (m *Service) releaseSessionRunLeasesSettlement(
 				outcome := sessionLeaseReleaseOutcome{
 					result:   newSessionLeaseReleaseResult(run, previous, release.Reason),
 					previous: previous,
-				}
-				if run.IsNetworkWake() {
-					commandResult.outcomes = append(commandResult.outcomes, outcome)
-					continue
 				}
 
 				taskRecord, transitions, reconcileErr := m.reconcileTaskSettlementCascadeWithStore(

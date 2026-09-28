@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -56,7 +56,7 @@ func (o *Observer) overviewNeedsInput(ctx context.Context, query OverviewQuery) 
 		if summary.ActiveRun != nil {
 			item.RunID, item.SessionID = summary.ActiveRun.ID, summary.ActiveRun.SessionID
 		}
-		item.NotificationID = notifications.AttentionIdentity(
+		item.NotificationID = attention.Identity(
 			"task", summary.WorkspaceID, summary.ID, item.Kind, occurrenceAt.UTC().Format(time.RFC3339Nano), item.RunID,
 		)
 		items = append(items, item)

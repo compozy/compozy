@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 60
   guidance:
     must_try:
-      - "Enter from both Agents and agent detail. In Simple, choose the agent and verify there is neither a first-message composer nor a runtime selector; open Advanced to set workspace, optional name, working path, and Network participation."
+      - "Enter from both Agents and agent detail. In Simple, choose the agent and verify there is neither a first-message composer nor a runtime selector; open Advanced to set workspace, optional name, working path."
       - "Change the workspace after choosing workspace-scoped launch details, then prove only those selections clear. Create once and independently fresh-read one durable session with no queued prompt."
       - "Observe immediate feedback, owner-workspace activation, route navigation, and focused destination composer. Refresh and use Back/Forward without a lingering modal, duplicated session, or silent workspace redirect."
       - "From the destination composer select a Next prompt runtime and submit the first message; prove the runtime belongs to that prompt rather than the creation request or agent default."

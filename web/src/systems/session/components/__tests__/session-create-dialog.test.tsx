@@ -68,9 +68,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     sessionName: "",
     onSessionNameChange: vi.fn(),
     selectedAgentName: "claude-agent",
-    networkParticipation: { mode: "local", channelId: "", channelStrategy: "" },
     onAgentChange: vi.fn(),
-    onNetworkParticipationChange: vi.fn(),
     onSubmit: vi.fn(),
     isSubmitting: false,
     isAwaitingEnvironment: false,
@@ -138,7 +136,6 @@ describe("SessionCreateDialog", () => {
     expect(screen.queryByRole("textbox", { name: "First message" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-name-input")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("session-create-participation-mode")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-runtime-select")).not.toBeInTheDocument();
   });
 
@@ -148,7 +145,6 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
     expect(screen.queryByTestId("session-create-composer")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-participation-mode")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Runs in alpha — /workspace/alpha"
     );
@@ -201,7 +197,6 @@ describe("SessionCreateDialog", () => {
 
     expect(screen.getByTestId("session-create-environment")).toBeDisabled();
     expect(screen.getByTestId("session-create-name-input")).toBeDisabled();
-    expect(screen.getByTestId("session-create-participation-mode")).toBeDisabled();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
   });
 
@@ -292,16 +287,6 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-submit")).toBeDisabled();
     fireEvent.click(screen.getByTestId("session-create-submit"));
     expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("Should block submission until named Live participation has a channel", () => {
-    renderDialog({
-      mode: "advanced",
-      networkParticipation: { mode: "live", channelId: "", channelStrategy: "named" },
-    });
-
-    expect(screen.getByTestId("session-create-submit")).toBeDisabled();
-    expect(screen.getByTestId("session-create-participation-channel")).toBeRequired();
   });
 
   it("Should disable the agent picker until a destination is ready", () => {

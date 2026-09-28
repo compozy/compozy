@@ -265,7 +265,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(resolved)
+	resolvedWorkspaceID, err := nativeResolvedWorkspaceID(resolved)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}

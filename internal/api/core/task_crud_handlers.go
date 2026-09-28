@@ -347,10 +347,10 @@ func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View
 	if err := h.decorateTaskDetailOwners(ctx, &payload); err != nil {
 		return contract.TaskDetailPayload{}, err
 	}
-	if h == nil || h.NetworkStore == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
+	if h == nil || h.TaskDesignations == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
 		return payload, nil
 	}
-	rollups, err := h.NetworkStore.ListTaskDesignationRollups(ctx, store.TaskDesignationRollupQuery{
+	rollups, err := h.TaskDesignations.ListTaskDesignationRollups(ctx, store.TaskDesignationRollupQuery{
 		TaskID: strings.TrimSpace(view.Task.ID),
 		Limit:  taskDesignationRollupDetailLimit,
 	})

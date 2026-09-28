@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	networkrules "github.com/compozy/compozy/internal/network/rules"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -83,15 +82,6 @@ func (q RunQuery) Validate(path string) error {
 		if err := q.Status.Validate(nestedPath(path, "status")); err != nil {
 			return err
 		}
-	}
-	participationChannel := strings.TrimSpace(q.ParticipationChannel)
-	if participationChannel != "" && !networkrules.ValidChannel(participationChannel) {
-		return fmt.Errorf(
-			"%w: %s is not a valid network channel: %q",
-			ErrValidation,
-			nestedPath(path, "participation_channel"),
-			q.ParticipationChannel,
-		)
 	}
 	if q.Limit < 0 {
 		return fmt.Errorf(

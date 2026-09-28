@@ -10,7 +10,7 @@ The marketplace shipped as a parallel IA: `/marketplace` (+ `?kind=` views) only
 
 ## 2. Decision — one Marketplace surface
 
-- **Sidebar Catalog group has a single entry: `Marketplace`** (plus the non-catalog `Bridges` and `Knowledge`). The `Skills`, `MCP`, and `Extensions` sidebar entries are deleted.
+- **Sidebar Catalog group has a single entry: `Marketplace`** (plus the non-catalog `Knowledge`). The `Skills`, `MCP`, and `Extensions` sidebar entries are deleted.
 - **Topbar `RouteNav` carries four kind links: `Skills · MCPs · Extensions · Bundles`** — real subroutes, Skills is the default. Kind switching is **not** a page-body tab strip.
 - **Every kind subroute uses the same chrome + template** (parity with `systems/design-system.html` and production catalog pages). See §2.1.
 - What changes between kinds is only card content and actions (skill version/scope vs MCP transport/status vs extension trust/enable vs bundle profile/contents) — never the chrome or template.
@@ -108,7 +108,7 @@ Every deletion lands in the same PR as its replacement — no dual routes, no al
 | `web/src/routes/_app/marketplace.$kind.$entryId.tsx` + `systems/marketplace/components/marketplace-detail*.tsx` | Stays the single detail; installed state gains management sections (skill content/shadows from `skill-detail-panel.tsx`, extension sections from `extension-detail*.tsx`, MCP config/status/auth from settings dialogs); Manage → `/marketplace/{kind}` |
 | `web/src/systems/marketplace/components/use-marketplace-action-controller.tsx` | Extends beyond install/update/activate with remove, deactivate, enable/disable, authorize — delegating to the existing inventory mutations (`use-extension-actions.ts`, `use-skill-actions.ts`, settings MCP adapters) |
 | `web/src/systems/marketplace/components/marketplace-card.tsx`, `marketplace-entry-actions.tsx`, `marketplace-grid.tsx` | Marketplace-scope cards; grid stays cards-only (no rows switch) |
-| `web/src/systems/runtime/components/app-sidebar.tsx` | `CATALOG_NAV_ITEMS` (~lines 270–277): remove Extensions, Skills, MCP entries; keep Marketplace, Bridges, Knowledge |
+| `web/src/systems/runtime/components/app-sidebar.tsx` | `CATALOG_NAV_ITEMS` (~lines 270–277): remove Extensions, Skills, MCP entries; keep Marketplace, Knowledge |
 | `web/src/systems/skill/`, `web/src/systems/extensions/`, settings MCP adapters/dialogs | **Data layers and dialogs are kept** — they feed the Installed scope and the detail; only their page-level components die |
 
 ### 3.4 Data layer
@@ -120,7 +120,7 @@ Every deletion lands in the same PR as its replacement — no dual routes, no al
 
 ### 3.5 Listing standard exception
 
-`LISTING-STANDARD.md` defaults inventories to rows with a Rows|Cards toggle and a title-in-topbar shell (Vault / Bridges). The marketplace family is an **explicit dual exception**:
+`LISTING-STANDARD.md` defaults inventories to rows with a Rows|Cards toggle and a title-in-topbar shell (Vault). The marketplace family is an **explicit dual exception**:
 
 1. **Cards only** — no Rows|Cards view toggle.
 2. **Chrome** — breadcrumb topbar + PageHead + listing toolbar (§2.1), not the inventory title-in-topbar shell. Trailing PillGroup = **Installed | Marketplace** scope (with icons).
@@ -172,6 +172,6 @@ Reset to `untested`: `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`, `
 
 ## 9. Open questions
 
-1. Sidebar Catalog group naming — with one entry left, keep the `Catalog` section label or fold Marketplace/Bridges/Knowledge under an existing group?
+1. Sidebar Catalog group naming — with one entry left, keep the `Catalog` section label or fold Marketplace/Knowledge under an existing group?
 2. Bundle activation deep view — keep as its own route (spec default) or render as a sheet over the Bundles Installed scope?
 3. Backend listing-embed for skills/MCP (§3.4) — schedule now or after phase 3?

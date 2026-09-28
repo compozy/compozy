@@ -3,8 +3,6 @@ package contract
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // LoopGenerationOrigin identifies why a generation exists.
@@ -43,46 +41,45 @@ const (
 
 // LoopRunPayload is the public loop_run aggregate projection.
 type LoopRunPayload struct {
-	ID                           string                `json:"id"`
-	ProfileID                    string                `json:"profile_id"`
-	ProfileName                  string                `json:"profile_name"`
-	ProfileColor                 string                `json:"profile_color,omitempty"`
-	ProfileIcon                  string                `json:"profile_icon,omitempty"`
-	WorkspaceID                  string                `json:"workspace_id"`
-	LoopName                     string                `json:"loop_name"`
-	Status                       LoopRunStatus         `json:"status"`
-	Historical                   bool                  `json:"historical"`
-	CompletionState              LoopCompletionState   `json:"completion_state"`
-	Generation                   int64                 `json:"generation"`
-	BestGeneration               *int64                `json:"best_generation,omitempty"`
-	BestScore                    *float64              `json:"best_score,omitempty"`
-	ForkedFrom                   *LoopForkRef          `json:"forked_from,omitempty"`
-	Forks                        []LoopForkRef         `json:"forks"`
-	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
-	CreatedAt                    time.Time             `json:"created_at"`
-	StartedAt                    time.Time             `json:"started_at"`
-	LastProgressAt               time.Time             `json:"last_progress_at"`
-	CompletedAt                  *time.Time            `json:"completed_at,omitempty"`
-	StartedByKind                string                `json:"started_by_kind,omitempty"`
-	StartedByRef                 string                `json:"started_by_ref,omitempty"`
-	StartedOriginKind            string                `json:"started_origin_kind,omitempty"`
-	StartedOriginRef             string                `json:"started_origin_ref,omitempty"`
-	DefinitionVersion            int                   `json:"definition_version"`
-	DefinitionDigest             string                `json:"definition_digest,omitempty"`
-	ActiveGateID                 string                `json:"active_gate_id,omitempty"`
-	BudgetApprovalSeq            int                   `json:"budget_approval_seq,omitempty"`
-	StartMetadata                map[string]any        `json:"start_metadata,omitempty"`
-	IterationCap                 int                   `json:"iteration_cap"`
-	BudgetTokens                 int                   `json:"budget_tokens"`
-	BudgetWallSec                int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded             LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	TokensUsed                   int64                 `json:"tokens_used"`
-	ParentLoopRunID              string                `json:"parent_loop_run_id,omitempty"`
-	PauseRequested               bool                  `json:"pause_requested"`
-	Inputs                       map[string]any        `json:"inputs,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
-	Attention                    *LoopRunAttention     `json:"attention,omitempty"`
-	Progress                     LoopRunProgress       `json:"progress"`
+	ID                string                `json:"id"`
+	ProfileID         string                `json:"profile_id"`
+	ProfileName       string                `json:"profile_name"`
+	ProfileColor      string                `json:"profile_color,omitempty"`
+	ProfileIcon       string                `json:"profile_icon,omitempty"`
+	WorkspaceID       string                `json:"workspace_id"`
+	LoopName          string                `json:"loop_name"`
+	Status            LoopRunStatus         `json:"status"`
+	Historical        bool                  `json:"historical"`
+	CompletionState   LoopCompletionState   `json:"completion_state"`
+	Generation        int64                 `json:"generation"`
+	BestGeneration    *int64                `json:"best_generation,omitempty"`
+	BestScore         *float64              `json:"best_score,omitempty"`
+	ForkedFrom        *LoopForkRef          `json:"forked_from,omitempty"`
+	Forks             []LoopForkRef         `json:"forks"`
+	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
+	CreatedAt         time.Time             `json:"created_at"`
+	StartedAt         time.Time             `json:"started_at"`
+	LastProgressAt    time.Time             `json:"last_progress_at"`
+	CompletedAt       *time.Time            `json:"completed_at,omitempty"`
+	StartedByKind     string                `json:"started_by_kind,omitempty"`
+	StartedByRef      string                `json:"started_by_ref,omitempty"`
+	StartedOriginKind string                `json:"started_origin_kind,omitempty"`
+	StartedOriginRef  string                `json:"started_origin_ref,omitempty"`
+	DefinitionVersion int                   `json:"definition_version"`
+	DefinitionDigest  string                `json:"definition_digest,omitempty"`
+	ActiveGateID      string                `json:"active_gate_id,omitempty"`
+	BudgetApprovalSeq int                   `json:"budget_approval_seq,omitempty"`
+	StartMetadata     map[string]any        `json:"start_metadata,omitempty"`
+	IterationCap      int                   `json:"iteration_cap"`
+	BudgetTokens      int                   `json:"budget_tokens"`
+	BudgetWallSec     int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded  LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	TokensUsed        int64                 `json:"tokens_used"`
+	ParentLoopRunID   string                `json:"parent_loop_run_id,omitempty"`
+	PauseRequested    bool                  `json:"pause_requested"`
+	Inputs            map[string]any        `json:"inputs,omitempty"`
+	Attention         *LoopRunAttention     `json:"attention,omitempty"`
+	Progress          LoopRunProgress       `json:"progress"`
 }
 
 // LoopRunAttention summarizes operator action required by one run.

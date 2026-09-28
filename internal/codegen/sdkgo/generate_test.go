@@ -72,15 +72,9 @@ func TestGenerate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose generated required methods for bridge and model provides", func(t *testing.T) {
+	t.Run("Should expose generated required methods for model provides", func(t *testing.T) {
 		t.Parallel()
 
-		bridgeMethods := contracts.RequiredMethods("bridge.adapter")
-		for _, method := range []string{"bridges/deliver", "bridges/targets/snapshot"} {
-			if !slices.Contains(bridgeMethods, method) {
-				t.Fatalf("RequiredMethods(bridge.adapter) = %v, want %q", bridgeMethods, method)
-			}
-		}
 		if got := contracts.RequiredMethods("model.source"); !slices.Contains(got, "models/list") {
 			t.Fatalf("RequiredMethods(model.source) = %v, want models/list", got)
 		}

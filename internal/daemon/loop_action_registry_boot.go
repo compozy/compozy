@@ -67,8 +67,5 @@ func newBootLoopActionRegistry(
 	} else if _, supportsGoalExecutor := store.(loopGoalExecutorStore); supportsGoalExecutor && state.sessions != nil {
 		return nil, fmt.Errorf("%w: Goal production store ports are incomplete", looppkg.ErrActionDependencyMissing)
 	}
-	if conversations, ok := state.registry.(looppkg.ChannelResultConversationStore); ok {
-		actionOptions = append(actionOptions, looppkg.WithActionChannelResultStore(conversations))
-	}
 	return looppkg.NewActionRegistry(toolRegistry, actionOptions...)
 }

@@ -406,7 +406,6 @@ function comparableOverview(overview: HomeOverview) {
           }
         : longestSession,
     },
-    network: overview.network,
     system: overview.system,
   };
 }

@@ -3,7 +3,6 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getAgentContext,
   getTask,
-  getTaskBridgeNotificationSubscription,
   getTaskDashboard,
   getTaskExecutionProfile,
   getTaskInbox,
@@ -14,7 +13,6 @@ import {
   getTaskTree,
   inspectRun,
   inspectTask,
-  listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
   listTaskRuns,
@@ -25,7 +23,6 @@ import { taskInboxPageRequest, taskInboxStableFilter } from "./task-inbox-query"
 import { taskListPageRequest, taskListStableFilter } from "./task-list-query";
 import type {
   AgentContextIdentity,
-  TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskDetailView,
   TaskRunDetailView,
@@ -265,33 +262,5 @@ export function agentContextOptions(identity: AgentContextIdentity, enabled = tr
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled,
-  });
-}
-
-export function taskBridgeNotificationSubscriptionsOptions(
-  taskId: string,
-  filters: TaskBridgeNotificationSubscriptionsFilter = {},
-  enabled = true
-) {
-  return queryOptions({
-    queryKey: tasksKeys.bridgeNotifications(taskId, filters),
-    queryFn: ({ signal }) => listTaskBridgeNotificationSubscriptions(taskId, filters, signal),
-    staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled: Boolean(taskId) && enabled,
-  });
-}
-
-export function taskBridgeNotificationSubscriptionOptions(
-  taskId: string,
-  subscriptionId: string,
-  enabled = true
-) {
-  return queryOptions({
-    queryKey: tasksKeys.bridgeNotification(taskId, subscriptionId),
-    queryFn: ({ signal }) => getTaskBridgeNotificationSubscription(taskId, subscriptionId, signal),
-    staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled: Boolean(taskId) && Boolean(subscriptionId) && enabled,
   });
 }

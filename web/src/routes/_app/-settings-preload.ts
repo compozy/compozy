@@ -2,7 +2,6 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentsListOptions } from "@/systems/agent";
-import { notificationPresetsOptions } from "@/systems/notifications";
 import { actingProfile, readProfileLens, readProfileView } from "@/systems/profiles";
 import {
   settingsApplyRecordsOptions,
@@ -18,15 +17,10 @@ import {
   settingsProvidersListOptions,
   settingsRolesOptions,
   settingsRolesStatusOptions,
-  settingsSandboxesListOptions,
   settingsSkillsOptions,
   settingsUpdateOptions,
 } from "@/systems/settings";
 import { workspacesListOptions } from "@/systems/workspace";
-
-export function preloadSandboxRoute(queryClient: QueryClient): Promise<void> {
-  return settleRouteQueries([queryClient.ensureQueryData(settingsSandboxesListOptions())]);
-}
 
 export async function preloadSettingsGeneralRoute(queryClient: QueryClient): Promise<void> {
   await Promise.all([
@@ -50,7 +44,6 @@ export function preloadSettingsDefaultsRoute(queryClient: QueryClient): Promise<
       settingsPersonaOptions(settingsPersonaFilterForProfile(profileName))
     ),
     queryClient.ensureQueryData(settingsProvidersListOptions()),
-    queryClient.ensureQueryData(settingsSandboxesListOptions()),
   ]);
 }
 
@@ -89,10 +82,7 @@ export function preloadSettingsObservabilityRoute(queryClient: QueryClient): Pro
 }
 
 export function preloadSettingsHooksRoute(queryClient: QueryClient): Promise<void> {
-  return settleRouteQueries([
-    queryClient.ensureQueryData(settingsHooksExtensionsOptions()),
-    queryClient.ensureQueryData(notificationPresetsOptions()),
-  ]);
+  return settleRouteQueries([queryClient.ensureQueryData(settingsHooksExtensionsOptions())]);
 }
 
 export function preloadSettingsExtensionsRoute(queryClient: QueryClient): Promise<void> {

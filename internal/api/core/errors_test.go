@@ -13,11 +13,8 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -25,86 +22,6 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
-
-func TestStatusForBridgeError(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want int
-	}{
-		{
-			name: "Should return bad request for body path mismatch",
-			err:  contract.ErrBridgeInstanceMismatch,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "Should return bad request for invalid secret binding",
-			err:  bridgepkg.ErrInvalidBridgeSecretBinding,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "Should return not found for missing bridge",
-			err:  bridgepkg.ErrBridgeInstanceNotFound,
-			want: http.StatusNotFound,
-		},
-		{
-			name: "Should return not found for missing route",
-			err:  bridgepkg.ErrBridgeRouteNotFound,
-			want: http.StatusNotFound,
-		},
-		{
-			name: "Should return not found for missing workspace",
-			err:  workspacepkg.ErrWorkspaceNotFound,
-			want: http.StatusNotFound,
-		},
-		{
-			name: "Should return conflict for unavailable instance",
-			err:  bridgepkg.ErrBridgeInstanceUnavailable,
-			want: http.StatusConflict,
-		},
-		{
-			name: "Should return conflict for invalid state transition",
-			err:  bridgepkg.ErrInvalidBridgeStateTransition,
-			want: http.StatusConflict,
-		},
-		{
-			name: "Should return not found for missing delivery",
-			err:  bridgepkg.ErrDeliveryNotFound,
-			want: http.StatusNotFound,
-		},
-		{
-			name: "Should return service unavailable for saturated delivery queue",
-			err:  bridgepkg.ErrDeliveryQueueSaturated,
-			want: http.StatusServiceUnavailable,
-		},
-		{
-			name: "Should return service unavailable for transport outage",
-			err:  bridgepkg.ErrDeliveryTransportUnavailable,
-			want: http.StatusServiceUnavailable,
-		},
-		{
-			name: "Should return service unavailable for bridge control transport outage",
-			err:  bridgepkg.ErrBridgeControlTransportUnavailable,
-			want: http.StatusServiceUnavailable,
-		},
-		{
-			name: "Should return internal server error for unknown failures",
-			err:  errors.New("boom"),
-			want: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := StatusForBridgeError(tt.err); got != tt.want {
-				t.Fatalf("StatusForBridgeError(%v) = %d, want %d", tt.err, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestTaskErrorHelpers(t *testing.T) {
 	t.Parallel()
@@ -149,65 +66,6 @@ func TestTaskErrorHelpers(t *testing.T) {
 			t.Parallel()
 			if got := StatusForTaskError(tt.err); got != tt.want {
 				t.Fatalf("StatusForTaskError(%v) = %d, want %d", tt.err, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
-	t.Parallel()
-
-	automationErr := NewAutomationValidationError(errors.New("bad automation request"))
-	if !errors.Is(automationErr, ErrAutomationValidation) {
-		t.Fatalf("NewAutomationValidationError() = %v, want ErrAutomationValidation", automationErr)
-	}
-	if got := NewAutomationValidationError(nil); got != nil {
-		t.Fatalf("NewAutomationValidationError(nil) = %v, want nil", got)
-	}
-
-	networkErr := NewNetworkValidationError(errors.New("bad network request"))
-	if !errors.Is(networkErr, ErrNetworkValidation) {
-		t.Fatalf("NewNetworkValidationError() = %v, want ErrNetworkValidation", networkErr)
-	}
-	if got := NewNetworkValidationError(nil); got != nil {
-		t.Fatalf("NewNetworkValidationError(nil) = %v, want nil", got)
-	}
-
-	if got := StatusForAutomationError(nil); got != http.StatusOK {
-		t.Fatalf("StatusForAutomationError(nil) = %d, want %d", got, http.StatusOK)
-	}
-	if got := StatusForAutomationError(automationpkg.ErrManagerNotRunning); got != http.StatusServiceUnavailable {
-		t.Fatalf("StatusForAutomationError(manager not running) = %d, want %d", got, http.StatusServiceUnavailable)
-	}
-	if got := StatusForAutomationError(automationpkg.ErrWebhookSignatureInvalid); got != http.StatusUnauthorized {
-		t.Fatalf("StatusForAutomationError(signature invalid) = %d, want %d", got, http.StatusUnauthorized)
-	}
-	if got := StatusForAutomationError(automationpkg.ErrListCursorInvalid); got != http.StatusBadRequest {
-		t.Fatalf("StatusForAutomationError(invalid cursor) = %d, want %d", got, http.StatusBadRequest)
-	}
-	if got := StatusForAutomationError(looppkg.ErrValidation); got != http.StatusUnprocessableEntity {
-		t.Fatalf("StatusForAutomationError(loop validation) = %d, want %d", got, http.StatusUnprocessableEntity)
-	}
-	if got := StatusForAutomationError(looppkg.ErrDefinitionNotFound); got != http.StatusNotFound {
-		t.Fatalf("StatusForAutomationError(loop not found) = %d, want %d", got, http.StatusNotFound)
-	}
-
-	tests := []struct {
-		name string
-		err  error
-		want int
-	}{
-		{name: "nil", err: nil, want: http.StatusOK},
-		{name: "validation", err: ErrNetworkValidation, want: http.StatusBadRequest},
-		{name: "local peer missing", err: network.ErrLocalPeerNotFound, want: http.StatusNotFound},
-		{name: "missing field", err: network.ErrMissingField, want: http.StatusBadRequest},
-		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := StatusForNetworkError(tt.err); got != tt.want {
-				t.Fatalf("StatusForNetworkError(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

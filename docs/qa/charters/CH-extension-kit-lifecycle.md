@@ -23,7 +23,7 @@ charter:
       - "Enable with the already accepted current digest, then compare ExtensionEnableResult.automation_started with the extension.enabled event count, scheduler registrations, owner-attributed resources, layout application, inventory, and the browser detail at 375, 768, and 1280 pixels."
       - "Apply a same-requirement kit update, then disable and remove. Bindings survive update, disabled inventory remains shipped-but-not-live, removal clears bindings and owned refs, and fresh resource/automation/tool/agent reads show no orphan state or collateral deletion."
     must_avoid:
-      - "Deep secret error permutations (CH-extension-secrets-instance-isolation), digest races or changed-requirement update consent (CH-extension-network-consent), and retired Bundle probes (CH-bundle-product-hard-cut)."
+      - "Deep secret error permutations (CH-extension-secrets-instance-isolation), digest races or changed-requirement update consent (), and retired Bundle probes (CH-bundle-product-hard-cut)."
 ```
 
 ## Evidence expectations

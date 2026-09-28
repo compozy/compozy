@@ -69,7 +69,7 @@ export const WithFoot: Story = {
         bodyClassName="p-0"
         foot={
           <Button size="sm" variant="ghost">
-            View network
+            View tasks
           </Button>
         }
       >

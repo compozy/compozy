@@ -1,4 +1,3 @@
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import {
   SPEC_CYCLE_FINALIZE_REVIEW_ROUND_KIND,
   SPEC_CYCLE_WRITE_REVIEW_ARTIFACTS_KIND,
@@ -232,7 +231,6 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
       fixer: "review_fixer",
       auto_commit: false,
     },
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     // Server-owned step/round progress (B-001): round 2, drafting done, quality gate running.
     progress: { round: 2, steps_done: 1, steps_total: 2 },
     ...overrides,

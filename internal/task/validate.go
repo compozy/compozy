@@ -162,7 +162,6 @@ func (k ActorKind) Validate(path string) error {
 		ActorKindAgentSession,
 		ActorKindAutomation,
 		ActorKindExtension,
-		ActorKindNetworkPeer,
 		ActorKindDaemon:
 		return nil
 	case "":
@@ -184,7 +183,6 @@ func (k OwnerKind) Validate(path string) error {
 		OwnerKindAgentSession,
 		OwnerKindAutomation,
 		OwnerKindExtension,
-		OwnerKindNetworkPeer,
 		OwnerKindPool:
 		return nil
 	case "":
@@ -208,7 +206,6 @@ func (k OriginKind) Validate(path string) error {
 		OriginKindHTTP,
 		OriginKindAutomation,
 		OriginKindExtension,
-		OriginKindNetwork,
 		OriginKindAgentSession,
 		OriginKindDaemon:
 		return nil

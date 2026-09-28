@@ -38,7 +38,9 @@ are untouched; the comparison table also changed shape (named-rival columns beca
 rows with adjusted column widths). Status reset to untested pending a fresh landing walk.
 
 QA impact 2026-08-11: the hero visual replaced the Remotion chat player with the real OS shell
-capture (`/images/hero/os-shell-capture-v1.png`) rendered as a 3D pitched/yawed window that follows
+capture (`/images/hero/os-shell-capture-v2.png`) rendered as a 3D pitched/yawed window that follows
 the pointer (static pose under reduced motion and touch), bleeding past the right edge on desktop,
 and the locked headline now sets in the display serif, matching the deck cover. Copy, CTAs, signal
 tiles, and section order are untouched. Status stays untested pending the same fresh landing walk.
+
+2026-09-27 hero refresh: the landing uses the isolated-lab 2580×1654 capture with one queued Task and the two built-in Loops. The screenshot receipt belongs to the current retirement QA report.

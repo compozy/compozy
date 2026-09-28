@@ -65,8 +65,6 @@ type commandDeps struct {
 	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
 	ensureHome                  func(compozyconfig.HomePaths) error
 	runInstallWizard            installWizardRunner
-	runBridgeSetupWizard        bridgeSetupWizardRunner
-	generateBridgeSetupSecret   bridgeSetupSecretGenerator
 	newClient                   func(target ClientTarget) (DaemonClient, error)
 	writeGatewayCredential      func(string, string, string) (string, error)
 	readGatewayCredential       func(string, string) (string, error)

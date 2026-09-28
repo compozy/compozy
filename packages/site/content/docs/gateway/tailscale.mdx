@@ -61,11 +61,11 @@ compozy extension enable tailscale
 ```
 
 The extension declares that it carries gateway traffic on the `gateway.private` and
-`gateway.public` channels, so the first enable refuses with a network requirement digest and prints
+`gateway.public` permission atoms, so the first enable refuses with a gateway requirement digest and prints
 the exact confirmation command to run:
 
 ```bash
-compozy extension enable tailscale --confirm-network-requirement <digest>
+compozy extension enable tailscale --confirm-gateway-requirement <digest>
 ```
 
 Confirming the digest is consent to exactly that declaration — an update that changes it asks

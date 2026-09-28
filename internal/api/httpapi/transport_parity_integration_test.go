@@ -25,7 +25,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -1488,7 +1487,7 @@ func seedTransportTaskLoopCatalog(
 			ID: id, ProfileID: storepkg.DefaultProfileID, TaskID: taskID,
 			WorkspaceID: workspaceID, Attempt: attempt,
 			RunKind: kind, Status: taskpkg.TaskRunStatusCompleted, LoopRunID: loopRunID,
-			Origin: loopOrigin, RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+			Origin: loopOrigin,
 			Metadata: json.RawMessage(fmt.Sprintf(
 				`{"loop_run_id":%q,"loop_name":"transport-parity","generation":2,"node_id":"review","item_index":0}`,
 				loopRunID,

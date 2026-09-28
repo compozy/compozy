@@ -43,7 +43,6 @@ func defaultSettingsTerminalPayload() contract.SettingsTerminalPayload {
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
 type stubTaskManager = testutil.StubTaskManager
-type stubBridgeService = testutil.StubBridgeService
 type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type sseRecord = testutil.SSERecord
@@ -351,52 +350,52 @@ func newTestHandlers(
 	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+	return newTestHandlersWithAutomationTasksAndWorkspace(
 		t,
 		manager,
 		observer,
 		nil,
 		&stubTaskManager{},
-		nil,
+
 		stubWorkspaceService{},
 		homePaths,
 	)
 }
 
-func newTestHandlersWithBridges(
+func newTestHandlersWithServices(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
-	bridges core.BridgeService,
+
 	workspaces core.WorkspaceService,
 	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+	return newTestHandlersWithAutomationTasksAndWorkspace(
 		t,
 		manager,
 		observer,
 		nil,
 		&stubTaskManager{},
-		bridges,
+
 		workspaces,
 		homePaths,
 	)
 }
 
-func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+func newTestHandlersWithAutomationTasksAndWorkspace(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
 	automation core.AutomationManager,
 	tasks core.TaskService,
-	bridges core.BridgeService,
+
 	workspaces core.WorkspaceService,
 	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	manager = defaultTestSessionManager(manager)
@@ -408,7 +407,6 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 		tasks:          tasks,
 		observer:       observer,
 		automation:     automation,
-		bridges:        bridges,
 		workspaces:     workspaces,
 		staticFS:       mustStaticFS(t),
 		homePaths:      homePaths,
@@ -485,7 +483,7 @@ func newTestHandlersWithWorkspace(
 ) *Handlers {
 	t.Helper()
 
-	return newTestHandlersWithBridges(t, manager, observer, nil, workspaces, homePaths)
+	return newTestHandlersWithServices(t, manager, observer, workspaces, homePaths)
 }
 
 func newTestHandlersWithResources(
@@ -497,7 +495,7 @@ func newTestHandlersWithResources(
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 
@@ -531,7 +529,7 @@ func newTestHandlersWithResourcesAndAuth(
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 
@@ -566,7 +564,7 @@ func newTestHandlersWithSettingsAndExtensions(
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = boundHost
 	cfg.HTTP.Port = 2123
 
@@ -625,8 +623,8 @@ func newTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 	return testutil.NewTestHomePaths(t)
 }
 
-func testConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
-	return testutil.ConfigWithDisabledNetwork(homePaths)
+func testConfigForTest(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	return testutil.ConfigForTest(homePaths)
 }
 
 func writeAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string) {
@@ -706,8 +704,6 @@ func settingsTestSectionEnvelope(
 		envelope.Skills = &settingspkg.SkillsSection{}
 	case settingspkg.SectionAutomation:
 		envelope.Automation = &settingspkg.AutomationSection{}
-	case settingspkg.SectionNetwork:
-		envelope.Network = &settingspkg.NetworkSection{}
 	case settingspkg.SectionObservability:
 		envelope.Observability = &settingspkg.ObservabilitySection{}
 	case settingspkg.SectionHooksExtensions:
@@ -738,11 +734,6 @@ func settingsTestCollectionEnvelope(
 			Name:    "server-a",
 			Command: "mcpd",
 			Scope:   scope,
-		}}
-	case settingspkg.CollectionSandboxes:
-		envelope.Sandboxes = []settingspkg.SandboxItem{{
-			Name:    "demo",
-			Profile: compozyconfig.SandboxProfile{Backend: "local"},
 		}}
 	case settingspkg.CollectionHooks:
 		envelope.Hooks = []settingspkg.HookItem{}

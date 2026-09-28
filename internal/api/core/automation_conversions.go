@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // AutomationSchedulerStatePayloadFromState converts durable scheduler metadata
@@ -127,25 +126,24 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 // RunPayloadFromRun converts an automation run into the shared response payload.
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 	return contract.RunPayload{
-		ID:                   run.ID,
-		ProfileID:            run.ProfileID,
-		JobID:                run.JobID,
-		TriggerID:            run.TriggerID,
-		SessionID:            run.SessionID,
-		TaskID:               run.TaskID,
-		TaskRunID:            run.TaskRunID,
-		LoopRunID:            run.LoopRunID,
-		FireID:               run.FireID,
-		Status:               run.Status,
-		Attempt:              run.Attempt,
-		NetworkParticipation: participation.CloneRequest(run.NetworkParticipation),
-		ScheduledAt:          run.ScheduledAt,
-		StartedAt:            run.StartedAt,
-		EndedAt:              run.EndedAt,
-		Error:                run.Error,
-		DeliveryError:        run.DeliveryError,
-		DeliveryErrorAt:      run.DeliveryErrorAt,
-		Metadata:             maps.Clone(run.Metadata),
+		ID:              run.ID,
+		ProfileID:       run.ProfileID,
+		JobID:           run.JobID,
+		TriggerID:       run.TriggerID,
+		SessionID:       run.SessionID,
+		TaskID:          run.TaskID,
+		TaskRunID:       run.TaskRunID,
+		LoopRunID:       run.LoopRunID,
+		FireID:          run.FireID,
+		Status:          run.Status,
+		Attempt:         run.Attempt,
+		ScheduledAt:     run.ScheduledAt,
+		StartedAt:       run.StartedAt,
+		EndedAt:         run.EndedAt,
+		Error:           run.Error,
+		DeliveryError:   run.DeliveryError,
+		DeliveryErrorAt: run.DeliveryErrorAt,
+		Metadata:        maps.Clone(run.Metadata),
 	}
 }
 

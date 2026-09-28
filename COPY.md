@@ -41,7 +41,7 @@ CompozyOS is the system around the agent, already built: it keeps AI agents work
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, memory, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, memory, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
 
 ### Product Category
 
@@ -66,9 +66,8 @@ Lead with compression, then prove it through the connected parts:
 1. **Already built:** loops, triggers, memory, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
 2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, OpenClaw, and Hermes) plug in as drivers. CompozyOS is not another boxed agent competing with them.
 3. **One runtime, one state model:** execution, tasks, loops, memory, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
-4. **Built to be built on:** extensions, hooks, skills, capabilities, bridges, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
+4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
 5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
-6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts inside the same runtime that owns their work, state, permissions, and memory.
 
 ### What CompozyOS Is Not
 
@@ -77,9 +76,7 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 - CompozyOS is not another agent or assistant. It runs the ACP-compatible agent CLIs people already use; agent neutrality is a feature line, never the headline promise.
 - CompozyOS is not a desktop shell placed over an agent CLI. The shell is one surface over a daemon-owned operating system.
 - CompozyOS is not a workflow engine. Capabilities are interpretive, not deterministic programs.
-- CompozyOS is not a federation protocol. Compozy Network is a self-contained agent coordination layer, not an organization-level trust system.
 - CompozyOS is not an MCP replacement. MCP integrates into CompozyOS.
-- CompozyOS is not an A2A replacement. Compozy Network and A2A can coexist.
 - CompozyOS does not compete on owning a wire protocol. It competes on the integrated runtime, extension surface, observability, and depth of coordination.
 
 ## 3. Message Architecture
@@ -96,14 +93,7 @@ The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + 
 
 Built to be built on.
 
-CompozyOS exposes extensions, hooks, skills, capabilities, bridges, SDKs, MCP, native tools, and structured control surfaces as parts of the operating system. Agents do not only run on the system; they can operate it through the same contracts people use.
-
-### Network Mode Naming
-
-Use **Local** and **Live** in product copy. Local is the default and creates no Network participation.
-Live is explicit, channel-scoped, and finitely bounded. Configuration can make Live available, but
-availability never opts an execution in. In code and structured payloads, preserve the canonical
-`local` and `live` values and the stored `network-participation/v1` version atom.
+CompozyOS exposes extensions, hooks, skills, capabilities, SDKs, MCP, native tools, and structured control surfaces as parts of the operating system. Agents do not only run on the system; they can operate it through the same contracts people use.
 
 ### Proof Pillars
 
@@ -116,15 +106,13 @@ Every major copy surface should draw from one or more proof pillars.
 | Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.                | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                                         |
 | Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.      | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.                    |
 | Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                    | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                                   |
-| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, bridge adapters, SDKs, and tool registry.             |
+| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, SDKs, and tool registry.                              |
 | Memory            | Memory is typed, scoped, file-backed, and inspectable.                                  | `compozy memory` commands, memory taxonomy, operation history, health.                                         |
-| Compozy Network   | Explicitly Live agents exchange typed envelopes and collect receipts.                   | Local/Live controls, `compozy network` commands, message kinds, commit-first delivery, audit trail.            |
 
 ### Feature Priority by Surface
 
-- **Homepage:** the compression promise first (advanced agent work, no stack to assemble), built-in capability proof second (create, automate, supervise), agent neutrality and extensibility third, and Compozy Network as the unique subsystem within that system. Architecture appears only as a why-it-holds caption.
+- **Homepage:** the compression promise first (advanced agent work, no stack to assemble), built-in capability proof second (create, automate, supervise), agent neutrality and extensibility third. Architecture appears only as a why-it-holds caption.
 - **Runtime docs:** the reader's problem first, architecture second.
-- **Protocol docs:** Compozy Network value and adoption path first, wire mechanics second; never promote the subsystem into the whole product category.
 - **Web UI:** truthful state and the person's next action first, marketing language last.
 - **CLI help:** exact verb behavior first, product narrative only when it clarifies intent.
 - **Changelog:** merged behavior and breaking changes first, no aspirational roadmap.
@@ -136,7 +124,6 @@ Every major copy surface should draw from one or more proof pillars.
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | Developers and technical operators running agent work | Get advanced, continuous agent work (loops, automation, approvals) without assembling the stack around the agent. | A clear install path, a first Loop or automation that works, visible session state; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
 | Agent/runtime developers                              | Understand extension points and daemon contracts.                                                                 | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                                           | `Build an extension`, `Read the Host API`, `View the tool registry`. |
-| Protocol implementers                                 | Implement or inspect `compozy-network/v0` outside CompozyOS.                                                      | Envelope shape, message kinds, trust model, conformance guidance.                                                               | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
 | Contributors                                          | Work safely in the repo and preserve product semantics.                                                           | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                                        | `Read the contributor path`, `Run the verification gate`.            |
 | Evaluators                                            | Decide whether CompozyOS is different from local CLIs, harnesses, MCP, A2A, and workflow engines.                 | Sharp positioning, named constraints, honest maturity, sourced comparison.                                                      | `Compare the runtime`, `See what ships today`.                       |
 
@@ -158,7 +145,7 @@ CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plai
 - Plain, not vague.
 - Confident, not inflated.
 - Person-first: speak to the person whose work the agents are doing, never to an abstract "user," and never through protocol jargon. Today that person is a developer or technical operator; keep the language plain anyway.
-- Product-led: CompozyOS and Compozy Network are usually the subject.
+- Product-led: CompozyOS is usually the subject.
 
 ### Style Rules
 
@@ -170,7 +157,7 @@ CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plai
 - Use second person in docs and how-to copy when it helps the reader act.
 - **Second person is the default in UI microcopy, onboarding, empty states, and approvals.** These surfaces are talking to the person whose work is running; `you` is the plain choice there, not a sales device.
 - Use `you` sparingly in marketing. It should sharpen the reader's job, not turn every line into sales copy. The sparing rule is marketing-scoped and does not reach the UI surfaces above.
-- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `CompozyOS does...`, `Compozy Network gives...`, `The runtime keeps...`.
+- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `CompozyOS does...`, `The runtime keeps...`.
 - No emoji, exclamation marks, or hype punctuation.
 - No fake urgency.
 - No fabricated testimonials, logos, stats, benchmarks, or maturity claims.
@@ -194,12 +181,10 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 ### Product Names
 
-| Term                 | Use                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompozyOS`          | The public product name in prose, UI, package descriptions, calls to action, and formal category language. It names the complete system: runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination. |
-| `compozy`            | The CLI command and technical identifier family. Keep the binary, `COMPOZY_*` environment variables, module path, `@compozy/*` packages, formula, sockets, config paths, and `compozy__*` tool IDs unchanged.                                     |
-| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                                                                                          |
-| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                                                                                  |
+| Term        | Use                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompozyOS` | The public product name in prose, UI, package descriptions, calls to action, and formal category language. It names the complete system: runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination. |
+| `compozy`   | The CLI command and technical identifier family. Keep the binary, `COMPOZY_*` environment variables, module path, `@compozy/*` packages, formula, sockets, config paths, and `compozy__*` tool IDs unchanged.                                     |
 
 ### Canonical Example Trio
 
@@ -241,12 +226,10 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `toolset`: grouped exposure or policy set for tools.
 - `hook`: typed lifecycle dispatch. Do not call hooks a generic event bus.
 - `extension`: package that can provide resources, capabilities, and Host API actions.
-- `bridge`: external messaging/platform adapter. Do not use `channel` for Slack/Discord/etc. adapters.
-- `channel`: Compozy Network namespace or coordination channel, not a generic adapter.
 
 ### Surface Aliases
 
-Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. The mechanism is the same one Network Mode Naming already uses for Local and Live (see §3): **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
+Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
 
 Three rules bind every row:
 
@@ -254,26 +237,22 @@ Three rules bind every row:
 - An alias never appears in code, wire payloads, CLI verbs, config keys, or generated references.
 - An alias must clear the reservations in `docs/_memory/glossary.md` before it lands. This table is mirrored there under Surface Names; the two must be edited together.
 
-`Sandbox` and `Bridges` keep those names on every end-user surface. Do not alias them to Permissions or Connections.
-
-| Canonical                                     | UI surface alias                     | Notes                                                                                                                                                                                                                                                |
-| --------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daemon`                                      | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. The word stays canonical in this file, the glossary, and runtime docs.                                                                                                                                                |
-| `workspace`                                   | "project"                            | Alias may NOT be "environment" — reserved for process-level variables and operating-system context.                                                                                                                                                  |
-| `bridge`                                      | keep                                 | The product surface is Bridges. Do not alias to "connection" or "Connections". Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter.                                                                              |
-| `event ledger`                                | "history"                            | Use only where the implementation actually exposes the event trail.                                                                                                                                                                                  |
-| `tool registry` / `toolset`                   | "what agents are allowed to do"      | A descriptive gloss, not a label swap. The registry keeps its name in every other surface.                                                                                                                                                           |
-| `sandbox`                                     | keep                                 | The product surface is Sandbox. Do not alias to "Permissions". Permissions remains a nested concept (extension `permissions.requires`, `[permissions] mode` in `config.toml`, and sandbox permission policy) and must not replace this surface name. |
-| `control surface`                             | — drop from UI                       | Internal vocabulary. It stays the runtime term in specs and docs, and never reaches an end-user label.                                                                                                                                               |
-| `capability`                                  | keep + define on first use           | Wire identity `(peer_id, capability_id)` is unchanged. Forbidden synonyms (`recipe`, `procedure`, `playbook`) stay forbidden everywhere.                                                                                                             |
-| `session`                                     | keep + gloss on first use            | Already everyday English; it earns a gloss, not an alias.                                                                                                                                                                                            |
-| `terminal`                                    | "Terminal"                           | First-class product surface. Never label it "console" or "shell pane".                                                                                                                                                                               |
-| `Loop`                                        | — pending owner decision             | Do not alias. `workflow` is no longer a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off in the glossary. No alias until the owner decides.                                                         |
-| `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision             | Do not rename. Dock titles stay as they are until the owner decides.                                                                                                                                                                                 |
-| settings group `Operator`                     | "Personal"                           | Group label only.                                                                                                                                                                                                                                    |
-| settings section `Observability`              | "Diagnostics"                        | Section label only.                                                                                                                                                                                                                                  |
-| settings section `Attention`                  | "Notifications"                      | Section label only.                                                                                                                                                                                                                                  |
-| settings section `Gateway`                    | "Remote access"                      | Section label only.                                                                                                                                                                                                                                  |
+| Canonical                         | UI surface alias                     | Notes                                                                                                                                                                                        |
+| --------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `daemon`                          | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. The word stays canonical in this file, the glossary, and runtime docs.                                                                                        |
+| `workspace`                       | "project"                            | Alias may NOT be "environment" — reserved for process-level variables and operating-system context.                                                                                          |
+| `event ledger`                    | "history"                            | Use only where the implementation actually exposes the event trail.                                                                                                                          |
+| `tool registry` / `toolset`       | "what agents are allowed to do"      | A descriptive gloss, not a label swap. The registry keeps its name in every other surface.                                                                                                   |
+| `control surface`                 | — drop from UI                       | Internal vocabulary. It stays the runtime term in specs and docs, and never reaches an end-user label.                                                                                       |
+| `capability`                      | keep + define on first use           | Wire identity `(peer_id, capability_id)` is unchanged. Forbidden synonyms (`recipe`, `procedure`, `playbook`) stay forbidden everywhere.                                                     |
+| `session`                         | keep + gloss on first use            | Already everyday English; it earns a gloss, not an alias.                                                                                                                                    |
+| `terminal`                        | "Terminal"                           | First-class product surface. Never label it "console" or "shell pane".                                                                                                                       |
+| `Loop`                            | — pending owner decision             | Do not alias. `workflow` is no longer a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off in the glossary. No alias until the owner decides. |
+| `Jobs` / `Triggers` (dock titles) | — pending owner decision             | Do not rename. Dock titles stay as they are until the owner decides.                                                                                                                         |
+| settings group `Operator`         | "Personal"                           | Group label only.                                                                                                                                                                            |
+| settings section `Observability`  | "Diagnostics"                        | Section label only.                                                                                                                                                                          |
+| settings section `Attention`      | "Notifications"                      | Section label only.                                                                                                                                                                          |
+| settings section `Gateway`        | "Remote access"                      | Section label only.                                                                                                                                                                          |
 
 `Roles`, `Hooks`, and `Extensions` keep their names — they are glossary terms that already read plainly.
 
@@ -379,7 +358,6 @@ Examples:
 
 - Supported agent count must match provider/runtime truth.
 - Tool count must match the current registry or release snapshot.
-- Message-kind count must match `compozy-network/v0`.
 - Platform support must distinguish live, alpha, next, and planned.
 
 ### Words That Need Care
@@ -404,7 +382,6 @@ Use:
 - the compression promise first, then proof that loops, triggers, memory, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
 - agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes).
 - extensibility as the next criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
-- Compozy Network as the unique subsystem inside the complete system, not as the whole-product lead.
 - architecture only as a why-it-holds caption ("one runtime, one state model"), never a section lead.
 - install path as primary conversion.
 - concrete signal cards only when the numbers are current.
@@ -414,7 +391,6 @@ Avoid:
 - leading with ACP, JSON-RPC, stdio, UDS, SQLite, delivery internals, or package names.
 - leading with architecture, OS purity, or category tests.
 - centralization framing ("one workspace", "all your agents in one place") as the promise.
-- making runtime and network sound like two unrelated products.
 - generic "agent OS" claims without proof.
 
 ### Runtime Docs
@@ -432,21 +408,6 @@ Avoid:
 - paraphrasing generated references.
 - burying user action under implementation internals.
 - describing planned features as current behavior.
-
-### Protocol Docs
-
-Goal: help implementers understand `compozy-network/v0` without adopting CompozyOS internals.
-
-Use:
-
-- `Compozy Network` for the concept.
-- `compozy-network/v0` for protocol/version.
-- message kinds, envelope behavior, trust profile, conformance, and examples.
-
-Avoid:
-
-- implying CompozyOS ownership is required to implement the protocol.
-- confusing MCP, A2A, and Compozy Network roles.
 
 ### Blog / Launch Posts
 
@@ -553,8 +514,7 @@ CompozyOS is the system around the agent, already built: it keeps AI agents work
 ### Hero
 
 Use the Hero Lock in §2 verbatim across the landing and launch surfaces. Keep the subhead adjacent
-to the headline, keep the category label small, and never let architecture, centralization, or
-Compozy Network stand in for the promise.
+to the headline, keep the category label small, and never let architecture, centralization, stand in for the promise.
 
 ### Feature Card
 
@@ -570,9 +530,9 @@ Optional cite: <doc/source path>
 Good:
 
 ```text
-Eyebrow: Network
-Title: Delegate across peers
-Description: Sessions discover peers, send typed envelopes, and close work with receipts through compozy-network/v0.
+Eyebrow: Tasks
+Title: Hand off work with evidence
+Description: Task runs retain ownership, review decisions, and the evidence needed for the next step.
 ```
 
 Weak:
@@ -629,10 +589,8 @@ Prefer:
 
 - `Install the runtime`
 - `Start the daemon`
-- `Read the compozy-network/v0 spec`
 - `Open the runtime docs`
 - `Create a session`
-- `View peers`
 - `Send a message`
 - `Build an extension`
 - `Inspect events`
@@ -704,7 +662,6 @@ Known drift to watch for:
 - the retired hero resurfacing anywhere: "The only true OS for AI agents", the OS-test definition, "an agent operating system for real work", "a local-first operating system for agent work", or "gives agent work a durable place to live" in metadata, OG images, docs intros, or package descriptions.
 - architecture climbing into headline slots: "one runtime, one state model" or OS-purity tests as a promise instead of a why-it-holds caption.
 - centralization framing returning: "one workspace", "all your agents in one place".
-- `Compozy Network` or "runtime with a network built in" phrasing standing in for the integrated CompozyOS category.
 - `capability` vs old `recipe`, `workflow`, `procedure`, or `playbook` language.
 - runtime behavior that moved from planned to shipped or from spec to deleted.
 - register and audience collapsing into one claim: plain register is required on every end-user surface today, while serving people who don't write code is still vision. A plainly written surface is not evidence the workflow reaches them, and a technical workflow is not permission to write a surface obscurely.
@@ -718,7 +675,7 @@ Use these as task-local prompts after reading the target files.
 ### Rewrite a Homepage Hero
 
 ```text
-Use COPY.md and DESIGN.md. Use the §2 Hero Lock verbatim; do not invent or relock the headline or subhead. Lead with the compression promise, prove the built-ins (create, automate, supervise) with current runtime evidence, keep architecture as a why-it-holds caption, and keep Compozy Network in its subsystem role. Primary CTA installs or starts the runtime; the secondary CTA points to the strongest supporting proof.
+Use COPY.md and DESIGN.md. Use the §2 Hero Lock verbatim; do not invent or relock the headline or subhead. Lead with the compression promise, prove the built-ins (create, automate, supervise) with current runtime evidence, keep architecture as a why-it-holds caption. Primary CTA installs or starts the runtime; the secondary CTA points to the strongest supporting proof.
 ```
 
 ### Write a Docs Intro
@@ -756,8 +713,8 @@ Check runtime truth, glossary vocabulary, claim maturity, CTA specificity, forbi
 Before shipping copy or product-facing text, verify:
 
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
-- The copy uses `CompozyOS`, `compozy`, `Compozy Network`, and `compozy-network/v0` correctly.
-- Glossary terms are applied, especially `capability`, `skill`, `bridge`, `channel`, `AGENT.md`, and `AGENTS.md`.
+- The copy uses `CompozyOS` and `compozy` correctly.
+- Glossary terms are applied, especially `capability`, `skill`, `AGENT.md`, and `AGENTS.md`.
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
@@ -782,7 +739,6 @@ Update `COPY.md` when:
 - a public feature moves between planned, partial, alpha, shipped, or deprecated
 - canonical vocabulary changes
 - homepage hero or product one-liner changes
-- Compozy Network protocol naming changes
 - the canonical example trio of agent CLIs needs to change
 - generated CLI/API surfaces change in a way that affects public docs or examples
 - a review finds repeated copy drift across surfaces

@@ -83,7 +83,7 @@ export const Split: Story = {
           side={
             <FormSection title="Session defaults">
               <Placeholder label="Default agent" />
-              <Placeholder label="Sandbox profile" />
+              <Placeholder label="Agent profile" />
             </FormSection>
           }
           variant="split"

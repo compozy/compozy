@@ -3,8 +3,7 @@
 // admits only the same-origin terminal socket.
 // Owning layer: browser OS shell. Canonical suite: this terminal E2E file.
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { chmod, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -17,14 +16,9 @@ import {
   focusWindowThroughPalette,
   openAppWindow,
   setGlobalScope,
-  switchWorkspace,
   windowFrame,
 } from "../fixtures/os-navigation";
-import {
-  seedBrowserSandboxProfiles,
-  type BrowserRuntime,
-  type RuntimePaths,
-} from "../fixtures/runtime";
+import { type BrowserRuntime, type RuntimePaths } from "../fixtures/runtime";
 import {
   closeTerminalWatchers,
   connectTerminalWatcher,
@@ -988,47 +982,6 @@ test("E2E-011: two CLI attachments share input, detach, and deliver single SIGQU
   expect(exited.code).toBe(65);
   expect(exited.stderr).toContain("terminal_exited");
   expect(exited.stderr).toMatch(/exited|signaled/u);
-});
-
-test("E2E-012: a sandbox project hides interactive controls but still executes", async ({
-  appPage,
-  runtime,
-}) => {
-  assertLaunchRuntime(runtime);
-  const sandboxProfile = "terminal-execute-only";
-  await seedBrowserSandboxProfiles(runtime, [
-    {
-      name: sandboxProfile,
-      profile: { backend: "local", persistence: "reuse", sync_mode: "none" },
-    },
-  ]);
-  const sandboxRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-terminal-sandbox-"));
-  const workspace = await runtime.resolveWorkspace(sandboxRoot);
-  await runtime.requestJSON(`/api/workspaces/${encodeURIComponent(workspace.id)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ sandbox_ref: sandboxProfile }),
-  });
-  await ensureProjectWorkspace(appPage, runtime);
-  await switchWorkspace(appPage, workspace.id, workspace.name);
-
-  const window = await openAppWindow(appPage, "Terminal", "terminal");
-  await expect(window.getByTestId("terminal-execute-only")).toBeVisible();
-  await expect(window.getByTestId("terminal-empty-open")).toHaveCount(0);
-  await expect(window.getByTestId("terminal-new")).toHaveCount(0);
-
-  const execution = await runTerminalCLI<{ exit_code: number; output: string }>(runtime.paths, [
-    "exec",
-    "--workspace",
-    workspace.id,
-    "--yield",
-    "5s",
-    "-o",
-    "json",
-    "--",
-    "printf",
-    "sandbox-exec-output\\n",
-  ]);
-  expect(execution).toMatchObject({ exit_code: 0, output: "sandbox-exec-output\n" });
 });
 
 test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores primary", async ({

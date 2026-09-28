@@ -98,42 +98,6 @@ export interface SessionWindowSelectors {
   userMessageAttachmentGallery: Locator;
 }
 
-export const networkOperatorTestIds = {
-  osDesktop: sessionLifecycleTestIds.osDesktop,
-  channelNameInput: "network-channel-name-input",
-  channelHeader: "network-channel-header",
-  channelIdentityMix: "network-channel-identity-mix",
-  channelInspectorToggle: "network-channel-inspector-toggle",
-  channelTabs: "network-channel-tabs",
-  createDialog: "network-create-channel-dialog",
-  createSubmit: "network-create-channel-submit",
-  createAgentTrigger: "network-create-channel-agent-trigger",
-  channelPurposeInput: "network-channel-purpose-input",
-  disabledState: "network-disabled-state",
-  directList: "network-direct-list",
-  directRoom: "network-direct-room",
-  directsTab: "network-directs-tab",
-  directTab: "network-tab-directs",
-  activityFeed: "network-activity-feed",
-  inspectorToggle: "network-channel-inspector-toggle",
-  messageList: "network-timeline",
-  inspector: "network-inspector",
-  inspectorMembersTab: "network-inspector-tab-members",
-  inspectorPanelMembers: "network-inspector-panel-members",
-  inspectorPanelWork: "network-inspector-panel-work",
-  inspectorWorkTab: "network-inspector-tab-work",
-  noChannelsState: "network-no-channels-state",
-  newDirectButton: "network-directs-new-direct",
-  newDirectDialog: "network-new-direct-dialog",
-  openCreateDialog: "network-open-create-dialog",
-  workInspector: "network-work-inspector",
-  threadList: "network-thread-list",
-  threadOverlay: "network-thread-overlay",
-  threadsTab: "network-threads-tab",
-  threadTab: "network-tab-threads",
-  workspace: "network-shell",
-} as const;
-
 export const automationOperatorTestIds = {
   osDesktop: sessionLifecycleTestIds.osDesktop,
   automationDetailPanel: "automation-detail-panel",
@@ -190,51 +154,6 @@ export const automationOperatorTestIds = {
   editTriggerButton: "edit-trigger-btn",
 } as const;
 
-export const bridgeOperatorTestIds = {
-  osDesktop: sessionLifecycleTestIds.osDesktop,
-  bridgeCreateDialog: "bridge-create-dialog",
-  bridgeDetailPanel: "bridge-detail-panel",
-  bridgeEditDialog: "bridge-edit-dialog",
-  bridgeListFiltersAdd: "bridge-list-filters-add",
-  bridgeListPanel: "bridge-list-panel",
-  bridgeManifestHandoff: "bridge-manifest-handoff",
-  bridgeManifestJson: "bridge-manifest-json",
-  bridgeManifestOpenBridge: "bridge-manifest-open-bridge",
-  bridgeMetricActiveRoutes: "bridge-metric-active-routes",
-  bridgeRestartRequired: "bridge-restart-required",
-  bridgeDeliveryTestPanel: "bridge-delivery-test-panel",
-  bridgeSendTestResult: "bridge-send-test-result",
-  bridgeSetupChecklist: "bridge-setup-checklist",
-  bridgeSearchInput: "bridge-search-input",
-  bridgeTestDeliveryResult: "bridge-test-delivery-result",
-  createBridgeDeliveryModeSelect: "bridge-delivery-mode-select",
-  createBridgeDeliveryPeerInput: "bridge-delivery-peer-input",
-  createBridgeDeliveryThreadInput: "bridge-delivery-thread-input",
-  createBridgeDisplayNameInput: "bridge-display-name-input",
-  createBridgeProviderConfigInput: "bridge-provider-config-input",
-  createBridgeProviderConfigError: "bridge-provider-config-error",
-  createBridgeModeAdvanced: "bridge-create-mode-advanced",
-  createBridgeRoutingIncludePeer: "bridge-routing-include-peer",
-  createBridgeRoutingIncludeThread: "bridge-routing-include-thread",
-  createBridgeButton: "create-bridge-btn",
-  detailOverflow: "bridge-detail-overflow",
-  disableBridgeButton: "disable-bridge-btn",
-  editBridgeButton: "edit-bridge-btn",
-  enableBridgeButton: "enable-bridge-btn",
-  bridgeEditModeAdvanced: "bridge-edit-mode-advanced",
-  openTestDeliveryButton: "open-test-delivery-btn",
-  restartBridgeButton: "restart-bridge-btn",
-  submitBridgeEdit: "submit-bridge-edit",
-  submitBridgeCreate: "submit-bridge-create",
-  submitSendTest: "submit-send-test",
-  submitTestDelivery: "submit-test-delivery",
-  testDeliveryMessage: "test-delivery-message",
-  testDeliveryModeSelect: "test-delivery-mode-select",
-  testDeliveryPeerInput: "test-delivery-peer-input",
-  testDeliveryThreadInput: "test-delivery-thread-input",
-  verifyBridgeButton: "verify-bridge-btn",
-} as const;
-
 export const knowledgeOperatorTestIds = {
   osDesktop: sessionLifecycleTestIds.osDesktop,
   cancelCreateMemory: "cancel-create-memory-btn",
@@ -274,10 +193,6 @@ export const marketplaceOperatorTestIds = {
   extensionSkippedComponents: "extension-skipped-components",
   extensionSkippedRow: "extension-skipped-row",
   extensionSkippedZeroResources: "extension-skipped-zero-resources",
-  extensionNetworkConfirmAccept: "extension-network-confirm-accept",
-  extensionNetworkConfirmDialog: "extension-network-confirm-dialog",
-  extensionNetworkConfirmDigest: "extension-network-confirm-digest",
-  extensionNetworkConsent: "extension-network-consent",
   extensionInstallAllowUnverified: "extension-install-allow-unverified",
   extensionInstallDialog: "extension-install-dialog",
   extensionInstallError: "extension-install-error",
@@ -298,74 +213,6 @@ export const marketplaceOperatorTestIds = {
   grid: "marketplace-grid",
   refresh: "marketplace-refresh",
 } as const;
-
-export const sandboxOperatorTestIds = {
-  actionResult: "sandbox-page-action-result",
-  actionResultDismiss: "sandbox-page-action-result-dismiss",
-  osDesktop: sessionLifecycleTestIds.osDesktop,
-  createButton: "sandbox-page-create",
-  deleteConfirm: "settings-sandboxes-delete-confirm",
-  deleteDialog: "settings-sandboxes-delete",
-  deleteUsage: "sandbox-delete-usage",
-  editor: "settings-sandbox-editor",
-  editorAdvancedMode: "sandbox-editor-mode-advanced",
-  editorBackendLocal: "sandbox-editor-backend-local",
-  editorError: "settings-sandbox-editor-error",
-  editorNameInput: "sandbox-editor-name",
-  editorPersistenceInput: "sandbox-editor-persistence",
-  editorRuntimeRootInput: "sandbox-editor-runtime-root",
-  editorSave: "settings-sandbox-editor-save",
-  editorSyncModeInput: "sandbox-editor-sync-mode",
-  empty: "sandbox-page-empty",
-  list: "sandbox-page-list",
-  restartNotice: "settings-page-sandbox-restart-notice",
-  shell: "sandbox-shell",
-  total: "sandbox-page-total",
-  workspaceReferences: "sandbox-page-workspaces",
-} as const;
-
-export interface NetworkOperatorSelectors {
-  osDesktop: Locator;
-  agentOption(agentName: string): Locator;
-  channelItem(channelName: string): Locator;
-  channelMessage(messageId: string): Locator;
-  channelNameInput: Locator;
-  channelHeader: Locator;
-  channelIdentityMix: Locator;
-  channelInspectorToggle: Locator;
-  channelTabs: Locator;
-  createDialog: Locator;
-  createAgentTrigger: Locator;
-  createSubmit: Locator;
-  channelPurposeInput: Locator;
-  disabledState: Locator;
-  activityFeed: Locator;
-  directItem(directId: string): Locator;
-  directList: Locator;
-  directRoom: Locator;
-  directsTab: Locator;
-  directTab: Locator;
-  inspectorToggle: Locator;
-  messageList: Locator;
-  inspector: Locator;
-  inspectorMembersTab: Locator;
-  inspectorPanelMembers: Locator;
-  inspectorPanelWork: Locator;
-  inspectorWorkTab: Locator;
-  noChannelsState: Locator;
-  newDirectButton: Locator;
-  newDirectDialog: Locator;
-  newDirectPeer(peerId: string): Locator;
-  openCreateDialog: Locator;
-  workInspector: Locator;
-  workInspectorRow(workId: string): Locator;
-  threadItem(threadId: string): Locator;
-  threadList: Locator;
-  threadOverlay: Locator;
-  threadsTab: Locator;
-  threadTab: Locator;
-  workspace: Locator;
-}
 
 export interface AutomationOperatorSelectors {
   osDesktop: Locator;
@@ -436,63 +283,6 @@ export interface AutomationOperatorSelectors {
   runOpenLink(runId: string): Locator;
 }
 
-export interface BridgeOperatorSelectors {
-  activeRoutesMetric: Locator;
-  osDesktop: Locator;
-  backToList: Locator;
-  createBridgeButton: Locator;
-  createDialog: Locator;
-  createDeliveryModeSelect: Locator;
-  createDeliveryPeerInput: Locator;
-  createDeliveryThreadInput: Locator;
-  createDisplayNameInput: Locator;
-  createProviderConfigError: Locator;
-  createProviderConfigInput: Locator;
-  createModeAdvanced: Locator;
-  createRoutingIncludePeer: Locator;
-  createRoutingIncludeThread: Locator;
-  deleteSecret(bindingName: string): Locator;
-  detailPanel: Locator;
-  detailOverflow: Locator;
-  disableBridgeButton: Locator;
-  editBridgeButton: Locator;
-  editDialog: Locator;
-  editDisplayNameInput: Locator;
-  editProviderConfigInput: Locator;
-  enableBridgeButton: Locator;
-  item(id: string): Locator;
-  addListFilter: Locator;
-  listPanel: Locator;
-  manifestHandoff: Locator;
-  manifestJson: Locator;
-  manifestOpenBridge: Locator;
-  editModeAdvanced: Locator;
-  openTestDeliveryButton: Locator;
-  providerCard(providerKey: string): Locator;
-  restartBridgeButton: Locator;
-  restartRequired: Locator;
-  route(sessionId: string): Locator;
-  saveSecret(bindingName: string): Locator;
-  searchInput: Locator;
-  secretBinding(bindingName: string): Locator;
-  secretCheck(bindingName: string, check: string): Locator;
-  secretEnvInput(bindingName: string): Locator;
-  deliveryTestPanel: Locator;
-  sendTestResult: Locator;
-  setupChecklist: Locator;
-  setupItem(id: string): Locator;
-  submitBridgeCreate: Locator;
-  submitBridgeEdit: Locator;
-  submitSendTest: Locator;
-  submitTestDelivery: Locator;
-  testDeliveryMessage: Locator;
-  testDeliveryModeSelect: Locator;
-  testDeliveryPeerInput: Locator;
-  testDeliveryResult: Locator;
-  testDeliveryThreadInput: Locator;
-  verifyBridgeButton: Locator;
-}
-
 export interface KnowledgeOperatorSelectors {
   osDesktop: Locator;
   cancelCreateMemory: Locator;
@@ -549,10 +339,6 @@ export interface MarketplaceOperatorSelectors {
   extensionSkippedComponents: Locator;
   extensionSkippedRow: Locator;
   extensionSkippedZeroResources: Locator;
-  extensionNetworkConfirmAccept: Locator;
-  extensionNetworkConfirmDialog: Locator;
-  extensionNetworkConfirmDigest: Locator;
-  extensionNetworkConsent: Locator;
   card(entryId: string): Locator;
   detail: Locator;
   detailAction: Locator;
@@ -560,37 +346,6 @@ export interface MarketplaceOperatorSelectors {
   extensionTrustDialog: Locator;
   grid: Locator;
   refresh: Locator;
-}
-
-export interface SandboxOperatorSelectors {
-  actionResult: Locator;
-  actionResultDismiss: Locator;
-  osDesktop: Locator;
-  createButton: Locator;
-  deleteConfirm: Locator;
-  deleteDialog: Locator;
-  deleteProfile(name: string): Locator;
-  deleteUsage: Locator;
-  editProfile(name: string): Locator;
-  editor: Locator;
-  editorAdvancedMode: Locator;
-  editorBackendLocal: Locator;
-  editorError: Locator;
-  editorNameInput: Locator;
-  editorPersistenceInput: Locator;
-  editorRuntimeRootInput: Locator;
-  editorSave: Locator;
-  editorSyncModeInput: Locator;
-  empty: Locator;
-  list: Locator;
-  profile(name: string): Locator;
-  profileMetadata(name: string): Locator;
-  profileSource(name: string): Locator;
-  profileUsage(name: string): Locator;
-  restartNotice: Locator;
-  shell: Locator;
-  total: Locator;
-  workspaceReferences: Locator;
 }
 
 export const settingsShellTestIds = {
@@ -1153,56 +908,6 @@ export function sessionWorkspaceSwitchSelectors(
   };
 }
 
-export function networkOperatorSelectors(
-  page: Pick<Page, "getByTestId" | "locator">
-): NetworkOperatorSelectors {
-  return {
-    osDesktop: page.getByTestId(networkOperatorTestIds.osDesktop),
-    agentOption: (agentName: string) => page.getByTestId(`network-agent-option-${agentName}`),
-    channelItem: (channelName: string) => page.getByTestId(`network-channel-row-${channelName}`),
-    channelMessage: (messageId: string) =>
-      page.locator(
-        `[data-testid="network-message-row-full"][data-message-id="${messageId}"], [data-testid="network-message-row-collapsed"][data-message-id="${messageId}"], [data-testid="network-message-row-system"][data-message-id="${messageId}"]`
-      ),
-    channelNameInput: page.getByTestId(networkOperatorTestIds.channelNameInput),
-    channelHeader: page.getByTestId(networkOperatorTestIds.channelHeader),
-    channelIdentityMix: page.getByTestId(networkOperatorTestIds.channelIdentityMix),
-    channelInspectorToggle: page.getByTestId(networkOperatorTestIds.channelInspectorToggle),
-    channelTabs: page.getByTestId(networkOperatorTestIds.channelTabs),
-    createDialog: page.getByTestId(networkOperatorTestIds.createDialog),
-    createAgentTrigger: page.getByTestId(networkOperatorTestIds.createAgentTrigger),
-    createSubmit: page.getByTestId(networkOperatorTestIds.createSubmit),
-    channelPurposeInput: page.getByTestId(networkOperatorTestIds.channelPurposeInput),
-    disabledState: page.getByTestId(networkOperatorTestIds.disabledState),
-    activityFeed: page.getByTestId(networkOperatorTestIds.activityFeed),
-    directItem: (directId: string) => page.getByTestId(`network-direct-list-row-${directId}`),
-    directList: page.getByTestId(networkOperatorTestIds.directList),
-    directRoom: page.getByTestId(networkOperatorTestIds.directRoom),
-    directsTab: page.getByTestId(networkOperatorTestIds.directsTab),
-    directTab: page.getByTestId(networkOperatorTestIds.directTab),
-    inspectorToggle: page.getByTestId(networkOperatorTestIds.inspectorToggle),
-    messageList: page.getByTestId(networkOperatorTestIds.messageList),
-    inspector: page.getByTestId(networkOperatorTestIds.inspector),
-    inspectorMembersTab: page.getByTestId(networkOperatorTestIds.inspectorMembersTab),
-    inspectorPanelMembers: page.getByTestId(networkOperatorTestIds.inspectorPanelMembers),
-    inspectorPanelWork: page.getByTestId(networkOperatorTestIds.inspectorPanelWork),
-    inspectorWorkTab: page.getByTestId(networkOperatorTestIds.inspectorWorkTab),
-    noChannelsState: page.getByTestId(networkOperatorTestIds.noChannelsState),
-    newDirectButton: page.getByTestId(networkOperatorTestIds.newDirectButton),
-    newDirectDialog: page.getByTestId(networkOperatorTestIds.newDirectDialog),
-    newDirectPeer: (peerId: string) => page.getByTestId(`network-new-direct-peer-${peerId}`),
-    openCreateDialog: page.getByTestId(networkOperatorTestIds.openCreateDialog),
-    workInspector: page.getByTestId(networkOperatorTestIds.workInspector),
-    workInspectorRow: (workId: string) => page.getByTestId(`network-work-inspector-row-${workId}`),
-    threadItem: (threadId: string) => page.getByTestId(`network-thread-list-row-${threadId}`),
-    threadList: page.getByTestId(networkOperatorTestIds.threadList),
-    threadOverlay: page.getByTestId(networkOperatorTestIds.threadOverlay),
-    threadsTab: page.getByTestId(networkOperatorTestIds.threadsTab),
-    threadTab: page.getByTestId(networkOperatorTestIds.threadTab),
-    workspace: page.getByTestId(networkOperatorTestIds.workspace),
-  };
-}
-
 export function knowledgeOperatorSelectors(
   page: Pick<Page, "getByTestId">,
   portalRoot: Pick<Page, "getByTestId"> = page
@@ -1264,16 +969,6 @@ export function marketplaceOperatorSelectors(
     extensionSkippedZeroResources: page.getByTestId(
       marketplaceOperatorTestIds.extensionSkippedZeroResources
     ),
-    extensionNetworkConfirmAccept: page.getByTestId(
-      marketplaceOperatorTestIds.extensionNetworkConfirmAccept
-    ),
-    extensionNetworkConfirmDialog: page.getByTestId(
-      marketplaceOperatorTestIds.extensionNetworkConfirmDialog
-    ),
-    extensionNetworkConfirmDigest: page.getByTestId(
-      marketplaceOperatorTestIds.extensionNetworkConfirmDigest
-    ),
-    extensionNetworkConsent: page.getByTestId(marketplaceOperatorTestIds.extensionNetworkConsent),
     card: (entryId: string) => page.getByTestId(`marketplace-card-${entryId}`),
     detail: page.getByTestId(marketplaceOperatorTestIds.detail),
     extensionDevBadge: page.getByTestId(marketplaceOperatorTestIds.extensionDevBadge),
@@ -1300,41 +995,6 @@ export function marketplaceOperatorSelectors(
     extensionTrustDialog: page.getByTestId(marketplaceOperatorTestIds.extensionTrustDialog),
     grid: page.getByTestId(marketplaceOperatorTestIds.grid),
     refresh: page.getByTestId(marketplaceOperatorTestIds.refresh),
-  };
-}
-
-export function sandboxOperatorSelectors(
-  page: Pick<Page, "getByTestId">
-): SandboxOperatorSelectors {
-  return {
-    actionResult: page.getByTestId(sandboxOperatorTestIds.actionResult),
-    actionResultDismiss: page.getByTestId(sandboxOperatorTestIds.actionResultDismiss),
-    osDesktop: page.getByTestId(sandboxOperatorTestIds.osDesktop),
-    createButton: page.getByTestId(sandboxOperatorTestIds.createButton),
-    deleteConfirm: page.getByTestId(sandboxOperatorTestIds.deleteConfirm),
-    deleteDialog: page.getByTestId(sandboxOperatorTestIds.deleteDialog),
-    deleteProfile: (name: string) => page.getByTestId(`sandbox-page-card-${name}-delete`),
-    deleteUsage: page.getByTestId(sandboxOperatorTestIds.deleteUsage),
-    editProfile: (name: string) => page.getByTestId(`sandbox-page-card-${name}-edit`),
-    editor: page.getByTestId(sandboxOperatorTestIds.editor),
-    editorAdvancedMode: page.getByTestId(sandboxOperatorTestIds.editorAdvancedMode),
-    editorBackendLocal: page.getByTestId(sandboxOperatorTestIds.editorBackendLocal),
-    editorError: page.getByTestId(sandboxOperatorTestIds.editorError),
-    editorNameInput: page.getByTestId(sandboxOperatorTestIds.editorNameInput),
-    editorPersistenceInput: page.getByTestId(sandboxOperatorTestIds.editorPersistenceInput),
-    editorRuntimeRootInput: page.getByTestId(sandboxOperatorTestIds.editorRuntimeRootInput),
-    editorSave: page.getByTestId(sandboxOperatorTestIds.editorSave),
-    editorSyncModeInput: page.getByTestId(sandboxOperatorTestIds.editorSyncModeInput),
-    empty: page.getByTestId(sandboxOperatorTestIds.empty),
-    list: page.getByTestId(sandboxOperatorTestIds.list),
-    profile: (name: string) => page.getByTestId(`sandbox-page-card-${name}`),
-    profileMetadata: (name: string) => page.getByTestId(`sandbox-page-card-${name}-profile`),
-    profileSource: (name: string) => page.getByTestId(`sandbox-page-card-${name}-source`),
-    profileUsage: (name: string) => page.getByTestId(`sandbox-page-card-${name}-usage`),
-    restartNotice: page.getByTestId(sandboxOperatorTestIds.restartNotice),
-    shell: page.getByTestId(sandboxOperatorTestIds.shell),
-    total: page.getByTestId(sandboxOperatorTestIds.total),
-    workspaceReferences: page.getByTestId(sandboxOperatorTestIds.workspaceReferences),
   };
 }
 
@@ -1427,84 +1087,6 @@ export function automationOperatorSelectors(
     triggerInspectButton: page.getByTestId(automationOperatorTestIds.triggerInspectButton),
     triggerRailReliability: page.getByTestId(automationOperatorTestIds.triggerRailReliability),
     editTriggerButton: page.getByTestId(automationOperatorTestIds.editTriggerButton),
-  };
-}
-
-export function bridgeOperatorSelectors(
-  page: Pick<Page, "getByRole" | "getByTestId">
-): BridgeOperatorSelectors {
-  const windowPath = page.getByRole("navigation", { name: "Window path" });
-
-  return {
-    activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
-    osDesktop: page.getByTestId(bridgeOperatorTestIds.osDesktop),
-    backToList: windowPath.getByRole("button", { exact: true, name: "Bridges" }),
-    createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
-    createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
-    createDeliveryModeSelect: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeDeliveryModeSelect
-    ),
-    createDeliveryPeerInput: page.getByTestId(bridgeOperatorTestIds.createBridgeDeliveryPeerInput),
-    createDeliveryThreadInput: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeDeliveryThreadInput
-    ),
-    createDisplayNameInput: page.getByTestId(bridgeOperatorTestIds.createBridgeDisplayNameInput),
-    createProviderConfigError: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeProviderConfigError
-    ),
-    createProviderConfigInput: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeProviderConfigInput
-    ),
-    createModeAdvanced: page.getByTestId(bridgeOperatorTestIds.createBridgeModeAdvanced),
-    createRoutingIncludePeer: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeRoutingIncludePeer
-    ),
-    createRoutingIncludeThread: page.getByTestId(
-      bridgeOperatorTestIds.createBridgeRoutingIncludeThread
-    ),
-    deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
-    detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
-    detailOverflow: page.getByTestId(bridgeOperatorTestIds.detailOverflow),
-    disableBridgeButton: page.getByTestId(bridgeOperatorTestIds.disableBridgeButton),
-    editBridgeButton: page.getByTestId(bridgeOperatorTestIds.editBridgeButton),
-    editDialog: page.getByTestId(bridgeOperatorTestIds.bridgeEditDialog),
-    editDisplayNameInput: page.getByTestId("bridge-edit-display-name-input"),
-    editProviderConfigInput: page.getByTestId("bridge-edit-provider-config-input"),
-    enableBridgeButton: page.getByTestId(bridgeOperatorTestIds.enableBridgeButton),
-    item: (id: string) => page.getByTestId(`bridge-item-${id}`),
-    addListFilter: page.getByTestId(bridgeOperatorTestIds.bridgeListFiltersAdd),
-    listPanel: page.getByTestId(bridgeOperatorTestIds.bridgeListPanel),
-    manifestHandoff: page.getByTestId(bridgeOperatorTestIds.bridgeManifestHandoff),
-    manifestJson: page.getByTestId(bridgeOperatorTestIds.bridgeManifestJson),
-    manifestOpenBridge: page.getByTestId(bridgeOperatorTestIds.bridgeManifestOpenBridge),
-    editModeAdvanced: page.getByTestId(bridgeOperatorTestIds.bridgeEditModeAdvanced),
-    openTestDeliveryButton: page.getByTestId(bridgeOperatorTestIds.openTestDeliveryButton),
-    providerCard: (providerKey: string) => page.getByTestId(`bridge-provider-card-${providerKey}`),
-    restartBridgeButton: page.getByTestId(bridgeOperatorTestIds.restartBridgeButton),
-    restartRequired: page.getByTestId(bridgeOperatorTestIds.bridgeRestartRequired),
-    route: (sessionId: string) => page.getByTestId(`bridge-route-${sessionId}`),
-    saveSecret: (bindingName: string) => page.getByTestId(`save-bridge-secret-${bindingName}`),
-    searchInput: page.getByTestId(bridgeOperatorTestIds.bridgeSearchInput),
-    secretBinding: (bindingName: string) =>
-      page.getByTestId(`bridge-secret-binding-${bindingName}`),
-    secretCheck: (bindingName: string, check: string) =>
-      page.getByTestId(`bridge-secret-check-${bindingName}-${check}`),
-    secretEnvInput: (bindingName: string) =>
-      page.getByTestId(`bridge-secret-env-input-${bindingName}`),
-    deliveryTestPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDeliveryTestPanel),
-    sendTestResult: page.getByTestId(bridgeOperatorTestIds.bridgeSendTestResult),
-    setupChecklist: page.getByTestId(bridgeOperatorTestIds.bridgeSetupChecklist),
-    setupItem: (id: string) => page.getByTestId(`bridge-setup-item-${id}`),
-    submitBridgeCreate: page.getByTestId(bridgeOperatorTestIds.submitBridgeCreate),
-    submitBridgeEdit: page.getByTestId(bridgeOperatorTestIds.submitBridgeEdit),
-    submitSendTest: page.getByTestId(bridgeOperatorTestIds.submitSendTest),
-    submitTestDelivery: page.getByTestId(bridgeOperatorTestIds.submitTestDelivery),
-    testDeliveryMessage: page.getByTestId(bridgeOperatorTestIds.testDeliveryMessage),
-    testDeliveryModeSelect: page.getByTestId(bridgeOperatorTestIds.testDeliveryModeSelect),
-    testDeliveryPeerInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryPeerInput),
-    testDeliveryResult: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryResult),
-    testDeliveryThreadInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryThreadInput),
-    verifyBridgeButton: page.getByTestId(bridgeOperatorTestIds.verifyBridgeButton),
   };
 }
 export function settingsOperatorSelectors(

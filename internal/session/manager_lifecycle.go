@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -231,17 +230,6 @@ func (m *Manager) persistStopClassification(ctx context.Context, session *Sessio
 		persistErr = fmt.Errorf("%w: persist stop classification: %w", ErrRecoveryPersistence, persistErr)
 	}
 	return errors.Join(persistErr, bundleErr)
-}
-
-func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
-	if session == nil {
-		return sandbox.SyncReasonStop
-	}
-	info := session.Info()
-	if info != nil && info.StopReason == store.StopAgentCrashed {
-		return sandbox.SyncReasonCrash
-	}
-	return sandbox.SyncReasonStop
 }
 
 func (m *Manager) recordProcessExitEvent(

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -44,7 +43,6 @@ type service struct {
 	cancellationSessions  CancellationSessionController
 	cancellationLimit     int
 	responderPolicy       ResponderPolicy
-	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
 	inputEntities         InputEntityCatalog
 	logger                *slog.Logger
@@ -123,25 +121,6 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	previewRunID, err := s.newRunID()
-	if err != nil {
-		return nil, fmt.Errorf("loop: generate preview run id: %w", err)
-	}
-	networkSpec, err := s.resolveRunParticipation(
-		ctx,
-		ws,
-		previewRunID,
-		inputs.NetworkParticipation,
-		inputs.NetworkParticipationSource,
-		resolved.Definition.NetworkParticipation,
-		inputs.NetworkParticipationSnapshot,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateLoopParticipation(resolved.Definition.Graph, networkSpec); err != nil {
-		return nil, err
-	}
 	if _, _, err := BuildExecutedDefinitionSnapshot(resolved, effective); err != nil {
 		return nil, err
 	}
@@ -150,15 +129,14 @@ func (s *service) DryRun(
 		return nil, fmt.Errorf("loop: materialize dry-run contract: %w", err)
 	}
 	return &PlanPreview{
-		LoopName:                     loopName,
-		ResolvedInputs:               resolvedInputs.Values,
-		InputOrigins:                 resolvedInputs.Origins,
-		Generation:                   1,
-		Nodes:                        previewNodes(resolved.Definition.Graph),
-		Contract:                     resolved.Definition.Contract,
-		MaterializedContract:         materializedContract,
-		EffectiveConfig:              effective,
-		ResolvedNetworkParticipation: networkSpec,
+		LoopName:             loopName,
+		ResolvedInputs:       resolvedInputs.Values,
+		InputOrigins:         resolvedInputs.Origins,
+		Generation:           1,
+		Nodes:                previewNodes(resolved.Definition.Graph),
+		Contract:             resolved.Definition.Contract,
+		MaterializedContract: materializedContract,
+		EffectiveConfig:      effective,
 	}, nil
 }
 

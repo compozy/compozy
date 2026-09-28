@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/workspace"
 )
 
@@ -202,7 +201,6 @@ func TestWorkspaceStructSurface(t *testing.T) {
 				{name: "AdditionalDirs", fieldType: reflect.TypeFor[[]string]()},
 				{name: "Name", fieldType: reflect.TypeFor[string]()},
 				{name: "DefaultAgent", fieldType: reflect.TypeFor[string]()},
-				{name: "SandboxRef", fieldType: reflect.TypeFor[string]()},
 				{name: "CreatedAt", fieldType: reflect.TypeFor[time.Time]()},
 				{name: "UpdatedAt", fieldType: reflect.TypeFor[time.Time]()},
 			},
@@ -221,7 +219,6 @@ func TestWorkspaceStructSurface(t *testing.T) {
 				{name: "Agents", fieldType: reflect.TypeFor[[]compozyconfig.AgentDef]()},
 				{name: "AgentDiagnostics", fieldType: reflect.TypeFor[[]workspace.AgentDiagnostic]()},
 				{name: "Skills", fieldType: reflect.TypeFor[[]workspace.SkillPath]()},
-				{name: "Sandbox", fieldType: reflect.TypeFor[sandbox.Resolved]()},
 				{name: "ResolvedAt", fieldType: reflect.TypeFor[time.Time]()},
 			},
 		},

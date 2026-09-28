@@ -51,9 +51,6 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("validate hooks config: %w", err)
 	}
-	if err := c.Network.Validate(); err != nil {
-		return fmt.Errorf("validate network config: %w", err)
-	}
 	if err := c.Autonomy.Validate(); err != nil {
 		return fmt.Errorf("validate autonomy config: %w", err)
 	}

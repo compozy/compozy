@@ -6,55 +6,17 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: Dock, palette, pointer, and keyboard activation open or focus one window instance; drag, structural resize, zoom, minimize, restore, and close preserve return anchors and successor focus; the focused window owns the URL with one history write per user cause; task/detail/search route intent survives reload and daemon restart, layout undo does not rewind it, and browser, CLI, native tool, and peer-browser changes converge by revision.
 entry_points: web desktop dock and windows; browser history; compozy window; compozy__window_manager
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260830-terminal-retarget-duplicate-window; BUG-20260902-background-window-stream-starvation
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: pending-remediation-batch
 evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/theo-routing4-home-restored.png; docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-public-parity; ET-window-manager-layout-gestures; ET-web-route-chrome-topbar
 ---
 
-qa-impact: 2026-09-01 deep-review round 2 consolidated terminal retargeting into the window action
-boundary and split desktop command ownership. Reset for a focused terminal-window routing canary.
+Open Tasks from the dock and navigate to a task detail. Race a palette activation with restoration of that deep link and verify one window, one route owner, and one history entry. Minimize, restore, resize, close, undo layout, reload, and restart the daemon; task route intent and focus must survive each supported transition.
 
-2026-09-02 re-walk: passed after remediation. The canary first exposed connection starvation from
-covered retained Session windows. After live-data ownership moved to a bounded pair of the focused
-window and one recent eligible background window, Dock cycling, Home minimize/restore, successor
-focus, URL projection, and reload recovery all settled without duplicating or losing any of the ten
-restored windows.
 
-story: As a builder, I can arrange persistent desktops and trust every surface to observe one semantic topology while my focus remains client-local.
-
-qa-impact: 2026-08-30 a pending in-place retarget now projects its route and semantic instance as one
-identity. Reset for the packaged Terminal first-create path that previously allowed route
-reconciliation to open a duplicate window.
-
-2026-08-30 re-walk: passed. Packaged Desktop E2E-013 created the first terminal, retained one
-Terminal window, and completed input, clipboard, refit, and IME checks in three consecutive runs.
-
-qa-impact: 2026-08-30 concurrent deep-link reconciliation and Dock activation now share one
-in-flight semantic open, preventing duplicate windows while the first daemon command settles.
-Reset for a focused Network deep-link and Dock handoff walk.
-
-2026-08-30 re-walk: passed. The disabled Network deep link and concurrent Dock activation produced
-one authority-backed Network window in five focused repetitions, including a 14.4-second loaded
-reconciliation, and the Settings handoff reached `/settings/network` every time.
-
-qa-impact: 2026-07-22 window-management hard cut replaced independent window documents with semantic commands, structural return anchors, durable route intent, and revisioned convergence; 2026-07-24 explicit `window.focus` and minimized-window restore now activate the window's desktop for the issuing client (dock activation follows a cross-desktop window instead of failing silently). Flag only; the next QA cycle owns live retesting.
-
-qa-impact: 2026-07-31 semantic app/instance identity, per-tab route stacks, and active-member routing
-replaced singleton window lookup. Reset for tabbed routing and reload continuity.
-
-qa-impact: 2026-08-20 rehosted Settings sections now read route intent from their owning window,
-and Knowledge subscriptions preserve stable external-store snapshots. Reset for focused-route and
-background-window rendering verification.
-
-2026-09-07 targeted performance re-walk: the unchanged E2E-023 scenario passed ten repetitions
-with twelve restored windows, continuous dragging, and two peers converging on a CLI move. No drag
-or peer task exceeded 50 ms; restore from the snapshot response ranged from 51.4 to 61.1 ms against
-the 500 ms ceiling. Three additional diagnostic repetitions at 4x Chromium CPU throttling passed
-after unchanged projection branches retained their identities. The canonical runtime suite proves
-that a moved window updates without rendering an unchanged window subscriber. Values, ordering,
-and root publication behavior are preserved. See `docs/qa/reports/2026-09-07-ci-recovery.md`.
+2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.

@@ -59,10 +59,10 @@ export const LIFECYCLE_EXECUTE_TASK: RawNode = {
   result_contract: { failure_field: "err", message_field: "err.message" },
   on_error: {
     allow_fail: true,
-    effects: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+    effects: [{ tool: "compozy__task_list", with: { scope: "workspace" } }],
   },
   on_retry: [{ emit: { kind: "task_retrying" } }],
-  on_quarantine: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+  on_quarantine: [{ tool: "compozy__task_list", with: { scope: "workspace" } }],
 };
 
 /** A `wait` control node declaring exactly one discriminator plus an expiry path. */
@@ -106,7 +106,7 @@ export const contractTerminalsDetail: LoopDetail = {
     ...qualityGate.definition,
     contract: {
       ...qualityGate.definition.contract,
-      on_failed: [{ tool: "compozy__network_send", with: { channel: "ops" } }],
+      on_failed: [{ tool: "compozy__task_list", with: { scope: "workspace" } }],
       on_canceled: [{ emit: { kind: "delivery_canceled" } }],
     },
   },

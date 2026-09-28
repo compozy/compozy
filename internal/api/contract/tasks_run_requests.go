@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -22,9 +21,8 @@ type AddTaskDependencyRequest struct {
 
 // EnqueueTaskRunRequest is the shared run-enqueue request payload.
 type EnqueueTaskRunRequest struct {
-	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage        `json:"metadata,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // CreateTaskBlockRequest captures one task-block create request.
@@ -48,9 +46,8 @@ type RecoverTaskRequest struct {
 
 // TaskExecutionRequest is the shared task publish/start/approval execution payload.
 type TaskExecutionRequest struct {
-	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage        `json:"metadata,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // StartTaskRunRequest is the shared run-start request payload.

@@ -1,29 +1,12 @@
 package store
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
-
-// SessionSandboxMeta is the persisted runtime sandbox state for a session.
-type SessionSandboxMeta struct {
-	SandboxID             string          `json:"sandbox_id,omitempty"`
-	Backend               string          `json:"backend"`
-	Profile               string          `json:"profile,omitempty"`
-	State                 string          `json:"state,omitempty"`
-	InstanceID            string          `json:"instance_id,omitempty"`
-	RuntimeRootDir        string          `json:"runtime_root_dir,omitempty"`
-	RuntimeAdditionalDirs []string        `json:"runtime_additional_dirs,omitempty"`
-	ProviderState         json.RawMessage `json:"provider_state,omitempty"`
-	SSHAccessExpiresAt    *time.Time      `json:"ssh_access_expires_at,omitempty"`
-	LastSyncAt            *time.Time      `json:"last_sync_at,omitempty"`
-	LastSyncError         string          `json:"last_sync_error,omitempty"`
-}
 
 // SessionExecutionLocationState keeps the optional execution location compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
@@ -71,24 +54,25 @@ type SessionMeta struct {
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
-	NetworkParticipation   *participation.Spec     `json:"network_participation"`
-	SessionType            string                  `json:"session_type,omitempty"`
-	Lineage                *SessionLineage         `json:"lineage,omitempty"`
-	State                  string                  `json:"state"`
-	StopReason             *StopReason             `json:"stop_reason,omitempty"`
-	StopEscalated          bool                    `json:"stop_escalated,omitempty"`
-	StopVerificationFailed bool                    `json:"stop_verification_failed,omitempty"`
-	StopDetail             string                  `json:"stop_detail,omitempty"`
-	Failure                *SessionFailure         `json:"failure,omitempty"`
-	ACPSessionID           *string                 `json:"acp_session_id,omitempty"`
-	Liveness               *SessionLivenessMeta    `json:"liveness,omitempty"`
-	Sandbox                *SessionSandboxMeta     `json:"sandbox,omitempty"`
-	CreationProfile        *SessionCreationProfile `json:"creation_profile,omitempty"`
-	CreationOptions        *SessionCreationOptions `json:"creation_options,omitempty"`
-	CreationProfileRef     string                  `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest       string                  `json:"policy_spec_digest,omitempty"`
-	CreationDigest         string                  `json:"creation_digest,omitempty"`
+
+	SessionType            string               `json:"session_type,omitempty"`
+	Lineage                *SessionLineage      `json:"lineage,omitempty"`
+	State                  string               `json:"state"`
+	StopReason             *StopReason          `json:"stop_reason,omitempty"`
+	StopEscalated          bool                 `json:"stop_escalated,omitempty"`
+	StopVerificationFailed bool                 `json:"stop_verification_failed,omitempty"`
+	StopDetail             string               `json:"stop_detail,omitempty"`
+	Failure                *SessionFailure      `json:"failure,omitempty"`
+	ACPSessionID           *string              `json:"acp_session_id,omitempty"`
+	Liveness               *SessionLivenessMeta `json:"liveness,omitempty"`
+
+	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
+	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`
+	CreationProfileRef string                  `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest   string                  `json:"policy_spec_digest,omitempty"`
+	CreationDigest     string                  `json:"creation_digest,omitempty"`
 	*SessionAdvertisedCommandState
+
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
 	SoulDigest       string    `json:"soul_digest,omitempty"`
 	ParentSoulDigest string    `json:"parent_soul_digest,omitempty"`
@@ -268,9 +252,6 @@ func (m SessionMeta) Validate() error {
 	if err := requireField(m.State, "session state"); err != nil {
 		return err
 	}
-	if err := participation.ValidateSpec(m.NetworkSpecSnapshot()); err != nil {
-		return fmt.Errorf("store: validate session network participation: %w", err)
-	}
 	if m.StopReason != nil {
 		if err := validateSessionStopReason(*m.StopReason); err != nil {
 			return err
@@ -346,22 +327,6 @@ func validateSessionSpeedMetadata(speed speedpkg.Speed, resolution *speedpkg.Res
 	return nil
 }
 
-// NetworkSpecSnapshot returns the immutable participation snapshot stored in metadata.
-func (m SessionMeta) NetworkSpecSnapshot() participation.Spec {
-	if m.NetworkParticipation == nil {
-		return participation.Spec{}
-	}
-	return *m.NetworkParticipation
-}
-
-// NetworkOwnerKeySnapshot returns the immutable budget owner stored in creation metadata.
-func (m SessionMeta) NetworkOwnerKeySnapshot() string {
-	if m.CreationOptions != nil && strings.TrimSpace(m.CreationOptions.NetworkOwnerKey) != "" {
-		return strings.TrimSpace(m.CreationOptions.NetworkOwnerKey)
-	}
-	return participation.OwnerKey(participation.OwnerRef{Kind: participation.OwnerKindSession, ID: m.ID})
-}
-
 func validateSessionCreationMetadata(meta SessionMeta) error {
 	if err := ValidateSessionACPOptionSelections(meta.ACPOptionsValue()); err != nil {
 		return fmt.Errorf("store: validate session ACP options: %w", err)
@@ -377,9 +342,6 @@ func validateSessionCreationMetadata(meta SessionMeta) error {
 	}
 	if meta.CreationProfile == nil || meta.CreationOptions == nil {
 		return fmt.Errorf("store: session creation profile and options are required with identity")
-	}
-	if meta.NetworkSpecSnapshot() != meta.CreationOptions.NetworkParticipation {
-		return fmt.Errorf("store: session network participation does not match creation options")
 	}
 	if err := identity.Validate(); err != nil {
 		return err

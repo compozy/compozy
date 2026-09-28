@@ -150,7 +150,7 @@ func simpleProfileBundle(value any, message string) outputBundle {
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, value) },
 		human:     func() (string, error) { return message, nil },
 		toon: func() (string, error) {
-			return renderToonObject("result", []string{bridgeMessageKey}, []string{message}), nil
+			return renderToonObject("result", []string{cliOutputMessageKey}, []string{message}), nil
 		},
 	}
 }

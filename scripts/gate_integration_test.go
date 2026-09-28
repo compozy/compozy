@@ -203,6 +203,22 @@ exit 0
 		t.Parallel()
 
 		repo := newGateTestRepo(t)
+		packageDir := filepath.Join(repo, "internal", strings.Repeat("wide-scope-", 20))
+		if err := os.MkdirAll(packageDir, 0o755); err != nil {
+			t.Fatalf("create package directory: %v", err)
+		}
+		for index := range 1024 {
+			path := filepath.Join(packageDir, "source"+strconv.Itoa(index)+".go")
+			if err := os.WriteFile(path, []byte("package fixture\n"), 0o644); err != nil {
+				t.Fatalf("write package source: %v", err)
+			}
+		}
+		runCommand(t, repo, "git", "add", "internal")
+		runCommand(t, repo, "git", "-c", "user.name=Gate Test", "-c", "user.email=gate-test@example.com",
+			"commit", "--quiet", "-m", "seed package")
+		if err := os.RemoveAll(packageDir); err != nil {
+			t.Fatalf("remove package directory: %v", err)
+		}
 		writeConfigChange(t, repo)
 		if err := os.WriteFile(
 			filepath.Join(repo, "go.mod"),
@@ -216,11 +232,11 @@ exit 0
 		if err != nil {
 			t.Fatalf("plan: %v\n%s", err, output)
 		}
-		if !strings.Contains(output, "go scopes: ./...") {
+		if !strings.Contains(output, "[gate] go scopes: ./... \n") {
 			t.Fatalf("expected whole-module scope, got:\n%s", output)
 		}
-		if strings.Contains(output, "go scopes: ./... ./internal/config/...") {
-			t.Fatalf("whole-module scope must subsume package scopes, got:\n%s", output)
+		if !strings.Contains(output, "COMPOZY_GO_LINT_SCOPES='./... '") || strings.Contains(output, "Broken pipe") {
+			t.Fatalf("whole-module scope must subsume all package scopes without pipe errors, got:\n%s", output)
 		}
 	})
 
@@ -303,6 +319,7 @@ exit 0
 			{path: "catalog/packages/herdr-bridge/bridge.py", want: "catalog lanes"},
 			{path: "catalog/artifacts/herdr-bridge-v0.3.3.tar.gz", want: "catalog lanes"},
 			{path: "go.mod", want: "go scopes: ./..."},
+			{path: ".goreleaser.yml", want: "go scopes: ./..."},
 			{path: "bun.lock", want: "js lane: all workspaces"},
 			{path: "Makefile", want: "tooling lanes"},
 			{path: ".air.toml", want: "go scopes: ./scripts/devreadiness"},
@@ -322,6 +339,7 @@ exit 0
 			{path: ".repoclone.rc", want: "no-lane"},
 			{path: "skills-lock.json", want: "no-lane"},
 			{path: "skeeper.lock", want: "no-lane"},
+			{path: "imgs/how-it-works-flow.svg", want: "would run: nothing (docs/instructions only)"},
 		}
 		for _, tc := range cases {
 			t.Run("Should classify "+tc.path, func(t *testing.T) {
@@ -341,6 +359,9 @@ exit 0
 				if strings.Contains(output, "make verify") {
 					t.Fatalf("sensitive path planned local full verification:\n%s", output)
 				}
+				if strings.Contains(output, "would stop:") {
+					t.Fatalf("known path was not safely classified:\n%s", output)
+				}
 				if strings.HasPrefix(tc.path, "catalog/") {
 					for _, command := range []string{
 						"would run: go run ./cmd/compozy-catalog validate ./catalog",
@@ -355,6 +376,46 @@ exit 0
 					t.Fatalf("expected %q for %s, got:\n%s", tc.want, tc.path, output)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject unknown assets before running classified lanes", func(t *testing.T) {
+		t.Parallel()
+
+		repo := newGateTestRepo(t)
+		if err := os.Mkdir(filepath.Join(repo, "imgs"), 0o755); err != nil {
+			t.Fatalf("create image directory: %v", err)
+		}
+		for _, path := range []string{".goreleaser.yml", "imgs/how-it-works-flow.svg", "imgs/unclassified.bin"} {
+			if err := os.WriteFile(
+				filepath.Join(repo, filepath.FromSlash(path)),
+				[]byte("changed\n"),
+				0o644,
+			); err != nil {
+				t.Fatalf("write changed file: %v", err)
+			}
+		}
+		fakeBin := t.TempDir()
+		callsPath := filepath.Join(t.TempDir(), "gate-calls")
+		for _, command := range []string{"make", "go"} {
+			writeExecutable(t, fakeBin, command, `#!/bin/sh
+printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
+exit 0
+`)
+		}
+		output, err := runGate(t, repo, []string{
+			"GATE_TEST_CALLS=" + callsPath,
+			"PATH=" + fakeBin + ":" + os.Getenv("PATH"),
+		}, "auto")
+		if err == nil {
+			t.Fatalf("unknown asset must block the gate, output:\n%s", output)
+		}
+		if !strings.Contains(output, "unclassified: imgs/unclassified.bin") ||
+			!strings.Contains(output, "cannot safely classify 1 changed path(s)") {
+			t.Fatalf("expected only the unknown asset to block classification:\n%s", output)
+		}
+		if _, statErr := os.Stat(callsPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("unknown asset must prevent lane execution, stat error = %v", statErr)
 		}
 	})
 

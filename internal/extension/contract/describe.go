@@ -7,22 +7,22 @@ import (
 
 // DescribePayload is the build-time contract emitted by an SDK describe process.
 type DescribePayload struct {
-	Name                 string                                    `json:"name"`
-	Version              string                                    `json:"version"`
-	Description          string                                    `json:"description,omitempty"`
-	Provides             []string                                  `json:"provides"`
-	Permissions          []string                                  `json:"permissions"`
-	RequiresEnv          []string                                  `json:"requires_env,omitempty"`
-	Profiles             []DescribeProfile                         `json:"profiles,omitempty"`
-	Resources            DescribeResources                         `json:"resources"`
-	Subprocess           DescribeSubprocess                        `json:"subprocess"`
-	NetworkParticipation *DescribeNetworkParticipation             `json:"network_participation,omitempty"`
-	Tools                []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents           []DescribeHookEvent                       `json:"hook_events,omitempty"`
-	WatchSourceKinds     []string                                  `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                                  `json:"cmd_palette_views,omitempty"`
-	CommandGroups        []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
-	SDK                  DescribeSDKInfo                           `json:"sdk"`
+	Name             string                                    `json:"name"`
+	Version          string                                    `json:"version"`
+	Description      string                                    `json:"description,omitempty"`
+	Provides         []string                                  `json:"provides"`
+	Permissions      []string                                  `json:"permissions"`
+	RequiresEnv      []string                                  `json:"requires_env,omitempty"`
+	Profiles         []DescribeProfile                         `json:"profiles,omitempty"`
+	Resources        DescribeResources                         `json:"resources"`
+	Subprocess       DescribeSubprocess                        `json:"subprocess"`
+	Gateway          *DescribeGatewayRequirement               `json:"gateway,omitempty"`
+	Tools            []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents       []DescribeHookEvent                       `json:"hook_events,omitempty"`
+	WatchSourceKinds []string                                  `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews  []string                                  `json:"cmd_palette_views,omitempty"`
+	CommandGroups    []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
+	SDK              DescribeSDKInfo                           `json:"sdk"`
 }
 
 // DescribeProfile declares one profile seeded when an SDK-built extension is installed.
@@ -39,7 +39,6 @@ type DescribeProfile struct {
 type DescribeProfileDefaults struct {
 	Agent    string `json:"agent,omitempty"`
 	Provider string `json:"provider,omitempty"`
-	Sandbox  string `json:"sandbox,omitempty"`
 }
 
 // DescribeProfileCredential declares one vault-backed setup requirement.
@@ -60,11 +59,9 @@ type DescribeHookEvent struct {
 	Profile string             `json:"profile,omitempty"`
 }
 
-// DescribeNetworkParticipation declares the reachability control included in consent digests.
-type DescribeNetworkParticipation struct {
-	Required      bool     `json:"required"`
-	Mode          string   `json:"mode"`
-	ChannelScopes []string `json:"channel_scopes,omitempty"`
+// DescribeGatewayRequirement declares the reachability control included in consent digests.
+type DescribeGatewayRequirement struct {
+	Permissions []string `json:"permissions"`
 }
 
 // DescribeResources declares source-relative static resource paths copied into a generation.

@@ -16,8 +16,6 @@ var (
 	ErrSessionAttachLocked = errors.New("store: session attach locked")
 	// ErrSessionNotAttachable reports that a session is not eligible for attach/resume.
 	ErrSessionNotAttachable = errors.New("store: session not attachable")
-	// ErrSessionParticipationMismatch rejects a same-ID refresh with different immutable Network participation.
-	ErrSessionParticipationMismatch = errors.New("store: session participation mismatch")
 )
 
 type StopReason string
@@ -81,7 +79,7 @@ type SessionInfo struct {
 	RuntimeSelectionRevision int64
 	WorkspaceID              string
 	WorktreeID               string
-	*SessionNetworkState
+
 	SessionType            string
 	Lineage                *SessionLineage
 	State                  string
@@ -92,10 +90,10 @@ type SessionInfo struct {
 	StopDetail             string
 	Failure                *SessionFailure
 	Liveness               *SessionLivenessMeta
-	Sandbox                *SessionSandboxMeta
 	SoulSnapshotID         string
 	SoulDigest             string
 	ParentSoulDigest       string
+
 	*SessionAttachState
 	TranscriptEpoch int64
 	Attention       *SessionAttention
@@ -297,8 +295,8 @@ type SessionStateUpdate struct {
 	Failure                  *SessionFailure
 	AttentionTransition      bool
 	Liveness                 *SessionLivenessMeta
-	Sandbox                  *SessionSandboxMeta
-	UpdatedAt                time.Time
+
+	UpdatedAt time.Time
 }
 
 // SessionSoulSnapshotUpdate updates the Soul provenance attached to a session.

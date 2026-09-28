@@ -99,7 +99,7 @@ func (g *TaskRunRepo) ensureWorkspaceActiveRunCapacity(
 		return err
 	}
 	workspaceID := strings.TrimSpace(candidate.WorkspaceID)
-	if workspaceID == "" || candidate.IsNetworkWake() {
+	if workspaceID == "" {
 		return nil
 	}
 	count, err := sqlcgen.New(exec).CountActiveTaskRunLeasesForWorkspace(
@@ -132,9 +132,6 @@ func (g *TaskRunRepo) selectClaimableRunID(
 	exec taskSQLExecutor,
 	criteria taskpkg.ClaimCriteria,
 ) (string, error) {
-	if criteria.RunKind.Normalize() == taskpkg.RunKindNetworkWake {
-		return g.selectClaimableNetworkWakeRunID(ctx, exec, criteria)
-	}
 	where, args := baseClaimPredicates(criteria)
 	exactRunID := strings.TrimSpace(criteria.RunID)
 	workspaceID := strings.TrimSpace(criteria.WorkspaceID)
@@ -158,10 +155,6 @@ func (g *TaskRunRepo) selectClaimableRunID(
 	default:
 		where = append(where, "t.scope = ?")
 		args = append(args, string(taskpkg.ScopeGlobal))
-	}
-	if strings.TrimSpace(criteria.ParticipationChannel) != "" {
-		where = append(where, "tr.network_channel = ?")
-		args = append(args, criteria.ParticipationChannel)
 	}
 	where, args = appendProfileClaimFilters(where, args, criteria)
 	if exactRunID != "" {
@@ -254,45 +247,6 @@ func appendClaimRunKindPredicate(
 		)
 	}
 	return append(where, "tr.run_kind = ?"), append(args, normalized.String())
-}
-
-func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	criteria taskpkg.ClaimCriteria,
-) (string, error) {
-	where := []string{
-		"tr.run_kind = ?",
-		globalDBTaskRunStatusFilter,
-		"tr.workspace_id = ?",
-		"tr.network_target_session_id = ?",
-		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
-	}
-	args := []any{
-		taskpkg.RunKindNetworkWake.String(),
-		taskpkg.TaskRunStatusQueued.String(),
-		strings.TrimSpace(criteria.WorkspaceID),
-		strings.TrimSpace(criteria.TargetSessionID),
-	}
-	if runID := strings.TrimSpace(criteria.RunID); runID != "" {
-		where = append(where, "tr.id = ?")
-		args = append(args, runID)
-	}
-	query := `SELECT tr.id
-		FROM task_runs tr
-		JOIN sessions s ON s.id = tr.network_target_session_id
-		JOIN profiles p ON p.id = s.profile_id
-		WHERE ` + strings.Join(where, " AND ") + `
-		  AND ` + profileClaimEligibilitySQL + `
-		ORDER BY tr.queued_at ASC, tr.id ASC LIMIT 1`
-	var runID string
-	if err := exec.QueryRowContext(ctx, query, args...).Scan(&runID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", nil
-		}
-		return "", fmt.Errorf("store: select claimable network wake run: %w", err)
-	}
-	return runID, nil
 }
 
 func appendProfileClaimFilters(
@@ -392,14 +346,13 @@ func appendExactClaimOwnerPredicate(
 ) ([]string, []any) {
 	clauses := []string{
 		"COALESCE(t.owner_kind, '') = ''",
-		"t.owner_kind IN (?, ?, ?, ?)",
+		"t.owner_kind IN (?, ?, ?)",
 	}
 	args = append(
 		args,
 		string(taskpkg.OwnerKindHuman),
 		string(taskpkg.OwnerKindAutomation),
 		string(taskpkg.OwnerKindExtension),
-		string(taskpkg.OwnerKindNetworkPeer),
 	)
 	if agentName := strings.TrimSpace(criteria.AgentName); agentName != "" {
 		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")

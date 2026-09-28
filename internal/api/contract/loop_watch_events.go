@@ -21,12 +21,7 @@ const (
 	LoopWatchEventLoopNodeTerminal  LoopWatchEventKind = "loop.node.terminal"       // #nosec G101 -- event enum.
 	LoopWatchEventAutomationDone    LoopWatchEventKind = "automation.run.completed" // #nosec G101 -- event enum.
 	LoopWatchEventAutomationFailed  LoopWatchEventKind = "automation.run.failed"    // #nosec G101 -- event enum.
-	LoopWatchEventNetworkMessage    LoopWatchEventKind = "network.message.persisted"
-	LoopWatchEventNetworkThread     LoopWatchEventKind = "network.thread.opened"
-	LoopWatchEventNetworkDirect     LoopWatchEventKind = "network.direct_room.opened"
-	LoopWatchEventNetworkWorkOpen   LoopWatchEventKind = "network.work.opened"
-	LoopWatchEventNetworkWorkChange LoopWatchEventKind = "network.work.transitioned"
-	LoopWatchEventNetworkWorkClosed LoopWatchEventKind = "network.work.closed"
+
 	LoopWatchEventCoordinatorSpawn  LoopWatchEventKind = "coordinator.spawned"
 	LoopWatchEventCoordinatorDecide LoopWatchEventKind = "coordinator.decision"
 	LoopWatchEventCoordinatorStop   LoopWatchEventKind = "coordinator.stopped"
@@ -51,12 +46,6 @@ func LoopWatchEventKindValues() []string {
 		string(LoopWatchEventLoopNodeTerminal),
 		string(LoopWatchEventAutomationDone),
 		string(LoopWatchEventAutomationFailed),
-		string(LoopWatchEventNetworkMessage),
-		string(LoopWatchEventNetworkThread),
-		string(LoopWatchEventNetworkDirect),
-		string(LoopWatchEventNetworkWorkOpen),
-		string(LoopWatchEventNetworkWorkChange),
-		string(LoopWatchEventNetworkWorkClosed),
 		string(LoopWatchEventCoordinatorSpawn),
 		string(LoopWatchEventCoordinatorDecide),
 		string(LoopWatchEventCoordinatorStop),

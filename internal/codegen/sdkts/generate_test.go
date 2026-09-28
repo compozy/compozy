@@ -53,30 +53,9 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 			generatedHeader,
 			`export type IssueSeverity = "error" | "warning" | "warn";`,
 			`export type LoopProvenanceRole = "coordinator" | "cell";`,
-			"export interface BridgeInstance {\n",
-			"export interface BridgeInstanceTargetParams {\n",
-			"export interface BridgesInstancesReportStateParams {\n",
-			"export interface BridgesMessagesIngestResult {\n",
-			"export interface InboundMessageEnvelope {\n",
-			`export type DeliveryEventType = "start" | "delta" | "final" | "error" | "resume" | "delete" | "progress";`,
-			`export type DeliveryAckOutcome = "success" | "committed_result_unavailable";`,
-			"export interface DeliveryAck {\n  delivery_id: string;\n  seq: number;\n",
-			`export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";`,
-			`export type InboundEditOperation = "updated" | "deleted";`,
-			"export interface InboundEdit {\n",
-			"edit?: InboundEdit;",
-			"reply_to_text?: string;",
-			"reply_to_author_id?: string;",
-			"reply_to_author_name?: string;",
 			`export type ReasoningEffort = string;`,
 			`export type CostStatus = "actual" | "estimated" | "included" | "unknown";`,
 			`export type CostSource = "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";`,
-			`export type ToolProgressPhase = "started" | "completed" | "failed";`,
-			`export type BridgeRuntimePurpose = "service" | "control";`,
-			`export type ControlMethod = "bridges/check" | "bridges/webhook/register";`,
-			`export type BridgeCheckStatus = "pass" | "warn" | "fail" | "skipped";`,
-			"export interface BridgeCheckRecord {\n",
-			"export interface BridgeWebhookRegistrationResponse {\n",
 			"reasoning_effort?: ReasoningEffort;",
 			"reasoning_efforts?: ReasoningEffort[];",
 			"cost_status?: CostStatus;",
@@ -100,45 +79,6 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 			t.Fatal("Generate() output must not end with multiple trailing newlines")
 		}
 	})
-}
-
-func TestGeneratePreservesParticipationDiscriminatedUnions(t *testing.T) {
-	t.Parallel()
-
-	source, err := Generate()
-	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
-
-	requiredSnippets := []string{
-		`export type NetworkParticipationMode = "local" | "live";`,
-		`export type NetworkParticipationChannelStrategy = "named" | "run" | "loop_run";`,
-		`export type NetworkParticipationSource = "explicit_request" | "task_profile" | "workspace_coordination" | "loop_definition" | "automation_job" | "built_in_local";`,
-		`export type NetworkParticipationOwnerKind = "session" | "task_run" | "loop_run" | "automation_run";`,
-		"export type NetworkParticipationRequest = \n  | {\n      mode?: \"local\";",
-		"mode: \"live\";\n      channel_strategy: \"named\";\n      channel_id: string;",
-		"mode: \"live\";\n      channel_strategy: \"run\";\n      channel_id?: never;",
-		"mode: \"live\";\n      channel_strategy: \"loop_run\";\n      channel_id?: never;",
-		"export type NetworkParticipationSpec = \n  | {\n      version: \"network-participation/v1\";\n      mode: \"local\";",
-		"mode: \"live\";\n      workspace_id: string;\n      channel_strategy: \"named\" | \"run\" | \"loop_run\";",
-		"export interface NetworkParticipationOwnerRef {\n  workspace_id: string;\n  kind: NetworkParticipationOwnerKind;\n  id: string;\n}",
-		"export interface NetworkParticipationStatus {\n  owner: NetworkParticipationOwnerRef;",
-		"export type Status = string;",
-	}
-	for _, snippet := range requiredSnippets {
-		if !strings.Contains(source, snippet) {
-			t.Fatalf("Generate() participation output missing %q", snippet)
-		}
-	}
-	for _, forbidden := range []string{
-		"export interface NetworkParticipationRequest {",
-		"export interface NetworkParticipationSpec {",
-		"participation_status: Status;",
-	} {
-		if strings.Contains(source, forbidden) {
-			t.Fatalf("Generate() participation output contains flattened contract %q", forbidden)
-		}
-	}
 }
 
 func TestNamedBaseType(t *testing.T) {

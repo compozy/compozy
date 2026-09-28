@@ -304,7 +304,7 @@ func TestProviderSupervisorTrustFreshness(t *testing.T) {
 		trust := bundledTrustResolver(nil)
 		trust.trust["provider-a"] = ProviderTrust{
 			InstallSource: ProviderInstallSourceBundled,
-			ChannelScopes: []string{ProviderChannelScope(TierPublic)},
+			Permissions:   []string{ProviderPermission(TierPublic)},
 		}
 		resolver := &supervisorSourceResolver{sources: map[string]ConnectivitySource{
 			"provider-a": healthySupervisorSource(nil),
@@ -465,7 +465,7 @@ func TestProviderSupervisorFailureLifecycle(t *testing.T) {
 		}
 		trust.trust["provider-b"] = ProviderTrust{
 			InstallSource: ProviderInstallSourceBundled,
-			ChannelScopes: []string{ProviderChannelScope(TierPrivate), ProviderChannelScope(TierPublic)},
+			Permissions:   []string{ProviderPermission(TierPrivate), ProviderPermission(TierPublic)},
 		}
 		supervisor := newSupervisorForTest(t, trust, identity, resolver, &supervisorVerifier{timeout: time.Second})
 		if _, err := supervisor.Establish(
@@ -764,7 +764,7 @@ func bundledTrustResolver(events *supervisorEventLog) *supervisorTrustResolver {
 	return &supervisorTrustResolver{
 		trust: map[string]ProviderTrust{"provider-a": {
 			InstallSource: ProviderInstallSourceBundled,
-			ChannelScopes: []string{ProviderChannelScope(TierPrivate), ProviderChannelScope(TierPublic)},
+			Permissions:   []string{ProviderPermission(TierPrivate), ProviderPermission(TierPublic)},
 		}},
 		errors: make(map[string]error), calls: make(map[string]int), events: events,
 	}
@@ -774,7 +774,7 @@ func thirdPartyTrustResolver(controlDigest string, confirmedDigest string) *supe
 	return &supervisorTrustResolver{
 		trust: map[string]ProviderTrust{"provider-a": {
 			InstallSource: "marketplace", ControlDigest: controlDigest, ConfirmedDigest: confirmedDigest,
-			ChannelScopes: []string{ProviderChannelScope(TierPrivate), ProviderChannelScope(TierPublic)},
+			Permissions: []string{ProviderPermission(TierPrivate), ProviderPermission(TierPublic)},
 		}},
 		errors: make(map[string]error), calls: make(map[string]int),
 	}

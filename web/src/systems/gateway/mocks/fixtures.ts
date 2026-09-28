@@ -4,7 +4,7 @@ import type { GatewayAuditReport, GatewayDevice, GatewayStatus, GatewayTier } fr
 
 /**
  * An installed extension that declares the connectivity-provider capability.
- * Defaults are the ready case: enabled, network participation confirmed, and
+ * Defaults are the ready case: enabled, gateway permissions confirmed, and
  * every declared secret bound.
  */
 export function connectivityProviderFixture(
@@ -19,9 +19,9 @@ export function connectivityProviderFixture(
     health: "healthy",
     missing_env: [],
     name: "connectivity-overlay",
-    network_confirmation_required: false,
-    network_requirement_digest: "sha256:overlay-control-digest",
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    gateway_confirmation_required: false,
+    gateway_requirement_digest: "sha256:overlay-control-digest",
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],

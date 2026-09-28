@@ -39,9 +39,7 @@ import {
   ToggleGroupItem,
 } from "@compozy/ui";
 import { PlusIcon, SearchIcon } from "lucide-react";
-import { KindChip } from "@/systems/network";
 
-import { KINDS } from "./design-system-showcase-examples";
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";
 
@@ -207,11 +205,7 @@ export function StatusAndMetricSection() {
     <Section
       id="status"
       data-testid="section-status"
-      label={
-        <SectionLink section={sectionById("status")}>
-          Status, Metric, MonoBadge, KindChip
-        </SectionLink>
-      }
+      label={<SectionLink section={sectionById("status")}>Status, Metric, MonoBadge</SectionLink>}
       right={
         <Pill mono tone="info">
           signal
@@ -267,11 +261,6 @@ export function StatusAndMetricSection() {
         <Pill mono tone="info">
           INFO
         </Pill>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 pt-3">
-        {KINDS.map(kind => (
-          <KindChip key={kind} kind={kind} />
-        ))}
       </div>
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">

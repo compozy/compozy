@@ -13,10 +13,8 @@ const (
 	watchEventsTestTaskStream       = "task_events"
 	watchEventsTestLoopStream       = "loop_run_events"
 	watchEventsTestAutomationStream = "automation_runs"
-	watchEventsTestNetworkStream    = "network_timeline_log"
 	watchEventsTestObserveStream    = "event_summaries"
 	watchEventsTestSessionStream    = "session_events"
-	watchEventsTestParticipation    = "resolved_network_participation"
 
 	loopRunEventTestStatusChanged = "status_changed"
 	loopRunEventTestNodeSucceeded = "node_succeeded"
@@ -30,8 +28,8 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 		t.Parallel()
 
 		contracts := loop.SupportedWatchEvents()
-		if len(contracts) != 22 {
-			t.Fatalf("SupportedWatchEvents() len = %d, want 22", len(contracts))
+		if len(contracts) != 16 {
+			t.Fatalf("SupportedWatchEvents() len = %d, want 16", len(contracts))
 		}
 		expected := map[hooks.HookEvent]struct {
 			stream      string
@@ -80,30 +78,6 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 			hooks.HookAutomationRunFailed: {
 				stream:      watchEventsTestAutomationStream,
 				ledgerTypes: []string{string(hooks.HookAutomationRunFailed)},
-			},
-			hooks.HookNetworkMessagePersisted: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkMessagePersisted)},
-			},
-			hooks.HookNetworkThreadOpened: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkThreadOpened)},
-			},
-			hooks.HookNetworkDirectRoomOpened: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkDirectRoomOpened)},
-			},
-			hooks.HookNetworkWorkOpened: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkWorkOpened)},
-			},
-			hooks.HookNetworkWorkTransitioned: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkWorkTransitioned)},
-			},
-			hooks.HookNetworkWorkClosed: {
-				stream:      watchEventsTestNetworkStream,
-				ledgerTypes: []string{string(hooks.HookNetworkWorkClosed)},
 			},
 			hooks.HookCoordinatorSpawned: {
 				stream:      watchEventsTestObserveStream,
@@ -188,12 +162,6 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 		if _, ok := contracts[hooks.HookAutomationJobPostFire]; ok {
 			t.Fatal("SupportedWatchEvents() contains automation.job.post_fire, want unsupported")
 		}
-		if _, ok := contracts[hooks.HookNetworkPeerJoined]; ok {
-			t.Fatal("SupportedWatchEvents() contains network.peer.joined, want unsupported")
-		}
-		if _, ok := contracts[hooks.HookNetworkPeerLeft]; ok {
-			t.Fatal("SupportedWatchEvents() contains network.peer.left, want unsupported")
-		}
 		if _, ok := contracts[hooks.HookCoordinatorPreSpawn]; ok {
 			t.Fatal("SupportedWatchEvents() contains coordinator.pre_spawn, want unsupported")
 		}
@@ -215,34 +183,12 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 				nodeTerminal.LedgerTypes,
 			)
 		}
-		networkWork := contracts[hooks.HookNetworkWorkTransitioned]
-		if !slices.Contains(networkWork.PayloadFields, "work_state") {
-			t.Fatalf(
-				"network.work.transitioned PayloadFields = %#v, want work_state",
-				networkWork.PayloadFields,
-			)
-		}
 		coordinatorStopped := contracts[hooks.HookCoordinatorStopped]
 		if !slices.Contains(coordinatorStopped.PayloadFields, "stop_reason") {
 			t.Fatalf(
 				"coordinator.stopped PayloadFields = %#v, want stop_reason",
 				coordinatorStopped.PayloadFields,
 			)
-		}
-		for _, kind := range []hooks.HookEvent{
-			hooks.HookCoordinatorSpawned,
-			hooks.HookCoordinatorDecision,
-			hooks.HookCoordinatorStopped,
-			hooks.HookCoordinatorFailed,
-		} {
-			if !slices.Contains(contracts[kind].PayloadFields, watchEventsTestParticipation) {
-				t.Fatalf(
-					"%s PayloadFields = %#v, want %s",
-					kind,
-					contracts[kind].PayloadFields,
-					watchEventsTestParticipation,
-				)
-			}
 		}
 		eventPostRecord := contracts[hooks.HookEventPostRecord]
 		if slices.Contains(eventPostRecord.PayloadFields, "content") {

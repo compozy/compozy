@@ -9,15 +9,10 @@ import type {
   SettingsAttentionSection,
   SettingsAttentionFilter,
   SettingsAutomationSection,
-  SettingsCreateNotificationPresetRequest,
   SettingsGeneralSection,
   SettingsHooksExtensionsSection,
   SettingsMemorySection,
   SettingsMutationResult,
-  SettingsNetworkSection,
-  SettingsNotificationPresetCollection,
-  SettingsNotificationPresetEntry,
-  SettingsNotificationPresetFilter,
   SettingsObservabilitySection,
   SettingsShellSection,
   SettingsSkillsFilter,
@@ -28,8 +23,6 @@ import type {
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
-  SettingsUpdateNetworkRequest,
-  SettingsUpdateNotificationPresetRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdateApplyRequest,
   SettingsUpdateApplyResult,
@@ -45,15 +38,6 @@ import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 export { getSettingsCmdPalette, updateSettingsCmdPalette } from "./settings-cmd-palette-api";
 export { getSettingsPersona, updateSettingsPersona } from "./settings-persona-api";
-
-function normalizeNotificationPresetFilter(filter: SettingsNotificationPresetFilter = {}) {
-  return {
-    enabled: filter.enabled,
-    built_in: filter.built_in,
-    name: normalizeOptionalText(filter.name),
-    limit: filter.limit,
-  };
-}
 
 function normalizeSettingsSkillsFilter(
   filter: SettingsSkillsFilter | SettingsUpdateSkillsFilter = {}
@@ -221,75 +205,6 @@ export async function updateSettingsSkills(
   return requireResponseData(data, response, "Failed to update skills settings");
 }
 
-export async function listSettingsNotificationPresets(
-  filter: SettingsNotificationPresetFilter = {},
-  signal?: AbortSignal
-): Promise<SettingsNotificationPresetCollection> {
-  const { data, error, response } = await apiClient.GET("/api/notifications/presets", {
-    params: { query: normalizeNotificationPresetFilter(filter) },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to load notification presets", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to load notification presets");
-}
-
-export async function createSettingsNotificationPreset(
-  body: SettingsCreateNotificationPresetRequest,
-  signal?: AbortSignal
-): Promise<SettingsNotificationPresetEntry> {
-  const { data, error, response } = await apiClient.POST("/api/notifications/presets", {
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to create notification preset", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to create notification preset").preset;
-}
-
-export async function updateSettingsNotificationPreset(
-  name: string,
-  body: SettingsUpdateNotificationPresetRequest,
-  signal?: AbortSignal
-): Promise<SettingsNotificationPresetEntry> {
-  const { data, error, response } = await apiClient.PUT("/api/notifications/presets/{name}", {
-    params: { path: { name } },
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to update notification preset", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to update notification preset").preset;
-}
-
-export async function deleteSettingsNotificationPreset(
-  name: string,
-  signal?: AbortSignal
-): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/api/notifications/presets/{name}", {
-    params: { path: { name } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to delete notification preset", response, error),
-      response.status
-    );
-  }
-}
-
 export async function getSettingsAutomation(
   signal?: AbortSignal
 ): Promise<SettingsAutomationSection> {
@@ -318,34 +233,6 @@ export async function updateSettingsAutomation(
     );
   }
   return requireResponseData(data, response, "Failed to update automation settings");
-}
-
-export async function getSettingsNetwork(signal?: AbortSignal): Promise<SettingsNetworkSection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/network", { signal });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to load network settings", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to load network settings");
-}
-
-export async function updateSettingsNetwork(
-  body: SettingsUpdateNetworkRequest,
-  signal?: AbortSignal
-): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/network", {
-    body,
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to update network settings", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to update network settings");
 }
 
 export async function getSettingsAttention(

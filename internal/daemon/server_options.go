@@ -1,10 +1,8 @@
 package daemon
 
 import (
-	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/udsapi"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
@@ -17,17 +15,13 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithDaemonDrainController(deps.DrainController),
 		httpapi.WithSessionCatalog(deps.Registry),
 		httpapi.WithTaskService(deps.Tasks),
-		httpapi.WithNetworkService(deps.Network),
-		httpapi.WithNetworkStore(deps.Registry),
-		httpapi.WithNetworkUsageStore(deps.Registry),
-		httpapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry, deps.WorkspaceAccess)),
+		httpapi.WithTaskDesignationStore(deps.Registry),
+		httpapi.WithSkillExposureStore(deps.Registry, deps.Registry),
 		httpapi.WithOnboardingStore(deps.Registry),
 		httpapi.WithObserver(deps.Observer),
 		httpapi.WithSchemaStreamStatusReader(deps.SchemaStreams),
 		httpapi.WithAutomation(deps.Automation),
 		httpapi.WithLoopService(deps.Loops),
-		httpapi.WithBridgeService(deps.Bridges),
-		httpapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		httpapi.WithProfileService(deps.Profiles),
 		httpapi.WithToolRegistry(deps.ToolRegistry),
 		httpapi.WithToolsetRegistry(deps.Toolsets),
@@ -81,13 +75,6 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 	}
 }
 
-func notificationPresetServiceFromDeps(deps *RuntimeDeps) core.NotificationPresetService {
-	if deps == nil {
-		return nil
-	}
-	return deps.Notifications
-}
-
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	return []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
@@ -98,17 +85,13 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithDaemonDrainController(deps.DrainController),
 		udsapi.WithSessionCatalog(deps.Registry),
 		udsapi.WithTaskService(deps.Tasks),
-		udsapi.WithNetworkService(deps.Network),
-		udsapi.WithNetworkStore(deps.Registry),
-		udsapi.WithNetworkUsageStore(deps.Registry),
-		udsapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry, deps.WorkspaceAccess)),
+		udsapi.WithTaskDesignationStore(deps.Registry),
+		udsapi.WithSkillExposureStore(deps.Registry, deps.Registry),
 		udsapi.WithOnboardingStore(deps.Registry),
 		udsapi.WithObserver(deps.Observer),
 		udsapi.WithSchemaStreamStatusReader(deps.SchemaStreams),
 		udsapi.WithAutomation(deps.Automation),
 		udsapi.WithLoopService(deps.Loops),
-		udsapi.WithBridgeService(deps.Bridges),
-		udsapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		udsapi.WithProfileService(deps.Profiles),
 		udsapi.WithToolRegistry(deps.ToolRegistry),
 		udsapi.WithToolsetRegistry(deps.Toolsets),

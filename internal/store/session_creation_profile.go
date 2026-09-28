@@ -9,16 +9,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-const SessionCreationProfileVersion = 5
-
-const (
-	SessionCreationSandboxNone = "none"
-	SessionCreationSandboxRef  = "ref"
-)
+const SessionCreationProfileVersion = 6
 
 // SessionCreationProfile is the immutable, secret-free runtime policy used to
 // create or reseed a session. New fields require a profile version bump.
@@ -34,26 +28,24 @@ type SessionCreationProfile struct {
 	WorkspaceID     string                      `json:"workspace_id"`
 	CWD             string                      `json:"cwd"`
 	WorktreeRef     string                      `json:"worktree_ref,omitempty"`
-	SandboxMode     string                      `json:"sandbox_mode"`
-	SandboxRef      string                      `json:"sandbox_ref,omitempty"`
-	Permissions     string                      `json:"permissions"`
-	AllowedTools    []string                    `json:"allowed_tools,omitempty"`
-	AgentTools      []string                    `json:"agent_tools,omitempty"`
-	AgentToolsets   []string                    `json:"agent_toolsets,omitempty"`
-	DeniedTools     []string                    `json:"denied_tools,omitempty"`
-	RuntimeMode     string                      `json:"runtime_mode,omitempty"`
-	PromptOverlay   string                      `json:"prompt_overlay,omitempty"`
-	ContractOverlay string                      `json:"contract_overlay,omitempty"`
+
+	Permissions     string   `json:"permissions"`
+	AllowedTools    []string `json:"allowed_tools,omitempty"`
+	AgentTools      []string `json:"agent_tools,omitempty"`
+	AgentToolsets   []string `json:"agent_toolsets,omitempty"`
+	DeniedTools     []string `json:"denied_tools,omitempty"`
+	RuntimeMode     string   `json:"runtime_mode,omitempty"`
+	PromptOverlay   string   `json:"prompt_overlay,omitempty"`
+	ContractOverlay string   `json:"contract_overlay,omitempty"`
 }
 
 // SessionCreationOptions are deterministic per-session options excluded from
 // the stable policy digest but included in the creation digest.
 type SessionCreationOptions struct {
-	SessionID            string             `json:"session_id"`
-	Name                 string             `json:"name,omitempty"`
-	NetworkOwnerKey      string             `json:"network_owner_key"`
-	NetworkParticipation participation.Spec `json:"network_participation"`
-	SessionType          string             `json:"session_type"`
+	SessionID string `json:"session_id"`
+	Name      string `json:"name,omitempty"`
+
+	SessionType string `json:"session_type"`
 }
 
 // NormalizeSessionCreationProfile produces the only canonical digest input.
@@ -71,8 +63,6 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
 	profile.WorktreeRef = strings.TrimSpace(profile.WorktreeRef)
-	profile.SandboxMode = strings.ToLower(strings.TrimSpace(profile.SandboxMode))
-	profile.SandboxRef = strings.TrimSpace(profile.SandboxRef)
 	profile.Permissions = strings.TrimSpace(profile.Permissions)
 	profile.RuntimeMode = strings.ToLower(strings.TrimSpace(profile.RuntimeMode))
 	profile.PromptOverlay = strings.TrimSpace(profile.PromptOverlay)
@@ -87,12 +77,8 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 // Validate enforces the complete immutable profile contract.
 func (p SessionCreationProfile) Validate() error {
 	p = NormalizeSessionCreationProfile(p)
-	if p.Version != 4 && p.Version != SessionCreationProfileVersion {
+	if p.Version != SessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
-	}
-	// Version four witnesses retain their original hashes and cannot contain version five fields.
-	if p.Version == 4 && len(p.ACPOptions) != 0 {
-		return fmt.Errorf("store: session creation profile version 4 cannot contain ACP options")
 	}
 	if _, err := speedpkg.Parse(string(p.Speed)); err != nil {
 		return fmt.Errorf("store: session creation profile: %w", err)
@@ -114,18 +100,6 @@ func (p SessionCreationProfile) Validate() error {
 		if field.value == "" {
 			return fmt.Errorf("store: session creation profile %s is required", field.name)
 		}
-	}
-	switch p.SandboxMode {
-	case SessionCreationSandboxNone:
-		if p.SandboxRef != "" {
-			return fmt.Errorf("store: sandbox_ref requires sandbox_mode=ref")
-		}
-	case SessionCreationSandboxRef:
-		if p.SandboxRef == "" {
-			return fmt.Errorf("store: sandbox_ref is required for sandbox_mode=ref")
-		}
-	default:
-		return fmt.Errorf("store: invalid session creation sandbox mode %q", p.SandboxMode)
 	}
 	return nil
 }
@@ -169,16 +143,9 @@ func (p SessionCreationProfile) CreationDigest(opts SessionCreationOptions) (str
 	}
 	opts.SessionID = strings.TrimSpace(opts.SessionID)
 	opts.Name = strings.TrimSpace(opts.Name)
-	opts.NetworkOwnerKey = strings.TrimSpace(opts.NetworkOwnerKey)
 	opts.SessionType = strings.TrimSpace(opts.SessionType)
 	if opts.SessionID == "" || opts.SessionType == "" {
 		return "", fmt.Errorf("store: session creation digest requires session_id and session_type")
-	}
-	if err := participation.ValidateSpec(opts.NetworkParticipation); err != nil {
-		return "", fmt.Errorf("store: validate session creation participation: %w", err)
-	}
-	if err := participation.ValidateOwnerKey(opts.NetworkOwnerKey); err != nil {
-		return "", fmt.Errorf("store: validate session creation network owner: %w", err)
 	}
 	creationJSON, err := json.Marshal(opts)
 	if err != nil {

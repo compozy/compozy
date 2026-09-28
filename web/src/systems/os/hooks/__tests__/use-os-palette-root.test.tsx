@@ -1698,11 +1698,11 @@ describe("palette nested views", () => {
         error: null,
       },
       {
-        title: "Bridges",
+        title: "Jobs",
         rows: [],
         total: 0,
         loading: false,
-        error: "Bridges: transport offline",
+        error: "Jobs: transport offline",
       },
     ];
     renderPalette();
@@ -1715,8 +1715,8 @@ describe("palette nested views", () => {
         `showing ${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4}`
       )
     ).toBeInTheDocument();
-    expect(screen.getByTestId("os-palette-domain-error-bridges")).toHaveTextContent(
-      "Bridges: transport offline"
+    expect(screen.getByTestId("os-palette-domain-error-jobs")).toHaveTextContent(
+      "Jobs: transport offline"
     );
     for (const row of screen.getAllByTestId(/^os-palette-domain-row-task:/)) {
       expect(within(row).getByText("Alpha")).toBeInTheDocument();

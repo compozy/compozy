@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -179,7 +178,6 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
 	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
 	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
-	storedQueued.NetworkSpec = participation.LocalSpec()
 	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
 	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
 	if err := second.UpdateNonTerminalTaskRun(ctx, storedQueued); err != nil {

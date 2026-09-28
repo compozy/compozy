@@ -8,7 +8,7 @@ import {
   extensionTrustFacts,
   extensionUpdateScope,
   extensionsListOptions,
-  ExtensionNetworkConfirmDialog,
+  ExtensionGatewayConfirmDialog,
   previewExtensionInstall,
   useExtensionInstanceScope,
   type InstalledExtensionView,
@@ -94,7 +94,7 @@ function updatedToast(name: string, version: string | null | undefined) {
 
 /**
  * Install/update/enable for the one-kind catalog. Every mutation keeps its daemon gates — install
- * preview, unverified consent, network confirmation — and rows report pending by origin or by the
+ * preview, unverified consent, gateway confirmation — and rows report pending by origin or by the
  * local installed name, never by display name.
  */
 function useMarketplaceActionController(
@@ -318,8 +318,8 @@ function useMarketplaceActionController(
         const { extension } = await installExtension.mutateAsync({
           ...selected.request,
           ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
-          ...(selected.preview.network_requirement_digest
-            ? { confirm_network_digest: selected.preview.network_requirement_digest }
+          ...(selected.preview.gateway_requirement_digest
+            ? { confirm_gateway_digest: selected.preview.gateway_requirement_digest }
             : {}),
         });
         acquisition.preview.trigger.previewDismissed();
@@ -370,8 +370,8 @@ function useMarketplaceActionController(
           warnings={trustEntry.trust?.warnings}
         />
       ) : null}
-      {updateFlow.recovery?.kind === "network" ? (
-        <ExtensionNetworkConfirmDialog
+      {updateFlow.recovery?.kind === "gateway" ? (
+        <ExtensionGatewayConfirmDialog
           digest={updateFlow.recovery.digest}
           extensionName={updateFlow.recovery.label}
           onConfirm={() => updateFlow.confirm()}

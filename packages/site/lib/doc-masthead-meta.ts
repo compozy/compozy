@@ -21,17 +21,12 @@ function nodeName(value: ReactNode): string {
   return "";
 }
 
-function isProtocolSpecSlug(slug: string[]): boolean {
-  return slug[0] === "network" && slug[1] === "protocol";
+export function resolveProductLabel(_slug: string[]): string {
+  return "CompozyOS";
 }
 
-export function resolveProductLabel(slug: string[]): string {
-  return isProtocolSpecSlug(slug) ? "Compozy Network Protocol" : "CompozyOS";
-}
-
-export function resolveAudience(slug: string[]): string {
-  // COPY.md §4 audience names — never "operators" (control-room drift).
-  return isProtocolSpecSlug(slug) ? "protocol implementers" : "people running agent work";
+export function resolveAudience(_slug: string[]): string {
+  return "people running agent work";
 }
 
 export function sectionPageCount(tree: Root, pageUrl: string): number | null {

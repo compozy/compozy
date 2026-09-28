@@ -1,7 +1,5 @@
 package hooks
 
-import "github.com/compozy/compozy/internal/network/participation"
-
 func cloneTaskRunEnqueuedPayload(payload TaskRunEnqueuedPayload) TaskRunEnqueuedPayload {
 	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
 	return payload
@@ -20,9 +18,6 @@ func cloneTaskRunContext(payload TaskRunContext) TaskRunContext {
 	if payload.RunKind != nil {
 		runKind := *payload.RunKind
 		payload.RunKind = &runKind
-	}
-	if payload.ResolvedNetworkParticipation != nil {
-		payload.ResolvedNetworkParticipation = participation.CloneSpec(*payload.ResolvedNetworkParticipation)
 	}
 	return payload
 }

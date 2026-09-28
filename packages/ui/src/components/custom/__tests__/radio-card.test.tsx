@@ -7,8 +7,8 @@ import { RadioCard } from "../radio-card";
 describe("RadioCard", () => {
   it("Should toggle selection on click and on keyboard activation", () => {
     const onSelect = vi.fn();
-    render(<RadioCard selected={false} onSelect={onSelect} title="Sandbox template" />);
-    const card = screen.getByRole("radio", { name: /sandbox template/i });
+    render(<RadioCard selected={false} onSelect={onSelect} title="Task template" />);
+    const card = screen.getByRole("radio", { name: /task template/i });
     fireEvent.click(card);
     expect(onSelect).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(card, { key: " " });

@@ -46,7 +46,6 @@ func (r *Resolver) createWorkspaceRegistration(ctx context.Context, opts Registe
 		AdditionalDirs: additionalDirs,
 		Name:           name,
 		DefaultAgent:   strings.TrimSpace(opts.DefaultAgent),
-		SandboxRef:     strings.TrimSpace(opts.SandboxRef),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

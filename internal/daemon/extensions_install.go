@@ -38,7 +38,7 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 ) (preparedDaemonExtensionInstall, error) {
 	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
-	req.ConfirmNetworkDigest = strings.TrimSpace(req.ConfirmNetworkDigest)
+	req.ConfirmGatewayDigest = strings.TrimSpace(req.ConfirmGatewayDigest)
 	if req.Ref == "" {
 		return preparedDaemonExtensionInstall{}, errors.New("daemon: extension install ref is required")
 	}

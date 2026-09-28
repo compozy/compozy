@@ -4,7 +4,7 @@ description: Read one profile by default, or request an owner-labeled view acros
 ---
 
 CompozyOS reads work through the resolved profile by default. A session list, task catalog, automation
-catalog, bridge catalog, network conversation, or other work read only returns records owned by that
+catalog or other work read only returns records owned by that
 profile.
 
 Use root `--profile` to choose another profile for one command:
@@ -42,8 +42,7 @@ profile with request input. `compozy__profile_list` and `compozy__profile_curren
 truth but do not mutate profile state.
 
 Worktrees remain visible from every profile because they describe workspace filesystem state. Each row
-still carries its owning `profile_name`. Network delivery remains profile-blind so transport can deliver
-messages, while channels, conversations, subscriptions, and work records retain their profile owner.
+still carries its owning `profile_name`.
 
 ## Related
 

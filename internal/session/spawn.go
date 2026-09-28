@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -43,26 +42,25 @@ type SpawnOpts struct {
 	ParentSessionID string
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.
-	InheritedWorktreeID  string
-	AgentName            string
-	Provider             string
-	Model                string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	ACPOptions           []acp.SessionConfigOptionSelection
-	Name                 string
-	Workspace            string
-	WorkspacePath        string
-	NetworkParticipation *participation.Request
-	PromptOverlay        string
-	SpawnRole            string
-	TTL                  time.Duration
-	AutoStopOnParent     bool
-	NotifyCreator        bool
-	NotifyCreatorSet     bool
-	PermissionPolicy     store.SessionPermissionPolicy
-	IdempotencyKey       string
-	AllowStoppedParent   bool
+	InheritedWorktreeID string
+	AgentName           string
+	Provider            string
+	Model               string
+	ReasoningEffort     string
+	Speed               speedpkg.Speed
+	ACPOptions          []acp.SessionConfigOptionSelection
+	Name                string
+	Workspace           string
+	WorkspacePath       string
+	PromptOverlay       string
+	SpawnRole           string
+	TTL                 time.Duration
+	AutoStopOnParent    bool
+	NotifyCreator       bool
+	NotifyCreatorSet    bool
+	PermissionPolicy    store.SessionPermissionPolicy
+	IdempotencyKey      string
+	AllowStoppedParent  bool
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
 }
@@ -77,10 +75,6 @@ var knownPermissionCategories = []permissionCategory{
 	{name: "skills", values: func(p store.SessionPermissionPolicy) []string { return p.Skills }},
 	{name: "mcp_servers", values: func(p store.SessionPermissionPolicy) []string { return p.MCPServers }},
 	{name: "workspace_paths", values: func(p store.SessionPermissionPolicy) []string { return p.WorkspacePaths }},
-	{name: "network_channels", values: func(p store.SessionPermissionPolicy) []string { return p.NetworkChannels }},
-	{name: "sandbox_profiles", values: func(p store.SessionPermissionPolicy) []string {
-		return p.SandboxProfiles
-	}},
 }
 
 // Spawn creates a bounded child session after enforcing lineage, TTL, caps,
@@ -103,22 +97,17 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
 
 	child, err := m.Create(ctx, CreateOpts{
-		ProfileID:            strings.TrimSpace(parent.ProfileID),
-		AgentName:            normalized.AgentName,
-		Provider:             normalized.Provider,
-		Model:                normalized.Model,
-		ReasoningEffort:      normalized.ReasoningEffort,
-		Speed:                normalized.Speed,
-		ACPOptions:           acp.CloneSessionConfigOptionSelections(normalized.ACPOptions),
-		Name:                 normalized.Name,
-		Workspace:            workspaceRef,
-		WorkspacePath:        workspacePath,
-		Worktree:             normalized.InheritedWorktreeID,
-		NetworkParticipation: spawnNetworkParticipation(normalized),
-		NetworkAuthority: &participation.AuthorityScope{
-			Enforced:   true,
-			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
-		},
+		ProfileID:           strings.TrimSpace(parent.ProfileID),
+		AgentName:           normalized.AgentName,
+		Provider:            normalized.Provider,
+		Model:               normalized.Model,
+		ReasoningEffort:     normalized.ReasoningEffort,
+		Speed:               normalized.Speed,
+		ACPOptions:          acp.CloneSessionConfigOptionSelections(normalized.ACPOptions),
+		Name:                normalized.Name,
+		Workspace:           workspaceRef,
+		WorkspacePath:       workspacePath,
+		Worktree:            normalized.InheritedWorktreeID,
 		PromptOverlay:       normalized.PromptOverlay,
 		Type:                SessionTypeSpawned,
 		Lineage:             lineage,
@@ -202,13 +191,6 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
 	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return SpawnOpts{}, spawnValidation(fmt.Sprintf("network_participation: %v", err))
-		}
-		normalized.NetworkParticipation = &request
-	}
 	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
 	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
 	if IsInternalSpawnRole(normalized.SpawnRole) {

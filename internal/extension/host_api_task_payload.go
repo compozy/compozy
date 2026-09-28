@@ -89,19 +89,18 @@ func taskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *apicontract.
 	}
 
 	return &apicontract.TaskRunSummaryPayload{
-		ID:                           summary.ID,
-		TaskID:                       summary.TaskID,
-		Status:                       summary.Status,
-		Attempt:                      summary.Attempt,
-		MaxAttempts:                  summary.MaxAttempts,
-		SessionID:                    summary.SessionID,
-		ClaimedBy:                    cloneActorIdentity(summary.ClaimedBy),
-		ResolvedNetworkParticipation: cloneResolvedParticipation(summary.ResolvedNetworkParticipation),
-		QueuedAt:                     summary.QueuedAt,
-		ClaimedAt:                    optionalTime(summary.ClaimedAt),
-		StartedAt:                    optionalTime(summary.StartedAt),
-		EndedAt:                      optionalTime(summary.EndedAt),
-		Error:                        taskpkg.RedactClaimTokens(summary.Error),
+		ID:          summary.ID,
+		TaskID:      summary.TaskID,
+		Status:      summary.Status,
+		Attempt:     summary.Attempt,
+		MaxAttempts: summary.MaxAttempts,
+		SessionID:   summary.SessionID,
+		ClaimedBy:   cloneActorIdentity(summary.ClaimedBy),
+		QueuedAt:    summary.QueuedAt,
+		ClaimedAt:   optionalTime(summary.ClaimedAt),
+		StartedAt:   optionalTime(summary.StartedAt),
+		EndedAt:     optionalTime(summary.EndedAt),
+		Error:       taskpkg.RedactClaimTokens(summary.Error),
 	}
 }
 

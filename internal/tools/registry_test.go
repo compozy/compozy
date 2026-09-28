@@ -412,23 +412,23 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		taskUpdate.ID = "compozy__task_update"
 		taskUpdate.ReadOnly = false
 		taskUpdate.Risk = RiskMutating
-		networkSend := validDescriptor()
-		networkSend.ID = "compozy__network_send"
-		networkSend.ReadOnly = false
-		networkSend.OpenWorld = true
-		networkSend.Risk = RiskOpenWorld
+		terminalExec := validDescriptor()
+		terminalExec.ID = ToolIDTerminalExec
+		terminalExec.ReadOnly = false
+		terminalExec.OpenWorld = true
+		terminalExec.Risk = RiskOpenWorld
 		conflicted := mcpDescriptor("mcp__github__search", "github", "search")
 		conflictedDuplicate := mcpDescriptor("mcp__github__search", "github", "Search")
 		provider := providerWithDescriptors(
 			SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
 			skillView,
 			taskUpdate,
-			networkSend,
+			terminalExec,
 			conflicted,
 			conflictedDuplicate,
 		)
-		provider.handles[networkSend.ID] = &registryTestHandle{
-			descriptor: networkSend,
+		provider.handles[terminalExec.ID] = &registryTestHandle{
+			descriptor: terminalExec,
 			availability: Availability{
 				Registered:  true,
 				Enabled:     true,
@@ -459,7 +459,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			t.Fatalf("len(operatorViews) = %d, want %d", got, want)
 		}
 		requireViewReason(t, operatorViews, taskUpdate.ID, ReasonPolicyDenied)
-		requireViewReason(t, operatorViews, networkSend.ID, ReasonBackendUnhealthy)
+		requireViewReason(t, operatorViews, terminalExec.ID, ReasonBackendUnhealthy)
 		requireViewReason(t, operatorViews, conflicted.ID, ReasonConflictedSanitizedName)
 
 		sessionViews, err := registry.SessionProjection(ctx, Scope{})

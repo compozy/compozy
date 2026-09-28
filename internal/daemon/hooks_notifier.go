@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -32,10 +31,10 @@ type hooksNotifier struct {
 	taskLifecycleWatchHooks   []taskLifecycleWatchObserver
 	loopNodeTerminalHooks     []loopNodeTerminalObserver
 	automationRunWatchHooks   []automationRunWatchObserver
-	networkWatchHooks         []networkWatchObserver
-	coordinatorWatchHooks     []coordinatorWatchObserver
-	eventRecordWatchHooks     []eventRecordWatchObserver
-	terminals                 terminalRuntimeRecovery
+
+	coordinatorWatchHooks []coordinatorWatchObserver
+	eventRecordWatchHooks []eventRecordWatchObserver
+	terminals             terminalRuntimeRecovery
 }
 
 type terminalRuntimeRecovery interface {
@@ -51,7 +50,6 @@ var _ session.Notifier = (*hooksNotifier)(nil)
 var _ session.FinalizationNotifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
 var _ session.RuntimeRecoveryHooks = (*hooksNotifier)(nil)
-var _ session.SandboxHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
@@ -62,9 +60,7 @@ var _ session.SpawnHooks = (*hooksNotifier)(nil)
 var _ session.AuthoredContextHooks = (*hooksNotifier)(nil)
 var _ session.AttentionHooks = (*hooksNotifier)(nil)
 var _ taskpkg.RunHookDispatcher = (*hooksNotifier)(nil)
-var _ network.HookDispatcher = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
-var _ session.SandboxLifecycleNotifier = (*hooksNotifier)(nil)
 var _ session.SubprocessHealthNotifier = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {

@@ -214,7 +214,7 @@ svg.ic--xs { width: 12px; height: 12px; }
 /* ============================================================
    03 · Sidebar — §5.2 tree. Same anatomy as docs/docs.css,
    extended with reference count chips and one nested folder
-   level (Protocol spec under Network, D5).
+   level.
    ============================================================ */
 
 .dsh-sidebar {
@@ -1076,11 +1076,9 @@ svg.ic--xs { width: 12px; height: 12px; }
 
 /* ============================================================
    09c · Marketplace v2 — populated-catalog surfaces (D13/§9)
-   Feed-flow diagram, stat strip, dev-cycle spotlight, bridge
+   Feed-flow diagram, stat strip, dev-cycle spotlight, catalog
    provider grid, detail inventory blocks. Real repo artifacts
-   only; bridges carry the alpha maturity label (build-from-
-   source today).
-   ============================================================ */
+   only. */
 
 /* hero title — one italic display word, editorial voice */
 .mk-title em { font-style: italic; }
@@ -1252,23 +1250,7 @@ svg.ic--xs { width: 12px; height: 12px; }
   background: var(--canvas-soft);
 }
 
-/* bridge provider grid — 8 real providers, alpha-labeled */
-.mk-bridge-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-.mk-bridge {
-  display: flex;
-  flex-direction: column;
-  padding: 16px 16px 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--canvas-soft);
-  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
-}
-.mk-bridge:hover { border-color: var(--line-strong); background: var(--elevated); }
-.mk-bridge__top { display: flex; align-items: center; gap: 11px; }
+
 .mk-tile {
   flex-shrink: 0;
   display: inline-flex;
@@ -1285,31 +1267,6 @@ svg.ic--xs { width: 12px; height: 12px; }
   letter-spacing: 0.02em;
   color: var(--fg);
 }
-.mk-bridge__name { min-width: 0; font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
-.mk-bridge__platform { display: block; margin-top: 1px; font-family: var(--font-mono); font-size: 10px; color: var(--subtle); }
-.mk-bridge__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--subtle);
-}
-.mk-bridge__meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); }
-.mk-bridge__foot {
-  display: flex;
-  align-items: center;
-  margin-top: 12px;
-  padding: 9px 0;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.mk-bridge__foot a { display: inline-flex; align-items: center; gap: 6px; transition: color 0.14s var(--ease); }
-.mk-bridge__foot a:hover { color: var(--fg); }
-.mk-bridge__foot .ic { width: 12px; height: 12px; }
 
 /* kind title count chip */
 .mk-kind__count {
@@ -1397,8 +1354,7 @@ svg.ic--xs { width: 12px; height: 12px; }
 
 @media (max-width: 1180px) {
   .mk-hero { grid-template-columns: minmax(0, 1fr) 380px; gap: 44px; }
-  .mk-bridge-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .mk-inventory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mk-inventory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-inv:nth-child(2) { border-right: 0; }
   .mk-inv:nth-child(1), .mk-inv:nth-child(2) { border-bottom: 1px solid var(--line); }
 }
@@ -1406,15 +1362,13 @@ svg.ic--xs { width: 12px; height: 12px; }
 @media (max-width: 980px) {
   .mk-hero { grid-template-columns: 1fr; gap: 40px; }
   .mk-pipe { max-width: 480px; }
-  .mk-bridge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+  }
 
 @media (max-width: 720px) {
   .mk-hero__cmd { flex-wrap: wrap; gap: 12px; }
   .mk-hero__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
   .mk-hero__stat + .mk-hero__stat { padding-left: 0; border-left: 0; }
-  .mk-bridge-grid { grid-template-columns: 1fr; }
-  .mk-inventory { grid-template-columns: 1fr; }
+    .mk-inventory { grid-template-columns: 1fr; }
   .mk-inv { border-right: 0; border-bottom: 1px solid var(--line); }
   .mk-inv:last-child { border-bottom: 0; }
   .mkd-inv-grid { grid-template-columns: 1fr; }

@@ -245,7 +245,7 @@ func (g *TaskRunRepo) createReviewContinuationRun(
 	run := taskpkg.Run{
 		ID:          strings.TrimSpace(runID),
 		TaskID:      taskRecord.ID,
-		WorkspaceID: taskRecord.WorkspaceID,
+		WorkspaceID: parentRun.WorkspaceID,
 		Status:      taskpkg.TaskRunStatusQueued,
 		Attempt:     runAttempt,
 		Origin:      actor.Origin,
@@ -260,7 +260,6 @@ func (g *TaskRunRepo) createReviewContinuationRun(
 		Metadata: metadata,
 		QueuedAt: queuedAt,
 	}
-	run.SetNetworkState(parentRun.NetworkSpecSnapshot(), "", "", "")
 	normalized, err := g.tasks.normalizeTaskRunForCreate(run)
 	if err != nil {
 		return taskpkg.Run{}, err

@@ -51,9 +51,9 @@ const (
 			registry_name,
 			remote_version,
 			provenance_json,
-			network_requirement_digest,
-			network_confirmed_by,
-			network_confirmed_at
+			gateway_requirement_digest,
+			gateway_confirmed_by,
+			gateway_confirmed_at
 	`
 	registryInsertColumns = `
 			name,
@@ -71,9 +71,9 @@ const (
 			registry_name,
 			remote_version,
 			provenance_json,
-			network_requirement_digest,
-			network_confirmed_by,
-			network_confirmed_at
+			gateway_requirement_digest,
+			gateway_confirmed_by,
+			gateway_confirmed_at
 	`
 )
 

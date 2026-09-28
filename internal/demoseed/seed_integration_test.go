@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	"github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -63,8 +62,8 @@ func TestSeed(t *testing.T) {
 			t.Fatalf("Seed(first) error = %v", err)
 		}
 		if first.Counts.Workspaces != 2 || first.Counts.Sessions != 12 || first.Counts.Tasks != 23 ||
-			first.Counts.NetworkMessages != 6 || first.Counts.GoalTurns != 2 ||
-			first.Counts.Worktrees != 1 || first.Counts.NotificationPresets != 3 {
+			first.Counts.GoalTurns != 2 ||
+			first.Counts.Worktrees != 1 {
 			t.Fatalf("Seed(first).Counts = %#v, want the complete multi-surface scenario", first.Counts)
 		}
 		obsoleteFixture := filepath.Join(first.WorkspaceRoot, "obsolete-seed-fixture.md")
@@ -120,7 +119,7 @@ func TestSeed(t *testing.T) {
 
 		assertWorkspaceRecords(t, ctx, db, replacedAgain)
 		assertTaskStory(t, ctx, db, replacedAgain.WorkspaceID)
-		assertNetworkStory(t, ctx, db, replacedAgain.WorkspaceID)
+
 		assertAutomationStory(t, ctx, db)
 		assertLaunchTranscript(t, ctx, paths, replacedAgain.WorkspaceID)
 		assertLoopDefinition(t, replacedAgain.WorkspaceRoot)
@@ -267,13 +266,6 @@ func assertCompleteSeedSurfaces(
 	if _, err := os.Stat(worktrees[0].Path); err != nil {
 		t.Fatalf("Stat(seed worktree) error = %v", err)
 	}
-	items, err := db.ListPresetsForProfile(ctx, presets.Query{}, store.DefaultProfileID)
-	if err != nil {
-		t.Fatalf("ListPresetsForProfile() error = %v", err)
-	}
-	if len(items) != 3 {
-		t.Fatalf("ListPresetsForProfile() = %#v, want three built-in presets", items)
-	}
 	assertSeedMemoriesReadable(t, ctx, db, paths, result)
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
@@ -416,51 +408,6 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 	}
 	if len(blocks) != 1 || !strings.Contains(blocks[0].Reason, "14:08–14:30 UTC") {
 		t.Fatalf("Mexico blocks = %#v, want the 22-minute replay gap", blocks)
-	}
-}
-
-func assertNetworkStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, workspaceID string) {
-	t.Helper()
-	ref := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: launchChannel}
-	readScope := store.ReadScope{ProfileID: store.DefaultProfileID}
-	channel, err := db.GetNetworkChannel(ctx, readScope, ref)
-	if err != nil {
-		t.Fatalf("GetNetworkChannel() error = %v", err)
-	}
-	if channel.ProfileID != store.DefaultProfileID || !strings.Contains(channel.Purpose, "Checkout launch") {
-		t.Fatalf("GetNetworkChannel().Purpose = %q, want checkout launch purpose", channel.Purpose)
-	}
-	thread, err := db.GetThread(ctx, readScope, ref, launchThreadID)
-	if err != nil {
-		t.Fatalf("GetThread() error = %v", err)
-	}
-	if thread.ProfileID != store.DefaultProfileID || thread.MessageCount != 6 || thread.ParticipantCount != 4 {
-		t.Fatalf("GetThread() = %#v, want 6 messages and 4 participants", thread)
-	}
-	messages, err := db.ListConversationMessages(ctx, store.NetworkConversationRef{
-		WorkspaceID: workspaceID, Channel: launchChannel,
-		Surface: store.NetworkSurfaceThread, ThreadID: launchThreadID,
-	}, store.NetworkConversationMessageQuery{ReadScope: readScope, Limit: 20})
-	if err != nil {
-		t.Fatalf("ListConversationMessages() error = %v", err)
-	}
-	var narrative strings.Builder
-	for _, message := range messages {
-		if message.ProfileID != store.DefaultProfileID {
-			t.Fatalf(
-				"network message %q ProfileID = %q, want %q",
-				message.MessageID,
-				message.ProfileID,
-				store.DefaultProfileID,
-			)
-		}
-		narrative.WriteString(message.Text)
-		narrative.WriteByte(' ')
-	}
-	for _, fact := range []string{"25%", "10,214", "14:08–14:30 UTC", "four launch-tagged"} {
-		if !strings.Contains(narrative.String(), fact) {
-			t.Fatalf("Network narrative = %q, want fact %q", narrative.String(), fact)
-		}
 	}
 }
 

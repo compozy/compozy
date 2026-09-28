@@ -49,8 +49,6 @@ function treeSession(
               skills: [],
               mcp_servers: [],
               workspace_paths: [],
-              network_channels: [],
-              sandbox_profiles: [],
             },
           },
         }

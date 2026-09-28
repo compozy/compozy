@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -67,29 +66,28 @@ func timelineReason(payload json.RawMessage) string {
 
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 	summary := &RunSummary{
-		ID:                           run.ID,
-		TaskID:                       run.TaskID,
-		Status:                       run.Status,
-		Attempt:                      int(run.Attempt),
-		RecoveryCount:                int(run.RecoveryCount),
-		PreviousRunID:                run.PreviousRunID,
-		FailureKind:                  run.FailureKind,
-		MaxAttempts:                  maxAttempts,
-		SessionID:                    run.SessionID,
-		WorktreeID:                   run.WorktreeIDValue(),
-		ResolvedWorktreeMode:         run.ResolvedWorktreeModeValue(),
-		ResolvedWorktreeRef:          run.ResolvedWorktreeRefValue(),
-		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:               run.ClaimTokenHash,
-		LeaseUntil:                   run.LeaseUntil,
-		HeartbeatAt:                  run.HeartbeatAt,
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-		DesignationGroupID:           run.DesignationGroupID,
-		QueuedAt:                     run.QueuedAt,
-		ClaimedAt:                    run.ClaimedAt,
-		StartedAt:                    run.StartedAt,
-		EndedAt:                      run.EndedAt,
-		Error:                        run.Error,
+		ID:                   run.ID,
+		TaskID:               run.TaskID,
+		Status:               run.Status,
+		Attempt:              int(run.Attempt),
+		RecoveryCount:        int(run.RecoveryCount),
+		PreviousRunID:        run.PreviousRunID,
+		FailureKind:          run.FailureKind,
+		MaxAttempts:          maxAttempts,
+		SessionID:            run.SessionID,
+		WorktreeID:           run.WorktreeIDValue(),
+		ResolvedWorktreeMode: run.ResolvedWorktreeModeValue(),
+		ResolvedWorktreeRef:  run.ResolvedWorktreeRefValue(),
+		ClaimedBy:            cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:       run.ClaimTokenHash,
+		LeaseUntil:           run.LeaseUntil,
+		HeartbeatAt:          run.HeartbeatAt,
+		DesignationGroupID:   run.DesignationGroupID,
+		QueuedAt:             run.QueuedAt,
+		ClaimedAt:            run.ClaimedAt,
+		StartedAt:            run.StartedAt,
+		EndedAt:              run.EndedAt,
+		Error:                run.Error,
 	}
 	ApplyRunDesignationSummary(summary, run)
 	return summary

@@ -203,7 +203,7 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		document := testDocument(now,
-			testEntry("alpha", "Telemetry bridge", "Exports traces"),
+			testEntry("alpha", "Telemetry tools", "Exports traces"),
 			testEntry("beta", "Audit log", "Records telemetry events"),
 			testEntry("gamma", "Cost guard", "Enforces budgets"),
 			testEntry("resume", "RÉSUMÉ helper", "Indexes accented metadata"),
@@ -355,10 +355,10 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 	t.Run("Should resolve canonical and retained slugs without crossing entry or version identity", func(t *testing.T) {
 		t.Parallel()
 		store := openMarketplaceTestStore(t)
-		entry := testEntry("herdr-bridge", "herdr bridge", "Bridge integration")
-		entry.InstallSlug = "AlexandreAkao/herdr-bridge-compozy"
+		entry := testEntry("herdr-tools", "herdr tools", "Terminal integration")
+		entry.InstallSlug = "AlexandreAkao/herdr-tools-compozy"
 		collision := testEntry("other", "Other", "Different package")
-		collision.InstallSlug, collision.Version = "compozy/herdr-bridge", "2.0.0"
+		collision.InstallSlug, collision.Version = "compozy/herdr-tools", "2.0.0"
 		if err := store.ReplaceSource(
 			t.Context(),
 			CompozyCatalogSource,
@@ -367,7 +367,7 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		for _, slug := range []string{"compozy/herdr-bridge", entry.InstallSlug} {
+		for _, slug := range []string{"compozy/herdr-tools", entry.InstallSlug} {
 			resolved, err := store.GetExtensionByInstallSlug(t.Context(), slug, "1.0.0")
 			if err != nil {
 				t.Fatalf("resolve(%s): %v", slug, err)
@@ -379,7 +379,7 @@ func TestSQLiteStoreResolvesExactExtensionInstall(t *testing.T) {
 		}
 		if _, err := store.GetExtensionByInstallSlug(
 			t.Context(),
-			"compozy/herdr-bridge",
+			"compozy/herdr-tools",
 			"2.0.0",
 		); !errors.Is(
 			err,

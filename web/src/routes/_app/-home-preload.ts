@@ -5,7 +5,6 @@ import { homePrefsStore } from "@/systems/dashboard/hooks/use-home-prefs-store";
 import { homeScopeForActiveWorkspace } from "@/systems/dashboard/lib/home-scope";
 import { homeWorkingNowSessionFilters } from "@/systems/dashboard/lib/home-working-now-query";
 import { homeActivityOptions, homeOverviewOptions } from "@/systems/dashboard/lib/query-options";
-import { networkStatusOptions } from "@/systems/network/lib/query-options";
 import { sessionsListOptions } from "@/systems/session";
 import { taskDashboardOptions } from "@/systems/tasks/lib/query-options";
 
@@ -68,6 +67,5 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
       homeActivityOptions({ workspace_id: scope.workspaceParam || undefined, ...profileScope })
     ),
     queryClient.ensureQueryData(taskDashboardOptions({ ...scope.taskScope, ...profileScope })),
-    queryClient.ensureQueryData(networkStatusOptions()),
   ]);
 }

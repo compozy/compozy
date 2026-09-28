@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -26,81 +25,79 @@ type TaskReferencePayload struct {
 
 // TaskSummaryPayload is the shared list-oriented task response payload.
 type TaskSummaryPayload struct {
-	ID                           string                           `json:"id"`
-	ProfileID                    string                           `json:"profile_id"`
-	ProfileName                  string                           `json:"profile_name"`
-	ProfileColor                 string                           `json:"profile_color,omitempty"`
-	ProfileIcon                  string                           `json:"profile_icon,omitempty"`
-	Identifier                   string                           `json:"identifier,omitempty"`
-	Scope                        taskpkg.Scope                    `json:"scope"`
-	WorkspaceID                  string                           `json:"workspace_id,omitempty"`
-	ParentTaskID                 string                           `json:"parent_task_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec              `json:"resolved_network_participation,omitempty"`
-	Title                        string                           `json:"title"`
-	Priority                     taskpkg.Priority                 `json:"priority,omitempty"`
-	MaxAttempts                  int                              `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady           bool                             `json:"auto_enqueue_on_ready,omitempty"`
-	Status                       taskpkg.Status                   `json:"status"`
-	ApprovalPolicy               taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
-	ApprovalState                taskpkg.ApprovalState            `json:"approval_state,omitempty"`
-	Draft                        bool                             `json:"draft,omitempty"`
-	Owner                        *taskpkg.Ownership               `json:"owner,omitempty"`
-	CurrentRunID                 string                           `json:"current_run_id,omitempty"`
-	LatestEventSeq               int64                            `json:"latest_event_seq"`
-	Paused                       bool                             `json:"paused,omitempty"`
-	PausedBy                     string                           `json:"paused_by,omitempty"`
-	PausedAt                     *time.Time                       `json:"paused_at,omitempty"`
-	PausedReason                 string                           `json:"paused_reason,omitempty"`
-	EffectivePaused              bool                             `json:"effective_paused,omitempty"`
-	PausedByTaskID               string                           `json:"paused_by_task_id,omitempty"`
-	BlockedReasons               []taskpkg.BlockedReason          `json:"blocked_reasons,omitempty"`
-	NeedsAttention               bool                             `json:"needs_attention,omitempty"`
-	NeedsAttentionReason         string                           `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt             *time.Time                       `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy             *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
-	WakeCreator                  bool                             `json:"wake_creator"`
-	CreatedBy                    taskpkg.ActorIdentity            `json:"created_by"`
-	Origin                       taskpkg.Origin                   `json:"origin"`
-	CreatedAt                    time.Time                        `json:"created_at"`
-	UpdatedAt                    time.Time                        `json:"updated_at"`
-	ClosedAt                     *time.Time                       `json:"closed_at,omitempty"`
-	ChildCount                   int                              `json:"child_count,omitempty"`
-	DependencyCount              int                              `json:"dependency_count,omitempty"`
-	Dependencies                 []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
-	ActiveRun                    *TaskRunSummaryPayload           `json:"active_run,omitempty"`
-	LastActivityAt               *time.Time                       `json:"last_activity_at,omitempty"`
+	ID                   string                           `json:"id"`
+	ProfileID            string                           `json:"profile_id"`
+	ProfileName          string                           `json:"profile_name"`
+	ProfileColor         string                           `json:"profile_color,omitempty"`
+	ProfileIcon          string                           `json:"profile_icon,omitempty"`
+	Identifier           string                           `json:"identifier,omitempty"`
+	Scope                taskpkg.Scope                    `json:"scope"`
+	WorkspaceID          string                           `json:"workspace_id,omitempty"`
+	ParentTaskID         string                           `json:"parent_task_id,omitempty"`
+	Title                string                           `json:"title"`
+	Priority             taskpkg.Priority                 `json:"priority,omitempty"`
+	MaxAttempts          int                              `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                             `json:"auto_enqueue_on_ready,omitempty"`
+	Status               taskpkg.Status                   `json:"status"`
+	ApprovalPolicy       taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
+	ApprovalState        taskpkg.ApprovalState            `json:"approval_state,omitempty"`
+	Draft                bool                             `json:"draft,omitempty"`
+	Owner                *taskpkg.Ownership               `json:"owner,omitempty"`
+	CurrentRunID         string                           `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64                            `json:"latest_event_seq"`
+	Paused               bool                             `json:"paused,omitempty"`
+	PausedBy             string                           `json:"paused_by,omitempty"`
+	PausedAt             *time.Time                       `json:"paused_at,omitempty"`
+	PausedReason         string                           `json:"paused_reason,omitempty"`
+	EffectivePaused      bool                             `json:"effective_paused,omitempty"`
+	PausedByTaskID       string                           `json:"paused_by_task_id,omitempty"`
+	BlockedReasons       []taskpkg.BlockedReason          `json:"blocked_reasons,omitempty"`
+	NeedsAttention       bool                             `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                           `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time                       `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                             `json:"wake_creator"`
+	CreatedBy            taskpkg.ActorIdentity            `json:"created_by"`
+	Origin               taskpkg.Origin                   `json:"origin"`
+	CreatedAt            time.Time                        `json:"created_at"`
+	UpdatedAt            time.Time                        `json:"updated_at"`
+	ClosedAt             *time.Time                       `json:"closed_at,omitempty"`
+	ChildCount           int                              `json:"child_count,omitempty"`
+	DependencyCount      int                              `json:"dependency_count,omitempty"`
+	Dependencies         []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
+	ActiveRun            *TaskRunSummaryPayload           `json:"active_run,omitempty"`
+	LastActivityAt       *time.Time                       `json:"last_activity_at,omitempty"`
 }
 
 // TaskPayload is the shared full task response payload.
 type TaskPayload struct {
-	ID                           string                 `json:"id"`
-	ProfileID                    string                 `json:"profile_id"`
-	ProfileName                  string                 `json:"profile_name"`
-	ProfileColor                 string                 `json:"profile_color,omitempty"`
-	ProfileIcon                  string                 `json:"profile_icon,omitempty"`
-	Identifier                   string                 `json:"identifier,omitempty"`
-	Scope                        taskpkg.Scope          `json:"scope"`
-	WorkspaceID                  string                 `json:"workspace_id,omitempty"`
-	ParentTaskID                 string                 `json:"parent_task_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation,omitempty"`
-	Title                        string                 `json:"title"`
-	Description                  string                 `json:"description,omitempty"`
-	Priority                     taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts                  int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady           bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status                       taskpkg.Status         `json:"status"`
-	ApprovalPolicy               taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	ApprovalState                taskpkg.ApprovalState  `json:"approval_state,omitempty"`
-	Draft                        bool                   `json:"draft,omitempty"`
-	Owner                        *taskpkg.Ownership     `json:"owner,omitempty"`
-	CurrentRunID                 string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq               int64                  `json:"latest_event_seq"`
-	Paused                       bool                   `json:"paused,omitempty"`
-	PausedBy                     string                 `json:"paused_by,omitempty"`
-	PausedAt                     *time.Time             `json:"paused_at,omitempty"`
-	PausedReason                 string                 `json:"paused_reason,omitempty"`
-	EffectivePaused              bool                   `json:"effective_paused,omitempty"`
-	PausedByTaskID               string                 `json:"paused_by_task_id,omitempty"`
+	ID                 string                 `json:"id"`
+	ProfileID          string                 `json:"profile_id"`
+	ProfileName        string                 `json:"profile_name"`
+	ProfileColor       string                 `json:"profile_color,omitempty"`
+	ProfileIcon        string                 `json:"profile_icon,omitempty"`
+	Identifier         string                 `json:"identifier,omitempty"`
+	Scope              taskpkg.Scope          `json:"scope"`
+	WorkspaceID        string                 `json:"workspace_id,omitempty"`
+	ParentTaskID       string                 `json:"parent_task_id,omitempty"`
+	Title              string                 `json:"title"`
+	Description        string                 `json:"description,omitempty"`
+	Priority           taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts        int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Status             taskpkg.Status         `json:"status"`
+	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState      taskpkg.ApprovalState  `json:"approval_state,omitempty"`
+	Draft              bool                   `json:"draft,omitempty"`
+	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
+	CurrentRunID       string                 `json:"current_run_id,omitempty"`
+	LatestEventSeq     int64                  `json:"latest_event_seq"`
+	Paused             bool                   `json:"paused,omitempty"`
+	PausedBy           string                 `json:"paused_by,omitempty"`
+	PausedAt           *time.Time             `json:"paused_at,omitempty"`
+	PausedReason       string                 `json:"paused_reason,omitempty"`
+	EffectivePaused    bool                   `json:"effective_paused,omitempty"`
+	PausedByTaskID     string                 `json:"paused_by_task_id,omitempty"`
 	// BlockedReasons is populated on read/detail projections and may be omitted by mutation responses.
 	BlockedReasons       []taskpkg.BlockedReason `json:"blocked_reasons,omitempty"`
 	NeedsAttention       bool                    `json:"needs_attention,omitempty"`
@@ -283,7 +280,6 @@ type TaskRunDetailPayload struct {
 	Task    *TaskReferencePayload            `json:"task,omitempty"`
 	Session *TaskRunSessionPayload           `json:"session,omitempty"`
 	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-	Network *TaskRunNetworkPayload           `json:"network,omitempty"`
 }
 
 // TaskInspectRunPayload is the redacted run projection returned by task inspect.
@@ -357,4 +353,18 @@ type TaskInspectPayload struct {
 // TaskInspectResponse wraps one task/run inspect snapshot.
 type TaskInspectResponse struct {
 	Inspect TaskInspectPayload `json:"inspect"`
+}
+
+// TaskFanOutRunDesignationRequest describes one designated sibling run.
+type TaskFanOutRunDesignationRequest struct {
+	Brief          string          `json:"brief"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+}
+
+// FanOutTaskRunsRequest captures one designated fan-out enqueue request.
+type FanOutTaskRunsRequest struct {
+	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
+	WorktreePerRun bool                              `json:"worktree_per_run,omitempty"`
 }

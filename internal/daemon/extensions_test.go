@@ -872,20 +872,20 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 
-		source.downloads["1.0.0"] = lifecycleNetworkExtensionDownloadResult(t, "1.0.0", "builders")
-		source.downloads["2.0.0"] = lifecycleNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
+		source.downloads["1.0.0"] = lifecycleGatewayExtensionDownloadResult(t, "1.0.0", "gateway.private")
+		source.downloads["2.0.0"] = lifecycleGatewayExtensionDownloadResult(t, "2.0.0", "gateway.public")
 		source.latestVersion = "1.0.0"
-		firstDigest := lifecycleNetworkDigest(t, "builders")
+		firstDigest := lifecycleGatewayDigest(t, "gateway.private")
 		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
 			Source: contract.InstallExtensionSourceGitHub, Ref: "acme/tool-ext", AllowUnverified: true,
-			ConfirmNetworkDigest: firstDigest,
+			ConfirmGatewayDigest: firstDigest,
 		}, actor); err != nil {
 			t.Fatalf("Install(v1) error = %v", err)
 		}
 		if _, err := service.Enable(
 			t.Context(),
 			"tool-ext",
-			contract.EnableExtensionRequest{ConfirmNetworkDigest: firstDigest},
+			contract.EnableExtensionRequest{ConfirmGatewayDigest: firstDigest},
 			actor,
 		); err != nil {
 			t.Fatalf("Enable(v1 confirmation) error = %v", err)
@@ -895,9 +895,9 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("registry.Get(v1) error = %v", err)
 		}
-		beforeConfirmation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
+		beforeConfirmation, err := registry.GatewayConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(v1) error = %v", err)
+			t.Fatalf("GatewayConfirmation(v1) error = %v", err)
 		}
 		beforeRunning, ok := runtime.current()
 		if !ok {
@@ -915,10 +915,10 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 
 		runtime.resetReloads()
 		source.latestVersion = "2.0.0"
-		secondDigest := lifecycleNetworkDigest(t, "reviewers")
+		secondDigest := lifecycleGatewayDigest(t, "gateway.public")
 		publisher.failNextSyncs(1)
 		_, err = service.Update(t.Context(), "tool-ext", contract.UpdateExtensionRequest{
-			AllowUnverified: true, ConfirmNetworkDigest: secondDigest,
+			AllowUnverified: true, ConfirmGatewayDigest: secondDigest,
 		}, actor)
 		if err == nil || !strings.Contains(err.Error(), "injected extension resource reconcile failure") {
 			t.Fatalf("Update(v2 reconcile failure) error = %v, want injected reconcile failure", err)
@@ -931,12 +931,12 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if afterInfo.Version != beforeInfo.Version || derefNativeExtensionString(afterInfo.RemoteVersion) != "1.0.0" {
 			t.Fatalf("registry version after rollback = %#v, want v1", afterInfo)
 		}
-		afterConfirmation, err := registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
+		afterConfirmation, err := registry.GatewayConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(after update rollback) error = %v", err)
+			t.Fatalf("GatewayConfirmation(after update rollback) error = %v", err)
 		}
 		if !reflect.DeepEqual(afterConfirmation, beforeConfirmation) {
-			t.Fatalf("network confirmation after rollback = %#v, want %#v", afterConfirmation, beforeConfirmation)
+			t.Fatalf("gateway confirmation after rollback = %#v, want %#v", afterConfirmation, beforeConfirmation)
 		}
 		afterManifest, err := os.ReadFile(filepath.Join(installDir, "extension.toml"))
 		if err != nil {
@@ -961,8 +961,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		assertExtensionPublicState(t, "runtime after update rollback", &afterRunning, &beforeRunning)
 		reloads := runtime.reloadSnapshot()
 		if len(reloads) != 2 || reloads[0].Version != "2.0.0" ||
-			reloads[0].NetworkRequirementDigest != secondDigest ||
-			reloads[1].Version != "1.0.0" || reloads[1].NetworkRequirementDigest != firstDigest {
+			reloads[0].GatewayRequirementDigest != secondDigest ||
+			reloads[1].Version != "1.0.0" || reloads[1].GatewayRequirementDigest != firstDigest {
 			t.Fatalf("runtime update/rollback sequence = %#v, want confirmed v2 then restored v1", reloads)
 		}
 	})
@@ -976,7 +976,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			{
 				name: "confirmation write",
 				configure: func(t *testing.T, harness *lifecycleFailureHarness) {
-					harness.installFailureTrigger(t, "network_confirmed_by", "NEW.network_confirmed_by IS NOT NULL")
+					harness.installFailureTrigger(t, "gateway_confirmed_by", "NEW.gateway_confirmed_by IS NOT NULL")
 				},
 				wantError: "injected lifecycle failure",
 			},
@@ -1003,12 +1003,12 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			},
 		} {
 			t.Run("Should roll back after "+testCase.name+" fails", func(t *testing.T) {
-				harness := newLifecycleFailureHarness(t, "network-failure-"+lifecycleTestSlug(testCase.name))
+				harness := newLifecycleFailureHarness(t, "gateway-failure-"+lifecycleTestSlug(testCase.name))
 				testCase.configure(t, harness)
 				_, err := harness.service.Enable(
 					t.Context(),
 					harness.name,
-					contract.EnableExtensionRequest{ConfirmNetworkDigest: harness.digest},
+					contract.EnableExtensionRequest{ConfirmGatewayDigest: harness.digest},
 					harness.actor,
 				)
 				if err == nil || !strings.Contains(err.Error(), testCase.wantError) {
@@ -1020,17 +1020,17 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should reload restored runtime even when confirmation restoration fails", func(t *testing.T) {
-		harness := newLifecycleFailureHarness(t, "network-failure-rollback-confirmation")
+		harness := newLifecycleFailureHarness(t, "gateway-failure-rollback-confirmation")
 		harness.publisher.failNextSyncs(1)
 		harness.installFailureTrigger(
 			t,
-			"network_confirmed_by",
-			"OLD.network_confirmed_by IS NOT NULL AND NEW.network_confirmed_by IS NULL",
+			"gateway_confirmed_by",
+			"OLD.gateway_confirmed_by IS NOT NULL AND NEW.gateway_confirmed_by IS NULL",
 		)
 		_, err := harness.service.Enable(
 			t.Context(),
 			harness.name,
-			contract.EnableExtensionRequest{ConfirmNetworkDigest: harness.digest},
+			contract.EnableExtensionRequest{ConfirmGatewayDigest: harness.digest},
 			harness.actor,
 		)
 		if err == nil || !strings.Contains(err.Error(), "injected lifecycle failure") {
@@ -1049,7 +1049,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		registry := extensionpkg.NewRegistry(db.DB())
 		key := extensionpkg.InstanceKey{Name: "dev-rollback", WorkspaceID: "workspace-1"}
-		candidateConfirmation := extensionpkg.NetworkConfirmation{
+		candidateConfirmation := extensionpkg.GatewayConfirmation{
 			Digest: strings.Repeat("c", 64), ConfirmedBy: "candidate", ConfirmedAt: time.Now().UTC(),
 		}
 		if _, err := registry.LinkDev(extensionpkg.DevLinkRequest{
@@ -1058,16 +1058,16 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("LinkDev(candidate) error = %v", err)
 		}
-		if err := registry.RestoreNetworkConfirmation(key, candidateConfirmation); err != nil {
-			t.Fatalf("RestoreNetworkConfirmation(candidate) error = %v", err)
+		if err := registry.RestoreGatewayConfirmation(key, candidateConfirmation); err != nil {
+			t.Fatalf("RestoreGatewayConfirmation(candidate) error = %v", err)
 		}
-		originalConfirmation := extensionpkg.NetworkConfirmation{
+		originalConfirmation := extensionpkg.GatewayConfirmation{
 			Digest: strings.Repeat("d", 64), ConfirmedBy: "operator", ConfirmedAt: time.Now().Add(-time.Hour).UTC(),
 		}
 		snapshot := &extensionpkg.DevLink{
 			ExtensionName: key.Name, WorkspaceID: key.WorkspaceID, OriginPath: "/original",
-			BundleGeneration: strings.Repeat("b", 64), NetworkRequirementDigest: originalConfirmation.Digest,
-			NetworkConfirmedBy: originalConfirmation.ConfirmedBy, NetworkConfirmedAt: originalConfirmation.ConfirmedAt,
+			BundleGeneration: strings.Repeat("b", 64), GatewayRequirementDigest: originalConfirmation.Digest,
+			GatewayConfirmedBy: originalConfirmation.ConfirmedBy, GatewayConfirmedAt: originalConfirmation.ConfirmedAt,
 		}
 		stageErr := errors.New("injected development stage rollback failure")
 		activateErr := errors.New("injected development activation rollback failure")
@@ -1129,9 +1129,9 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetDevLink(after rollback) error = %v", err)
 		}
-		confirmation := extensionpkg.NetworkConfirmation{
-			Digest: link.NetworkRequirementDigest, ConfirmedBy: link.NetworkConfirmedBy,
-			ConfirmedAt: link.NetworkConfirmedAt,
+		confirmation := extensionpkg.GatewayConfirmation{
+			Digest: link.GatewayRequirementDigest, ConfirmedBy: link.GatewayConfirmedBy,
+			ConfirmedAt: link.GatewayConfirmedAt,
 		}
 		if !reflect.DeepEqual(confirmation, originalConfirmation) {
 			t.Fatalf("development confirmation after rollback = %#v, want %#v", confirmation, originalConfirmation)
@@ -1599,7 +1599,7 @@ type lifecycleFailureHarness struct {
 func newLifecycleFailureHarness(t *testing.T, name string) *lifecycleFailureHarness {
 	t.Helper()
 	db := openDaemonTestGlobalDB(t)
-	registry, manifest := installNetworkLifecycleExtension(t, db, name)
+	registry, manifest := installGatewayLifecycleExtension(t, db, name)
 	runtime := newLifecycleStateRuntime(registry)
 	publisher := &lifecycleFailingPublisher{}
 	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
@@ -1614,9 +1614,9 @@ func newLifecycleFailureHarness(t *testing.T, name string) *lifecycleFailureHarn
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	digest, err := extensionpkg.GatewayRequirementDigest(manifest.Gateway)
 	if err != nil {
-		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+		t.Fatalf("GatewayRequirementDigest() error = %v", err)
 	}
 	before, err := registry.Get(name)
 	if err != nil {
@@ -1706,14 +1706,14 @@ func lifecycleTestSlug(value string) string {
 	return strings.ReplaceAll(value, " ", "-")
 }
 
-func lifecycleNetworkExtensionDownloadResult(
+func lifecycleGatewayExtensionDownloadResult(
 	t *testing.T,
 	version string,
-	channelScope string,
+	permission string,
 ) *registrypkg.DownloadResult {
 	t.Helper()
 	return &registrypkg.DownloadResult{
-		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithNetwork(t, version, channelScope))),
+		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithGateway(t, version, permission))),
 		Slug:        "acme/tool-ext",
 		Version:     version,
 		ContentSize: -1,
@@ -1721,15 +1721,15 @@ func lifecycleNetworkExtensionDownloadResult(
 	}
 }
 
-func lifecycleNetworkDigest(t *testing.T, channelScope string) string {
+func lifecycleGatewayDigest(t *testing.T, permission string) string {
 	t.Helper()
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(
-		&extensionpkg.NetworkParticipationRequirement{
-			Required: true, Mode: "live", ChannelScopes: []string{channelScope},
+	digest, err := extensionpkg.GatewayRequirementDigest(
+		&extensionpkg.GatewayRequirement{
+			Permissions: []string{permission},
 		},
 	)
 	if err != nil {
-		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+		t.Fatalf("GatewayRequirementDigest() error = %v", err)
 	}
 	return digest
 }
@@ -1831,7 +1831,7 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 			deps, registry, source, runtime := newNativeExtensionToolDeps(t)
 			db := deps.ExtensionEvents.(*globaldb.GlobalDB)
 			sections := "[resources.mcp_servers.server]\ncommand = \"server\"\n"
-			archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
+			archive := nativeExtensionTarGzWithGateway(t, "1.0.0", "", sections)
 			source.latestVersion = "1.0.0"
 			source.downloads["1.0.0"] = &registrypkg.DownloadResult{
 				Reader:      io.NopCloser(bytes.NewReader(archive)),
@@ -1973,7 +1973,7 @@ required = true
 binding = { type = "url_query", name = "region" }
 `
 				}
-				archive := nativeExtensionTarGzWithNetwork(t, version, "", sections)
+				archive := nativeExtensionTarGzWithGateway(t, version, "", sections)
 				source.latestVersion = version
 				source.downloads[version] = &registrypkg.DownloadResult{
 					Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: version,
@@ -2256,7 +2256,7 @@ binding = { type = "env", name = "TOKEN" }
 				fmt.Sprintf("[resources.mcp_servers.remote]\ndefault_scope = %q\n", scenario.manifestScope), 1)
 		}
 	}
-	archive := nativeExtensionTarGzWithNetwork(t, "1.0.0", "", sections)
+	archive := nativeExtensionTarGzWithGateway(t, "1.0.0", "", sections)
 	source.latestVersion = "1.0.0"
 	source.downloads["1.0.0"] = &registrypkg.DownloadResult{
 		Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "1.0.0",
@@ -2472,7 +2472,7 @@ required = true
 binding = { type = "url_query", name = "region" }
 `
 	setCandidate := func() {
-		archive := nativeExtensionTarGzWithNetwork(t, "2.0.0", "", candidateSections)
+		archive := nativeExtensionTarGzWithGateway(t, "2.0.0", "", candidateSections)
 		source.latestVersion = "2.0.0"
 		if scenario.associate {
 			request.Source = contract.InstallExtensionSourceCurated
@@ -2605,14 +2605,14 @@ binding = { type = "url_query", name = "region" }
 	setCandidate()
 	var updated contract.ManagedExtensionUpdatePayload
 	if scenario.native {
-		deps.Workspaces = nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, workspaceRoot, workspaceID)
+		deps.Workspaces = nativeTestWorkspaceServiceWithRootAndIdentity(t, workspaceRoot, workspaceID)
 		deps.Extensions = func() apicore.ExtensionService { return service }
 		nativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		body, marshalErr := json.Marshal(extensionUpdateInput{
 			Name: "tool-ext", Scope: updateRequest.Scope, Profile: updateRequest.Profile,
 			Version: updateRequest.Version, CheckOnly: updateRequest.CheckOnly,
 			Inputs: updateRequest.Inputs, AllowUnverified: updateRequest.AllowUnverified,
-			ConfirmNetworkDigest: updateRequest.ConfirmNetworkDigest,
+			ConfirmGatewayDigest: updateRequest.ConfirmGatewayDigest,
 		})
 		if marshalErr != nil {
 			t.Fatal(marshalErr)

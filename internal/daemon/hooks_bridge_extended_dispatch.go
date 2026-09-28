@@ -165,62 +165,6 @@ func (n *hooksNotifier) DispatchSessionAttentionChanged(
 	)
 }
 
-func (n *hooksNotifier) DispatchNetworkPeerJoined(
-	ctx context.Context,
-	payload hookspkg.NetworkPeerJoinedPayload,
-) (hookspkg.NetworkPeerJoinedPayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookNetworkPeerJoined, payload, hookRuntime.DispatchNetworkPeerJoined)
-}
-
-func (n *hooksNotifier) DispatchNetworkPeerLeft(
-	ctx context.Context,
-	payload hookspkg.NetworkPeerLeftPayload,
-) (hookspkg.NetworkPeerLeftPayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookNetworkPeerLeft, payload, hookRuntime.DispatchNetworkPeerLeft)
-}
-
-func (n *hooksNotifier) DispatchNetworkThreadOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkThreadOpenedPayload,
-) (hookspkg.NetworkThreadOpenedPayload, error) {
-	return dispatchNetworkThreadOpenedWithWatchObservers(ctx, n, payload)
-}
-
-func (n *hooksNotifier) DispatchNetworkDirectRoomOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkDirectRoomOpenedPayload,
-) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
-	return dispatchNetworkDirectRoomOpenedWithWatchObservers(ctx, n, payload)
-}
-
-func (n *hooksNotifier) DispatchNetworkMessagePersisted(
-	ctx context.Context,
-	payload hookspkg.NetworkMessagePersistedPayload,
-) (hookspkg.NetworkMessagePersistedPayload, error) {
-	return dispatchNetworkMessagePersistedWithWatchObservers(ctx, n, payload)
-}
-
-func (n *hooksNotifier) DispatchNetworkWorkOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkOpenedPayload,
-) (hookspkg.NetworkWorkOpenedPayload, error) {
-	return dispatchNetworkWorkOpenedWithWatchObservers(ctx, n, payload)
-}
-
-func (n *hooksNotifier) DispatchNetworkWorkTransitioned(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkTransitionedPayload,
-) (hookspkg.NetworkWorkTransitionedPayload, error) {
-	return dispatchNetworkWorkTransitionedWithWatchObservers(ctx, n, payload)
-}
-
-func (n *hooksNotifier) DispatchNetworkWorkClosed(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkClosedPayload,
-) (hookspkg.NetworkWorkClosedPayload, error) {
-	return dispatchNetworkWorkClosedWithWatchObservers(ctx, n, payload)
-}
-
 func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, event any) {
 	target := strings.TrimSpace(sessionID)
 	n.logger.ErrorContext(
@@ -237,11 +181,4 @@ func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, even
 
 func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *session.Session, event any) {
 	n.dispatchAgentEvent(ctx, sess, event)
-}
-
-func (n *hooksNotifier) OnSandboxLifecycleEvent(ctx context.Context, event session.SandboxLifecycleEvent) {
-	_, agentEventNotify := n.runtime()
-	if notifier, ok := agentEventNotify.(session.SandboxLifecycleNotifier); ok {
-		notifier.OnSandboxLifecycleEvent(ctx, event)
-	}
 }

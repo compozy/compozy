@@ -347,8 +347,6 @@ func TestRegisterRoutesKeepsOperationalRuntimeEndpointsFamilySpecific(t *testing
 	routes := udsRouteSet(engine)
 	for _, route := range []string{
 		"GET /api/workspaces/:workspace_id/hooks/runs",
-		"GET /api/bridges/health/stream",
-		"POST /api/bridges/:id/test-delivery",
 	} {
 		if _, ok := routes[route]; !ok {
 			t.Fatalf("expected family-specific runtime route %q to remain registered", route)

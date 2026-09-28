@@ -115,10 +115,6 @@ func (n *daemonNativeTools) sessionSpawn(
 			Skills:         trimNativeStrings(input.Skills),
 			MCPServers:     trimNativeStrings(input.MCPServers),
 			WorkspacePaths: trimNativeStrings(input.WorkspacePaths),
-			NetworkChannels: trimNativeStrings(
-				input.NetworkChannels,
-			),
-			SandboxProfiles: trimNativeStrings(input.SandboxProfiles),
 		},
 		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
 	})
@@ -255,7 +251,7 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return "", nil, nativeNetworkInputError(id, err)
+		return "", nil, nativeInputError(id, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, id, workspaceID, target)
 	if err != nil {

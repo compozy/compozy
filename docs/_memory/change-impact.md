@@ -1,5 +1,42 @@
 # Compozy Change Impact
 
+## Package cleanup — Network, Bridges, and managed Sandbox hard cut
+
+Owning decision: `.compozy/tasks/pkgs-cleanup/adr-hardcut.md`; implementation and validation evidence:
+`.compozy/tasks/pkgs-cleanup/implementation.md`. This is the user's explicitly authorized exception
+to SD-013; no compatibility window or lossless translation of retired product data is required.
+
+- **Native tools / CLI / HTTP / UDS / SDK:** remove retired product commands, tools, routes, schemas,
+  flags, and DTO fields together. Tasks/autonomy, Goal, SOUL, HEARTBEAT, attention, status cursors,
+  local session operation, MCP/ACP adapters, and transport networking remain.
+- **Extensibility / hooks / config:** remove Bridge providers, notification presets/subscriptions,
+  Network participation and managed Sandbox configuration. Retain tool extensions, hooks, authored
+  context access, webhooks, and Gateway; `[gateway]` uses `gateway.private` / `gateway.public` and
+  digest-confirmed requirements. Preserve Herdr hook IPC and native provider execution policy.
+- **State / isolation:** migration 00121 deletes retired product tables, Network wake runs and their
+  dependent records, and obsolete fields; clears retained references; rebuilds retained ownership
+  constraints. Local sessions, Tasks and ordinary runs, workspaces, SOUL, HEARTBEAT, notification
+  cursors, and recorded Gateway consent remain. Backup and destructive-state disposition are in the
+  release-note migration block and public migration guide.
+- **Web / docs / official skill:** remove product routes, panels, forms, search/navigation entries,
+  landing sections, Marketplace Bridge catalog, screenshots and dedicated RFC/design guidance.
+  Rewrite mixed Task/Loop/agent documentation around retained local functionality. The canonical
+  `skills/compozy/` instructions describe only supported operations. Published release history stays
+  historical; old blog descriptions carry a current-scope notice.
+- **QA / verification:** owning suites verify retired surfaces are absent and retained local journeys
+  remain, including SOUL/HEARTBEAT authoring and wake policy. Current QA scenarios drop obsolete journeys
+  and retain historical run evidence. Site content generation, typecheck, tests, build, and generated
+  CLI checks are tracked in the implementation checkpoint with their actual status.
+
+PR 681 review/CI remediation: migration 00121 deletes triage owned by retired Network actors rather
+than relabeling it into a retained actor's composite key; existing daemon triage flags survive
+upgrade and reopen. Extension TOML/JSON loaders reject `network_participation` with Gateway rebuild
+and digest-confirmation guidance; no compatibility conversion or implicit authorization is added.
+Migration/release guidance distinguishes preservation of the recorded consent tuple from authority
+for a new manifest. Public routes, native tools, hooks, workspace boundaries, and the official skill
+remain as audited above. Web rendering sections are decomposed without changing controls or state.
+Owning migration, manifest, runtime, and browser suites verify the corrected paths.
+
 ## Issue 669 — Preserve whitespace in session transcripts
 
 - **Session transcript:** canonical, legacy, and raw agent text retain whitespace-only chunks between

@@ -955,7 +955,6 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     "Skills",
     "MCP servers",
     "Automation",
-    "Network",
     "Notifications",
     "Diagnostics",
     "Remote access",
@@ -964,14 +963,7 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     "Marketplace",
   ]);
   await expect(product.getByText("Updates", { exact: true })).toBeVisible();
-  for (const section of [
-    "network",
-    "hooks",
-    "extensions",
-    "mcp",
-    "marketplace",
-    "general",
-  ] as const) {
+  for (const section of ["hooks", "extensions", "mcp", "marketplace", "general"] as const) {
     await product.getByTestId(`settings-section-${section}`).click();
     await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
     await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();

@@ -48,7 +48,7 @@ interface SettingsEditorDialogProps {
 }
 
 /**
- * Shared create/edit shell for settings-owned entities (vault secrets, sandbox
+ * Shared create/edit shell for settings-owned entities (vault secrets, provider
  * profiles). Owns the shared header, size-aware dialog host, and footer so
  * each page supplies only its body and copy — no per-page shell forks.
  */

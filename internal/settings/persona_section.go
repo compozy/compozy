@@ -15,9 +15,6 @@ func diffPersonaSettings(current compozyconfig.DefaultsConfig, desired compozyco
 	if current.Provider != desired.Provider {
 		changed = append(changed, "defaults.provider")
 	}
-	if current.Sandbox != desired.Sandbox {
-		changed = append(changed, "defaults.sandbox")
-	}
 	return changed
 }
 
@@ -28,7 +25,6 @@ func applyPersonaSettings(editor *compozyconfig.OverlayEditor, desired compozyco
 	}{
 		{path: []string{sectionsDefaultsKey, "agent"}, value: desired.Agent},
 		{path: []string{sectionsDefaultsKey, sectionsProviderKey}, value: desired.Provider},
-		{path: []string{sectionsDefaultsKey, "sandbox"}, value: desired.Sandbox},
 	})
 }
 

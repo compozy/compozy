@@ -62,43 +62,6 @@ func observabilityConfigFromPayload(
 	return value, nil
 }
 
-func sandboxProfileFromPayload(
-	payload contract.SettingsSandboxProfilePayload,
-) (compozyconfig.SandboxProfile, error) {
-	value := compozyconfig.SandboxProfile{
-		Backend:     strings.TrimSpace(payload.Backend),
-		SyncMode:    strings.TrimSpace(payload.SyncMode),
-		Persistence: strings.TrimSpace(payload.Persistence),
-		RuntimeRoot: strings.TrimSpace(payload.RuntimeRoot),
-		Env:         cloneStringMap(payload.Env),
-		SecretEnv:   cloneStringMap(payload.SecretEnv),
-	}
-	if payload.Network != nil {
-		value.Network = compozyconfig.NetworkProfile{
-			AllowPublicIngress: payload.Network.AllowPublicIngress,
-			AllowOutbound:      payload.Network.AllowOutbound,
-			AllowList:          cloneStrings(payload.Network.AllowList),
-			DenyList:           cloneStrings(payload.Network.DenyList),
-			Required:           payload.Network.Required,
-		}
-	}
-	if payload.Daytona != nil {
-		value.Daytona = compozyconfig.DaytonaProfile{
-			APIURL:      strings.TrimSpace(payload.Daytona.APIURL),
-			Target:      strings.TrimSpace(payload.Daytona.Target),
-			Image:       strings.TrimSpace(payload.Daytona.Image),
-			Snapshot:    strings.TrimSpace(payload.Daytona.Snapshot),
-			Class:       strings.TrimSpace(payload.Daytona.Class),
-			AutoStop:    strings.TrimSpace(payload.Daytona.AutoStop),
-			AutoArchive: strings.TrimSpace(payload.Daytona.AutoArchive),
-		}
-	}
-	if err := value.Validate("sandbox.profile"); err != nil {
-		return compozyconfig.SandboxProfile{}, NewSettingsValidationError(err)
-	}
-	return value, nil
-}
-
 func hookDeclarationFromPayload(
 	payload contract.SettingsHookDeclarationPayload,
 ) (hookspkg.HookDecl, error) {

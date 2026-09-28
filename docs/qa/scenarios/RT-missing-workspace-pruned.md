@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/screenshots/ch-prune-recovered-after-refresh.png; /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/logs/missing-workspace-websocket.log; /Users/pedronauck/dev/qa-labs/compozy-dev-websocket-recovery-20260803-155044-571985-lab/qa-artifacts/qa/logs/workspace-list-cli.json
 last_report: docs/qa/reports/2026-08-03-dev-websocket-recovery.md
-overlaps: RT-008;RT-009
+overlaps: RT-008; RT-009
 ---
 
 Linear issue Compozy-47 is the named regression target.

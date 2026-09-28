@@ -14,14 +14,14 @@ const (
 	observeOverviewCommandKey = "overview"
 	observeSectionKey         = "section"
 	observeSectionMeta        = "meta"
-	observeSectionNetwork     = "network"
-	observeUsageSectionKey    = "usage"
-	observeTokensLabel        = "tokens"
-	observeApprovalsLabel     = "approvals"
-	observeWindowLabel        = "window"
-	observeLabelCompleted     = "completed"
-	observeLabelFailed        = "failed"
-	observeCostUnknown        = "unknown"
+
+	observeUsageSectionKey = "usage"
+	observeTokensLabel     = "tokens"
+	observeApprovalsLabel  = "approvals"
+	observeWindowLabel     = "window"
+	observeLabelCompleted  = "completed"
+	observeLabelFailed     = "failed"
+	observeCostUnknown     = "unknown"
 )
 
 func newObserveCommand(deps commandDeps) *cobra.Command {
@@ -109,7 +109,7 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 				{"outcomes", overview.Outcomes},
 				{observeUsageSectionKey, overview.Usage},
 				{"pulse", overview.Pulse},
-				{observeSectionNetwork, overview.Network},
+
 				{"system", overview.System},
 				{"freshness", overview.Freshness},
 			}
@@ -157,7 +157,7 @@ func renderObserveOverviewHuman(overview *contract.ObserveOverviewPayload) strin
 			renderOverviewPulseRows(&overview.Pulse),
 		),
 		renderHumanSection("System", []keyValue{
-			{Label: "network messages today", Value: fmt.Sprintf("%d", overview.Network.MessagesToday)},
+
 			{
 				Label: "hooks today",
 				Value: fmt.Sprintf(

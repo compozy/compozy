@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -14,21 +13,20 @@ import (
 const taskLoopColumn = "LOOP"
 
 type taskListOptions struct {
-	scopeRaw                string
-	workspaceRef            string
-	statusRaw               string
-	priorityRaw             string
-	ownerKindRaw            string
-	ownerRef                string
-	parentTaskID            string
-	worktreeID              string
-	participationChannelRaw string
-	includeLoop             bool
-	loopRunID               string
-	queryRaw                string
-	sortRaw                 string
-	cursor                  string
-	limit                   int
+	scopeRaw     string
+	workspaceRef string
+	statusRaw    string
+	priorityRaw  string
+	ownerKindRaw string
+	ownerRef     string
+	parentTaskID string
+	worktreeID   string
+	includeLoop  bool
+	loopRunID    string
+	queryRaw     string
+	sortRaw      string
+	cursor       string
+	limit        int
 }
 
 func newTaskListCommand(deps commandDeps) *cobra.Command {
@@ -65,7 +63,6 @@ func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
 		o.worktreeID,
 		o.includeLoop,
 		o.loopRunID,
-		o.participationChannelRaw,
 		o.queryRaw,
 		o.sortRaw,
 		o.cursor,
@@ -93,12 +90,6 @@ func addTaskListFlags(cmd *cobra.Command, opts *taskListOptions) {
 	cmd.Flags().StringVar(&opts.worktreeID, "worktree", "", "Filter by active run worktree ID")
 	cmd.Flags().BoolVar(&opts.includeLoop, "include-loop", false, "Include Loop execution records")
 	cmd.Flags().StringVar(&opts.loopRunID, "loop-run", "", "Filter by Loop run ID")
-	cmd.Flags().StringVar(
-		&opts.participationChannelRaw,
-		"participation-channel",
-		"",
-		"Filter by resolved participation channel",
-	)
 	cmd.Flags().StringVar(&opts.queryRaw, "query", "", "Search task title or identifier")
 	cmd.Flags().StringVar(&opts.sortRaw, "sort", "recent", "Sort by recent or priority")
 	cmd.Flags().StringVar(&opts.cursor, "cursor", "", "Continue from an opaque catalog cursor")
@@ -119,7 +110,6 @@ func parseTaskListFilters(
 	worktreeID string,
 	includeLoop bool,
 	loopRunID string,
-	participationChannelRaw string,
 	queryRaw string,
 	sortRaw string,
 	cursor string,
@@ -154,9 +144,6 @@ func parseTaskListFilters(
 	if trimmedWorktreeID != "" && strings.TrimSpace(workspace) == "" {
 		return TaskListQuery{}, errors.New("cli: --worktree requires a workspace scope or --workspace")
 	}
-	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
-		return TaskListQuery{}, err
-	}
 	if err := validateTaskLast(limit); err != nil {
 		return TaskListQuery{}, err
 	}
@@ -168,21 +155,20 @@ func parseTaskListFilters(
 		return TaskListQuery{}, errors.New("cli: --sort must be recent or priority")
 	}
 	return TaskListQuery{
-		Scope:                catalogScope,
-		Workspace:            workspace,
-		Status:               status,
-		Priority:             priority,
-		OwnerKind:            ownerKind,
-		OwnerRef:             trimmedOwnerRef,
-		ParentTaskID:         strings.TrimSpace(parentTaskID),
-		Worktree:             trimmedWorktreeID,
-		IncludeLoop:          includeLoop || strings.TrimSpace(loopRunID) != "",
-		LoopRunID:            strings.TrimSpace(loopRunID),
-		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
-		Query:                strings.TrimSpace(queryRaw),
-		Sort:                 sortKey,
-		Cursor:               strings.TrimSpace(cursor),
-		Limit:                limit,
+		Scope:        catalogScope,
+		Workspace:    workspace,
+		Status:       status,
+		Priority:     priority,
+		OwnerKind:    ownerKind,
+		OwnerRef:     trimmedOwnerRef,
+		ParentTaskID: strings.TrimSpace(parentTaskID),
+		Worktree:     trimmedWorktreeID,
+		IncludeLoop:  includeLoop || strings.TrimSpace(loopRunID) != "",
+		LoopRunID:    strings.TrimSpace(loopRunID),
+		Query:        strings.TrimSpace(queryRaw),
+		Sort:         sortKey,
+		Cursor:       strings.TrimSpace(cursor),
+		Limit:        limit,
 	}, nil
 }
 
@@ -214,17 +200,6 @@ func resolveTaskListScopeWorkspace(
 	return taskpkg.CatalogScopeAll, resolution.ID, nil
 }
 
-func validateTaskParticipationChannelFlag(channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return fmt.Errorf("cli: invalid --participation-channel value %q: %w", trimmed, err)
-	}
-	return nil
-}
-
 func taskSummaryListBundle(page TaskListRecord) outputBundle {
 	return listBundle(
 		page,
@@ -239,7 +214,6 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			strings.ToUpper(taskParentValue),
 			strings.ToUpper(taskStatusValue),
 			strings.ToUpper(taskOwnerValue),
-			strings.ToUpper(taskParticipationChannelValue),
 			taskLoopColumn,
 			strings.ToUpper(taskTitleValue),
 		},
@@ -253,7 +227,6 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			"parent_task_id",
 			taskStatusKey,
 			taskOwnerKey,
-			taskParticipationChannelKey,
 			loopLoopKey,
 			taskTitleKey,
 		},
@@ -267,7 +240,6 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				stringOrDash(item.ParentTaskID),
 				stringOrDash(string(item.Status)),
 				stringOrDash(formatTaskOwnership(item.Owner)),
-				stringOrDash(resolvedParticipationChannel(item.ResolvedNetworkParticipation)),
 				stringOrDash(formatTaskLoopProvenance(item.Loop)),
 				stringOrDash(item.Title),
 			}
@@ -282,7 +254,6 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				item.ParentTaskID,
 				string(item.Status),
 				formatTaskOwnership(item.Owner),
-				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				formatTaskLoopProvenance(item.Loop),
 				item.Title,
 			}

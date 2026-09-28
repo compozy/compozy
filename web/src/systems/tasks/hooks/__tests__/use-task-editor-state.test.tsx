@@ -280,7 +280,6 @@ describe("task editor state identity", () => {
     );
 
     expect(editorMocks.detailOptions).toEqual({ enabled: false, refetchIntervalMs: false });
-    expect(editorMocks.profileOptions).toEqual({ enabled: false, refetchIntervalMs: false });
   });
 
   it("Should preserve edits for one task identity and expose a replacement task in every render", () => {

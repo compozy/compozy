@@ -44,7 +44,6 @@ func (m *Manager) activateAndWatch(
 	proc *AgentProcess,
 	adoptCurrentModel bool,
 	resolved compozyconfig.ResolvedAgent,
-	networkCapabilities []NetworkPeerCapability,
 	postEvent hookspkg.HookEvent,
 	preserveStopReason bool,
 ) error {
@@ -58,13 +57,6 @@ func (m *Manager) activateAndWatch(
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
-	}
-	if err := m.joinNetworkPeer(ctx, session, networkCapabilities); err != nil {
-		rollbackErr := m.rollbackActivation(session, proc, now)
-		return errors.Join(
-			fmt.Errorf("session: join network channel for %q: %w", session.ID, err),
-			rollbackErr,
-		)
 	}
 
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)
@@ -82,42 +74,6 @@ func (m *Manager) activateAndWatch(
 	}
 	m.watchProcess(session)
 	return nil
-}
-
-func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabilities []NetworkPeerCapability) error {
-	if ctx == nil {
-		return errors.New("session: join network peer context is required")
-	}
-	if session == nil {
-		return nil
-	}
-
-	return m.joinNetworkPeerWithBinding(
-		ctx,
-		session,
-		session.Info().NetworkParticipation,
-		session.Info().NetworkOwnerKey,
-		capabilities,
-		false,
-	)
-}
-
-func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error {
-	if ctx == nil {
-		return errors.New("session: leave network peer context is required")
-	}
-	if session == nil {
-		return nil
-	}
-
-	lifecycle := m.currentNetworkPeerLifecycle()
-	if lifecycle == nil {
-		return nil
-	}
-
-	session.networkPeerMu.Lock()
-	defer session.networkPeerMu.Unlock()
-	return lifecycle.LeaveChannel(ctx, session.ID)
 }
 
 func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {

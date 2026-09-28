@@ -18,7 +18,6 @@ func (r *coordinatorRuntime) logCoordinatorError(
 		coordinatorRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 		coordinatorRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
-		daemonNetworkChannelKey, strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 	}
 	if err != nil {
 		args = append(args, "error", err)

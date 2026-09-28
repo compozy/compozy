@@ -76,17 +76,6 @@ export interface BrowserRouteState {
   automation_session_link_count?: number;
   automation_trigger_visible?: boolean;
   automation_view_visible?: boolean;
-  bridge_create_dialog_open?: boolean;
-  bridge_detail_visible?: boolean;
-  bridge_edit_dialog_open?: boolean;
-  bridge_item_count?: number;
-  bridge_route_count?: number;
-  bridge_scope_filter?: "all" | "global" | "workspace";
-  bridge_secret_binding_count?: number;
-  bridge_selected_item?: string;
-  bridge_test_delivery_open?: boolean;
-  bridge_test_delivery_result_visible?: boolean;
-  bridge_view_visible?: boolean;
   chat_view_visible: boolean;
   composer_clear_button_enabled?: boolean;
   composer_clear_button_visible?: boolean;
@@ -121,16 +110,6 @@ export interface BrowserRouteState {
   skills_search_active?: boolean;
   skills_selected_item?: string;
   skills_view_visible?: boolean;
-  sandbox_action_result_visible?: boolean;
-  sandbox_delete_dialog_open?: boolean;
-  sandbox_editor_open?: boolean;
-  sandbox_empty_visible?: boolean;
-  sandbox_profile_count?: number;
-  sandbox_profile_names?: string[];
-  sandbox_restart_notice_visible?: boolean;
-  sandbox_total_text?: string;
-  sandbox_view_visible?: boolean;
-  sandbox_workspace_references_text?: string;
   settings_action_result_visible?: boolean;
   settings_active_section?: string;
   settings_mcp_server_count?: number;
@@ -163,20 +142,6 @@ export interface BrowserRouteState {
   stop_button_visible: boolean;
   resume_button_visible: boolean;
   message_count: number;
-  network_view_visible: boolean;
-  network_active_tab?: "threads" | "directs" | "activity";
-  network_channel_count: number;
-  network_create_dialog_open?: boolean;
-  network_disabled_visible?: boolean;
-  network_thread_count: number;
-  network_direct_count: number;
-  network_activity_count?: number;
-  network_message_count: number;
-  network_no_channels_visible?: boolean;
-  network_work_count?: number;
-  network_selected_channel?: string;
-  network_selected_thread?: string;
-  network_selected_direct?: string;
 }
 
 export function isLikelyViteDevHTML(html: string): boolean {

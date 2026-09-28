@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
@@ -24,19 +23,17 @@ func WithStarvationAge(age time.Duration) Option {
 }
 
 type runStarvedPayload struct {
-	QueuedAt                     time.Time           `json:"queued_at,omitzero"`
-	QueuedAgeMS                  int64               `json:"queued_age_ms"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
+	QueuedAt    time.Time `json:"queued_at,omitzero"`
+	QueuedAgeMS int64     `json:"queued_age_ms"`
 }
 
 // RunNeedsAttentionEventPayload is the canonical audit payload for a run that requires intervention.
 type RunNeedsAttentionEventPayload struct {
-	PreviousStatus               RunStatus           `json:"previous_status"`
-	Status                       RunStatus           `json:"status"`
-	SessionID                    string              `json:"session_id,omitempty"`
-	Diagnostic                   string              `json:"diagnostic,omitempty"`
-	QueuedAt                     time.Time           `json:"queued_at,omitzero"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
+	PreviousStatus RunStatus `json:"previous_status"`
+	Status         RunStatus `json:"status"`
+	SessionID      string    `json:"session_id,omitempty"`
+	Diagnostic     string    `json:"diagnostic,omitempty"`
+	QueuedAt       time.Time `json:"queued_at,omitzero"`
 }
 
 // RecordRunStarved emits the canonical task.run_starved event for one starved queued run.
@@ -53,9 +50,8 @@ func (m *Service) RecordRunStarved(
 		return err
 	}
 	return m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunStarved, actor, runStarvedPayload{
-		QueuedAt:                     queuedAt,
-		QueuedAgeMS:                  age.Milliseconds(),
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		QueuedAt:    queuedAt,
+		QueuedAgeMS: age.Milliseconds(),
 	})
 }
 
@@ -119,12 +115,11 @@ func (m *Service) MarkRunNeedsAttention(
 		)
 	}
 	payload := RunNeedsAttentionEventPayload{
-		PreviousStatus:               previousStatus,
-		Status:                       TaskRunStatusNeedsAttention,
-		SessionID:                    run.SessionID,
-		Diagnostic:                   diagnostic,
-		QueuedAt:                     run.QueuedAt,
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		PreviousStatus: previousStatus,
+		Status:         TaskRunStatusNeedsAttention,
+		SessionID:      run.SessionID,
+		Diagnostic:     diagnostic,
+		QueuedAt:       run.QueuedAt,
 	}
 	if err := m.preflightTaskEvent(
 		run.TaskID,

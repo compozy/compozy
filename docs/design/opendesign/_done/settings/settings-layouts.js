@@ -54,7 +54,6 @@
     dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
     tasks: "m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8",
     session: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
-    network: "M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4",
     vault: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
     loops: "m17 2 4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3",
     marketplace: "M3 9h18l-1.5-5h-15zM4 9v11h16V9M9 20v-6h6v6",
@@ -87,7 +86,6 @@
     "win-session-a": { id: "win-session-a", app: "session", title: "Session · ses_8f2a", route: "/sessions/ses_8f2a", desktopId: "d-build", placement: "stacked", minimized: false, floatingRect: { x: .25, y: .25, w: .4, h: .4 } },
     "win-session-b": { id: "win-session-b", app: "session", title: "Session · ses_51c7", route: "/sessions/ses_51c7", desktopId: "d-build", placement: "stacked", minimized: false, floatingRect: { x: .3, y: .3, w: .4, h: .4 } },
     "win-dashboard": { id: "win-dashboard", app: "dashboard", title: "Dashboard", route: "/", desktopId: "d-build", placement: "tiled", minimized: false, floatingRect: { x: .3, y: .3, w: .4, h: .4 } },
-    "win-network": { id: "win-network", app: "network", title: "Network", route: "/network", desktopId: "d-build", placement: "tiled", minimized: false, floatingRect: { x: .35, y: .35, w: .4, h: .4 } },
     "win-vault": { id: "win-vault", app: "vault", title: "Vault", route: "/vault", desktopId: "d-build", placement: "floating", minimized: false, floatingRect: { x: .52, y: .55, w: .3, h: .34 } },
     "win-loops": { id: "win-loops", app: "loops", title: "Loop · nightly-triage", route: "/loops/lp_ntr", desktopId: "d-review", placement: "tiled", minimized: false, floatingRect: { x: .2, y: .2, w: .4, h: .4 } },
     "win-market": { id: "win-market", app: "marketplace", title: "Marketplace", route: "/marketplace", desktopId: "d-review", placement: "tiled", minimized: false, floatingRect: { x: .25, y: .25, w: .4, h: .4 } },
@@ -103,7 +101,7 @@
         id: "d-build", name: "Build", order: 0, purpose: "standard", focusOwner: null,
         groups: [
           {
-            id: "grp-main", frame: { x: 0, y: 0, w: 0.63, h: 1 },
+            id: "grp-main", frame: { x: 0, y: 0, w: 1, h: 1 },
             root: {
               id: "split:a1", kind: "split", axis: "vertical", weights: [0.62, 0.38], children: [
                 { id: "leaf:a2", kind: "leaf", windowId: "win-tasks" },
@@ -115,8 +113,7 @@
                 }
               ]
             }
-          },
-          { id: "grp-side", frame: { x: 0.63, y: 0, w: 0.37, h: 1 }, root: { id: "leaf:a6", kind: "leaf", windowId: "win-network" } }
+          }
         ],
         floating: ["win-vault"]
       },

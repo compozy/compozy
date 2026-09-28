@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -26,7 +25,6 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -43,30 +41,6 @@ func (n *blockingSessionCreatedNotifier) OnSessionCreated(ctx context.Context, s
 		<-n.release
 	}
 	n.Notifier.OnSessionCreated(ctx, session)
-}
-
-// Invariant: Loop ownership alone never exempts silence. Owner: session supervision; canonical manager suite.
-func TestSupervisionShouldRequireWorkEvidenceForLoopOwnership(t *testing.T) {
-	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
-	cfg := testSupervisionConfig()
-	cfg.QuietAfter = time.Second
-	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
-	target := createSession(t, h)
-	target.NetworkOwnerKey = participation.OwnerKey(
-		participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: "run-1"},
-	)
-	installAbsentWorkSources(h.manager)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	now = now.Add(time.Second)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	if target.Info().Supervision.QuietWarning == nil {
-		t.Fatal("loop-owned silence did not warn")
-	}
-	reportSessionStop(t, h, target.ID)
 }
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
@@ -114,14 +88,8 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
 	}
-	if got, want := session.Info().NetworkParticipation, participation.LocalSpec(); got != want {
-		t.Fatalf("Create() participation = %#v, want %#v", got, want)
-	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
-	}
-	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != participation.LocalSpec() {
-		t.Fatalf("meta participation = %#v, want Local", meta.NetworkSpecSnapshot())
 	}
 	if got := len(h.resolver.resolveCalls); got != 2 {
 		t.Fatalf("resolver Resolve() calls = %d, want 2", got)
@@ -1531,139 +1499,6 @@ func TestCreateUsesProfileWorkspaceAgents(t *testing.T) {
 	})
 }
 
-func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should no-op for nil session blank channel and missing lifecycle", func(t *testing.T) {
-		t.Parallel()
-
-		capabilities := []NetworkPeerCapability{{
-			ID:      "review-pr",
-			Summary: "Review pull requests",
-		}}
-
-		tests := []struct {
-			name             string
-			session          *Session
-			installLifecycle bool
-		}{
-			{
-				name:             "Should no-op when session is nil",
-				session:          nil,
-				installLifecycle: true,
-			},
-			{
-				name: "Should no-op when channel is blank",
-				session: &Session{
-					ID:                   "sess-no-channel",
-					AgentName:            "Coder",
-					NetworkParticipation: participation.LocalSpec(),
-				},
-				installLifecycle: true,
-			},
-			{
-				name: "Should no-op when lifecycle is missing",
-				session: &Session{
-					ID:                   "sess-no-lifecycle",
-					AgentName:            "Coder",
-					NetworkParticipation: testLiveParticipation("ws-test", "builders"),
-				},
-				installLifecycle: false,
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				h := newHarness(t)
-				lifecycle := newFakeNetworkPeerLifecycle()
-				if tc.installLifecycle {
-					h.manager.SetNetworkPeerLifecycle(lifecycle)
-				}
-
-				if err := h.manager.joinNetworkPeer(testutil.Context(t), tc.session, capabilities); err != nil {
-					t.Fatalf("joinNetworkPeer() error = %v", err)
-				}
-				if got := lifecycle.joinCount(); got != 0 {
-					t.Fatalf("joinNetworkPeer() join count = %d, want 0", got)
-				}
-			})
-		}
-	})
-
-	t.Run("Should forward identity channel and capability-aware payload", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		lifecycle := newFakeNetworkPeerLifecycle()
-		h.manager.SetNetworkPeerLifecycle(lifecycle)
-
-		session := &Session{
-			ID:                   "sess-capabilities",
-			AgentName:            "Coder",
-			NetworkParticipation: testLiveParticipation("ws-test", "builders"),
-		}
-		capabilities := []NetworkPeerCapability{{
-			ID:      "review-pr",
-			Summary: "Review pull requests",
-		}}
-
-		if err := h.manager.joinNetworkPeer(testutil.Context(t), session, capabilities); err != nil {
-			t.Fatalf("joinNetworkPeer() error = %v", err)
-		}
-
-		if got := lifecycle.joinCount(); got != 1 {
-			t.Fatalf("joinNetworkPeer() join count = %d, want 1", got)
-		}
-		call := lifecycle.joinCall(0)
-		if got, want := call.sessionID, "sess-capabilities"; got != want {
-			t.Fatalf("join session_id = %q, want %q", got, want)
-		}
-		if got, want := call.peerID, "coder.sess-capabilities"; got != want {
-			t.Fatalf("join peer_id = %q, want %q", got, want)
-		}
-		if got, want := call.channel, "builders"; got != want {
-			t.Fatalf("join channel = %q, want %q", got, want)
-		}
-		if !reflect.DeepEqual(call.capabilities, capabilities) {
-			t.Fatalf("join capabilities = %#v, want %#v", call.capabilities, capabilities)
-		}
-	})
-
-	t.Run("Should rebind an active peer and restore its durable participation", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		lifecycle := newFakeNetworkPeerLifecycle()
-		h.manager.SetNetworkPeerLifecycle(lifecycle)
-		active := createLiveNetworkSession(t, h)
-		taskSpec := testLiveParticipation(h.workspaceID, "lifecycle-cadence")
-
-		if err := h.manager.BindNetworkPeer(
-			testutil.Context(t),
-			active.ID,
-			taskSpec,
-			"task_run:run-lifecycle",
-		); err != nil {
-			t.Fatalf("BindNetworkPeer() error = %v", err)
-		}
-		if got, want := lifecycle.joinCall(1).channel, "lifecycle-cadence"; got != want {
-			t.Fatalf("bound peer channel = %q, want %q", got, want)
-		}
-		if got, want := active.Info().NetworkParticipation.ChannelID, "builders"; got != want {
-			t.Fatalf("durable session channel = %q, want %q", got, want)
-		}
-
-		if err := h.manager.RestoreNetworkPeer(testutil.Context(t), active.ID); err != nil {
-			t.Fatalf("RestoreNetworkPeer() error = %v", err)
-		}
-		if got, want := lifecycle.joinCall(2).channel, "builders"; got != want {
-			t.Fatalf("restored peer channel = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestListAndGet(t *testing.T) {
 	t.Parallel()
 
@@ -2101,105 +1936,6 @@ func TestCreateBlocksMarketplaceSkillMCPServers(t *testing.T) {
 
 	if got := h.driver.startCalls[0].MCPServers; len(got) != 0 {
 		t.Fatalf("start MCPServers = %#v, want marketplace skill MCP blocked", got)
-	}
-}
-
-func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
-		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
-	}
-	if strings.Contains(h.driver.startCalls[0].SystemPrompt, networkSkill) {
-		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
-	}
-}
-
-func TestCreateWithChannelInjectsNetworkSessionEnv(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); !ok || got != "builders" {
-		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+session.ID {
-		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
-	}
-}
-
-func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); ok {
-		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, want unset", got)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); ok {
-		t.Fatalf("COMPOZY_PEER_ID = %q, want unset", got)
 	}
 }
 

@@ -289,14 +289,6 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 	if got, want := paths.RestartsDir, filepath.Join(userHome, "compozy-test-home", RestartsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() RestartsDir = %q, want %q", got, want)
 	}
-	if got, want := paths.NetworkAuditFile, filepath.Join(
-		userHome,
-		"compozy-test-home",
-		LogsDirName,
-		NetworkAuditFileName,
-	); got != want {
-		t.Fatalf("ResolveHomePathsFrom() NetworkAuditFile = %q, want %q", got, want)
-	}
 }
 
 func TestResolvePathVariants(t *testing.T) {

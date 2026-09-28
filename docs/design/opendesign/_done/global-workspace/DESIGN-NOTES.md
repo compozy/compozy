@@ -65,7 +65,7 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
 - **Exceptions stay honest.** Webhook triggers remain always-global with their existing alert
   (`automation-trigger-form.tsx:114-121`) — stated, not selectable. Entity scope is immutable
   after create: edit surfaces echo the entity's own scope and ignore the toggle. Read-side
-  *filters* (jobs/triggers/bridges list Scope filter) survive — they describe queries, not
+  *filters* (jobs/triggers list Scope filter) survive — they describe queries, not
   targets. Settings→Skills Global|Agent is a different axis — untouched.
 - **Keyboard.** `⇧⌘G` toggles global scope; the toggle is `aria-pressed`;
   Space and Enter flip it. The ⌘K palette carries "Turn on/off Global scope"
@@ -85,11 +85,9 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
 | ScopeSelector + contexts | `workspace/components/scope-selector.tsx` (+2 context files) | **deleted** — call sites derive from store |
 | Agent create scope pills | `agent/components/agent-create-dialog.tsx:134-181` | deleted → foot `.gw-scope-note` |
 | Automation job/trigger scope | `automation-job-form.tsx:180-192`, `automation-trigger-form.tsx:87-121` | deleted → toolbar `.gw-scope`; webhook alert stays |
-| Bridge create scope | `bridges/components/bridge-create-dialog.tsx:179-190` | deleted → foot note |
 | Task editor scope | `tasks/components/task-editor-surface.tsx:137-148` | deleted → toolbar `.gw-scope` |
 | MCP install radios | `marketplace/components/mcp-install-dialog.tsx:119-146` | deleted → foot note; vault ref derives (`use-mcp-install-dialog.ts:50-55`) |
 | Marketplace config-scope pills | `marketplace-kind-page.tsx:153-172` | deleted → derived; `config_scope` search param dropped |
-| Task bridge subscription scope | `task-bridge-subscription-create-dialog.tsx:123-154` | select + ws-id echo deleted → foot note |
 | Session create workspace field | `session-create-advanced-section.tsx:41-60` | picker → derived statement (global session runs at `~`) |
 | Workspace setup global card | `workspace-setup-location-pane.tsx:43-76` | **deleted**; copy in `workspace-setup-copy.ts` rewritten |
 | Onboarding step | `onboarding/components/step-workspaces.tsx` | project folders only + skip-to-global |

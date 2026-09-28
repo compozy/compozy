@@ -14,7 +14,6 @@ type DeadEntityKind string
 
 const (
 	DeadEntityKindExtension  DeadEntityKind = "extension"
-	DeadEntityKindBridge     DeadEntityKind = "bridge"
 	DeadEntityKindMCPSidecar DeadEntityKind = "mcp_sidecar"
 	DeadEntityKindLoopTarget DeadEntityKind = "loop_target"
 )
@@ -52,7 +51,7 @@ func (k DeadEntityKey) Validate() error {
 		return fmt.Errorf("%w: entity_id is required", ErrInvalidDeadEntity)
 	}
 	switch normalized.Kind {
-	case DeadEntityKindExtension, DeadEntityKindBridge, DeadEntityKindMCPSidecar, DeadEntityKindLoopTarget:
+	case DeadEntityKindExtension, DeadEntityKindMCPSidecar, DeadEntityKindLoopTarget:
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported kind %q", ErrInvalidDeadEntity, normalized.Kind)

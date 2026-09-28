@@ -91,14 +91,14 @@ export const handlers: HttpHandler[] = [
       inputs: [],
       declared_profiles: [{ create: false, credentials: [], name: "default" }],
       name,
-      ...(digest ? { network_requirement_digest: digest } : {}),
+      ...(digest ? { gateway_requirement_digest: digest } : {}),
       placements: [],
     });
   }),
   compozyApiMock.post("/api/extensions", async ({ request }) => {
     const body = (await request.json()) as {
       allow_unverified?: boolean;
-      confirm_network_digest?: string;
+      confirm_gateway_digest?: string;
       ref?: string;
       source?: string;
     };
@@ -121,12 +121,12 @@ export const handlers: HttpHandler[] = [
     }
     const name = ref.split("/").pop() ?? ref;
     const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
-    if (digest && body.confirm_network_digest !== digest) {
+    if (digest && body.confirm_gateway_digest !== digest) {
       return HttpResponse.json(
         {
-          code: "extension_network_confirmation_required",
+          code: "extension_gateway_confirmation_required",
           current_digest: digest,
-          error: `${name} declares Live network participation that has not been confirmed`,
+          error: `${name} declares gateway control permissions that has not been confirmed`,
         },
         { status: 409 }
       );
@@ -207,20 +207,20 @@ export const handlers: HttpHandler[] = [
     if (!extension) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
-    const body = (await request.json().catch(() => ({}))) as { confirm_network_digest?: string };
-    const digest = extension.network_requirement_digest;
+    const body = (await request.json().catch(() => ({}))) as { confirm_gateway_digest?: string };
+    const digest = extension.gateway_requirement_digest;
     if (
-      extension.network_confirmation_required &&
+      extension.gateway_confirmation_required &&
       digest &&
-      body.confirm_network_digest !== digest
+      body.confirm_gateway_digest !== digest
     ) {
       return response(409).json({
-        code: "extension_network_confirmation_required",
+        code: "extension_gateway_confirmation_required",
         current_digest: digest,
-        error: `${name} update changes Live network participation that has not been confirmed`,
+        error: `${name} update changes gateway control permissions that has not been confirmed`,
       });
     }
-    const updated = { ...extension, network_confirmation_required: false };
+    const updated = { ...extension, gateway_confirmation_required: false };
     extensionsState = extensionsState.map(item => (item.name === name ? updated : item));
     return HttpResponse.json({
       update: {

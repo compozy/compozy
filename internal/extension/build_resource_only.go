@@ -65,9 +65,7 @@ func resourceOnlyManifestRequiresToolchain(manifest *Manifest) bool {
 	}
 	resources := manifest.Resources
 	return len(resources.Hooks) > 0 || len(resources.Tools) > 0 ||
-		len(resources.CommandGroups) > 0 || len(resources.MCPServers) > 0 ||
-		manifest.Bridge.Platform != "" || manifest.Bridge.DisplayName != "" ||
-		len(manifest.Bridge.SecretSlots) > 0 || manifest.Bridge.ConfigSchema != nil
+		len(resources.CommandGroups) > 0 || len(resources.MCPServers) > 0
 }
 
 func hasStaticResourcePaths(resources ResourcesConfig) bool {

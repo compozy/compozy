@@ -174,7 +174,7 @@ func sessionMetaOwnsLiveSubprocess(meta store.SessionMeta) bool {
 }
 
 func inactiveProcessExitVerified(meta *store.SessionMeta) bool {
-	if recoveredProcessRequiresRemoteProof(meta) || meta.Liveness == nil || meta.Liveness.SubprocessStartedAt == nil {
+	if meta.Liveness == nil || meta.Liveness.SubprocessStartedAt == nil {
 		return false
 	}
 	verified, err := procutil.VerifyProcessExit(meta.Liveness.SubprocessPID, *meta.Liveness.SubprocessStartedAt)

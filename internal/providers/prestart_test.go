@@ -497,7 +497,7 @@ func TestProviderAuthStatusHelperProcess(t *testing.T) {
 
 func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 	t.Parallel()
-	t.Run("Should cache only the matching final workspace home and runtime scope", func(t *testing.T) {
+	t.Run("Should cache only the matching final workspace profile and home scope", func(t *testing.T) {
 		t.Parallel()
 
 		starter := NewPreStarter()
@@ -533,12 +533,8 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 		homeScope.HomeIdentity = "/compozy/home-two"
 		assertMissingCLIReport(t, probe(homeScope))
 
-		runtimeScope := scope
-		runtimeScope.SandboxID = "sandbox-two"
-		assertMissingCLIReport(t, probe(runtimeScope))
-
-		if calls != 5 {
-			t.Fatalf("scope-separated LookPath calls = %d, want 5", calls)
+		if calls != 4 {
+			t.Fatalf("scope-separated LookPath calls = %d, want 4", calls)
 		}
 	})
 }
@@ -1133,14 +1129,11 @@ func probeEnvWithResolvedLaunch(
 	))
 }
 
-func preStartTestScope(sandboxID string) PreStartScope {
+func preStartTestScope(scopeID string) PreStartScope {
 	return PreStartScope{
-		WorkspaceID:    "workspace-one",
-		ProfileID:      "profile-one",
-		HomeIdentity:   "/compozy/home-one",
-		SandboxID:      "sandbox-" + sandboxID,
-		SandboxBackend: "local",
-		SandboxProfile: "local",
+		WorkspaceID:  "workspace-one",
+		ProfileID:    "profile-one",
+		HomeIdentity: "/compozy/home-" + scopeID,
 	}
 }
 

@@ -3,43 +3,39 @@ package task
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTask captures the mutable inputs accepted when creating a new task.
 type CreateTask struct {
-	ID                   string                 `json:"id,omitempty"`
-	ProfileID            string                 `json:"profile_id"`
-	Identifier           string                 `json:"identifier,omitempty"`
-	Scope                Scope                  `json:"scope"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
-	Title                string                 `json:"title"`
-	Description          string                 `json:"description,omitempty"`
-	Priority             Priority               `json:"priority,omitempty"`
-	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
-	Draft                bool                   `json:"draft,omitempty"`
-	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
-	Owner                *Ownership             `json:"owner,omitempty"`
-	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage        `json:"metadata,omitempty"`
+	ID                 string          `json:"id,omitempty"`
+	ProfileID          string          `json:"profile_id"`
+	Identifier         string          `json:"identifier,omitempty"`
+	Scope              Scope           `json:"scope"`
+	WorkspaceID        string          `json:"workspace_id,omitempty"`
+	ParentTaskID       string          `json:"parent_task_id,omitempty"`
+	Title              string          `json:"title"`
+	Description        string          `json:"description,omitempty"`
+	Priority           Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int            `json:"max_attempts,omitempty"`
+	Draft              bool            `json:"draft,omitempty"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Owner              *Ownership      `json:"owner,omitempty"`
+	WakeCreator        *bool           `json:"wake_creator,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Patch captures the mutable task fields accepted by update operations.
 type Patch struct {
-	Title                *string                `json:"title,omitempty"`
-	Description          *string                `json:"description,omitempty"`
-	Priority             *Priority              `json:"priority,omitempty"`
-	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   *bool                  `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy       *ApprovalPolicy        `json:"approval_policy,omitempty"`
-	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
-	Owner                *Ownership             `json:"owner,omitempty"`
-	ClearOwner           bool                   `json:"clear_owner,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Title              *string          `json:"title,omitempty"`
+	Description        *string          `json:"description,omitempty"`
+	Priority           *Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	Owner              *Ownership       `json:"owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitempty"`
 }
 
 // CancelTask captures the task-level cancellation request payload.
@@ -64,9 +60,8 @@ const (
 // ExecutionRequest captures the mutable inputs accepted when an operator
 // publish, start, or approval action enqueues executable work.
 type ExecutionRequest struct {
-	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage        `json:"metadata,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Execution captures the task and run created or resolved at the explicit
@@ -87,15 +82,13 @@ type AddDependency struct {
 
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
-	TaskID                     string                 `json:"task_id"`
-	RunKind                    RunKind                `json:"run_kind,omitempty"`
-	LoopRunID                  string                 `json:"loop_run_id,omitempty"`
-	IdempotencyKey             string                 `json:"idempotency_key,omitempty"`
-	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
-	NetworkParticipationSource participation.Source   `json:"-"`
-	DesignationGroupID         string                 `json:"designation_group_id,omitempty"`
-	WorktreePerRun             bool                   `json:"worktree_per_run,omitempty"`
-	Metadata                   json.RawMessage        `json:"metadata,omitempty"`
+	TaskID             string          `json:"task_id"`
+	RunKind            RunKind         `json:"run_kind,omitempty"`
+	LoopRunID          string          `json:"loop_run_id,omitempty"`
+	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
+	DesignationGroupID string          `json:"designation_group_id,omitempty"`
+	WorktreePerRun     bool            `json:"worktree_per_run,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // StartRun captures one run-start request.

@@ -70,7 +70,7 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingDurableMemoryBlock(next)
 	next = stripLeadingPromptBlock(next, workspaceKnowledgeOpen, workspaceKnowledgeClose)
 	next = stripLeadingUserMessageBlock(next)
-	next = stripLeadingInboundBridgePrompt(next)
+
 	next = stripTrailingLoopOutputContract(next)
 	return strings.TrimSpace(next)
 }
@@ -183,16 +183,4 @@ func stripLeadingUserMessageBlock(prompt string) string {
 		return strings.TrimSpace(message)
 	}
 	return strings.TrimSpace(strings.TrimSpace(message) + "\n" + tail)
-}
-
-func stripLeadingInboundBridgePrompt(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, inboundBridgePromptPrefix) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, "\n\n")
-	if !ok {
-		return trimmed
-	}
-	return strings.TrimSpace(after)
 }

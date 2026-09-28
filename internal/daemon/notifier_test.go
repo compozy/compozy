@@ -17,7 +17,6 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -315,13 +314,12 @@ func TestHooksNotifierLifecycleForwarding(t *testing.T) {
 		})
 		notifier.setRuntime(&fakeHookRuntime{}, downstream)
 		child := &session.Session{
-			ID:                   "sess-child",
-			Name:                 "spawned worker",
-			AgentName:            "reviewer",
-			Provider:             "codex",
-			WorkspaceID:          "ws-1",
-			NetworkParticipation: daemonTestLiveParticipation("ws-1", "default"),
-			Type:                 session.SessionTypeSpawned,
+			ID:          "sess-child",
+			Name:        "spawned worker",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-1",
+			Type:        session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{
 				ParentSessionID: "sess-parent",
 				RootSessionID:   "sess-parent",
@@ -690,11 +688,8 @@ func coordinatorPayloadForWatchObserverTest(
 			TaskID:               "task-1",
 			RunID:                "run-1",
 			WorkflowID:           "wf-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "chan-1",
-			}),
-			Provider: "mock",
-			Model:    "mock-model",
+			Provider:             "mock",
+			Model:                "mock-model",
 		},
 		DecisionKind: "next_action",
 		Decision:     "continue",

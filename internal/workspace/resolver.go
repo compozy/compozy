@@ -13,7 +13,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
 // RegisterOptions describes a workspace registration request.
@@ -22,7 +21,6 @@ type RegisterOptions struct {
 	Name           string
 	AdditionalDirs []string
 	DefaultAgent   string
-	SandboxRef     string
 }
 
 // UpdateOptions describes mutable workspace registration fields.
@@ -30,7 +28,6 @@ type UpdateOptions struct {
 	Name           *string
 	AdditionalDirs *[]string
 	DefaultAgent   *string
-	SandboxRef     *string
 }
 
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
@@ -387,7 +384,7 @@ func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, works
 	return nil
 }
 
-// buildResolvedWorkspace validates agent and sandbox state and isolates the merged runtime resources.
+// buildResolvedWorkspace validates agent state and isolates the merged runtime resources.
 func (r *Resolver) buildResolvedWorkspace(
 	ctx context.Context,
 	ws Workspace,
@@ -418,7 +415,6 @@ func (r *Resolver) buildResolvedWorkspace(
 		Agents:              cloneAgentDefs(state.agents),
 		AgentDiagnostics:    append([]AgentDiagnostic(nil), state.diagnostics...),
 		Skills:              cloneSkillPaths(skills),
-		Sandbox:             cloneSandboxResolved(state.sandbox),
 		ResolvedAt:          r.now(),
 	}, nil
 }
@@ -436,14 +432,6 @@ func workspaceProfileCacheKey(workspaceID, profileName string) string {
 		return strings.TrimSpace(workspaceID)
 	}
 	return strings.TrimSpace(workspaceID) + "\x00" + trimmedProfile
-}
-
-func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.Resolved, error) {
-	ref := strings.TrimSpace(ws.SandboxRef)
-	if ref == "" {
-		ref = strings.TrimSpace(cfg.Defaults.Sandbox)
-	}
-	return cfg.ResolveSandbox(ref)
 }
 
 // canReuse requires matching dependency snapshots, merged skills, and workspace runtime overrides.

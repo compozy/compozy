@@ -49,7 +49,7 @@ func TestDaemonWorktreeExitJourneyE2E001IT033IT037(t *testing.T) {
 			PermissionMode:  config.PermissionModeApproveAll,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
@@ -236,7 +236,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
@@ -268,7 +268,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	}
 	assertTaskWorktreeProfileParity(t, ctx, harness, taskRecord.ID, cliProfile)
 
-	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
+	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID)
 	if run.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun || run.WorktreeID != "" {
 		t.Fatalf("queued run worktree snapshot = %#v, want unresolved per_run", run)
 	}
@@ -408,7 +408,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 
 	secondClaimer := createFixtureBackedSession(t, ctx, harness, "local-default", "root-claimer")
 	rootTask := createTaskViaUDS(t, ctx, harness, "Root snapshot authority")
-	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID, "")
+	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID)
 	if rootRun.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModeNone {
 		t.Fatalf("root queued run worktree mode = %q, want none", rootRun.ResolvedWorktreeMode)
 	}
@@ -456,7 +456,7 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
@@ -619,7 +619,7 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},

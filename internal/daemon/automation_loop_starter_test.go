@@ -10,8 +10,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
-	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestNewAutomationLoopStarter(t *testing.T) {
@@ -25,7 +23,6 @@ func TestNewAutomationLoopStarter(t *testing.T) {
 			newResourceCatalog(looppkg.CloneResourceSpec),
 			nil,
 			compozyconfig.HomePaths{},
-			nil,
 			nil,
 			nil,
 			nil,
@@ -86,102 +83,6 @@ func TestAutomationLoopStartMetadataShouldIncludeCatchUpEvidence(t *testing.T) {
 			t.Fatalf("automationLoopAdmission() = %#v, want trimmed stable identity", admission)
 		}
 	})
-}
-
-func TestAutomationLoopStarterShouldForwardDefinitionParticipationAsAutomationIntent(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should forward definition participation as Automation intent", func(t *testing.T) {
-		t.Parallel()
-
-		service := &recordingAutomationLoopService{}
-		starter := &automationLoopStarter{
-			service: service,
-			resolver: looppkg.DefinitionResolverFunc(
-				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
-					return &looppkg.ResolvedDefinition{Definition: loopdsl.Definition{
-						DefinitionExtensionState: &loopdsl.DefinitionExtensionState{
-							Start: []loopdsl.StartBinding{{Kind: loopdsl.StartWebhook}},
-						},
-					}}, nil
-				},
-			),
-		}
-		request := automationLoopNamedParticipation("deployments")
-		actor, err := taskpkg.DeriveAutomationActorContext("trigger-1", "run:autorun-1")
-		if err != nil {
-			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
-		}
-
-		result, err := starter.StartLoop(context.Background(), automationpkg.LoopStartRequest{
-			ProfileID:            "profile-marketing",
-			WorkspaceID:          "ws-1",
-			LoopName:             "deploy",
-			Kind:                 automationpkg.LoopStartKindWebhook,
-			Actor:                actor,
-			AutomationRunID:      "autorun-1",
-			NetworkParticipation: request,
-		})
-		if err != nil {
-			t.Fatalf("StartLoop() error = %v", err)
-		}
-		if got, want := result.RunID, "looprun-automation"; got != want {
-			t.Fatalf("StartLoop().RunID = %q, want %q", got, want)
-		}
-		if got, want := service.inputs.ProfileID, "profile-marketing"; got != want {
-			t.Fatalf("Start().ProfileID = %q, want %q", got, want)
-		}
-		if service.inputs.NetworkParticipationSource != participation.SourceAutomationJob {
-			t.Fatalf(
-				"Start().NetworkParticipationSource = %q, want %q",
-				service.inputs.NetworkParticipationSource,
-				participation.SourceAutomationJob,
-			)
-		}
-		assertAutomationLoopNamedParticipation(t, service.inputs.NetworkParticipation, "deployments")
-	})
-}
-
-type recordingAutomationLoopService struct {
-	inputs looppkg.Inputs
-}
-
-func (s *recordingAutomationLoopService) Start(
-	_ context.Context,
-	_ looppkg.WorkspaceID,
-	_ string,
-	inputs looppkg.Inputs,
-	_ taskpkg.ActorContext,
-) (*looppkg.Run, error) {
-	s.inputs = inputs
-	return &looppkg.Run{ID: "looprun-automation"}, nil
-}
-
-func automationLoopNamedParticipation(channelID string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channelID,
-	}
-}
-
-func assertAutomationLoopNamedParticipation(
-	t *testing.T,
-	request *participation.Request,
-	channelID string,
-) {
-	t.Helper()
-	if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive {
-		t.Fatalf("network participation = %#v, want live", request)
-	}
-	if request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed {
-		t.Fatalf("network participation strategy = %#v, want named", request.ChannelStrategy)
-	}
-	if request.ChannelID == nil || *request.ChannelID != channelID {
-		t.Fatalf("network participation channel = %#v, want %q", request.ChannelID, channelID)
-	}
 }
 
 func TestAutomationLoopStarterDefaultCatchUpPolicyShouldCoalesceWatchLoops(t *testing.T) {
