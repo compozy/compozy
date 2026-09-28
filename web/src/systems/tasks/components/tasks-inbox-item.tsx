@@ -187,29 +187,19 @@ function InboxItemActions({
   pendingDismissIds,
   pendingMarkReadIds,
 }: InboxItemActionsProps) {
-  const canDismiss = isFailedRun && Boolean(onDismiss);
-  const canMarkRead = !isApprovalItem && !isFailedRun && Boolean(onMarkRead) && unread;
-  const canArchive = !isArchived && Boolean(onArchive);
+  // Triage verbs only apply to their lane; a gated-off handler hides its item.
+  const markRead = !isApprovalItem && !isFailedRun && unread ? onMarkRead : undefined;
+  const dismiss = isFailedRun ? onDismiss : undefined;
+  const archive = isArchived ? undefined : onArchive;
   return (
     <>
-      {isApprovalItem && onReject ? (
-        <ActionButton
-          icon={<X />}
-          label="Reject"
-          onClick={() => onReject(taskId)}
-          pending={pendingRejectIds?.has(taskId) ?? false}
-          testId={`tasks-inbox-item-reject-${taskId}`}
-          variant="destructive-ghost"
-        />
-      ) : null}
-      {isApprovalItem && onApprove ? (
-        <ActionButton
-          icon={<Check />}
-          label="Approve"
-          onClick={() => onApprove(taskId)}
-          pending={pendingApproveIds?.has(taskId) ?? false}
-          testId={`tasks-inbox-item-approve-${taskId}`}
-          variant="primary"
+      {isApprovalItem ? (
+        <InboxApprovalActions
+          onApprove={onApprove}
+          onReject={onReject}
+          pendingApproveIds={pendingApproveIds}
+          pendingRejectIds={pendingRejectIds}
+          taskId={taskId}
         />
       ) : null}
       {isFailedRun && onRetry && runId ? (
@@ -231,50 +221,116 @@ function InboxItemActions({
       >
         Open
       </Button>
-      {canDismiss || canMarkRead || canArchive ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="More inbox actions"
-            data-testid={`tasks-inbox-item-more-${taskId}`}
-            render={<Button size="icon-xs" type="button" variant="ghost" />}
-          >
-            <TopbarOverflowIcon aria-hidden="true" className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {canMarkRead && onMarkRead ? (
-              <DropdownMenuItem
-                data-testid={`tasks-inbox-item-mark-read-${taskId}`}
-                disabled={pendingMarkReadIds?.has(taskId) ?? false}
-                onClick={() => onMarkRead(taskId)}
-              >
-                <Eye aria-hidden="true" className="size-3" />
-                Mark read
-              </DropdownMenuItem>
-            ) : null}
-            {canDismiss && onDismiss ? (
-              <DropdownMenuItem
-                data-testid={`tasks-inbox-item-dismiss-${taskId}`}
-                disabled={pendingDismissIds?.has(taskId) ?? false}
-                onClick={() => onDismiss(taskId)}
-              >
-                <ArchiveX aria-hidden="true" className="size-3" />
-                Dismiss
-              </DropdownMenuItem>
-            ) : null}
-            {canArchive && onArchive ? (
-              <DropdownMenuItem
-                data-testid={`tasks-inbox-item-archive-${taskId}`}
-                disabled={pendingArchiveIds?.has(taskId) ?? false}
-                onClick={() => onArchive(taskId)}
-              >
-                <Archive aria-hidden="true" className="size-3" />
-                Archive
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <InboxItemOverflowMenu
+        onArchive={archive}
+        onDismiss={dismiss}
+        onMarkRead={markRead}
+        pendingArchiveIds={pendingArchiveIds}
+        pendingDismissIds={pendingDismissIds}
+        pendingMarkReadIds={pendingMarkReadIds}
+        taskId={taskId}
+      />
+    </>
+  );
+}
+
+function InboxApprovalActions({
+  taskId,
+  onApprove,
+  onReject,
+  pendingApproveIds,
+  pendingRejectIds,
+}: Pick<
+  InboxItemActionsProps,
+  "taskId" | "onApprove" | "onReject" | "pendingApproveIds" | "pendingRejectIds"
+>) {
+  return (
+    <>
+      {onReject ? (
+        <ActionButton
+          icon={<X />}
+          label="Reject"
+          onClick={() => onReject(taskId)}
+          pending={pendingRejectIds?.has(taskId) ?? false}
+          testId={`tasks-inbox-item-reject-${taskId}`}
+          variant="destructive-ghost"
+        />
+      ) : null}
+      {onApprove ? (
+        <ActionButton
+          icon={<Check />}
+          label="Approve"
+          onClick={() => onApprove(taskId)}
+          pending={pendingApproveIds?.has(taskId) ?? false}
+          testId={`tasks-inbox-item-approve-${taskId}`}
+          variant="primary"
+        />
       ) : null}
     </>
+  );
+}
+
+function InboxItemOverflowMenu({
+  taskId,
+  onMarkRead,
+  onDismiss,
+  onArchive,
+  pendingMarkReadIds,
+  pendingDismissIds,
+  pendingArchiveIds,
+}: Pick<
+  InboxItemActionsProps,
+  | "taskId"
+  | "onMarkRead"
+  | "onDismiss"
+  | "onArchive"
+  | "pendingMarkReadIds"
+  | "pendingDismissIds"
+  | "pendingArchiveIds"
+>) {
+  if (!onMarkRead && !onDismiss && !onArchive) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="More inbox actions"
+        data-testid={`tasks-inbox-item-more-${taskId}`}
+        render={<Button size="icon-xs" type="button" variant="ghost" />}
+      >
+        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onMarkRead ? (
+          <DropdownMenuItem
+            data-testid={`tasks-inbox-item-mark-read-${taskId}`}
+            disabled={pendingMarkReadIds?.has(taskId) ?? false}
+            onClick={() => onMarkRead(taskId)}
+          >
+            <Eye aria-hidden="true" className="size-3" />
+            Mark read
+          </DropdownMenuItem>
+        ) : null}
+        {onDismiss ? (
+          <DropdownMenuItem
+            data-testid={`tasks-inbox-item-dismiss-${taskId}`}
+            disabled={pendingDismissIds?.has(taskId) ?? false}
+            onClick={() => onDismiss(taskId)}
+          >
+            <ArchiveX aria-hidden="true" className="size-3" />
+            Dismiss
+          </DropdownMenuItem>
+        ) : null}
+        {onArchive ? (
+          <DropdownMenuItem
+            data-testid={`tasks-inbox-item-archive-${taskId}`}
+            disabled={pendingArchiveIds?.has(taskId) ?? false}
+            onClick={() => onArchive(taskId)}
+          >
+            <Archive aria-hidden="true" className="size-3" />
+            Archive
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

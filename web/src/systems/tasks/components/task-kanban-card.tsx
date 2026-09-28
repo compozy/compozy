@@ -48,48 +48,24 @@ export function TaskKanbanCard({
   const activeRun = task.active_run ?? null;
   const isFailed = task.status === "failed";
   const failedError = isFailed && activeRun?.error ? activeRun.error : null;
-  const canRetry = isFailed && Boolean(activeRun?.id && onRetry);
-
-  const identifier = taskShortId(task);
-  const ownerLabel = taskOwnerLabel(task.owner);
-  const ownerId = task.owner?.ref ?? task.owner?.kind ?? "unassigned";
-  const ownerKind = ownerAvatarKindFor(task.owner?.kind);
-  const lastActivity = task.last_activity_at ?? task.updated_at;
-  const timestamp = formatRelativeTime(lastActivity);
-  const statusTone = taskStatusTone(task.status);
+  const retryRunId = isFailed && onRetry ? activeRun?.id : undefined;
   // Single-status columns already name the status; only the mixed Done column
   // needs to tell failed and canceled cards apart from completed ones.
   const showStatusPill = task.status === "failed" || task.status === "canceled";
-
-  const clickable = onSelect !== undefined;
-  const selectTaskCard = clickable ? () => onSelect?.(task.id) : undefined;
-  const handleKeyDown = clickable
-    ? (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect?.(task.id);
-        }
-      }
-    : undefined;
+  const selection = kanbanCardSelection(task.id, selected, onSelect);
 
   return (
     <div
       role="button"
-      aria-disabled={!clickable}
-      tabIndex={clickable ? 0 : undefined}
-      aria-pressed={clickable ? selected : undefined}
-      data-selected={selected ? "true" : undefined}
+      {...selection.props}
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
-      onClick={selectTaskCard}
-      onKeyDown={handleKeyDown}
       className={cn(
         "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",
         "shadow-hairline-inset",
         "hover:bg-elevated hover:inset-ring-1 hover:inset-ring-line",
-        clickable && "cursor-pointer",
-        clickable &&
+        selection.clickable && "cursor-pointer",
+        selection.clickable &&
           "focus-visible:shadow-focus-inset focus-visible:outline-none focus-visible:ring-0",
         selected && "bg-elevated inset-ring-1 inset-ring-line"
       )}
@@ -99,13 +75,15 @@ export function TaskKanbanCard({
           {task.title}
         </h3>
         {showStatusPill ? (
-          <Pill size="xs" tone={statusTone}>
+          <Pill size="xs" tone={taskStatusTone(task.status)}>
             {statusLabel(task.status)}
           </Pill>
         ) : null}
       </div>
 
-      {task.identifier ? <MonoId value={identifier} size="sm" data-slot="k-card-id" /> : null}
+      {task.identifier ? (
+        <MonoId value={taskShortId(task)} size="sm" data-slot="k-card-id" />
+      ) : null}
 
       {failedError ? (
         <p
@@ -117,52 +95,109 @@ export function TaskKanbanCard({
         </p>
       ) : null}
 
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div
-          className="flex min-w-0 items-center gap-1.5"
-          data-testid={`tasks-kanban-card-owner-${task.id}`}
-        >
-          <OwnerAvatar
-            data-testid={`tasks-kanban-card-avatar-${task.id}`}
-            name={ownerLabel}
-            ownerId={ownerId}
-            ownerKind={ownerKind}
-            size="sm"
-          />
-          <span className="min-w-0 truncate text-eyebrow text-muted">{ownerLabel}</span>
-          {profileOwner ? (
-            <ProfileOwnerTag
-              data-testid={`tasks-kanban-card-profile-${task.id}`}
-              owner={profileOwner}
-            />
-          ) : null}
-        </div>
-        <span
-          className="shrink-0 font-mono text-badge tabular-nums text-faint"
-          data-testid={`tasks-kanban-card-time-${task.id}`}
-        >
-          {timestamp}
-        </span>
-      </div>
+      <TaskKanbanCardFooter profileOwner={profileOwner} task={task} />
 
-      {canRetry ? (
-        <Button
-          aria-label={`Retry ${task.title}`}
-          className="self-start"
-          data-testid={`tasks-kanban-card-retry-${task.id}`}
-          onClick={event => {
-            event.stopPropagation();
-            if (activeRun) {
-              onRetry?.(activeRun.id);
-            }
-          }}
-          size="xs"
-          type="button"
-          variant="neutral"
-        >
-          Retry
-        </Button>
-      ) : null}
+      {retryRunId ? <TaskKanbanCardRetry onRetry={onRetry} runId={retryRunId} task={task} /> : null}
     </div>
+  );
+}
+
+function kanbanCardSelection(
+  taskId: string,
+  selected: boolean,
+  onSelect: ((taskId: string) => void) | undefined
+) {
+  if (onSelect === undefined) {
+    return {
+      clickable: false,
+      props: {
+        "aria-disabled": true,
+        "data-selected": selected ? "true" : undefined,
+      },
+    } as const;
+  }
+  return {
+    clickable: true,
+    props: {
+      "aria-disabled": false,
+      tabIndex: 0,
+      "aria-pressed": selected,
+      "data-selected": selected ? "true" : undefined,
+      onClick: () => onSelect(taskId),
+      onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(taskId);
+        }
+      },
+    },
+  } as const;
+}
+
+function TaskKanbanCardFooter({
+  task,
+  profileOwner,
+}: {
+  task: TaskListItem;
+  profileOwner?: ProfileOwner;
+}) {
+  const ownerLabel = taskOwnerLabel(task.owner);
+  const ownerId = task.owner?.ref ?? task.owner?.kind ?? "unassigned";
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <div
+        className="flex min-w-0 items-center gap-1.5"
+        data-testid={`tasks-kanban-card-owner-${task.id}`}
+      >
+        <OwnerAvatar
+          data-testid={`tasks-kanban-card-avatar-${task.id}`}
+          name={ownerLabel}
+          ownerId={ownerId}
+          ownerKind={ownerAvatarKindFor(task.owner?.kind)}
+          size="sm"
+        />
+        <span className="min-w-0 truncate text-eyebrow text-muted">{ownerLabel}</span>
+        {profileOwner ? (
+          <ProfileOwnerTag
+            data-testid={`tasks-kanban-card-profile-${task.id}`}
+            owner={profileOwner}
+          />
+        ) : null}
+      </div>
+      <span
+        className="shrink-0 font-mono text-badge tabular-nums text-faint"
+        data-testid={`tasks-kanban-card-time-${task.id}`}
+      >
+        {formatRelativeTime(task.last_activity_at ?? task.updated_at)}
+      </span>
+    </div>
+  );
+}
+
+function TaskKanbanCardRetry({
+  task,
+  runId,
+  onRetry,
+}: {
+  task: TaskListItem;
+  runId: string;
+  onRetry?: (runId: string) => void;
+}) {
+  return (
+    <Button
+      aria-label={`Retry ${task.title}`}
+      className="self-start"
+      data-testid={`tasks-kanban-card-retry-${task.id}`}
+      onClick={event => {
+        event.stopPropagation();
+        onRetry?.(runId);
+      }}
+      size="xs"
+      type="button"
+      variant="neutral"
+    >
+      Retry
+    </Button>
   );
 }
