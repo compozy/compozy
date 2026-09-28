@@ -379,7 +379,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
 
     expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
     expect(queryRoot()).toBeNull();
-    expect(screen.queryByRole("button", { name: "Copy tool payload" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy tool details" })).not.toBeInTheDocument();
     expect(screen.queryByText("Output")).not.toBeInTheDocument();
   });
 
@@ -483,7 +483,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     });
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy tool payload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy tool details" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const payload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
@@ -675,7 +675,7 @@ it("Should disclose a long provider title and copy its exact original payload", 
   await user.keyboard("{Enter}");
   expect(screen.getByLabelText("Tool title").textContent).toBe(title);
   const writeText = vi.spyOn(navigator.clipboard, "writeText");
-  await user.click(screen.getByRole("button", { name: "Copy tool payload" }));
+  await user.click(screen.getByRole("button", { name: "Copy tool details" }));
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   expect(JSON.parse(writeText.mock.calls[0]![0])).toMatchObject({
     tool: "Bash",

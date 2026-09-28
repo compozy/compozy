@@ -1,7 +1,16 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type ComponentProps, type KeyboardEvent } from "react";
 
-import { Button, Kbd, KbdGroup, SearchInput, Spinner } from "@compozy/ui";
+import {
+  Button,
+  Kbd,
+  KbdGroup,
+  SearchInput,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -14,6 +23,30 @@ import {
 } from "../lib/session-navigation";
 import type { SessionTranscriptSearchMatch } from "../types";
 import type { SessionFindModel } from "../hooks/use-session-navigation";
+
+/** An icon control that names itself and its shortcut in a tooltip. */
+function FindIconButton({
+  label,
+  shortcut,
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "aria-label"> & { label: string; shortcut: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button type="button" variant="ghost" size="icon-xs" aria-label={label} {...props} />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent className="gap-1.5">
+        {label}
+        <Kbd>{shortcut}</Kbd>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export interface SessionFindBarProps {
   /** The host's `useSessionFind` model: the host owns it so marks and folds read the same matches. */
@@ -143,28 +176,24 @@ export function SessionFindBar({
         </span>
         {hasMatches ? (
           <div className="flex shrink-0 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Previous match (Shift+Enter)"
+            <FindIconButton
+              label="Previous match"
+              shortcut="⇧⏎"
               data-testid="session-find-previous"
               disabled={loadingOlder}
               onClick={() => find.step(-1)}
             >
               <ChevronUp aria-hidden="true" className="size-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Next match (Enter)"
+            </FindIconButton>
+            <FindIconButton
+              label="Next match"
+              shortcut="⏎"
               data-testid="session-find-next"
               disabled={loadingOlder}
               onClick={() => find.step(1)}
             >
               <ChevronDown aria-hidden="true" className="size-3" />
-            </Button>
+            </FindIconButton>
           </div>
         ) : null}
         {find.isError ? (
@@ -181,17 +210,15 @@ export function SessionFindBar({
             Try again
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Close find (Esc)"
+        <FindIconButton
+          label="Close find"
+          shortcut="Esc"
           className="text-faint hover:text-fg"
           data-testid="session-find-close"
           onClick={onClose}
         >
           <X aria-hidden="true" className="size-3" />
-        </Button>
+        </FindIconButton>
       </div>
       <FindResults
         find={find}

@@ -192,7 +192,9 @@ function SessionComposerInput() {
     <LexicalComposerInput
       data-testid="composer-input"
       inert={!meta.canPrompt}
-      placeholder={meta.canPrompt ? "Send a message…" : meta.inactivePlaceholder}
+      placeholder={
+        meta.canPrompt ? "Send a message — type / for commands" : meta.inactivePlaceholder
+      }
       submitMode="enter"
       formatter={state.commandFormatter}
       directiveChip={SessionCommandChip}

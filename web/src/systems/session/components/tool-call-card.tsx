@@ -276,9 +276,9 @@ export function SessionToolCallRow({
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
-      copyLabel="Copy tool payload"
-      copiedLabel="Tool payload copied"
-      copyFailedLabel="Tool payload copy failed"
+      copyLabel="Copy tool details"
+      copiedLabel="Tool details copied"
+      copyFailedLabel="Couldn't copy tool details"
       className="text-subtle hover:text-fg"
     />
   );
