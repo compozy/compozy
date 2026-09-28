@@ -77,7 +77,6 @@ export function SplitButton({
   className,
   ...props
 }: SplitButtonProps) {
-  const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
   const {
     disabled: actionDisabled = false,
     "aria-describedby": actionDescribedBy,
@@ -147,33 +146,63 @@ export function SplitButton({
         </span>
       ) : null}
       {hasMenu ? (
-        <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-          <DropdownMenuTrigger
-            aria-label={menuLabel}
-            data-size={size}
-            data-slot="split-button-trigger"
-            data-variant={variant}
-            render={
-              <Button
-                className={cn("w-8 px-0 [&_svg]:size-3", variant === "default" && SEAM_CLASS)}
-                disabled={disabled}
-                size={size}
-                type="button"
-                variant={variant}
-              />
-            }
-          >
-            <ChevronDownIcon aria-hidden="true" className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className={cn("w-max max-w-72 p-1", menuClassName)}
-            {...restMenuProps}
-          >
-            {children}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SplitButtonMenu
+          disabled={disabled}
+          menuLabel={menuLabel}
+          menuProps={menuProps}
+          onOpenChange={setMenuOpen}
+          open={menuOpen}
+          size={size}
+          variant={variant}
+        >
+          {children}
+        </SplitButtonMenu>
       ) : null}
     </ButtonGroup>
+  );
+}
+
+function SplitButtonMenu({
+  open,
+  onOpenChange,
+  menuLabel,
+  menuProps,
+  variant,
+  size,
+  disabled,
+  children,
+}: Pick<SplitButtonProps, "menuLabel" | "menuProps" | "variant" | "size" | "children"> & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  disabled: boolean;
+}) {
+  const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
+  return (
+    <DropdownMenu onOpenChange={onOpenChange} open={open}>
+      <DropdownMenuTrigger
+        aria-label={menuLabel}
+        data-size={size}
+        data-slot="split-button-trigger"
+        data-variant={variant}
+        render={
+          <Button
+            className={cn("w-8 px-0 [&_svg]:size-3", variant === "default" && SEAM_CLASS)}
+            disabled={disabled}
+            size={size}
+            type="button"
+            variant={variant}
+          />
+        }
+      >
+        <ChevronDownIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className={cn("w-max max-w-72 p-1", menuClassName)}
+        {...restMenuProps}
+      >
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

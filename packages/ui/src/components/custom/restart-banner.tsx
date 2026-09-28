@@ -99,39 +99,12 @@ function RestartBanner({
       <div
         className={cn("flex min-w-0 flex-1 gap-2", hasDescription ? "items-start" : "items-center")}
       >
-        {busy ? (
-          <Spinner
-            className={cn("size-4 shrink-0", hasDescription && "mt-0.5")}
-            aria-hidden="true"
-            data-slot="restart-banner-icon"
-          />
-        ) : (
-          <span
-            aria-hidden="true"
-            data-slot="restart-banner-icon"
-            className={cn("flex shrink-0 [&_svg]:size-4", hasDescription && "mt-0.5")}
-          >
-            {icon ?? <ShieldAlertIcon />}
-          </span>
-        )}
-        <AlertDescription
-          data-slot="restart-banner-message"
-          className={cn(
-            "flex min-w-0 flex-wrap items-center gap-2 text-sm",
-            hasDescription && "flex-col items-start gap-0.5"
-          )}
-        >
-          <span
-            data-slot="restart-banner-message-text"
-            className={hasDescription ? "font-medium text-fg-strong" : "truncate"}
-          >
-            {message ?? "Restart required to apply."}
-          </span>
-          {hasDescription ? (
-            <span data-slot="restart-banner-description">{description}</span>
-          ) : null}
-          {detail ? <span data-slot="restart-banner-detail">{detail}</span> : null}
-        </AlertDescription>
+        <RestartBannerIcon busy={busy} icon={icon} offset={hasDescription} />
+        <RestartBannerMessage
+          description={hasDescription ? description : null}
+          detail={detail}
+          message={message}
+        />
       </div>
       {restartNow || onDismiss ? (
         <div className="flex items-center gap-2">
@@ -149,27 +122,109 @@ function RestartBanner({
             </Button>
           ) : null}
           {restartNow ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-slot="restart-banner-action"
-              aria-busy={isPending || undefined}
-              {...actionProps}
-              disabled={isPending}
+            <RestartBannerAction
+              actionProps={actionProps}
+              isPending={isPending}
+              label={isPending ? pendingLabel : actionLabel}
               onClick={restartNow}
-            >
-              {isPending ? (
-                <Spinner className="size-3" aria-hidden="true" />
-              ) : (
-                <RefreshCwIcon className="size-3" />
-              )}
-              {isPending ? pendingLabel : actionLabel}
-            </Button>
+            />
           ) : null}
         </div>
       ) : null}
     </Alert>
+  );
+}
+
+/** `offset` nudges the glyph onto the title's baseline when a description wraps under it. */
+function RestartBannerIcon({
+  busy,
+  icon,
+  offset,
+}: {
+  busy: boolean;
+  icon: React.ReactNode;
+  offset: boolean;
+}) {
+  if (busy) {
+    return (
+      <Spinner
+        className={cn("size-4 shrink-0", offset && "mt-0.5")}
+        aria-hidden="true"
+        data-slot="restart-banner-icon"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="restart-banner-icon"
+      className={cn("flex shrink-0 [&_svg]:size-4", offset && "mt-0.5")}
+    >
+      {icon ?? <ShieldAlertIcon />}
+    </span>
+  );
+}
+
+/** A non-null `description` turns the message into a wrapping title with a second line. */
+function RestartBannerMessage({
+  message,
+  description,
+  detail,
+}: {
+  message: React.ReactNode;
+  description: React.ReactNode;
+  detail: React.ReactNode;
+}) {
+  const hasDescription = description !== null;
+  return (
+    <AlertDescription
+      data-slot="restart-banner-message"
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-2 text-sm",
+        hasDescription && "flex-col items-start gap-0.5"
+      )}
+    >
+      <span
+        data-slot="restart-banner-message-text"
+        className={hasDescription ? "font-medium text-fg-strong" : "truncate"}
+      >
+        {message ?? "Restart required to apply."}
+      </span>
+      {hasDescription ? <span data-slot="restart-banner-description">{description}</span> : null}
+      {detail ? <span data-slot="restart-banner-detail">{detail}</span> : null}
+    </AlertDescription>
+  );
+}
+
+function RestartBannerAction({
+  label,
+  isPending,
+  actionProps,
+  onClick,
+}: {
+  label: React.ReactNode;
+  isPending: boolean;
+  actionProps: RestartBannerButtonProps | undefined;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      data-slot="restart-banner-action"
+      aria-busy={isPending || undefined}
+      {...actionProps}
+      disabled={isPending}
+      onClick={onClick}
+    >
+      {isPending ? (
+        <Spinner className="size-3" aria-hidden="true" />
+      ) : (
+        <RefreshCwIcon className="size-3" />
+      )}
+      {label}
+    </Button>
   );
 }
 
