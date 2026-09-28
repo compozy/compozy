@@ -45,6 +45,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		StopVerificationFailed: s.stopVerificationFailed,
 		Failure:                store.CloneSessionFailure(s.failure),
 		ACPSessionID:           stringPointer(s.ACPSessionID),
+		AcceptedRoute:          store.CloneSessionAcceptedRoute(s.acceptedRoute),
 		Liveness:               store.CloneSessionLivenessMeta(s.Liveness),
 		CreationProfile:        profile,
 		CreationOptions:        creationOptions,

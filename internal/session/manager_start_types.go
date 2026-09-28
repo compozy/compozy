@@ -22,8 +22,12 @@ type sessionStartSpec struct {
 	provider           string
 	commandFingerprint string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
-	command                  string
-	chainOwner               ChainOwner
+	command    string
+	chainOwner ChainOwner
+	// fallbackAttempt is the chain index this launch attempts (0 = primary route).
+	fallbackAttempt int
+	// acceptedRoute is the persisted accepted binding a resume must match (resume affinity).
+	acceptedRoute            *store.SessionAcceptedRoute
 	model                    string
 	transportModel           string
 	reasoningEffort          string

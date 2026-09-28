@@ -82,6 +82,7 @@ func (m *Manager) restoreFailedResumeStart(
 			restored.StopDetail = resumeStopDetailStartIncomplete
 		}
 		restored.ACPSessionID = nil
+		restored.AcceptedRoute = nil
 	}
 	restored.UpdatedAt = m.now()
 

@@ -16,6 +16,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -1021,4 +1022,140 @@ func readRawLineageKind(t *testing.T, metaPath string) string {
 		return ""
 	}
 	return document.Lineage.Kind
+}
+
+func setReviewerChain(t *testing.T, h *harness, chain ...compozyconfig.RoleFallback) {
+	t.Helper()
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	for index := range workspace.Agents {
+		if workspace.Agents[index].Name == "reviewer" {
+			workspace.Agents[index].FallbackChain = chain
+		}
+	}
+	h.resolver.upsert(&workspace)
+}
+
+func lastStartCall(h *harness) acp.StartOpts {
+	h.driver.mu.Lock()
+	defer h.driver.mu.Unlock()
+	return h.driver.startCalls[len(h.driver.startCalls)-1]
+}
+
+// Invariant: resume loads the native id only on a configured route that matches the
+// accepted binding record; otherwise the id is cleared and context replay runs on the
+// primary route (IT-005, UT-026, UT-027, UT-029).
+func TestResumeAcceptedRouteAffinity(t *testing.T) {
+	t.Parallel()
+
+	createOnSeatOne := func(t *testing.T, h *harness) *Session {
+		t.Helper()
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 || derefString(meta.ACPSessionID) != "acp-2" {
+			t.Fatalf("accepted route = %#v acp=%v, want seat one (attempt 1) with acp-2", meta.AcceptedRoute, meta.ACPSessionID)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		return created
+	}
+
+	t.Run("Should resume on the matching route by record even when the chain is reordered", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createOnSeatOne(t, h)
+		setReviewerChain(t, h, codexRoute(h), claudeSeatOneRoute(h))
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != fallbackSeatOne || call.ResumeSessionID != "acp-2" {
+			t.Fatalf("resume start = %q/%q, want seat one loading acp-2", call.Command, call.ResumeSessionID)
+		}
+		meta := readMeta(t, resumed.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+			t.Fatalf("accepted route after resume = %#v, want seat one", meta.AcceptedRoute)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		chain func(*harness) []compozyconfig.RoleFallback
+	}{
+		{name: "Should replay context on the primary route when the accepted route was removed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			return []compozyconfig.RoleFallback{codexRoute(h)}
+		}},
+		{name: "Should replay context on the primary route when the accepted route command changed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			edited := claudeSeatOneRoute(h)
+			edited.Command = "SEAT=9 claude --acp"
+			return []compozyconfig.RoleFallback{edited, codexRoute(h)}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			logs := newCaptureLogHandler()
+			h := newHarness(t, WithLogger(slog.New(logs)))
+			created := createOnSeatOne(t, h)
+			setReviewerChain(t, h, tc.chain(h)...)
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf("resume start = %q/%q, want the primary route without a native id", call.Command, call.ResumeSessionID)
+			}
+			record, ok := logs.FindByMessage("session.fallback.route_missing")
+			if !ok || record.Level != slog.LevelInfo {
+				t.Fatalf("route_missing log = %#v (found %t), want one info record", record, ok)
+			}
+			assertCapturedLogAttr(t, record, "accepted_route.command_fingerprint", providerCommandFingerprint(fallbackSeatOne))
+			marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
+			if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
+				t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
+			}
+			if _, found := logs.FindByMessage("session.resume.context_replay_fallback"); found {
+				t.Fatal("recoverFailedResumeStart ran for an affinity mismatch")
+			}
+		})
+	}
+
+	t.Run("Should resume old metadata without an accepted route unchanged", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		meta := readMeta(t, session.MetaPath())
+		meta.AcceptedRoute = nil
+		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		raw, err := os.ReadFile(session.MetaPath())
+		if err != nil || strings.Contains(string(raw), "accepted_route") {
+			t.Fatalf("previous-release meta fixture = %s (error %v), want no accepted_route", raw, err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := lastStartCall(h).ResumeSessionID; got != originalACP || originalACP == "" {
+			t.Fatalf("resume ResumeSessionID = %q, want stored %q", got, originalACP)
+		}
+	})
 }

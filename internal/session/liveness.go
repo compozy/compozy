@@ -75,11 +75,13 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta store.SessionMeta) (sto
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailStartIncomplete)
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, next.StopDetail)
 		next.ACPSessionID = nil
+		next.AcceptedRoute = nil
 		markInterruptedStall(&next, now)
 		return next, sessionMetaChanged(meta, next)
 	case StateStopped:
 		if strings.TrimSpace(meta.StopDetail) == resumeStopDetailStartIncomplete && meta.ACPSessionID != nil {
 			next.ACPSessionID = nil
+			next.AcceptedRoute = nil
 			return next, sessionMetaChanged(meta, next)
 		}
 		return next, sessionMetaChanged(meta, next)

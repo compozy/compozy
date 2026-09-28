@@ -52,20 +52,8 @@ func (m *Manager) InvokeTransientModel(
 	ctx context.Context,
 	call TransientModelCall,
 ) (result TransientModelResult, operationErr error) {
-	if ctx == nil {
-		return result, errors.New("session: transient model context is required")
-	}
-	if m == nil || m.driver == nil {
-		return result, errors.New("session: transient model driver is required")
-	}
-	if call.Config == nil {
-		return result, errors.New("session: transient model config is required")
-	}
-	if strings.TrimSpace(call.Prompt) == "" {
-		return result, errors.New("session: transient model prompt is required")
-	}
-	if call.MaxOutputBytes <= 0 {
-		return result, errors.New("session: transient model output bound must be positive")
+	if err := m.validateTransientModelCall(ctx, call); err != nil {
+		return result, err
 	}
 
 	agent := compozyconfig.AgentDef{
@@ -132,6 +120,22 @@ func (m *Manager) InvokeTransientModel(
 		return result, err
 	}
 	return result, nil
+}
+
+func (m *Manager) validateTransientModelCall(ctx context.Context, call TransientModelCall) error {
+	switch {
+	case ctx == nil:
+		return errors.New("session: transient model context is required")
+	case m == nil || m.driver == nil:
+		return errors.New("session: transient model driver is required")
+	case call.Config == nil:
+		return errors.New("session: transient model config is required")
+	case strings.TrimSpace(call.Prompt) == "":
+		return errors.New("session: transient model prompt is required")
+	case call.MaxOutputBytes <= 0:
+		return errors.New("session: transient model output bound must be positive")
+	}
+	return nil
 }
 
 func (m *Manager) promptTransientModel(

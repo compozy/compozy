@@ -424,6 +424,21 @@ provider, model, and `provider_command_fingerprint` when the route sets `command
 that the route was tried, not that it succeeded. The `memory_controller` chain is live through the
 write-controller tiebreaker unless `memory.controller.mode = "rules"`.
 
+Work sessions use the agent definition's `fallback_chain` instead (agent frontmatter,
+`compozy agent create|update --fallback-route`, or `compozy__agent_create`). It runs at the first
+prompt of a logical session (phase `bind`) and at session-owned eager starts such as an agent-requested
+spawn (phase `create`); role launches never run it. Before each fallback attempt CompozyOS writes the
+session-scoped `session.fallback.used` event (`agent`, `phase`, `attempt`, `provider`, `model`,
+`provider_command_fingerprint`); read it with `compozy logs --session <id> --type session.fallback.used -o json`
+or `GET /api/logs?type=session.fallback.used&session_id=<id>`. Each refused route leaves one
+`provider_failure` transcript marker attributed to that route's fingerprint; its `next_action` is
+`use_fallback` when the refusal was `rate_limited` or `not_authenticated` and another route remains.
+`use_fallback` needs no action: the runtime is already trying the next route. After ACP accepts a
+route the chain never advances. The accepted route is stored with the session; a resume loads the
+native ACP session only on a configured route with the same provider, auth mode, home policy, and
+command fingerprint, and otherwise restarts on the primary route with context replay
+(`fallback_reason: accepted_route_missing`).
+
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
 `acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or
 `bool_value`; fallback routes may set the same runtime fields. Coordinator additionally owns `ttl`, `max_children`, and
@@ -849,7 +864,8 @@ For a recoverable provider error, inspect the event's `provider_error`: `provide
 means follow `next_action`: native `login` then the daemon probe, `bind_secret` to update a bound
 credential, or `inspect` to check a no-auth provider configuration. `provider_rate_limited` means retry after the
 provider recovers. The failed turn ends but the session remains usable; do not stop or recreate it
-solely for these codes. `occurrence_count` and first/last-seen timestamps are scoped to that provider
+solely for these codes. A turn failure never runs the agent `fallback_chain` and never carries
+`use_fallback`, which appears only on refusals before ACP acceptance. `occurrence_count` and first/last-seen timestamps are scoped to that provider
 process, and old events can omit this additive object. No retry-after seconds are implied.
 
 ## Silence supervision and scheduling pressure

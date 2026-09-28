@@ -88,15 +88,13 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 
 	accepted.persistFailure = accepted.async || !spec.discardStartFailure
-	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime, accepted.run)
+	startOpts, err := m.launchAcceptedSessionAttempts(accepted, &runtime)
 	if err != nil {
-		return fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
+		return err
 	}
-	accepted.proc, err = m.startAgentProcess(ctx, spec, startOpts)
-	if err != nil {
-		return fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
-	}
+	accepted.runtime = runtime
 	acceptedID := accepted.proc.SessionID
+	session.commitAcceptedRoute(acceptedRouteRecord(spec.fallbackAttempt, runtime.agent, ""), spec.command)
 	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
 		return acp.WrapAcceptedStart(acceptedID, startupFailure("session resume marker persistence failed", err))
 	}

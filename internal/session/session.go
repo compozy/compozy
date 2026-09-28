@@ -196,8 +196,12 @@ type Session struct {
 	creationOptions           *store.SessionCreationOptions
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
-	agentDef                  compozyconfig.AgentDef
-	startupManifest           acp.StartupManifest
+	acceptedRoute             *store.SessionAcceptedRoute
+	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
+	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
+	acceptedCommand string
+	agentDef        compozyconfig.AgentDef
+	startupManifest acp.StartupManifest
 
 	sessionDir              string
 	metaPath                string
@@ -334,6 +338,8 @@ func (s *Session) rollbackActivation(now time.Time) {
 
 	s.process = nil
 	s.ACPSessionID = ""
+	s.acceptedRoute = nil
+	s.acceptedCommand = ""
 	s.ACPCaps = acp.Caps{}
 	s.ACPCapsKnown = false
 	s.Liveness = nil

@@ -187,6 +187,7 @@ func clearedConversationMeta(meta store.SessionMeta, now time.Time) store.Sessio
 	cleared.StopReason = nil
 	cleared.StopDetail = ""
 	cleared.ACPSessionID = nil
+	cleared.AcceptedRoute = nil
 	cleared.UpdatedAt = now
 	return cleared
 }

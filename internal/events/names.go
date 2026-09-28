@@ -87,7 +87,9 @@ const (
 
 	SettingsChanged  = "settings.changed"
 	RoleFallbackUsed = "role.fallback.used"
-	RoleResolveError = "role.resolve.error"
+	// SessionFallbackUsed records a session-owned fallback attempt before it starts.
+	SessionFallbackUsed = "session.fallback.used"
+	RoleResolveError    = "role.resolve.error"
 
 	ProfileCreated              = "profile.created"
 	ProfileRenamed              = "profile.renamed"

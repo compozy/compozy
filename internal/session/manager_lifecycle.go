@@ -391,7 +391,9 @@ func (m *Manager) recordFailedStartEvents(
 		return nil
 	}
 	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
-		return m.recordTranscriptMarker(ctx, session, stopTurnID, kind, summary, evidence)
+		return m.recordTranscriptMarker(ctx, session, stopTurnID, transcriptMarkerInput{
+			Kind: kind, Summary: summary, Evidence: evidence,
+		})
 	}
 	return nil
 }

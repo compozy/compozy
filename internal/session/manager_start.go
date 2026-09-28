@@ -80,6 +80,9 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	spec.includePromptUpdatedAt = true
 	spec.preserveStopReason = sessionMetaStopReason(&meta) == store.StopAgentCrashed
 	spec.acpSessionID = derefString(meta.ACPSessionID)
+	if spec.acpSessionID != "" {
+		spec.acceptedRoute = store.CloneSessionAcceptedRoute(meta.AcceptedRoute)
+	}
 	spec.stopReason = sessionMetaStopReason(&meta)
 	spec.stopDetail = strings.TrimSpace(meta.StopDetail)
 	spec.failure = store.CloneSessionFailure(meta.Failure)
@@ -114,7 +117,7 @@ func (m *Manager) startAgentProcess(
 	startOpts acp.StartOpts,
 ) (*AgentProcess, error) {
 	logger := spec.startLogger(m).With("resolved_provider", startOpts.ProviderName)
-	logger.Info("session.provider_route.selected", "phase", spec.startAction)
+	logger.Info("session.provider_route.selected", "phase", spec.startAction, "attempt", spec.fallbackAttempt)
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
 		logger.Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)

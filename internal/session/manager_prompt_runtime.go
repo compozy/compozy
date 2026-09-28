@@ -13,6 +13,8 @@ type promptRuntimePlan struct {
 	selection RuntimeSelection
 	spec      sessionStartSpec
 	runtime   sessionStartRuntime
+	// attempt is the fallback chain index this plan binds (0 = primary route).
+	attempt int
 }
 
 func (m *Manager) ensurePromptRuntime(
@@ -41,6 +43,12 @@ func (m *Manager) ensurePromptRuntime(
 	}
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
 		return nil, err
+	}
+	if snapshot.process == nil {
+		// Initial bind of a logical session: the agent's fallback_chain applies (ADR-004).
+		if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
+			return m.bindPromptRuntimeWithFallback(ctx, session, &snapshot, plan, routes)
+		}
 	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
@@ -167,6 +175,8 @@ func (m *Manager) replacePromptRuntime(
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
+	// The accepted binding is committed with the ACP id in the same meta write.
+	session.commitAcceptedRoute(acceptedRouteRecord(plan.attempt, runtime.agent, plan.selection.Model), plan.spec.command)
 	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
@@ -252,6 +262,17 @@ func (m *Manager) preparePromptRuntimePlan(
 	session *Session,
 	selection RuntimeSelection,
 ) (*promptRuntimePlan, error) {
+	return m.preparePromptRuntimePlanForRoute(ctx, session, selection, "")
+}
+
+// preparePromptRuntimePlanForRoute plans a binding with an explicit route command
+// (a fallback route's account or the accepted route's command); empty keeps resolution.
+func (m *Manager) preparePromptRuntimePlanForRoute(
+	ctx context.Context,
+	session *Session,
+	selection RuntimeSelection,
+	command string,
+) (*promptRuntimePlan, error) {
 	if session == nil {
 		return nil, ErrSessionNotFound
 	}
@@ -283,6 +304,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
+	spec.command = strings.TrimSpace(command)
 	// The bound route records whether an unrestricted preference was already present at session start.
 	boundRoute := session.providerRoutingSnapshot()
 	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())

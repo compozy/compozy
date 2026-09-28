@@ -166,6 +166,7 @@ func (m *Manager) persistRecoveredStop(
 		if outcome.Verified {
 			if interruptedStartupMeta(&meta) {
 				meta.ACPSessionID = nil
+				meta.AcceptedRoute = nil
 				meta.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, detail)
 			}
 			meta.State = string(StateStopped)

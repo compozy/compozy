@@ -39,6 +39,9 @@ const (
 	ProviderFailureActionWait              ProviderFailureAction = "wait"
 	ProviderFailureActionRetry             ProviderFailureAction = "retry"
 	ProviderFailureActionNoRetry           ProviderFailureAction = "no_retry"
+	// ProviderFailureActionUseFallback marks a refused pre-acceptance attempt after which
+	// the session layer advances to the next configured route (never set by the classifier).
+	ProviderFailureActionUseFallback ProviderFailureAction = "use_fallback"
 )
 
 // ProviderFailureDiagnostic is the typed provider-specific recovery metadata

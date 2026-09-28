@@ -211,6 +211,7 @@ type Manager struct {
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	eventLedger                  store.EventSummaryStore
 	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore

@@ -56,6 +56,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithAttentionWorkspaceMuteReader(deps.AttentionWorkspaceMutes),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithSessionCatalog(deps.SessionCatalog),
+			session.WithEventLedger(deps.EventLedger),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithProfileNameResolver(deps.ProfileNames),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -836,6 +837,99 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 			}
 		})
 	}
+	// UT-015/UT-028: an agent chain never runs after acceptance; an operator runtime
+	// change replaces the accepted-route record and a resume follows it.
+	t.Run("Should keep a chained agent available and never advance after acceptance", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		session, _ := h.manager.Get(created.ID)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+		var prompts atomic.Int32
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			event := acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, Timestamp: time.Now()}
+			if prompts.Add(1) == 1 {
+				event.Type = acp.EventTypeError
+				event.Error = "HTTP 429 rate limit exceeded"
+				event.Failure = &store.SessionFailure{Kind: store.FailurePrompt, Summary: event.Error}
+				event.ProviderError = &acp.ProviderErrorDiagnostic{
+					Code: acp.ProviderErrorRateLimited, Provider: "claude", NextAction: acp.ProviderFailureActionRetry,
+					OccurrenceCount: 1,
+				}
+			}
+			stream <- event
+			close(stream)
+			return stream, nil
+		}
+		for _, expected := range []string{acp.EventTypeError, acp.EventTypeDone} {
+			stream, err := h.manager.Prompt(t.Context(), session.ID, "continue")
+			if err != nil {
+				t.Fatalf("prompt before %s: %v", expected, err)
+			}
+			if events := collectEvents(t, stream); len(events) != 1 || events[0].Type != expected {
+				t.Fatalf("prompt events = %#v, want %s", events, expected)
+			}
+		}
+		if session.Info().State != StateActive || len(startCommands(h)) != 1 || len(ledger.fallbackRows()) != 0 {
+			t.Fatalf("after a turn refusal: state=%s starts=%v rows=%d, want active, one start, no fallback",
+				session.Info().State, startCommands(h), len(ledger.fallbackRows()))
+		}
+		stored, err := h.manager.Events(t.Context(), session.ID, store.EventQuery{Type: acp.EventTypeError, Limit: 10})
+		if err != nil || len(stored) != 1 {
+			t.Fatalf("stored provider errors = %d, error = %v", len(stored), err)
+		}
+		if replayed, err := transcript.UnmarshalAgentEvent(stored[0].Content); err != nil ||
+			replayed.ProviderError == nil || replayed.ProviderError.NextAction != acp.ProviderFailureActionRetry {
+			t.Fatalf("turn refusal next_action = %#v, error = %v, want retry", replayed.ProviderError, err)
+		}
+
+		codexModel := h.cfg.Providers["codex"].Models.Default
+		if _, err := h.manager.SetRuntimeSelection(
+			t.Context(), session.ID, RuntimeSelection{Provider: "codex", Model: codexModel}, 0,
+		); err != nil {
+			t.Fatalf("SetRuntimeSelection(codex) error = %v", err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "on codex")
+		if err != nil {
+			t.Fatalf("Prompt(codex) error = %v", err)
+		}
+		collectEvents(t, stream)
+		codexCommand := h.cfg.Providers["codex"].Command
+		if got := startCommands(h); len(got) != 2 || got[1] != codexCommand || len(ledger.fallbackRows()) != 0 {
+			t.Fatalf("runtime set starts = %v rows=%d, want the requested codex route and no fallback event",
+				got, len(ledger.fallbackRows()))
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Provider != "codex" || meta.AcceptedRoute.Attempt != 0 ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(codexCommand) ||
+			derefString(meta.ACPSessionID) != "acp-2" {
+			t.Fatalf("meta after runtime set = %#v acp=%v, want codex attempt 0 with acp-2",
+				meta.AcceptedRoute, meta.ACPSessionID)
+		}
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		h.driver.mu.Lock()
+		resumeCall := h.driver.startCalls[len(h.driver.startCalls)-1]
+		h.driver.mu.Unlock()
+		if resumeCall.Command != codexCommand || resumeCall.ResumeSessionID != "acp-2" {
+			t.Fatalf("resume start = %q/%q, want the codex route loading acp-2", resumeCall.Command, resumeCall.ResumeSessionID)
+		}
+		session = resumed
+	})
 	t.Run("Should keep generic prompt failures active", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -3102,6 +3196,238 @@ func TestPromptCompletionOwnership(t *testing.T) {
 		case <-done:
 		default:
 			t.Fatal("current completion did not close its channel")
+		}
+	})
+}
+
+func acceptFallbackReviewer(t *testing.T, h *harness) *Session {
+	t.Helper()
+	created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+	})
+	if err != nil {
+		t.Fatalf("CreateAccepted(reviewer) error = %v", err)
+	}
+	session, ok := h.manager.Get(created.ID)
+	if !ok {
+		t.Fatalf("Get(%q) did not find accepted session", created.ID)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
+			t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+		}
+	})
+	return session
+}
+
+// Invariant: a first bind advances through the agent chain only before ACP acceptance,
+// commits one ledger event before each fallback attempt, and leaves one attributed
+// provider_failure marker per refused route (IT-003, UT-012, UT-013).
+func TestPromptBindFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bind on the first accepting route with attributed evidence", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  missingCLIRefusal(),
+		})
+		session := acceptFallbackReviewer(t, h)
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "review the diff")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		if got := collectEvents(t, events); len(got) == 0 || got[len(got)-1].Type != acp.EventTypeDone {
+			t.Fatalf("Prompt() events = %#v, want a completed turn", got)
+		}
+		codexCommand := h.cfg.Providers["codex"].Command
+		if got, want := startCommands(h), []string{fallbackSeatZero, fallbackSeatOne, codexCommand}; !slices.Equal(got, want) {
+			t.Fatalf("start commands = %v, want %v", got, want)
+		}
+		info := session.Info()
+		if info.ACPSessionID != "acp-3" || info.Provider != "codex" {
+			t.Fatalf("binding = %q on %q, want acp-3 on codex", info.ACPSessionID, info.Provider)
+		}
+		rows := ledger.fallbackRows()
+		if len(rows) != 2 {
+			t.Fatalf("session.fallback.used rows = %d, want 2", len(rows))
+		}
+		for index, want := range []string{fallbackSeatOne, codexCommand} {
+			payload := decodeFallbackPayload(t, rows[index])
+			if payload.Phase != fallbackPhaseBind || payload.Attempt != index+1 ||
+				payload.ProviderCommandFingerprint != providerCommandFingerprint(want) {
+				t.Fatalf("row %d payload = %#v, want bind attempt %d for %q", index, payload, index+1, want)
+			}
+			if rows[index].SessionID != session.ID || rows[index].WorkspaceID != h.workspaceID {
+				t.Fatalf("row %d correlation = %#v", index, rows[index])
+			}
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, session.ID, transcript.MarkerProviderFailure)
+		if len(markers) != 2 {
+			t.Fatalf("provider_failure markers = %d, want one per refused route", len(markers))
+		}
+		for index, want := range []struct {
+			command string
+			action  acp.ProviderFailureAction
+		}{
+			{fallbackSeatZero, acp.ProviderFailureActionUseFallback},
+			{fallbackSeatOne, acp.ProviderFailureActionInstallCLI},
+		} {
+			evidence := markers[index].Evidence
+			if evidence["provider_command_fingerprint"] != providerCommandFingerprint(want.command) ||
+				evidence["next_action"] != string(want.action) || evidence["attempt"] != float64(index) {
+				t.Fatalf("marker %d evidence = %#v, want %s for %q", index, evidence, want.action, want.command)
+			}
+		}
+		if strings.Contains(markers[0].Summary, "SEAT=") || !strings.HasPrefix(markers[0].Summary, "Provider refused route 1") {
+			t.Fatalf("marker summary = %q", markers[0].Summary)
+		}
+		if stored := readStoredEvents(t, session); countEventType(stored, acp.EventTypeError) != 0 ||
+			countEventType(stored, EventTypeSessionStopped) != 0 {
+			t.Fatalf("stored events carry agent error/stop events for refused routes: %#v", stored)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 2 || meta.AcceptedRoute.Provider != "codex" ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(codexCommand) ||
+			derefString(meta.ACPSessionID) != "acp-3" {
+			t.Fatalf("meta accepted route = %#v acp=%v, want codex attempt 2 with acp-3", meta.AcceptedRoute, meta.ACPSessionID)
+		}
+	})
+
+	t.Run("Should stop the chain when an attempt is accepted and then fails", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  acp.WrapAcceptedStart("acp-seat-one", errors.New("set_config_option failed")),
+		})
+		session := acceptFallbackReviewer(t, h)
+
+		_, err := h.manager.Prompt(testutil.Context(t), session.ID, "review the diff")
+		if err == nil || !StartAccepted(err) {
+			t.Fatalf("Prompt() error = %v, want the accepted attempt's failure", err)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want the chain to stop after the accepted attempt", got)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows = %d, want 1", len(rows))
+		}
+	})
+
+	t.Run("Should run one bind sequence for concurrent first prompts", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		release := make(chan struct{})
+		entered := make(chan struct{})
+		h.driver.startContextHook = func(_ context.Context, opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.Command == fallbackSeatZero {
+				return nil, rateLimitRefusal()
+			}
+			close(entered)
+			<-release
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
+		}
+		session := acceptFallbackReviewer(t, h)
+		first := make(chan error, 1)
+		go func() {
+			events, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
+			if err == nil {
+				collectEvents(t, events)
+			}
+			first <- err
+		}()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("fallback attempt did not start")
+		}
+		secondEvents, secondErr := h.manager.Prompt(testutil.Context(t), session.ID, "second")
+		if secondErr != nil && !errors.Is(secondErr, ErrPromptInProgress) {
+			t.Fatalf("second Prompt() error = %v, want busy-input handling", secondErr)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows during the sequence = %d, want 1", len(rows))
+		}
+		close(release)
+		if err := <-first; err != nil {
+			t.Fatalf("first Prompt() error = %v", err)
+		}
+		if secondErr == nil {
+			collectEvents(t, secondEvents)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want exactly one bind sequence", got)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows = %d, want 1", len(rows))
+		}
+	})
+
+	t.Run("Should restore the unbound binding when the prompt is canceled mid-sequence", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		entered := make(chan struct{})
+		h.driver.startContextHook = func(startCtx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if opts.Command == fallbackSeatZero {
+				return nil, rateLimitRefusal()
+			}
+			close(entered)
+			<-startCtx.Done()
+			return nil, startCtx.Err()
+		}
+		session := acceptFallbackReviewer(t, h)
+		promptResult := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Prompt(testutil.Context(t), session.ID, "cancel during fallback")
+			promptResult <- err
+		}()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("fallback attempt did not start")
+		}
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		select {
+		case <-promptResult:
+		case <-testutil.Context(t).Done():
+			t.Fatal("canceled prompt did not return")
+		}
+		info := session.Info()
+		if info.RuntimeStatus != RuntimeStatusUnbound || info.ACPSessionID != "" {
+			t.Fatalf("binding after cancel = %q acp=%q, want unbound", info.RuntimeStatus, info.ACPSessionID)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want no attempt after cancellation", got)
+		}
+		if markers := transcriptMarkersOfKind(t, h.manager, session.ID, transcript.MarkerProviderFailure); len(markers) != 1 ||
+			markers[0].Evidence["provider_command_fingerprint"] != providerCommandFingerprint(fallbackSeatZero) {
+			t.Fatalf("provider_failure markers = %#v, want the primary refusal retained", markers)
+		}
+		if stored := readStoredEvents(t, session); countEventType(stored, acp.EventTypeError) != 0 {
+			t.Fatalf("stored events carry agent errors after cancellation: %#v", stored)
+		}
+
+		h.driver.mu.Lock()
+		h.driver.startContextHook = nil
+		h.driver.mu.Unlock()
+		refuseStartCommands(h, nil)
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind normally")
+		if err != nil {
+			t.Fatalf("later Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		if got := session.Info().ACPSessionID; got == "" {
+			t.Fatal("later prompt did not bind the runtime")
 		}
 	})
 }

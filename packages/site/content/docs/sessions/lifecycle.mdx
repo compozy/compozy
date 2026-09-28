@@ -87,6 +87,11 @@ Creation never accepts a prompt or runtime selector. It only creates the durable
 The agent definition supplies the defaults that the first prompt can use, but CompozyOS does not launch
 ACP or negotiate provider options until that prompt arrives.
 
+If the agent declares a `fallback_chain`, the first prompt binds the session on the first route the
+provider accepts. Routes refused before ACP acceptance are recorded as `session.fallback.used` events and
+`provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
+was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
+
 ### Creation provenance
 
 A session created from inside another session records that origin in its `lineage`:

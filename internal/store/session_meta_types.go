@@ -55,16 +55,19 @@ type SessionMeta struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
 
-	SessionType            string               `json:"session_type,omitempty"`
-	Lineage                *SessionLineage      `json:"lineage,omitempty"`
-	State                  string               `json:"state"`
-	StopReason             *StopReason          `json:"stop_reason,omitempty"`
-	StopEscalated          bool                 `json:"stop_escalated,omitempty"`
-	StopVerificationFailed bool                 `json:"stop_verification_failed,omitempty"`
-	StopDetail             string               `json:"stop_detail,omitempty"`
-	Failure                *SessionFailure      `json:"failure,omitempty"`
-	ACPSessionID           *string              `json:"acp_session_id,omitempty"`
-	Liveness               *SessionLivenessMeta `json:"liveness,omitempty"`
+	SessionType            string          `json:"session_type,omitempty"`
+	Lineage                *SessionLineage `json:"lineage,omitempty"`
+	State                  string          `json:"state"`
+	StopReason             *StopReason     `json:"stop_reason,omitempty"`
+	StopEscalated          bool            `json:"stop_escalated,omitempty"`
+	StopVerificationFailed bool            `json:"stop_verification_failed,omitempty"`
+	StopDetail             string          `json:"stop_detail,omitempty"`
+	Failure                *SessionFailure `json:"failure,omitempty"`
+	ACPSessionID           *string         `json:"acp_session_id,omitempty"`
+	// AcceptedRoute is the binding ACP accepted; it is written with ACPSessionID and
+	// cleared with it, and drives resume affinity.
+	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitempty"`
+	Liveness      *SessionLivenessMeta  `json:"liveness,omitempty"`
 
 	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
 	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`

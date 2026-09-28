@@ -856,3 +856,97 @@ func assertAgentDefinitionE2ECLIError(
 		t.Fatalf("CLI error = %q, want %q", payload.Error, wantMessage)
 	}
 }
+
+// TestDaemonE2EAgentFallbackChain walks E2E-002: an agent chain authored through the CLI
+// moves a work session to its second seat when seat one refuses before ACP acceptance.
+func TestDaemonE2EAgentFallbackChain(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should bind the work session on the next seat and record the attempt", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2EAgentFallbackChain(t)
+	})
+}
+
+func runDaemonE2EAgentFallbackChain(t *testing.T) {
+	t.Helper()
+
+	const seatProvider = "acpmock-seat"
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.Roles.MemoryExtractor.Enabled = false
+			cfg.Providers[seatProvider] = acpmock.ProviderConfig("/missing/compozy-seat-one")
+		}},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
+			FixtureAgent: "auto-title-agent",
+			AgentName:    "auto-title-agent",
+		}},
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+	seatTwo := registration.Command
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	var created compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &created,
+		"agent", "create", "seat-reviewer",
+		"--workspace", harness.WorkspaceRoot,
+		"--provider", seatProvider,
+		"--model", "fallback-title-model",
+		"--prompt", "Review code.",
+		"--fallback-route", "provider="+seatProvider+",model=fallback-title-model,command="+seatTwo,
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent create --fallback-route error = %v", err)
+	}
+	var shown compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &shown,
+		"agent", "info", "seat-reviewer", "--workspace", harness.WorkspaceRoot, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent info error = %v", err)
+	}
+	if len(shown.FallbackChain) != 1 || shown.FallbackChain[0].CommandFingerprint !=
+		compozyconfig.CommandFingerprint(seatTwo) {
+		t.Fatalf("agent fallback_chain = %#v, want the seat-two route", shown.FallbackChain)
+	}
+
+	session := createFixtureBackedSession(t, ctx, harness, "seat-reviewer", "quota test")
+	if _, err := harness.PromptSession(ctx, session.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(seat one refused) error = %v", err)
+	}
+
+	var logs compozycontract.LogsListResponse
+	logsPath := "/api/logs?session_id=" + url.QueryEscape(session.ID) + "&type=session.fallback.used&limit=10"
+	if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil {
+		t.Fatalf("UDS session.fallback.used logs error = %v", err)
+	}
+	if len(logs.Events) != 1 {
+		t.Fatalf("session.fallback.used events = %#v, want one", logs.Events)
+	}
+	var content map[string]any
+	if err := json.Unmarshal(logs.Events[0].Content, &content); err != nil {
+		t.Fatalf("json.Unmarshal(session.fallback.used) error = %v", err)
+	}
+	if content["agent"] != "seat-reviewer" || content["attempt"] != float64(1) ||
+		content["provider_command_fingerprint"] != compozyconfig.CommandFingerprint(seatTwo) {
+		t.Fatalf("session.fallback.used content = %#v, want attempt 1 on seat two", content)
+	}
+	if strings.Contains(string(logs.Events[0].Content), registration.FixturePath) {
+		t.Fatalf("session.fallback.used leaked the raw command: %s", logs.Events[0].Content)
+	}
+	current, err := harness.GetSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("GetSession() error = %v", err)
+	}
+	if effective := current.Runtime.Effective; effective == nil || effective.Provider != seatProvider {
+		t.Fatalf("runtime.effective = %#v, want the accepted %s route", effective, seatProvider)
+	}
+}

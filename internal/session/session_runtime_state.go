@@ -20,6 +20,8 @@ type runtimeBindingSnapshot struct {
 	generation      int64
 	recovery        *store.SessionRuntimeRecovery
 	acpSessionID    string
+	acceptedRoute   *store.SessionAcceptedRoute
+	acceptedCommand string
 	acpCaps         acp.Caps
 	acpCapsKnown    bool
 	speedResolution *speedpkg.Resolution
@@ -49,6 +51,8 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		generation:      s.RuntimeGeneration,
 		recovery:        store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		acpSessionID:    s.ACPSessionID,
+		acceptedRoute:   store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		acceptedCommand: s.acceptedCommand,
 		acpCaps:         cloneCaps(s.ACPCaps),
 		acpCapsKnown:    s.ACPCapsKnown,
 		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
@@ -218,6 +222,8 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.RuntimeGeneration = snapshot.generation
 	s.RuntimeRecovery = store.CloneSessionRuntimeRecovery(snapshot.recovery)
 	s.ACPSessionID = snapshot.acpSessionID
+	s.acceptedRoute = store.CloneSessionAcceptedRoute(snapshot.acceptedRoute)
+	s.acceptedCommand = snapshot.acceptedCommand
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.ACPCapsKnown = snapshot.acpCapsKnown
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)

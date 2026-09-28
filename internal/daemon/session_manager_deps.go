@@ -46,6 +46,7 @@ type SessionManagerDeps struct {
 	AttentionConfig         compozyconfig.AttentionConfig
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
 	SessionCatalog          store.SessionCatalog
+	EventLedger             store.EventSummaryStore
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
@@ -105,6 +106,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,
+		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
@@ -115,4 +117,14 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulRunChecker:          soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
 	}
+}
+
+// sessionEventLedgerDependency exposes the daemon ledger that records
+// session.fallback.used before each session-owned fallback attempt.
+func sessionEventLedgerDependency(value any) store.EventSummaryStore {
+	ledger, ok := value.(store.EventSummaryStore)
+	if !ok {
+		return nil
+	}
+	return ledger
 }
