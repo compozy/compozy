@@ -56,6 +56,22 @@ export const Disabled: Story = {
   args: { ...Default.args, disabled: true },
 };
 
+/**
+ * `actionProps` land on the action segment alone: a test id, domain `data-*`,
+ * a title — and `disabled` when only the primary cannot run while its
+ * alternatives in the menu still can.
+ */
+export const ActionOnlyDisabled: Story = {
+  args: {
+    ...Default.args,
+    actionProps: {
+      "data-testid": "split-button-story-action",
+      title: "Nothing staged to commit",
+      disabled: true,
+    },
+  },
+};
+
 /** With no alternatives the chevron is absent — an empty menu is fake interactivity. */
 export const WithoutMenu: Story = {
   args: { label: "Commit", menuLabel: "More exit actions", onAction: () => {} },

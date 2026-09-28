@@ -8,6 +8,19 @@ import { cn } from "../../lib/utils";
 
 type ButtonVariant = React.ComponentProps<typeof Button>["variant"];
 type ButtonSize = React.ComponentProps<typeof Button>["size"];
+type DataAttributes = { [key: `data-${string}`]: string | number | boolean | undefined };
+
+/**
+ * Pass-through attributes for the action segment only: test ids and domain
+ * `data-*` facts, a `title`, extra `aria-*`, and `disabled` for a primary that
+ * cannot run while its alternatives in the menu still can.
+ */
+export type SplitButtonActionProps = Pick<
+  React.ComponentProps<"button">,
+  "title" | "disabled" | "id"
+> &
+  Omit<React.AriaAttributes, "aria-disabled"> &
+  DataAttributes;
 
 export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   label: React.ReactNode;
@@ -30,6 +43,8 @@ export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onS
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   menuProps?: Omit<React.ComponentProps<typeof DropdownMenuContent>, "children">;
+  /** Attributes for the action segment alone; the menu trigger is unaffected. */
+  actionProps?: SplitButtonActionProps;
   /** Menu rows. Empty children collapse the control to a single button. */
   children?: React.ReactNode;
 }
@@ -57,15 +72,25 @@ export function SplitButton({
   open,
   onOpenChange,
   menuProps,
+  actionProps,
   children,
   className,
   ...props
 }: SplitButtonProps) {
   const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
+  const {
+    disabled: actionDisabled = false,
+    "aria-describedby": actionDescribedBy,
+    ...restActionProps
+  } = actionProps ?? {};
   const reasonId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const hasMenu = Boolean(children);
-  const describedBy = blocked && blockedReason ? reasonId : undefined;
+  const actionInert = disabled || actionDisabled;
+  const describedBy =
+    [actionDescribedBy, blocked && blockedReason ? reasonId : undefined]
+      .filter(Boolean)
+      .join(" ") || undefined;
   const menuOpen = open ?? internalOpen;
 
   function setMenuOpen(nextOpen: boolean) {
@@ -84,7 +109,7 @@ export function SplitButton({
       // environment. Owning it here keeps the split action keyboard-complete;
       // preventing the key default also prevents a second browser click.
       event.preventDefault();
-      if (!blocked && !disabled) onAction();
+      if (!blocked && !actionInert) onAction();
     }
   }
 
@@ -99,13 +124,14 @@ export function SplitButton({
       {...props}
     >
       <Button
+        {...restActionProps}
         aria-describedby={describedBy}
         aria-disabled={blocked || undefined}
         className="gap-1.5 whitespace-nowrap aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&_svg]:size-3"
         data-size={size}
         data-slot="split-button-action"
         data-variant={variant}
-        disabled={disabled}
+        disabled={actionInert}
         onClick={blocked ? undefined : onAction}
         onKeyDown={handleActionKeyDown}
         size={size}
