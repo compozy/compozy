@@ -61,13 +61,14 @@ describe("SessionGoalStrip", () => {
     expect(screen.getByTestId("session-goal-strip")).toHaveAttribute("data-state", expected);
   });
 
-  it("Should render the mono facts line with turn and context percentages", () => {
+  it("Should render the plain step fact, leaving context usage to the composer ring", () => {
     render(<SessionGoalStrip snapshot={snapshot()} />);
-    expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("turn 3/20 · ctx 41%");
+    expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("Step 3 of 20");
+    expect(screen.getByTestId("goal-strip-facts")).not.toHaveTextContent("ctx");
   });
 
   it.each(["pending", "unknown"] as const)(
-    "Should render ctx — for %s context without inventing a percentage",
+    "Should explain %s context in the body without inventing a percentage",
     state => {
       render(
         <SessionGoalStrip
@@ -83,7 +84,7 @@ describe("SessionGoalStrip", () => {
           })}
         />
       );
-      expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("ctx —");
+      expect(screen.getByTestId("goal-strip-facts")).not.toHaveTextContent("%");
 
       fireEvent.click(screen.getByTestId("goal-strip-line"));
       expect(screen.getByTestId("goal-strip-body")).toHaveTextContent(
@@ -94,7 +95,7 @@ describe("SessionGoalStrip", () => {
     }
   );
 
-  it("Should expand to the quiet body rows: contract, run link, context tokens, node", () => {
+  it("Should expand to the quiet body rows: contract, run link, context tokens; node facts stay off screen", () => {
     render(<SessionGoalStrip snapshot={snapshot({ cause: "goal_agent_refused" })} />);
     const line = screen.getByTestId("goal-strip-line");
     expect(line).toHaveAttribute("aria-expanded", "false");
@@ -104,7 +105,11 @@ describe("SessionGoalStrip", () => {
     const body = screen.getByTestId("goal-strip-body");
     expect(body).toHaveTextContent("All 16 transcript components on session.css tokens.");
     expect(body).toHaveTextContent("84,120 / 200,000 tokens · nudge at 70%");
-    expect(body).toHaveTextContent("goal_agent_refused");
+    // Node and cause are diagnostics: attributes, never body text.
+    expect(body).not.toHaveTextContent("goal_agent_refused");
+    const strip = screen.getByTestId("session-goal-strip");
+    expect(strip).toHaveAttribute("data-goal-node", "goal");
+    expect(strip).toHaveAttribute("data-goal-cause", "goal_agent_refused");
     const runLink = screen.getByRole("link", { name: "Open run" });
     expect(runLink).toHaveAttribute("data-params", JSON.stringify({ runId: "run_1" }));
     expect(runLink).toHaveAttribute("data-hash", "node-goal");
@@ -118,7 +123,7 @@ describe("SessionGoalStrip", () => {
     );
     const strip = screen.getByTestId("session-goal-strip");
     expect(strip).toHaveAttribute("data-state", "moved");
-    expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent(/^moved · /);
+    expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent(/^Moved · /);
 
     fireEvent.click(screen.getByTestId("goal-strip-line"));
     const sessionLink = screen.getByTestId("goal-strip-active-session");

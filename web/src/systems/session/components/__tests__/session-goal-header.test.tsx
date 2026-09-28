@@ -275,9 +275,9 @@ describe("SessionGoalHeader", () => {
     act(() => {
       FakeEventSource.latest?.dispatch("goal_turn_started", { turn: 8 }, 1);
     });
-    // The strip facts carry the merged turn count as mono text.
+    // The strip facts carry the merged turn count as a plain step fact.
     await waitFor(() =>
-      expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("turn 8/20 · ctx 50%")
+      expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("Step 8 of 20")
     );
     expect(goalReads).toBe(1);
 

@@ -1,6 +1,6 @@
 import { useId, useState, type ComponentProps } from "react";
 import { Minimize2 } from "lucide-react";
-import { Button, Pill, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 import type { SessionContextRingState, SessionContextView } from "../lib/session-context";
 import {
   describeSessionContextControl,
@@ -114,9 +114,7 @@ function SessionContextTooltipLine({
     case "stale":
       return (
         <p className={cn("flex items-center", className)} {...props}>
-          <Pill size="xs" tone="warning">
-            stale
-          </Pill>
+          <span className="text-micro text-subtle">Updated a while ago</span>
         </p>
       );
     case "policy":
@@ -156,7 +154,7 @@ export function SessionContextControl({
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label={`${view.label}${context.stale ? ", stale" : ""}`}
+            aria-label={`${view.label}${context.stale ? ", may be out of date" : ""}`}
             aria-describedby={tipOpen ? tooltipId : undefined}
             aria-busy={context.loading}
             onClick={onOpen}

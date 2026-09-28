@@ -1307,7 +1307,9 @@ test.describe("session context E2E-001", () => {
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");
     await contextButton.hover();
-    await expect(appPage.getByRole("tooltip")).toContainText("Compaction runs at 85%");
+    await expect(appPage.getByRole("tooltip")).toContainText(
+      "CompozyOS summarizes older messages at 85% full"
+    );
     await expect(contextButton.locator("circle").last()).toHaveAttribute(
       "stroke",
       "var(--color-warning)"

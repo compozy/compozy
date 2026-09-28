@@ -1,10 +1,11 @@
 import { Coins } from "lucide-react";
 
-import { Metric, MetricGrid } from "@compozy/ui";
+import { Collapsible, CollapsibleContent, Metric, MetricGrid } from "@compozy/ui";
 import { describeCost } from "@/lib/cost-provenance";
 
 import { hasReportableUsage } from "./session-inspector.logic";
 import {
+  SessionInspectorDisclosureHead,
   SessionInspectorEmpty,
   SessionInspectorSection,
   SessionInspectorSectionHead,
@@ -18,7 +19,7 @@ function formatNumber(value?: number): string {
 
 /** Tiles sit on `canvas` with a hairline so they read against the rail's canvas-soft. */
 const TILE =
-  "gap-1.25 border border-line-soft bg-canvas px-3 py-2.5 [&_[data-slot=metric-subtext]]:text-micro [&_[data-slot=metric-subtext]]:leading-4 [&_[data-slot=metric-subtext]]:whitespace-normal [&_[data-slot=metric-subtext]]:text-subtle";
+  "gap-1 border border-line-soft bg-canvas px-3 py-2.5 [&_[data-slot=metric-subtext]]:text-micro [&_[data-slot=metric-subtext]]:leading-4 [&_[data-slot=metric-subtext]]:whitespace-normal [&_[data-slot=metric-subtext]]:text-subtle";
 
 export function SessionInspectorUsageSection({
   usage,
@@ -48,64 +49,80 @@ export function SessionInspectorUsageSection({
         Tokens & cost
       </SessionInspectorSectionHead>
       {hasUsage ? (
-        <MetricGrid
-          columns={2}
-          className="grid-cols-2 gap-2"
-          data-testid="session-inspector-usage-grid"
-        >
-          <Metric
-            size="compact"
-            className={TILE}
-            data-testid="session-inspector-usage-tokens-in"
-            label="Tokens in"
-            value={formatNumber(usage?.tokensIn)}
-          />
-          <Metric
-            size="compact"
-            className={TILE}
-            data-testid="session-inspector-usage-tokens-out"
-            label="Tokens out"
-            value={formatNumber(usage?.tokensOut)}
-          />
-          {usage?.cacheReadTokens != null ? (
+        <>
+          <MetricGrid
+            columns={2}
+            className="grid-cols-2 gap-2"
+            data-testid="session-inspector-usage-grid"
+          >
             <Metric
               size="compact"
               className={TILE}
-              label="Cache read"
-              value={formatNumber(usage.cacheReadTokens)}
+              data-testid="session-inspector-usage-cost"
+              label="Total cost"
+              subtext={cost.note ?? undefined}
+              value={
+                // The provenance word is a sentence, never dressed as an amount.
+                cost.isAmount ? (
+                  cost.value
+                ) : (
+                  <span className="text-small-body font-medium text-fg">{cost.value}</span>
+                )
+              }
             />
-          ) : null}
-          {usage?.cacheWriteTokens != null ? (
             <Metric
               size="compact"
               className={TILE}
-              label="Cache write"
-              value={formatNumber(usage.cacheWriteTokens)}
+              data-testid="session-inspector-usage-total-tokens"
+              label="Total tokens"
+              value={formatNumber(usage?.totalTokens)}
             />
-          ) : null}
-          <Metric
-            size="compact"
-            className={`${TILE} col-span-2`}
-            data-testid="session-inspector-usage-total-tokens"
-            label="Total tokens"
-            value={formatNumber(usage?.totalTokens)}
-          />
-          <Metric
-            size="compact"
-            className={`${TILE} col-span-2`}
-            data-testid="session-inspector-usage-cost"
-            label="Total cost"
-            subtext={cost.note ?? undefined}
-            value={
-              // The provenance word is a sentence, never dressed as an amount.
-              cost.isAmount ? (
-                cost.value
-              ) : (
-                <span className="text-small-body font-medium text-fg">{cost.value}</span>
-              )
-            }
-          />
-        </MetricGrid>
+          </MetricGrid>
+          {/* The in/out/cache split is for the curious: one fold, closed by default. */}
+          <Collapsible>
+            <SessionInspectorDisclosureHead data-testid="session-inspector-usage-breakdown-toggle">
+              Token breakdown
+            </SessionInspectorDisclosureHead>
+            <CollapsibleContent>
+              <MetricGrid
+                columns={2}
+                className="grid-cols-2 gap-2 pt-2"
+                data-testid="session-inspector-usage-breakdown"
+              >
+                <Metric
+                  size="compact"
+                  className={TILE}
+                  data-testid="session-inspector-usage-tokens-in"
+                  label="Tokens in"
+                  value={formatNumber(usage?.tokensIn)}
+                />
+                <Metric
+                  size="compact"
+                  className={TILE}
+                  data-testid="session-inspector-usage-tokens-out"
+                  label="Tokens out"
+                  value={formatNumber(usage?.tokensOut)}
+                />
+                {usage?.cacheReadTokens != null ? (
+                  <Metric
+                    size="compact"
+                    className={TILE}
+                    label="Cache read"
+                    value={formatNumber(usage.cacheReadTokens)}
+                  />
+                ) : null}
+                {usage?.cacheWriteTokens != null ? (
+                  <Metric
+                    size="compact"
+                    className={TILE}
+                    label="Cache write"
+                    value={formatNumber(usage.cacheWriteTokens)}
+                  />
+                ) : null}
+              </MetricGrid>
+            </CollapsibleContent>
+          </Collapsible>
+        </>
       ) : (
         <SessionInspectorEmpty
           data-testid="session-inspector-usage-empty"
