@@ -22,6 +22,11 @@ func (m *Manager) admitDeriveFirstMessage(ctx context.Context, spec deriveSpec, 
 	if err != nil {
 		return fmt.Errorf("session: admit first message of derived session %q: %w", childID, err)
 	}
+	if child, ok := m.Get(childID); ok && child.markDeriveFirstPromptAdmitted(deriveFirstAdmissionKey(spec.key)) {
+		if err := m.persistSessionMetadataOnly(child); err != nil {
+			m.sessionLogger(child).Warn("session.derive.first_prompt_persist_failed", "error", err)
+		}
+	}
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
@@ -22,7 +23,7 @@ func (m *Manager) resumeCommittedConversationRewind(
 		if err != nil {
 			return ConversationRewindResult{}, err
 		}
-		sanitized := clearedConversationMeta(meta, m.now())
+		sanitized := rewoundConversationMeta(meta, m.now())
 		metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, sessionID))
 		if err := store.WriteSessionMeta(metaPath, sanitized); err != nil {
 			return ConversationRewindResult{}, fmt.Errorf(
@@ -61,6 +62,16 @@ func (m *Manager) resumeCommittedConversationRewind(
 	stored.Generation = page.Generation
 	stored.MaxSequence = page.MaxSequence
 	return conversationRewindResult(resumed, stored, epoch), nil
+}
+
+// rewoundConversationMeta resets the runtime binding like a clear but keeps a derived
+// child's derive record and imported context: a rewind cuts only the child's own
+// history, and the carried context still leads every rebuild.
+func rewoundConversationMeta(meta store.SessionMeta, now time.Time) store.SessionMeta {
+	rewound := clearedConversationMeta(meta, now)
+	rewound.Derivation = store.CloneSessionDerivation(meta.Derivation)
+	rewound.ImportedContext = store.CloneSessionImportedContext(meta.ImportedContext)
+	return rewound
 }
 
 func (m *Manager) restartRewoundConversation(

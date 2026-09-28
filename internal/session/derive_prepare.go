@@ -53,13 +53,16 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 		profileID = normalizeCreateProfileID(meta.ProfileID)
 	}
 	now := m.now().UTC()
+	// The child's meta starts staged and moves to admitted only once the first message's
+	// admission is claimed (a crash in between leaves it staged for the retry to finish);
+	// the receipt's immutable outcome records the request's intent.
 	firstPrompt := store.SessionFirstPrompt{State: store.SessionDerivationFirstPromptStaged}
+	outcomePrompt := firstPrompt
 	if spec.message != "" {
-		firstPrompt = store.SessionFirstPrompt{
-			State:        store.SessionDerivationFirstPromptAdmitted,
-			AdmissionKey: deriveFirstAdmissionKey(spec.key),
-			MessageID:    deriveFirstMessageID(spec.workspaceID, spec.key),
-		}
+		firstPrompt.AdmissionKey = deriveFirstAdmissionKey(spec.key)
+		firstPrompt.MessageID = deriveFirstMessageID(spec.workspaceID, spec.key)
+		outcomePrompt = firstPrompt
+		outcomePrompt.State = store.SessionDerivationFirstPromptAdmitted
 	}
 	derivation := &store.SessionDerivation{
 		Kind: spec.kind, SourceSessionID: meta.ID, IdempotencyKey: spec.key,
@@ -69,7 +72,7 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 	receipt := store.SessionDerivationReceipt{
 		WorkspaceID: spec.workspaceID, ProfileID: profileID, IdempotencyKey: spec.key,
 		RequestFingerprint: spec.fingerprint, SourceSessionID: meta.ID, ChildSessionID: childID,
-		Kind: spec.kind, Outcome: deriveOutcome(imported, firstPrompt), CreatedAt: now,
+		Kind: spec.kind, Outcome: deriveOutcome(imported, outcomePrompt), CreatedAt: now,
 	}
 	opts := CreateOpts{
 		DesiredSessionID: childID,

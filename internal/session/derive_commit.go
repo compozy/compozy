@@ -72,30 +72,40 @@ func (m *Manager) registerDerivedSession(
 }
 
 // recordSessionDerivedEvent appends session.derived for the committed child to the
-// daemon ledger. The commit already happened; a ledger failure is logged, not fatal.
+// daemon ledger. The commit already happened; a ledger failure is logged, not fatal —
+// boot reconciliation (ReconcileDerivedSessionEvents) re-emits a missing event.
 func (m *Manager) recordSessionDerivedEvent(ctx context.Context, spec *sessionStartSpec, session *Session) {
 	if m.eventLedger == nil || spec == nil || spec.derivation == nil || spec.deriveReceipt == nil {
 		return
 	}
-	outcome := spec.deriveReceipt.Outcome
-	info := session.Info()
+	if err := m.writeSessionDerivedEvent(ctx, session.Info(), *spec.derivation, spec.deriveReceipt.Outcome); err != nil {
+		m.sessionLogger(session).Warn("session.derived.record_failed", "error", err)
+	}
+}
+
+// writeSessionDerivedEvent writes one session.derived ledger row for a committed child.
+func (m *Manager) writeSessionDerivedEvent(
+	ctx context.Context,
+	info *Info,
+	derivation store.SessionDerivation,
+	outcome store.SessionDerivationOutcome,
+) error {
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	payload := sessionDerivedEventPayload{
-		Kind: spec.derivation.Kind, SourceSessionID: spec.derivation.SourceSessionID,
+		Kind: derivation.Kind, SourceSessionID: derivation.SourceSessionID,
 		OriginMessageID: outcome.OriginMessageID, ThroughTurnID: outcome.ThroughTurnID,
 		Seed: outcome.Seed, NativeState: outcome.NativeState,
 		ReplayMessageCount: outcome.ReplayMessageCount, ReplayBytes: outcome.ReplayBytes,
 		Truncated: outcome.Truncated, OmittedCount: outcome.OmittedCount,
 		NativeForkError: outcome.NativeForkError, FirstPrompt: outcome.FirstPrompt,
-		IdempotencyKey: spec.derivation.IdempotencyKey,
+		IdempotencyKey: derivation.IdempotencyKey,
 	}
 	if lineage != nil {
 		payload.OriginAgentName = lineage.OriginAgentName
 	}
 	content, err := json.Marshal(payload)
 	if err != nil {
-		m.sessionLogger(session).Warn("session.derived.encode_failed", "error", err)
-		return
+		return fmt.Errorf("session: encode session.derived for %q: %w", info.ID, err)
 	}
 	summary := store.EventSummary{
 		Type:        eventspkg.SessionDerived,
@@ -119,9 +129,9 @@ func (m *Manager) recordSessionDerivedEvent(ctx context.Context, spec *sessionSt
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sessionDerivedEventWriteTimeout)
 	defer cancel()
 	if err := m.eventLedger.WriteEventSummary(writeCtx, summary); err != nil {
-		m.sessionLogger(session).Warn("session.derived.record_failed", "error", err)
+		return fmt.Errorf("session: record session.derived for %q: %w", info.ID, err)
 	}
-	m.sessionLogger(session).Info(
+	m.logger.Info(
 		"session.derived",
 		"derive.kind", payload.Kind,
 		"derive.seed", payload.Seed,
@@ -131,6 +141,7 @@ func (m *Manager) recordSessionDerivedEvent(ctx context.Context, spec *sessionSt
 		"replay_message_count", payload.ReplayMessageCount,
 		"truncated", payload.Truncated,
 	)
+	return nil
 }
 
 // replayDeriveReceipt answers a derive whose key already has a receipt: an identical

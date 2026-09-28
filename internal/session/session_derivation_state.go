@@ -83,3 +83,19 @@ func (s *Session) takePendingDeriveReceipt() *store.SessionDerivationReceipt {
 	s.pendingDeriveReceipt = nil
 	return receipt
 }
+
+// markDeriveFirstPromptAdmitted moves the derive's first message from staged to admitted
+// once its admission (keyed by admissionKey) was claimed; it reports whether it changed.
+func (s *Session) markDeriveFirstPromptAdmitted(admissionKey string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.derivation == nil || s.derivation.FirstPrompt.AdmissionKey != admissionKey ||
+		s.derivation.FirstPrompt.State == store.SessionDerivationFirstPromptAdmitted {
+		return false
+	}
+	s.derivation.FirstPrompt.State = store.SessionDerivationFirstPromptAdmitted
+	return true
+}

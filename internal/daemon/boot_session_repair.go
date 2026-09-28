@@ -56,6 +56,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
 		return err
 	}
+	if err := reconcileBootDerivedSessionEvents(ctx, state, infos); err != nil {
+		return err
+	}
 
 	for _, info := range infos {
 		if err := ctx.Err(); err != nil {
@@ -146,6 +149,26 @@ func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos
 	return nil
 }
 
+// reconcileBootDerivedSessionEvents re-emits session.derived lost to a crash between a
+// derived child's commit and its ledger write (ADR-007). Ledger failures are logged.
+func reconcileBootDerivedSessionEvents(ctx context.Context, state *bootState, infos []*session.Info) error {
+	reconciler, ok := state.sessions.(sessionDerivedEventReconciler)
+	if !ok {
+		return nil
+	}
+	emitted, err := reconciler.ReconcileDerivedSessionEvents(ctx, infos)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("daemon: derived session event reconciliation canceled: %w", ctxErr)
+		}
+		state.logger.Warn("daemon: derived session event reconciliation failed", "error", err)
+	}
+	if emitted > 0 {
+		state.logger.Info("daemon: re-emitted derived session events", "count", emitted)
+	}
+	return nil
+}
+
 func recoverBootSessionHealth(ctx context.Context, state *bootState) error {
 	recoverer, ok := state.sessions.(sessionHealthRecoverer)
 	if !ok {
@@ -173,6 +196,12 @@ func recoverBootSessionHealth(ctx context.Context, state *bootState) error {
 type sessionHealthRecoverer interface {
 	RecoverSessionHealth(ctx context.Context) (session.HealthRecoveryResult, error)
 }
+
+type sessionDerivedEventReconciler interface {
+	ReconcileDerivedSessionEvents(ctx context.Context, infos []*session.Info) (int, error)
+}
+
+var _ sessionDerivedEventReconciler = (*session.Manager)(nil)
 
 type sessionPendingStopRecoverer interface {
 	RecoverPendingStops(context.Context) error

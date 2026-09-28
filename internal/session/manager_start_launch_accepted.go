@@ -154,6 +154,9 @@ func (m *Manager) discardAcceptedSessionStart(
 	accepted *acceptedSessionStart,
 	startErr error,
 ) error {
+	if accepted.catalogPending {
+		return m.discardUncommittedSessionStart(accepted, startErr)
+	}
 	session := accepted.session
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
@@ -194,6 +197,20 @@ func (m *Manager) discardAcceptedSessionStart(
 	}
 	session.clearProviderSecretRedactions()
 	return errors.Join(startErr, cleanupErr, directoryErr)
+}
+
+// discardUncommittedSessionStart sweeps a start whose catalog registration never
+// committed (a derived child whose registration transaction failed or lost a race):
+// only its reserved directory exists, so it is removed like a failed accept.
+func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	session := accepted.session
+	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, accepted.storage.recorder, accepted.proc)
+	m.remove(session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(session.ID)
+	}
+	session.clearProviderSecretRedactions()
+	return errors.Join(startErr, cleanupErr)
 }
 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(

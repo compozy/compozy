@@ -35,6 +35,8 @@ right after the new session is committed. Read it with
 `source_session_id`, `origin_message_id`, `origin_agent_name`, `through_turn_id`, `seed`,
 `native_state`, `replay_message_count`, `replay_bytes`, `truncated`, `omitted_count`,
 `native_fork_error`, `first_prompt`, and `idempotency_key`. Nothing is written to the source session.
+If the daemon stops between the commit and this write, the event is written from the recorded outcome on
+the next daemon start, still exactly once.
 
 ## Prompt identity and safe retries
 

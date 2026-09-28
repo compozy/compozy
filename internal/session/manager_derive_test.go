@@ -2,15 +2,19 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
@@ -32,18 +36,30 @@ type deriveHarness struct {
 // newDeriveHarness wires a real global DB as catalog, creation/derivation store,
 // prompt admission store, and ledger, plus a second agent "b" (codex) that declares two
 // routes with distinct commands.
-func newDeriveHarness(t *testing.T, extraOpts ...Option) *deriveHarness {
+// Extra options receive the harness DB so fault-injecting wrappers can embed it; they
+// override the default wiring.
+func newDeriveHarness(t *testing.T, extraOpts ...func(*globaldb.GlobalDB) Option) *deriveHarness {
 	t.Helper()
 	h := newHarness(t)
 	db := openManagerInputQueueStore(t)
 	registerManagerInputQueueWorkspace(t, db, h)
 	setDeriveAgentB(t, h, deriveRoutes(h, deriveRouteOneCommand, deriveRouteTwoCommand))
-	opts := append([]Option{
-		WithSessionCatalog(db), WithEventLedger(db), WithSessionPromptAdmissionStore(db),
-	}, extraOpts...)
-	h.manager = newManagerWithHarness(t, h, opts...)
+	dh := &deriveHarness{harness: h, db: db}
+	dh.restartManager(t, extraOpts...)
+	return dh
+}
+
+// restartManager replaces the harness manager with a fresh one over the same home and DB.
+func (h *deriveHarness) restartManager(t *testing.T, extraOpts ...func(*globaldb.GlobalDB) Option) {
+	t.Helper()
+	opts := []Option{
+		WithSessionCatalog(h.db), WithEventLedger(h.db), WithSessionPromptAdmissionStore(h.db),
+	}
+	for _, extra := range extraOpts {
+		opts = append(opts, extra(h.db))
+	}
+	h.manager = newManagerWithHarness(t, h.harness, opts...)
 	cleanupTestManager(t, h.manager)
-	return &deriveHarness{harness: h, db: db}
 }
 
 func deriveRoutes(h *harness, commands ...string) []compozyconfig.RoleFallback {
@@ -352,6 +368,19 @@ func TestContinueSession(t *testing.T) {
 		if rows := h.derivedLedgerRows(t, ids[0]); len(rows) != 1 {
 			t.Fatalf("session.derived rows = %d, want 1", len(rows))
 		}
+		entries, err := os.ReadDir(h.homePaths.SessionsDir)
+		if err != nil {
+			t.Fatalf("ReadDir(sessions) error = %v", err)
+		}
+		dirs := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() {
+				dirs = append(dirs, entry.Name())
+			}
+		}
+		if len(dirs) != 2 {
+			t.Fatalf("session directories = %v, want only the source and the one child (losers swept)", dirs)
+		}
 	})
 
 	t.Run("Should refuse unknown agents, archived sources, and stale fences without a receipt", func(t *testing.T) {
@@ -471,10 +500,7 @@ func TestDeriveCarriedContextLifecycle(t *testing.T) {
 		if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
-		h.manager = newManagerWithHarness(
-			t, h.harness, WithSessionCatalog(h.db), WithEventLedger(h.db), WithSessionPromptAdmissionStore(h.db),
-		)
-		cleanupTestManager(t, h.manager)
+		h.restartManager(t)
 		if _, err := h.manager.Resume(testutil.Context(t), result.Child.ID); err != nil {
 			t.Fatalf("Resume(child) error = %v", err)
 		}
@@ -748,6 +774,588 @@ func TestPromptProviderErrorHandoff(t *testing.T) {
 		}
 		if got := sess.Info().State; got != StateActive {
 			t.Fatalf("session state = %s, want active after the failed turn", got)
+		}
+	})
+}
+
+var errDeriveInjectedCrash = errors.New("injected crash")
+
+// deriveFaultStore is the creation/derivation store over the harness DB with a hook that
+// runs right before the registration transaction.
+type deriveFaultStore struct {
+	*globaldb.GlobalDB
+	mu     sync.Mutex
+	calls  int
+	before func(store.SessionInfo, store.SessionCreationIdentity, store.SessionDerivationReceipt) error
+}
+
+func (s *deriveFaultStore) option(db *globaldb.GlobalDB) Option {
+	s.GlobalDB = db
+	return WithSessionCreationStore(s)
+}
+
+func (s *deriveFaultStore) RegisterDerivedSession(
+	ctx context.Context,
+	info store.SessionInfo,
+	identity store.SessionCreationIdentity,
+	receipt store.SessionDerivationReceipt,
+) error {
+	s.mu.Lock()
+	s.calls++
+	hook := s.before
+	s.mu.Unlock()
+	if hook != nil {
+		if err := hook(info, identity, receipt); err != nil {
+			return err
+		}
+	}
+	return s.GlobalDB.RegisterDerivedSession(ctx, info, identity, receipt)
+}
+
+// deriveLedgerFault drops session.derived writes while dropDerived is set, the durable
+// state a crash between the child's commit and its event write leaves behind.
+type deriveLedgerFault struct {
+	*globaldb.GlobalDB
+	dropDerived atomic.Bool
+}
+
+func (l *deriveLedgerFault) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
+	if summary.Type == eventspkg.SessionDerived && l.dropDerived.Load() {
+		return errDeriveInjectedCrash
+	}
+	return l.GlobalDB.WriteEventSummary(ctx, summary)
+}
+
+// deriveAdmissionFault fails the next claim of failKey, a crash before the admission.
+type deriveAdmissionFault struct {
+	*globaldb.GlobalDB
+	mu      sync.Mutex
+	failKey string
+}
+
+func (a *deriveAdmissionFault) ClaimSessionPromptAdmission(
+	ctx context.Context,
+	request store.SessionPromptAdmissionRequest,
+) (store.SessionPromptAdmission, bool, error) {
+	a.mu.Lock()
+	fail := a.failKey != "" && request.IdempotencyKey == a.failKey
+	if fail {
+		a.failKey = ""
+	}
+	a.mu.Unlock()
+	if fail {
+		return store.SessionPromptAdmission{}, false, errDeriveInjectedCrash
+	}
+	return a.GlobalDB.ClaimSessionPromptAdmission(ctx, request)
+}
+
+func (h *deriveHarness) importedMessages(t *testing.T, childID string) []transcript.Message {
+	t.Helper()
+	imported := h.childMeta(t, childID).ImportedContext
+	if imported == nil {
+		t.Fatalf("child %s has no imported context", childID)
+	}
+	var messages []transcript.Message
+	if err := json.Unmarshal([]byte(imported.MessagesJSON), &messages); err != nil {
+		t.Fatalf("decode imported context: %v", err)
+	}
+	return messages
+}
+
+func importedContains(messages []transcript.Message, text string) bool {
+	for _, message := range messages {
+		if strings.Contains(message.Content, text) {
+			return true
+		}
+	}
+	return false
+}
+
+// rewindOpts resolves the durable user message with text and the current fences.
+func (h *deriveHarness) rewindOpts(t *testing.T, sessionID string, text string, key string) ConversationRewindOptions {
+	t.Helper()
+	page, err := h.manager.TranscriptPage(testutil.Context(t), sessionID, transcript.PageQuery{Limit: 50})
+	if err != nil {
+		t.Fatalf("TranscriptPage() error = %v", err)
+	}
+	info, err := h.manager.Status(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	for _, entry := range page.Entries {
+		if transcript.UIMessageText(entry.Message) == text {
+			return ConversationRewindOptions{
+				MessageID: entry.Message.ID, IdempotencyKey: key, ExpectedEpoch: info.TranscriptEpoch,
+				ExpectedGeneration: page.Generation, ExpectedMaxSequence: page.MaxSequence,
+			}
+		}
+	}
+	t.Fatalf("user message %q not found in %s", text, sessionID)
+	return ConversationRewindOptions{}
+}
+
+func TestDeriveCommitBoundaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should issue one registration transaction after the meta write with nothing observable yet",
+		func(t *testing.T) {
+			t.Parallel()
+			fault := &deriveFaultStore{}
+			h := newDeriveHarness(t, fault.option)
+			source := h.newDeriveSource(t)
+			var (
+				gotInfo     store.SessionInfo
+				gotIdentity store.SessionCreationIdentity
+				gotReceipt  store.SessionDerivationReceipt
+				metaExisted bool
+				catalogRow  bool
+				ledgerRows  int
+				notified    bool
+			)
+			fault.before = func(
+				info store.SessionInfo, identity store.SessionCreationIdentity, receipt store.SessionDerivationReceipt,
+			) error {
+				gotInfo, gotIdentity, gotReceipt = info, identity, receipt
+				_, statErr := os.Stat(filepath.Join(h.homePaths.SessionsDir, info.ID, store.SessionMetaName))
+				metaExisted = statErr == nil
+				_, lookupErr := store.LookupSessionDBOwner(testutil.Context(t), h.db, info.ID)
+				catalogRow = lookupErr == nil
+				ledgerRows = len(h.derivedLedgerRows(t, info.ID))
+				h.notifier.mu.Lock()
+				for _, created := range h.notifier.created {
+					notified = notified || created.ID == info.ID
+				}
+				h.notifier.mu.Unlock()
+				return nil
+			}
+			result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_order"))
+			if err != nil {
+				t.Fatalf("ContinueSession() error = %v", err)
+			}
+			if fault.calls != 1 || gotInfo.ID != result.Child.ID || gotIdentity.CreationProfileRef == "" ||
+				gotReceipt.ChildSessionID != result.Child.ID || gotReceipt.IdempotencyKey != "idem_order" {
+				t.Fatalf("registration calls=%d info=%s identity=%+v receipt=%+v, want one transaction for %s",
+					fault.calls, gotInfo.ID, gotIdentity, gotReceipt, result.Child.ID)
+			}
+			if !metaExisted || catalogRow || ledgerRows != 0 || notified {
+				t.Fatalf("at registration: meta=%t catalog=%t session.derived=%d notified=%t, "+
+					"want only the meta written", metaExisted, catalogRow, ledgerRows, notified)
+			}
+			err = h.db.RegisterDerivedSession(testutil.Context(t), gotInfo, gotIdentity, gotReceipt)
+			if !errors.Is(err, store.ErrSessionDerivationExists) {
+				t.Fatalf("RegisterDerivedSession(duplicate) error = %v, want ErrSessionDerivationExists", err)
+			}
+		})
+
+	t.Run("Should sweep a child whose registration failed and create a fresh one on retry", func(t *testing.T) {
+		t.Parallel()
+		fault := &deriveFaultStore{}
+		h := newDeriveHarness(t, fault.option)
+		source := h.newDeriveSource(t)
+		var failedID string
+		fault.before = func(info store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
+			if failedID == "" {
+				failedID = info.ID
+				return errDeriveInjectedCrash
+			}
+			return nil
+		}
+		if _, err := h.manager.ContinueSession(
+			testutil.Context(t), h.continueOpts(source, "idem_sweep"),
+		); !errors.Is(err, errDeriveInjectedCrash) {
+			t.Fatalf("ContinueSession(failing registration) error = %v, want the injected crash", err)
+		}
+		if _, err := os.Stat(filepath.Join(h.homePaths.SessionsDir, failedID)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("failed child directory stat error = %v, want swept", err)
+		}
+		if _, err := store.LookupSessionDBOwner(testutil.Context(t), h.db, failedID); err == nil {
+			t.Fatal("failed child left a catalog row")
+		}
+		if _, found, err := h.db.SessionDerivationReceipt(
+			testutil.Context(t), h.workspaceID, "idem_sweep",
+		); err != nil || found {
+			t.Fatalf("receipt after failed registration found=%t err=%v, want none", found, err)
+		}
+		retry, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_sweep"))
+		if err != nil || retry.Replayed || retry.Child == nil || retry.Child.ID == failedID {
+			t.Fatalf("ContinueSession(retry) = %+v, %v, want a fresh child", retry, err)
+		}
+		if rows := h.derivedLedgerRows(t, retry.Child.ID); len(rows) != 1 {
+			t.Fatalf("session.derived rows = %d, want 1", len(rows))
+		}
+	})
+
+	t.Run("Should re-emit a session.derived lost after the commit exactly once after restart", func(t *testing.T) {
+		t.Parallel()
+		ledger := &deriveLedgerFault{}
+		ledger.dropDerived.Store(true)
+		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+			ledger.GlobalDB = db
+			return WithEventLedger(ledger)
+		})
+		source := h.newDeriveSource(t)
+		result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_lost_event"))
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		childID := result.Child.ID
+		if rows := h.derivedLedgerRows(t, childID); len(rows) != 0 {
+			t.Fatalf("session.derived rows before restart = %d, want the event lost", len(rows))
+		}
+		if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		h.restartManager(t)
+		infos, err := h.manager.ListAll(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		listed := false
+		for _, info := range infos {
+			listed = listed || info.ID == childID
+		}
+		if !listed {
+			t.Fatalf("child %s not listed after restart", childID)
+		}
+		for attempt, want := range []int{1, 0} {
+			emitted, err := h.manager.ReconcileDerivedSessionEvents(testutil.Context(t), infos)
+			if err != nil || emitted != want {
+				t.Fatalf("ReconcileDerivedSessionEvents(#%d) = %d, %v, want %d", attempt+1, emitted, err, want)
+			}
+		}
+		rows := h.derivedLedgerRows(t, childID)
+		if len(rows) != 1 {
+			t.Fatalf("session.derived rows after reconciliation = %d, want exactly 1", len(rows))
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rows[0].ContentValue(), &payload); err != nil {
+			t.Fatalf("decode session.derived payload: %v", err)
+		}
+		if payload["source_session_id"] != source.ID || payload["idempotency_key"] != "idem_lost_event" ||
+			payload["replay_bytes"] != float64(result.ReplayBytes) {
+			t.Fatalf("re-emitted payload = %v, want the receipt outcome", payload)
+		}
+		if rows := h.derivedLedgerRows(t, source.ID); len(rows) != 0 {
+			t.Fatalf("source session.derived rows = %d, want none", len(rows))
+		}
+	})
+
+	t.Run("Should leave the first message staged after a crash before admission and send it once on retry",
+		func(t *testing.T) {
+			t.Parallel()
+			admission := &deriveAdmissionFault{failKey: "idem_first_crash:first"}
+			h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				admission.GlobalDB = db
+				return WithSessionPromptAdmissionStore(admission)
+			})
+			source := h.newDeriveSource(t)
+			opts := h.continueOpts(source, "idem_first_crash")
+			opts.Message = "go"
+			promptsBefore := len(h.promptMessages())
+			result, err := h.manager.ContinueSession(testutil.Context(t), opts)
+			if !errors.Is(err, errDeriveInjectedCrash) || result.Child == nil {
+				t.Fatalf("ContinueSession(crash before admission) = %+v, %v, want the child and the crash", result, err)
+			}
+			childID := result.Child.ID
+			if state := h.childMeta(t, childID).Derivation.FirstPrompt.State; state !=
+				store.SessionDerivationFirstPromptStaged {
+				t.Fatalf("child first_prompt = %q, want staged before admission", state)
+			}
+			retry, err := h.manager.ContinueSession(testutil.Context(t), opts)
+			if err != nil || !retry.Replayed || retry.ChildSessionID != childID {
+				t.Fatalf("ContinueSession(retry) = %+v, %v, want the recorded child", retry, err)
+			}
+			prompts := h.waitForPromptCount(t, promptsBefore+1)
+			if !strings.HasSuffix(prompts[promptsBefore], "User request:\n\ngo") {
+				t.Fatalf("child first prompt = %q, want the carried context then go", prompts[promptsBefore])
+			}
+			waitForDeriveConsumption(t, h, childID)
+			if _, err := h.manager.ContinueSession(testutil.Context(t), opts); err != nil {
+				t.Fatalf("ContinueSession(second retry) error = %v", err)
+			}
+			if got := len(h.promptMessages()) - promptsBefore; got != 1 {
+				t.Fatalf("first message sent %d times, want once", got)
+			}
+			if state := h.childMeta(t, childID).Derivation.FirstPrompt.State; state !=
+				store.SessionDerivationFirstPromptAdmitted {
+				t.Fatalf("child first_prompt = %q, want admitted after the retry", state)
+			}
+		})
+}
+
+func TestDeriveSnapshotConcurrency(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should make a concurrent rewind wait for the snapshot and fence later derives", func(t *testing.T) {
+		t.Parallel()
+		fault := &deriveFaultStore{}
+		h := newDeriveHarness(t, fault.option)
+		source := h.newDeriveSource(t)
+		preview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, "")
+		if err != nil {
+			t.Fatalf("DerivePreview() error = %v", err)
+		}
+		rewind := h.rewindOpts(t, source.ID, "Now run the tests", "idem_rewind_during_derive")
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		var once sync.Once
+		fault.before = func(_ store.SessionInfo, _ store.SessionCreationIdentity, receipt store.SessionDerivationReceipt) error {
+			if receipt.IdempotencyKey == "idem_held" {
+				once.Do(func() { close(entered) })
+				<-release
+			}
+			return nil
+		}
+		type deriveOutcome struct {
+			result DeriveResult
+			err    error
+		}
+		derived := make(chan deriveOutcome, 1)
+		go func() {
+			result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_held"))
+			derived <- deriveOutcome{result: result, err: err}
+		}()
+		<-entered
+		rewound := make(chan error, 1)
+		go func() {
+			_, err := h.manager.RewindConversation(testutil.Context(t), source.ID, rewind)
+			rewound <- err
+		}()
+		select {
+		case err := <-rewound:
+			close(release)
+			t.Fatalf("RewindConversation() finished while the derive held the snapshot: %v", err)
+		case <-time.After(200 * time.Millisecond):
+		}
+		close(release)
+		held := <-derived
+		if held.err != nil {
+			t.Fatalf("ContinueSession(held) error = %v", held.err)
+		}
+		if err := <-rewound; err != nil {
+			t.Fatalf("RewindConversation() error = %v", err)
+		}
+		if !importedContains(h.importedMessages(t, held.result.Child.ID), "Now run the tests") {
+			t.Fatal("held derive child does not reflect the pre-rewind transcript")
+		}
+		stale := h.continueOpts(source, "idem_stale_fences")
+		stale.Fences = DeriveFences{
+			ExpectedEpoch: &preview.Epoch, ExpectedGeneration: &preview.Generation,
+			ExpectedMaxSequence: &preview.MaxSequence,
+		}
+		if _, err := h.manager.ContinueSession(testutil.Context(t), stale); !errors.Is(err, ErrDeriveFenceConflict) {
+			t.Fatalf("ContinueSession(pre-rewind fences) error = %v, want ErrDeriveFenceConflict", err)
+		}
+		fresh, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_fresh"))
+		if err != nil {
+			t.Fatalf("ContinueSession(no fences) error = %v", err)
+		}
+		messages := h.importedMessages(t, fresh.Child.ID)
+		if importedContains(messages, "Now run the tests") || !importedContains(messages, "Start the migration") {
+			t.Fatal("derive after the rewind did not take a new snapshot of the rewound transcript")
+		}
+	})
+}
+
+func TestDeriveCarriedContextSurvivesRewind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should begin the rewind restart's replay with the imported context", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_rewind_child"))
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		childID := result.Child.ID
+		sendDeriveChildPrompt(t, h, childID, "child first ask", "msg_child_first", "idem_child_first")
+		rewind := h.rewindOpts(t, childID, "child first ask", "idem_child_rewind")
+		if _, err := h.manager.RewindConversation(testutil.Context(t), childID, rewind); err != nil {
+			t.Fatalf("RewindConversation(child) error = %v", err)
+		}
+		before := len(h.promptMessages())
+		sendDeriveChildPrompt(t, h, childID, "child second ask", "msg_child_second", "idem_child_second")
+		prompts := h.promptMessages()
+		if len(prompts) != before+1 {
+			t.Fatalf("prompt calls = %d, want %d", len(prompts), before+1)
+		}
+		replay := prompts[before]
+		if !strings.HasPrefix(replay, contextRebuiltMarkerSummary) ||
+			strings.Count(replay, resumeReplayOpenTag) != 1 ||
+			!strings.Contains(replay, "Start the migration") || strings.Contains(replay, "child first ask") ||
+			!strings.HasSuffix(replay, "child second ask") {
+			t.Fatalf("post-rewind prompt = %q, want the imported context replayed before the new ask", replay)
+		}
+	})
+}
+
+func TestDeriveReceiptScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should derive independently when another workspace reuses the key", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		primary := h.newDeriveSource(t)
+		const secondaryID = "ws-secondary"
+		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		secondaryRoot := filepath.Join(h.homePaths.HomeDir, "workspace-secondary")
+		if err := os.MkdirAll(secondaryRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		resolved.Workspace.ID, resolved.Workspace.RootDir, resolved.Workspace.Name =
+			secondaryID, secondaryRoot, "workspace-secondary"
+		h.resolver.upsert(&resolved)
+		if err := h.db.InsertWorkspace(testutil.Context(t), resolved.Workspace); err != nil {
+			t.Fatalf("InsertWorkspace(secondary) error = %v", err)
+		}
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Name: "Other workspace", Workspace: secondaryID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(secondary source) error = %v", err)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), created.ID, "Secondary work")
+		if err != nil {
+			t.Fatalf("Prompt(secondary source) error = %v", err)
+		}
+		collectEvents(t, events)
+
+		first, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(primary, "idem_shared"))
+		if err != nil {
+			t.Fatalf("ContinueSession(primary) error = %v", err)
+		}
+		second, err := h.manager.ContinueSession(testutil.Context(t), ContinueSessionOpts{
+			SourceSessionID: created.ID, WorkspaceID: secondaryID, AgentName: "b", IdempotencyKey: "idem_shared",
+		})
+		if err != nil {
+			t.Fatalf("ContinueSession(secondary, same key) error = %v", err)
+		}
+		if second.Replayed || second.Child == nil || second.Child.ID == first.Child.ID ||
+			second.Child.WorkspaceID != secondaryID {
+			t.Fatalf("secondary derive = %+v, want an independent child in %s", second, secondaryID)
+		}
+		for workspaceID, childID := range map[string]string{h.workspaceID: first.Child.ID, secondaryID: second.Child.ID} {
+			receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), workspaceID, "idem_shared")
+			if err != nil || !found || receipt.ChildSessionID != childID {
+				t.Fatalf("receipt(%s) = %+v found=%t err=%v, want child %s", workspaceID, receipt, found, err, childID)
+			}
+		}
+	})
+}
+
+func TestDeriveLineageReadModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose lineage on catalog list rows and derivation on the child read", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_list"))
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		h.restartManager(t)
+		page, err := h.manager.ListPage(testutil.Context(t), ListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, Limit: 20,
+		})
+		if err != nil {
+			t.Fatalf("ListPage() error = %v", err)
+		}
+		kinds := map[string]store.LineageKind{}
+		for _, info := range page.Sessions {
+			if lineage := store.NormalizeSessionLineage(info.ID, info.Lineage); lineage != nil {
+				kinds[info.ID] = lineage.Kind
+			} else {
+				kinds[info.ID] = ""
+			}
+		}
+		if kind, ok := kinds[result.Child.ID]; !ok || kind != store.LineageKindContinue {
+			t.Fatalf("list page kinds = %v, want child %s with kind continue", kinds, result.Child.ID)
+		}
+		if kind, ok := kinds[source.ID]; !ok || kind != "" {
+			t.Fatalf("list page kinds = %v, want root source %s without a kind", kinds, source.ID)
+		}
+		child, err := h.manager.Status(testutil.Context(t), result.Child.ID)
+		if err != nil {
+			t.Fatalf("Status(child) error = %v", err)
+		}
+		lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
+		if lineage == nil || lineage.OriginAgentName != "coder" || child.Derivation == nil ||
+			child.Derivation.Kind != store.LineageKindContinue || child.Derivation.SourceSessionID != source.ID {
+			t.Fatalf("child read lineage=%+v derivation=%+v, want origin coder and the continue derivation",
+				lineage, child.Derivation)
+		}
+	})
+}
+
+func TestDeriveCarriesAttachmentMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should carry attachment metadata without copying attachment bytes", func(t *testing.T) {
+		t.Parallel()
+		data := map[string][]byte{
+			"att_" + strings.Repeat("a", 64): []byte("first attachment"),
+			"att_" + strings.Repeat("b", 64): []byte("second attachment"),
+		}
+		opener := &promptAttachmentOpenerStub{
+			data: map[string][]byte{}, refs: map[string]attachmentspkg.AttachmentRef{},
+		}
+		metas := make([]AttachmentMeta, 0, len(data))
+		for id, content := range data {
+			name := id[:8] + ".txt"
+			opener.data[id] = content
+			opener.refs[id] = storedPromptAttachmentRef(t, id, name, "text/plain", content)
+			metas = append(metas, promptAttachmentMeta(t, id, name, "text/plain", content))
+		}
+		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option { return WithAttachmentOpener(opener) })
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Name: "With files", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		sent, err := h.manager.SendPrompt(testutil.Context(t), created.ID, SendPromptOpts{
+			Message: "Review these files", MessageID: "msg_files", IdempotencyKey: "idem_files", Attachments: metas,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(attachments) error = %v", err)
+		}
+		collectEvents(t, sent.Events)
+		source, _ := h.manager.Get(created.ID)
+		openerCalls := opener.calls
+		result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_attachments"))
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		if opener.calls != openerCalls {
+			t.Fatalf("attachment reads during derive = %d, want none", opener.calls-openerCalls)
+		}
+		var carried *transcript.Message
+		for _, message := range h.importedMessages(t, result.Child.ID) {
+			if strings.Contains(message.Content, "Review these files") {
+				carried = &message
+			}
+		}
+		if carried == nil || len(carried.Attachments) != 2 {
+			t.Fatalf("carried user message = %+v, want two attachment metadata entries", carried)
+		}
+		for _, attachment := range carried.Attachments {
+			if _, ok := data[attachment.ID]; !ok || attachment.Name == "" {
+				t.Fatalf("carried attachment = %+v, want the source attachment metadata", attachment)
+			}
+		}
+		child, _ := h.manager.Get(result.Child.ID)
+		for _, event := range readStoredEvents(t, child) {
+			if strings.Contains(event.Content, "att_") {
+				t.Fatalf("child event %s references an attachment, want none copied", event.Type)
+			}
 		}
 	})
 }

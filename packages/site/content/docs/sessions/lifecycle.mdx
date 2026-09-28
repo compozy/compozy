@@ -481,6 +481,8 @@ Carry on with the migration; run the tests first.
 Without `--message` the context waits (`first_prompt: staged`) and is composed in front of the first
 prompt you send. With a message, the message is admitted through the ordinary prompt admission
 (`first_prompt: admitted`); delivery and completion are reported by the new session's prompt events.
+If the daemon stops before that admission, the new session keeps `first_prompt: staged`; repeating the
+same request (same `idempotency_key`) admits the message and sends it once.
 Continuing a continued session carries that session's own transcript with its carried context flattened
 in front, once. Clearing the new session's conversation discards the carried context. Attachments are
 carried as metadata only.
