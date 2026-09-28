@@ -41,24 +41,21 @@ export function OnboardingSetupFooter({
         data-tone={summary.tone}
         {...(danger ? { role: "alert", "data-testid": "onboarding-commit-error" } : {})}
       >
-        <Eyebrow className={danger ? "text-danger" : "text-faint"}>{summary.label}</Eyebrow>
+        <Eyebrow className={danger ? "text-danger" : "text-subtle"}>{summary.label}</Eyebrow>
         <span
           id={ONBOARDING_SUMMARY_ID}
           data-testid="onboarding-summary-value"
-          className={cn("truncate text-form-hint", danger ? "text-danger" : "font-mono text-muted")}
+          className={cn("truncate text-small-body", danger ? "text-danger" : "text-muted")}
         >
           {summary.value}
         </span>
       </div>
       <div className="flex flex-none items-center gap-2">
-        <Button
-          variant="ghost"
-          size="lg"
-          onClick={onBack}
-          disabled={!actions.canGoBack || actions.busy}
-        >
-          Back
-        </Button>
+        {actions.canGoBack ? (
+          <Button variant="ghost" size="lg" onClick={onBack} disabled={actions.busy}>
+            Back
+          </Button>
+        ) : null}
         <Button
           size="lg"
           onClick={onContinue}

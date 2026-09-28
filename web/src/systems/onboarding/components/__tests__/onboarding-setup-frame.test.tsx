@@ -44,7 +44,7 @@ describe("OnboardingSetupFrame", () => {
     render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
 
     expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent(
-      "Claude Code · Claude Opus 4.8 · High · CLI sign-in"
+      "Claude Code · Claude Opus 4.8 · High · Existing sign-in"
     );
     expect(screen.getByTestId("onboarding-continue")).toHaveTextContent("Continue");
   });
@@ -123,8 +123,7 @@ describe("OnboardingSetupFrame", () => {
     expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
   });
 
-  it("Should explain the Global destination on the workspace step", async () => {
-    const user = userEvent.setup();
+  it("Should explain the project step and the home-folder skip in plain text", () => {
     render(
       <UIProvider reducedMotion="always">
         <TooltipProvider delay={0}>
@@ -139,11 +138,13 @@ describe("OnboardingSetupFrame", () => {
     );
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-skip-global")).toHaveTextContent(/^Skip$/);
+    expect(screen.getByTestId("onboarding-skip-global")).toHaveTextContent(
+      /^Skip — use my home folder$/
+    );
     expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent("None yet");
 
-    await user.click(screen.getByRole("button", { name: "About workspace" }));
-    expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
-    expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-workspace-help")).toHaveTextContent(
+      "Agents can read and change files in the folders you add."
+    );
   });
 });
