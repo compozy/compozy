@@ -124,7 +124,8 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
                 <ProviderHeaderStatus isDefault={provider.default} state={state} />
               ) : undefined
             }
-            eyebrow="Provider"
+            // Create/edit titles already name the entity; only the bare-name inspect view needs the kind.
+            eyebrow={mode === "inspect" ? "Provider" : undefined}
             icon={Settings2}
             onClose={isSaving ? undefined : () => onOpenChange(false)}
             title={

@@ -51,7 +51,6 @@ export function VaultEditor({
       open
       mode="create"
       icon={KeyRound}
-      eyebrow="Vault"
       size="sm"
       title="New secret"
       slug="vault"
