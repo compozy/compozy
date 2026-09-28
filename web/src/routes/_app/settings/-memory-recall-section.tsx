@@ -3,8 +3,9 @@ import {
   SettingsFieldRow,
   SettingsGroup,
   SettingsNumberInput,
+  SettingValue,
 } from "@/systems/settings";
-import { Input, Switch } from "@compozy/ui";
+import { Switch } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function RecallSection(props: ValidatedSectionProps) {
@@ -18,14 +19,11 @@ function renderRecallSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup
-      title="Recall pipeline"
-      help="deterministic FTS5 + scope-shadow + freshness banner"
-    >
+    <SettingsGroup title="Recall" help="How memories are found and ranked for each session">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-top-k`}
-        label="Top-K"
-        help="Curated entries surfaced per recall after fusion"
+        label="Memories per recall"
+        help="How many memories are brought into a session at once"
         error={validationErrors.recallTopK ?? undefined}
         control={
           <SettingsNumberInput
@@ -48,8 +46,8 @@ function renderRecallSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-raw-candidates`}
-        label="Raw candidates"
-        help="Pre-fusion candidate pool size pulled from each FTS lane"
+        label="Candidates considered"
+        help="How many possible matches are checked before ranking"
         error={validationErrors.recallRawCandidates ?? undefined}
         control={
           <SettingsNumberInput
@@ -72,25 +70,9 @@ function renderRecallSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-fusion`}
-        label="Fusion strategy"
-        description="weighted is the only strategy in Slice 1; rrf is reserved for Slice 3"
-        control={
-          <Input
-            className="w-32 font-mono"
-            data-testid={`${TEST_PREFIX}-recall-fusion-input`}
-            value={draft.recall.fusion}
-            placeholder="weighted"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  recall: { ...current.recall, fusion: event.target.value },
-                };
-              })
-            }
-          />
-        }
+        label="Ranking method"
+        description="Fixed for now"
+        control={<SettingValue mono>{draft.recall.fusion || "weighted"}</SettingValue>}
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-include-already-surfaced`}
@@ -115,7 +97,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-include-system`}
         label="Include _system entries"
-        help="Surface dreaming, extractor, and ad-hoc files (normally hidden)"
+        help="Also include files CompozyOS writes for itself (normally hidden)"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-recall-include-system-switch`}
@@ -251,7 +233,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-banner-after-days`}
         label="Freshness banner after"
-        help="Days before a surfaced entry shows a staleness banner"
+        help="Days before a memory is marked as possibly out of date"
         error={validationErrors.recallBannerAfter ?? undefined}
         control={
           <SettingsNumberInput
@@ -278,7 +260,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-signals-queue`}
         label="Signal queue capacity"
-        help="Bounded post-recall signal queue; oldest entries drop on overflow"
+        help="How many recall events wait to be processed; the oldest are dropped when full"
         error={validationErrors.recallSignalQueue ?? undefined}
         control={
           <SettingsNumberInput

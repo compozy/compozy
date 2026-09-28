@@ -10,7 +10,6 @@ export function providerListingView(provider: SettingsProviderEntry) {
     status: providerStatusCopy(state, modelCount),
     authSummary: providerAuthSummary(provider),
     displayName: provider.settings.display_name?.trim() || provider.name,
-    command: provider.settings.command?.trim() || provider.name,
     modelCount,
     actionLabel: state.cta.intent === "configure" ? "Set up" : "Edit",
   };

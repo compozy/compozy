@@ -22,6 +22,8 @@ export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "chi
    * the chosen section. Modified clicks keep native link behavior.
    */
   onNavigate: (route: OsWindowRoute) => void;
+  /** Warms a section's code on link hover/focus so switching has no loading frame. */
+  onPreload?: (slug: string) => void;
   searchInputRef?: Ref<HTMLInputElement>;
 }
 
@@ -30,6 +32,7 @@ export function SettingsWindowNav({
   activeSlug,
   connection,
   onNavigate,
+  onPreload,
   searchInputRef,
   className,
   ...navProps
@@ -79,6 +82,7 @@ export function SettingsWindowNav({
                   isActive={section.slug === activeSlug}
                   key={section.slug}
                   onNavigate={onNavigate}
+                  onPreload={onPreload}
                   section={section}
                 />
               ))}
@@ -109,6 +113,7 @@ interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "ch
   section: SettingsSectionDescriptor;
   isActive: boolean;
   onNavigate: (route: OsWindowRoute) => void;
+  onPreload?: (slug: string) => void;
 }
 
 function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
@@ -119,8 +124,11 @@ function SettingsSectionLink({
   section,
   isActive,
   onNavigate,
+  onPreload,
   className,
   onClick,
+  onFocus,
+  onPointerEnter,
   ...linkProps
 }: SettingsSectionLinkProps) {
   const Icon = section.icon;
@@ -135,6 +143,14 @@ function SettingsSectionLink({
     <Link
       {...linkProps}
       onClick={handleClick}
+      onFocus={event => {
+        onFocus?.(event);
+        onPreload?.(section.slug);
+      }}
+      onPointerEnter={event => {
+        onPointerEnter?.(event);
+        onPreload?.(section.slug);
+      }}
       aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",

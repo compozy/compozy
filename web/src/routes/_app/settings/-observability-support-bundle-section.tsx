@@ -1,7 +1,7 @@
 import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Eyebrow, Pill, Spinner } from "@compozy/ui";
+import { Button, Pill, Spinner } from "@compozy/ui";
 import {
   SettingsFieldRow,
   SettingsGroup,
@@ -18,7 +18,7 @@ function safeLogTailURL(value: string | undefined): string | null {
   return protocol === "http:" || protocol === "https:" ? value : null;
 }
 
-/** Diagnostics: two-step support-bundle consent + the live daemon log stream row. */
+/** Diagnostics: two-step support-bundle consent + the live log stream row. */
 export function ObservabilityDiagnosticsSection({ logTail }: { logTail: LogTailMeta }) {
   return (
     <SettingsGroup title="Diagnostics">
@@ -27,6 +27,11 @@ export function ObservabilityDiagnosticsSection({ logTail }: { logTail: LogTailM
     </SettingsGroup>
   );
 }
+
+const BUNDLE_STATUS_LABEL: Record<string, string> = {
+  completed: "Last bundle ready",
+  failed: "Last bundle failed",
+};
 
 function SupportBundleRow() {
   const supportBundle = useSupportBundleDownload();
@@ -65,14 +70,17 @@ function SupportBundleRow() {
     <div className="flex flex-col" data-testid="settings-page-observability-support-bundle">
       <SettingsFieldRow
         label="Support bundle"
-        help="Redacted runtime archive for sharing with maintainers"
+        help="A privacy-safe bundle to share with support"
         description={
-          <Eyebrow
-            className="text-faint"
-            data-testid="settings-page-observability-support-bundle-status"
-          >
-            status: {operation?.status ?? "idle"}
-          </Eyebrow>
+          operation ? (
+            <span
+              className="text-form-hint text-subtle"
+              data-testid="settings-page-observability-support-bundle-status"
+              title={operation.status}
+            >
+              {BUNDLE_STATUS_LABEL[operation.status] ?? "Preparing bundle…"}
+            </span>
+          ) : undefined
         }
         control={
           consentOpen ? null : (
@@ -94,7 +102,7 @@ function SupportBundleRow() {
           className="mx-4 mb-3 flex flex-col gap-3 rounded-md border border-line bg-canvas px-4 py-3"
           data-testid="settings-page-observability-support-bundle-consent-panel"
         >
-          <label className="flex items-start gap-3 text-sm text-subtle">
+          <label className="flex items-start gap-3 text-small-body text-subtle">
             <input
               checked={approved}
               className="mt-0.5 size-4 rounded border border-line bg-canvas-soft accent-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -105,7 +113,7 @@ function SupportBundleRow() {
               }}
               type="checkbox"
             />
-            <span>I approve creating a redacted diagnostics archive.</span>
+            <span>I approve creating a privacy-safe support bundle.</span>
           </label>
           <div className="flex items-center gap-2">
             <Button
@@ -134,13 +142,16 @@ function SupportBundleRow() {
             </Button>
           </div>
           {operation?.size_bytes ? (
-            <Eyebrow className="text-muted" data-testid="settings-page-observability-support-size">
-              size: {formatBytes(operation.size_bytes)}
-            </Eyebrow>
+            <span
+              className="text-form-hint text-muted"
+              data-testid="settings-page-observability-support-size"
+            >
+              Size {formatBytes(operation.size_bytes)}
+            </span>
           ) : null}
           {errorMessage ? (
             <p
-              className="text-sm text-danger"
+              className="text-small-body text-danger"
               data-testid="settings-page-observability-support-bundle-error"
               role="alert"
             >
@@ -158,21 +169,21 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
   return (
     <SettingsFieldRow
       data-testid="settings-page-observability-log-tail"
-      label="Live runtime logs"
+      label="Live logs"
       description={
-        <span className="inline-flex flex-wrap items-center gap-1.5">
-          <Pill size="xs" tone={logTail.available ? "success" : "neutral"}>
-            {logTail.available ? "Available" : "Unavailable"}
-          </Pill>
-          <span data-testid="settings-page-observability-log-tail-transport">
-            transport: {logTail.transport ?? "none"}
-          </span>
-        </span>
+        <Pill
+          data-testid="settings-page-observability-log-tail-transport"
+          size="xs"
+          title={logTail.transport ? `Transport: ${logTail.transport}` : undefined}
+          tone={logTail.available ? "success" : "neutral"}
+        >
+          {logTail.available ? "Available" : "Unavailable"}
+        </Pill>
       }
       control={
         logTail.available && streamURL ? (
           <a
-            className="inline-flex items-center gap-1.5 text-sm text-fg transition-colors duration-base hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+            className="inline-flex items-center gap-1.5 text-small-body text-fg transition-colors duration-base hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
             data-testid="settings-page-observability-log-tail-link"
             href={streamURL}
             rel="noreferrer"

@@ -159,8 +159,8 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
         {phase === "beginning" ? (
           <Alert variant="warning" data-testid="settings-page-mcp-authorize-beginning">
             <Spinner className="size-3.5" />
-            <AlertTitle>Starting authorization</AlertTitle>
-            <AlertDescription>Requesting a live authorization URL from CompozyOS.</AlertDescription>
+            <AlertTitle>Starting sign-in</AlertTitle>
+            <AlertDescription>Getting a sign-in link from CompozyOS.</AlertDescription>
           </Alert>
         ) : null}
 
@@ -171,10 +171,9 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
             data-testid="settings-page-mcp-authorize-confirmed"
           >
             <CircleCheck />
-            <AlertTitle>Authorization confirmed</AlertTitle>
+            <AlertTitle>Connected.</AlertTitle>
             <AlertDescription>
-              The scoped status now reports authenticated with a present token. Runtime readiness
-              remains an independent result.
+              You're signed in. The server's own status updates separately.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -183,13 +182,10 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
           <Alert variant="danger" role="alert" data-testid="settings-page-mcp-authorize-failure">
             <CircleAlert />
             <AlertTitle>
-              {hasActiveBegin
-                ? "Authorization could not be completed"
-                : "Authorization could not be started"}
+              {hasActiveBegin ? "Sign-in couldn't be finished" : "Sign-in couldn't start"}
             </AlertTitle>
             <AlertDescription>
-              {authorize.error ??
-                `${name} keeps its prior status; no existing credential was changed.`}
+              {authorize.error ?? `Nothing changed — ${name} keeps its previous sign-in.`}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -197,10 +193,9 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
         {phase === "waiting" ? (
           <Alert variant="warning" role="status" data-testid="settings-page-mcp-authorize-waiting">
             <CircleAlert />
-            <AlertTitle>Waiting for confirmed token</AlertTitle>
+            <AlertTitle>Waiting for sign-in to finish…</AlertTitle>
             <AlertDescription>
-              The browser step may finish automatically. This dialog stays pending until status
-              reports authenticated and token_present.
+              Finish signing in in your browser. This updates on its own once it's done.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -403,16 +398,16 @@ function AuthSnapshot({
       className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line"
       data-testid="settings-page-mcp-authorize-snapshot"
     >
-      <SnapshotCell term="Authorization">
+      <SnapshotCell term="Sign-in">
         <Pill tone={authTone(status, tokenPresent)}>{formatStatusLabel(status)}</Pill>
       </SnapshotCell>
-      <SnapshotCell term="Token present">
+      <SnapshotCell term="Signed in">
         <Pill tone={tokenPresent ? "success" : "neutral"}>{tokenPresent ? "Yes" : "No"}</Pill>
       </SnapshotCell>
-      <SnapshotCell term="Prior status" mono>
+      <SnapshotCell term="Before" mono>
         {prior ? `${prior.status} · ${prior.tokenPresent ? "token present" : "token absent"}` : "-"}
       </SnapshotCell>
-      <SnapshotCell term="Runtime" mono>
+      <SnapshotCell term="Server status" mono>
         {runtime}
       </SnapshotCell>
     </dl>

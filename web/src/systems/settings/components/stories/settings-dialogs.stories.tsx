@@ -40,12 +40,12 @@ export const Editor: Story = {
     <SettingsEditorDialog
       open
       canSave
-      description="Update command and model defaults for this provider overlay."
-      eyebrow="Settings · Provider"
-      hint="Saved overlays apply to new sessions in this workspace."
+      description="Update the command and default model for this provider."
+      eyebrow="Provider"
+      hint="Saved changes apply to new sessions in this project."
       icon={Settings2}
       isSaving={false}
-      metadata={<Pill tone="info">workspace override</Pill>}
+      metadata={<Pill tone="neutral">Project change</Pill>}
       mode="edit"
       onOpenChange={fn()}
       onSave={fn()}
@@ -83,14 +83,13 @@ export const Delete: Story = {
       open
       cancelLabel="Cancel"
       confirmIcon={Trash2}
-      confirmLabel="Delete"
+      confirmLabel="Reset to default"
       contentProps={{ "data-testid": "settings-providers-delete" }}
-      description="This removes the workspace override; built-in provider defaults remain available."
+      description="The provider goes back to the setup CompozyOS ships with."
       isPending={false}
-      note="The provider falls back to the built-in config after deletion."
       onConfirm={fn()}
       onOpenChange={fn()}
-      title="Delete provider overlay"
+      title="Reset provider to default"
     />
   ),
 };

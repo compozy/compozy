@@ -7,6 +7,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  Empty,
   dialogShellClass,
   EntityDialogBody,
   EntityDialogFooter,
@@ -185,9 +186,12 @@ function MCPOverridePairsEditor({
       <MCPFieldLabel hint="name / value">{label}</MCPFieldLabel>
       <div className="flex flex-col gap-1.5" data-testid={`${testPrefix}-list`}>
         {pairs.length === 0 ? (
-          <p className="text-form-hint text-subtle" data-testid={`${testPrefix}-empty`}>
-            No override yet — the package values apply.
-          </p>
+          <Empty
+            data-testid={`${testPrefix}-empty`}
+            description="The extension's own values apply."
+            size="compact"
+            title="No changes yet"
+          />
         ) : null}
         {pairs.map((pair, index) => {
           const rowError = errors?.[index];

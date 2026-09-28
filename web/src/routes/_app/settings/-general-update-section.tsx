@@ -50,14 +50,46 @@ function RetryButton({ isFetching, onRetry }: { isFetching: boolean; onRetry: ()
       type="button"
       variant="ghost"
     >
-      <RefreshCw aria-hidden="true" className={isFetching ? "size-3 animate-spin" : "size-3"} />
+      {isFetching ? (
+        <Spinner aria-hidden="true" className="size-3" />
+      ) : (
+        <RefreshCw aria-hidden="true" className="size-3" />
+      )}
       Retry
     </Button>
   );
 }
 
+const HOLDER_SURFACE_LABEL: Record<SettingsUpdateHolder["surface"], string> = {
+  cli: "the command line",
+  daemon: "CompozyOS",
+  web: "another browser window",
+  shell: "the desktop app",
+};
+
+/** Who holds the update channel, in plain words; the process id stays in the tooltip. */
 function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
-  return <SettingValue mono>{`${holder.surface} · PID ${holder.pid}`}</SettingValue>;
+  return (
+    <span title={`${holder.surface} · PID ${holder.pid}`}>
+      <SettingValue>{`In use by ${HOLDER_SURFACE_LABEL[holder.surface]}`}</SettingValue>
+    </span>
+  );
+}
+
+/**
+ * True when the Updates group carries something to act on — a failed check, a
+ * failed refresh, or a track that is not settled — so the page can lead with it.
+ */
+export function generalUpdateNeedsAttention(
+  props: Pick<GeneralUpdateSectionProps, "data" | "error" | "isError" | "isLoading">
+): boolean {
+  const view = settingsUpdateView(props);
+  if (view.kind === "error") return true;
+  if (view.kind !== "snapshot") return false;
+  if (view.refreshError) return true;
+  return settingsUpdateTracks(view.snapshot).some(
+    track => track.tone !== "success" && track.tone !== "neutral"
+  );
 }
 
 /**
@@ -102,13 +134,6 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
             </>
           }
         />
-        {view.kind === "error" ? (
-          <SettingRow
-            data-testid="settings-page-general-update-last-error"
-            description={<span className="text-danger">{view.message}</span>}
-            label="Last error"
-          />
-        ) : null}
       </SettingsGroup>
     );
   }
@@ -116,7 +141,6 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
   const snapshot = view.snapshot;
   const tracks = settingsUpdateTracks(snapshot);
   const applicableTargets = view.refreshError ? null : settingsUpdateApplicableTargets(tracks);
-  const runtime = tracks[0];
   // A blocked apply is a 200 whose body refuses; it never reads as success.
   const blocked = props.actions.result?.status === "blocked" ? props.actions.result : null;
   const cancelResult = props.actions.cancelResult;
@@ -166,13 +190,6 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
           track={track}
         />
       ))}
-      {runtime.recommendation ? (
-        <SettingRow
-          data-testid="settings-page-general-update-recommendation"
-          label="Upgrade command"
-          control={<SettingValue mono>{runtime.recommendation}</SettingValue>}
-        />
-      ) : null}
       {blocked ? (
         <SettingRow
           data-testid="settings-page-general-update-blocked"

@@ -23,7 +23,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Roles settings route stories covering the truthful projection: builtin/inherit/off badges, resolves-at-invocation affordances, the memory-controller timeout, resolution diagnostics, and the editable fallback chain.",
+          "Roles settings route stories covering the truthful projection: built-in/default-agent resolution lines, decided-when-it-runs affordances, the memory-controller timeout, resolution diagnostics, and the editable fallback chain.",
       },
     },
   },
@@ -44,8 +44,8 @@ async function scrollDreamIntoView(canvasElement: HTMLElement) {
 
 /**
  * Populated surface — all six roles in product order. Coordinator is OFF
- * (disabled); auto_title, memory_extractor, and memory_controller are INHERIT
- * with "Resolves at invocation." affordances; dream and checkpoint are BUILTIN.
+ * (disabled); auto_title, memory_extractor, and memory_controller use the
+ * default agent ("Decided when the role runs."); dream and checkpoint are built in.
  */
 export const Populated: Story = {
   args: {},

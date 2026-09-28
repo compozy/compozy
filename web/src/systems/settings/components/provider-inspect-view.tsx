@@ -1,9 +1,25 @@
 import { RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { Button, Eyebrow, Pill, type PillTone, Spinner, Time } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  Eyebrow,
+  MetadataList,
+  MetadataListRow,
+  MonoId,
+  Pill,
+  type PillTone,
+  Spinner,
+  Time,
+} from "@compozy/ui";
 
+import { providerAuthStateLabel, providerAuthSummary } from "../lib/provider-copy";
+import { getProviderStateView } from "../lib/provider-state";
 import type { SettingsProviderEntry } from "../types";
 import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
+import { ProviderStatusLabel } from "./provider-status-label";
+import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsSourceBadge } from "./settings-source-badge";
 import {
   modelRefreshStateTone,
@@ -15,101 +31,171 @@ import {
 interface ProviderInspectViewProps {
   provider: SettingsProviderEntry;
   onRefreshCatalog: () => void;
+  /** Runs the status summary's next step (opens the Configure tab). */
+  onAction?: () => void;
 }
 
-export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
+/**
+ * Provider overview: a status summary that answers "is it working, and what do
+ * I do?", with the raw configuration behind a closed "Technical details" fold.
+ */
+export function ProviderInspectView({ provider, onAction }: ProviderInspectViewProps) {
+  const state = getProviderStateView(provider);
+  const ready = state.label === "installed";
+  const defaultModel = provider.settings.models?.default ?? null;
+  const showLogin = state.label === "needs-sign-in" && Boolean(provider.auth_status?.login);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <section
+        className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-4"
+        data-testid="provider-detail-summary"
+      >
+        <div className="flex flex-col gap-1">
+          <ProviderStatusLabel
+            data-testid="provider-detail-summary-status"
+            label={state.display}
+            ready={ready}
+            tone={state.tone}
+          />
+          {state.hint ? <p className="text-small-body text-muted">{state.hint}</p> : null}
+        </div>
+        <MetadataList>
+          <MetadataListRow label="Sign-in">{providerAuthSummary(provider)}</MetadataListRow>
+          {defaultModel ? (
+            <MetadataListRow label="Default model">
+              <span className="text-fg" data-testid="inspect-default-model">
+                {defaultModel}
+              </span>
+            </MetadataListRow>
+          ) : null}
+        </MetadataList>
+        {showLogin && provider.auth_status?.login ? (
+          <ProviderLoginDescriptorView
+            login={provider.auth_status.login}
+            testId="inspect-login-descriptor"
+          />
+        ) : null}
+        {!ready && onAction ? (
+          <Button
+            className="w-fit"
+            data-testid="provider-detail-summary-action"
+            onClick={onAction}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {state.cta.label}
+          </Button>
+        ) : null}
+      </section>
+
+      <SettingsAdvancedFold bare data-testid="provider-detail-technical" label="Technical details">
+        <ProviderTechnicalDetails provider={provider} showLogin={!showLogin} />
+      </SettingsAdvancedFold>
+    </div>
+  );
+}
+
+function ProviderTechnicalDetails({
+  provider,
+  showLogin,
+}: {
+  provider: SettingsProviderEntry;
+  showLogin: boolean;
+}) {
   const credentials = provider.credentials ?? [];
   const credentialSlots = provider.settings.credential_slots ?? [];
   const curated = (provider.settings.models?.curated ?? []).flatMap(model =>
     model.id ? [model.id] : []
   );
-  const defaultModel = provider.settings.models?.default ?? null;
   const hasCredentials = credentials.length > 0 || credentialSlots.length > 0;
+  const harness = provider.settings.harness ?? null;
+  const runtime = provider.settings.runtime_provider ?? null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <InspectSection label="Runtime">
-        <Row label="Command">
-          <CommandBlock value={provider.settings.command ?? null} />
-        </Row>
-        <Row label="Harness">
-          <HarnessValue
-            harness={provider.settings.harness ?? null}
-            runtime={provider.settings.runtime_provider ?? null}
-          />
-        </Row>
+    <div className="flex flex-col gap-5 pb-1">
+      <InspectSection id="runtime" label="How it runs">
+        <MetadataListRow label="Name">
+          <MonoId preserveCase value={provider.name} />
+        </MetadataListRow>
+        <MetadataListRow label="Command" valueProps={{ "data-testid": "inspect-command" }}>
+          {provider.settings.command ? (
+            <code className="font-mono text-mono-id break-all text-fg">
+              {provider.settings.command}
+            </code>
+          ) : (
+            "—"
+          )}
+        </MetadataListRow>
+        {harness ? (
+          <MetadataListRow label="Adapter" valueProps={{ "data-testid": "inspect-harness" }}>
+            <MonoId preserveCase value={harness} />
+            {runtime && runtime !== harness ? (
+              <span className="ml-2 text-subtle">
+                via <MonoId preserveCase value={runtime} />
+              </span>
+            ) : null}
+          </MetadataListRow>
+        ) : null}
       </InspectSection>
 
-      {defaultModel || curated.length > 0 ? (
-        <InspectSection label="Models">
-          {defaultModel ? (
-            <Row label="Default">
-              <code
-                className="font-mono text-small-body text-fg"
-                data-testid="inspect-default-model"
-              >
-                {defaultModel}
-              </code>
-            </Row>
-          ) : null}
-          {curated.length > 0 ? (
-            <Row label="Curated" align="start">
-              <ul className="flex flex-wrap gap-1.5" data-testid="inspect-curated-models">
-                {curated.map(id => (
-                  <li
-                    key={id}
-                    className="rounded-mono-badge bg-canvas-soft px-1.5 py-0.5 font-mono text-mono-id text-muted"
-                  >
+      {curated.length > 0 ? (
+        <InspectSection id="models" label="Models">
+          <MetadataListRow label="Available">
+            <ul className="flex flex-wrap gap-1.5" data-testid="inspect-curated-models">
+              {curated.map(id => (
+                <li key={id}>
+                  <Pill mono size="xs" tone="neutral">
                     {id}
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          ) : null}
+                  </Pill>
+                </li>
+              ))}
+            </ul>
+          </MetadataListRow>
         </InspectSection>
       ) : null}
 
-      <InspectSection label="Authentication">
-        <Row label="Mode">
-          <code className="font-mono text-small-body text-fg" data-testid="inspect-auth-mode">
+      <InspectSection id="authentication" label="Sign-in">
+        <MetadataListRow label="Mode">
+          <code className="font-mono text-mono-id text-fg" data-testid="inspect-auth-mode">
             {provider.settings.auth_mode ?? "—"}
           </code>
-        </Row>
-        <Row label="Env policy">
-          <code className="font-mono text-small-body text-muted">
-            {provider.settings.env_policy ?? "—"}
-          </code>
-        </Row>
-        <Row label="Home policy">
-          <code className="font-mono text-small-body text-muted">
-            {provider.settings.home_policy ?? "—"}
-          </code>
-        </Row>
+        </MetadataListRow>
+        <MetadataListRow label="Env policy">
+          <MonoId preserveCase value={provider.settings.env_policy ?? "—"} />
+        </MetadataListRow>
+        <MetadataListRow label="Home policy">
+          <MonoId preserveCase value={provider.settings.home_policy ?? "—"} />
+        </MetadataListRow>
         {provider.auth_status?.state ? (
-          <Row label="Status" align="start">
-            <AuthStatusValue
-              state={provider.auth_status.state}
-              message={provider.auth_status.message}
-            />
-          </Row>
+          <MetadataListRow label="Status">
+            <span className="flex flex-col gap-1" data-testid="inspect-auth-status">
+              <span className="text-fg">{providerAuthStateLabel(provider.auth_status.state)}</span>
+              {provider.auth_status.message ? <span>{provider.auth_status.message}</span> : null}
+            </span>
+          </MetadataListRow>
         ) : null}
-        {provider.auth_status?.login ? (
-          <Row label="Login CLI" align="start">
+        {showLogin && provider.auth_status?.login ? (
+          <MetadataListRow label="Login app">
             <ProviderLoginDescriptorView
               login={provider.auth_status.login}
               testId="inspect-login-descriptor"
             />
-          </Row>
+          </MetadataListRow>
         ) : null}
       </InspectSection>
 
       {hasCredentials ? (
-        <InspectSection label={`Credentials (${credentials.length || credentialSlots.length})`}>
+        <InspectSection
+          id="credentials"
+          label={`Keys (${credentials.length || credentialSlots.length})`}
+        >
           <CredentialList slots={credentialSlots} credentials={credentials} />
         </InspectSection>
       ) : null}
 
-      <InspectSection label="Source">
+      <InspectSection id="source" label="Defined in">
         <SettingsSourceBadge
           data-testid="inspect-source"
           source={provider.source_metadata.effective_source}
@@ -117,81 +203,27 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
         />
       </InspectSection>
 
-      <InspectSection label="Catalog">
+      <InspectSection id="catalog" label="Model list">
         <CatalogList providerId={provider.name} enabled={provider.command_available} />
       </InspectSection>
     </div>
   );
 }
 
-function InspectSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5" data-section={label.toLowerCase()}>
-      <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <div className="flex flex-col gap-2">{children}</div>
-    </section>
-  );
-}
-
-function Row({
+function InspectSection({
+  id,
   label,
   children,
-  align = "center",
 }: {
+  id: string;
   label: string;
-  children: React.ReactNode;
-  align?: "center" | "start";
+  children: ReactNode;
 }) {
   return (
-    <div
-      className={`grid grid-cols-[8rem_minmax(0,1fr)] gap-3 ${
-        align === "start" ? "items-start" : "items-center"
-      }`}
-    >
-      <span className="text-xs text-subtle">{label}</span>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
-function CommandBlock({ value }: { value: string | null }) {
-  if (!value) {
-    return <span className="text-xs text-subtle">—</span>;
-  }
-  return (
-    <code
-      className="block rounded-sm bg-canvas-soft px-2 py-1.5 font-mono text-xs text-fg break-all"
-      data-testid="inspect-command"
-    >
-      {value}
-    </code>
-  );
-}
-
-function HarnessValue({ harness, runtime }: { harness: string | null; runtime: string | null }) {
-  if (!harness) {
-    return <span className="text-xs text-subtle">—</span>;
-  }
-  return (
-    <span className="flex flex-wrap items-center gap-2" data-testid="inspect-harness">
-      <code className="font-mono text-small-body text-fg">{harness}</code>
-      {runtime && runtime !== harness ? (
-        <span className="text-xs text-subtle">
-          via <code className="font-mono">{runtime}</code>
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function AuthStatusValue({ state, message }: { state: string; message?: string }) {
-  return (
-    <span className="flex flex-col gap-1">
-      <code className="font-mono text-small-body text-fg" data-testid="inspect-auth-status">
-        {state}
-      </code>
-      {message ? <span className="text-xs text-muted">{message}</span> : null}
-    </span>
+    <section className="flex flex-col gap-2.5" data-section={id}>
+      <Eyebrow className="text-subtle">{label}</Eyebrow>
+      <MetadataList>{children}</MetadataList>
+    </section>
   );
 }
 
@@ -217,10 +249,8 @@ function CredentialList({
         const status = byName.get(slot.name);
         const present = status?.present ?? false;
         const required = slot.required ?? status?.required ?? false;
-        const stateLabel: string =
-          required && !present ? "missing" : present ? "bound" : "optional";
-        const stateTone: PillTone =
-          required && !present ? "warning" : present ? "success" : "neutral";
+        const stateLabel: string = required && !present ? "Missing" : present ? "Set" : "Optional";
+        const stateTone: PillTone = required && !present ? "warning" : "neutral";
         return (
           <li
             key={slot.name}
@@ -228,21 +258,17 @@ function CredentialList({
             data-testid={`inspect-credential-${slot.name}`}
           >
             <div className="flex items-center justify-between gap-2">
-              <code className="font-mono text-small-body text-fg">{slot.name}</code>
-              <Pill tone={stateTone} mono>
-                {stateLabel}
-              </Pill>
+              <MonoId preserveCase value={slot.name} />
+              <Pill tone={stateTone}>{stateLabel}</Pill>
             </div>
-            <dl className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs text-muted">
-              <dt className="text-subtle">target env</dt>
-              <dd>
-                <code className="font-mono">{slot.target_env}</code>
-              </dd>
-              <dt className="text-subtle">secret ref</dt>
-              <dd>
-                <code className="font-mono break-all">{slot.secret_ref}</code>
-              </dd>
-            </dl>
+            <MetadataList>
+              <MetadataListRow label="Variable">
+                <MonoId preserveCase value={slot.target_env} />
+              </MetadataListRow>
+              <MetadataListRow label="Stored in">
+                <MonoId preserveCase value={slot.secret_ref} />
+              </MetadataListRow>
+            </MetadataList>
           </li>
         );
       })}
@@ -266,17 +292,17 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 
   if (!enabled) {
     return (
-      <p className="text-xs text-subtle" data-testid="inspect-catalog-disabled">
-        Catalog refresh resumes once the provider binary is available.
+      <p className="text-form-hint text-subtle" data-testid="inspect-catalog-disabled">
+        The model list updates once the app is installed.
       </p>
     );
   }
 
   if (statusQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-subtle">
+      <div className="flex items-center gap-2 text-form-hint text-subtle">
         <Spinner className="size-3" />
-        <span>Loading catalog status…</span>
+        <span>Loading model list…</span>
       </div>
     );
   }
@@ -288,11 +314,14 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 
   return (
     <div className="flex flex-col gap-2.5" data-testid="inspect-catalog">
-      {queryError ? <p className="text-xs text-danger">{queryError}</p> : null}
+      {queryError ? <p className="text-form-hint text-danger">{queryError}</p> : null}
       {sources.length === 0 && !queryError ? (
-        <p className="text-xs text-subtle" data-testid="inspect-catalog-empty">
-          No catalog sources reporting yet.
-        </p>
+        <Empty
+          data-testid="inspect-catalog-empty"
+          fill={false}
+          size="compact"
+          title="No model list yet"
+        />
       ) : (
         <ul className="flex flex-col gap-1.5">
           {sources.map(source => (
@@ -301,7 +330,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
         </ul>
       )}
       {refreshError ? (
-        <p className="text-xs text-danger" data-testid="inspect-catalog-refresh-error">
+        <p className="text-form-hint text-danger" data-testid="inspect-catalog-refresh-error">
           {refreshError}
         </p>
       ) : null}
@@ -314,11 +343,12 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
         disabled={refreshing}
         data-testid="inspect-catalog-refresh"
       >
-        <RefreshCw
-          aria-hidden="true"
-          className={refreshMutation.isPending ? "size-3 animate-spin" : "size-3"}
-        />
-        {refreshing ? "Refreshing…" : "Refresh catalog"}
+        {refreshMutation.isPending ? (
+          <Spinner aria-hidden="true" className="size-3" />
+        ) : (
+          <RefreshCw aria-hidden="true" className="size-3" />
+        )}
+        {refreshing ? "Refreshing…" : "Refresh model list"}
       </Button>
     </div>
   );
@@ -329,11 +359,10 @@ function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-sm bg-canvas-soft px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <code className="truncate font-mono text-small-body text-fg">{source.source_id}</code>
+        <MonoId preserveCase value={source.source_id} />
         {timestamp ? (
-          <span className="flex items-center gap-1 text-xs text-subtle">
-            <Eyebrow className="text-subtle">refreshed</Eyebrow>
-            <Time iso={timestamp} mode="relative" />
+          <span className="flex items-center gap-1 text-form-hint text-subtle">
+            Updated <Time iso={timestamp} mode="relative" />
           </span>
         ) : null}
       </div>
@@ -342,13 +371,9 @@ function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
           <Pill mono tone={modelRefreshStateTone(source.refresh_state)}>
             {source.refresh_state}
           </Pill>
-          {source.stale ? (
-            <Pill mono tone="warning">
-              stale
-            </Pill>
-          ) : null}
+          {source.stale ? <Pill tone="warning">Out of date</Pill> : null}
         </span>
-        <span className="text-xs text-muted tabular-nums">{source.row_count} rows</span>
+        <span className="text-form-hint text-muted tabular-nums">{source.row_count} models</span>
       </div>
     </li>
   );

@@ -13,7 +13,8 @@ import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 const managers: WindowManagerRuntime[] = [];
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/settings")>()),
   useSettingsTopbar: vi.fn(),
 }));
 

@@ -5,7 +5,7 @@ title: Configure and inspect daemon memory reports
 persona: Dora
 journey: J-drain-daemon-safely
 expected: With daemon.memory_report_interval above zero, Compozy emits baseline, periodic, and joined-shutdown process-memory snapshots and exposes the same latest runtime.memory evidence through HTTP, UDS, and compozy doctor -o json. Setting the interval to 0s requires a daemon restart, starts no periodic worker, and produces an explicit disabled diagnostic.
-entry_points: Web General Settings; config.toml; compozy config; HTTP/UDS GET /api/doctor; compozy doctor -o json; daemon logs
+entry_points: Web General Settings > Advanced > Memory usage logging; config.toml; compozy config; HTTP/UDS GET /api/doctor; compozy doctor -o json; daemon logs
 qa_status: untested
 bug_ids:
 fix_status:

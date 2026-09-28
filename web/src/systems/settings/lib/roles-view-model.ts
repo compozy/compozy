@@ -17,12 +17,6 @@ import {
 } from "./roles-config";
 import { normalizeRuntimeACPSelections } from "@/systems/runtime";
 
-/**
- * Compact header pill states. `off` is carried by the header switch, and
- * `catalog` mode by the routed agent name, so neither takes a pill.
- */
-export type RoleBadge = "builtin" | "inherit";
-
 export interface RoleViewModel {
   role: RoleName;
   label: string;
@@ -49,7 +43,6 @@ export interface RoleViewModel {
    * invocation" and is never replaced with a fabricated default.
    */
   effective: Record<string, string | null>;
-  badges: RoleBadge[];
   resolutionMode: RoleResolutionMode;
   resolutionLine: string;
   /** Projected route for the collapsed header; `null` when nothing is pinned. */
@@ -57,16 +50,6 @@ export interface RoleViewModel {
   hasDiagnostics: boolean;
   /** The raw projection — provenance, diagnostics, and null truth all read from it. */
   status: RoleStatus;
-}
-
-function computeBadges(status: RoleStatus): RoleBadge[] {
-  if (status.resolution_mode === "builtin") {
-    return ["builtin"];
-  }
-  if (status.resolution_mode === "inherit") {
-    return ["inherit"];
-  }
-  return [];
 }
 
 /**
@@ -81,17 +64,17 @@ export function computeRouteSummary(status: RoleStatus): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** Inherit-mode roles resolve only at invocation; the surface says so rather than guessing. */
+/** Inherit-mode roles resolve only when they run; the surface says so rather than guessing. */
 export function computeResolutionLine(status: RoleStatus): string {
   switch (status.resolution_mode) {
     case "inherit":
-      return "Resolves at invocation.";
+      return "Uses your default agent.";
     case "builtin":
-      return status.agent ? `Built-in · ${status.agent}` : "Built-in identity.";
+      return status.agent ? `Built in · ${status.agent}` : "Built in.";
     case "catalog":
-      return status.agent ? `Agent · ${status.agent}` : "Routed to a catalog agent.";
+      return status.agent ? `Agent · ${status.agent}` : "Uses a chosen agent.";
     default:
-      return "Resolves at invocation.";
+      return "Uses your default agent.";
   }
 }
 
@@ -150,7 +133,6 @@ function buildRoleViewModel(
     values,
     fallbackChain: config[role].fallback_chain,
     effective: buildEffective(status),
-    badges: computeBadges(status),
     resolutionMode: status.resolution_mode,
     resolutionLine: computeResolutionLine(status),
     routeSummary: computeRouteSummary(status),

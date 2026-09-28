@@ -47,3 +47,17 @@ export function providerStatusCopy(
   }
   return { label: state.display, tone: state.tone };
 }
+
+const AUTH_STATE_LABEL: Record<string, string> = {
+  authenticated: "Signed in",
+  needs_login: "Needs sign-in",
+  missing_cli: "App not installed",
+  missing_credential: "Key missing",
+  none: "No sign-in needed",
+  unknown: "Not verified",
+};
+
+/** Plain label for a raw `auth_status.state` value; unknown values read as unavailable. */
+export function providerAuthStateLabel(state: string): string {
+  return AUTH_STATE_LABEL[state.trim()] ?? "Unavailable";
+}

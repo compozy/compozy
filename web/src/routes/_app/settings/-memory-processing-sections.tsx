@@ -1,4 +1,9 @@
-import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import {
+  SettingsFieldRow,
+  SettingsGroup,
+  SettingsNumberInput,
+  SettingValue,
+} from "@/systems/settings";
 import { Input, Switch } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
@@ -37,7 +42,7 @@ export function DecisionsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-keep-summary`}
         label="Keep audit summary on prune"
-        help="Emit memory.decisions.audit_summarized before deleting old rows"
+        help="Keep a short summary of decisions before old ones are deleted"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-decisions-keep-summary-switch`}
@@ -56,8 +61,8 @@ export function DecisionsSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-max-post-content`}
-        label="Max post_content bytes"
-        help="Per-row body cap; oversize rows store a content-hash reference instead"
+        label="Max stored text size (bytes)"
+        help="Longer text is stored as a reference instead of the full content"
         error={validationErrors.decisionsMaxPostBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -89,28 +94,15 @@ export function ExtractorSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Extractor">
+    <SettingsGroup
+      title="Memory extraction"
+      help="Pulls new memories out of finished conversations"
+    >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-mode`}
         label="Mode"
-        description="post_message is the supported extractor mode"
-        control={
-          <Input
-            className="w-40 font-mono"
-            data-testid={`${TEST_PREFIX}-extractor-mode-input`}
-            value={draft.extractor.mode}
-            placeholder="post_message"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  extractor: { ...current.extractor, mode: event.target.value },
-                };
-              })
-            }
-          />
-        }
+        description="Fixed for now"
+        control={<SettingValue mono>{draft.extractor.mode || "post_message"}</SettingValue>}
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-throttle`}
@@ -139,7 +131,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-deadline`}
         label="Deadline"
-        help="Per-extraction wall clock budget"
+        help="Time limit for each extraction. For example 60s"
         control={
           <Input
             className="w-32 font-mono"

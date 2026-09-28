@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -123,6 +123,8 @@ describe("Settings route split", () => {
 
   it("Should render exactly the four supported extension source and trust policy fields", () => {
     render(<PolicyHarness />);
+    // The GitHub API URL sits behind the page's Advanced fold.
+    fireEvent.click(screen.getByTestId("settings-advanced-toggle"));
 
     expect(
       screen.getByTestId("settings-page-extensions-policy-github-enabled")

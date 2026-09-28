@@ -148,7 +148,8 @@ describe("ProviderDetailDialog", () => {
     expect(header).not.toBeNull();
     expect(header?.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
     expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Create provider");
-    expect(within(dialog()).getByText("Settings · Provider")).toBeInTheDocument();
+    expect(within(dialog()).getByText("Provider")).toBeInTheDocument();
+    expect(within(dialog()).getByText("Connect an agent app to CompozyOS.")).toBeInTheDocument();
     // A provider surface configures a provider; it never chooses a runtime.
     expect(dialog().querySelector('[data-slot="runtime-selector"]')).toBeNull();
     expect(screen.queryByTestId("runtime-selector-trigger")).not.toBeInTheDocument();
@@ -242,7 +243,7 @@ describe("ProviderDetailDialog", () => {
     const identity = screen.getByTestId("settings-providers-editor-identity");
     expect(identity).toHaveTextContent("codex");
     expect(screen.queryByTestId("settings-providers-editor-name-input")).not.toBeInTheDocument();
-    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Edit codex");
+    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Edit Codex");
   });
 
   it("Should keep runtime and model fields in the Advanced tier", async () => {
@@ -280,18 +281,55 @@ describe("ProviderDetailDialog", () => {
     const user = userEvent.setup();
     renderDialog({ mode: "inspect", entry: nativeProvider });
 
-    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("codex");
+    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Codex");
     expect(screen.queryByTestId("settings-providers-editor-mode-advanced")).not.toBeInTheDocument();
     expect(screen.getByTestId("inspect-auth-mode")).toHaveTextContent("native_cli");
 
     await user.click(screen.getByTestId("provider-detail-tab-configure"));
 
     expect(screen.getByTestId("settings-providers-editor-basics")).toBeVisible();
-    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Edit codex");
+    expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Edit Codex");
 
     await user.click(screen.getByTestId("provider-detail-tab-overview"));
-    expect(screen.getByTestId("inspect-auth-mode")).toBeVisible();
+    expect(screen.getByTestId("provider-detail-summary")).toBeVisible();
     expect(screen.queryByTestId("settings-providers-editor-basics")).not.toBeInTheDocument();
+  });
+
+  it("Should open on a status summary with technical details folded away", async () => {
+    const user = userEvent.setup();
+    renderDialog({ mode: "inspect", entry: nativeProvider });
+
+    const summary = screen.getByTestId("provider-detail-summary");
+    expect(summary).toBeVisible();
+    expect(within(summary).getByTestId("provider-detail-summary-status")).toHaveTextContent(
+      "Needs sign-in"
+    );
+    expect(within(summary).getByTestId("inspect-default-model")).toHaveTextContent("gpt-5.6-sol");
+    expect(screen.getByTestId("provider-detail-status")).toHaveTextContent("Needs sign-in");
+    expect(screen.getByTestId("inspect-command")).not.toBeVisible();
+
+    await user.click(within(dialog()).getByRole("button", { name: "Technical details" }));
+    expect(screen.getByTestId("inspect-command")).toBeVisible();
+    expect(screen.getByTestId("inspect-auth-status")).toHaveTextContent("Needs sign-in");
+
+    await user.click(screen.getByTestId("provider-detail-summary-action"));
+    expect(screen.getByTestId("settings-providers-editor-basics")).toBeVisible();
+  });
+
+  it("Should offer delete only for providers the operator can remove", () => {
+    const builtin: SettingsProviderEntry = {
+      ...nativeProvider,
+      source_metadata: {
+        available_targets: ["global-config"],
+        effective_source: { kind: "builtin-provider", scope: "user" },
+      },
+    } as SettingsProviderEntry;
+    const { unmount } = renderDialog({ mode: "inspect", entry: builtin });
+    expect(screen.queryByTestId("provider-detail-delete")).not.toBeInTheDocument();
+    unmount();
+
+    renderDialog({ mode: "inspect", entry: nativeProvider });
+    expect(screen.getByTestId("provider-detail-delete")).toHaveTextContent("Delete provider");
   });
 
   it("Should expose only the safe login descriptor while inspecting a provider", () => {

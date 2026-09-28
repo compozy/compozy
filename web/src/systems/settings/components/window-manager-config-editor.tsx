@@ -50,49 +50,14 @@ export function WindowManagerConfigEditor({
 }: WindowManagerConfigEditorProps) {
   return (
     <>
-      <SettingsGroup
-        action={<SettingsLiveChip />}
-        description="These take effect immediately."
-        title="Window behavior"
-      >
+      <SettingsGroup description="Takes effect as soon as you save." title="Window behavior">
         <WindowManagerBehaviorPicks draft={editor.draft} setDraft={editor.setDraft} />
       </SettingsGroup>
 
       <SettingsGroup
-        bare
-        help="Drag the guides. Every value is measured in screen pixels."
-        title="Spacing and snapping"
-      >
-        <div className="grid gap-3 min-[900px]:grid-cols-2">
-          <WindowManagerConfigCard
-            help="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
-            problem={editor.problems.find(problem => problem.field === "gaps")?.message}
-            title="Gaps"
-          >
-            <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
-          </WindowManagerConfigCard>
-          <WindowManagerConfigCard
-            help="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
-            problem={editor.problems.find(problem => problem.field === "snap")?.message}
-            title="Snap zones"
-          >
-            <WindowManagerSnapMap draft={editor.draft} setDraft={editor.setDraft} />
-          </WindowManagerConfigCard>
-        </div>
-        <WindowManagerConfigCard
-          className="mt-3"
-          help="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
-          problem={editor.problems.find(problem => problem.field === "repeatRatios")?.message}
-          title="Repeat widths"
-        >
-          <WindowManagerRatioTrack draft={editor.draft} setDraft={editor.setDraft} />
-        </WindowManagerConfigCard>
-      </SettingsGroup>
-
-      <SettingsGroup
         action={<SettingsLiveChip />}
         bare
-        help="Click a chord to record a new one. Changes apply as you make them; only the ones you change are stored."
+        help="Click a shortcut to change it. Changes apply as you make them; only the ones you change are stored."
         title="Shortcuts"
       >
         <ShortcutPresetCard
@@ -112,42 +77,78 @@ export function WindowManagerConfigEditor({
         </div>
       </SettingsGroup>
 
-      <SettingsAdvancedFold data-testid="settings-page-layouts-advanced">
-        <SettingRow
-          control={
-            <div className="flex items-center gap-3">
-              <Slider
-                aria-label="Layout history steps"
-                className="w-44"
-                max={WINDOW_MANAGER_RANGES.historyLimit.max}
-                min={WINDOW_MANAGER_RANGES.historyLimit.min}
-                value={editor.draft.historyLimit}
-                onValueChange={historyLimit =>
-                  editor.setDraft(current => ({ ...current, historyLimit }))
-                }
-              />
-              <span className="w-16 shrink-0 font-mono text-form-hint tabular-nums text-fg">
-                {editor.draft.historyLimit} steps
-              </span>
-            </div>
-          }
-          description="Older steps fall off the end."
-          error={editor.problems.find(problem => problem.field === "historyLimit")?.message}
-          label={
-            <>
-              Layout history <SettingsProvChip>history_limit</SettingsProvChip>
-            </>
-          }
-        />
-        <SettingsTiles className="p-4">
-          <SettingsTile label="Config section" mono value="[window_manager]" />
-          <SettingsTile
-            detail={section.scope === "workspace" ? "Shortcuts write to this workspace" : undefined}
-            label="Scope"
-            value={section.availableScopes.length > 1 ? "Global and workspace" : "Global only"}
+      <SettingsAdvancedFold data-testid="settings-page-layouts-advanced" padded>
+        <SettingsGroup
+          bare
+          help="Drag the guides. Every value is measured in screen pixels."
+          title="Spacing and snapping"
+        >
+          <div className="grid gap-3 @min-settings-takeover:grid-cols-2">
+            <WindowManagerConfigCard
+              help="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
+              problem={editor.problems.find(problem => problem.field === "gaps")?.message}
+              title="Gaps"
+            >
+              <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
+            </WindowManagerConfigCard>
+            <WindowManagerConfigCard
+              help="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
+              problem={editor.problems.find(problem => problem.field === "snap")?.message}
+              title="Snap zones"
+            >
+              <WindowManagerSnapMap draft={editor.draft} setDraft={editor.setDraft} />
+            </WindowManagerConfigCard>
+          </div>
+          <WindowManagerConfigCard
+            className="mt-3"
+            help="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
+            problem={editor.problems.find(problem => problem.field === "repeatRatios")?.message}
+            title="Repeat widths"
+          >
+            <WindowManagerRatioTrack draft={editor.draft} setDraft={editor.setDraft} />
+          </WindowManagerConfigCard>
+        </SettingsGroup>
+        <SettingsGroup title="History">
+          <SettingRow
+            control={
+              <div className="flex items-center gap-3">
+                <Slider
+                  aria-label="Layout history steps"
+                  className="w-44"
+                  max={WINDOW_MANAGER_RANGES.historyLimit.max}
+                  min={WINDOW_MANAGER_RANGES.historyLimit.min}
+                  value={editor.draft.historyLimit}
+                  onValueChange={historyLimit =>
+                    editor.setDraft(current => ({ ...current, historyLimit }))
+                  }
+                />
+                <span className="w-16 shrink-0 font-mono text-form-hint tabular-nums text-fg">
+                  {editor.draft.historyLimit} steps
+                </span>
+              </div>
+            }
+            description="Older steps fall off the end."
+            error={editor.problems.find(problem => problem.field === "historyLimit")?.message}
+            label={
+              <>
+                Layout history <SettingsProvChip>history_limit</SettingsProvChip>
+              </>
+            }
           />
-          <SettingsTile detail="Hot-applied, no restart" label="Lifecycle" value="Live" />
-        </SettingsTiles>
+          <SettingsTiles className="p-4">
+            <SettingsTile label="Config section" mono value="[window_manager]" />
+            <SettingsTile
+              detail={
+                section.scope === "workspace" ? "Shortcuts are saved for this project" : undefined
+              }
+              label="Scope"
+              value={
+                section.availableScopes.length > 1 ? "Everywhere and per project" : "Everywhere"
+              }
+            />
+            <SettingsTile detail="No restart needed" label="Lifecycle" value="Live" />
+          </SettingsTiles>
+        </SettingsGroup>
       </SettingsAdvancedFold>
     </>
   );

@@ -1,40 +1,16 @@
-import { AlertCircle } from "lucide-react";
-
-import { ROLE_ORDER } from "@/systems/settings";
-
 import {
+  ROLE_ORDER,
   RoleList,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsSaveBar,
   useSettingsSaveBarState,
   useSettingsRolesPage,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Skeleton } from "@compozy/ui";
+import { SkeletonRows } from "@compozy/ui";
 
 const TEST_PREFIX = "settings-page-roles";
-
-function RolesNotice({
-  message,
-  onRetry,
-  testId,
-}: {
-  message: string;
-  onRetry: () => void;
-  testId: string;
-}) {
-  return (
-    <div className="flex flex-1 items-center justify-center" data-testid={testId}>
-      <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-danger" />
-        <p className="max-w-settings-page-description text-sm text-subtle">{message}</p>
-        <Button onClick={onRetry} size="sm" type="button" variant="outline">
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export function RolesSettingsPage() {
   const page = useSettingsRolesPage();
@@ -50,24 +26,18 @@ export function RolesSettingsPage() {
 
   if (page.isLoading) {
     return (
-      <div className="mx-auto flex w-full max-w-settings-page-wide flex-col gap-2.5 px-6 pt-5">
-        <Skeleton className="h-4 w-24" />
+      <div className="mx-auto flex w-full max-w-settings-page-wide flex-col px-6 pt-5">
         <div
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          aria-busy="true"
+          className="rounded-lg border border-line bg-canvas-soft px-4"
           data-testid={`${TEST_PREFIX}-loading`}
+          role="status"
         >
-          {ROLE_ORDER.map(role => (
-            <div
-              key={role}
-              className="flex items-center justify-between gap-3 px-4 py-3 not-last:border-b not-last:border-line-soft"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <Skeleton className="h-3.5 w-40" />
-                <Skeleton className="h-3 w-3/5" />
-              </div>
-              <Skeleton className="h-5 w-9 rounded-full" />
-            </div>
-          ))}
+          <SkeletonRows
+            count={ROLE_ORDER.length}
+            rowClassName="border-t border-line-soft py-3 first:border-t-0"
+          />
+          <span className="sr-only">Loading roles</span>
         </div>
       </div>
     );
@@ -75,22 +45,21 @@ export function RolesSettingsPage() {
 
   if (page.error) {
     return (
-      <RolesNotice
-        message={page.error.message}
-        onRetry={page.handleRetry}
-        testId={`${TEST_PREFIX}-error`}
-      />
+      <SettingsPageState error={page.error} onRetry={page.handleRetry} slug="roles" state="error" />
     );
   }
 
   // Empty projection is a protocol anomaly, not a normal empty state.
   if (page.isEmpty) {
     return (
-      <RolesNotice
-        message="Roles unavailable — no role projection was returned."
-        onRetry={page.handleRetry}
-        testId={`${TEST_PREFIX}-empty`}
-      />
+      <div className="flex flex-1" data-testid={`${TEST_PREFIX}-empty`}>
+        <SettingsPageState
+          error="No roles were returned."
+          onRetry={page.handleRetry}
+          slug="roles"
+          state="error"
+        />
+      </div>
     );
   }
 

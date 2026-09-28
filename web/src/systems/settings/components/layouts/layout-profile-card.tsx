@@ -54,7 +54,7 @@ export function LayoutProfileCard({
           </span>
           <span className="mt-2 flex flex-wrap items-center gap-1.5">
             <Pill size="xs" tone={record.scope.kind === "global" ? "info" : "neutral"}>
-              {record.scope.kind === "global" ? "Every workspace" : "This workspace"}
+              {record.scope.kind === "global" ? "Every project" : "This project"}
             </Pill>
             {record.spec.aspectVariant === "any" ? null : (
               <Pill size="xs" tone="neutral">

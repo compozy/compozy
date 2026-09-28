@@ -47,7 +47,7 @@ export function RoleRoutingFields({
           description={
             <RoleEffectiveHint
               effective={vm.effective.agent ?? null}
-              emptyLabel="Resolves at invocation."
+              emptyLabel="Decided when the role runs."
             />
           }
           control={
@@ -65,7 +65,7 @@ export function RoleRoutingFields({
       ) : null}
       <SettingsFieldRow
         data-testid={`${testId}-runtime`}
-        label={<span id={runtimeLabelId}>Runtime</span>}
+        label={<span id={runtimeLabelId}>Model</span>}
         help="Provider, model and reasoning effort for this role."
         description={
           noProviders ? (
@@ -73,7 +73,10 @@ export function RoleRoutingFields({
               No providers configured yet.
             </span>
           ) : (
-            <RoleEffectiveHint effective={vm.routeSummary} emptyLabel="Resolves at invocation." />
+            <RoleEffectiveHint
+              effective={vm.routeSummary}
+              emptyLabel="Decided when the role runs."
+            />
           )
         }
         control={

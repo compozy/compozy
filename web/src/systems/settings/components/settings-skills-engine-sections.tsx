@@ -13,7 +13,7 @@ export interface SettingsSkillsDraftSectionProps {
 
 export function SettingsSkillsEngineSection({ draft, onChange }: SettingsSkillsDraftSectionProps) {
   return (
-    <SettingsGroup title="Skills engine" description="restart required to apply">
+    <SettingsGroup title="Skills engine" description="Applies after CompozyOS restarts">
       <SettingsFieldRow
         data-testid="settings-page-skills-enabled"
         label="Use skills"

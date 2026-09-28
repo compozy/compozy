@@ -1,10 +1,9 @@
-import { AlertCircle } from "lucide-react";
-
 import { useSettingsSkillsPage } from "@/systems/settings/hooks/use-settings-skills-page";
 import {
   SettingsAdvancedFold,
   SettingsDisabledSkillsSection,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsRuntimeUnavailable,
   SettingsInlineSaveControls,
   SettingsSaveBar,
@@ -17,7 +16,6 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner } from "@compozy/ui";
 
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
@@ -31,32 +29,17 @@ export function SkillsSettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-skills-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="skills" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-skills-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load skills settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="skills"
+        state="error"
+      />
     );
   }
 
@@ -110,10 +93,10 @@ function SkillsSettingsContent({
                 ),
               },
             ]
-          : [{ key: "runtime", content: <span>runtime unavailable</span> }]),
+          : [{ key: "runtime", content: <span>CompozyOS isn&apos;t reachable</span> }]),
         {
           key: "scope",
-          content: <span data-testid="settings-page-skills-scope-label">scope {scopeLabel}</span>,
+          content: <span data-testid="settings-page-skills-scope-label">showing {scopeLabel}</span>,
         },
       ]}
       restart={restart}
@@ -135,9 +118,6 @@ function SkillsSettingsContent({
           description="CompozyOS isn't reachable right now. Skill counts are hidden until it's back. You can still change these settings."
         />
       ) : null}
-      {isPersonalPolicyScope ? (
-        <SettingsSkillsEngineSection draft={draft} onChange={setDraft} />
-      ) : null}
       <SettingsSkillsScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
@@ -150,11 +130,12 @@ function SkillsSettingsContent({
         onSelectAgent={page.selectAgent}
         onSelectWorkspace={page.selectWorkspace}
       />
+      {isPersonalPolicyScope ? (
+        <SettingsSkillsEngineSection draft={draft} onChange={setDraft} />
+      ) : null}
       <SettingsSkillSourcesSection model={page.sources} />
       {isPersonalPolicyScope ? (
-        <>
-          <SettingsSkillsDiscoverySection draft={draft} onChange={setDraft} />
-        </>
+        <SettingsSkillsDiscoverySection draft={draft} onChange={setDraft} />
       ) : null}
       <SkillsDisabledPolicy page={page} envelope={envelope} draft={draft} />
       {isPersonalPolicyScope ? (
@@ -181,18 +162,20 @@ function SkillsDisabledPolicy({ page, envelope, draft }: LoadedSkillsProps) {
       disabled={draft.disabled_skills ?? []}
       note={
         page.isRepositoryProfile
-          ? "read only · active profile projection"
+          ? "Read-only — set by the active profile"
           : page.selection.scope === "agent"
             ? `applies immediately · scoped to ${page.selectedAgent?.name ?? page.selection.agentName}${page.selectedWorkspace ? ` via ${page.selectedWorkspace.name}` : ""}`
-            : "applies immediately · no restart required"
+            : "applies right away · no restart needed"
       }
       emptyTitle={
-        page.selection.scope === "agent" ? "No agent-local tombstones" : "No skills installed"
+        page.selection.scope === "agent"
+          ? "No skills turned off for this agent"
+          : "No skills turned off"
       }
       emptyDescription={
         page.selection.scope === "agent"
-          ? "This agent is currently inheriting the effective skill set without disabled logical names."
-          : "No skills have been disabled in this scope."
+          ? "This agent uses the same skills as everywhere else."
+          : "Every skill here is turned on."
       }
       onToggle={page.toggleDisabled}
       readOnly={page.isRepositoryProfile}
@@ -201,7 +184,7 @@ function SkillsDisabledPolicy({ page, envelope, draft }: LoadedSkillsProps) {
           <SettingsInlineSaveControls
             controlTestIdPrefix="settings-page-skills-disabled"
             testId="settings-page-skills-disabled-controls"
-            saveLabel="Apply"
+            saveLabel="Apply now"
             isDirty={page.isDisabledDirty}
             isSaving={page.isSavingDisabled}
             error={page.saveDisabledError}
@@ -220,6 +203,6 @@ function skillsScopeLabel(page: SkillsPageModel): string {
   return page.selection.scope === "user"
     ? page.personalLabel.toLowerCase()
     : page.selection.scope === "workspace"
-      ? `workspace ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
+      ? `project ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
       : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
 }
