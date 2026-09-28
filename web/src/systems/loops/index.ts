@@ -285,7 +285,6 @@ export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
-export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
 export { LoopRunsView } from "./components/runs/loop-runs-view";
